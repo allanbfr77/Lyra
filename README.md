@@ -32,9 +32,9 @@ Tudo funciona na **rede local (LAN)** — sem depender de internet durante o cul
 ┌─────────────────────┐     Wi-Fi / LAN      ┌─────────────────────┐
 │  Controlador (PC)   │ ───────────────────► │   Servidor (PC)     │
 │  ou Mobile (Android)│                      │                     │
-└─────────────────────┘                      │  ┌── Telão (HDMI)  │
-         │                                     │  └── TV (HDMI)    │
-         │  API REST :3001                     └─────────────────────┘
+└─────────────────────┘                      │  ┌── Telão (HDMI)   │
+         │                                   │  └── TV (HDMI)      │
+         │  API REST :3001                   └─────────────────────┘
          │  Socket.IO :5510
          ▼
    Músicas · Playlists · Bíblia · Projeção
