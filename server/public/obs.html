@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lyra — OBS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-end;
+    }
+
+    /* Faixa inferior — some quando não há letra */
+    .obs-wrap {
+      width: 100%;
+      padding: 12px 40px;
+      background: rgba(0, 0, 0, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      /* Animação de entrada/saída */
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      pointer-events: none;
+    }
+
+    /* Classe adicionada pelo JS quando há letra */
+    .obs-wrap.visivel {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .obs-texto {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: var(--obs-font-size, 5vw);
+      font-weight: 700;
+      color: #ffffff;
+      text-align: center;
+      line-height: var(--obs-line-spacing, 1.3);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      text-shadow:
+        0 2px 8px rgba(0,0,0,0.9),
+        0 0 32px rgba(0,0,0,0.7),
+        2px 2px 0 rgba(0,0,0,0.5);
+      white-space: pre-wrap;
+      max-width: 92%;
+    }
+
+    #obs-status {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="obs-wrap" id="obs-wrap">
+    <div class="obs-texto" id="obs-texto"></div>
+  </div>
+  <div id="obs-status"></div>
+
+  <script>
+    // ── OBS URL Override ──────────────────────────────────────────────
+    (function () {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const obs = {};
+
+        if (params.has('fontSize')) {
+          const v = Number(params.get('fontSize'));
+          if (Number.isFinite(v) && v >= 1 && v <= 40) obs.fontSize = v;
+        }
+        if (params.has('wrap')) {
+          obs.wrapLongLines = params.get('wrap') === 'true';
+        }
+        if (params.has('bg')) {
+          obs.bgColor = '#' + String(params.get('bg')).replace('#', '');
+        }
+        if (params.has('textColor')) {
+          obs.textColor = '#' + String(params.get('textColor')).replace('#', '');
+        }
+        if (params.has('textAlign')) {
+          const v = params.get('textAlign');
+          if (['left', 'center', 'right'].includes(v)) obs.textAlign = v;
+        }
+        if (params.has('lineSpacing')) {
+          const v = parseFloat(params.get('lineSpacing'));
+          if (Number.isFinite(v)) obs.lineSpacing = v;
+        }
+
+        window.__obsOverride = Object.keys(obs).length > 0 ? obs : null;
+      } catch (e) {
+        window.__obsOverride = null;
+      }
+    })();
+    // ── fim OBS URL Override ──────────────────────────────────────────
+
+    function resolverUrlServidorLyrics() {
+      const qs = new URLSearchParams(window.location.search || '');
+      const fromQuery = (qs.get('server') || '').trim();
+      if (fromQuery) {
+        if (/^https?:\/\//i.test(fromQuery)) return fromQuery.replace(/\/+$/, '');
+        if (/^[\w.-]+:\d+$/i.test(fromQuery)) return `http://${fromQuery}`;
+        return `http://${fromQuery.replace(/\/+$/, '')}:5510`;
+      }
+      try {
+        const legadoObs = localStorage.getItem('invb_obs_server_url');
+        if (legadoObs != null && !localStorage.getItem('lyra_obs_server_url')) {
+          localStorage.setItem('lyra_obs_server_url', legadoObs);
+        }
+        if (legadoObs != null) localStorage.removeItem('invb_obs_server_url');
+        const fromLs = (localStorage.getItem('lyra_obs_server_url') || '').trim();
+        if (fromLs) {
+          if (/^https?:\/\//i.test(fromLs)) return fromLs.replace(/\/+$/, '');
+          if (/^[\w.-]+:\d+$/i.test(fromLs)) return `http://${fromLs}`;
+          return `http://${fromLs.replace(/\/+$/, '')}:5510`;
+        }
+      } catch (_) {}
+      const host = window.location.hostname || 'localhost';
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${proto}//${host}:5510`;
+    }
+
+    const SERVER_URL = resolverUrlServidorLyrics();
+    const elTexto  = document.getElementById('obs-texto');
+    const elWrap   = document.getElementById('obs-wrap');
+    const elStatus = document.getElementById('obs-status');
+    let fadeTimer;
+    let socket = null;
+
+    function setStatus(msg, cls) {
+      elStatus.textContent = msg;
+      elStatus.className = cls ? cls : '';
+    }
+
+    function mergeObsOverrideEmCfg(cfg) {
+      if (!cfg || typeof cfg !== 'object') return cfg;
+      const o = window.__obsOverride;
+      if (!o) return cfg;
+      const publico = { ...(cfg.publico || {}) };
+      if (o.fontSize    !== undefined) publico.fontSize     = o.fontSize;
+      if (o.wrapLongLines !== undefined) publico.wrapLongLines = o.wrapLongLines;
+      if (o.bgColor     !== undefined) publico.bgColor      = o.bgColor;
+      if (o.textColor   !== undefined) publico.textColor    = o.textColor;
+      if (o.textAlign   !== undefined) publico.textAlign    = o.textAlign;
+      if (o.lineSpacing !== undefined) publico.lineSpacing  = o.lineSpacing;
+      return { ...cfg, publico };
+    }
+
+    function aplicarEstilosObsUrlNaPagina() {
+      const o = window.__obsOverride;
+      if (!o) return;
+      if (o.textColor) elTexto.style.color = o.textColor;
+      if (o.textAlign) elTexto.style.textAlign = o.textAlign;
+      if (o.wrapLongLines === true)  elTexto.style.whiteSpace = 'pre-wrap';
+      else if (o.wrapLongLines === false) elTexto.style.whiteSpace = 'pre';
+    }
+
+    function aplicarConfig(cfg) {
+      if (!cfg || typeof cfg !== 'object') return;
+      const eff = mergeObsOverrideEmCfg(cfg);
+      const pb = eff.publico || {};
+      const fs = Number(pb.fontSize ?? eff.fontSize);
+      const lsRaw = pb.lineSpacing != null ? pb.lineSpacing : eff.lineSpacing;
+      if (Number.isFinite(fs) && fs > 0) {
+        document.documentElement.style.setProperty('--obs-font-size', `${fs}vw`);
+      }
+      const lsNum = Number(lsRaw);
+      if (Number.isFinite(lsNum)) {
+        const lineHeight = Math.max(1.08, 1 + lsNum);
+        document.documentElement.style.setProperty('--obs-line-spacing', String(lineHeight));
+      }
+      const letSp = Number(pb.letterSpacing ?? eff.letterSpacing);
+      if (Number.isFinite(letSp)) {
+        elTexto.style.letterSpacing = `${letSp}px`;
+      }
+      if (window.__obsOverride) aplicarEstilosObsUrlNaPagina();
+    }
+
+    function atualizar(estado) {
+      clearTimeout(fadeTimer);
+      elWrap.classList.remove('visivel');
+
+      fadeTimer = setTimeout(() => {
+        const vazio =
+          !estado ||
+          estado.telaLimpa ||
+          estado.blackout ||
+          estado.slidePretoFinal ||
+          !Array.isArray(estado.linhas) ||
+          estado.linhas.length === 0;
+
+        if (vazio) {
+          elTexto.textContent = '';
+          const tipo = estado && estado.tipo;
+          if (tipo === 'apresentacao') {
+            setStatus(`Ligado a ${SERVER_URL} — modo apresentação/mídia (sem letra no OBS).`, 'ok');
+          } else {
+            setStatus(`Ligado a ${SERVER_URL} — à espera de letra/slide.`, 'ok');
+          }
+          return;
+        }
+
+        elTexto.textContent = estado.linhas.join('\n');
+        elWrap.classList.add('visivel');
+        if (window.__obsOverride) aplicarEstilosObsUrlNaPagina();
+        setStatus(`Ligado a ${SERVER_URL}`, 'ok');
+      }, 120);
+    }
+
+    function conectar() {
+      if (!window.io) {
+        setStatus('Falha: socket.io não carregou. Verifique ' + SERVER_URL, 'erro');
+        return;
+      }
+
+      socket = io(SERVER_URL, {
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        reconnectionDelay: 2000,
+        reconnectionAttempts: Infinity,
+      });
+
+      socket.on('connect', () => {
+        setStatus('Socket ligado — ' + SERVER_URL, 'ok');
+        socket.emit('get_estado');
+      });
+
+      socket.on('connect_error', (err) => {
+        setStatus(
+          'Erro ao ligar a ' + SERVER_URL + ' — ' + (err && err.message ? err.message : 'rede/firewall?'),
+          'erro'
+        );
+      });
+
+      socket.on('estado', atualizar);
+      socket.on('display_config', aplicarConfig);
+
+      socket.on('disconnect', () => {
+        elWrap.classList.remove('visivel');
+        setStatus('Desligado do servidor.', 'erro');
+      });
+    }
+
+    function carregarSocketIO() {
+      setStatus('A carregar socket.io de ' + SERVER_URL + ' …', '');
+      const script = document.createElement('script');
+      script.src = `${SERVER_URL}/socket.io/socket.io.js`;
+
+      script.onload = () => conectar();
+
+      script.onerror = () => {
+        setStatus(
+          'Não foi possível carregar ' + SERVER_URL + '/socket.io/socket.io.js (servidor a correr na 5510? Firewall?)',
+          'erro'
+        );
+        setTimeout(carregarSocketIO, 3000);
+      };
+
+      document.head.appendChild(script);
+    }
+
+    setStatus('Página OBS — API: ' + SERVER_URL, '');
+    if (window.__obsOverride) aplicarConfig({ publico: {} });
+    carregarSocketIO();
+  </script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lyra — Relógio</title>
+  <style>
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: local('CMG Sans'), local('CMGSans-Regular'), url('./fonts/CMGSans-Regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: local('CMG Sans Bold'), local('CMGSans-Bold'), url('./fonts/CMGSans-Bold.woff2') format('woff2');
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      color: #ffffff;
+      cursor: none;
+      font-family: 'CMG Sans', 'DM Sans', system-ui, -apple-system, sans-serif;
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6vh;
+      width: 100%;
+      max-width: 92vw;
+      text-align: center;
+    }
+    .clock {
+      font-size: 13vh;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .meta {
+      max-width: 86%;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      opacity: 0.86;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="clock-digital" class="clock"></div>
+    <div id="clock-analog-wrap" style="display:none;line-height:0">
+      <canvas id="clock-canvas" width="320" height="320"></canvas>
+    </div>
+    <div id="clock-date" class="meta"></div>
+    <div id="clock-church" class="meta"></div>
+    <div id="clock-verse" class="meta"></div>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    const elClockDigital = document.getElementById('clock-digital');
+    const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
+    const elClockCanvas = document.getElementById('clock-canvas');
+    const elClockDate = document.getElementById('clock-date');
+    const elClockChurch = document.getElementById('clock-church');
+    const elClockVerse = document.getElementById('clock-verse');
+
+    let timer = null;
+    let displayConfig = {
+      clock: {
+        format: 'HH:MM',
+        fontSize: 13,
+        dateFontSize: 2.4,
+        churchFontSize: 2.4,
+        verseFontSize: 2.4,
+        showDate: true,
+        showChurchName: false,
+        churchName: '',
+        showVerse: false,
+        verse: '',
+        bgType: 'solid',
+        bgColor: '#f5f2ea',
+        bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
+        bgImage: '',
+        textColor: '#1c1816',
+      },
+    };
+
+    function aplicarFundoRelogio(clk) {
+      if (clk.bgType === 'gradient') {
+        document.body.style.background = clk.bgGradient || '#000000';
+      } else if (clk.bgType === 'image' && clk.bgImage) {
+        document.body.style.background = `url('${clk.bgImage}') center/cover no-repeat`;
+      } else {
+        document.body.style.background = clk.bgColor || '#000000';
+      }
+    }
+
+    function desenharRelogioAnalogico(now, cor) {
+      if (!elClockCanvas) return;
+      const ctxCv = elClockCanvas.getContext('2d');
+      const W = elClockCanvas.width;
+      const H = elClockCanvas.height;
+      const cx = W / 2;
+      const cy = H / 2;
+      const r = W / 2 - 14;
+
+      ctxCv.clearRect(0, 0, W, H);
+
+      ctxCv.beginPath();
+      ctxCv.arc(cx, cy, r, 0, 2 * Math.PI);
+      ctxCv.strokeStyle = cor;
+      ctxCv.globalAlpha = 0.28;
+      ctxCv.lineWidth = 2;
+      ctxCv.stroke();
+      ctxCv.globalAlpha = 1;
+
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * 2 * Math.PI - Math.PI / 2;
+        const maior = i % 3 === 0;
+        const inner = maior ? r - 22 : r - 10;
+        ctxCv.beginPath();
+        ctxCv.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+        ctxCv.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+        ctxCv.strokeStyle = cor;
+        ctxCv.globalAlpha = maior ? 0.85 : 0.38;
+        ctxCv.lineWidth = maior ? 3 : 1.5;
+        ctxCv.stroke();
+        ctxCv.globalAlpha = 1;
+      }
+
+      const sec = now.getSeconds();
+      const min = now.getMinutes() + sec / 60;
+      const hr = (now.getHours() % 12) + min / 60;
+
+      const desenharMao = (frac, len, largura, alpha) => {
+        const ang = frac * 2 * Math.PI - Math.PI / 2;
+        ctxCv.beginPath();
+        ctxCv.moveTo(cx, cy);
+        ctxCv.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+        ctxCv.strokeStyle = cor;
+        ctxCv.globalAlpha = alpha;
+        ctxCv.lineWidth = largura;
+        ctxCv.lineCap = 'round';
+        ctxCv.stroke();
+        ctxCv.globalAlpha = 1;
+      };
+
+      desenharMao(hr / 12, r * 0.52, 9, 0.95);
+      desenharMao(min / 60, r * 0.73, 5.5, 0.88);
+      desenharMao(sec / 60, r * 0.82, 2, 0.65);
+
+      ctxCv.beginPath();
+      ctxCv.arc(cx, cy, 7, 0, 2 * Math.PI);
+      ctxCv.fillStyle = cor;
+      ctxCv.globalAlpha = 0.9;
+      ctxCv.fill();
+      ctxCv.globalAlpha = 1;
+    }
+
+    function aplicarConfig(cfg) {
+      if (!cfg || typeof cfg !== 'object') return;
+      displayConfig = {
+        ...displayConfig,
+        clock: { ...(displayConfig.clock || {}), ...(cfg.clock || {}) },
+      };
+      const clk = displayConfig.clock || {};
+      const color = clk.textColor || '#1c1816';
+
+      elClockDigital.style.color = color;
+      elClockDate.style.color = color;
+      elClockChurch.style.color = color;
+      elClockVerse.style.color = color;
+
+      elClockDigital.style.fontSize = `${Math.max(7, Number(clk.fontSize || 13))}vh`;
+      elClockDate.style.fontSize = `${Math.max(1, Number(clk.dateFontSize || 2.4))}vh`;
+      elClockChurch.style.fontSize = `${Math.max(1, Number(clk.churchFontSize || 2.4))}vh`;
+      elClockVerse.style.fontSize = `${Math.max(1, Number(clk.verseFontSize || 2.4))}vh`;
+
+      aplicarFundoRelogio(clk);
+      tick();
+      if (!timer) timer = setInterval(tick, 1000);
+    }
+
+    function tick() {
+      const now = new Date();
+      const clk = displayConfig.clock || {};
+      const fmt = String(clk.format || 'HH:MM');
+      const lowerFmt = fmt.toLowerCase();
+      const color = clk.textColor || '#1c1816';
+
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+
+      const analogico = lowerFmt === 'analog';
+      elClockDigital.style.display = analogico || lowerFmt === 'none' ? 'none' : '';
+      elClockAnalogWrap.style.display = analogico ? '' : 'none';
+
+      if (lowerFmt === 'hh:mm:ss') {
+        elClockDigital.textContent = `${h}:${m}:${s}`;
+      } else if (lowerFmt !== 'none' && !analogico) {
+        elClockDigital.textContent = `${h}:${m}`;
+      } else {
+        elClockDigital.textContent = '';
+      }
+
+      if (analogico) desenharRelogioAnalogico(now, color);
+
+      if (clk.showDate) {
+        elClockDate.textContent = now.toLocaleDateString('pt-BR', {
+          weekday: 'long',
+          day: '2-digit',
+          month: 'long',
+        });
+        elClockDate.style.display = '';
+      } else {
+        elClockDate.textContent = '';
+        elClockDate.style.display = 'none';
+      }
+
+      if (clk.showChurchName && clk.churchName) {
+        elClockChurch.textContent = String(clk.churchName);
+        elClockChurch.style.display = '';
+      } else {
+        elClockChurch.textContent = '';
+        elClockChurch.style.display = 'none';
+      }
+
+      if (clk.showVerse && clk.verse) {
+        elClockVerse.textContent = String(clk.verse);
+        elClockVerse.style.display = '';
+      } else {
+        elClockVerse.textContent = '';
+        elClockVerse.style.display = 'none';
+      }
+    }
+
+    ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));
+    aplicarConfig(displayConfig);
+  </script>
+</body>
+</html>

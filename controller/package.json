@@ -1,0 +1,90 @@
+{
+  "name": "lyra-controller",
+  "version": "1.0.0",
+  "description": "Controlador Lyra — PC operador",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "nodemon src/main.js",
+    "prepublish:win": "node -e \"if (!process.env.GH_TOKEN) { console.error('GH_TOKEN não definido no ambiente.'); process.exit(1); }\"",
+    "catalog:build": "node ../tools/gerar-catalog.js",
+    "prebuild:win": "node ../tools/gerar-catalog.js",
+    "build:win": "electron-builder --win nsis",
+    "publish:win": "electron-builder --win nsis --publish always",
+    "build:dir": "electron-builder --dir"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.x.x",
+    "electron-updater": "^6.3.9",
+    "express": "^4.22.2",
+    "extract-zip": "^2.0.1",
+    "socket.io-client": "^4.7.4",
+    "tar": "^6.2.1",
+    "vosk-browser": "^0.0.8"
+  },
+  "devDependencies": {
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "nodemon": "^3.1.14"
+  },
+  "build": {
+    "appId": "br.org.lyra.controller",
+    "productName": "Lyra Controlador",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../brand/lyra-controller.ico",
+        "to": "brand/lyra-controller.ico"
+      },
+      {
+        "from": "../brand/lyra-controller-512.png",
+        "to": "brand/lyra-controller-512.png"
+      },
+      {
+        "from": "../server/data",
+        "to": "server/data"
+      },
+      {
+        "from": "../data/catalog",
+        "to": "catalog",
+        "filter": [
+          "catalog.db"
+        ]
+      }
+    ],
+    "icon": "../brand/lyra-controller-512.png",
+    "mac": {
+      "icon": "../brand/lyra-controller-512.png"
+    },
+    "linux": {
+      "icon": "../brand/lyra-controller-512.png"
+    },
+    "win": {
+      "icon": "../brand/lyra-controller.ico",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Lyra-Controlador-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "installerIcon": "../brand/lyra-controller.ico",
+      "uninstallerIcon": "../brand/lyra-controller.ico",
+      "installerHeaderIcon": "../brand/lyra-controller.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "allanbfr77",
+      "repo": "lyra-releases",
+      "releaseType": "release"
+    }
+  }
+}

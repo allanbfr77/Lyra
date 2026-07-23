@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lyra — Servidor</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Variáveis para Modo Escuro (Padrão) */
+      --bg-body: #0a0a0a;
+      --bg-card: #111111;
+      --surface: #1c1c1c;
+      --border: #2a2a2a;
+      --accent: #a67c2d;
+      --text-main: #eeeeee;
+      --text-dim: #888888;
+      --success: #28a745;
+      --font-ui: 'DM Sans', system-ui, sans-serif;
+    }
+
+    /* Variáveis para Modo Claro */
+    body.light-theme {
+      --bg-body: #f5f3ee;
+      --bg-card: #ffffff;
+      --surface: #f0ede8;
+      --border: #dcd7cc;
+      --text-main: #1a1a1a;
+      --text-dim: #706b63;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      transition: background-color 0.3s ease;
+    }
+
+    .server-card {
+      width: 340px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    .card-header {
+      padding: 20px;
+      background: rgba(0,0,0,0.1);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-group { display: flex; flex-direction: column; }
+    .logo-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .logo-img {
+      display: block;
+      height: 36px;
+      width: 36px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .logo-sub { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+
+    .card-content { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      padding: 12px 15px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: background-color 0.3s ease;
+    }
+
+    .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; }
+    .value { font-family: monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+
+    button {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-main);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    button:hover { border-color: var(--accent); background: var(--border); }
+
+    .btn-full { width: 100%; margin-top: 5px; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-label { letter-spacing: 0.04em; }
+    .btn-icon {
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: currentColor;
+      flex-shrink: 0;
+    }
+    .btn-icon svg {
+      width: 16px;
+      height: 16px;
+      display: block;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .badge {
+      background: var(--accent);
+      color: #000;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+    }
+
+    /* Estilos do Footer e Status Online */
+    .card-footer {
+      padding: 15px;
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-top: 1px solid var(--border);
+      background: rgba(0,0,0,0.05);
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--success);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      position: relative;
+    }
+
+    .status-dot::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+
+    /* Modal monitores — mesmo idioma visual do cartão principal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    body.light-theme .modal-overlay {
+      background: rgba(26, 22, 18, 0.35);
+    }
+
+    .modal-overlay.aberto {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .modal-panel {
+      width: min(308px, 100%);
+      max-height: min(420px, calc(100vh - 32px));
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.96) translateY(6px);
+      transition: transform 0.2s ease;
+    }
+
+    body.light-theme .modal-panel {
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12);
+    }
+
+    .modal-overlay.aberto .modal-panel {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    body.light-theme .modal-header {
+      background: rgba(0, 0, 0, 0.03);
+    }
+
+    .modal-titulo {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .modal-subtitulo {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .modal-fechar {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      padding: 0;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .modal-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .modal-corpo-msg {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      padding: 8px 4px;
+    }
+
+    .modal-monitor-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .modal-monitor-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .modal-monitor-nome {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .pill-principal {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(166, 124, 45, 0.25);
+      color: var(--accent);
+      border: 1px solid rgba(166, 124, 45, 0.45);
+    }
+
+    body.light-theme .pill-principal {
+      background: rgba(166, 124, 45, 0.12);
+    }
+
+    .modal-monitor-metros {
+      font-family: ui-monospace, 'Cascadia Code', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .modal-monitor-detalhe {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .modal-footer {
+      flex-shrink: 0;
+      padding: 12px 14px 14px;
+      border-top: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    body.light-theme .modal-footer {
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .modal-footer button {
+      width: 100%;
+    }
+
+    .modal-ajuda-panel {
+      width: min(348px, 100%);
+      max-height: min(560px, calc(100vh - 32px));
+    }
+
+    .help-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .help-intro,
+    .help-card {
+      border-radius: 12px;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .help-intro {
+      background: linear-gradient(180deg, rgba(166, 124, 45, 0.18), rgba(166, 124, 45, 0.08));
+      border: 1px solid rgba(166, 124, 45, 0.28);
+    }
+
+    body.light-theme .help-intro {
+      background: linear-gradient(180deg, rgba(166, 124, 45, 0.12), rgba(166, 124, 45, 0.05));
+      border-color: rgba(166, 124, 45, 0.2);
+    }
+
+    .help-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .help-card-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-main);
+    }
+
+    .help-intro p,
+    .help-card p {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-dim);
+    }
+
+    .help-intro strong,
+    .help-card strong,
+    .help-lista strong {
+      color: var(--text-main);
+    }
+
+    .help-lista {
+      list-style: none;
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .help-lista li {
+      position: relative;
+      padding-left: 14px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-dim);
+    }
+
+    .help-lista li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 7px;
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+  </style>
+</head>
+<body class="dark-theme">
+
+<div class="server-card">
+  <div class="card-header">
+    <div class="logo-group logo-brand">
+      <img class="logo-img" src="./images/lyra-logo.png" alt="Lyra" width="36" height="36">
+      <span class="logo-sub">Servidor v1.0.0</span>
+    </div>
+    <button
+      id="btn-reload-window"
+      type="button"
+      aria-label="Recarregar janela"
+      style="padding: 6px; border-radius: 50%;"
+    >↻</button>
+  </div>
+
+  <div class="card-content">
+    <div class="info-row">
+      <span class="label">Endereço IP</span>
+      <span class="value" id="ip-addr">---</span>
+    </div>
+    
+    <div class="info-row">
+      <span class="label">Porta</span>
+      <span class="value">5510</span>
+    </div>
+
+    <button class="btn-full" id="btn-monitores-info" type="button">
+      🖥 Monitores disponíveis 
+      <span class="badge" id="monitores-count">…</span>
+    </button>
+
+    <div class="btn-row">
+      <button id="btn-theme" type="button" aria-label="Alternar tema">
+        <span class="btn-icon" id="btn-theme-icon" aria-hidden="true"></span>
+        <span class="btn-label" id="btn-theme-label">ESCURO</span>
+      </button>
+      <button id="btn-help" type="button" aria-label="Abrir ajuda do servidor">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M9.25 9a2.75 2.75 0 1 1 4.75 1.9c-.79.77-1.5 1.29-1.5 2.35"></path>
+            <circle cx="12" cy="16.75" r="0.85" fill="currentColor" stroke="none"></circle>
+          </svg>
+        </span>
+        <span class="btn-label">AJUDA</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="card-footer">
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      Online
+    </div>
+  </div>
+</div>
+
+<div id="modal-monitores-overlay" class="modal-overlay" aria-hidden="true">
+  <div
+    id="modal-monitores-dialog"
+    class="modal-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-monitores-titulo"
+    aria-describedby="modal-monitores-desc"
+  >
+    <div class="modal-header">
+      <div>
+        <div id="modal-monitores-titulo" class="modal-titulo">Monitores disponíveis</div>
+        <p id="modal-monitores-desc" class="modal-subtitulo">Telas que o Electron reconhece neste PC. Para três monitores físicos aparecerem como entradas distintas, use modo estendido nas configurações de exibição do Windows — não apenas duplicação/espelho.</p>
+      </div>
+      <button type="button" class="modal-fechar" id="modal-monitores-fechar-x" aria-label="Fechar">✕</button>
+    </div>
+    <div class="modal-body" id="modal-monitores-conteudo"></div>
+    <div class="modal-footer">
+      <button type="button" id="modal-monitores-btn-fechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-ajuda-overlay" class="modal-overlay" aria-hidden="true">
+  <div
+    id="modal-ajuda-dialog"
+    class="modal-panel modal-ajuda-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-ajuda-titulo"
+    aria-describedby="modal-ajuda-desc"
+  >
+    <div class="modal-header">
+      <div>
+        <div id="modal-ajuda-titulo" class="modal-titulo">Ajuda do servidor</div>
+        <p id="modal-ajuda-desc" class="modal-subtitulo">Resumo do papel do Servidor no Lyra e passos práticos para usar e recuperar a janela.</p>
+      </div>
+      <button type="button" class="modal-fechar" id="modal-ajuda-fechar-x" aria-label="Fechar ajuda">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="help-grid">
+        <div class="help-intro">
+          <div class="help-card-titulo">O que e o servidor</div>
+          <p><strong>Servidor</strong> e o aplicativo do Lyra que roda no PC ligado aos monitores ou projetores. Ele recebe os comandos do controlador, publica o IP da maquina na rede local e envia o conteudo para as janelas de exibicao.</p>
+        </div>
+
+        <div class="help-card">
+          <div class="help-card-titulo">O que ele faz</div>
+          <ul class="help-lista">
+            <li><strong>Centraliza a exibicao:</strong> abre e mantem as janelas de publico, ministrante e relogio.</li>
+            <li><strong>Recebe comandos:</strong> sincroniza slides, Biblia, audio e apresentacoes enviados pelo controlador.</li>
+            <li><strong>Disponibiliza acesso na rede:</strong> mostra o IP desta maquina para que outros dispositivos do Lyra encontrem o servidor.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <div class="help-card-titulo">Como iniciar</div>
+          <ul class="help-lista">
+            <li><strong>App instalado:</strong> abra o <strong>Lyra - Servidor</strong> no PC conectado as telas e aguarde esta janela aparecer.</li>
+            <li><strong>Ambiente de desenvolvimento:</strong> na pasta <strong>server</strong>, rode <strong>npm start</strong> para abrir o Electron.</li>
+            <li><strong>Confirmacao rapida:</strong> verifique se o IP foi carregado e se o status aparece como <strong>Online</strong>.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <div class="help-card-titulo">Como recarregar</div>
+          <ul class="help-lista">
+            <li>Use o botao <strong>↻</strong> no canto superior direito para recarregar a janela do Servidor.</li>
+            <li>Se a interface travar, recarregue primeiro e depois confirme se os monitores continuam reconhecidos.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <div class="help-card-titulo">Se der erro</div>
+          <ul class="help-lista">
+            <li><strong>IP vazio ou conexao falhando:</strong> confirme se o Servidor e o controlador estao na mesma rede local.</li>
+            <li><strong>Monitores nao aparecem:</strong> confira cabos, adaptadores e use o modo estendido do Windows, nao duplicacao.</li>
+            <li><strong>Janela ou exibicao parou:</strong> tente recarregar pelo botao <strong>↻</strong>; se nao resolver, feche e abra o aplicativo novamente.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" id="modal-ajuda-btn-fechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<audio id="lyra-audio-engine" preload="auto" style="display:none" aria-hidden="true"></audio>
+<video id="lyra-video-engine" preload="auto" playsinline style="display:none" aria-hidden="true"></video>
+
+<script>
+  const { ipcRenderer } = (typeof require !== 'undefined') ? require('electron') : { ipcRenderer: null };
+  const SVG_TEMA_SOL = `
+    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"></circle>
+      <path d="M12 2.75v2.5M12 18.75v2.5M4.93 4.93l1.77 1.77M17.3 17.3l1.77 1.77M2.75 12h2.5M18.75 12h2.5M4.93 19.07l1.77-1.77M17.3 6.7l1.77-1.77"></path>
+    </svg>
+  `;
+  const SVG_TEMA_LUA = `
+    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 0 1 11.21 3 7.5 7.5 0 1 0 21 12.79z"></path>
+    </svg>
+  `;
+
+  function recarregarJanelaServidor() {
+    try {
+      if (ipcRenderer) {
+        ipcRenderer.send('reload_control_window');
+        return;
+      }
+    } catch (_) {}
+    window.location.reload();
+  }
+
+  function atualizarBotaoTema() {
+    const isLight = document.body.classList.contains('light-theme');
+    const elIcon = document.getElementById('btn-theme-icon');
+    const elLabel = document.getElementById('btn-theme-label');
+    const btn = document.getElementById('btn-theme');
+    if (elIcon) elIcon.innerHTML = isLight ? SVG_TEMA_SOL : SVG_TEMA_LUA;
+    if (elLabel) elLabel.textContent = isLight ? 'CLARO' : 'ESCURO';
+    btn?.setAttribute(
+      'aria-label',
+      `Tema atual: ${isLight ? 'claro' : 'escuro'}. Clique para alternar.`
+    );
+  }
+
+  function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    atualizarBotaoTema();
+  }
+
+  function aplicarContagemMonitores(lista) {
+    const el = document.getElementById('monitores-count');
+    if (!el || !Array.isArray(lista)) return;
+    el.textContent = String(lista.length);
+  }
+
+  const overlayModalMonitores = document.getElementById('modal-monitores-overlay');
+  const conteudoModalMonitores = document.getElementById('modal-monitores-conteudo');
+  const overlayModalAjuda = document.getElementById('modal-ajuda-overlay');
+
+  function fecharModalMonitores(restaurarFoco = true) {
+    if (!overlayModalMonitores) return;
+    overlayModalMonitores.classList.remove('aberto');
+    overlayModalMonitores.setAttribute('aria-hidden', 'true');
+    if (restaurarFoco) document.getElementById('btn-monitores-info')?.focus();
+  }
+
+  function fecharModalAjuda(restaurarFoco = true) {
+    if (!overlayModalAjuda) return;
+    overlayModalAjuda.classList.remove('aberto');
+    overlayModalAjuda.setAttribute('aria-hidden', 'true');
+    if (restaurarFoco) document.getElementById('btn-help')?.focus();
+  }
+
+  function renderListaMonitoresNoModal(lista) {
+    if (!conteudoModalMonitores) return;
+    conteudoModalMonitores.textContent = '';
+
+    if (!Array.isArray(lista) || lista.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'modal-corpo-msg';
+      p.textContent =
+        'Nenhum monitor aparece nesta lista. Confira cabos e adaptadores e use modo estendido nas configurações de exibição do Windows — duplicar telas faz o sistema tratar só como uma saída.';
+      conteudoModalMonitores.appendChild(p);
+      return;
+    }
+
+    lista.forEach((m, idx) => {
+      const row = document.createElement('div');
+      row.className = 'modal-monitor-row';
+
+      const head = document.createElement('div');
+      head.className = 'modal-monitor-head';
+
+      const nome = document.createElement('div');
+      nome.className = 'modal-monitor-nome';
+
+      const strong = document.createElement('strong');
+      strong.textContent = m.label || `Monitor ${idx + 1}`;
+      nome.appendChild(strong);
+
+      if (m.primary) {
+        const pill = document.createElement('span');
+        pill.className = 'pill-principal';
+        pill.textContent = 'Principal';
+        nome.appendChild(pill);
+      }
+
+      const dims = document.createElement('div');
+      dims.className = 'modal-monitor-metros';
+
+      const b = m.bounds || {};
+      dims.textContent = `${Number(b.width) || 0}×${Number(b.height) || 0}`;
+      head.appendChild(nome);
+      head.appendChild(dims);
+      row.appendChild(head);
+
+      const det = document.createElement('div');
+      det.className = 'modal-monitor-detalhe';
+      det.textContent = `Índice lógico: ${Number(m.index) === m.index ? m.index : idx} · Posição (${Number(b.x) || 0}, ${Number(b.y) || 0})`;
+      row.appendChild(det);
+
+      conteudoModalMonitores.appendChild(row);
+    });
+  }
+
+  function abrirModalMonitores(lista) {
+    if (!overlayModalMonitores) return;
+    fecharModalAjuda(false);
+    renderListaMonitoresNoModal(lista);
+    overlayModalMonitores.classList.add('aberto');
+    overlayModalMonitores.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() =>
+      document.getElementById('modal-monitores-btn-fechar')?.focus({ preventScroll: true })
+    );
+  }
+
+  function abrirModalAjuda() {
+    if (!overlayModalAjuda) return;
+    fecharModalMonitores(false);
+    overlayModalAjuda.classList.add('aberto');
+    overlayModalAjuda.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() =>
+      document.getElementById('modal-ajuda-btn-fechar')?.focus({ preventScroll: true })
+    );
+  }
+
+  document.getElementById('modal-monitores-fechar-x')?.addEventListener('click', fecharModalMonitores);
+  document.getElementById('modal-monitores-btn-fechar')?.addEventListener('click', fecharModalMonitores);
+  document.getElementById('modal-ajuda-fechar-x')?.addEventListener('click', fecharModalAjuda);
+  document.getElementById('modal-ajuda-btn-fechar')?.addEventListener('click', fecharModalAjuda);
+  document.getElementById('btn-reload-window')?.addEventListener('click', recarregarJanelaServidor);
+  document.getElementById('btn-theme')?.addEventListener('click', toggleTheme);
+  document.getElementById('btn-help')?.addEventListener('click', abrirModalAjuda);
+
+  overlayModalMonitores?.addEventListener('click', (e) => {
+    if (e.target === overlayModalMonitores) fecharModalMonitores();
+  });
+  overlayModalAjuda?.addEventListener('click', (e) => {
+    if (e.target === overlayModalAjuda) fecharModalAjuda();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && overlayModalAjuda?.classList.contains('aberto')) {
+      e.preventDefault();
+      fecharModalAjuda();
+      return;
+    }
+    if (e.key === 'Escape' && overlayModalMonitores?.classList.contains('aberto')) {
+      e.preventDefault();
+      fecharModalMonitores();
+    }
+  });
+
+  const elAudio = document.getElementById('lyra-audio-engine');
+  const elVideo = document.getElementById('lyra-video-engine');
+  let audioNomeAtual = '';
+  let mediaKindAtual = '';
+
+  function obterElementoMidiaAtivo() {
+    return mediaKindAtual === 'video' ? elVideo : elAudio;
+  }
+
+  function pararElementoMidia(el) {
+    if (!el) return;
+    el.pause();
+    el.removeAttribute('src');
+    try {
+      el.load();
+    } catch (_) {}
+  }
+
+  function pararTodosMotoresMidia() {
+    pararElementoMidia(elAudio);
+    pararElementoMidia(elVideo);
+    audioNomeAtual = '';
+    mediaKindAtual = '';
+  }
+
+  function emitirEstadoAudio() {
+    if (!ipcRenderer) return;
+    const el = obterElementoMidiaAtivo() || elAudio;
+    if (!el) return;
+    ipcRenderer.send('audio_state_update', {
+      name: audioNomeAtual,
+      mediaKind: mediaKindAtual || (el === elVideo ? 'video' : 'audio'),
+      playing: !!el.src && !el.paused && !el.ended,
+      currentTime: Number(el.currentTime) || 0,
+      duration: Number.isFinite(el.duration) ? Number(el.duration) : 0,
+      volume: Number.isFinite(el.volume) ? el.volume : 1,
+    });
+  }
+
+  function ligarEventosMotorMidia(el) {
+    if (!el || el.dataset.lyraMotorBound === '1') return;
+    el.dataset.lyraMotorBound = '1';
+    el.addEventListener('timeupdate', () => emitirEstadoAudio());
+    el.addEventListener('loadedmetadata', () => emitirEstadoAudio());
+    el.addEventListener('play', () => emitirEstadoAudio());
+    el.addEventListener('pause', () => emitirEstadoAudio());
+    el.addEventListener('ended', () => {
+      if (el === obterElementoMidiaAtivo()) {
+        audioNomeAtual = '';
+        mediaKindAtual = '';
+      }
+      emitirEstadoAudio();
+    });
+  }
+
+  function configurarMotorAudioServidor() {
+    if (!ipcRenderer) return;
+    ligarEventosMotorMidia(elAudio);
+    ligarEventosMotorMidia(elVideo);
+
+    ipcRenderer.on('audio_play', (_e, payload) => {
+      const src = String(payload?.src || '').trim();
+      if (!src) return;
+      const kind = payload?.mediaKind === 'video' ? 'video' : 'audio';
+      const autoplay = payload?.autoplay !== false;
+      const el = kind === 'video' ? elVideo : elAudio;
+      if (!el) return;
+      pararTodosMotoresMidia();
+      mediaKindAtual = kind;
+      audioNomeAtual = String(payload?.name || (kind === 'video' ? 'Vídeo' : 'audio'));
+      const v = Number(payload?.volume);
+      const vol = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : Math.max(0, Math.min(1, Number(el.volume) || 1));
+      el.volume = vol;
+      if (elAudio) elAudio.volume = vol;
+      if (elVideo) elVideo.volume = vol;
+      el.src = src;
+      if (kind === 'video' && autoplay === false) {
+        el.pause();
+        try {
+          el.currentTime = 0;
+        } catch (_) {}
+        emitirEstadoAudio();
+        return;
+      }
+      const p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(() => emitirEstadoAudio());
+      emitirEstadoAudio();
+    });
+
+    ipcRenderer.on('audio_pause', () => {
+      const el = obterElementoMidiaAtivo();
+      if (el) el.pause();
+      emitirEstadoAudio();
+    });
+
+    ipcRenderer.on('audio_stop', () => {
+      pararTodosMotoresMidia();
+      emitirEstadoAudio();
+    });
+
+    ipcRenderer.on('audio_volume', (_e, payload) => {
+      const v = Number(payload?.volume);
+      if (!Number.isFinite(v)) return;
+      const vol = Math.max(0, Math.min(1, v));
+      if (elAudio) elAudio.volume = vol;
+      if (elVideo) elVideo.volume = vol;
+      emitirEstadoAudio();
+    });
+
+    ipcRenderer.on('audio_seek', (_e, payload) => {
+      const t = Number(payload?.time);
+      if (!Number.isFinite(t)) return;
+      const el = obterElementoMidiaAtivo();
+      if (el) el.currentTime = Math.max(0, t);
+      emitirEstadoAudio();
+    });
+  }
+
+  configurarMotorAudioServidor();
+
+  document.getElementById('btn-monitores-info')?.addEventListener('click', async () => {
+    let lista = null;
+    try {
+      if (ipcRenderer) lista = await ipcRenderer.invoke('get_monitores');
+      else {
+        const r = await fetch('http://127.0.0.1:5510/api/monitores');
+        if (r.ok) lista = await r.json();
+      }
+    } catch (_) {}
+    aplicarContagemMonitores(lista);
+    abrirModalMonitores(lista);
+  });
+
+  // Inicialização
+  window.onload = async () => {
+    // Carregar tema salvo
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+    atualizarBotaoTema();
+
+    if (ipcRenderer) {
+      try {
+        const ip = await ipcRenderer.invoke('get_ip');
+        document.getElementById('ip-addr').textContent = ip || '---';
+      } catch (e) {}
+
+      try {
+        const lista = await ipcRenderer.invoke('get_monitores');
+        aplicarContagemMonitores(lista);
+      } catch (e) {
+        document.getElementById('monitores-count').textContent = '?';
+      }
+      ipcRenderer.on('monitores_updated', (_e, lista) => aplicarContagemMonitores(lista));
+    } else {
+      try {
+        const r = await fetch('http://127.0.0.1:5510/api/monitores');
+        if (r.ok) aplicarContagemMonitores(await r.json());
+      } catch (e) {
+        document.getElementById('monitores-count').textContent = '?';
+      }
+    }
+  };
+</script>
+
+</body>
+</html>

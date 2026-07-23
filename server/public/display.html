@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lyra — Tela</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src:
+        local('CMG Sans'),
+        local('CMGSans-Regular'),
+        url('./fonts/CMGSans-Regular.ttf') format('truetype'),
+        url('./fonts/CMG Sans/CMGSans-Regular.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src:
+        local('CMG Sans Bold'),
+        local('CMGSans-Bold'),
+        url('./fonts/CMGSans-Bold.ttf') format('truetype'),
+        url('./fonts/CMG Sans/CMGSans-Bold.ttf') format('truetype');
+    }
+
+    :root {
+      --slide-font: 'CMG Sans', 'DM Sans', system-ui, sans-serif;
+      --bg-projecao: #000000;
+      --ink-projecao: #ffffff;
+      --accent-projecao: rgba(122, 90, 31, 0.82);
+      /* Configuráveis via displayConfig */
+      --font-size-slide: 5vw;
+      --line-spacing-slide: 1.7;
+      --font-size-transition-slide: 0s linear;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000000;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: none;
+    }
+
+    body.blackout-ativo {
+      background: #000000 !important;
+    }
+
+    body.blackout-ativo .tela {
+      background: #000000 !important;
+    }
+
+    body.slide-preto-final {
+      background: #000000 !important;
+    }
+
+    body.slide-preto-final .tela {
+      background: #000000 !important;
+      padding: 0 !important;
+    }
+
+    body.slide-preto-final .tela > * {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    body.idle-sem-projecao,
+    body.idle-sem-projecao .tela {
+      /* Sem projeção ativa: fundo escuro fixo (imagem/gradiente só durante slide). */
+      background: #000000 !important;
+    }
+
+/* ─── Tela de projeção ─── */
+.tela {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3vh 3vw;
+  position: relative;
+  background: var(--bg-projecao);
+  transition: align-items 0s, justify-content 0s;
+}
+/* Posicionamento dinâmico */
+.tela.pos-x-left  { align-items: flex-start; }
+.tela.pos-x-right { align-items: flex-end; }
+.tela.pos-y-top   { justify-content: flex-start; padding-top: 3vh; }
+.tela.pos-y-bottom{ justify-content: flex-end;   padding-bottom: 3vh; }
+.tela.pos-x-left  .titulo-musica { text-align: left; }
+.tela.pos-x-right .titulo-musica { text-align: right; }
+
+    /* Título pode seguir posição X; letras da música ficam sempre centradas linha a linha. */
+    .tela.pos-x-left  .titulo-musica { text-align: left; }
+    .tela.pos-x-right .titulo-musica { text-align: right; }
+
+    /* ─── Conteúdo do slide ─── */
+    .titulo-musica {
+      font-family: var(--slide-font);
+      font-weight: 600;
+      font-size: 1.4vw;
+      color: var(--accent-projecao);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 5vh;
+      opacity: 1;
+      text-align: center;
+    }
+
+    /* Avisos: fundo escuro aqui — tipografia do slide público só via JS (painel Telão). */
+    body.modo-aviso-projecao .tela {
+      background: var(--bg-aviso-projecao, #000000) !important;
+    }
+
+    .letras {
+
+      /** Tipografia (fonte, negrito, tamanho, espaçamentos) aplicada só em JS —
+       * caso contrário as variáveis CSS e o peso da classe ganhavam da folha estática,
+       * e o painel “Telão” parecia não alterar nada. */
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      margin: 0;
+      align-self: stretch;
+      text-shadow: 0 2px 28px rgba(28, 22, 22, 0.12);
+      opacity: 1;
+      transform: none;
+      transition: opacity 150ms ease;
+    }
+
+    #ref-biblica {
+      transition: opacity 150ms ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .letras,
+      #ref-biblica { transition: none; }
+    }
+
+    .apresentacao-media {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+    }
+    .apresentacao-media[hidden] { display: none !important; }
+    .apresentacao-media img,
+    .apresentacao-media video,
+    .apresentacao-media iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      object-fit: contain;
+      background: #000000;
+    }
+    .apresentacao-media .apresentacao-media-msg {
+      max-width: 80vw;
+      color: #ffffff;
+      font-size: 1.35vw;
+      text-align: center;
+      line-height: 1.5;
+      font-family: var(--slide-font);
+    }
+
+    /* Tipo Bíblia — referência abaixo do versículo */
+    .ref-biblica {
+      font-family: var(--slide-font);
+      font-size: 1.8vw;
+      font-weight: 600;
+      color: #fbf904;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      margin-top: 3vh;
+      opacity: 1;
+      align-self: stretch;
+      text-align: center;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      line-height: 1.35;
+    }
+    .ref-biblica.oculta {
+      display: none !important;
+    }
+
+    /* ─── Overlay do Relógio: desativado no telão (relógio só na janela ministrante). ─── */
+    .clock-overlay {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    .clock-overlay.visivel {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      display: none !important;
+    }
+
+    /* Nome da Igreja (markup existe; overlay está oculto no telão.) */
+    .clock-church {
+      font-family: var(--slide-font);
+      font-size: 1.8vw;
+      font-weight: 700;
+      color: rgba(122, 90, 31, 0.9);
+      letter-spacing: 6px;
+      text-transform: uppercase;
+    }
+
+    /* Relógio Digital */
+    .clock-digital {
+      font-family: var(--slide-font);
+      font-size: 13vw;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Relógio Analógico */
+    .clock-analog-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas#clock-canvas { display: block; }
+
+    /* Data */
+    .clock-date {
+      font-family: var(--slide-font);
+      font-size: 2.2vw;
+      font-weight: 600;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      opacity: 0.65;
+    }
+
+    /* Versículo */
+    .clock-verse {
+      font-family: var(--slide-font);
+      font-size: 1.4vw;
+      letter-spacing: 2px;
+      opacity: 0.55;
+      max-width: 68%;
+      text-align: center;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="tela" id="tela">
+
+  <!-- Conteúdo do slide -->
+  <div class="titulo-musica" id="titulo"></div>
+  <div class="letras" id="letras"></div>
+  <div class="ref-biblica" id="ref-biblica"></div>
+  <div class="apresentacao-media" id="apresentacao-media" hidden></div>
+
+  <!-- Overlay do relógio: oculto no telão por CSS e por lógica (relógio só no ministrante). -->
+  <div class="clock-overlay" id="clock-overlay">
+    <div class="clock-church" id="clock-church" style="display:none"></div>
+    <div class="clock-digital" id="clock-digital" style="display:none"></div>
+    <div class="clock-analog-wrap" id="clock-analog-wrap" style="display:none">
+      <canvas id="clock-canvas" width="340" height="340"></canvas>
+    </div>
+    <div class="clock-date" id="clock-date" style="display:none"></div>
+    <div class="clock-verse" id="clock-verse" style="display:none"></div>
+  </div>
+
+</div>
+
+<script>
+const __require = (typeof window !== 'undefined' && typeof window.require === 'function')
+  ? window.require
+  : (typeof require === 'function' ? require : null);
+function safeRequire(modulo) {
+  if (!__require) return null;
+  try {
+    return __require(modulo);
+  } catch (_) {
+    return null;
+  }
+}
+const electronMod = safeRequire('electron');
+const ipcRenderer = electronMod?.ipcRenderer || null;
+
+// ─── Referências DOM ──────────────────────────────────────────────
+const elTela         = document.getElementById('tela');
+const elTitulo       = document.getElementById('titulo');
+const elLetras       = document.getElementById('letras');
+const elRefBiblica   = document.getElementById('ref-biblica');
+const elApresentacaoMedia = document.getElementById('apresentacao-media');
+const elClockOverlay = document.getElementById('clock-overlay');
+const elClockChurch  = document.getElementById('clock-church');
+const elClockDigital = document.getElementById('clock-digital');
+const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
+const elClockCanvas  = document.getElementById('clock-canvas');
+const elClockDate    = document.getElementById('clock-date');
+const elClockVerse   = document.getElementById('clock-verse');
+
+// ─── Estado ───────────────────────────────────────────────────────
+let animTimeout;
+let clockInterval = null;
+let estadoAtual = { telaLimpa: true };
+
+let displayConfig = {
+  fontSize: 5,
+  lineSpacing: 1.7,
+  autoFitLongLines: false,
+  posX: 'center',
+  posY: 'center',
+  publico: {
+    bgType: 'solid',
+    bgColor: '#000000',
+    bgGradient: 'linear-gradient(135deg, #000000 0%, #161616 100%)',
+    bgImage: '',
+    textColor: '#ffffff',
+    fontSize: 5.5,
+    lineSpacing: 1.35,
+    wrapLongLines: true,
+    autoFitLongLines: false,
+  },
+  clock: {
+    format: 'HH:MM',
+    fontSize: 13,
+    showClock: true,
+    monitorRelogio: 'ministrante',
+    showDate: true,
+    showChurchName: false,
+    churchName: '',
+    showVerse: false,
+    verse: '',
+    bgType: 'solid',
+    bgColor: '#000000',
+    bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
+    bgImage: '',
+    textColor: '#1c1816',
+  },
+};
+
+/** Largura em px disponível para o texto (evita usar 90% do .tela e ignorar padding — isso deixava a fonte grande e a linha “fugia” para a direita). */
+function larguraUtilLetrasPx() {
+  void elLetras.offsetWidth;
+  const r = elLetras.getBoundingClientRect().width;
+  if (Number.isFinite(r) && r > 12) return Math.max(8, Math.floor(r - 4));
+  const cs = getComputedStyle(elTela);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const inner = Math.max(0, elTela.clientWidth - padX);
+  return Math.max(12, Math.floor(inner));
+}
+
+window.larguraUtilLetrasPx = larguraUtilLetrasPx;
+
+const substituirCamadaDisplay = (atual, camada) => {
+  if (!camada || typeof camada !== 'object') return atual || {};
+  const base = atual && typeof atual === 'object' ? { ...atual } : {};
+  const bgType = camada.bgType != null ? camada.bgType : base.bgType || 'solid';
+  const merged = { ...base, ...camada, bgType };
+  merged.bgColor = camada.bgColor != null ? camada.bgColor : base.bgColor;
+  merged.bgGradient = camada.bgGradient != null ? camada.bgGradient : base.bgGradient;
+  if (bgType === 'image') {
+    const imgPatch = camada.bgImage;
+    const imgBase = base.bgImage;
+    if (imgPatch != null && String(imgPatch).length > 0) {
+      merged.bgImage = String(imgPatch);
+    } else if (imgBase != null && String(imgBase).length > 0) {
+      merged.bgImage = String(imgBase);
+    } else {
+      merged.bgImage = '';
+    }
+  } else {
+    merged.bgImage = '';
+  }
+  return merged;
+};
+
+let aplicarConfig = (cfg) => {
+  if (!cfg) return;
+  displayConfig = {
+    ...displayConfig,
+    ...cfg,
+    publico:
+      cfg.publico !== undefined
+        ? substituirCamadaDisplay(displayConfig.publico, cfg.publico)
+        : { ...(displayConfig.publico || {}) },
+    ministrante:
+      cfg.ministrante !== undefined
+        ? substituirCamadaDisplay(displayConfig.ministrante, cfg.ministrante)
+        : { ...(displayConfig.ministrante || {}) },
+    clock: { ...(displayConfig.clock || {}), ...(cfg.clock || {}) },
+  };
+};
+function normalizarReferenciaBiblicaDisplay(valor) {
+  if (valor == null) return '';
+  const ref = String(valor).trim();
+  if (!ref) return '';
+  const lower = ref.toLowerCase();
+  return lower === 'null' || lower === 'undefined' ? '' : ref;
+}
+function montarReferenciaBiblicaDisplay(st) {
+  const livro = normalizarReferenciaBiblicaDisplay(st && st.livro);
+  const capitulo = normalizarReferenciaBiblicaDisplay(st && st.capitulo);
+  const versiculo = normalizarReferenciaBiblicaDisplay(st && st.versiculo);
+  if (livro || capitulo || versiculo) {
+    return livro && capitulo && versiculo ? `${livro} ${capitulo}:${versiculo}` : '';
+  }
+  return normalizarReferenciaBiblicaDisplay(st && st.titulo);
+}
+let exibir = (estado) => {
+  const st = estado || {};
+  document.body.classList.remove('blackout-ativo', 'slide-preto-final', 'idle-sem-projecao');
+  elClockOverlay.classList.remove('visivel');
+  elLetras.style.removeProperty('font-size');
+  elLetras.style.whiteSpace = 'pre-wrap';
+  elLetras.style.overflowWrap = 'anywhere';
+  elLetras.style.wordBreak = 'break-word';
+  elLetras.style.color = '#1c1816';
+  elLetras.style.opacity = '1';
+  elTitulo.style.opacity = '1';
+  elRefBiblica.style.opacity = '1';
+
+  if (!st.linhas || !st.linhas.length) {
+    elLetras.textContent = 'MODO PREVIEW (NAVEGADOR)\nUSE window.exibir(...) NO CONSOLE';
+    elTitulo.textContent = 'LYRA';
+    elRefBiblica.textContent = '';
+    return;
+  }
+  elLetras.textContent = st.linhas.join('\n');
+  elTitulo.textContent = '';
+  elRefBiblica.textContent = st.tipo === 'biblia' ? montarReferenciaBiblicaDisplay(st) : '';
+};
+
+window.elTela = elTela;
+window.elTitulo = elTitulo;
+window.elLetras = elLetras;
+window.elRefBiblica = elRefBiblica;
+window.elApresentacaoMedia = elApresentacaoMedia;
+window.elClockOverlay = elClockOverlay;
+window.elClockChurch = elClockChurch;
+window.elClockDigital = elClockDigital;
+window.elClockAnalogWrap = elClockAnalogWrap;
+window.elClockDate = elClockDate;
+window.elClockVerse = elClockVerse;
+window.getElLetras = () => elLetras;
+window.getDisplayConfig = () => displayConfig;
+window.setDisplayConfig = (next) => { displayConfig = next || {}; };
+window.getEstadoAtual = () => estadoAtual;
+window.setEstadoAtual = (next) => { estadoAtual = next || {}; };
+window.pararRelogio = pararRelogio;
+window.iniciarRelogio = iniciarRelogio;
+window.atualizarRelogio = atualizarRelogio;
+const projectionUtilsMod = safeRequire('./js/publicProjectionUtils.js');
+const projectionRenderMod = safeRequire('./js/publicProjectionRender.js');
+if (projectionUtilsMod?.attachPublicProjectionUtils && projectionRenderMod?.attachPublicProjectionRender) {
+  projectionUtilsMod.attachPublicProjectionUtils(window);
+  projectionRenderMod.attachPublicProjectionRender(window);
+  if (typeof window.aplicarConfig === 'function') aplicarConfig = window.aplicarConfig.bind(window);
+  if (typeof window.exibir === 'function') exibir = window.exibir.bind(window);
+}
+window.aplicarConfig = aplicarConfig;
+window.exibir = exibir;
+
+// ─── Relógio: data formatada ──────────────────────────────────────
+function formatarData(d) {
+  const DIAS   = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const MESES  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
+}
+
+// ─── Relógio: atualização a cada segundo ─────────────────────────
+function atualizarRelogio() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+
+  const fmt = displayConfig.clock.format;
+
+  if (fmt === 'none') {
+    elClockDigital.textContent = '';
+    elClockAnalogWrap.style.display = 'none';
+  } else if (fmt === 'HH:MM:SS') {
+    elClockDigital.textContent = `${h}:${m}:${s}`;
+    elClockAnalogWrap.style.display = 'none';
+  } else if (fmt === 'analog') {
+    desenharRelogioAnalogico(now);
+  } else {
+    elClockDigital.textContent = `${h}:${m}`;
+    elClockAnalogWrap.style.display = 'none';
+  }
+
+  if (displayConfig.clock.showDate) {
+    elClockDate.textContent = formatarData(now);
+  }
+}
+
+// ─── Relógio: analógico via Canvas ───────────────────────────────
+function desenharRelogioAnalogico(now) {
+  const canvas = elClockCanvas;
+  const ctx    = canvas.getContext('2d');
+  const W  = canvas.width;
+  const H  = canvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const r  = W / 2 - 12;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const cor = displayConfig.clock.textColor || '#1c1816';
+
+  // Círculo externo
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctx.strokeStyle = cor;
+  ctx.globalAlpha = 0.25;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Marcas das horas
+  for (let i = 0; i < 12; i++) {
+    const ang   = (i / 12) * 2 * Math.PI - Math.PI / 2;
+    const maior = i % 3 === 0;
+    const inner = maior ? r - 22 : r - 10;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+    ctx.lineTo(cx + Math.cos(ang) * r,     cy + Math.sin(ang) * r);
+    ctx.strokeStyle = cor;
+    ctx.globalAlpha = maior ? 0.8 : 0.35;
+    ctx.lineWidth   = maior ? 3 : 1.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  const sec = now.getSeconds();
+  const min = now.getMinutes() + sec / 60;
+  const hr  = (now.getHours() % 12) + min / 60;
+
+  const desenhaMao = (frac, len, largura, alpha) => {
+    const ang = frac * 2 * Math.PI - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+    ctx.strokeStyle = cor;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth   = largura;
+    ctx.lineCap     = 'round';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  };
+
+  desenhaMao(hr  / 12, r * 0.52, 9,   0.95);  // hora
+  desenhaMao(min / 60, r * 0.73, 5.5, 0.88);  // minuto
+  desenhaMao(sec / 60, r * 0.82, 2,   0.65);  // segundo
+
+  // Centro
+  ctx.beginPath();
+  ctx.arc(cx, cy, 7, 0, 2 * Math.PI);
+  ctx.fillStyle   = cor;
+  ctx.globalAlpha = 0.9;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function iniciarRelogio() {
+  atualizarRelogio();
+  if (!clockInterval) {
+    clockInterval = setInterval(atualizarRelogio, 1000);
+  }
+}
+
+function pararRelogio() {
+  if (clockInterval) {
+    clearInterval(clockInterval);
+    clockInterval = null;
+  }
+}
+
+// ─── Exibição principal ───────────────────────────────────────────
+
+// ─── IPC listeners ────────────────────────────────────────────────
+if (ipcRenderer) {
+  ipcRenderer.on('atualizar',      (_, estado) => exibir(estado || {}));
+  ipcRenderer.on('display_config', (_, cfg)    => aplicarConfig(cfg));
+  ipcRenderer.on('apresentacao_video_sync', (_, payload) => {
+    if (typeof aplicarSyncVideoApresentacao === 'function') {
+      aplicarSyncVideoApresentacao(payload || {});
+    }
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && ipcRenderer) {
+    e.preventDefault();
+    ipcRenderer.send('display_escape_encerrar');
+  }
+});
+
+let resizeTelaoRedrawTimer = null;
+function reajustarLetrasAoRedimensionar() {
+  clearTimeout(resizeTelaoRedrawTimer);
+  resizeTelaoRedrawTimer = setTimeout(() => {
+    const st = getEstadoAtual();
+    if (!st || st.telaLimpa || st.blackout || st.slidePretoFinal) return;
+    if (!Array.isArray(st.linhas) || !st.linhas.length) return;
+    /** Apresentação: sem blocos `.linha-texto`; não redesenhar letras aqui */
+    if (st.tipo === 'apresentacao') return;
+
+    const cfg = getDisplayConfig();
+    if (typeof window.renderizarLinhas === 'function' && typeof window.aplicarFontSize === 'function') {
+      window.renderizarLinhas(st.linhas, cfg);
+      window.aplicarFontSize(cfg);
+    }
+  }, 100);
+}
+
+window.addEventListener('resize', reajustarLetrasAoRedimensionar);
+
+function resolverBaseServidorWeb() {
+  const qs = new URLSearchParams(window.location.search || '');
+  const fromQuery = (qs.get('server') || '').trim();
+  if (fromQuery) {
+    if (/^https?:\/\//i.test(fromQuery)) return fromQuery.replace(/\/+$/, '');
+    return `http://${fromQuery.replace(/\/+$/, '')}:5510`;
+  }
+  let fromStorage = '';
+  try {
+    const legado = localStorage.getItem('invb_display_web_server');
+    if (legado != null && !localStorage.getItem('lyra_display_web_server')) {
+      localStorage.setItem('lyra_display_web_server', legado);
+    }
+    if (legado != null) localStorage.removeItem('invb_display_web_server');
+    fromStorage = (localStorage.getItem('lyra_display_web_server') || '').trim();
+  } catch (_) {}
+  if (fromStorage) {
+    if (/^https?:\/\//i.test(fromStorage)) return fromStorage.replace(/\/+$/, '');
+    return `http://${fromStorage.replace(/\/+$/, '')}:5510`;
+  }
+  if (window.location.protocol === 'file:') return 'http://localhost:5510';
+  const host = window.location.hostname || 'localhost';
+  return `${window.location.protocol}//${host}:5510`;
+}
+
+function carregarScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function iniciarModoWebReal() {
+  const base = resolverBaseServidorWeb();
+  try {
+    await carregarScript(`${base}/socket.io/socket.io.js`);
+  } catch (_) {
+    return false;
+  }
+  if (typeof window.io !== 'function') return false;
+
+  const sock = window.io(base, {
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+  });
+
+  sock.on('display_config', (cfg) => aplicarConfig(cfg));
+  sock.on('estado', (st) => exibir(st || {}));
+
+  try {
+    const r = await fetch(`${base}/api/display-config`);
+    if (r.ok) {
+      const cfg = await r.json();
+      aplicarConfig(cfg);
+    }
+  } catch (_) {}
+
+  return true;
+}
+
+// ─── Inicialização ────────────────────────────────────────────────
+// Carrega config salva e já mostra o relógio no estado idle inicial
+if (ipcRenderer) {
+  ipcRenderer.invoke('get_display_config')
+    .then((cfg) => aplicarConfig(cfg))
+    .catch(() => {});
+  /**
+   * Não chamar exibir({ telaLimpa: true }) no .finally: isso corrige depois dos IPCs
+   * `display_config` + `atualizar`, zera estado.linhas e impede reaplicar tamanho/negrito
+   * no telão quando o usuário muda o painel Telão. O estado inicial vem sempre de `atualizar`.
+   */
+} else {
+  iniciarModoWebReal().then((ok) => {
+    if (ok) return;
+    aplicarConfig({
+      publico: {
+        textColor: '#1c1816',
+        bgColor: '#f5f2ea',
+        fillScreen: false,
+        wrapLongLines: true,
+        autoFitLongLines: false,
+        fontSize: 5.5,
+        lineSpacing: 1.35,
+      },
+      fillScreen: false,
+      wrapLongLines: true,
+      autoFitLongLines: false,
+    });
+    exibir({
+      tipo: 'musica',
+      titulo: 'Preview',
+      linhas: ['MODO PREVIEW NO NAVEGADOR', 'SEM CONEXÃO COM O SERVIDOR'],
+    });
+  });
+}
+</script>
+</body>
+</html>

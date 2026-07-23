@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="96" fill="#232328"/>
+  <text
+    x="256" y="374"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="280" font-weight="400"
+    fill="#e8e5e0"
+    text-anchor="middle"
+    letter-spacing="-8">Ly</text>
+  <rect x="96" y="396" width="320" height="12" rx="6" fill="#c49a3a"/>
+  <!-- Distintivo Controlador (canto superior direito) -->
+  <circle cx="412" cy="100" r="64" fill="#c49a3a"/>
+  <text
+    x="412" y="122"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="84" font-weight="700"
+    fill="#232328"
+    text-anchor="middle">C</text>
+</svg>

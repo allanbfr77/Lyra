@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Lyra",
+    "slug": "invblyrics",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "scheme": "lyra",
+    "userInterfaceStyle": "light",
+    "icon": "../brand/lyra-light-1024.png",
+    "ios": {
+      "icon": "../brand/lyra-light-1024.png"
+    },
+    "splash": {
+      "backgroundColor": "#f5f3ee"
+    },
+    "android": {
+      "icon": "../brand/lyra-light-1024.png",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "../brand/lyra-light-1024.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.lyra.app",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c4cd2983-1f97-4e9b-9a47-7bd34be139fe"
+      }
+    },
+    "owner": "allanbfr77"
+  }
+}

@@ -1,0 +1,66 @@
+# Antes de usar este workflow, crie um Personal Access Token (PAT) no GitHub
+# com permissão de escrita em repositórios (scope "repo") e acesso ao repositório
+# público allanbfr77/lyra-releases. Salve o token nas Actions Secrets deste
+# repositório de código-fonte com o nome LYRA_RELEASES_TOKEN.
+#
+# Releases (instalador .exe, latest.yml e notas) são publicados em repositório
+# separado do código-fonte: https://github.com/allanbfr77/lyra-releases
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release-controller-windows:
+    name: Build e release (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            controller/package-lock.json
+
+      - name: Instalar dependências (raiz)
+        run: npm ci
+
+      - name: Instalar dependências (controlador)
+        run: npm ci
+        working-directory: controller
+
+      - name: Sincronizar versão com a tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Substring(1)
+          npm version $version --no-git-tag-version --allow-same-version --prefix controller
+
+      - name: Gerar catálogo
+        run: npm run catalog:build
+
+      - name: Compilar instalador Windows
+        run: npm run build:win
+        working-directory: controller
+
+      - name: Publicar release em allanbfr77/lyra-releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: allanbfr77/lyra-releases
+          token: ${{ secrets.LYRA_RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            controller/dist/*.exe
+            controller/dist/latest.yml
+            controller/dist/*.blockmap

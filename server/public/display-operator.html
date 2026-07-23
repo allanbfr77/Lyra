@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lyra — Ministrante</title>
+  <style>
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: local('CMG Sans'), local('CMGSans-Regular'), url('./fonts/CMGSans-Regular.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'CMG Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: local('CMG Sans Bold'), local('CMGSans-Bold'), url('./fonts/CMGSans-Bold.woff2') format('woff2');
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      color: #ffffff;
+      font-family: 'CMG Sans', 'DM Sans', system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3vw 4vw;
+      cursor: none;
+    }
+    .wrap {
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      gap: 2.8vh;
+      position: relative;
+      padding: 0 2vw;
+      box-sizing: border-box;
+    }
+    .slide {
+      width: 100%;
+      max-width: 100%;
+      align-self: stretch;
+      white-space: pre-wrap;
+      text-transform: uppercase;
+      font-weight: 700;
+      line-height: 1.35;
+      font-size: 4.1vh;
+      display: block;
+      text-align: center;
+      text-align-last: center;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      text-shadow: 0 2px 28px rgba(28, 22, 22, 0.12);
+    }
+    #atual { color: #ffffff; transition: opacity 150ms ease; }
+    #proximo {
+      color: #f3c15a;
+    }
+    .linha-ministrante {
+      display: block;
+    }
+    .linha-ministrante-comentario {
+      font-style: italic;
+      color: #00c8ff;
+    }
+    #proximo .linha-ministrante-comentario {
+      color: #00c8ff;
+    }
+    .ref-biblica-op {
+      width: 100%;
+      max-width: 100%;
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.8vh;
+      color: #fbf904;
+      line-height: 1.35;
+      text-transform: none;
+      letter-spacing: 0.02em;
+      margin-top: 0.6vh;
+      transition: opacity 150ms ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #atual,
+      .ref-biblica-op { transition: none; }
+    }
+    .ref-biblica-op.oculta {
+      display: none !important;
+    }
+    .vazio {
+      opacity: 0.35;
+      font-weight: 600;
+    }
+    .capa-apresentacao-op,
+    .capa-aviso-op {
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .capa-apresentacao-op[hidden],
+    .capa-aviso-op[hidden] {
+      display: none !important;
+    }
+    .capa-apresentacao-op img,
+    .capa-apresentacao-op video,
+    .capa-apresentacao-op iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      object-fit: contain;
+      background: #000000;
+    }
+    .capa-aviso-op pre {
+      margin: 0;
+      padding: 4vh 5vw;
+      max-width: 92vw;
+      max-height: 88vh;
+      overflow: hidden;
+      font-family: 'CMG Sans', 'DM Sans', system-ui, sans-serif;
+      font-size: min(4.2vw, 5.5vh);
+      font-weight: 700;
+      line-height: 1.35;
+      color: #ffffff;
+      white-space: pre-wrap;
+      text-align: center;
+      background: transparent;
+      border: none;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div id="capa-apresentacao-op" class="capa-apresentacao-op" hidden></div>
+  <div id="capa-aviso-op" class="capa-aviso-op" hidden><pre id="capa-aviso-op-texto"></pre></div>
+  <div class="wrap" id="op-wrap-letras">
+    <div class="slide vazio" id="atual"></div>
+    <div class="ref-biblica-op oculta" id="ref-biblica-op"></div>
+    <div class="slide vazio" id="proximo"></div>
+  </div>
+  <script>
+    const { ipcRenderer } = require('electron');
+    const elAtual = document.getElementById('atual');
+    const elRefBiblicaOp = document.getElementById('ref-biblica-op');
+    const elProximo = document.getElementById('proximo');
+    const elCapaAp = document.getElementById('capa-apresentacao-op');
+    const elCapaAviso = document.getElementById('capa-aviso-op');
+    const elCapaAvisoTexto = document.getElementById('capa-aviso-op-texto');
+    const elWrapLetras = document.getElementById('op-wrap-letras');
+    let ultimoPayloadMinistrante = null;
+    let displayConfig = {
+      fontSize: 5,
+      lineSpacing: 1.7,
+      ministrante: {
+        bgType: 'solid',
+        bgColor: '#000000',
+        bgGradient: 'linear-gradient(135deg, #000000 0%, #161616 100%)',
+        bgImage: '',
+        textColorAtual: '#ffffff',
+        textColorProximo: '#f3c15a',
+        fontSize: 4.1,
+        lineSpacing: 1.35,
+        wrapLongLines: true,
+        autoFitLongLines: false,
+      },
+      clock: {
+        format: 'HH:MM',
+        fontSize: 13,
+        showClock: true,
+        monitorRelogio: 'ministrante',
+        bgType: 'solid',
+        bgColor: '#000000',
+        bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
+        bgImage: '',
+        textColor: '#ffffff',
+      },
+    };
+
+    function aplicarPosicaoConteudoMinistrante(mon, ehBiblia) {
+      if (!elWrapLetras) return;
+      if (!ehBiblia) {
+        elWrapLetras.style.justifyContent = 'center';
+        elWrapLetras.style.alignItems = 'stretch';
+        return;
+      }
+      const posY = mon.posY || 'center';
+      const posX = mon.posX || 'center';
+      if (posY === 'top') elWrapLetras.style.justifyContent = 'flex-start';
+      else if (posY === 'bottom') elWrapLetras.style.justifyContent = 'flex-end';
+      else elWrapLetras.style.justifyContent = 'center';
+      if (posX === 'left') elWrapLetras.style.alignItems = 'flex-start';
+      else if (posX === 'right') elWrapLetras.style.alignItems = 'flex-end';
+      else elWrapLetras.style.alignItems = 'center';
+    }
+
+    function normalizarCorHexAviso(valor, fallback) {
+      const s = String(valor || '').trim();
+      return /^#[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : fallback;
+    }
+
+    function normalizarCfgAviso(raw) {
+      const cfg = raw && typeof raw === 'object' ? raw : {};
+      const fontSize = Number(cfg.fontSize);
+      return {
+        fontSize: Number.isFinite(fontSize) ? Math.min(9, Math.max(2.2, fontSize)) : 5.5,
+        textColor: normalizarCorHexAviso(cfg.textColor, '#ffffff'),
+        backgroundColor: normalizarCorHexAviso(cfg.backgroundColor, '#000000'),
+        transparentBackground: cfg.transparentBackground === true,
+        wrapLongLines: cfg.wrapLongLines !== false,
+        italic: cfg.italic === true,
+        verticalPosition:
+          cfg.verticalPosition === 'top' || cfg.verticalPosition === 'bottom'
+            ? cfg.verticalPosition
+            : 'center',
+      };
+    }
+
+    function aplicarEstiloAvisoMinistrante(rawCfg) {
+      const cfg = normalizarCfgAviso(rawCfg);
+      elCapaAviso.style.background = cfg.transparentBackground ? 'transparent' : cfg.backgroundColor;
+      if (cfg.verticalPosition === 'top') elCapaAviso.style.alignItems = 'flex-start';
+      else if (cfg.verticalPosition === 'bottom') elCapaAviso.style.alignItems = 'flex-end';
+      else elCapaAviso.style.alignItems = 'center';
+      elCapaAvisoTexto.style.color = cfg.textColor;
+      elCapaAvisoTexto.style.fontStyle = cfg.italic ? 'italic' : 'normal';
+      elCapaAvisoTexto.style.fontSize = `${cfg.fontSize}vh`;
+      elCapaAvisoTexto.style.whiteSpace = cfg.wrapLongLines ? 'pre-wrap' : 'pre';
+      elCapaAvisoTexto.style.overflowWrap = cfg.wrapLongLines ? 'anywhere' : 'normal';
+      elCapaAvisoTexto.style.wordBreak = cfg.wrapLongLines ? 'break-word' : 'normal';
+      elCapaAvisoTexto.style.overflow = 'hidden';
+      return cfg;
+    }
+
+    function deveRevelarRelogioMinistrante() {
+      const clk = displayConfig.clock || {};
+      if (clk.showClock === false) return false;
+      const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
+      return alvo === 'ministrante' || alvo === 'ambos';
+    }
+
+    function aplicarFundoMinistrantePorProjecao(ativa) {
+      const mon = displayConfig.ministrante || {};
+      if (!ativa) {
+        document.body.style.background = deveRevelarRelogioMinistrante() ? 'transparent' : '#000000';
+        return;
+      }
+      if (mon.bgType === 'gradient') {
+        document.body.style.background = mon.bgGradient || '#000000';
+      } else if (mon.bgType === 'image' && mon.bgImage) {
+        document.body.style.background = `url('${mon.bgImage}') center/cover no-repeat`;
+      } else {
+        document.body.style.background = mon.bgColor || '#000000';
+      }
+    }
+
+    function normalizarReferenciaBiblicaMinistrante(valor) {
+      if (valor == null) return '';
+      const ref = String(valor).trim();
+      if (!ref) return '';
+      const lower = ref.toLowerCase();
+      return lower === 'null' || lower === 'undefined' ? '' : ref;
+    }
+
+    function aplicarReferenciaBiblicaMinistrante(tituloRef, modoPayload) {
+      if (!elRefBiblicaOp) return;
+      const mon = displayConfig.ministrante || {};
+      const ref = normalizarReferenciaBiblicaMinistrante(tituloRef);
+      const ehBiblia = modoPayload === 'biblia';
+      const mostrar = ehBiblia && mon.refMostrar !== false && !!ref;
+      if (!mostrar) {
+        elRefBiblicaOp.textContent = '';
+        elRefBiblicaOp.classList.add('oculta');
+        return;
+      }
+      elRefBiblicaOp.classList.remove('oculta');
+      elRefBiblicaOp.textContent = ref;
+      elRefBiblicaOp.style.color = mon.refColor || '#fbf904';
+      const refVw = Number(mon.refFontSize);
+      const refVh = Number.isFinite(refVw) && refVw > 0 ? refVw * 0.95 : 1.7;
+      elRefBiblicaOp.style.fontSize = `${refVh}vh`;
+      elRefBiblicaOp.style.textTransform = 'none';
+    }
+
+    function substituirCamadaDisplay(atual, camada) {
+      if (!camada || typeof camada !== 'object') return atual || {};
+      const base = atual && typeof atual === 'object' ? { ...atual } : {};
+      const bgType = camada.bgType != null ? camada.bgType : base.bgType || 'solid';
+      const merged = { ...base, ...camada, bgType };
+      merged.bgColor = camada.bgColor != null ? camada.bgColor : base.bgColor;
+      merged.bgGradient = camada.bgGradient != null ? camada.bgGradient : base.bgGradient;
+      if (bgType === 'image') {
+        const imgPatch = camada.bgImage;
+        const imgBase = base.bgImage;
+        if (imgPatch != null && String(imgPatch).length > 0) {
+          merged.bgImage = String(imgPatch);
+        } else if (imgBase != null && String(imgBase).length > 0) {
+          merged.bgImage = String(imgBase);
+        } else {
+          merged.bgImage = '';
+        }
+      } else {
+        merged.bgImage = '';
+      }
+      return merged;
+    }
+
+    function payloadMinistranteTemConteudoAtivo(payload) {
+      if (!payload || payload.telaLimpa) return false;
+      if (typeof payload.projecaoAtiva === 'boolean') return payload.projecaoAtiva;
+      const modo = String(payload.modo || 'texto');
+      if (modo === 'apresentacao') {
+        return !!String(payload?.apresentacao?.src || '').trim();
+      }
+      if (modo === 'aviso') {
+        return Array.isArray(payload.linhas) && payload.linhas.length > 0;
+      }
+      return !!(String(payload.atual || '').trim() || String(payload.proximo || '').trim());
+    }
+
+    function aplicarConfig(cfg) {
+      if (!cfg) return;
+      displayConfig = {
+        ...displayConfig,
+        ...cfg,
+        publico:
+          cfg.publico !== undefined
+            ? substituirCamadaDisplay(displayConfig.publico, cfg.publico)
+            : { ...(displayConfig.publico || {}) },
+        ministrante:
+          cfg.ministrante !== undefined
+            ? substituirCamadaDisplay(displayConfig.ministrante, cfg.ministrante)
+            : { ...(displayConfig.ministrante || {}) },
+        clock: { ...displayConfig.clock, ...(cfg.clock || {}) },
+      };
+      const mon = displayConfig.ministrante || {};
+      elAtual.style.color = mon.textColorAtual || '#ffffff';
+      elProximo.style.color = mon.textColorProximo || '#f3c15a';
+      const baseVh = Math.max(2.2, Number(mon.fontSize || 4.1));
+      elAtual.style.fontSize = `${baseVh}vh`;
+      elProximo.style.fontSize = `${baseVh}vh`;
+      elAtual.style.lineHeight = String(mon.lineSpacing || 1.35);
+      elProximo.style.lineHeight = String(mon.lineSpacing || 1.35);
+      const wrap = mon.wrapLongLines !== false;
+      if (!wrap) {
+        elAtual.style.whiteSpace = 'pre';
+        elAtual.style.overflowWrap = 'normal';
+        elAtual.style.wordBreak = 'normal';
+        elProximo.style.whiteSpace = 'pre';
+        elProximo.style.overflowWrap = 'normal';
+        elProximo.style.wordBreak = 'normal';
+      } else {
+        elAtual.style.whiteSpace = 'pre-wrap';
+        elAtual.style.overflowWrap = 'anywhere';
+        elAtual.style.wordBreak = 'break-word';
+        elProximo.style.whiteSpace = 'pre-wrap';
+        elProximo.style.overflowWrap = 'anywhere';
+        elProximo.style.wordBreak = 'break-word';
+      }
+      const projecaoAtiva = payloadMinistranteTemConteudoAtivo(ultimoPayloadMinistrante);
+      aplicarFundoMinistrantePorProjecao(projecaoAtiva);
+      const ehBibliaCfg =
+        ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
+      if (ehBibliaCfg && mon.fontFamily) {
+        elAtual.style.fontFamily = mon.fontFamily;
+        elProximo.style.fontFamily = mon.fontFamily;
+        if (elRefBiblicaOp) elRefBiblicaOp.style.fontFamily = mon.fontFamily;
+      }
+      aplicarPosicaoConteudoMinistrante(mon, ehBibliaCfg);
+      ajustarAutoFitSlidesMinistrante();
+      if (ultimoPayloadMinistrante) aplicar(ultimoPayloadMinistrante);
+    }
+
+    function ajustarAutoFitSlidesMinistrante() {
+      const mon = displayConfig.ministrante || {};
+      const ehBiblia =
+        ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
+      const base = Math.max(2.2, Number(mon.fontSize || 4.1));
+      elAtual.style.fontSize = `${base}vh`;
+      elProximo.style.fontSize = `${base}vh`;
+      const wrap = mon.wrapLongLines !== false;
+      const autoFit = wrap ? mon.autoFitLongLines === true : true;
+      const usarMaiusculas = ehBiblia ? mon.maiusculo === true : true;
+      if (!autoFit) return;
+      const limite = window.innerWidth * 0.9;
+      if (!Number.isFinite(limite) || limite <= 0) return;
+      const linhas = [];
+      const addLines = (txt) => {
+        const raw = String(txt || '');
+        if (!raw) return;
+        if (wrap) {
+          raw.split(/\r\n|\r|\n/).forEach((l) => linhas.push(l));
+        } else {
+          raw.split(/\r\n|\r|\n/).forEach((l) => linhas.push(l));
+        }
+      };
+      const plMed = ultimoPayloadMinistrante || {};
+      addLines(textoPlanoMinistranteParaMedicao(plMed.atual));
+      addLines(textoPlanoMinistranteParaMedicao(plMed.proximo));
+      if (!linhas.length) return;
+      const medidor = document.createElement('span');
+      medidor.style.position = 'fixed';
+      medidor.style.left = '-99999px';
+      medidor.style.top = '-99999px';
+      medidor.style.visibility = 'hidden';
+      medidor.style.whiteSpace = 'pre';
+      medidor.style.fontFamily = getComputedStyle(elAtual).fontFamily;
+      medidor.style.fontWeight = ehBiblia
+        ? mon.negrito !== false
+          ? 'bold'
+          : 'normal'
+        : getComputedStyle(elAtual).fontWeight;
+      medidor.style.letterSpacing = getComputedStyle(elAtual).letterSpacing;
+      medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
+      document.body.appendChild(medidor);
+      let atual = base;
+      const minimo = 2.1;
+      while (atual > minimo) {
+        medidor.style.fontSize = `${atual}vh`;
+        let maior = 0;
+        for (const l of linhas) {
+          const amostra = l || ' ';
+          medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
+          maior = Math.max(maior, medidor.getBoundingClientRect().width);
+        }
+        if (maior <= limite) break;
+        atual -= 0.2;
+      }
+      document.body.removeChild(medidor);
+      const finalVh = Math.max(minimo, atual);
+      elAtual.style.fontSize = `${finalVh}vh`;
+      elProximo.style.fontSize = `${finalVh}vh`;
+    }
+
+    function limparCapasApresentacaoOuAviso() {
+      elCapaAp.hidden = true;
+      elCapaAp.innerHTML = '';
+      elCapaAviso.hidden = true;
+      elCapaAvisoTexto.textContent = '';
+      if (elWrapLetras) elWrapLetras.style.visibility = '';
+    }
+
+    function aplicarSyncVideoApresentacaoNoHost(host, st) {
+      if (!host || host.hidden) return;
+      const video = host.querySelector('video.lyra-ap-video-proj');
+      if (!video || !video.src) return;
+      const payload = st && typeof st === 'object' ? st : {};
+      const vol = Number(payload.volume);
+      if (Number.isFinite(vol)) {
+        video.volume = Math.max(0, Math.min(1, vol));
+      }
+      if (payload.syncTime === true) {
+        const t = Number(payload.currentTime);
+        if (Number.isFinite(t)) {
+          try {
+            video.currentTime = Math.max(0, t);
+          } catch (_) {}
+        }
+      }
+      const playing = !!payload.playing;
+      if (playing && video.paused) {
+        const p = video.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } else if (!playing && !video.paused) {
+        video.pause();
+      }
+    }
+
+    function renderizarMidiaApresentacaoNoHost(host, ap) {
+      if (!host) return;
+      const videoAntigo = host.querySelector('video.lyra-ap-video-proj');
+      if (videoAntigo) {
+        try {
+          videoAntigo.pause();
+        } catch (_) {}
+      }
+      host.innerHTML = '';
+      const p = ap || {};
+      const kind = String(p.kind || 'iframe').toLowerCase();
+      const src = String(p.src || '').trim();
+      if (!src) {
+        const msg = document.createElement('div');
+        msg.style.cssText = 'color:#fff;font-size:2vh;text-align:center;padding:4vh;';
+        msg.textContent = 'Sem mídia.';
+        host.appendChild(msg);
+        return;
+      }
+      if (kind === 'image') {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = p.title ? String(p.title) : '';
+        host.appendChild(img);
+        return;
+      }
+      if (kind === 'video') {
+        const video = document.createElement('video');
+        video.className = 'lyra-ap-video-proj';
+        video.src = src;
+        video.autoplay = false;
+        video.loop = false;
+        video.muted = true;
+        video.controls = false;
+        video.playsInline = true;
+        video.preload = 'auto';
+        host.appendChild(video);
+        return;
+      }
+      const iframe = document.createElement('iframe');
+      iframe.src = src;
+      iframe.allow = 'autoplay; fullscreen';
+      iframe.referrerPolicy = 'no-referrer';
+      iframe.setAttribute('allowfullscreen', 'true');
+      host.appendChild(iframe);
+    }
+
+    const BIBLIA_FADE_MS = 150;
+    let bibliaMinFadeTimer = null;
+    let bibliaMinUltimoTexto = '';
+
+    function atualizarTextoBibliaMinistranteComFade(atualTxt, tituloRef, modoPayload, continuar) {
+      const chave = `${atualTxt}\n${tituloRef}`;
+      if (modoPayload !== 'biblia' || !bibliaMinUltimoTexto || chave === bibliaMinUltimoTexto) {
+        bibliaMinUltimoTexto = chave;
+        continuar();
+        return;
+      }
+      clearTimeout(bibliaMinFadeTimer);
+      const alvos = [elAtual, elRefBiblicaOp].filter(Boolean);
+      const reduzido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!alvos.length || reduzido) {
+        bibliaMinUltimoTexto = chave;
+        continuar();
+        return;
+      }
+      alvos.forEach((el) => {
+        el.style.opacity = '0';
+      });
+      bibliaMinFadeTimer = setTimeout(() => {
+        bibliaMinUltimoTexto = chave;
+        continuar();
+        requestAnimationFrame(() => {
+          alvos.forEach((el) => {
+            el.style.opacity = '1';
+          });
+        });
+      }, BIBLIA_FADE_MS);
+    }
+
+    const RX_LINHA_COMENTARIO_MIN = /^\s*\/\/(.*)$/;
+
+    function isLinhaComentarioMinistrante(linha) {
+      return RX_LINHA_COMENTARIO_MIN.test(String(linha ?? ''));
+    }
+
+    function textoExibicaoComentarioMinistrante(linha) {
+      const m = String(linha ?? '').match(RX_LINHA_COMENTARIO_MIN);
+      if (!m) return String(linha ?? '');
+      return String(m[1] ?? '').trimStart();
+    }
+
+    function escapeHtmlMinistrante(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function htmlTextoMinistranteComComentarios(texto, maiusculo) {
+      const mai = maiusculo || ((s) => s);
+      const lines = String(texto ?? '').split(/\r\n|\r|\n/);
+      return lines
+        .map((line) => {
+          if (line === '') {
+            return '<span class="linha-ministrante linha-ministrante--vazia">\u00a0</span>';
+          }
+          if (isLinhaComentarioMinistrante(line)) {
+            const inner = mai(textoExibicaoComentarioMinistrante(line));
+            return `<span class="linha-ministrante linha-ministrante-comentario">${escapeHtmlMinistrante(inner)}</span>`;
+          }
+          const inner = mai(line);
+          return `<span class="linha-ministrante">${escapeHtmlMinistrante(inner)}</span>`;
+        })
+        .join('');
+    }
+
+    function textoPlanoMinistranteParaMedicao(texto) {
+      return String(texto ?? '')
+        .split(/\r\n|\r|\n/)
+        .map((line) => {
+          if (isLinhaComentarioMinistrante(line)) return textoExibicaoComentarioMinistrante(line);
+          return line;
+        })
+        .join('\n');
+    }
+
+    function aplicarHtmlMinistrante(el, texto, maiusculo) {
+      if (!el) return;
+      const raw = String(texto ?? '');
+      if (!raw.trim()) {
+        el.innerHTML = '';
+        return;
+      }
+      el.innerHTML = htmlTextoMinistranteComComentarios(raw, maiusculo);
+    }
+
+    function aplicar(payload) {
+      ultimoPayloadMinistrante = payload || null;
+      const mon = displayConfig.ministrante || {};
+      const wrapLinhas = mon.wrapLongLines !== false;
+      const vazio = !payloadMinistranteTemConteudoAtivo(payload);
+      const modo = String(payload?.modo || 'texto');
+
+      if (vazio) {
+        limparCapasApresentacaoOuAviso();
+        if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
+        elAtual.textContent = '';
+        elProximo.textContent = '';
+        aplicarReferenciaBiblicaMinistrante('', 'texto');
+        elAtual.classList.add('vazio');
+        elProximo.classList.add('vazio');
+        const wrapOcioso = document.querySelector('.wrap');
+        if (wrapOcioso) wrapOcioso.style.background = deveRevelarRelogioMinistrante() ? 'transparent' : '';
+        aplicarFundoMinistrantePorProjecao(false);
+        return;
+      }
+
+      aplicarFundoMinistrantePorProjecao(true);
+      if (elWrapLetras) elWrapLetras.style.background = '';
+
+      if (modo === 'apresentacao') {
+        limparCapasApresentacaoOuAviso();
+        elCapaAviso.hidden = true;
+        renderizarMidiaApresentacaoNoHost(elCapaAp, payload.apresentacao);
+        elCapaAp.hidden = false;
+        if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
+        return;
+      }
+
+      if (modo === 'aviso') {
+        limparCapasApresentacaoOuAviso();
+        elCapaAp.hidden = true;
+        aplicarEstiloAvisoMinistrante(payload.avisoConfig);
+        const linhas = Array.isArray(payload.linhas) ? payload.linhas : [];
+        elCapaAvisoTexto.textContent = linhas.join('\n');
+        elCapaAviso.hidden = false;
+        if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
+        return;
+      }
+
+      limparCapasApresentacaoOuAviso();
+      const atualTxt = String(payload.atual || '');
+      const proxTxt = String(payload.proximo || '');
+      const tituloRef = normalizarReferenciaBiblicaMinistrante(payload.titulo);
+      const modoPayload = String(payload.modo || 'texto');
+      const ehBiblia = modoPayload === 'biblia';
+
+      const aplicarLinhasMinistrante = () => {
+        const mai = ehBiblia ? (s) => s : (s) => String(s || '').toUpperCase();
+        aplicarHtmlMinistrante(elAtual, atualTxt, mai);
+        aplicarHtmlMinistrante(elProximo, proxTxt, mai);
+        aplicarReferenciaBiblicaMinistrante(tituloRef, modoPayload);
+      };
+
+      if (ehBiblia) {
+        atualizarTextoBibliaMinistranteComFade(atualTxt, tituloRef, modoPayload, aplicarLinhasMinistrante);
+      } else {
+        bibliaMinUltimoTexto = '';
+        aplicarLinhasMinistrante();
+      }
+
+      if (ehBiblia) {
+        const mon = displayConfig.ministrante || {};
+        const usarMaiusculas = mon.maiusculo === true;
+        const usarNegrito = mon.negrito !== false;
+        const wrap = mon.wrapLongLines !== false;
+        elAtual.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
+        elProximo.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
+        elAtual.style.fontWeight = usarNegrito ? 'bold' : 'normal';
+        elProximo.style.fontWeight = usarNegrito ? 'bold' : 'normal';
+        if (!wrap) {
+          elAtual.style.whiteSpace = 'pre';
+          elAtual.style.overflowWrap = 'normal';
+          elAtual.style.wordBreak = 'normal';
+          elProximo.style.whiteSpace = 'pre';
+          elProximo.style.overflowWrap = 'normal';
+          elProximo.style.wordBreak = 'normal';
+        } else {
+          elAtual.style.whiteSpace = 'pre-wrap';
+          elAtual.style.overflowWrap = 'anywhere';
+          elAtual.style.wordBreak = 'break-word';
+          elProximo.style.whiteSpace = 'pre-wrap';
+          elProximo.style.overflowWrap = 'anywhere';
+          elProximo.style.wordBreak = 'break-word';
+        }
+        if (mon.fontFamily) {
+          elAtual.style.fontFamily = mon.fontFamily;
+          elProximo.style.fontFamily = mon.fontFamily;
+          if (elRefBiblicaOp) elRefBiblicaOp.style.fontFamily = mon.fontFamily;
+        }
+        aplicarPosicaoConteudoMinistrante(mon, true);
+      } else {
+        elAtual.style.textTransform = 'uppercase';
+        elProximo.style.textTransform = 'uppercase';
+        aplicarPosicaoConteudoMinistrante({}, false);
+      }
+      elAtual.classList.toggle('vazio', !payload.atual);
+      elProximo.classList.toggle('vazio', !payload.proximo);
+      ajustarAutoFitSlidesMinistrante();
+    }
+
+    ipcRenderer.on('atualizar_ministrante', (_, payload) => aplicar(payload || {}));
+    ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));
+    ipcRenderer.on('apresentacao_video_sync', (_, payload) => {
+      aplicarSyncVideoApresentacaoNoHost(elCapaAp, payload || {});
+    });
+    aplicar({ telaLimpa: true });
+  </script>
+</body>
+</html>
