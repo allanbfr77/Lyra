@@ -1839,6 +1839,7 @@
       border-bottom-right-radius: 0;
     }
 
+    .musica-versoes-bar .musica-versao-renomear,
     .musica-versoes-bar .musica-versao-del {
       flex: 0 0 22px;
       width: 22px;
@@ -1848,10 +1849,9 @@
       box-sizing: border-box;
       border: 1px solid var(--border);
       border-left: none;
-      border-radius: 0 6px 6px 0;
       background: color-mix(in srgb, var(--surface2) 92%, var(--surface));
       color: var(--text-dim);
-      font-size: 15px;
+      font-size: 13px;
       line-height: 1;
       cursor: pointer;
       opacity: 0;
@@ -1859,10 +1859,28 @@
       transition: opacity 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
     }
 
+    .musica-versoes-bar .musica-versao-renomear {
+      border-radius: 0;
+      font-size: 12px;
+    }
+
+    .musica-versoes-bar .musica-versao-del {
+      border-radius: 0 6px 6px 0;
+      font-size: 15px;
+    }
+
+    .musica-versoes-bar .musica-versao-chip:hover .musica-versao-renomear,
+    .musica-versoes-bar .musica-versao-chip:focus-within .musica-versao-renomear,
     .musica-versoes-bar .musica-versao-chip:hover .musica-versao-del,
     .musica-versoes-bar .musica-versao-chip:focus-within .musica-versao-del {
       opacity: 1;
       pointer-events: auto;
+    }
+
+    .musica-versoes-bar .musica-versao-renomear:hover {
+      background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+      color: var(--accent);
     }
 
     .musica-versoes-bar .musica-versao-del:hover {
@@ -1871,6 +1889,7 @@
       color: #fff;
     }
 
+    .musica-versoes-bar .musica-versao-chip:has(.versao-musica-ativa) .musica-versao-renomear,
     .musica-versoes-bar .musica-versao-chip:has(.versao-musica-ativa) .musica-versao-del {
       border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
     }

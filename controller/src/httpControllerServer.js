@@ -14,6 +14,7 @@ const {
   atualizarMusicaNoDb,
   apagarMusicaUsuarioNoDb,
   criarVersaoMusicaNoDb,
+  atualizarRotuloVersaoNoDb,
   inserirMusicaUsuario,
   importarMusicaUsuarioNoDb,
   listarVersoesPorRootId,
@@ -754,6 +755,24 @@ async function iniciarServidorController(ctx, paths) {
       res.status(500).json({ erro: e.message || String(e) });
     }
   });
+
+  function renomearRotuloVersaoHandler(idRaw, req, res) {
+    try {
+      const id = parseInt(idRaw, 10);
+      if (!Number.isFinite(id)) return res.status(400).json({ erro: 'id inválido' });
+      const rotulo = String(req.body?.rotulo || '').trim();
+      const r = atualizarRotuloVersaoNoDb(id, rotulo);
+      if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
+      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      notificarBancoCompartilhadoAlterado(meta.updatedAt);
+      res.json({ ok: true, id: r.id, rotulo: r.rotulo, rootId: r.rootId });
+    } catch (e) {
+      res.status(500).json({ erro: e.message || String(e) });
+    }
+  }
+
+  expressApp.patch('/api/musicas/:id/rotulo', (req, res) => renomearRotuloVersaoHandler(req.params.id, req, res));
+  expressApp.post('/api/musicas/:id/rotulo', (req, res) => renomearRotuloVersaoHandler(req.params.id, req, res));
 
   function apagarMusicaHandler(id, res) {
     const idn = parseInt(id, 10);

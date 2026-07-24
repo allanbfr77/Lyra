@@ -439,6 +439,26 @@ function criarVersaoMusicaNoDb(idRaw, rotuloRaw) {
   };
 }
 
+/** Renomeia o rótulo de uma cópia/versão (não o original imutável). */
+function atualizarRotuloVersaoNoDb(idRaw, rotuloRaw) {
+  const id = parseInt(idRaw, 10);
+  if (!Number.isFinite(id)) return { ok: false, erro: 'id inválido' };
+  const rotulo = String(rotuloRaw || '').trim().slice(0, 40);
+  if (!rotulo) return { ok: false, erro: 'rotulo obrigatório' };
+
+  const row = obterMusicaUsuarioPorId(id);
+  if (!row) return { ok: false, erro: 'Não encontrado' };
+  if (Number(row.is_immutable) === 1 || row.parent_id == null) {
+    return { ok: false, erro: 'Não é possível renomear o original' };
+  }
+
+  const r = db
+    .prepare('UPDATE musicas SET rotulo=? WHERE id=? AND is_immutable = 0')
+    .run(rotulo, id);
+  if (r.changes === 0) return { ok: false, erro: 'Não encontrado' };
+  return { ok: true, id, rotulo, rootId: resolverRootIdDaMusica(row) };
+}
+
 function musicaIdPorTituloArtistaIgual(titulo, artista) {
   const t = String(titulo || '').trim().toLowerCase();
   const a = String(artista || '').trim().toLowerCase();
@@ -548,6 +568,7 @@ module.exports = {
   atualizarMusicaNoDb,
   apagarMusicaUsuarioNoDb,
   criarVersaoMusicaNoDb,
+  atualizarRotuloVersaoNoDb,
   listarVersoesPorRootId,
   resolverRootIdDaMusica,
   listarMusicasUsuarioParaSync,

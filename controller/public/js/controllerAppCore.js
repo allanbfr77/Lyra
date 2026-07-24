@@ -4345,9 +4345,16 @@ function atualizarCopiaLocal(idMusica, copiaId, data) {
   const list = listaCopiasMusicaInterno(idMusica);
   const c = list.find((x) => x.id === copiaId);
   if (!c) return { ok: false, erro: 'Cópia não encontrada.' };
-  c.titulo = String(data.titulo || '').trim();
-  c.artista = String(data.artista || '').trim();
-  c.estrofes = Array.isArray(data.estrofes) ? data.estrofes.map((s) => String(s ?? '')) : [''];
+  if (data.titulo != null) c.titulo = String(data.titulo || '').trim();
+  if (data.artista != null) c.artista = String(data.artista || '').trim();
+  if (data.estrofes != null) {
+    c.estrofes = Array.isArray(data.estrofes) ? data.estrofes.map((s) => String(s ?? '')) : [''];
+  }
+  if (data.rotulo != null) {
+    const rotulo = String(data.rotulo || '').trim().slice(0, 40);
+    if (!rotulo) return { ok: false, erro: 'Informe um nome para a versão.' };
+    c.rotulo = rotulo;
+  }
   saveCopiasLocaisMap();
   const idN = Number(idMusica);
   const vid = String(copiaId);
@@ -4357,13 +4364,14 @@ function atualizarCopiaLocal(idMusica, copiaId, data) {
     musicaVersaoLocalId &&
     String(musicaVersaoLocalId) === vid
   ) {
-    musicaAtiva.titulo = c.titulo;
-    musicaAtiva.artista = c.artista;
-    musicaAtiva.estrofes = c.estrofes.map((s) => String(s));
+    if (data.titulo != null) musicaAtiva.titulo = c.titulo;
+    if (data.artista != null) musicaAtiva.artista = c.artista;
+    if (data.estrofes != null) musicaAtiva.estrofes = c.estrofes.map((s) => String(s));
+    if (data.rotulo != null) musicaAtiva.rotulo = c.rotulo;
     const et = document.getElementById('edit-titulo');
     const ea = document.getElementById('edit-artista');
-    if (et) et.value = musicaAtiva.titulo || '';
-    if (ea) ea.value = musicaAtiva.artista || '';
+    if (et && data.titulo != null) et.value = musicaAtiva.titulo || '';
+    if (ea && data.artista != null) ea.value = musicaAtiva.artista || '';
   }
   return { ok: true };
 }
@@ -6505,6 +6513,27 @@ function removerVersaoLocalDasPlaylists(idMusica, copiaId) {
       if (it.versaoLocalId && String(it.versaoLocalId) === vid) {
         it.versaoLocalId = null;
         it.versaoRotulo = '';
+        mudou = true;
+      }
+    });
+  });
+  if (mudou) savePlaylists();
+}
+
+/** Atualiza o rótulo em cache das entradas de playlist que apontam para esta versão. */
+function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo) {
+  const idStr = String(Number(idMusica));
+  const vid = String(versaoId);
+  const rotulo = String(novoRotulo || '').trim();
+  let mudou = false;
+  Object.keys(playlists).forEach((cid) => {
+    const pl = playlists[cid];
+    if (!Array.isArray(pl)) return;
+    pl.forEach((it) => {
+      if (!it || ehMarcadorTemaPlaylist(it)) return;
+      if (String(it.id) !== idStr) return;
+      if (it.versaoLocalId && String(it.versaoLocalId) === vid) {
+        it.versaoRotulo = rotulo;
         mudou = true;
       }
     });
@@ -10756,6 +10785,20 @@ function rotuloExibicaoVersaoServidor(v) {
   return 'CÓPIA';
 }
 
+function mkBotaoAcaoVersaoChip(cls, title, label, onClick) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = cls;
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.textContent = label;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    onClick();
+  };
+  return btn;
+}
+
 function renderMusicaVersoesBar() {
   const bar = document.getElementById('musica-versoes-bar');
   if (!bar) return;
@@ -10807,19 +10850,19 @@ function renderMusicaVersoesBar() {
     const wrap = document.createElement('span');
     wrap.className = 'musica-versao-chip';
     const vid = String(v.id);
-    const b = mkBtn(rotuloExibicaoVersaoServidor(v), vid, !musicaVersaoLocalId && Number(musicaAtiva.id) === Number(v.id));
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'musica-versao-del';
-    del.title = 'Remover esta versão';
-    del.setAttribute('aria-label', 'Remover esta versão');
-    del.textContent = '×';
-    del.onclick = (e) => {
-      e.stopPropagation();
-      void confirmarRemoverVersaoServidor(rootId, vid);
-    };
+    const ativo = !musicaVersaoLocalId && Number(musicaAtiva.id) === Number(v.id);
+    const b = mkBtn(rotuloExibicaoVersaoServidor(v), vid, ativo);
     wrap.appendChild(b);
-    wrap.appendChild(del);
+    wrap.appendChild(
+      mkBotaoAcaoVersaoChip('musica-versao-renomear', 'Renomear esta versão', '✎', () => {
+        void iniciarRenomearVersaoServidor(rootId, vid, v.rotulo || '');
+      })
+    );
+    wrap.appendChild(
+      mkBotaoAcaoVersaoChip('musica-versao-del', 'Remover esta versão', '×', () => {
+        void confirmarRemoverVersaoServidor(rootId, vid);
+      })
+    );
     bar.appendChild(wrap);
   }
 
@@ -10828,20 +10871,75 @@ function renderMusicaVersoesBar() {
     wrap.className = 'musica-versao-chip';
     const rotuloVis = `${String(c.rotulo || 'Cópia').toLocaleUpperCase('pt-BR')} (LOCAL)`;
     const b = mkBtn(rotuloVis, c.id, musicaVersaoLocalId === c.id);
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'musica-versao-del';
-    del.title = 'Remover esta versão local';
-    del.setAttribute('aria-label', 'Remover esta versão local');
-    del.textContent = '×';
-    del.onclick = (e) => {
-      e.stopPropagation();
-      void confirmarRemoverVersaoLocal(rootId, c.id);
-    };
     wrap.appendChild(b);
-    wrap.appendChild(del);
+    wrap.appendChild(
+      mkBotaoAcaoVersaoChip('musica-versao-renomear', 'Renomear esta versão local', '✎', () => {
+        void iniciarRenomearVersaoLocal(rootId, c.id, c.rotulo || '');
+      })
+    );
+    wrap.appendChild(
+      mkBotaoAcaoVersaoChip('musica-versao-del', 'Remover esta versão local', '×', () => {
+        void confirmarRemoverVersaoLocal(rootId, c.id);
+      })
+    );
     bar.appendChild(wrap);
   });
+}
+
+async function iniciarRenomearVersaoServidor(rootId, versaoId, rotuloAtual) {
+  const nome = await appPrompt('Novo nome da versão:', {
+    title: 'Renomear versão',
+    defaultValue: String(rotuloAtual || '').trim(),
+    emptyMsg: 'Digite um nome para a versão.',
+  });
+  if (!nome) return;
+  const idNum = parseInt(versaoId, 10);
+  if (!Number.isFinite(idNum)) return;
+  try {
+    let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rotulo: nome }),
+    });
+    if (res.status === 404) {
+      res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rotulo: nome }),
+      });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      await appAlert(data.erro || `Não foi possível renomear (HTTP ${res.status}).`);
+      return;
+    }
+    const rotuloFinal = String(data.rotulo || nome).trim();
+    atualizarRotuloVersaoNasPlaylists(rootId, versaoId, rotuloFinal);
+    if (musicaAtiva && Number(musicaAtiva.id) === idNum) {
+      musicaAtiva.rotulo = rotuloFinal;
+    }
+    await carregarVersoesMusicaServidor(rootId);
+    renderPlaylist();
+  } catch (e) {
+    await appAlert(e?.message || 'Não foi possível renomear a versão.');
+  }
+}
+
+async function iniciarRenomearVersaoLocal(rootId, copiaId, rotuloAtual) {
+  const nome = await appPrompt('Novo nome da versão:', {
+    title: 'Renomear versão',
+    defaultValue: String(rotuloAtual || '').trim(),
+    emptyMsg: 'Digite um nome para a versão.',
+  });
+  if (!nome) return;
+  const up = atualizarCopiaLocal(rootId, copiaId, { rotulo: nome });
+  if (!up.ok) {
+    await appAlert(up.erro || 'Não foi possível renomear a versão local.');
+    return;
+  }
+  atualizarRotuloVersaoNasPlaylists(rootId, copiaId, nome);
+  renderMusicaVersoesBar();
+  renderPlaylist();
 }
 
 async function confirmarRemoverVersaoServidor(rootId, versaoId) {
