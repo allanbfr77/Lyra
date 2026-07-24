@@ -16,6 +16,43 @@ const { indicesJanelasProjecaoDeRoteamentoDual } = displayRoutingMod;
 const PRETO_NATIVO_PROJECAO = '#000000';
 
 /**
+ * Nível mais alto do Electron no Windows — acima de outros programas de projeção
+ * que também usam always-on-top / fullscreen (EasyWorship, ProPresenter, etc.).
+ * @see https://www.electronjs.org/docs/latest/api/browser-window#winsetalwaysontopflag-level
+ */
+const NIVEL_TOPO_PROJECAO = 'screen-saver';
+
+/** Roles que devem cobrir o outro software de projeção (relógio fica atrás de propósito). */
+const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
+
+/** Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3. */
+const INTERVALO_RECLAIM_TOPO_MS = 800;
+
+/**
+ * Mantém a janela de projeção acima de qualquer outro app topmost.
+ * O construtor só aceita `alwaysOnTop: true` (nível padrão); o nível alto
+ * precisa de `setAlwaysOnTop(true, 'screen-saver')` + `moveTop()`.
+ * @param {import('electron').BrowserWindow} win
+ */
+function aplicarTopoAbsolutoProjecao(win) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.setAlwaysOnTop(true, NIVEL_TOPO_PROJECAO);
+  } catch (_) {
+    try {
+      win.setAlwaysOnTop(true);
+    } catch (__) {
+      // intencional — erro ignorado
+    }
+  }
+  try {
+    win.moveTop();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/**
  * Opções comuns das janelas de projeção (telão / ministrante).
  * @param {object} display Entrada de `getOrderedDisplays(screen)`.
  * @param {string} title
@@ -64,6 +101,55 @@ function createWindowsApi(ctx, paths, deps) {
   let syncTelasReagendar = false;
   /** @type {Array<() => void>} */
   const syncTelasCallbacksPendentes = [];
+  /** @type {ReturnType<typeof setInterval> | null} */
+  let topoAbsolutoIntervalId = null;
+
+  /**
+   * Reafirma topo em TODAS as janelas de projeção visíveis.
+   * Necessário em multi-monitor: o concorrente pode cobrir só o M2 sem gerar blur no M3.
+   */
+  function reafirmarTopoTodasJanelasProjecao() {
+    for (const entry of ctx.windowsDisplay) {
+      if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) continue;
+      const win = entry?.win;
+      if (!win || win.isDestroyed() || !win.isVisible()) continue;
+      aplicarTopoAbsolutoProjecao(win);
+    }
+  }
+
+  function haJanelaProjecaoVisivelNoTopo() {
+    return ctx.windowsDisplay.some((entry) => {
+      if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) return false;
+      const win = entry?.win;
+      return !!(win && !win.isDestroyed() && win.isVisible());
+    });
+  }
+
+  /** Mantém loop de reclaim enquanto houver telão/ministrante/escudo visível. */
+  function atualizarLoopTopoAbsolutoProjecao() {
+    if (haJanelaProjecaoVisivelNoTopo()) {
+      if (!topoAbsolutoIntervalId) {
+        topoAbsolutoIntervalId = setInterval(() => {
+          try {
+            reafirmarTopoTodasJanelasProjecao();
+          } catch (_) {
+            // intencional — erro ignorado
+          }
+          if (!haJanelaProjecaoVisivelNoTopo()) {
+            atualizarLoopTopoAbsolutoProjecao();
+          }
+        }, INTERVALO_RECLAIM_TOPO_MS);
+        if (typeof topoAbsolutoIntervalId.unref === 'function') {
+          topoAbsolutoIntervalId.unref();
+        }
+      }
+      return;
+    }
+    if (topoAbsolutoIntervalId) {
+      clearInterval(topoAbsolutoIntervalId);
+      topoAbsolutoIntervalId = null;
+    }
+  }
 
   function estadoOciosoPublico() {
     return projectionPayloads.estadoPublicoOcioso();
@@ -243,12 +329,14 @@ function createWindowsApi(ctx, paths, deps) {
           if (!win.isVisible()) {
             win.show();
             win.setFullScreen(true);
-            win.setAlwaysOnTop(true);
+            aplicarTopoAbsolutoProjecao(win);
           }
         } catch (_) {
           // intencional — erro ignorado
         }
       });
+    reafirmarTopoTodasJanelasProjecao();
+    atualizarLoopTopoAbsolutoProjecao();
   }
 
   function aplicarPretoInativoNasJanelasAbertas() {
@@ -279,6 +367,7 @@ function createWindowsApi(ctx, paths, deps) {
       }
     });
     ctx.windowsDisplay = [];
+    atualizarLoopTopoAbsolutoProjecao();
   }
 
   function encerrarProjecaoPorEsc(canal) {
@@ -301,31 +390,41 @@ function createWindowsApi(ctx, paths, deps) {
     if (ctx.io) ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
   }
 
-  /** Garante fullscreen e fundo nativo assim que a janela existe. */
+  /** Garante fullscreen, topo absoluto e fundo nativo assim que a janela existe. */
   function finalizarJanelaProjecaoNativa(win, opts = {}) {
     if (!win || win.isDestroyed()) return;
     const backgroundColor = opts.backgroundColor || PRETO_NATIVO_PROJECAO;
     try { win.setBackgroundColor(backgroundColor); } catch (_) {
   // intencional — erro ignorado
 }
-    try { win.setAlwaysOnTop(true); } catch (_) {
-  // intencional — erro ignorado
-}
+    aplicarTopoAbsolutoProjecao(win);
     try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
     try { if (!win.isVisible()) win.show(); } catch (_) {
   // intencional — erro ignorado
 }
+    // Outro software topmost pode cobrir só um monitor; reclaim global (M2+M3).
+    if (!win.__lyraTopoAbsolutoBlurBound) {
+      win.__lyraTopoAbsolutoBlurBound = true;
+      win.on('blur', () => {
+        if (win.isDestroyed()) return;
+        reafirmarTopoTodasJanelasProjecao();
+        atualizarLoopTopoAbsolutoProjecao();
+      });
+    }
     win.once('ready-to-show', () => {
       if (win.isDestroyed()) return;
       try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
+      aplicarTopoAbsolutoProjecao(win);
       try { win.show(); } catch (_) {
   // intencional — erro ignorado
 }
+      atualizarLoopTopoAbsolutoProjecao();
     });
+    atualizarLoopTopoAbsolutoProjecao();
   }
 
   function finalizarJanelaRelogioNativa(win) {
@@ -789,7 +888,7 @@ function createWindowsApi(ctx, paths, deps) {
             });
             principal.win.show();
             principal.win.setFullScreen(true);
-            principal.win.setAlwaysOnTop(true);
+            aplicarTopoAbsolutoProjecao(principal.win);
             principal.index = displayIndex;
           } catch (_) {
   // intencional — erro ignorado
@@ -840,7 +939,7 @@ function createWindowsApi(ctx, paths, deps) {
               }
               entry.win.show();
               entry.win.setFullScreen(true);
-              entry.win.setAlwaysOnTop(true);
+              aplicarTopoAbsolutoProjecao(entry.win);
             } catch (_) {
   // intencional — erro ignorado
 }
@@ -885,6 +984,8 @@ function createWindowsApi(ctx, paths, deps) {
 
   function finalizarSincronizacaoTelas(onComplete) {
     syncTelasEmAndamento = false;
+    reafirmarTopoTodasJanelasProjecao();
+    atualizarLoopTopoAbsolutoProjecao();
     if (typeof onComplete === 'function') {
       try { onComplete(); } catch (e) {
         logError('sync-telas-oncomplete', e);
@@ -1035,6 +1136,8 @@ function createWindowsApi(ctx, paths, deps) {
 }
         });
       sincronizarJanelasRelogio(routingDual);
+      reafirmarTopoTodasJanelasProjecao();
+      atualizarLoopTopoAbsolutoProjecao();
       return;
     }
     sincronizarTelasComRota(routingDual, () => {
