@@ -8732,19 +8732,121 @@ function sincronizarEstrofesDesdeTextareaLetraCompleta() {
   }
 }
 
-function alternarModoLetraCompletaCentral() {
+function normalizarEstrofesParaCmp(arr) {
+  return (arr || []).map((s) => String(s ?? '').replace(/\r\n/g, '\n'));
+}
+
+function estrofesArraysIguaisParaEdicao(a, b) {
+  const aa = normalizarEstrofesParaCmp(a);
+  const bb = normalizarEstrofesParaCmp(b);
+  if (aa.length !== bb.length) return false;
+  return aa.every((s, i) => s === bb[i]);
+}
+
+/** Estrofes atuais do editor por slides (textareas) ou de `musicaAtiva`. */
+function obterEstrofesAtuaisDaEdicao() {
+  if (!musicaAtiva) return [];
+  if (modoEdicaoEstrofes) {
+    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
+    if (tas.length) {
+      const novas = [];
+      for (const ta of tas) novas.push(...splitTextoEmEstrofesPorLinhaVaziaStrict(ta.value));
+      return novas.length ? novas : [''];
+    }
+  }
+  if (modoLetraCompletaCentral) {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    if (ta) return splitTextoLetraCompletaEmEstrofes(ta.value);
+  }
+  return (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
+}
+
+function letraCompletaSujaVsSnapshot() {
+  if (!modoLetraCompletaCentral || !snapshotLetraCompleta) return false;
+  const ta = document.getElementById('centro-letra-completa-ta');
+  if (!ta) return false;
+  return !estrofesArraysIguaisParaEdicao(
+    splitTextoLetraCompletaEmEstrofes(ta.value),
+    snapshotLetraCompleta.estrofes
+  );
+}
+
+function edicaoEstrofesSujaVsSnapshot() {
+  if (!modoEdicaoEstrofes || !musicaAtiva || !snapshotEdicaoEstrofes) return false;
+  const et = document.getElementById('edit-titulo');
+  const ea = document.getElementById('edit-artista');
+  const titulo = et ? et.value : String(musicaAtiva.titulo || '');
+  const artista = ea ? ea.value : String(musicaAtiva.artista || '');
+  if (titulo !== String(snapshotEdicaoEstrofes.titulo || '')) return true;
+  if (artista !== String(snapshotEdicaoEstrofes.artista || '')) return true;
+  return !estrofesArraysIguaisParaEdicao(obterEstrofesAtuaisDaEdicao(), snapshotEdicaoEstrofes.estrofes);
+}
+
+function temEdicaoMusicaNaoGravada() {
+  if (metadadosMusicaSujosNaHome()) return true;
+  if (edicaoEstrofesSujaVsSnapshot()) return true;
+  if (letraCompletaSujaVsSnapshot()) return true;
+  return false;
+}
+
+function limparFlagsModoEdicaoMusica() {
+  snapshotEdicaoEstrofes = null;
+  modoEdicaoEstrofes = false;
+  snapshotLetraCompleta = null;
+  modoLetraCompletaCentral = false;
+  aplicarLayoutModoLetraCompleta();
+}
+
+/**
+ * Se houver edições só em memória, pede confirmação antes de trocar de música/contexto.
+ * @returns {Promise<boolean>} true para prosseguir (descartando ou sem sujo).
+ */
+async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
+  if (!temEdicaoMusicaNaoGravada()) {
+    if (modoEdicaoEstrofes || modoLetraCompletaCentral) limparFlagsModoEdicaoMusica();
+    return true;
+  }
+  const ok = await appConfirm(
+    mensagem || 'Há alterações não gravadas nesta sessão. Descartar e continuar?',
+    titulo || 'Alterações não gravadas'
+  );
+  if (!ok) return false;
+  limparFlagsModoEdicaoMusica();
+  return true;
+}
+
+async function alternarModoLetraCompletaCentral() {
   if (!musicaAtiva) return;
   if (modoLetraCompletaCentral) {
+    const suja = letraCompletaSujaVsSnapshot();
     sincronizarEstrofesDesdeTextareaLetraCompleta();
+    if (suja) {
+      if (musicaBancoFonte === 'catalog') {
+        await appAlert(
+          'Música do catálogo: as alterações ficam só nesta sessão. Importe para o seu banco para gravar de forma permanente.',
+          'Catálogo'
+        );
+      } else {
+        const ok = await persistirMusicaAtivaNoServidor();
+        if (!ok) return;
+        // Persistência já recarrega a música e limpa os modos; reforça layout.
+        limparFlagsModoEdicaoMusica();
+        atualizarToolbarModoEdicao();
+        return;
+      }
+    }
     snapshotLetraCompleta = null;
-  } else {
-    snapshotLetraCompleta = {
-      estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
-      estrofeAtiva,
-    };
+    modoLetraCompletaCentral = false;
+    aplicarLayoutModoLetraCompleta();
+    atualizarToolbarModoEdicao();
+    return;
   }
-  modoLetraCompletaCentral = !modoLetraCompletaCentral;
-  aplicarLayoutModoLetraCompleta({ preencherTextarea: modoLetraCompletaCentral });
+  snapshotLetraCompleta = {
+    estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
+    estrofeAtiva,
+  };
+  modoLetraCompletaCentral = true;
+  aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
   atualizarToolbarModoEdicao();
 }
 
@@ -8791,7 +8893,7 @@ function atualizarToolbarModoLetraCompleta() {
   btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
   btn.classList.toggle('ativo', !!modoLetraCompletaCentral);
   btn.title = modoLetraCompletaCentral
-    ? 'Aplicar a letra nos cartões por slide e voltar'
+    ? 'Gravar a letra no banco local e voltar aos cartões por slide'
     : 'Editar ou copiar a letra inteira num só texto';
   if (btnCancelar) {
     btnCancelar.style.display = mostrar && modoLetraCompletaCentral ? '' : 'none';
@@ -8827,7 +8929,14 @@ function entrarModoEdicao() {
   renderEstrofesEditor();
 }
 
-function sairModoEdicao() {
+async function sairModoEdicao() {
+  if (edicaoEstrofesSujaVsSnapshot()) {
+    const ok = await appConfirm(
+      'Há alterações não gravadas. Descartar e sair do modo edição? Use «Salvar alterações» para gravar no banco.',
+      'Encerrar edição'
+    );
+    if (!ok) return;
+  }
   if (snapshotEdicaoEstrofes && musicaAtiva && modoEdicaoEstrofes) {
     musicaAtiva.titulo = snapshotEdicaoEstrofes.titulo;
     musicaAtiva.artista = snapshotEdicaoEstrofes.artista;
@@ -9202,6 +9311,9 @@ async function persistirMusicaAtivaNoServidor() {
     document.getElementById('edit-artista').value = musicaAtiva.artista || '';
     snapshotEdicaoEstrofes = null;
     modoEdicaoEstrofes = false;
+    snapshotLetraCompleta = null;
+    modoLetraCompletaCentral = false;
+    aplicarLayoutModoLetraCompleta();
     refreshListaBanco();
     renderPlaylist();
     await carregarVersoesMusicaServidor(musicaRootId);
@@ -9293,7 +9405,7 @@ async function iniciarCriarNovaVersao() {
   const idNum = Number(musicaAtiva.id);
   if (!Number.isFinite(idNum)) return;
 
-  if (modoEdicaoEstrofes || modoLetraCompletaCentral) {
+  if (modoEdicaoEstrofes || modoLetraCompletaCentral || temEdicaoMusicaNaoGravada()) {
     const ok = await appConfirm(
       'Descartar alterações não gravadas e criar uma nova versão a partir do texto gravado no servidor?',
       'Criar nova versão'
@@ -9308,10 +9420,7 @@ async function iniciarCriarNovaVersao() {
   if (!nome) return;
 
   try {
-    modoEdicaoEstrofes = false;
-    snapshotEdicaoEstrofes = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
+    limparFlagsModoEdicaoMusica();
 
     const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/criar-versao`, {
       method: 'POST',
@@ -9361,13 +9470,14 @@ async function iniciarCriarNovaVersao() {
 async function salvarMusicaServidor() {
   if (!musicaAtiva) return;
   const metadadosSujos = metadadosMusicaSujosNaHome();
-  if (!modoEdicaoEstrofes && !metadadosSujos) return;
+  if (!modoEdicaoEstrofes && !modoLetraCompletaCentral && !metadadosSujos) return;
   if (musicaBancoFonte === 'catalog') {
     await appAlert(
       'Música do catálogo somente leitura: não é possível usar Salvar alterações. Importe a letra para o seu banco ou escolha uma música gravada neste servidor.'
     );
     return;
   }
+  if (modoLetraCompletaCentral) sincronizarEstrofesDesdeTextareaLetraCompleta();
   if (modoEdicaoEstrofes) aplicarSplitsEstrofesDosTextareasAntesDePersistir();
 
   const vid =
@@ -9393,10 +9503,7 @@ async function salvarMusicaServidor() {
     return;
   }
 
-  modoEdicaoEstrofes = false;
-  snapshotEdicaoEstrofes = null;
-  modoLetraCompletaCentral = false;
-  aplicarLayoutModoLetraCompleta();
+  limparFlagsModoEdicaoMusica();
   renderEstrofesEditor();
   renderSlidesStrip();
   atualizarPreviewOperador();
@@ -11002,17 +11109,14 @@ async function trocarVersaoMusicaCentral(copiaId) {
   if (!musicaAtiva) return;
   const rootId = obterRootIdMusicaAtiva();
   if (!Number.isFinite(rootId)) return;
-  if (modoEdicaoEstrofes || modoLetraCompletaCentral) {
+  if (modoEdicaoEstrofes || modoLetraCompletaCentral || temEdicaoMusicaNaoGravada()) {
     const ok = await appConfirm(
       'Descartar alterações não gravadas nesta sessão e trocar de versão?',
       'Trocar versão'
     );
     if (!ok) return;
   }
-  modoEdicaoEstrofes = false;
-  snapshotEdicaoEstrofes = null;
-  modoLetraCompletaCentral = false;
-  aplicarLayoutModoLetraCompleta();
+  limparFlagsModoEdicaoMusica();
   try {
     const vid = copiaId && String(copiaId).trim() ? String(copiaId) : null;
     let url;
@@ -11062,11 +11166,15 @@ async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
   const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
   try {
+    if (
+      !(await confirmarProsseguirDescartandoEdicaoPendente(
+        'Há alterações não gravadas nesta sessão. Descartar e carregar outra música?',
+        'Alterações não gravadas'
+      ))
+    ) {
+      return;
+    }
     if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
-    modoEdicaoEstrofes = false;
-    snapshotEdicaoEstrofes = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
     /* Modo controlador: se já existe projeção ativa, manter a faixa visível ao engatilhar próxima música. */
     slidesDockVisivel = ehModoSlidesOperador() || slidesDockVisivel || hayProjecaoAtivaNoServidor();
     const res = await fetch(`${getControllerApiBase()}/api/musicas/${id}${qsMusica}`);
@@ -11138,13 +11246,17 @@ async function projecaoProximaMusicaPlaylist() {
   let j = idx + 1;
   while (j < pl.length && ehMarcadorTemaPlaylist(pl[j])) j++;
   if (j >= pl.length) return alert('Não há próxima música nesta playlist.');
+  if (
+    !(await confirmarProsseguirDescartandoEdicaoPendente(
+      'Há alterações não gravadas nesta sessão. Descartar e ir para a próxima música?',
+      'Alterações não gravadas'
+    ))
+  ) {
+    return;
+  }
   const next = pl[j];
   const nextBf = next.bancoFonte === 'catalog' ? 'catalog' : 'user';
   const qsNext = nextBf === 'catalog' ? '?fonte=catalog' : '';
-  modoEdicaoEstrofes = false;
-  snapshotEdicaoEstrofes = null;
-  modoLetraCompletaCentral = false;
-  aplicarLayoutModoLetraCompleta();
   slidesDockVisivel = ehModoSlidesOperador();
   projecaoMusicaEmitidaNoServidor = false;
   try {

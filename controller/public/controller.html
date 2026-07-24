@@ -6513,7 +6513,7 @@
           <div class="centro-toolbar-row centro-toolbar-acoes">
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled>EDITAR LETRA</button>
             <button type="button" class="btn btn-toolbar-nova-versao" onclick="iniciarCriarNovaVersao()" id="btn-criar-nova-versao" disabled style="display:none" title="Pede o nome e cria uma cópia local a partir do texto do servidor para editar">CRIAR NOVA VERSÃO</button>
-            <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Ver toda a letra junta para copiar">MODO LETRA COMPLETA</button>
+            <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto">MODO LETRA COMPLETA</button>
             <button type="button" class="btn" onclick="cancelarModoLetraCompletaCentral()" id="btn-cancelar-letra-completa" style="display:none" title="Descarta as alterações desta sessão e volta aos slides">CANCELAR</button>
             <button type="button" class="btn" onclick="novaEstrofe()" id="btn-nova-estrofe" disabled style="display:none">+ SLIDE</button>
             <button type="button" class="btn primary" onclick="salvarMusicaServidor()" id="btn-salvar-musica" disabled style="display:none" title="Grava na versão seleccionada (original no servidor ou cópia local) e sai do modo edição">SALVAR ALTERAÇÕES</button>
@@ -6525,7 +6525,7 @@
         </div>
         <div id="centro-letra-completa-wrap" class="centro-letra-completa-wrap" hidden>
           <p class="centro-letra-completa-hint">
-            Edite aqui a letra inteira. Entre cada estrofe (slide) deixe uma <strong>linha em branco</strong> (Enter duas vezes). Use <strong>Salvar alterações</strong> para aplicar nos cartões, ou <strong>Cancelar</strong> para descartar.
+            Edite aqui a letra inteira. Entre cada estrofe (slide) deixe uma <strong>linha em branco</strong> (Enter duas vezes). Use <strong>Salvar alterações</strong> para gravar no banco e voltar aos cartões, ou <strong>Cancelar</strong> para descartar.
           </p>
           <textarea id="centro-letra-completa-ta" class="centro-letra-completa-ta" spellcheck="false" aria-label="Letra completa editável"></textarea>
         </div>
