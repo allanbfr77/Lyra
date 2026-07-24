@@ -8731,8 +8731,9 @@ function atualizarToolbarModoLetraCompleta() {
   const btnCancelar = document.getElementById('btn-cancelar-letra-completa');
   if (!btn) return;
   const m = !!musicaAtiva;
-  btn.style.display = m ? '' : 'none';
-  btn.disabled = !m;
+  const mostrar = m && !modoEdicaoEstrofes;
+  btn.style.display = mostrar ? '' : 'none';
+  btn.disabled = !mostrar;
   btn.textContent = modoLetraCompletaCentral ? 'SALVAR ALTERAÇÕES' : 'MODO LETRA COMPLETA';
   // Toggle explícito: inativo = outline neutro, ativo = preenchido.
   btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
@@ -8741,8 +8742,8 @@ function atualizarToolbarModoLetraCompleta() {
     ? 'Aplicar a letra nos cartões por slide e voltar'
     : 'Editar ou copiar a letra inteira num só texto';
   if (btnCancelar) {
-    btnCancelar.style.display = m && modoLetraCompletaCentral ? '' : 'none';
-    btnCancelar.disabled = !m || !modoLetraCompletaCentral;
+    btnCancelar.style.display = mostrar && modoLetraCompletaCentral ? '' : 'none';
+    btnCancelar.disabled = !mostrar || !modoLetraCompletaCentral;
   }
 }
 
