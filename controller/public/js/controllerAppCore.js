@@ -8618,16 +8618,12 @@ function juntarEstrofesParaLetraCompleta() {
   if (!musicaAtiva?.estrofes) return '';
   return musicaAtiva.estrofes
     .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\s+$/, ''))
-    .join('\n \n');
+    .join('\n\n');
 }
 
-/** Converte o texto do painel «letra completa» de volta em estrofes (mesmo separador que na junção). */
+/** Converte o texto do painel «letra completa» de volta em estrofes (mesma regra de linhas vazias do resto do sistema). */
 function splitTextoLetraCompletaEmEstrofes(texto) {
-  const t = String(texto ?? '').replace(/\r\n/g, '\n');
-  if (!t.trim()) return [''];
-  const parts = t.split(/\n \n/).map((s) => s.trim());
-  const out = parts.filter((p) => p.length > 0);
-  return out.length ? out : [''];
+  return splitTextoEmEstrofesPorLinhaVaziaStrict(texto);
 }
 
 function atualizarTextoPainelLetraCompleta() {
