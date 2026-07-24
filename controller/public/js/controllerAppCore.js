@@ -248,6 +248,8 @@ function detectarKindApresentacaoPorMimeOuNome(mime, nome) {
   /* Windows / alguns browsers devolvem type vazio para .jpg/.png — inferir pela extensão. */
   if (/\.(jpe?g|png|gif|webp|bmp|svg|avif|ico)(\?|$)/i.test(n)) return 'image';
   if (m.startsWith('video/')) return 'video';
+  /* Mesmo caso no Windows para .mp4/.webm com type vazio. */
+  if (/\.(mp4|webm|mov|mkv|m4v|ogv|avi)(\?|$)/i.test(n)) return 'video';
   if (m.startsWith('audio/')) return 'audio';
   if (m === 'application/pdf' || n.endsWith('.pdf')) return 'pdf';
   return 'iframe';
@@ -1079,6 +1081,30 @@ function urlVideoApresentacaoHttpPorId(id) {
   return `${getControllerApiBase()}/api/apresentacao/video/${encodeURIComponent(vid)}`;
 }
 
+/**
+ * Telões correm no PC do servidor — `127.0.0.1:3001` aponta para a máquina errada.
+ * Reescreve para o proxy `:5510` do servidor (que encaminha ao controlador).
+ */
+function reescreverUrlVideoParaTelas(url) {
+  const u = String(url || '').trim();
+  if (!u) return u;
+  const ip =
+    (typeof getServidorProjeccaoIp === 'function'
+      ? String(getServidorProjeccaoIp() || '').trim()
+      : '') ||
+    (typeof getServidorIp === 'function' ? String(getServidorIp() || '').trim() : '');
+  if (!ip) return u;
+  return u
+    .replace(
+      /^https?:\/\/127\.0\.0\.1:3001(?=\/api\/apresentacao\/video\/)/i,
+      `http://${ip}:5510`
+    )
+    .replace(
+      /^https?:\/\/localhost:3001(?=\/api\/apresentacao\/video\/)/i,
+      `http://${ip}:5510`
+    );
+}
+
 async function videoHttpDisponivel(url) {
   const u = String(url || '').trim();
   if (!u || !/^https?:\/\//i.test(u)) return false;
@@ -1295,19 +1321,20 @@ async function projetarItemApresentacao(item) {
     alert(mensagemAlvoInvalidoApresentacao(alvoProjecao));
     return;
   }
-  const srcProj = await resolverSrcProjecaoApresentacao(item);
-  if (!srcProj) {
+  const srcLocal = await resolverSrcProjecaoApresentacao(item);
+  if (!srcLocal) {
     alert('Não foi possível preparar o ficheiro para projeção.');
     return;
   }
-  if (item.kind === 'video' && /^https?:\/\//i.test(srcProj)) {
-    item.src = srcProj;
+  if (item.kind === 'video' && /^https?:\/\//i.test(srcLocal)) {
+    item.src = srcLocal;
     const noCard = apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
     if (noCard?.id === item.id) apresentacaoCards[APRESENTACAO_IDX_CARD5] = item;
     const noBib = apresentacaoBiblioteca.findIndex((x) => x && x.id === item.id);
     if (noBib >= 0) apresentacaoBiblioteca[noBib] = item;
     salvarEstadoModoApresentacaoNoStorage();
   }
+  const srcProj = item.kind === 'video' ? reescreverUrlVideoParaTelas(srcLocal) : srcLocal;
   const payloadAp = {
     kind: item.kind,
     src: srcProj,

@@ -198,10 +198,26 @@ function attachPublicProjectionRender(ctx) {
     const condPause = !playing && !video.paused;
 
     if (condPlay) {
-      const p = video.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {});
-      }
+      const tentarPlay = () => {
+        const p = video.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {
+            /* Autoplay com áudio pode falhar — tenta mudo e depois restaura volume. */
+            const volAntes = video.volume;
+            video.muted = true;
+            const p2 = video.play();
+            if (p2 && typeof p2.then === 'function') {
+              p2
+                .then(() => {
+                  video.muted = false;
+                  video.volume = volAntes;
+                })
+                .catch(() => {});
+            }
+          });
+        }
+      };
+      tentarPlay();
       return;
     }
     if (condPause) {

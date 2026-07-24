@@ -13,6 +13,9 @@ const { buildMonitorsList } = require('./lib/monitorsList');
 const { fetchMusicaByIdParaProjecao } = require('./lib/fetchMusicaFromControladorHttp');
 const { attachProxyMusicaAoControlador } = require('./lib/proxyMusicaAoControlador');
 const { attachProxyBibliaAoControlador } = require('./lib/proxyBibliaAoControlador');
+const {
+  attachProxyApresentacaoVideoAoControlador,
+} = require('./lib/proxyApresentacaoVideoAoControlador');
 const { loadSharedDbSnapshot, saveSharedDbSnapshot } = require('./lib/sharedDbSyncStore');
 const { getPreferredLocalIPv4 } = require('./lib/localIp');
 
@@ -171,7 +174,20 @@ function iniciarServidor(ctx, paths, deps) {
   }
 
   function aplicarExibirApresentacao(payload) {
-    const pl = payload && typeof payload === 'object' ? payload : {};
+    const pl = payload && typeof payload === 'object' ? { ...payload } : {};
+    /* Controladores antigos enviavam http://127.0.0.1:3001/... — inacessível nos telões. */
+    const srcBruto = String(pl.src || '').trim();
+    if (
+      String(pl.kind || '').toLowerCase() === 'video' &&
+      /^https?:\/\/(127\.0\.0\.1|localhost):3001\/api\/apresentacao\/video\//i.test(srcBruto)
+    ) {
+      const lan = getPreferredLocalIPv4();
+      const host = lan && lan !== 'localhost' ? lan : '127.0.0.1';
+      pl.src = srcBruto.replace(
+        /^https?:\/\/(127\.0\.0\.1|localhost):3001/i,
+        `http://${host}:${HTTP_API_PORT}`
+      );
+    }
     const alvo = String(pl.alvoProjecao || 'ambos').toLowerCase();
     ctx.projecaoLiveAtiva = alvo === 'live';
 
@@ -219,6 +235,12 @@ function iniciarServidor(ctx, paths, deps) {
 
   attachProxyMusicaAoControlador(expressApp, logError);
   attachProxyBibliaAoControlador(expressApp, logError);
+  attachProxyApresentacaoVideoAoControlador(expressApp, logError, () => {
+    const id = ctx.controladorSocketId;
+    const info = id ? ctx.controladorSockets.get(id) : null;
+    const ip = info && info.ip ? String(info.ip).trim() : '';
+    return ip || process.env.CONTROLLER_HTTP_HOST || '127.0.0.1';
+  });
 
   expressApp.use(express.json({ limit: '200mb' }));
 
