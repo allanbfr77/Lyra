@@ -255,7 +255,8 @@
     function aplicarFundoMinistrantePorProjecao(ativa) {
       const mon = displayConfig.ministrante || {};
       if (!ativa) {
-        document.body.style.background = deveRevelarRelogioMinistrante() ? 'transparent' : '#000000';
+        /* Opaca: relógio ocioso é revelado escondendo a janela (main), não via transparent. */
+        document.body.style.background = '#000000';
         return;
       }
       if (mon.bgType === 'gradient') {
@@ -633,7 +634,7 @@
         elAtual.classList.add('vazio');
         elProximo.classList.add('vazio');
         const wrapOcioso = document.querySelector('.wrap');
-        if (wrapOcioso) wrapOcioso.style.background = deveRevelarRelogioMinistrante() ? 'transparent' : '';
+        if (wrapOcioso) wrapOcioso.style.background = '';
         aplicarFundoMinistrantePorProjecao(false);
         return;
       }

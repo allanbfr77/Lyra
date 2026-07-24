@@ -99,6 +99,8 @@ function createWindowsApi(ctx, paths, deps) {
 }
     });
 
+    ajustarVisibilidadeProjecaoParaRelogio('publico', !hayProjecaoAtivaPublica());
+
     if (ctx.windowControl && !ctx.windowControl.isDestroyed()) {
       ctx.windowControl.webContents.send('estado_atualizado', payload);
     }
@@ -143,6 +145,8 @@ function createWindowsApi(ctx, paths, deps) {
   // intencional — erro ignorado
 }
       });
+
+    ajustarVisibilidadeProjecaoParaRelogio('ministrante', !hayProjecaoAtivaMinistrante());
   }
 
   function estadoPublicoParaSocketsOuApi() {
@@ -180,10 +184,71 @@ function createWindowsApi(ctx, paths, deps) {
 
   function hayProjecaoAtivaMinistrante() {
     if (ctx.projecaoLiveAtiva) return false;
+    if (ctx.ministranteApresentacaoOverride) {
+      const ov = ctx.ministranteApresentacaoOverride;
+      if (ov && typeof ov === 'object') {
+        if (ov.telaLimpa) return false;
+        if (ov.modo === 'apresentacao') {
+          return !!(ov.apresentacao && String(ov.apresentacao.src || '').trim());
+        }
+        if (ov.modo === 'aviso') {
+          return Array.isArray(ov.linhas) && ov.linhas.length > 0;
+        }
+        return !!(String(ov.atual || '').trim() || String(ov.proximo || '').trim());
+      }
+    }
     const snap = snapshotMinistranteAtual();
     if (!snap || typeof snap !== 'object') return false;
     if (snap.telaLimpa) return false;
     return !!(String(snap.atual || '').trim() || String(snap.proximo || '').trim());
+  }
+
+  /** Relógio ocioso deixa de usar janela transparente — esconde a projeção por cima. */
+  function deveRevelarRelogioNoRole(role) {
+    try {
+      const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
+      const cfg = displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo });
+      const clk = (cfg && cfg.clock) || {};
+      if (clk.showClock === false) return false;
+      const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
+      if (role === 'publico') return alvo === 'publico' || alvo === 'ambos';
+      if (role === 'ministrante') return alvo === 'ministrante' || alvo === 'ambos';
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+    return false;
+  }
+
+  function ajustarVisibilidadeProjecaoParaRelogio(role, ocioso) {
+    const revelar = !!ocioso && deveRevelarRelogioNoRole(role);
+    ctx.windowsDisplay
+      .filter((entry) => entry?.role === role)
+      .forEach((entry) => {
+        const win = entry?.win;
+        if (!win || win.isDestroyed()) return;
+        if (revelar) {
+          if (win.isVisible()) {
+            try {
+              win.hide();
+            } catch (_) {
+              // intencional — erro ignorado
+            }
+            entry.ocultoParaRelogio = true;
+          }
+          return;
+        }
+        if (!entry.ocultoParaRelogio) return;
+        entry.ocultoParaRelogio = false;
+        try {
+          if (!win.isVisible()) {
+            win.show();
+            win.setFullScreen(true);
+            win.setAlwaysOnTop(true);
+          }
+        } catch (_) {
+          // intencional — erro ignorado
+        }
+      });
   }
 
   function aplicarPretoInativoNasJanelasAbertas() {
@@ -441,17 +506,19 @@ function createWindowsApi(ctx, paths, deps) {
     if (!displays[displayIndex]) return null;
     const d = displays[displayIndex];
 
+    /* Janela opaca: transparent:true + <video> no Windows deixa o quadro preto em
+       monitores físicos (DirectComposition). Relógio ocioso revela-se escondendo esta janela. */
     const win = new BrowserWindow(
       {
         ...opcoesBrowserWindowProjecao(d, label, {
           webPreferences: { zoomFactor: d.scaleFactor || 1 },
         }),
         show: false,
-        transparent: true,
-        backgroundColor: '#00000000',
+        transparent: false,
+        backgroundColor: PRETO_NATIVO_PROJECAO,
       }
     );
-    finalizarJanelaProjecaoNativa(win, { backgroundColor: '#00000000' });
+    finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
     win.loadFile(path.join(__dirname, '../public/display.html'));
     win.setMenuBarVisibility(false);
@@ -508,13 +575,14 @@ function createWindowsApi(ctx, paths, deps) {
 
     const d = displays[displayIndex];
 
+    /* Opaca — mesmo motivo do telão público (vídeo preto com transparent:true). */
     const win = new BrowserWindow({
       ...opcoesBrowserWindowProjecao(d, label),
       show: false,
-      transparent: true,
-      backgroundColor: '#00000000',
+      transparent: false,
+      backgroundColor: PRETO_NATIVO_PROJECAO,
     });
-    finalizarJanelaProjecaoNativa(win, { backgroundColor: '#00000000' });
+    finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
     win.loadFile(path.join(__dirname, '../public/display-operator.html'));
     win.setMenuBarVisibility(false);

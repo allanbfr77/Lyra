@@ -85,9 +85,11 @@ function attachPublicProjectionRender(ctx) {
 
   function aplicarTransparenciaOciosaTelao(ocioso, cfg) {
     const revelar = ocioso && deveRevelarRelogioTelao(cfg);
+    /* Janela de projeção é opaca (vídeo quebrava com transparent:true no monitor físico).
+       O relógio ocioso é revelado no main ao esconder a BrowserWindow — não via CSS. */
     ctx.document.body.classList.toggle('idle-sem-projecao', ocioso && !revelar);
-    ctx.document.body.style.background = revelar ? 'transparent' : '';
-    if (ctx.elTela) ctx.elTela.style.background = revelar ? 'transparent' : '';
+    ctx.document.body.style.background = '';
+    if (ctx.elTela) ctx.elTela.style.background = '';
   }
 
   function normalizarCorHexAviso(valor, fallback) {
@@ -198,19 +200,24 @@ function attachPublicProjectionRender(ctx) {
     const condPause = !playing && !video.paused;
 
     if (condPlay) {
+      const volDesejado = Number.isFinite(vol)
+        ? Math.max(0, Math.min(1, vol))
+        : Math.max(0, Math.min(1, Number(video.volume) || 1));
       const tentarPlay = () => {
         const p = video.play();
-        if (p && typeof p.catch === 'function') {
-          p.catch(() => {
-            /* Autoplay com áudio pode falhar — tenta mudo e depois restaura volume. */
-            const volAntes = video.volume;
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            /* Telão público precisa de áudio — desmuta só depois do play aceito. */
+            video.muted = false;
+            video.volume = volDesejado;
+          }).catch(() => {
             video.muted = true;
             const p2 = video.play();
             if (p2 && typeof p2.then === 'function') {
               p2
                 .then(() => {
                   video.muted = false;
-                  video.volume = volAntes;
+                  video.volume = volDesejado;
                 })
                 .catch(() => {});
             }
@@ -268,18 +275,21 @@ function attachPublicProjectionRender(ctx) {
       return;
     }
 
-    // Vídeo do card 5: sem autoplay — reprodução só via player do controlador
+    // Vídeo do card 5: sem autoplay — reprodução só via player do controlador.
+    // muted inicial: autoplay policy + evita falha de play; desmuta após play ok.
     if (kind === 'video') {
       const video = ctx.document.createElement('video');
       video.className = 'lyra-ap-video-proj';
       video.src = src;
       video.autoplay = false;
       video.loop = false;
-      video.muted = false;
+      video.muted = true;
       video.controls = false;
       video.playsInline = true;
       video.preload = 'auto';
       video.setAttribute('playsinline', 'true');
+      video.style.background = '#000';
+      host.style.background = '#000';
       host.appendChild(video);
       return;
     }

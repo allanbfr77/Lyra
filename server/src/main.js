@@ -17,6 +17,9 @@ if (process.platform === 'win32') {
     /* Desativa o caminho de overlay de vídeo por DirectComposition (causa raiz do vídeo
        preto em telão físico). Mantém a aceleração de hardware para decodificação. */
     app.commandLine.appendSwitch('disable-direct-composition-video-overlays');
+    /* Fallback: decode em software — overlays HW ainda falham em alguns GPUs/monitores
+       mesmo com DirectCompositionVideoOverlays desligado (janela fullscreen secundária). */
+    app.commandLine.appendSwitch('disable-accelerated-video-decode');
   } catch (_) {
   // intencional — erro ignorado
 }
