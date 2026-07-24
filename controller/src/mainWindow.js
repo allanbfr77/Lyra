@@ -356,8 +356,47 @@ async function abrirConsoleMinistranteServidor(ctx) {
   });
 }
 
+function anexarMenuContextoEdicao(win) {
+  if (!win || win.isDestroyed()) return;
+  win.webContents.on('context-menu', (_event, params) => {
+    const { editFlags } = params;
+    const items = [];
+    if (params.isEditable) {
+      items.push(
+        { role: 'undo', label: 'Desfazer', enabled: editFlags.canUndo },
+        { role: 'redo', label: 'Refazer', enabled: editFlags.canRedo },
+        { type: 'separator' },
+        { role: 'cut', label: 'Recortar', enabled: editFlags.canCut },
+        { role: 'copy', label: 'Copiar', enabled: editFlags.canCopy },
+        { role: 'paste', label: 'Colar', enabled: editFlags.canPaste },
+        { role: 'delete', label: 'Excluir', enabled: editFlags.canDelete },
+        { type: 'separator' },
+        { role: 'selectAll', label: 'Selecionar tudo', enabled: editFlags.canSelectAll },
+      );
+    } else if (params.selectionText && params.selectionText.trim()) {
+      items.push({ role: 'copy', label: 'Copiar' });
+    }
+    if (!items.length) return;
+    Menu.buildFromTemplate(items).popup({ window: win });
+  });
+}
+
 function criarMenuAplicativo(ctx, updaterApi) {
   const template = [
+    {
+      label: 'Editar',
+      submenu: [
+        { role: 'undo', label: 'Desfazer' },
+        { role: 'redo', label: 'Refazer' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Recortar' },
+        { role: 'copy', label: 'Copiar' },
+        { role: 'paste', label: 'Colar' },
+        { role: 'delete', label: 'Excluir' },
+        { type: 'separator' },
+        { role: 'selectAll', label: 'Selecionar tudo' },
+      ],
+    },
     {
       label: 'Ferramentas',
       submenu: [
@@ -530,6 +569,7 @@ function anexarLifecycleJanelaPrincipal(ctx) {
   const win = ctx.windowMain;
   anexarRepinturaJanelaController(win);
   anexarZoomAutomaticoJanela(win);
+  anexarMenuContextoEdicao(win);
   win.setMenuBarVisibility(true);
   const WINDOW_TITLE = `Lyra — Controlador v${app.getVersion()}`;
   win.on('page-title-updated', (event) => {
