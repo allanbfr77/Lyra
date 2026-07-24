@@ -5378,6 +5378,8 @@ let temasPorCulto = {};
 let modoEdicaoEstrofes = false;
 /** Coluna central: ver letra inteira num só bloco (cópia), em vez dos cartões por slide. */
 let modoLetraCompletaCentral = false;
+/** Cópia ao entrar no modo letra completa — «Cancelar» restaura isto (não aplica o textarea). */
+let snapshotLetraCompleta = null;
 /** Cópia ao entrar em edição — «Encerrar edição» restaura isto (não grava). */
 let snapshotEdicaoEstrofes = null;
 /**
@@ -8645,6 +8647,7 @@ function aplicarLayoutModoLetraCompleta(opts = {}) {
   if (!ed || !full) return;
   if (!musicaAtiva) {
     modoLetraCompletaCentral = false;
+    snapshotLetraCompleta = null;
     full.hidden = true;
     ed.style.display = '';
     return;
@@ -8685,32 +8688,66 @@ function alternarModoLetraCompletaCentral() {
   if (!musicaAtiva) return;
   if (modoLetraCompletaCentral) {
     sincronizarEstrofesDesdeTextareaLetraCompleta();
+    snapshotLetraCompleta = null;
+  } else {
+    snapshotLetraCompleta = {
+      estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
+      estrofeAtiva,
+    };
   }
   modoLetraCompletaCentral = !modoLetraCompletaCentral;
   aplicarLayoutModoLetraCompleta({ preencherTextarea: modoLetraCompletaCentral });
   atualizarToolbarModoEdicao();
 }
 
+/** Sai do modo letra completa sem aplicar o textarea — restaura o estado de quando entrou. */
+function cancelarModoLetraCompletaCentral() {
+  if (!modoLetraCompletaCentral) return;
+  if (snapshotLetraCompleta && musicaAtiva) {
+    musicaAtiva.estrofes = snapshotLetraCompleta.estrofes.map((s) => String(s));
+    estrofeAtiva = snapshotLetraCompleta.estrofeAtiva;
+    const n = musicaAtiva.estrofes.length;
+    const idxPreto = n;
+    if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
+    if (estrofeAtiva < -1) estrofeAtiva = -1;
+    renderSlidesStrip();
+    atualizarPreviewOperador();
+    renderEstrofesEditor();
+    marcacaoEstrofeEditor();
+    if (
+      projecaoMusicaEmitidaNoServidor &&
+      socket &&
+      socket.connected &&
+      estrofeAtiva >= 0 &&
+      estrofeAtiva < n
+    ) {
+      socket.emit('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+    }
+  }
+  snapshotLetraCompleta = null;
+  modoLetraCompletaCentral = false;
+  aplicarLayoutModoLetraCompleta();
+  atualizarToolbarModoEdicao();
+}
+
 function atualizarToolbarModoLetraCompleta() {
   const btn = document.getElementById('btn-modo-letra-completa');
+  const btnCancelar = document.getElementById('btn-cancelar-letra-completa');
   if (!btn) return;
   const m = !!musicaAtiva;
   btn.style.display = m ? '' : 'none';
   btn.disabled = !m;
-  btn.textContent = modoLetraCompletaCentral ? 'VOLTAR AOS SLIDES' : 'MODO LETRA COMPLETA';
+  btn.textContent = modoLetraCompletaCentral ? 'SALVAR ALTERAÇÕES' : 'MODO LETRA COMPLETA';
   // Toggle explícito: inativo = outline neutro, ativo = preenchido.
   btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
   btn.classList.toggle('ativo', !!modoLetraCompletaCentral);
   btn.title = modoLetraCompletaCentral
-    ? 'Mostrar a letra em cartões por slide'
+    ? 'Aplicar a letra nos cartões por slide e voltar'
     : 'Editar ou copiar a letra inteira num só texto';
-}
-
-function configurarPainelLetraCompleta() {
-  document.getElementById('centro-letra-completa-ta')?.addEventListener('blur', () => {
-    if (!modoLetraCompletaCentral || !musicaAtiva) return;
-    sincronizarEstrofesDesdeTextareaLetraCompleta();
-  });
+  if (btnCancelar) {
+    btnCancelar.style.display = m && modoLetraCompletaCentral ? '' : 'none';
+    btnCancelar.disabled = !m || !modoLetraCompletaCentral;
+  }
 }
 
 function configurarCamposMetadadosMusicaHome() {
@@ -8723,6 +8760,7 @@ function entrarModoEdicao() {
   if (!musicaAtiva) return;
   if (modoLetraCompletaCentral) {
     sincronizarEstrofesDesdeTextareaLetraCompleta();
+    snapshotLetraCompleta = null;
     modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
   }
@@ -11183,6 +11221,7 @@ exporCallbacksParaAtributosHtml({
   entrarModoEdicao,
   iniciarCriarNovaVersao,
   alternarModoLetraCompletaCentral,
+  cancelarModoLetraCompletaCentral,
   sairModoEdicao,
   salvarMusicaServidor,
   novaEstrofe,
@@ -12984,7 +13023,6 @@ initSlidesChipZoomFromStorage();
 setupSlidesChipZoomButtons();
 setupSlidesGridViewportFitObserver();
 setupSlidesStripContextMenuEEdicaoRapida();
-configurarPainelLetraCompleta();
 configurarCamposMetadadosMusicaHome();
 configurarModalPreviewLetras();
 configurarModalExcluirMusica();
