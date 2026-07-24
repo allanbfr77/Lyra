@@ -5887,6 +5887,36 @@ function atualizarFeedbackCompartilharPlaylist(ativo, mensagem = 'Gerando códig
   if (status) status.hidden = !ativo;
 }
 
+/**
+ * Letra a enviar no código de compartilhamento = exatamente a versão do item na playlist.
+ * (`id` = original/root; `versaoLocalId` = cópia escolhida, se houver.)
+ */
+async function conteudoMusicaParaShare(it) {
+  const vid = it.versaoLocalId != null && String(it.versaoLocalId).trim() ? String(it.versaoLocalId).trim() : '';
+  if (vid && ehVersaoLocalLegada(vid)) {
+    const c = encontrarCopiaLocal(it.id, vid);
+    if (c) {
+      return {
+        titulo: c.titulo || it.titulo || '',
+        artista: c.artista || it.artista || '',
+        estrofes: Array.isArray(c.estrofes) ? c.estrofes.map((s) => String(s)) : [],
+      };
+    }
+  }
+  const idFetch = vid && ehVersaoServidorId(vid) ? vid : it.id;
+  const fonte = it.bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const res = await fetch(
+    `${getControllerApiBase()}/api/musicas/${encodeURIComponent(idFetch)}?fonte=${fonte}`
+  );
+  if (!res.ok) throw new Error();
+  const m = await res.json();
+  return {
+    titulo: m.titulo || it.titulo || '',
+    artista: m.artista || it.artista || '',
+    estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
+  };
+}
+
 async function compartilharPlaylist() {
   if (compartilharPlaylistEmAndamento) return;
   if (!cultoId) return appAlert('Selecione um culto primeiro.', 'Compartilhar Playlist');
@@ -5907,14 +5937,7 @@ async function compartilharPlaylist() {
     for (const it of pl) {
       if (it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA) continue;
       try {
-        const res = await fetch(`${getControllerApiBase()}/api/musicas/${it.id}?fonte=${it.bancoFonte || 'user'}`);
-        if (!res.ok) throw new Error();
-        const m = await res.json();
-        musicas.push({
-          titulo: m.titulo || it.titulo || '',
-          artista: m.artista || it.artista || '',
-          estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
-        });
+        musicas.push(await conteudoMusicaParaShare(it));
       } catch (_) {
         if (it.titulo) musicas.push({ titulo: it.titulo, artista: it.artista || '', estrofes: [] });
       }
