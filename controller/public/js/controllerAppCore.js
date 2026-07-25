@@ -5976,16 +5976,133 @@ function renomearTemaNoCulto(velho, novo) {
 
 let compartilharPlaylistEmAndamento = false;
 
-function atualizarFeedbackCompartilharPlaylist(ativo, mensagem = 'Gerando código de compartilhamento...') {
+/** Só desabilita/reabilita o botão «C». O feedback de progresso vive no modal
+ *  (ver abrirModalCompartilharPlaylist), não mais inline na toolbar S/C/I. */
+function atualizarFeedbackCompartilharPlaylist(ativo) {
   const btn = document.getElementById('playlist-compartilhar-btn');
-  const status = document.getElementById('playlist-compartilhar-status');
-  const statusText = document.getElementById('playlist-compartilhar-status-text');
   if (btn) {
     btn.disabled = !!ativo;
     btn.setAttribute('aria-busy', ativo ? 'true' : 'false');
   }
-  if (statusText && ativo) statusText.textContent = String(mensagem || 'Gerando código de compartilhamento...');
-  if (status) status.hidden = !ativo;
+}
+
+/** Abre o modal (reutiliza o app-dialog padrão do app) no estado de carregamento
+ *  e devolve o container `.share-modal` para evoluir in-place até o código. */
+function abrirModalCompartilharPlaylist() {
+  const ov = document.getElementById('app-dialog-overlay');
+  const body = document.getElementById('app-dialog-body');
+  const head = document.getElementById('app-dialog-head');
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (!ov || !body || !head || !ok || !cancel) return null;
+  head.textContent = 'Compartilhar Playlist';
+  ok.style.display = 'none';
+  cancel.style.display = '';
+  cancel.textContent = 'Fechar';
+  cancel.onclick = () => fecharAppDialog(false);
+  body.style.whiteSpace = 'normal';
+  body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'share-modal';
+  const loading = document.createElement('div');
+  loading.className = 'share-modal-loading';
+  const spin = document.createElement('div');
+  spin.className = 'share-modal-spinner';
+  spin.setAttribute('aria-hidden', 'true');
+  const txt = document.createElement('div');
+  txt.className = 'share-modal-loading-text';
+  txt.textContent = 'Gerando código de compartilhamento...';
+  loading.appendChild(spin);
+  loading.appendChild(txt);
+  wrap.appendChild(loading);
+  body.appendChild(wrap);
+  ov.hidden = false;
+  ov.classList.add('aberto');
+  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  appCompartilharResolver = () => {};
+  return wrap;
+}
+
+/** Substitui o estado de loading pelo código gerado + botão de copiar (mesmo modal). */
+function modalCompartilharMostrarCodigo(wrap, codigo, dataExp) {
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'share-modal-label';
+  label.textContent = 'Código da playlist';
+  const row = document.createElement('div');
+  row.className = 'share-modal-code-row';
+  const code = document.createElement('div');
+  code.className = 'share-modal-code';
+  code.textContent = String(codigo || '');
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'btn sm share-modal-copy';
+  copy.textContent = 'Copiar';
+  copy.setAttribute('aria-label', 'Copiar código');
+  copy.title = 'Copiar código para a área de transferência';
+  copy.onclick = () => copiarCodigoCompartilhar(copy, String(codigo || ''));
+  row.appendChild(code);
+  row.appendChild(copy);
+  wrap.appendChild(label);
+  wrap.appendChild(row);
+  if (dataExp) {
+    const exp = document.createElement('div');
+    exp.className = 'share-modal-exp';
+    exp.textContent = `Válido até ${dataExp}`;
+    wrap.appendChild(exp);
+  }
+}
+
+/** Substitui o conteúdo do modal por uma mensagem de erro (mesmo modal). */
+function modalCompartilharMostrarErro(wrap, msg) {
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const err = document.createElement('div');
+  err.className = 'share-modal-erro';
+  err.textContent = String(msg || 'Não foi possível gerar o código de compartilhamento. Tente novamente.');
+  wrap.appendChild(err);
+}
+
+/** Copia o código pro clipboard com feedback visual («Copiado!») por ~1,6s. */
+async function copiarCodigoCompartilhar(btn, codigo) {
+  const texto = String(codigo || '').trim();
+  if (!texto) return;
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(texto);
+      ok = true;
+    }
+  } catch (_) {
+    // fallback abaixo
+  }
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (_) {
+      ok = false;
+    }
+  }
+  if (btn) {
+    const rotuloOriginal = btn.dataset.rotuloOriginal || btn.textContent;
+    btn.dataset.rotuloOriginal = rotuloOriginal;
+    btn.textContent = ok ? 'Copiado!' : 'Erro';
+    btn.classList.toggle('success', ok);
+    clearTimeout(btn._copiarTimer);
+    btn._copiarTimer = setTimeout(() => {
+      btn.textContent = btn.dataset.rotuloOriginal || 'Copiar';
+      btn.classList.remove('success');
+    }, 1600);
+  }
 }
 
 /**
@@ -6032,12 +6149,8 @@ async function compartilharPlaylist() {
 
   compartilharPlaylistEmAndamento = true;
   atualizarFeedbackCompartilharPlaylist(true);
-  let feedbackOculto = false;
-  const ocultarFeedbackCompartilharPlaylist = () => {
-    if (feedbackOculto) return;
-    feedbackOculto = true;
-    atualizarFeedbackCompartilharPlaylist(false);
-  };
+  // Modal (mesmo app-dialog do restante do app) já abre no estado de carregamento.
+  const modalWrap = abrirModalCompartilharPlaylist();
   try {
     // Coleta estrofes de cada música via API local do controlador (sempre em localhost:3001)
     const musicas = [];
@@ -6051,8 +6164,8 @@ async function compartilharPlaylist() {
     }
 
     if (!musicas.length) {
-      ocultarFeedbackCompartilharPlaylist();
-      return appAlert('Nenhuma música encontrada na playlist.', 'Compartilhar Playlist');
+      modalCompartilharMostrarErro(modalWrap, 'Nenhuma música encontrada na playlist.');
+      return;
     }
 
     const res = await fetch(`${CLOUD_SHARE_URL}/share`, {
@@ -6063,21 +6176,17 @@ async function compartilharPlaylist() {
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     const { codigo, expiraEm } = await res.json();
     const dataExp = new Date(expiraEm).toLocaleDateString('pt-BR');
-    ocultarFeedbackCompartilharPlaylist();
-    await appPrompt(`Código da playlist (válido até ${dataExp}):`, {
-      title: 'Compartilhar Playlist',
-      defaultValue: codigo,
-    });
+    // Mesmo modal evolui de loading → código, sem fechar/reabrir.
+    modalCompartilharMostrarCodigo(modalWrap, codigo, dataExp);
   } catch (err) {
     console.error('Falha ao gerar código de compartilhamento da playlist.', err);
-    ocultarFeedbackCompartilharPlaylist();
-    await appAlert(
-      'Não foi possível gerar o código de compartilhamento. Tente novamente.',
-      'Compartilhar Playlist'
+    modalCompartilharMostrarErro(
+      modalWrap,
+      'Não foi possível gerar o código de compartilhamento. Tente novamente.'
     );
   } finally {
     compartilharPlaylistEmAndamento = false;
-    ocultarFeedbackCompartilharPlaylist();
+    atualizarFeedbackCompartilharPlaylist(false);
   }
 }
 
@@ -13628,11 +13737,30 @@ setTimeout(() => tentarAutoConectarSeDesconectado(), 200);
 let appDialogResolver = null;
 let appPromptResolver = null;
 let appEscolhaResolver = null;
+let appCompartilharResolver = null;
 
 function fecharAppDialog(resultado) {
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
   const okBtn = document.getElementById('app-dialog-ok');
+  if (appCompartilharResolver) {
+    const r = appCompartilharResolver;
+    appCompartilharResolver = null;
+    if (body) body.innerHTML = '';
+    if (body) body.style.whiteSpace = '';
+    if (okBtn) okBtn.style.display = '';
+    const cancelBtn = document.getElementById('app-dialog-cancel');
+    if (cancelBtn) {
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.style.display = 'none';
+    }
+    if (ov) {
+      ov.classList.remove('aberto');
+      ov.hidden = true;
+    }
+    r(null);
+    return;
+  }
   if (appEscolhaResolver) {
     const r = appEscolhaResolver;
     appEscolhaResolver = null;

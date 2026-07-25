@@ -938,31 +938,6 @@
       flex-wrap: wrap;
     }
 
-    #playlist-compartilhar-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-right: 4px;
-      font-size: 10px;
-      letter-spacing: 0.04em;
-      color: var(--text-dim);
-      text-transform: none;
-    }
-
-    #playlist-compartilhar-status[hidden] {
-      display: none;
-    }
-
-    .playlist-compartilhar-spinner {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 2px solid color-mix(in srgb, var(--text-dim) 45%, transparent);
-      border-top-color: var(--accent);
-      animation: playlist-compartilhar-spin 0.8s linear infinite;
-      flex: 0 0 auto;
-    }
-
     @keyframes playlist-compartilhar-spin {
       to { transform: rotate(360deg); }
     }
@@ -5521,6 +5496,84 @@
       gap: 8px;
       background: var(--surface);
     }
+
+    /* ── Modal Compartilhar Playlist (loading → código) ── */
+    .share-modal {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 0 4px;
+      text-align: center;
+    }
+    .share-modal-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-dim);
+    }
+    .share-modal-spinner {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 3px solid color-mix(in srgb, var(--text-dim) 30%, transparent);
+      border-top-color: var(--accent);
+      animation: playlist-compartilhar-spin 0.8s linear infinite;
+    }
+    .share-modal-loading-text {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      color: var(--text-dim);
+    }
+    .share-modal-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      opacity: 0.75;
+    }
+    .share-modal-code-row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      width: 100%;
+      justify-content: center;
+    }
+    .share-modal-code {
+      font-family: var(--font-mono, ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace);
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--text);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      user-select: all;
+    }
+    .share-modal-copy {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      min-width: 46px;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .share-modal-copy.success { border-color: var(--green); color: var(--green); }
+    .share-modal-exp {
+      font-size: 11px;
+      color: var(--text-dim);
+      opacity: 0.75;
+    }
+    .share-modal-erro {
+      font-size: 13px;
+      color: var(--red);
+      line-height: 1.45;
+      padding: 6px 4px;
+    }
     .lyra-menu-modal-overlay {
       display: none;
       position: fixed;
@@ -6285,7 +6338,6 @@
     }
 
     .hdr-btn-caption,
-    #playlist-compartilhar-status,
     .playlist-tema-label,
     .playlist-preview-hint,
     .playlist-tema-head,
@@ -6654,10 +6706,6 @@
    <div class="panel-section-head" id="playlist-panel-head">
   CULTO &amp; PLAYLIST
   <div id="playlist-head-actions">
-    <span id="playlist-compartilhar-status" role="status" aria-live="polite" hidden>
-      <span class="playlist-compartilhar-spinner" aria-hidden="true"></span>
-      <span id="playlist-compartilhar-status-text">Gerando código de compartilhamento...</span>
-    </span>
     <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
     <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
     <button type="button" id="playlist-importar-btn" class="btn sm" title="Importar playlist a partir de um código">I</button>
