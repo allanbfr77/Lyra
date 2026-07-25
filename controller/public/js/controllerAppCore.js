@@ -7385,6 +7385,76 @@ function renderPlaylistItensComMarcadores(el, pl) {
   }
 }
 
+/** Gera a lista numerada só com o NOME das músicas da playlist atual (sem autor/tags). */
+function gerarTextoNomesMusicasPlaylist() {
+  if (!cultoId) return '';
+  const pl = getPlaylist(cultoId) || [];
+  const linhas = [];
+  for (const it of pl) {
+    if (ehMarcadorTemaPlaylist(it)) continue;
+    const nome = String(it?.titulo ?? '').trim();
+    if (!nome) continue;
+    linhas.push(`${linhas.length + 1}. ${nome}`);
+  }
+  return linhas.join('\n');
+}
+
+const PLAYLIST_COPIAR_ICONE_COPY =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+const PLAYLIST_COPIAR_ICONE_CHECK =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+let playlistCopiarFeedbackTimer = null;
+
+/** Copia a lista de músicas para a área de transferência e dá micro-feedback (ícone → check). */
+async function copiarNomesMusicasPlaylist() {
+  const btn = document.getElementById('playlist-copiar-nomes-btn');
+  const texto = gerarTextoNomesMusicasPlaylist();
+  if (!texto) {
+    appAlert('Nenhuma música na playlist para copiar.');
+    return;
+  }
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(texto);
+      ok = true;
+    }
+  } catch (_) {
+    // fallback abaixo
+  }
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (_) {
+      ok = false;
+    }
+  }
+  if (!ok) {
+    appAlert('Não foi possível copiar a lista de músicas.');
+    return;
+  }
+  if (btn) {
+    clearTimeout(playlistCopiarFeedbackTimer);
+    btn.innerHTML = PLAYLIST_COPIAR_ICONE_CHECK;
+    btn.classList.add('copiado');
+    btn.title = 'Copiado!';
+    playlistCopiarFeedbackTimer = setTimeout(() => {
+      btn.innerHTML = PLAYLIST_COPIAR_ICONE_COPY;
+      btn.classList.remove('copiado');
+      btn.title = 'Copiar lista numerada das músicas (só o nome)';
+      playlistCopiarFeedbackTimer = null;
+    }, 1500);
+  }
+}
+
 function renderPlaylist() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
@@ -8030,6 +8100,9 @@ function configurarSeletorTemaPlaylist() {
 
   document.getElementById('playlist-compartilhar-btn')?.addEventListener('click', compartilharPlaylist);
 document.getElementById('playlist-importar-btn')?.addEventListener('click', importarPlaylist);
+document.getElementById('playlist-copiar-nomes-btn')?.addEventListener('click', () => {
+  copiarNomesMusicasPlaylist().catch(() => {});
+});
 
 }
 

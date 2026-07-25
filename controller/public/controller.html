@@ -934,8 +934,12 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      margin-left: 8px;
+      margin-left: auto;
       flex-wrap: wrap;
+    }
+
+    .playlist-copiar-nomes-btn {
+      margin-left: 6px;
     }
 
     @keyframes playlist-compartilhar-spin {
@@ -1746,11 +1750,16 @@
     .playlist-tema-head-row .playlist-tema-head-label {
       flex: 1;
       min-width: 0;
-      font-size: 10px;
+      font-size: 12px;
       letter-spacing: .13em;
       text-transform: uppercase;
       color: var(--accent);
       font-weight: 700;
+    }
+
+    .playlist-copiar-nomes-btn.copiado {
+      color: var(--green);
+      border-color: var(--green);
     }
 
     .playlist-tema-head-del {
@@ -6748,6 +6757,9 @@
     </div>
    <div class="panel-section-head" id="playlist-panel-head">
   CULTO &amp; PLAYLIST
+  <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+  </button>
   <div id="playlist-head-actions">
     <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
     <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
