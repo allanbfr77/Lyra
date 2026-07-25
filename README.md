@@ -89,11 +89,15 @@ npm install --prefix mobile
 
 ### 3. Configurar a Bíblia (opcional)
 
-Os arquivos `.sqlite` das traduções **não** vêm no repositório. Copie-os para `server/data/` com o script:
+Os arquivos `.sqlite` das traduções são versionados no repositório em `controller/data/biblia/`
+e vão embutidos no instalador do controlador (via `extraResources`), funcionando offline sem
+depender do servidor. Você só precisa do script abaixo para **substituir/atualizar** as traduções:
 
 ```bash
 node setup-biblia.js "C:/caminho/para/pasta/Biblia"
 ```
+
+O script copia os `.sqlite` para `controller/data/biblia/`.
 
 Traduções esperadas: `ACF`, `ARA`, `ARC`, `NAA`, `NTLH`, `NVI`.
 
@@ -202,7 +206,7 @@ Para gerar um release a partir do código-fonte, crie uma tag `v*.*.*` — o wor
 | `npm` não encontrado | Instale o Node.js 20+ e reinicie o terminal |
 | Telas não abrem | Verifique se os monitores estão conectados e reconhecidos pelo SO |
 | Celular não conecta | Confirme mesma rede Wi-Fi e firewall liberando as portas 3001/5510 |
-| Bíblia com poucos versículos | Importe traduções completas para `lyra.db` do controlador |
+| Bíblia com poucos versículos | Substitua os `.sqlite` em `controller/data/biblia/` por traduções completas (`node setup-biblia.js`) |
 | `better-sqlite3` com erro de versão | Rode `npm rebuild better-sqlite3` na pasta afetada |
 
 ## Documentação adicional

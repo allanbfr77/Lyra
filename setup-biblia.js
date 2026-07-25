@@ -34,7 +34,7 @@ function main() {
   }
 
   const pastaOrigem = path.resolve(origemArg);
-  const pastaDestino = path.resolve(__dirname, 'server', 'data');
+  const pastaDestino = path.resolve(__dirname, 'controller', 'data', 'biblia');
 
   if (!fs.existsSync(pastaOrigem) || !fs.statSync(pastaOrigem).isDirectory()) {
     console.error(`[ERRO] Pasta de origem invalida: ${pastaOrigem}`);

@@ -62,6 +62,11 @@ function createServerLink(ctx) {
         ctx.windowMain.webContents.send('server-audio-state', audioState);
       }
     });
+
+    // NOTA: o write-lock (ping_app/pong_app, papel_controlador, comando_recusado) é tratado
+    // no socket do RENDERER (controller/public/js/controllerAppCore.js), que é quem se
+    // registra como controlador. Esta conexão do main process não se registra, então não
+    // recebe ping do heartbeat nem participa do bastão. Não duplicar esses handlers aqui.
   }
 
   function desconectarServer() {

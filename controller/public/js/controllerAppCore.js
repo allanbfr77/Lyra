@@ -5059,6 +5059,11 @@ function setupSlidesRailResize() {
 }
 
 let socket = null;
+// Write-lock: papel deste controlador conforme o servidor (null = ainda desconhecido).
+// { primario: boolean, podeEscrever: boolean, donoAtual: string|null }
+let papelControladorLocal = null;
+// Último display_config autoritativo recebido do servidor — base do "pull" quando somente-leitura.
+let ultimaDisplayConfigServidor = null;
 let apresentacaoBiblioteca = [];
 let apresentacaoCards = Array(6).fill(null);
 /** Índice do card 5 na grelha (0-based = 4); único slot que aceita vídeo. */
@@ -10234,6 +10239,54 @@ async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   projetarPorDuploCliqueCentral(0);
 }
 
+/**
+ * Identidade persistente deste controlador (localStorage) para autenticação na allowlist.
+ * Gera deviceId + secret na primeira execução e reaproveita depois — o operador não digita nada.
+ */
+function obterIdentidadeDispositivoLocal() {
+  try {
+    const gen = () =>
+      window.crypto && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          });
+    let deviceId = localStorage.getItem('lyra_device_id');
+    let secret = localStorage.getItem('lyra_device_secret');
+    if (!deviceId || !secret) {
+      deviceId = deviceId || gen();
+      secret = secret || gen();
+      localStorage.setItem('lyra_device_id', deviceId);
+      localStorage.setItem('lyra_device_secret', secret);
+    }
+    const nome = localStorage.getItem('lyra_device_nome') || '';
+    return { deviceId, secret, nome };
+  } catch (_) {
+    return {};
+  }
+}
+
+/** true quando o servidor já informou que este controlador está em somente-leitura (write-lock). */
+function controladorSomenteLeitura() {
+  return !!(papelControladorLocal && papelControladorLocal.podeEscrever === false);
+}
+
+/**
+ * Pull-by-role: aplica a config autoritativa do servidor ao painel SEM reempurrar.
+ * Reutiliza o mesmo caminho de merge/preenchimento usado ao carregar a config local,
+ * mas nunca chama enviarPreviewDisplayConfig — quem é somente-leitura não projeta.
+ */
+function aplicarDisplayConfigDoServidorNoPainel(cfg) {
+  if (!cfg || typeof cfg !== 'object') return;
+  try {
+    mesclarSlideCfgNoEstado(cfg);
+    popularFormCfg(currentCfgCtrl);
+  } catch (_) {
+    // intencional — shape inesperado do servidor não deve derrubar o painel
+  }
+}
+
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
 function iniciarSocket(ip) {
   if (socket) {
@@ -10249,7 +10302,8 @@ function iniciarSocket(ip) {
   }
 
   let _conectandoEmAndamento = false;
-  socket = io(`http://${ip}:5510`);
+  // auth no handshake: credencial de dispositivo para a allowlist do servidor (etapa 3).
+  socket = io(`http://${ip}:5510`, { auth: obterIdentidadeDispositivoLocal() });
 
 socket.on('connect', async () => {
   if (_conectandoEmAndamento) {
@@ -10257,6 +10311,10 @@ socket.on('connect', async () => {
   }
   _conectandoEmAndamento = true;
   try {
+    // Papel desconhecido a cada (re)conexão até o servidor reenviar 'papel_controlador'.
+    // Enquanto desconhecido, o boot pode empurrar preview (compat com servidor antigo);
+    // se formos somente-leitura, o servidor rejeita e o papel_controlador corrige o painel.
+    papelControladorLocal = null;
     socket.emit('registrar_controlador');
     migrarTemasParaGlobal();
     temasPorCulto = loadTemasPorCulto();
@@ -10314,8 +10372,55 @@ socket.on('connect', async () => {
     tratarPedidoSincronizacaoBanco(payload).catch(() => {});
   });
 
-  /** Config efetiva das janelas (pode misturar overlay Bíblia) — não sobrescreve o painel Slide. */
-  socket.on('display_config', () => {});
+  /**
+   * Config autoritativa vinda do servidor. Pull-by-role:
+   *  - somente-leitura: reflete a config do servidor no painel (fonte de verdade);
+   *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
+   */
+  socket.on('display_config', (cfg) => {
+    ultimaDisplayConfigServidor = cfg;
+    if (controladorSomenteLeitura()) aplicarDisplayConfigDoServidorNoPainel(cfg);
+  });
+
+  // Heartbeat de aplicação: responde a cada ping do servidor. SEM isto, o servidor
+  // consideraria este controlador (o socket registrado) "sem resposta" após N ciclos e
+  // liberaria o bastão / fecharia a projeção mesmo com o socket ainda ligado.
+  socket.on('ping_app', () => {
+    try { socket.emit('pong_app'); } catch (_) {
+      // intencional — socket pode estar em reconexão
+    }
+  });
+
+  /**
+   * Papel deste controlador no write-lock. Ao saber que é somente-leitura, faz o pull
+   * imediato da última config do servidor (o display_config normalmente já chegou antes).
+   */
+  socket.on('papel_controlador', (papel) => {
+    papelControladorLocal = papel && typeof papel === 'object' ? papel : null;
+    try { atualizarUiConexao(!!(socket && socket.connected)); } catch (_) {
+      // intencional
+    }
+    if (controladorSomenteLeitura() && ultimaDisplayConfigServidor) {
+      aplicarDisplayConfigDoServidorNoPainel(ultimaDisplayConfigServidor);
+    }
+    // TODO (UX): indicar visualmente "PC X no controle" e desabilitar comandos quando read-only.
+  });
+
+  // Status global de quem detém o controle (para exibir "PC X no controle").
+  socket.on('controle_status', (status) => {
+    if (papelControladorLocal && status && typeof status === 'object') {
+      papelControladorLocal.donoAtual = status.donoAtual || null;
+    }
+    // TODO (UX): atualizar o rótulo de dono do controle no painel.
+  });
+
+  // Comando recusado por este controlador estar em somente-leitura — feedback ao operador.
+  socket.on('comando_recusado', (info) => {
+    const motivo = (info && info.erro) || 'recusado';
+    const dono = info && info.donoAtual ? ` — ${info.donoAtual} está no controle` : '';
+    console.warn(`[controle] comando recusado (${motivo})${dono}`);
+    // TODO (UX): trocar por um toast no painel em vez de console.
+  });
 
   socket.on('estado', (estado) => {
     estadoServidor = estado;
@@ -12311,6 +12416,9 @@ function sanitizarCfgSlidesLocal(cfg) {
 }
 
 function enviarPreviewDisplayConfig(cfg, opts = {}) {
+  // Pull-by-role: um controlador somente-leitura NUNCA empurra config (nem no boot, nem ao
+  // mexer no painel). O servidor já rejeitaria via guarda; aqui evitamos até o ruído do envio.
+  if (controladorSomenteLeitura()) return;
   const modo = opts.modoConfig || 'slides';
   let corpo = cfg && typeof cfg === 'object' ? cfg : {};
   if (modo === 'biblia') {

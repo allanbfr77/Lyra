@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { io } from 'socket.io-client';
+import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { gerarCultosDoMes } from '../src/cultosMes';
 import { getPlaylistsDoControladorSnapshot } from '../src/playlistsControladorStore';
 import {
@@ -206,22 +207,30 @@ export default function EstrofesScreen() {
   useEffect(() => {
     if (!ip) return;
     prepararProjecaoMusica(ip).catch(() => {});
-    const socket = io(urlSocketProjecao(ip), {
-      path: '/socket.io',
-      timeout: 4000,
-      transports: ['websocket', 'polling'],
-    });
+    let socket = null;
+    let cancelado = false;
+    // Carrega a identidade (auth) antes de conectar — evita conectar sem credencial.
+    carregarIdentidadeDispositivo().then((ident) => {
+      if (cancelado) return;
+      socket = io(urlSocketProjecao(ip), {
+        path: '/socket.io',
+        timeout: 4000,
+        transports: ['websocket', 'polling'],
+        auth: ident,
+      });
 
-    // Escuta atualizações de estado do servidor para sincronizar o slide ativo
-    socket.on('estado', (e) => {
-      if (e.tipo === 'musica' && String(e.musicaId) === String(musicaIdRef.current)) {
-        setEstrofeAtiva(e.estrofeIndex);
-      }
-    });
+      // Escuta atualizações de estado do servidor para sincronizar o slide ativo
+      socket.on('estado', (e) => {
+        if (e.tipo === 'musica' && String(e.musicaId) === String(musicaIdRef.current)) {
+          setEstrofeAtiva(e.estrofeIndex);
+        }
+      });
 
-    socketRef.current = socket;
+      socketRef.current = socket;
+    });
     return () => {
-      socket.disconnect();
+      cancelado = true;
+      if (socket) socket.disconnect();
       socketRef.current = null;
       resetarSessaoRotaMusica();
     };

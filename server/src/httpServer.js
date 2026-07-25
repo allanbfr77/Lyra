@@ -18,6 +18,7 @@ const {
 } = require('./lib/proxyApresentacaoVideoAoControlador');
 const { loadSharedDbSnapshot, saveSharedDbSnapshot } = require('./lib/sharedDbSyncStore');
 const { getPreferredLocalIPv4 } = require('./lib/localIp');
+const { criarControleAcesso } = require('./lib/controleAcesso');
 
 /** Porta da API + WebSocket; `0.0.0.0` para acesso na rede local. */
 const HTTP_API_PORT = 5510;
@@ -167,12 +168,6 @@ function iniciarServidor(ctx, paths, deps) {
     return 'desconhecido';
   }
 
-  function reelegerControladorPrincipal() {
-    const itens = [...ctx.controladorSockets.keys()];
-    ctx.controladorSocketId = itens.length ? itens[itens.length - 1] : null;
-    if (!ctx.controladorSocketId) ctx.ultimasPlaylistsControlador = null;
-  }
-
   function aplicarExibirApresentacao(payload) {
     const pl = payload && typeof payload === 'object' ? { ...payload } : {};
     /* Controladores antigos enviavam http://127.0.0.1:3001/... — inacessível nos telões. */
@@ -224,6 +219,83 @@ function iniciarServidor(ctx, paths, deps) {
     /** Base64 grandes no Socket causavam queda silenciosa do transporte («desconectado» ao projetar). */
     maxHttpBufferSize: Math.max(Number(process.env.SOCKET_MAX_BUFFER_MB || 110), 110) * 1024 * 1024,
   });
+
+  // --- Controle de acesso: write-lock de controlador primário ---
+  // Fim do "último a conectar vence": o PRIMEIRO controlador registrado comanda; os demais
+  // entram somente-leitura até receberem o bastão explicitamente (forcar_assumir_controle).
+  ctx.acesso = criarControleAcesso({
+    allowlistPath: paths.allowlistPath,
+    emitParaSocket: (id, evt, dados) => {
+      try { ctx.io.to(id).emit(evt, dados); } catch (_) {
+        // intencional — socket pode ter saído
+      }
+    },
+    broadcast: (evt, dados) => {
+      try { ctx.io.emit(evt, dados); } catch (_) {
+        // intencional
+      }
+    },
+    notificar: (evt, dados) => {
+      // Mantém o alvo de roteamento HTTP/proxy sempre apontando para o primário atual
+      // (fetch de música/bíblia/vídeo e broadcast de playlists usam ctx.controladorSocketId).
+      ctx.controladorSocketId = ctx.acesso.getPrimarioSocketId();
+      if (!ctx.controladorSocketId) ctx.ultimasPlaylistsControlador = null;
+      console.log(`[acesso] ${evt}`, dados || '');
+      // Encaminha à janela de controle do servidor (UI: pendências, quem está no controle).
+      try {
+        const w = windowsApi.getJanelaControle && windowsApi.getJanelaControle();
+        if (w && !w.isDestroyed()) w.webContents.send('acesso-evento', { evt, dados });
+      } catch (_) {
+        // intencional — janela pode não existir ainda
+      }
+    },
+    logError,
+    opcoes: { pingIntervaloMs: 4000, maxFalhasConsecutivas: 3 },
+  });
+  ctx.acesso.iniciarHeartbeat();
+
+  // Autenticação no handshake (etapa 3): NÃO bloqueia a conexão — visualizadores (telão, OBS,
+  // mobile só a ver) entram normalmente. Apenas marca se o socket está autorizado a ESCREVER.
+  // A guarda comandoAutorizado usa socket.data.autorizado. Fecha o "qualquer um na rede projeta".
+  ctx.io.use((socket, next) => {
+    try {
+      const r = ctx.acesso.autenticar(socket.handshake.auth || {});
+      socket.data.autorizado = !!r.ok;
+      socket.data.device = r.device || null;
+      socket.data.authMotivo = r.motivo || null;
+    } catch (e) {
+      socket.data.autorizado = false;
+      logError('auth-middleware', e);
+    }
+    next();
+  });
+
+  /**
+   * Guarda de escrita para handlers de comando. Clientes que NÃO se registram como
+   * controlador (mobile, OBS) seguem o comportamento atual ("isento por ora"). Um
+   * controlador registrado só escreve se for o primário; senão o comando é recusado.
+   * @param {object} socket
+   * @param {Function} [ack] callback de resposta do evento (quando houver)
+   * @returns {boolean} true se pode prosseguir; false → o handler deve retornar.
+   */
+  function comandoAutorizado(socket, ack) {
+    // Porta 1 — autenticação: só dispositivos autorizados escrevem (fecha o "estranho na rede").
+    // Vale para TODOS os clientes, inclusive não registrados como controlador (ex.: mobile).
+    if (!socket.data || socket.data.autorizado !== true) {
+      return recusarComando(socket, ack, 'nao-autorizado', null);
+    }
+    // Porta 2 — write-lock: entre controladores registrados, só o primário escreve.
+    if (ctx.acesso.estaRegistrado(socket.id) && !ctx.acesso.podeEscrever(socket.id)) {
+      return recusarComando(socket, ack, 'somente-leitura', ctx.acesso.papelDe(socket.id).donoAtual);
+    }
+    return true;
+  }
+
+  function recusarComando(socket, ack, erro, donoAtual) {
+    if (typeof ack === 'function') ack({ ok: false, erro, donoAtual });
+    else socket.emit('comando_recusado', { erro, donoAtual });
+    return false;
+  }
 
   expressApp.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -290,6 +362,38 @@ function iniciarServidor(ctx, paths, deps) {
       logError('post-internal-restart-response', e);
       res.status(500).json({ ok: false, erro: e.message || String(e) });
     }
+  });
+
+  // --- Gestão da allowlist de controladores (só a máquina do servidor pode gerir) ---
+  expressApp.get('/api/controladores', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) {
+      return res.status(403).json({ ok: false, erro: 'Gestão disponível apenas localmente.' });
+    }
+    res.json({ ok: true, modo: ctx.acesso.getModo(), dispositivos: ctx.acesso.listarDispositivos() });
+  });
+
+  expressApp.post('/api/controladores/aprovar', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    const deviceId = String(req.body?.deviceId || '').trim();
+    res.json({ ok: ctx.acesso.aprovarDispositivo(deviceId) });
+  });
+
+  expressApp.post('/api/controladores/revogar', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    const deviceId = String(req.body?.deviceId || '').trim();
+    res.json({ ok: ctx.acesso.revogarDispositivo(deviceId) });
+  });
+
+  expressApp.post('/api/controladores/travar', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    ctx.acesso.travar();
+    res.json({ ok: true, modo: ctx.acesso.getModo() });
+  });
+
+  expressApp.post('/api/controladores/destravar', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    ctx.acesso.destravar();
+    res.json({ ok: true, modo: ctx.acesso.getModo() });
   });
 
   /** Fallback quando o controlador não tem socket ligado — mesmo payload do evento Socket `exibir_apresentacao`. */
@@ -499,13 +603,30 @@ function iniciarServidor(ctx, paths, deps) {
     socket.emit('display_config', displayConfigModo.resolverConfigParaJanelas(ctx));
 
     socket.on('registrar_controlador', (payload = {}) => {
-      ctx.controladorSocketId = socket.id;
       const info = {
         socketId: socket.id,
         ip: socketRemoteIp(socket),
         nomePc: String(payload?.nomePc || '').trim(),
       };
       ctx.controladorSockets.set(socket.id, info);
+      // Só um controlador AUTORIZADO entra no write-lock (pode virar primário). Um cliente
+      // não autorizado (pendente/sem credencial) fica como visualizador — não comanda.
+      if (socket.data && socket.data.autorizado === true) {
+        // Write-lock: o PRIMEIRO registrado vira primário; um novo entra somente-leitura.
+        // O notificar() do controleAcesso ressincroniza ctx.controladorSocketId com o primário.
+        ctx.acesso.registrarControlador(socket.id, {
+          deviceId: socket.data?.device?.deviceId || '',
+          nome: info.nomePc,
+          ip: info.ip,
+        });
+      } else {
+        // Informa o cliente de que está em modo visualização (não autorizado a escrever).
+        try {
+          socket.emit('papel_controlador', { primario: false, podeEscrever: false, donoAtual: null, motivo: socket.data?.authMotivo || 'nao-autorizado' });
+        } catch (_) {
+          // intencional
+        }
+      }
       console.log(`[+] Controlador registrado: ${socket.id}`);
       // Informa ao controlador o IP de LAN deste servidor e a porta do OBS, para montar as
       // URLs de Browser Source (o OBS pode estar noutro PC — não serve `localhost`).
@@ -523,6 +644,16 @@ function iniciarServidor(ctx, paths, deps) {
       } catch (e) {
         logError('registrar_controlador-garantir-telas', e);
       }
+    });
+
+    // Heartbeat de aplicação: o controlador responde a cada ping para provar que está vivo.
+    // Sem PONG por N ciclos consecutivos, o controleAcesso libera o bastão automaticamente.
+    socket.on('pong_app', () => ctx.acesso.registrarPong(socket.id));
+
+    // "Forçar assumir controle" (breaker manual). Idealmente atrás de confirmação humana
+    // — no PC do servidor ou via fluxo aprovado. Não depende do heartbeat.
+    socket.on('forcar_assumir_controle', () => {
+      ctx.acesso.forcarAssumir(socket.id);
     });
 
     socket.on('solicitar_sincronizacao_banco', (payload = {}) => {
@@ -560,6 +691,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('preview_display_config', (cfg) => {
+      if (!comandoAutorizado(socket)) return;
       try {
         if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return;
         displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, { persistirSlides: false });
@@ -575,6 +707,7 @@ function iniciarServidor(ctx, paths, deps) {
       const reply = (obj) => { try { if (typeof ack === 'function') ack(obj); } catch (_) {
   // intencional — erro ignorado
 } };
+      if (!comandoAutorizado(socket, ack)) return;
       try {
         if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) {
           reply({ ok: false, erro: 'corpo deve ser um objeto de configuração' });
@@ -606,6 +739,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('exibir_apresentacao', (payload) => {
+      if (!comandoAutorizado(socket)) return;
       try {
         aplicarExibirApresentacao(payload);
       } catch (e) {
@@ -614,6 +748,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('encerrar_apresentacao_publico', () => {
+      if (!comandoAutorizado(socket)) return;
       try {
         aplicarEncerrarApresentacaoPublicoServidor();
       } catch (e) {
@@ -622,6 +757,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('exibir_musica', async (payload = {}) => {
+      if (!comandoAutorizado(socket)) return;
       try {
         const musicaIdNum = Number(payload.musicaId);
         let estrofes = Array.isArray(payload.estrofes)
@@ -708,6 +844,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('exibir_versiculo', (payload = {}) => {
+      if (!comandoAutorizado(socket)) return;
       const texto = payload.texto != null ? String(payload.texto) : '';
       const alvo = String(payload.alvoProjecao || 'ambos').toLowerCase();
       ctx.projecaoLiveAtiva = alvo === 'live';
@@ -788,6 +925,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('limpar_tela', () => {
+      if (!comandoAutorizado(socket)) return;
       ctx.projecaoLiveAtiva = false;
       projectionEncerrar.encerrarCamadaSlides(ctx);
       atualizarDisplays(ctx.estadoAtual);
@@ -800,6 +938,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('encerrar_projecao_biblia', () => {
+      if (!comandoAutorizado(socket)) return;
       ctx.projecaoLiveAtiva = false;
       projectionEncerrar.encerrarCamadaBiblia(ctx);
       atualizarDisplays(ctx.estadoAtual);
@@ -810,6 +949,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('encerrar_projecao', () => {
+      if (!comandoAutorizado(socket)) return;
       ctx.projecaoLiveAtiva = false;
       ctx.estadoPublicoOverride = null;
       ctx.ministranteApresentacaoOverride = null;
@@ -835,6 +975,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('toggle_blackout', () => {
+      if (!comandoAutorizado(socket)) return;
       const next = ctx.estadoAtual.blackout !== true;
       ctx.estadoAtual = { ...ctx.estadoAtual, blackout: next };
       atualizarDisplays(ctx.estadoAtual);
@@ -842,6 +983,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('exibir_ministrante', (incoming = {}) => {
+      if (!comandoAutorizado(socket)) return;
       if (ctx.ministranteApresentacaoOverride) return;
       const pl = incoming && typeof incoming === 'object' && !Array.isArray(incoming) ? incoming : {};
       const snapshot = snapshotMinistranteAtual();
@@ -863,6 +1005,7 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('audio_play', (payload) => {
+      if (!comandoAutorizado(socket)) return;
       const src = String(payload?.src || '').trim();
       if (!src) return;
       ctx.audioOwnerSocketId = socket.id;
@@ -876,27 +1019,32 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('audio_pause', () => {
+      if (!comandoAutorizado(socket)) return;
       enviarComandoAudioParaControle('audio_pause', {});
     });
 
     socket.on('audio_volume', (payload) => {
+      if (!comandoAutorizado(socket)) return;
       const v = Number(payload?.volume);
       if (!Number.isFinite(v)) return;
       enviarComandoAudioParaControle('audio_volume', { volume: Math.max(0, Math.min(1, v)) });
     });
 
     socket.on('audio_seek', (payload) => {
+      if (!comandoAutorizado(socket)) return;
       const t = Number(payload?.time);
       if (!Number.isFinite(t)) return;
       enviarComandoAudioParaControle('audio_seek', { time: Math.max(0, t) });
     });
 
     socket.on('audio_stop', () => {
+      if (!comandoAutorizado(socket)) return;
       enviarComandoAudioParaControle('audio_stop', {});
       ctx.audioOwnerSocketId = null;
     });
 
     socket.on('apresentacao_video_state', (payload) => {
+      if (!comandoAutorizado(socket)) return;
       try {
         const pl = payload && typeof payload === 'object' ? payload : {};
         const sync = { playing: !!pl.playing };
@@ -948,11 +1096,14 @@ function iniciarServidor(ctx, paths, deps) {
         enviarComandoAudioParaControle('audio_stop', {});
         ctx.audioOwnerSocketId = null;
       }
+      const eraControlador = ctx.controladorSockets.has(socket.id);
       ctx.controladorSockets.delete(socket.id);
-      if (socket.id === ctx.controladorSocketId) {
-        reelegerControladorPrincipal();
-        if (!ctx.controladorSocketId) {
-          console.log('[!] Controlador desconectado — fechando janelas');
+      if (eraControlador) {
+        // Write-lock: remove do controle. Se era o primário, o bastão passa ao controlador
+        // mais antigo ainda ligado (o notificar() ressincroniza ctx.controladorSocketId).
+        ctx.acesso.removerControlador(socket.id);
+        if (!ctx.acesso.getPrimarioSocketId()) {
+          console.log('[!] Nenhum controlador no comando — fechando janelas');
           fecharTodasJanelasProjecao();
         }
       }

@@ -41,13 +41,16 @@ npm start
 
 ## Bíblia
 
-A aba Bíblia lê versículos do **banco local do controlador** (`lyra.db`, porta **3001**).  
-Importe traduções completas para a tabela `biblia` nesse ficheiro (não no servidor de telas).
+A aba Bíblia é servida **inteiramente pelo controlador** (porta **3001**), a partir de arquivos
+`.sqlite` locais — um por tradução — em `controller/data/biblia/`. É um asset estático versionado
+no repositório e embutido no instalador (via `extraResources` → `resources/biblia/`), funcionando
+offline e **sem depender do servidor de telas**.
 
 Para verificar traduções disponíveis com o controlador aberto:
 
 `GET http://127.0.0.1:3001/api/biblia/traducoes`
 
-Se só existirem versículos de exemplo (João 3:16, Salmos 23:1, …), substitua ou popule `lyra.db` com o dump da sua tradução (ARC, ARA, NAA, etc.).
+Para substituir ou atualizar as traduções (ARC, ARA, NAA, etc.), troque os `.sqlite` em
+`controller/data/biblia/` — o helper `node setup-biblia.js "caminho/para/Biblia"` faz essa cópia.
 
 ---

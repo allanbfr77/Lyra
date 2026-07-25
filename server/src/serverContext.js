@@ -15,6 +15,8 @@ module.exports = {
 
   windowsDisplay: [],
   io: null,
+  /** Controle de acesso / write-lock (criado em httpServer.js). */
+  acesso: null,
   audioOwnerSocketId: null,
   /** Socket.IO id do painel controlador (evento `registrar_controlador`). */
   controladorSocketId: null,

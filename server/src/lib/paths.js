@@ -13,6 +13,8 @@ function createUserPaths(userDataRoot) {
     serverPrefsPath: () => path.join(userDataRoot, 'server-app-preferences.json'),
     displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
     sharedDbSyncPath: () => path.join(userDataRoot, 'shared-db-sync.json'),
+    /** Allowlist de controladores autorizados (deviceId + secret). Usada pelo controleAcesso. */
+    allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
     errorLogPath: () => path.join(userDataRoot, 'error.log'),
   };
 }

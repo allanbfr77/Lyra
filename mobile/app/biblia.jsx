@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { io } from 'socket.io-client';
+import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
@@ -126,17 +127,25 @@ export default function BibliaScreen() {
 
   useEffect(() => {
     if (!host) return;
-    const socket = io(urlSocketProjecao(host), {
-      path: '/socket.io',
-      timeout: 5000,
-      transports: ['websocket', 'polling'],
-    });
-    socketRef.current = socket;
-    socket.on('connect', () => {
-      persistirEEnviarCfg(socket);
+    let socket = null;
+    let cancelado = false;
+    // Carrega a identidade (auth) antes de conectar — evita conectar sem credencial.
+    carregarIdentidadeDispositivo().then((ident) => {
+      if (cancelado) return;
+      socket = io(urlSocketProjecao(host), {
+        path: '/socket.io',
+        timeout: 5000,
+        transports: ['websocket', 'polling'],
+        auth: ident,
+      });
+      socketRef.current = socket;
+      socket.on('connect', () => {
+        persistirEEnviarCfg(socket);
+      });
     });
     return () => {
-      socket.disconnect();
+      cancelado = true;
+      if (socket) socket.disconnect();
       socketRef.current = null;
       rotaAplicadaRef.current = false;
       ultimaRotaMonitorRef.current = '';

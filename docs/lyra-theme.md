@@ -290,7 +290,7 @@ socket.on('theme-change', (theme) => {
 
 ## Setup da Bíblia
 
-Os arquivos `.sqlite` da Bíblia nao ficam no repositório e nao sao versionados. O projeto espera encontrar estes arquivos em `server/data/`:
+Os arquivos `.sqlite` da Bíblia são versionados no repositório em `controller/data/biblia/` — são um asset estático de propriedade do controlador e vão embutidos no instalador (via `extraResources`, mapeados para `resources/biblia/`), funcionando totalmente offline e sem depender do servidor. Traduções incluídas:
 
 - `ACF.sqlite`
 - `ARA.sqlite`
@@ -299,7 +299,9 @@ Os arquivos `.sqlite` da Bíblia nao ficam no repositório e nao sao versionados
 - `NTLH.sqlite`
 - `NVI.sqlite`
 
-Para copiar os arquivos para o local esperado, rode na raiz do projeto:
+O caminho é resolvido em `controller/src/lib/paths.js` (`bibliaDataDirProjeto`): em desenvolvimento aponta para `controller/data/biblia/`; no app empacotado, para `resources/biblia/` (via `process.resourcesPath`).
+
+Para **substituir ou atualizar** as traduções, rode na raiz do projeto:
 
 ```bash
 node setup-biblia.js "caminho/para/Biblia"
@@ -311,6 +313,4 @@ Exemplo:
 node setup-biblia.js "C:/Users/allan/OneDrive/Área de Trabalho/Projects/Biblia"
 ```
 
-O script copia os arquivos encontrados para `server/data/` e informa sucesso ou erro para cada traducao.
-
-Se voce precisar obter os `.sqlite`, eles nao acompanham este repositório. No ambiente atual, eles existem na pasta externa `C:/Users/allan/OneDrive/Área de Trabalho/Projects/Biblia`. Em outro ambiente, obtenha esses arquivos com quem mantem a base da Bíblia do projeto.
+O script copia os arquivos encontrados para `controller/data/biblia/` e informa sucesso ou erro para cada traducao.

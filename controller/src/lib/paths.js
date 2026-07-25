@@ -2,11 +2,16 @@
 
 const path = require('path');
 
+/**
+ * Pasta da Bíblia (arquivos .sqlite) — asset estático de propriedade do controller.
+ * Dev: `controller/data/biblia`. Instalador: `resources/biblia` (via extraResources).
+ * Não depende do server em nenhum momento.
+ */
 function bibliaDataDirProjeto() {
-  if (!process.defaultApp && typeof process.resourcesPath === 'string' && process.resourcesPath) {
-    return path.join(process.resourcesPath, 'server', 'data');
+  if (appElectronEmpacotado() && typeof process.resourcesPath === 'string' && process.resourcesPath) {
+    return path.join(process.resourcesPath, 'biblia');
   }
-  return path.resolve(__dirname, '../../../server/data');
+  return path.resolve(__dirname, '../../data/biblia');
 }
 
 function bibliaSqlitePathProjeto(traducao) {

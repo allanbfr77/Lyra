@@ -50,8 +50,8 @@
         "to": "brand/lyra-controller-512.png"
       },
       {
-        "from": "../server/data",
-        "to": "server/data"
+        "from": "data/biblia",
+        "to": "biblia"
       },
       {
         "from": "../data/catalog",
