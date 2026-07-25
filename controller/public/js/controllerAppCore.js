@@ -3097,9 +3097,11 @@ function renderGridApresentacao() {
   aplicarEstiloTextareaAvisoCard6(ta, apresentacaoCard6AvisoCfg);
   ta.addEventListener('click', (ev) => ev.stopPropagation());
   ta.addEventListener('input', () => {
+    // Atualização em memória é instantânea; a gravação pesada é adiada (debounce) para não travar a digitação.
     apresentacaoCard6Texto = ta.value;
-    salvarEstadoModoApresentacaoNoStorage();
+    agendarSalvarEstadoAposDigitarAviso();
   });
+  ta.addEventListener('blur', flushSalvarEstadoAposDigitarAviso);
   ta.addEventListener('dblclick', (ev) => {
     ev.stopPropagation();
     clearTimeout(apresentacaoCardUiClickTimer);
@@ -5331,6 +5333,26 @@ function salvarEstadoModoApresentacaoNoStorage() {
 }
   salvarAvisoCard6CfgNoStorage();
   agendarSincronizacaoEstadoModoApresentacaoServidor();
+}
+
+/**
+ * Debounce da gravação ao digitar avisos (Card 6). Persistir o estado inteiro do modo
+ * Apresentação (biblioteca, cards, áudios, playlist — imagens podem ser base64) a cada tecla
+ * trava a digitação. O texto já é atualizado em memória na hora; aqui só adiamos a gravação.
+ */
+let _salvarEstadoAposDigitarAvisoTimer = null;
+function agendarSalvarEstadoAposDigitarAviso() {
+  if (_salvarEstadoAposDigitarAvisoTimer) clearTimeout(_salvarEstadoAposDigitarAvisoTimer);
+  _salvarEstadoAposDigitarAvisoTimer = setTimeout(() => {
+    _salvarEstadoAposDigitarAvisoTimer = null;
+    salvarEstadoModoApresentacaoNoStorage();
+  }, 350);
+}
+function flushSalvarEstadoAposDigitarAviso() {
+  if (!_salvarEstadoAposDigitarAvisoTimer) return;
+  clearTimeout(_salvarEstadoAposDigitarAvisoTimer);
+  _salvarEstadoAposDigitarAvisoTimer = null;
+  salvarEstadoModoApresentacaoNoStorage();
 }
 
 function carregarEstadoModoApresentacaoDoStorage() {
