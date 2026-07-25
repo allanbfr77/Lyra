@@ -382,21 +382,13 @@ function anexarMenuContextoEdicao(win) {
 }
 
 function criarMenuAplicativo(ctx, updaterApi) {
+  // Nota: o menu "Editar" foi removido da barra de propósito. Os atalhos de edição
+  // (desfazer/refazer, recortar/copiar/colar, selecionar tudo) continuam funcionando
+  // dentro dos campos de texto — quem os trata é o Chromium/Electron, não este menu —
+  // e o app ainda oferece o menu de contexto de edição pelo botão direito.
+  // (No Windows, `visible: false` em item de topo não oculta de forma confiável;
+  // por isso removemos do template em vez de apenas escondê-lo.)
   const template = [
-    {
-      label: 'Editar',
-      submenu: [
-        { role: 'undo', label: 'Desfazer' },
-        { role: 'redo', label: 'Refazer' },
-        { type: 'separator' },
-        { role: 'cut', label: 'Recortar' },
-        { role: 'copy', label: 'Copiar' },
-        { role: 'paste', label: 'Colar' },
-        { role: 'delete', label: 'Excluir' },
-        { type: 'separator' },
-        { role: 'selectAll', label: 'Selecionar tudo' },
-      ],
-    },
     {
       label: 'Ferramentas',
       submenu: [
@@ -451,11 +443,12 @@ function criarMenuAplicativo(ctx, updaterApi) {
           label: 'Atalhos de teclado',
           click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-shortcuts'),
         },
-        {
-          label: 'Sobre o Lyra',
-          click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-about'),
-        },
       ],
+    },
+    {
+      // Item solto na barra (fora do menu Ajuda).
+      label: 'Sobre',
+      click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-about'),
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

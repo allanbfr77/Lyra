@@ -13830,7 +13830,7 @@ const LYRA_MANUAL_SECTIONS = [
     items: [
       '<strong>Slide:</strong> opera músicas, estrofes, playlist do culto, próxima música e projeção em telão/ministrante.',
       '<strong>Bíblia:</strong> permite buscar livro, capítulo e versículo, navegar rapidamente e projetar textos bíblicos com configuração visual própria.',
-      '<strong>Mídias:</strong> abre imagens, vídeos, PDFs, iframes e avisos rápidos no modo apresentação, inclusive em canais separados do telão e do ministrante.',
+      '<strong>Mídias:</strong> projeta imagens, PDFs e apresentações nos cards 1 a 4, vídeo no card 5 (exclusivo para vídeo) e avisos rápidos no card 6 — inclusive em canais separados do telão e do ministrante.',
     ],
   },
   {
@@ -13852,12 +13852,12 @@ const LYRA_MANUAL_SECTIONS = [
   {
     title: 'OBS e modo Live',
     items: [
-      'Quando a rota do público estiver em <strong>Live</strong>, o Lyra não usa monitor físico para esse canal e prepara a saída para captura no OBS.',
-      'O endpoint único do OBS fica em <code>http://127.0.0.1:5001/obs</code> e traz tudo junto (Bíblia, slides/letra e avisos) — útil para quem usa uma só Browser Source em uma única cena.',
-      'Para separar por cena, use as fontes dedicadas: <code>http://127.0.0.1:5001/obs/biblia</code> — adicione como Browser Source na cena onde a Bíblia deve aparecer (ex.: "Pregação") — e <code>http://127.0.0.1:5001/obs/slides</code> — adicione como Browser Source na cena onde slides/letra devem aparecer (ex.: "Louvor").',
-      'A troca de cena continua manual no OBS: o Lyra só liga/desliga o conteúdo de cada fonte, cada Browser Source só é exibida quando você seleciona a cena correspondente.',
-      'Todas as fontes têm fundo transparente por padrão; use o campo "Custom CSS" da Browser Source no OBS para estilizar cores, fontes e fundo (classes como <code>.biblia-texto</code>, <code>.biblia-referencia</code>, <code>.slide-titulo</code> e <code>.slide-linha</code>).',
-      'Esse fluxo é ideal para transmissões ao vivo quando o texto ou a mídia precisam entrar na cena do OBS sem ocupar uma tela física.',
+      'Quando a rota do público estiver em <strong>Live</strong>, o Lyra não usa monitor físico para esse canal e prepara a saída para captura no OBS — ideal quando o texto ou a mídia precisam entrar na cena sem ocupar uma tela física.',
+      'Fonte única (traz tudo junto — Bíblia, slides/letra e avisos), para quem usa uma só Browser Source em uma cena: <code>http://127.0.0.1:5001/obs</code>',
+      'Fonte só da Bíblia — adicione como Browser Source na cena da pregação: <code>http://127.0.0.1:5001/obs/biblia</code>',
+      'Fonte só de slides/letra — adicione como Browser Source na cena de louvor: <code>http://127.0.0.1:5001/obs/slides</code>',
+      'A troca de cena continua manual no OBS: o Lyra apenas liga/desliga o conteúdo de cada fonte, e cada Browser Source só aparece quando você seleciona a cena correspondente.',
+      'Todas as fontes têm fundo transparente por padrão. Use o campo “Custom CSS” da Browser Source para estilizar cores, fontes e fundo — classes: <code>.biblia-texto</code>, <code>.biblia-referencia</code>, <code>.slide-titulo</code>, <code>.slide-linha</code>.',
     ],
   },
   {

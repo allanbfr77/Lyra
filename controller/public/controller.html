@@ -5619,6 +5619,9 @@
       padding: 16px;
       background: color-mix(in srgb, var(--surface) 93%, #fff 7%);
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+      /* Permite que a coluna do grid encolha em vez de estourar com conteúdo longo (URLs). */
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .lyra-doc-section h3 {
       margin: 0 0 10px;
@@ -5634,6 +5637,21 @@
     .lyra-doc-list li {
       line-height: 1.58;
       color: var(--text);
+      /* Quebra palavras/URLs muito longas para não cortar o texto na coluna. */
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    /* URLs e trechos de código dentro da documentação: quebram e ganham um leve destaque. */
+    .lyra-menu-modal-body code {
+      display: inline;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      white-space: normal;
+      font-size: 12px;
+      padding: 1px 5px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface2) 82%, #fff 18%);
     }
     .lyra-doc-callout {
       margin-top: 14px;
