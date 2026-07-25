@@ -6230,34 +6230,190 @@ function ativarCultoNaUiParaImportacaoCodigo(cultoDestino) {
   onCultoChange();
 }
 
-async function importarPlaylist() {
-  const codigo = await appPrompt('Digite o código da playlist:', {
-    title: 'Importar Playlist',
-    defaultValue: '',
-    emptyMsg: 'Digite o código gerado pelo Compartilhar (ex: XKJA-29BM).',
-  });
-  if (!codigo) return;
+let modalImportarTimerAutoFechar = null;
+
+function importarPlaylist() {
+  abrirModalImportarPlaylistInput('');
+}
+
+/** Estado 1 — campo de código. Reabre com o valor anterior quando o usuário
+ *  escolhe «Tentar de novo» após um erro. Reutiliza o app-dialog padrão do app. */
+function abrirModalImportarPlaylistInput(valorInicial = '') {
+  const ov = document.getElementById('app-dialog-overlay');
+  const body = document.getElementById('app-dialog-body');
+  const head = document.getElementById('app-dialog-head');
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (!ov || !body || !head || !ok || !cancel) return;
+  clearTimeout(modalImportarTimerAutoFechar);
+  head.textContent = 'Importar Playlist';
+  body.style.whiteSpace = 'normal';
+  body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'share-modal';
+  const label = document.createElement('div');
+  label.className = 'share-modal-label';
+  label.textContent = 'Código da playlist';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 20;
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.className = 'share-modal-input';
+  input.value = String(valorInicial || '');
+  input.placeholder = 'Ex: XKJA-29BM';
+  const err = document.createElement('div');
+  err.className = 'share-modal-erro';
+  err.style.minHeight = '16px';
+  err.hidden = true;
+  wrap.appendChild(label);
+  wrap.appendChild(input);
+  wrap.appendChild(err);
+  body.appendChild(wrap);
+
+  ok.style.display = '';
+  ok.textContent = 'OK';
+  cancel.style.display = '';
+  cancel.textContent = 'Cancelar';
+  const confirmar = () => {
+    const codigo = String(input.value || '').trim().toUpperCase();
+    if (!codigo) {
+      err.hidden = false;
+      err.textContent = 'Digite o código gerado pelo Compartilhar (ex: XKJA-29BM).';
+      try {
+        input.focus();
+      } catch (_) {
+        // intencional — erro ignorado
+      }
+      return;
+    }
+    void executarFluxoImportarPlaylist(codigo, wrap);
+  };
+  ok.onclick = confirmar;
+  cancel.onclick = () => fecharAppDialog(false);
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirmar();
+    }
+  };
+
+  ov.hidden = false;
+  ov.classList.add('aberto');
+  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  appImportarResolver = () => {};
+  setTimeout(() => {
+    try {
+      input.focus();
+      input.select();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }, 50);
+}
+
+/** Estado 2 — carregando (mesmo padrão visual do modal do «C»). */
+function modalImportarPlaylistLoading(wrap, texto = 'Importando playlist...') {
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (ok) ok.style.display = 'none';
+  if (cancel) cancel.style.display = 'none';
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const loading = document.createElement('div');
+  loading.className = 'share-modal-loading';
+  const spin = document.createElement('div');
+  spin.className = 'share-modal-spinner';
+  spin.setAttribute('aria-hidden', 'true');
+  const t = document.createElement('div');
+  t.className = 'share-modal-loading-text';
+  t.textContent = String(texto || 'Importando playlist...');
+  loading.appendChild(spin);
+  loading.appendChild(t);
+  wrap.appendChild(loading);
+}
+
+/** Estado 3a — erro. Não fecha sozinho: «Tentar de novo» volta ao campo, «Fechar» dispensa. */
+function modalImportarPlaylistErro(wrap, msg, codigoAnterior) {
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  clearTimeout(modalImportarTimerAutoFechar);
+  if (wrap) {
+    wrap.innerHTML = '';
+    const err = document.createElement('div');
+    err.className = 'share-modal-erro';
+    err.textContent = String(msg || 'Não foi possível importar a playlist. Tente novamente.');
+    wrap.appendChild(err);
+  }
+  if (ok) {
+    ok.style.display = '';
+    ok.textContent = 'Tentar de novo';
+    ok.onclick = () => abrirModalImportarPlaylistInput(String(codigoAnterior || ''));
+  }
+  if (cancel) {
+    cancel.style.display = '';
+    cancel.textContent = 'Fechar';
+    cancel.onclick = () => fecharAppDialog(false);
+  }
+}
+
+/** Estado 3b — sucesso. Mostra confirmação + botão «Fechar»; auto-fecha em casos simples. */
+function modalImportarPlaylistSucesso(wrap, msg, autoFechar = true) {
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (wrap) {
+    wrap.innerHTML = '';
+    const s = document.createElement('div');
+    s.className = 'share-modal-sucesso';
+    s.textContent = String(msg || 'Playlist importada com sucesso.');
+    wrap.appendChild(s);
+  }
+  if (ok) ok.style.display = 'none';
+  if (cancel) {
+    cancel.style.display = '';
+    cancel.textContent = 'Fechar';
+    cancel.onclick = () => fecharAppDialog(false);
+  }
+  clearTimeout(modalImportarTimerAutoFechar);
+  if (autoFechar) {
+    modalImportarTimerAutoFechar = setTimeout(() => {
+      // Só fecha se ainda for o modal de importação que está aberto.
+      if (appImportarResolver) fecharAppDialog(false);
+    }, 2600);
+  }
+}
+
+/** Fluxo completo de importação; evolui o modal in-place (loading → sucesso/erro). */
+async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
+  modalImportarPlaylistLoading(wrap, 'Importando playlist...');
 
   let data;
   try {
-    const codigoNorm = codigo.trim().toUpperCase();
     const res = await fetch(`${CLOUD_SHARE_URL}/share/${encodeURIComponent(codigoNorm)}`);
-    if (res.status === 404) return appAlert('Código não encontrado ou expirado.', 'Importar Playlist');
+    if (res.status === 404) {
+      return modalImportarPlaylistErro(wrap, 'Código não encontrado ou expirado.', codigoNorm);
+    }
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     data = await res.json();
   } catch (err) {
-    return appAlert(`Não foi possível buscar a playlist: ${err.message || 'Falha de rede'}`, 'Importar Playlist');
+    return modalImportarPlaylistErro(
+      wrap,
+      `Não foi possível buscar a playlist: ${err.message || 'Falha de rede'}`,
+      codigoNorm
+    );
   }
 
-  if (!Array.isArray(data.musicas) || !data.musicas.length)
-    return appAlert('Código inválido — sem músicas.', 'Importar Playlist');
+  if (!Array.isArray(data.musicas) || !data.musicas.length) {
+    return modalImportarPlaylistErro(wrap, 'Código inválido — sem músicas.', codigoNorm);
+  }
 
   const cultoIdCodigo = String(data.cultoId || '').trim();
   const cultoDestino = cultoIdCodigo || cultoId;
   if (!cultoDestino) {
-    return appAlert(
+    return modalImportarPlaylistErro(
+      wrap,
       'Este código não traz o culto. Selecione o dia na lista ou gere um novo código no celular («Compartilhar com PC»).',
-      'Importar Playlist'
+      codigoNorm
     );
   }
 
@@ -6265,11 +6421,11 @@ async function importarPlaylist() {
     garantirCultoDisponivelParaImportacaoCodigo(cultoIdCodigo, data.cultoNome || data.cultoLabel);
     ativarCultoNaUiParaImportacaoCodigo(cultoDestino);
   } else if (!cultoId) {
-    return appAlert('Selecione um culto primeiro.', 'Importar Playlist');
+    return modalImportarPlaylistErro(wrap, 'Selecione um culto primeiro.', codigoNorm);
   }
 
   const ip = getServidorIp();
-  if (!ip) return appAlert('Conecte ao servidor antes de importar.', 'Importar Playlist');
+  if (!ip) return modalImportarPlaylistErro(wrap, 'Conecte ao servidor antes de importar.', codigoNorm);
 
   let importadas = 0;
   let copiasImportadas = 0;
@@ -6311,6 +6467,11 @@ async function importarPlaylist() {
   renderSeletorTemasPlaylist();
   renderPlaylist();
   await carregarMusicas(ip);
+
+  if (!importadas) {
+    return modalImportarPlaylistErro(wrap, 'Nenhuma música pôde ser importada. Tente novamente.', codigoNorm);
+  }
+
   const itemCulto = listarCultosDisponiveis().find((c) => c.id === cultoId);
   const nomeCulto = itemCulto
     ? parseLabelCulto(itemCulto.label).data + ' — ' + parseLabelCulto(itemCulto.label).desc
@@ -6319,7 +6480,8 @@ async function importarPlaylist() {
   if (copiasImportadas > 0) {
     msg += `\n\n${copiasImportadas} música(s) que já existiam no banco foram preservadas e gravadas automaticamente como versão «CÓPIA/IMPORTADA» (o original não foi alterado).`;
   }
-  appAlert(msg, 'Importar Playlist');
+  // Caso simples auto-fecha; quando há aviso de cópias (info importante), exige fechar manual.
+  modalImportarPlaylistSucesso(wrap, msg, copiasImportadas === 0);
 }
 
 function excluirTemaDoCulto(tema) {
@@ -13738,11 +13900,36 @@ let appDialogResolver = null;
 let appPromptResolver = null;
 let appEscolhaResolver = null;
 let appCompartilharResolver = null;
+let appImportarResolver = null;
 
 function fecharAppDialog(resultado) {
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
   const okBtn = document.getElementById('app-dialog-ok');
+  if (appImportarResolver) {
+    const r = appImportarResolver;
+    appImportarResolver = null;
+    clearTimeout(modalImportarTimerAutoFechar);
+    if (body) {
+      body.innerHTML = '';
+      body.style.whiteSpace = '';
+    }
+    if (okBtn) {
+      okBtn.style.display = '';
+      okBtn.textContent = 'OK';
+    }
+    const cancelBtn = document.getElementById('app-dialog-cancel');
+    if (cancelBtn) {
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.style.display = 'none';
+    }
+    if (ov) {
+      ov.classList.remove('aberto');
+      ov.hidden = true;
+    }
+    r(null);
+    return;
+  }
   if (appCompartilharResolver) {
     const r = appCompartilharResolver;
     appCompartilharResolver = null;
