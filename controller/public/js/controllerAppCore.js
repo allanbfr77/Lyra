@@ -6802,14 +6802,145 @@ async function importarBancoCompartilhadoDoServidor(ipAtual = getServidorProjecc
   return aplicado || remoto;
 }
 
-async function solicitarSincronizacaoManualBanco() {
-  const ip = getServidorIp();
-  if (!ip) {
-    await appAlert('Conecte ao servidor antes de sincronizar o banco.', 'Sincronizar banco');
-    return;
+let modalSincronizarTimerAutoFechar = null;
+
+/** Abre o modal (mesmo app-dialog dos fluxos C/I) no estado de carregamento. */
+function abrirModalSincronizarBanco() {
+  const ov = document.getElementById('app-dialog-overlay');
+  const body = document.getElementById('app-dialog-body');
+  const head = document.getElementById('app-dialog-head');
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (!ov || !body || !head || !ok || !cancel) return null;
+  clearTimeout(modalSincronizarTimerAutoFechar);
+  head.textContent = 'Sincronizar banco';
+  ok.style.display = 'none';
+  cancel.style.display = 'none';
+  body.style.whiteSpace = 'normal';
+  body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'share-modal';
+  const loading = document.createElement('div');
+  loading.className = 'share-modal-loading';
+  const spin = document.createElement('div');
+  spin.className = 'share-modal-spinner';
+  spin.setAttribute('aria-hidden', 'true');
+  const txt = document.createElement('div');
+  txt.className = 'share-modal-loading-text';
+  txt.textContent = 'Sincronizando...';
+  loading.appendChild(spin);
+  loading.appendChild(txt);
+  wrap.appendChild(loading);
+  body.appendChild(wrap);
+  ov.hidden = false;
+  ov.classList.add('aberto');
+  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  appSincronizarResolver = () => {};
+  return wrap;
+}
+
+/** Estado de sucesso (verde) — banco enviado e outros PCs notificados. */
+function modalSincronizarSucesso(wrap, msg) {
+  // Se o usuário já fechou o modal durante o loading, não mexe nos botões compartilhados.
+  if (!appSincronizarResolver) return;
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (wrap) {
+    wrap.innerHTML = '';
+    const s = document.createElement('div');
+    s.className = 'share-modal-sucesso';
+    s.textContent = String(msg || 'Banco enviado.');
+    wrap.appendChild(s);
   }
-  if (!socket || !socket.connected) {
-    await appAlert('Conecte ao servidor antes de sincronizar o banco.', 'Sincronizar banco');
+  if (ok) ok.style.display = 'none';
+  if (cancel) {
+    cancel.style.display = '';
+    cancel.textContent = 'Fechar';
+    cancel.onclick = () => fecharAppDialog(false);
+  }
+  clearTimeout(modalSincronizarTimerAutoFechar);
+  modalSincronizarTimerAutoFechar = setTimeout(() => {
+    if (appSincronizarResolver) fecharAppDialog(false);
+  }, 2600);
+}
+
+/** Estado de aviso (amarelo) — não é sucesso; envio sem destinatário/pré-condição. */
+function modalSincronizarAviso(wrap, msg) {
+  if (!appSincronizarResolver) return;
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  clearTimeout(modalSincronizarTimerAutoFechar);
+  if (wrap) {
+    wrap.innerHTML = '';
+    const box = document.createElement('div');
+    box.className = 'share-modal-aviso';
+    const icone = document.createElement('div');
+    icone.className = 'share-modal-aviso-icone';
+    icone.setAttribute('aria-hidden', 'true');
+    icone.textContent = '⚠';
+    const t = document.createElement('div');
+    t.textContent = String(msg || 'Sincronização sem efeito.');
+    box.appendChild(icone);
+    box.appendChild(t);
+    wrap.appendChild(box);
+  }
+  if (ok) ok.style.display = 'none';
+  if (cancel) {
+    cancel.style.display = '';
+    cancel.textContent = 'Fechar';
+    cancel.onclick = () => fecharAppDialog(false);
+  }
+}
+
+/** Estado de erro (vermelho) — falha ao enviar o banco. */
+function modalSincronizarErro(wrap, msg) {
+  if (!appSincronizarResolver) return;
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  clearTimeout(modalSincronizarTimerAutoFechar);
+  if (wrap) {
+    wrap.innerHTML = '';
+    const err = document.createElement('div');
+    err.className = 'share-modal-erro';
+    err.textContent = String(msg || 'Não foi possível enviar o banco ao servidor.');
+    wrap.appendChild(err);
+  }
+  if (ok) ok.style.display = 'none';
+  if (cancel) {
+    cancel.style.display = '';
+    cancel.textContent = 'Fechar';
+    cancel.onclick = () => fecharAppDialog(false);
+  }
+}
+
+/** Emite o pedido de sincronização e resolve com o nº de controladores notificados.
+ *  Usa ack do servidor (com timeout); clientes/servidores antigos resolvem 0. */
+function emitirSolicitacaoSincronizacaoBanco(payload) {
+  return new Promise((resolve) => {
+    if (!socket || !socket.connected) return resolve(0);
+    let resolvido = false;
+    const done = (n) => {
+      if (resolvido) return;
+      resolvido = true;
+      resolve(Number(n) || 0);
+    };
+    try {
+      socket.timeout(4000).emit('solicitar_sincronizacao_banco', payload, (err, resposta) => {
+        if (err) return done(0);
+        done(resposta && typeof resposta.notificados === 'number' ? resposta.notificados : 0);
+      });
+    } catch (_) {
+      done(0);
+    }
+  });
+}
+
+async function solicitarSincronizacaoManualBanco() {
+  const wrap = abrirModalSincronizarBanco();
+  const ip = getServidorIp();
+  // Caso 1 — sem conexão: mostrado como aviso dentro do mesmo modal.
+  if (!ip || !socket || !socket.connected) {
+    modalSincronizarAviso(wrap, 'Conecte ao servidor antes de sincronizar o banco.');
     return;
   }
 
@@ -6819,11 +6950,22 @@ async function solicitarSincronizacaoManualBanco() {
     const local = await obterSnapshotCompartilhadoLocal();
     const resposta = await enviarSnapshotCompartilhadoParaServidor(local, ip);
     if (resposta?.snapshot?.updatedAt) sharedBancoLocalUpdatedAt = String(resposta.snapshot.updatedAt);
-    socket.emit('solicitar_sincronizacao_banco', {
+    const notificados = await emitirSolicitacaoSincronizacaoBanco({
       updatedAt: resposta?.snapshot?.updatedAt || local?.updatedAt || '',
     });
+    if (notificados > 0) {
+      // Caso 2 — sucesso real: havia outros controladores para receber.
+      modalSincronizarSucesso(
+        wrap,
+        'Banco enviado. Os outros PCs foram notificados para aceitar a sincronização.'
+      );
+    } else {
+      // Caso 3 — aviso: envio ao servidor sem destinatário, sem efeito prático.
+      modalSincronizarAviso(wrap, 'Nenhum controlador conectado para receber a sincronização agora.');
+    }
   } catch (e) {
-    await appAlert(e?.message || 'Não foi possível enviar o banco ao servidor.', 'Sincronizar banco');
+    // Caso 4 — erro: mantém a mensagem de falha original, agora dentro do modal.
+    modalSincronizarErro(wrap, e?.message || 'Não foi possível enviar o banco ao servidor.');
   }
 }
 
@@ -13901,11 +14043,36 @@ let appPromptResolver = null;
 let appEscolhaResolver = null;
 let appCompartilharResolver = null;
 let appImportarResolver = null;
+let appSincronizarResolver = null;
 
 function fecharAppDialog(resultado) {
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
   const okBtn = document.getElementById('app-dialog-ok');
+  if (appSincronizarResolver) {
+    const r = appSincronizarResolver;
+    appSincronizarResolver = null;
+    clearTimeout(modalSincronizarTimerAutoFechar);
+    if (body) {
+      body.innerHTML = '';
+      body.style.whiteSpace = '';
+    }
+    if (okBtn) {
+      okBtn.style.display = '';
+      okBtn.textContent = 'OK';
+    }
+    const cancelBtn = document.getElementById('app-dialog-cancel');
+    if (cancelBtn) {
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.style.display = 'none';
+    }
+    if (ov) {
+      ov.classList.remove('aberto');
+      ov.hidden = true;
+    }
+    r(null);
+    return;
+  }
   if (appImportarResolver) {
     const r = appImportarResolver;
     appImportarResolver = null;

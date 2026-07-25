@@ -656,10 +656,14 @@ function iniciarServidor(ctx, paths, deps) {
       ctx.acesso.forcarAssumir(socket.id);
     });
 
-    socket.on('solicitar_sincronizacao_banco', (payload = {}) => {
+    socket.on('solicitar_sincronizacao_banco', (payload = {}, ack) => {
+      let notificados = 0;
       try {
         const origem = ctx.controladorSockets.get(socket.id);
-        if (!origem) return;
+        if (!origem) {
+          if (typeof ack === 'function') ack({ notificados: 0 });
+          return;
+        }
         const atualizadoEm = String(payload?.updatedAt || '').trim();
         for (const [socketId] of ctx.controladorSockets.entries()) {
           if (socketId === socket.id) continue;
@@ -667,10 +671,13 @@ function iniciarServidor(ctx, paths, deps) {
             origem: labelControlador(origem),
             updatedAt: atualizadoEm,
           });
+          notificados++;
         }
       } catch (e) {
         logError('solicitar_sincronizacao_banco-ws', e);
       }
+      // Ack opcional (clientes novos): informa quantos outros controladores foram notificados.
+      if (typeof ack === 'function') ack({ notificados });
     });
 
     socket.on('get_estado', () => {
