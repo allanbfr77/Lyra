@@ -6001,6 +6001,9 @@ async function conteudoMusicaParaShare(it) {
         titulo: c.titulo || it.titulo || '',
         artista: c.artista || it.artista || '',
         estrofes: Array.isArray(c.estrofes) ? c.estrofes.map((s) => String(s)) : [],
+        // Rótulo de origem da versão escolhida (ex.: 'Cópia/Modificada'). Só procedência
+        // p/ exibição no destino; não recria fork/lineage entre bancos.
+        rotulo: String(c.rotulo || it.versaoRotulo || '').trim(),
       };
     }
   }
@@ -6015,6 +6018,9 @@ async function conteudoMusicaParaShare(it) {
     titulo: m.titulo || it.titulo || '',
     artista: m.artista || it.artista || '',
     estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
+    // Rótulo de origem da versão escolhida (ex.: 'Cópia/Modificada'). Só procedência
+    // p/ exibição no destino; não recria fork/lineage entre bancos.
+    rotulo: String(m.rotulo || it.versaoRotulo || '').trim(),
   };
 }
 
@@ -6171,6 +6177,9 @@ async function importarPlaylist() {
       if (!res2.ok) continue;
       const nova = await res2.json();
       const rootId = nova.copyImportada ? Number(nova.rootId) : Number(nova.id);
+      // Rótulo de origem enviado no payload (ex.: 'Cópia/Modificada'). Compat.: se o app
+      // de origem não enviou, fica vazio e o item segue sem tag como hoje.
+      const rotuloOrigem = String(m.rotulo || '').trim();
       addMusicaNaPlaylistParaCulto(cultoId, {
         id: rootId,
         titulo: m.titulo,
@@ -6178,7 +6187,9 @@ async function importarPlaylist() {
         bancoFonte: 'user',
         ...(nova.copyImportada
           ? { versaoLocalId: String(nova.id), versaoRotulo: 'CÓPIA/IMPORTADA' }
-          : {}),
+          : rotuloOrigem
+            ? { versaoRotulo: rotuloOrigem }
+            : {}),
       });
       importadas++;
       if (nova.copyImportada) copiasImportadas++;

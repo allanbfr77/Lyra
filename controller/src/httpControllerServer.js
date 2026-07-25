@@ -907,13 +907,17 @@ async function iniciarServidorController(ctx, paths) {
         req.body?.versaoLocalId != null && String(req.body.versaoLocalId).trim()
           ? String(req.body.versaoLocalId).trim()
           : null;
+      const versaoRotulo = String(req.body?.versaoRotulo || '').trim();
       const meta = {
         id: idNum,
         titulo,
         artista,
         bancoFonte: 'user',
         cultoId,
-        ...(vid ? { versaoLocalId: vid, versaoRotulo: String(req.body?.versaoRotulo || '').trim() } : {}),
+        // Com versão (fork): mantém par versaoLocalId + versaoRotulo como antes.
+        // Sem versão mas com rótulo de origem (import sem conflito): só versaoRotulo,
+        // procedência p/ exibição — não recria fork/lineage entre bancos.
+        ...(vid ? { versaoLocalId: vid, versaoRotulo } : versaoRotulo ? { versaoRotulo } : {}),
         ...(req.body?.cultoLabel ? { cultoLabel: String(req.body.cultoLabel) } : {}),
       };
       notificarMusicasSincronizadasNoPainel([meta]);

@@ -168,6 +168,9 @@ export default function BibliotecaLocalScreen() {
       titulo: m.titulo,
       artista: m.artista || '',
       estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
+      // Rótulo de origem (ex.: 'Cópia/Modificada') — sem isto o campo é descartado
+      // antes de chegar em prepararMusicasParaNuvem e nunca sai do celular.
+      rotulo: m.rotulo || '',
     }));
 
     if (!musicas.length) {

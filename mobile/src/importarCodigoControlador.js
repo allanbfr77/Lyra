@@ -13,7 +13,7 @@ import { obterPlaylistDaNuvem, filtrarMusicasComLetra } from './lyraShare';
  * @param {number} rootId
  * @param {string} titulo
  * @param {string} artista
- * @param {{ copyImportada?: boolean, versaoId?: number }} opts
+ * @param {{ copyImportada?: boolean, versaoId?: number, rotuloOrigem?: string }} opts
  */
 async function adicionarMusicaNaPlaylistCulto(ip, cultoId, cultoLabel, rootId, titulo, artista, opts = {}) {
   const base = urlApiControlador(ip);
@@ -27,6 +27,10 @@ async function adicionarMusicaNaPlaylistCulto(ip, cultoId, cultoLabel, rootId, t
   if (opts.copyImportada && opts.versaoId != null) {
     body.versaoLocalId = String(opts.versaoId);
     body.versaoRotulo = 'CÓPIA/IMPORTADA';
+  } else if (String(opts.rotuloOrigem || '').trim()) {
+    // Sem conflito no destino: música vira original limpa no DB, mas o item da playlist
+    // carrega a procedência (ex.: 'Cópia/Modificada') só p/ exibição — sem versaoLocalId.
+    body.versaoRotulo = String(opts.rotuloOrigem).trim();
   }
   const res = await fetch(`${base}/api/playlists/adicionar-musica`, {
     method: 'POST',
@@ -109,7 +113,9 @@ export async function importarCodigoNoControlador(ip, codigo, culto) {
         rootId,
         m.titulo,
         m.artista || '',
-        nova.copyImportada ? { copyImportada: true, versaoId: nova.id } : {}
+        nova.copyImportada
+          ? { copyImportada: true, versaoId: nova.id }
+          : { rotuloOrigem: String(m.rotulo || '').trim() }
       );
       importadas += 1;
       if (nova.copyImportada) copiasImportadas += 1;

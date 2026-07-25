@@ -10,7 +10,7 @@ export const CLOUD_SHARE_URL = 'https://invb-share-api.onrender.com';
 const SHARE_TIMEOUT_MS = 55000;
 
 /**
- * @param {Array<{ titulo?: string, artista?: string, estrofes?: string[] }>} musicas
+ * @param {Array<{ titulo?: string, artista?: string, estrofes?: string[], rotulo?: string }>} musicas
  */
 export function prepararMusicasParaNuvem(musicas) {
   return (Array.isArray(musicas) ? musicas : [])
@@ -20,6 +20,9 @@ export function prepararMusicasParaNuvem(musicas) {
       estrofes: (Array.isArray(m.estrofes) ? m.estrofes : [])
         .map((s) => String(s || ''))
         .filter((s) => s.trim()),
+      // Rótulo de origem da versão (ex.: 'Cópia/Modificada'). Só procedência p/ exibição
+      // no destino; não recria fork/lineage entre bancos.
+      rotulo: String(m.rotulo || '').trim(),
     }))
     .filter((m) => m.titulo && m.estrofes.length);
 }
