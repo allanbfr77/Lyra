@@ -2886,7 +2886,7 @@ function renderGridApresentacao() {
     card.className = item ? 'ap-card' : 'ap-card ap-card--vazio';
     const num = document.createElement('span');
     num.className = 'ap-card-num';
-    num.textContent = `CARD ${i + 1}`;
+    num.textContent = i === APRESENTACAO_IDX_CARD5 ? 'CARD 5 — (APENAS VÍDEO)' : `CARD ${i + 1}`;
     const body = document.createElement('div');
     body.className = 'ap-card-body';
     body.dataset.cardIdx = String(i);
@@ -2898,7 +2898,7 @@ function renderGridApresentacao() {
         if (!input) return;
         input.accept =
           i === APRESENTACAO_IDX_CARD5
-            ? 'video/*,image/*,application/pdf,.ppt,.pptx,.odp'
+            ? 'video/*'
             : 'image/*,application/pdf,.ppt,.pptx,.odp';
         input.value = '';
         input.click();
@@ -3048,6 +3048,10 @@ function renderGridApresentacao() {
         alert('Use o card 5 para ficheiros de vídeo.');
         return;
       }
+      if (it.kind !== 'video' && i === APRESENTACAO_IDX_CARD5) {
+        alert('O card 5 aceita apenas vídeos.');
+        return;
+      }
       if (Number.isInteger(fromIdx) && fromIdx >= 0 && fromIdx < 5) {
         if (fromIdx === i) return;
         apresentacaoCards[fromIdx] = null;
@@ -3178,6 +3182,10 @@ function adicionarArquivoDiretoNoCard(file, cardIdx) {
   criarItemApresentacaoDeArquivo(file, async (item) => {
     if (item.kind === 'video' && idx !== APRESENTACAO_IDX_CARD5) {
       alert('Vídeos devem ser adicionados no card 5.');
+      return;
+    }
+    if (item.kind !== 'video' && idx === APRESENTACAO_IDX_CARD5) {
+      alert('O card 5 aceita apenas vídeos.');
       return;
     }
     if (item.kind === 'video') {
@@ -5639,6 +5647,45 @@ function obterUltimoMarcadorTema(pl) {
   return '';
 }
 
+/** Lista os temas distintos (por marcador) presentes na playlist, na ordem em que aparecem. */
+function listarMarcadoresTemaPlaylist(pl) {
+  if (!Array.isArray(pl)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const it of pl) {
+    if (!ehMarcadorTemaPlaylist(it)) continue;
+    const t = normalizarTemaPlaylist(it.tema);
+    if (t && !seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+/**
+ * Insere `item` no fim do bloco do tema escolhido (posição correta na playlist plana),
+ * já que os blocos são delimitados por marcadores. Se o tema não for encontrado, faz push.
+ * Usa a última ocorrência do marcador, caso haja marcadores repetidos com o mesmo nome.
+ */
+function inserirMusicaNoBlocoTema(pl, tema, item) {
+  if (!Array.isArray(pl)) return;
+  const alvo = normalizarTemaPlaylist(tema);
+  let markerIdx = -1;
+  for (let i = 0; i < pl.length; i++) {
+    if (ehMarcadorTemaPlaylist(pl[i]) && normalizarTemaPlaylist(pl[i].tema) === alvo) {
+      markerIdx = i;
+    }
+  }
+  if (markerIdx < 0) {
+    pl.push(item);
+    return;
+  }
+  let fimBloco = markerIdx + 1;
+  while (fimBloco < pl.length && !ehMarcadorTemaPlaylist(pl[fimBloco])) fimBloco++;
+  pl.splice(fimBloco, 0, item);
+}
+
 function loadTemaSelecionadoPorCulto() {
   try {
     const raw = localStorage.getItem(LS_PLAYLIST_TEMA_SEL);
@@ -7252,11 +7299,30 @@ async function addMusicaNaPlaylist(meta) {
     return;
   }
   let tema;
-  if (playlistPossuiMarcadoresTema(pl)) {
-    tema = obterUltimoMarcadorTema(pl);
-    if (!tema) {
+  const temMarcadores = playlistPossuiMarcadoresTema(pl);
+  if (temMarcadores) {
+    const marcadores = listarMarcadoresTemaPlaylist(pl);
+    if (marcadores.length === 0) {
       alert('Use o botão «Inserir tema na playlist abaixo» (seta até à linha) para adicionar um bloco de tema no fim da playlist antes de incluir músicas.');
       return;
+    }
+    if (marcadores.length === 1) {
+      // Só um tema (ex.: apenas ABERTURA) → mantém o comportamento atual, sem perguntar.
+      tema = marcadores[0];
+    } else {
+      // Mais de um tema → deixa o usuário escolher em qual bloco adicionar (Modal 2).
+      const ultimo = obterUltimoMarcadorTema(pl);
+      const opcoesTema = marcadores.map((t) => ({
+        value: t,
+        label: t === ultimo ? `${t} (ÚLTIMO)` : t,
+      }));
+      const escTema = await appEscolherOpcao(
+        'Em qual tema adicionar esta música?',
+        opcoesTema,
+        `«${tituloPl}» será adicionada ao tema escolhido.`
+      );
+      if (escTema == null) return; // cancelou
+      tema = normalizarTemaPlaylist(escTema);
     }
   } else {
     tema = getTemaSelecionadoAtual();
@@ -7266,7 +7332,7 @@ async function addMusicaNaPlaylist(meta) {
     }
   }
   garantirTemaNoCatalogoAtual(tema);
-  pl.push({
+  const novoItem = {
     id: meta.id,
     titulo: tituloPl,
     artista: artistaPl,
@@ -7274,7 +7340,13 @@ async function addMusicaNaPlaylist(meta) {
     versaoLocalId,
     versaoRotulo,
     bancoFonte,
-  });
+  };
+  if (temMarcadores) {
+    // Insere no fim do bloco do tema escolhido (posição correta na playlist plana).
+    inserirMusicaNoBlocoTema(pl, tema, novoItem);
+  } else {
+    pl.push(novoItem);
+  }
   savePlaylists();
   renderPlaylist();
 }
