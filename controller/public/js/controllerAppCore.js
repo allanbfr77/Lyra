@@ -8963,9 +8963,6 @@ function renderSlidesStrip() {
       <span class="slide-num">${i + 1}</span>
       <span class="slide-snippet">${textoSlideSnippetHtmlParaChip(estrofe)}</span>
     `;
-    chip.title = projecaoMusicaEmitidaNoServidor
-      ? 'Clique para projetar este slide nas telas'
-      : 'Clique para selecionar · duplo clique para projetar nas telas';
     chip.onclick = (ev) => {
       ev.preventDefault();
       if (projecaoMusicaEmitidaNoServidor) {
@@ -8994,9 +8991,6 @@ function renderSlidesStrip() {
   chipPreto.className = 'slide-chip slide-chip--preto' + (estrofeAtiva === idxSlidePreto ? ' ativo' : '');
   chipPreto.innerHTML = '';
   chipPreto.setAttribute('aria-label', 'Slide preto');
-  chipPreto.title = projecaoMusicaEmitidaNoServidor
-    ? 'Clique para projetar slide preto nas telas'
-    : 'Clique para selecionar · duplo clique para projetar fundo preto nas telas';
   chipPreto.onclick = (ev) => {
     ev.preventDefault();
     if (projecaoMusicaEmitidaNoServidor) {
