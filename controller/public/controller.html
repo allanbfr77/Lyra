@@ -1811,72 +1811,6 @@
       color: var(--accent);
     }
 
-    .musica-versoes-bar .musica-versao-chip {
-      display: inline-flex;
-      align-items: stretch;
-      gap: 0;
-      border-radius: 6px;
-    }
-
-    .musica-versoes-bar .musica-versao-chip .btn.sm {
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
-    }
-
-    .musica-versoes-bar .musica-versao-renomear,
-    .musica-versoes-bar .musica-versao-del {
-      flex: 0 0 22px;
-      width: 22px;
-      min-width: 22px;
-      padding: 0;
-      margin: 0;
-      box-sizing: border-box;
-      border: 1px solid var(--border);
-      border-left: none;
-      background: color-mix(in srgb, var(--surface2) 92%, var(--surface));
-      color: var(--text-dim);
-      font-size: 13px;
-      line-height: 1;
-      cursor: pointer;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
-    }
-
-    .musica-versoes-bar .musica-versao-renomear {
-      border-radius: 0;
-      font-size: 12px;
-    }
-
-    .musica-versoes-bar .musica-versao-del {
-      border-radius: 0 6px 6px 0;
-      font-size: 15px;
-    }
-
-    .musica-versoes-bar .musica-versao-chip:hover .musica-versao-renomear,
-    .musica-versoes-bar .musica-versao-chip:focus-within .musica-versao-renomear,
-    .musica-versoes-bar .musica-versao-chip:hover .musica-versao-del,
-    .musica-versoes-bar .musica-versao-chip:focus-within .musica-versao-del {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .musica-versoes-bar .musica-versao-renomear:hover {
-      background: color-mix(in srgb, var(--accent) 18%, var(--surface2));
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-      color: var(--accent);
-    }
-
-    .musica-versoes-bar .musica-versao-del:hover {
-      background: var(--red);
-      border-color: var(--red);
-      color: #fff;
-    }
-
-    .musica-versoes-bar .musica-versao-chip:has(.versao-musica-ativa) .musica-versao-renomear,
-    .musica-versoes-bar .musica-versao-chip:has(.versao-musica-ativa) .musica-versao-del {
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-    }
 
     /* Centro — prévias + conteúdo dinâmico */
     .panel-centro {
@@ -1973,6 +1907,16 @@
       border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
     }
 
+    /* Com os botões contextuais + separadores, a barra ganhou itens. Fonte um
+       pouco menor e padding proporcional aliviam o peso visual, mantendo caixa
+       alta e a monospace (--font-ui). Vale para todos os botões deste menu,
+       inclusive EDITAR LETRA (accent) e as setas. */
+    .centro-toolbar-acoes .btn {
+      font-size: 10px;
+      letter-spacing: 0.6px;
+      padding: 5px 10px;
+    }
+
     /* Hierarquia da barra: só a acção primária (EDITAR LETRA / SALVAR) tem
        preenchimento sólido. Todo o resto é neutro — outline monocromático. */
     .centro-toolbar-acoes .btn-toolbar-nova-versao,
@@ -2019,9 +1963,17 @@
       background: rgba(176, 48, 40, 0.12);
     }
 
-    /* Agrupamento por função, sem mudar a ordem: edição | visualização+navegação | saída. */
-    .centro-toolbar-acoes #btn-modo-letra-completa {
-      margin-left: 14px;
+    /* Separadores verticais sutis entre os grupos do menu inferior:
+       [contextual] | [edição de letra] | [navegação/saída]. Linha fina e neutra,
+       sem competir com os botões; some junto com o grupo adjacente. */
+    .centro-toolbar-acoes .toolbar-sep {
+      flex: 0 0 1px;
+      align-self: center;
+      width: 1px;
+      height: 16px;
+      margin: 0 3px;
+      background: color-mix(in srgb, var(--border) 65%, transparent);
+      border-radius: 1px;
     }
 
     /* Dentro do cluster de visualização, o toggle fica colado às setas. */
@@ -6646,6 +6598,9 @@
             <div id="musica-versoes-bar" class="musica-versoes-bar" hidden aria-label="Versões locais da música"></div>
           </div>
           <div class="centro-toolbar-row centro-toolbar-acoes">
+            <button type="button" class="btn" onclick="editarNomeVersaoSelecionada()" id="btn-editar-nome-versao" style="display:none" title="Renomear a cópia/versão selecionada">EDITAR NOME</button>
+            <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada">APAGAR CÓPIA</button>
+            <span class="toolbar-sep" id="toolbar-sep-1" aria-hidden="true" style="display:none"></span>
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled>EDITAR LETRA</button>
             <button type="button" class="btn btn-toolbar-nova-versao" onclick="iniciarCriarNovaVersao()" id="btn-criar-nova-versao" disabled style="display:none" title="Pede o nome e cria uma cópia local a partir do texto do servidor para editar">CRIAR NOVA VERSÃO</button>
             <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto">MODO LETRA COMPLETA</button>
@@ -6653,6 +6608,7 @@
             <button type="button" class="btn" onclick="novaEstrofe()" id="btn-nova-estrofe" disabled style="display:none">+ SLIDE</button>
             <button type="button" class="btn primary" onclick="salvarMusicaServidor()" id="btn-salvar-musica" disabled style="display:none" title="Grava na versão seleccionada (original no servidor ou cópia local) e sai do modo edição">SALVAR ALTERAÇÕES</button>
             <button type="button" class="btn" onclick="sairModoEdicao()" id="btn-encerrar-edicao" style="display:none" title="Descarta todas as alterações desta sessão e sai do modo edição (não grava no servidor)">ENCERRAR EDIÇÃO</button>
+            <span class="toolbar-sep" id="toolbar-sep-2" aria-hidden="true"></span>
             <button type="button" class="btn" id="btn-seta-anterior" onclick="navegarEstrofe(-1)" title="Anterior (←)">◀</button>
             <button type="button" class="btn" id="btn-seta-proxima" onclick="navegarEstrofe(1)" title="Próxima (→)">▶</button>
             <button type="button" class="btn danger" id="btn-sair-projecao" onclick="encerrarProjecaoDoControlador()" title="Limpa as telas de projeção (mantém a música aberta no painel)">SAIR</button>

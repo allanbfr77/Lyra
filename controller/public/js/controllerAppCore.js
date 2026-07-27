@@ -9280,6 +9280,21 @@ function atualizarToolbarModoEdicao() {
     ea.disabled = !metadadosEditaveis;
     ea.readOnly = !metadadosEditaveis;
   }
+
+  /* Ações contextuais da cópia (Editar nome / Apagar cópia): só aparecem quando
+     há uma cópia selecionada (não ORIGINAL) e fora do modo edição — somem, não
+     ficam desabilitadas. Os separadores acompanham a visibilidade dos grupos. */
+  const copiaSel = versaoCopiaSelecionadaAtual();
+  const mostrarAcoesCopia = !!copiaSel && !ed && !full;
+  const btnEditarNome = document.getElementById('btn-editar-nome-versao');
+  const btnApagarCopia = document.getElementById('btn-apagar-copia-versao');
+  if (btnEditarNome) btnEditarNome.style.display = mostrarAcoesCopia ? '' : 'none';
+  if (btnApagarCopia) btnApagarCopia.style.display = mostrarAcoesCopia ? '' : 'none';
+  const sep1 = document.getElementById('toolbar-sep-1');
+  const sep2 = document.getElementById('toolbar-sep-2');
+  if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
+  if (sep2) sep2.style.display = emModoEdicaoVisual ? 'none' : '';
+
   atualizarToolbarModoLetraCompleta();
 }
 
@@ -11642,18 +11657,41 @@ function rotuloExibicaoVersaoServidor(v) {
   return 'CÓPIA';
 }
 
-function mkBotaoAcaoVersaoChip(cls, title, label, onClick) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = cls;
-  btn.title = title;
-  btn.setAttribute('aria-label', title);
-  btn.textContent = label;
-  btn.onclick = (e) => {
-    e.stopPropagation();
-    onClick();
-  };
-  return btn;
+/**
+ * Descreve a versão «cópia» atualmente selecionada (não-ORIGINAL), para as ações
+ * contextuais do menu inferior. Devolve `null` quando ORIGINAL, catálogo ou sem
+ * música — casos em que Editar nome / Apagar cópia não se aplicam.
+ * @returns {{ tipo: 'local'|'servidor', rootId: number, id: string, rotulo: string } | null}
+ */
+function versaoCopiaSelecionadaAtual() {
+  if (!musicaAtiva || musicaAtiva.id == null || musicaBancoFonte === 'catalog') return null;
+  const rootId = obterRootIdMusicaAtiva();
+  if (!Number.isFinite(rootId)) return null;
+  if (musicaVersaoLocalId) {
+    const copia = encontrarCopiaLocal(rootId, musicaVersaoLocalId);
+    if (!copia) return null;
+    return { tipo: 'local', rootId, id: copia.id, rotulo: copia.rotulo || '' };
+  }
+  if (!musicaAtivaEhOriginalServidor()) {
+    return { tipo: 'servidor', rootId, id: String(musicaAtiva.id), rotulo: musicaAtiva.rotulo || '' };
+  }
+  return null;
+}
+
+/** Editar nome (menu inferior): renomeia a cópia selecionada — servidor ou local. */
+function editarNomeVersaoSelecionada() {
+  const c = versaoCopiaSelecionadaAtual();
+  if (!c) return;
+  if (c.tipo === 'local') void iniciarRenomearVersaoLocal(c.rootId, c.id, c.rotulo);
+  else void iniciarRenomearVersaoServidor(c.rootId, c.id, c.rotulo);
+}
+
+/** Apagar cópia (menu inferior): remove a cópia selecionada — servidor ou local. */
+function apagarCopiaVersaoSelecionada() {
+  const c = versaoCopiaSelecionadaAtual();
+  if (!c) return;
+  if (c.tipo === 'local') void confirmarRemoverVersaoLocal(c.rootId, c.id);
+  else void confirmarRemoverVersaoServidor(c.rootId, c.id);
 }
 
 function renderMusicaVersoesBar() {
@@ -11704,42 +11742,15 @@ function renderMusicaVersoesBar() {
   for (const v of versoesSrv) {
     if (v.parent_id == null && Number(v.id) === rootId) continue;
     if (v.parent_id == null) continue;
-    const wrap = document.createElement('span');
-    wrap.className = 'musica-versao-chip';
     const vid = String(v.id);
     const ativo = !musicaVersaoLocalId && Number(musicaAtiva.id) === Number(v.id);
-    const b = mkBtn(rotuloExibicaoVersaoServidor(v), vid, ativo);
-    wrap.appendChild(b);
-    wrap.appendChild(
-      mkBotaoAcaoVersaoChip('musica-versao-renomear', 'Renomear esta versão', '✎', () => {
-        void iniciarRenomearVersaoServidor(rootId, vid, v.rotulo || '');
-      })
-    );
-    wrap.appendChild(
-      mkBotaoAcaoVersaoChip('musica-versao-del', 'Remover esta versão', '×', () => {
-        void confirmarRemoverVersaoServidor(rootId, vid);
-      })
-    );
-    bar.appendChild(wrap);
+    /* Só o nome/badge — editar e apagar ficam no menu inferior contextual. */
+    bar.appendChild(mkBtn(rotuloExibicaoVersaoServidor(v), vid, ativo));
   }
 
   copiasLocais.forEach((c) => {
-    const wrap = document.createElement('span');
-    wrap.className = 'musica-versao-chip';
     const rotuloVis = `${String(c.rotulo || 'Cópia').toLocaleUpperCase('pt-BR')} (LOCAL)`;
-    const b = mkBtn(rotuloVis, c.id, musicaVersaoLocalId === c.id);
-    wrap.appendChild(b);
-    wrap.appendChild(
-      mkBotaoAcaoVersaoChip('musica-versao-renomear', 'Renomear esta versão local', '✎', () => {
-        void iniciarRenomearVersaoLocal(rootId, c.id, c.rotulo || '');
-      })
-    );
-    wrap.appendChild(
-      mkBotaoAcaoVersaoChip('musica-versao-del', 'Remover esta versão local', '×', () => {
-        void confirmarRemoverVersaoLocal(rootId, c.id);
-      })
-    );
-    bar.appendChild(wrap);
+    bar.appendChild(mkBtn(rotuloVis, c.id, musicaVersaoLocalId === c.id));
   });
 }
 
@@ -12175,6 +12186,8 @@ exporCallbacksParaAtributosHtml({
   toggleDarkCtrl,
   abrirModalNovaMusicaManual,
   buscarLetrasExterno,
+  editarNomeVersaoSelecionada,
+  apagarCopiaVersaoSelecionada,
   entrarModoEdicao,
   iniciarCriarNovaVersao,
   alternarModoLetraCompletaCentral,
