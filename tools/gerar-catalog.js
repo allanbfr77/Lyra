@@ -59,6 +59,7 @@ function requireBetterSqlite3() {
 }
 
 const Database = requireBetterSqlite3();
+const { stripLetrasPackHeader } = require('./strip-letras-pack-header');
 
 // ─── CONFIGURAR AQUI ───────────────────────────────────────
 // Padrão: pasta no projeto (empacotada no instalador via electron-builder).
@@ -76,8 +77,9 @@ const OUTPUT_DB = path.join(DATA_CATALOG_DIR, 'catalog.db');
 // ───────────────────────────────────────────────────────────
 
 function parseLyricsToEstrofes(rawText) {
-  // Divide a letra em estrofes separadas por linha em branco
-  return rawText
+  // Remove cabeçalho Título/Artista/Tom/BPM/etc. de packs; depois divide estrofes.
+  const letra = stripLetrasPackHeader(rawText);
+  return letra
     .replace(/\r\n/g, '\n')
     .split(/\n\s*\n/)
     .map((s) => s.trim())
@@ -106,12 +108,69 @@ function collectPastasComMusicas(root) {
   return out;
 }
 
+function rebuildCatalogInPlace(sourceTempPath) {
+  const src = new Database(sourceTempPath, { readonly: true });
+  const rows = src.prepare('SELECT titulo, artista, estrofes FROM musicas').all();
+  src.close();
+
+  const dest = new Database(OUTPUT_DB);
+  dest.exec(`
+    DROP TABLE IF EXISTS musicas;
+    CREATE TABLE musicas (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo     TEXT NOT NULL,
+      artista    TEXT,
+      estrofes   TEXT NOT NULL,
+      criado_em  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_titulo  ON musicas(titulo);
+    CREATE INDEX IF NOT EXISTS idx_artista ON musicas(artista);
+  `);
+  const insert = dest.prepare(
+    'INSERT INTO musicas (titulo, artista, estrofes) VALUES (?, ?, ?)',
+  );
+  const tx = dest.transaction((list) => {
+    for (const row of list) insert.run(row.titulo, row.artista, row.estrofes);
+  });
+  tx(rows);
+  dest.close();
+}
+
+function replaceCatalogDb(tempPath) {
+  try {
+    if (fs.existsSync(OUTPUT_DB)) fs.unlinkSync(OUTPUT_DB);
+    fs.renameSync(tempPath, OUTPUT_DB);
+    return true;
+  } catch (e) {
+    if (e && (e.code === 'EBUSY' || e.code === 'EPERM')) {
+      try {
+        rebuildCatalogInPlace(tempPath);
+        fs.unlinkSync(tempPath);
+        console.warn('⚠  catalog.db estava em uso; conteúdo atualizado in-place (reinicie o controlador).');
+        return true;
+      } catch (e2) {
+        console.error(`
+❌ catalog.db está em uso e não foi possível atualizar in-place.
+   Feche o Lyra Controlador / npm run start e rode de novo:
+   node tools/gerar-catalog.js
+
+   Temporário: ${tempPath}
+   Detalhe: ${e2 && e2.message ? e2.message : e2}
+`);
+        return false;
+      }
+    }
+    throw e;
+  }
+}
+
 function main() {
   console.log('📂 Pasta de letras (.txt):', LETRAS_FOLDER);
-  // Remove banco anterior
-  if (fs.existsSync(OUTPUT_DB)) fs.unlinkSync(OUTPUT_DB);
+  // Gera em arquivo temporário para não falhar se o .db estiver aberto no Electron
+  const tempDb = `${OUTPUT_DB}.tmp`;
+  if (fs.existsSync(tempDb)) fs.unlinkSync(tempDb);
 
-  const db = new Database(OUTPUT_DB);
+  const db = new Database(tempDb);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS musicas (
@@ -180,6 +239,10 @@ function main() {
   }
 
   db.close();
+
+  if (!replaceCatalogDb(tempDb)) {
+    process.exit(1);
+  }
 
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -2872,8 +2872,12 @@
       padding-bottom: 4px;
     }
 
+    /* Ação de fallback (cadastro manual) separada visualmente da lista de
+       resultados por uma divisória sutil e mais espaçamento. */
     .banco-secao-internet .banco-nova-manual-wrap {
-      margin-top: 0;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 10px;
     }
 
     .banco-secao-internet .busca-letras-panel {
@@ -2897,6 +2901,19 @@
 
     .lista-internet::-webkit-scrollbar { width: 3px; }
     .lista-internet::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* Mais respiro entre cards de resultado (espaço recuperado do badge de fonte). */
+    .lista-internet .item + .item { margin-top: 6px; }
+
+    /* Linha única de contexto acima da lista: "X resultados encontrados". */
+    .lista-internet-contagem {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 2px 2px 0;
+      margin: 0;
+    }
 
     .lista-sqlite {
       flex: none;
@@ -2931,14 +2948,6 @@
       flex-direction: column;
       gap: 4px;
       min-width: 0;
-    }
-
-    .item-badge-letras {
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: var(--accent);
-      text-transform: uppercase;
     }
 
     .btn-import-letras {
@@ -3498,15 +3507,19 @@
     .banco-nova-manual-wrap {
       margin-top: 6px;
     }
+    /* Ação secundária/fallback: menos peso visual que o "Buscar" — contorno
+       tracejado, fundo transparente e cor esmaecida. */
     .banco-nova-manual-wrap .btn {
       border-radius: 6px;
-      border-color: color-mix(in srgb, var(--border) 72%, var(--accent) 16%);
-      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
       font-weight: 600;
     }
     .banco-nova-manual-wrap .btn:hover {
-      border-color: var(--accent2);
-      background: color-mix(in srgb, var(--surface2) 78%, var(--accent) 11%);
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
       color: var(--text);
     }
 
@@ -6392,8 +6405,7 @@
     .hdr-btn-caption,
     .playlist-tema-label,
     .playlist-preview-hint,
-    .playlist-tema-head,
-    .item-badge-letras {
+    .playlist-tema-head {
       font-size: var(--fs-caption-base);
     }
 
@@ -6593,10 +6605,11 @@
             <button type="button" class="btn sm primary" onclick="buscarLetrasExterno()">Buscar</button>
           </div>
         </div>
-        <div class="banco-nova-manual-wrap" id="banco-nova-manual-wrap">
-          <button type="button" class="btn sm" style="width:100%" onclick="abrirModalNovaMusicaManual()">+ NOVA MÚSICA MANUAL</button>
-        </div>
+        <div class="lista-internet-contagem" id="lista-internet-contagem" role="status" aria-live="polite" hidden></div>
         <div class="lista-internet" id="lista-internet" role="list"></div>
+        <div class="banco-nova-manual-wrap" id="banco-nova-manual-wrap">
+          <button type="button" class="btn sm btn-nova-manual" style="width:100%" onclick="abrirModalNovaMusicaManual()">+ NOVA MÚSICA MANUAL</button>
+        </div>
       </section>
       <section class="banco-secao-sqlite" id="banco-secao-sqlite" aria-labelledby="sidebar-title-sqlite">
         <div class="banco-secao-titulo-linha">

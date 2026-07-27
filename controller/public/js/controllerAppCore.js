@@ -11211,26 +11211,36 @@ function refreshListaBanco() {
   filtrar();
 }
 
+/**
+ * Atualiza a linha de contexto acima da lista de resultados da pesquisa.
+ * A fonte já está indicada no seletor acima, então aqui mostramos apenas
+ * a contagem ("X resultados encontrados"). Some quando não há lista.
+ */
+function atualizarContagemListaInternet(qtd) {
+  const el = document.getElementById('lista-internet-contagem');
+  if (!el) return;
+  if (!qtd) {
+    el.hidden = true;
+    el.textContent = '';
+    return;
+  }
+  el.hidden = false;
+  el.textContent = qtd === 1 ? '1 resultado encontrado' : `${qtd} resultados encontrados`;
+}
+
 function renderizarListaInternet(lista) {
   const el = document.getElementById('lista-internet');
   if (!el) return;
   el.innerHTML = '';
 
+  atualizarContagemListaInternet(Array.isArray(lista) ? lista.length : 0);
+
   lista.forEach((m) => {
-    const fonteBadge =
-      m.fonte === 'banco-local'
-        ? m.origem === 'user'
-          ? 'Banco local'
-          : 'Catálogo offline'
-        : m.fonte === 'letras-mus-br'
-          ? 'Letras.mus.br'
-          : 'CifraClub';
     const div = document.createElement('div');
     div.className = 'item item--letras';
     const meta = document.createElement('div');
     meta.className = 'item-letras-meta';
     meta.innerHTML = `
-      <span class="item-badge-letras">${escapeHtml(fonteBadge)}</span>
       <div class="titulo">${escapeHtml(m.titulo || '')}</div>
       ${m.artista ? `<div class="sub">${escapeHtml(m.artista)}</div>` : ''}
     `;
