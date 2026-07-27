@@ -49,6 +49,50 @@ function iniciarServidor(ctx, paths, deps) {
   } = windowsApi;
 
   /**
+   * Estado do versículo em projeção para o overlay de Bíblia do OBS (`/obs/biblia`).
+   *
+   * Espelha o versículo vivo em QUALQUER canal físico (público ou ministrante),
+   * derivando de `ctx.estadoAtual` — que guarda o versículo independentemente do
+   * alvo. Assim, escolher o monitor do ministrante (ex.: M3) também alimenta o OBS,
+   * igual ao que já acontece com o monitor público (ex.: M2). Não reflete quando
+   * uma apresentação/aviso está cobrindo o público (aí o OBS de Bíblia fica limpo).
+   */
+  function estadoBibliaParaObs() {
+    const e = ctx.estadoAtual;
+    const ehBiblia =
+      !!e &&
+      e.tipo === 'biblia' &&
+      !e.telaLimpa &&
+      !e.blackout &&
+      Array.isArray(e.linhas) &&
+      e.linhas.some((l) => String(l == null ? '' : l).length > 0);
+    const ov = ctx.estadoPublicoOverride;
+    const apresentacaoCobrePublico =
+      !!ov &&
+      typeof ov === 'object' &&
+      (ov.tipo === 'apresentacao' || ov.tipo === 'aviso' || !!ov.apresentacao);
+    if (!ehBiblia || apresentacaoCobrePublico) {
+      return { tipo: null, titulo: '', linhas: [], telaLimpa: true, blackout: false, slidePretoFinal: false };
+    }
+    return {
+      tipo: 'biblia',
+      titulo: e.titulo || '',
+      linhas: e.linhas.slice(),
+      livro: e.livro || '',
+      capitulo: e.capitulo || '',
+      versiculo: e.versiculo || '',
+      telaLimpa: false,
+      blackout: false,
+      slidePretoFinal: false,
+    };
+  }
+
+  /** Emite o estado de Bíblia para o OBS a todos os clientes (idempotente). */
+  function emitirEstadoBibliaObs() {
+    if (ctx.io) ctx.io.emit('estado_biblia_obs', estadoBibliaParaObs());
+  }
+
+  /**
    * Constrói o override público telão (`estadoPublicoOverride`) compatível com
    * `server/public/js/publicProjectionRender.js` (`tipo` + `linhas` / `apresentacao`).
    */
@@ -199,6 +243,7 @@ function iniciarServidor(ctx, paths, deps) {
     ctx.estadoMinistrante = snapshotMinistranteAtual();
     atualizarDisplayMinistrante(ctx.estadoMinistrante);
     ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+    emitirEstadoBibliaObs();
   }
 
   function aplicarEncerrarApresentacaoPublicoServidor() {
@@ -210,6 +255,7 @@ function iniciarServidor(ctx, paths, deps) {
     ctx.estadoMinistrante = snapshotMinistranteAtual();
     atualizarDisplayMinistrante(ctx.estadoMinistrante);
     if (ctx.io) ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+    emitirEstadoBibliaObs();
   }
 
   const expressApp = express();
@@ -600,6 +646,7 @@ function iniciarServidor(ctx, paths, deps) {
     console.log(`[+] Cliente conectado: ${socket.id}`);
 
     socket.emit('estado', estadoPublicoParaSocketsOuApi());
+    socket.emit('estado_biblia_obs', estadoBibliaParaObs());
     socket.emit('display_config', displayConfigModo.resolverConfigParaJanelas(ctx));
 
     socket.on('registrar_controlador', (payload = {}) => {
@@ -682,6 +729,7 @@ function iniciarServidor(ctx, paths, deps) {
 
     socket.on('get_estado', () => {
       socket.emit('estado', estadoPublicoParaSocketsOuApi());
+      socket.emit('estado_biblia_obs', estadoBibliaParaObs());
       socket.emit('display_config', displayConfigModo.resolverConfigParaJanelas(ctx));
     });
 
@@ -845,6 +893,7 @@ function iniciarServidor(ctx, paths, deps) {
         }, 160);
 
         ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+        emitirEstadoBibliaObs();
       } catch (e) {
         logError('exibir_musica-ws', e);
       }
@@ -929,6 +978,7 @@ function iniciarServidor(ctx, paths, deps) {
       }, 160);
 
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      emitirEstadoBibliaObs();
     });
 
     socket.on('limpar_tela', () => {
@@ -942,6 +992,7 @@ function iniciarServidor(ctx, paths, deps) {
         forcarModo: 'slides',
       });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      emitirEstadoBibliaObs();
     });
 
     socket.on('encerrar_projecao_biblia', () => {
@@ -953,6 +1004,7 @@ function iniciarServidor(ctx, paths, deps) {
       atualizarDisplayMinistrante(ctx.estadoMinistrante);
       displayConfigModo.enviarDisplayConfigParaJanelas(ctx, { forcarModo: 'biblia' });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      emitirEstadoBibliaObs();
     });
 
     socket.on('encerrar_projecao', () => {
@@ -979,6 +1031,7 @@ function iniciarServidor(ctx, paths, deps) {
         forcarModo: 'slides',
       });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      emitirEstadoBibliaObs();
     });
 
     socket.on('toggle_blackout', () => {
@@ -987,6 +1040,7 @@ function iniciarServidor(ctx, paths, deps) {
       ctx.estadoAtual = { ...ctx.estadoAtual, blackout: next };
       atualizarDisplays(ctx.estadoAtual);
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      emitirEstadoBibliaObs();
     });
 
     socket.on('exibir_ministrante', (incoming = {}) => {

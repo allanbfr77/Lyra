@@ -119,7 +119,11 @@
       elStatus.className = cls ? cls : '';
     }
 
-    /** Só reage a projeções do tipo Bíblia — ignora música, aviso e apresentação. */
+    /**
+     * Reage ao estado dedicado de Bíblia para OBS (`estado_biblia_obs`), que
+     * espelha o versículo em projeção em qualquer canal físico (público ou
+     * ministrante) — ignora música, aviso e apresentação.
+     */
     function atualizar(estado) {
       clearTimeout(fadeTimer);
       elWrap.classList.remove('visivel');
@@ -173,7 +177,7 @@
         );
       });
 
-      socket.on('estado', atualizar);
+      socket.on('estado_biblia_obs', atualizar);
 
       socket.on('disconnect', () => {
         elWrap.classList.remove('visivel');
