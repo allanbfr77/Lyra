@@ -1156,13 +1156,22 @@ async function iniciarServidorController(ctx, paths) {
         estrofes = [];
       }
 
+      // Para o catálogo offline as estrofes ficam pré-divididas no SQLite; ao
+      // importar reagrupamos as linhas conforme «Linhas por slide» escolhido no
+      // modal (2/3/4), igual ao fluxo das fontes online. As músicas do usuário
+      // já são a versão salva por ele — mantemos como estão.
+      const maxLinhas = cifra.normalizarMaxLinhasPorSlide(req.query.maxLinhas);
+      const estrofesSaida =
+        origem === 'catalog' ? cifra.normalizarEstrofesComMaxLinhas(estrofes, maxLinhas) : estrofes;
+
       res.json({
         sucesso: true,
         titulo: row.titulo,
         artista: row.artista || '',
-        estrofes,
+        estrofes: estrofesSaida,
         fonte: 'banco-local',
         origem,
+        maxLinhasPorSlide: origem === 'catalog' ? maxLinhas : undefined,
       });
     } catch (err) {
       res.status(500).json({ sucesso: false, erro: err.message });
@@ -1187,6 +1196,11 @@ async function iniciarServidorController(ctx, paths) {
       }
       if (!Array.isArray(estrofes) || !estrofes.length)
         return res.status(400).json({ erro: 'Letra vazia no catálogo' });
+
+      // Reagrupa as linhas conforme «Linhas por slide» escolhido no modal, para
+      // que o que é importado bata com a pré-visualização.
+      const maxLinhas = cifra.normalizarMaxLinhasPorSlide(req.body && req.body.maxLinhasPorSlide);
+      estrofes = cifra.normalizarEstrofesComMaxLinhas(estrofes, maxLinhas);
 
       const titulo = String(row.titulo || '').trim();
       const artista = String(row.artista || '').trim();

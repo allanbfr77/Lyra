@@ -10720,8 +10720,10 @@ async function carregarPreviewLetrasNoModal() {
     if (letrasPreviewFontePendente === 'banco-local' && (catalogId != null || userId != null)) {
       const origem = letrasPreviewOfflineOrigem === 'user' ? 'user' : 'catalog';
       const idPreview = origem === 'user' ? userId : catalogId;
+      const paramLinhas =
+        origem === 'catalog' ? `&maxLinhas=${encodeURIComponent(String(letrasPreviewMaxLinhasPorSlide))}` : '';
       res = await fetch(
-        `${getControllerApiBase()}/api/letras/preview-local?id=${encodeURIComponent(String(idPreview))}&origem=${origem}`
+        `${getControllerApiBase()}/api/letras/preview-local?id=${encodeURIComponent(String(idPreview))}&origem=${origem}${paramLinhas}`
       );
     } else {
       res = await fetch(`${getControllerApiBase()}/api/letras/preview`, {
@@ -10753,10 +10755,10 @@ async function carregarPreviewLetrasNoModal() {
         : letrasPreviewFontePendente === 'letras-mus-br'
           ? 'Letras.mus.br'
           : 'Cifra Club';
-    const metaLinhas =
-      letrasPreviewFontePendente === 'banco-local'
-        ? ''
-        : ` · ${letrasPreviewMaxLinhasPorSlide} linha(s)/slide`;
+    const mostraLinhas =
+      letrasPreviewFontePendente !== 'banco-local' ||
+      (letrasPreviewFontePendente === 'banco-local' && letrasPreviewOfflineOrigem === 'catalog');
+    const metaLinhas = mostraLinhas ? ` · ${letrasPreviewMaxLinhasPorSlide} linha(s)/slide` : '';
     meta.innerHTML = `<strong>${escapeHtml(data.titulo || '')}</strong>${data.artista ? ` · ${escapeHtml(data.artista)}` : ''} · ${escapeHtml(fonteLabel)}${metaLinhas}`;
     const parts = Array.isArray(data.estrofes) ? data.estrofes : [];
     scroll.innerHTML = parts
@@ -10783,7 +10785,7 @@ function configurarModalPreviewLetras() {
     if (userId != null && fontePend === 'banco-local') {
       await selecionarMusicaDoBanco(userId, { fonte: 'user' });
     } else if (catalogId != null && fontePend === 'banco-local') {
-      await importarLetrasDoCatalogoParaBanco(catalogId);
+      await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
     } else if (p) {
       await importarLetrasParaBanco(p, maxLinhasPorSlide, fontePend);
     }
@@ -11519,12 +11521,12 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte) {
   }
 }
 
-async function importarLetrasDoCatalogoParaBanco(catalogId) {
+async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 4) {
   try {
     const res = await fetch(`${getControllerApiBase()}/api/letras/importar-do-catalogo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: catalogId }),
+      body: JSON.stringify({ id: catalogId, maxLinhasPorSlide }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
