@@ -173,6 +173,8 @@
         textColorAtual: '#ffffff',
         textColorProximo: '#f3c15a',
         fontSize: 4.1,
+        fontSizeAtual: 4.1,
+        fontSizeProximo: 4.1,
         lineSpacing: 1.35,
         wrapLongLines: true,
         autoFitLongLines: false,
@@ -350,9 +352,10 @@
       const mon = displayConfig.ministrante || {};
       elAtual.style.color = mon.textColorAtual || '#ffffff';
       elProximo.style.color = mon.textColorProximo || '#f3c15a';
-      const baseVh = Math.max(2.2, Number(mon.fontSize || 4.1));
-      elAtual.style.fontSize = `${baseVh}vh`;
-      elProximo.style.fontSize = `${baseVh}vh`;
+      const baseAtualVh = Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));
+      const baseProximoVh = Math.max(2.2, Number(mon.fontSizeProximo ?? mon.fontSize ?? 4.1));
+      elAtual.style.fontSize = `${baseAtualVh}vh`;
+      elProximo.style.fontSize = `${baseProximoVh}vh`;
       elAtual.style.lineHeight = String(mon.lineSpacing || 1.35);
       elProximo.style.lineHeight = String(mon.lineSpacing || 1.35);
       const wrap = mon.wrapLongLines !== false;
@@ -389,61 +392,59 @@
       const mon = displayConfig.ministrante || {};
       const ehBiblia =
         ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
-      const base = Math.max(2.2, Number(mon.fontSize || 4.1));
-      elAtual.style.fontSize = `${base}vh`;
-      elProximo.style.fontSize = `${base}vh`;
+      const baseAtual = Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));
+      const baseProximo = Math.max(2.2, Number(mon.fontSizeProximo ?? mon.fontSize ?? 4.1));
+      elAtual.style.fontSize = `${baseAtual}vh`;
+      elProximo.style.fontSize = `${baseProximo}vh`;
       const wrap = mon.wrapLongLines !== false;
       const autoFit = wrap ? mon.autoFitLongLines === true : true;
       const usarMaiusculas = ehBiblia ? mon.maiusculo === true : true;
       if (!autoFit) return;
       const limite = window.innerWidth * 0.9;
       if (!Number.isFinite(limite) || limite <= 0) return;
-      const linhas = [];
-      const addLines = (txt) => {
-        const raw = String(txt || '');
-        if (!raw) return;
-        if (wrap) {
-          raw.split(/\r\n|\r|\n/).forEach((l) => linhas.push(l));
-        } else {
-          raw.split(/\r\n|\r|\n/).forEach((l) => linhas.push(l));
-        }
-      };
       const plMed = ultimoPayloadMinistrante || {};
-      addLines(textoPlanoMinistranteParaMedicao(plMed.atual));
-      addLines(textoPlanoMinistranteParaMedicao(plMed.proximo));
-      if (!linhas.length) return;
-      const medidor = document.createElement('span');
-      medidor.style.position = 'fixed';
-      medidor.style.left = '-99999px';
-      medidor.style.top = '-99999px';
-      medidor.style.visibility = 'hidden';
-      medidor.style.whiteSpace = 'pre';
-      medidor.style.fontFamily = getComputedStyle(elAtual).fontFamily;
-      medidor.style.fontWeight = ehBiblia
-        ? mon.negrito !== false
-          ? 'bold'
-          : 'normal'
-        : getComputedStyle(elAtual).fontWeight;
-      medidor.style.letterSpacing = getComputedStyle(elAtual).letterSpacing;
-      medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
-      document.body.appendChild(medidor);
-      let atual = base;
-      const minimo = 2.1;
-      while (atual > minimo) {
-        medidor.style.fontSize = `${atual}vh`;
-        let maior = 0;
-        for (const l of linhas) {
-          const amostra = l || ' ';
-          medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
-          maior = Math.max(maior, medidor.getBoundingClientRect().width);
+
+      /** Ajusta a fonte de UM painel de forma independente, a partir da sua própria base. */
+      const ajustarPainel = (el, base, texto) => {
+        const linhas = [];
+        String(textoPlanoMinistranteParaMedicao(texto) || '')
+          .split(/\r\n|\r|\n/)
+          .forEach((l) => linhas.push(l));
+        if (!linhas.length) return;
+        const medidor = document.createElement('span');
+        medidor.style.position = 'fixed';
+        medidor.style.left = '-99999px';
+        medidor.style.top = '-99999px';
+        medidor.style.visibility = 'hidden';
+        medidor.style.whiteSpace = 'pre';
+        medidor.style.fontFamily = getComputedStyle(el).fontFamily;
+        medidor.style.fontWeight = ehBiblia
+          ? mon.negrito !== false
+            ? 'bold'
+            : 'normal'
+          : getComputedStyle(el).fontWeight;
+        medidor.style.letterSpacing = getComputedStyle(el).letterSpacing;
+        medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
+        document.body.appendChild(medidor);
+        let atual = base;
+        const minimo = 2.1;
+        while (atual > minimo) {
+          medidor.style.fontSize = `${atual}vh`;
+          let maior = 0;
+          for (const l of linhas) {
+            const amostra = l || ' ';
+            medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
+            maior = Math.max(maior, medidor.getBoundingClientRect().width);
+          }
+          if (maior <= limite) break;
+          atual -= 0.2;
         }
-        if (maior <= limite) break;
-        atual -= 0.2;
-      }
-      document.body.removeChild(medidor);
-      const finalVh = Math.max(minimo, atual);
-      elAtual.style.fontSize = `${finalVh}vh`;
-      elProximo.style.fontSize = `${finalVh}vh`;
+        document.body.removeChild(medidor);
+        el.style.fontSize = `${Math.max(minimo, atual)}vh`;
+      };
+
+      ajustarPainel(elAtual, baseAtual, plMed.atual);
+      ajustarPainel(elProximo, baseProximo, plMed.proximo);
     }
 
     function limparCapasApresentacaoOuAviso() {

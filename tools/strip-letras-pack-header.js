@@ -13,7 +13,7 @@
  */
 
 const META_LINE =
-  /^(t[ií]tulo|artista|autor|tom|bpm|tempo|álbum|album|compositor|letra|ano|dura[cç][aã]o|g[eê]nero|idioma)\s*:/i;
+  /^(id|t[ií]tulo|artista|autor|tom|bpm|tempo|álbum|album|compositor|letra|ano|dura[cç][aã]o|g[eê]nero|idioma)\s*:/i;
 
 /**
  * @param {string} rawText

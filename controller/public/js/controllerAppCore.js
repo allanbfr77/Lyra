@@ -15363,8 +15363,12 @@ function popularFormCfg(cfg) {
   setInputVal('cfg-ministrante-bg-gradient-ctrl', mb.bgGradient || '');
   setInputVal('cfg-ministrante-text-color-atual-ctrl', mb.textColorAtual || '#ffffff');
   setInputVal('cfg-ministrante-text-color-proximo-ctrl', mb.textColorProximo || '#f3c15a');
-  setInputVal('cfg-ministrante-fontsize-ctrl', mb.fontSize || 4.1);
-  setSpanText('cfg-ministrante-fontsize-val-ctrl', String(mb.fontSize || 4.1));
+  const mbFontAtual = mb.fontSizeAtual ?? mb.fontSize ?? 4.1;
+  const mbFontProximo = mb.fontSizeProximo ?? mb.fontSize ?? 4.1;
+  setInputVal('cfg-ministrante-fontsize-atual-ctrl', mbFontAtual);
+  setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(mbFontAtual));
+  setInputVal('cfg-ministrante-fontsize-proximo-ctrl', mbFontProximo);
+  setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(mbFontProximo));
   setInputVal('cfg-ministrante-linespacing-ctrl', mb.lineSpacing || 1.35);
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(mb.lineSpacing || 1.35));
   setChkVal('cfg-ministrante-wrap-ctrl', mb.wrapLongLines !== false);
@@ -15603,9 +15607,13 @@ function onMinistranteSlideCfgChange() {
     document.getElementById('cfg-ministrante-text-color-atual-ctrl')?.value || '#ffffff';
   currentCfgCtrl.ministrante.textColorProximo =
     document.getElementById('cfg-ministrante-text-color-proximo-ctrl')?.value || '#f3c15a';
-  currentCfgCtrl.ministrante.fontSize = lerNumeroInput(
-    'cfg-ministrante-fontsize-ctrl',
-    currentCfgCtrl.ministrante.fontSize ?? 4.1
+  currentCfgCtrl.ministrante.fontSizeAtual = lerNumeroInput(
+    'cfg-ministrante-fontsize-atual-ctrl',
+    currentCfgCtrl.ministrante.fontSizeAtual ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
+  );
+  currentCfgCtrl.ministrante.fontSizeProximo = lerNumeroInput(
+    'cfg-ministrante-fontsize-proximo-ctrl',
+    currentCfgCtrl.ministrante.fontSizeProximo ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
   );
   currentCfgCtrl.ministrante.lineSpacing = lerNumeroInput(
     'cfg-ministrante-linespacing-ctrl',
@@ -15613,7 +15621,8 @@ function onMinistranteSlideCfgChange() {
   );
   currentCfgCtrl.ministrante.wrapLongLines = !!document.getElementById('cfg-ministrante-wrap-ctrl')?.checked;
   currentCfgCtrl.ministrante.autoFitLongLines = !!document.getElementById('cfg-ministrante-autofit-ctrl')?.checked;
-  setSpanText('cfg-ministrante-fontsize-val-ctrl', String(currentCfgCtrl.ministrante.fontSize));
+  setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeAtual));
+  setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
   debounceSalvarCfg();
 }

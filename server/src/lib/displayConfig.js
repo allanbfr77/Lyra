@@ -33,6 +33,8 @@ const DEFAULT_DISPLAY_CONFIG = {
     textColorAtual: '#ffffff',
     textColorProximo: '#f3c15a',
     fontSize: 4.1,
+    fontSizeAtual: 4.1,
+    fontSizeProximo: 4.1,
     lineSpacing: 1.35,
     wrapLongLines: true,
     autoFitLongLines: false,
