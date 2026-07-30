@@ -109,8 +109,9 @@ const TIMEOUT_WEB_MS = 15000;
  * termina antes deste prazo, então ele só pesa quando a busca não acha nada. 12s dá
  * folga para a API do PC (que faz rede própria) sem prender o usuário por muito tempo.
  *
- * Nota: em campo o `/api/letras/buscar` do controlador também dependia do Yahoo e
- * estourava. O desktop precisa da mesma troca para essa rota voltar a ser útil.
+ * Nota: o `/api/letras/buscar` do controlador também dependia do Yahoo e estourava.
+ * O desktop recebeu a mesma troca (`controller/src/lib/indiceMusicasBusca.js`), então
+ * essa rota responde rápido de novo — normalmente vencendo a corrida na LAN.
  */
 const TIMEOUT_CONTROLADOR_MS = 12000;
 
@@ -612,20 +613,51 @@ function extrairHtmlInternoDivPorClasse(html, classToken) {
 }
 
 /**
- * Extrai estrofes da página HTML do CifraClub.
- * Procura pela div com classe "letra" e parseia os parágrafos `<p>` dentro dela.
+ * Extrai o conteúdo interno do primeiro elemento que tenha o atributo informado.
  *
- * @param {string} html - HTML da página de letra do CifraClub
- * @returns {string[]} Array de estrofes (cada item = um bloco de versos)
+ * Ancorar em `data-*` em vez de classe é deliberado: o CifraClub migrou para
+ * Next.js e as classes viraram hashes de build (`XjgwI`, `_0TPj`), que mudam a
+ * cada deploy. Já `data-chord-content` é semântico e sobrevive.
+ *
+ * @param {string} html
+ * @param {string} atributo - ex.: 'data-chord-content'
+ * @param {string} [tag='div']
+ * @returns {string|null}
  */
-function estrofesDePaginaCifraClub(html) {
-  const blob = extrairHtmlInternoDivPorClasse(html, 'letra');
-  if (!blob) return [];
+function extrairHtmlInternoPorAtributo(html, atributo, tag = 'div') {
+  const openMatch = html.match(new RegExp(`<${tag}\\b[^>]*\\b${atributo}\\b[^>]*>`, 'i'));
+  if (!openMatch || openMatch.index === undefined) return null;
 
-  const ps = [...blob.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+  const innerStart = openMatch.index + openMatch[0].length;
+  const reAbre = new RegExp(`<${tag}\\b`, 'i');
+  const reFecha = new RegExp(`</${tag}>`, 'i');
+
+  let i = innerStart;
+  let depth = 1;
+  while (i < html.length && depth > 0) {
+    const slice = html.slice(i);
+    const mOpen = reAbre.exec(slice);
+    const mClose = reFecha.exec(slice);
+    const openRel = mOpen ? mOpen.index : -1;
+    const closeRel = mClose ? mClose.index : -1;
+    if (closeRel === -1) return null;
+    if (openRel !== -1 && openRel < closeRel) {
+      depth += 1;
+      i += openRel + mOpen[0].length;
+    } else {
+      depth -= 1;
+      const closeAbs = i + closeRel;
+      if (depth === 0) return html.slice(innerStart, closeAbs);
+      i += closeRel + mClose[0].length;
+    }
+  }
+  return null;
+}
+
+/** Converte `<p>…<br>…</p>` num array de estrofes, uma por `<p>`. */
+function estrofesDeParagrafos(blob) {
   const estrofes = [];
-
-  for (const m of ps) {
+  for (const m of blob.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
     let inner = m[1];
     // Converte <br> em quebras de linha antes de remover demais tags
     inner = inner.replace(/<br\s*\/?>/gi, '\n');
@@ -642,6 +674,35 @@ function estrofesDePaginaCifraClub(html) {
     if (stanza) estrofes.push(stanza);
   }
   return estrofes;
+}
+
+/**
+ * Extrai estrofes da página de letra do CifraClub.
+ *
+ * Duas estratégias: `div.letra` (markup antigo) e `data-chord-content` (Next.js
+ * atual). A segunda foi acrescentada depois de constatar que a primeira não casa
+ * mais — e que, sem ela, a extração caía na meta description, que traz **apenas
+ * as 4 primeiras linhas** da música.
+ *
+ * @param {string} html - HTML da página de letra do CifraClub
+ * @returns {string[]} Array de estrofes (cada item = um bloco de versos)
+ */
+function estrofesDePaginaCifraClub(html) {
+  const legado = extrairHtmlInternoDivPorClasse(html, 'letra');
+  if (legado) {
+    const estrofes = estrofesDeParagrafos(legado);
+    if (estrofes.length) return estrofes;
+  }
+
+  for (const atributo of ['data-chord-content', 'data-chord-container']) {
+    const tag = atributo === 'data-chord-container' ? 'article' : 'div';
+    const blob = extrairHtmlInternoPorAtributo(html, atributo, tag);
+    if (!blob) continue;
+    const estrofes = estrofesDeParagrafos(blob);
+    if (estrofes.length) return estrofes;
+  }
+
+  return [];
 }
 
 /** Aceita `<meta name content>` ou `<meta content name>`. */
@@ -698,8 +759,28 @@ function estrofesFallbackMetaDescricaoCifra(html) {
 
   if (!t || metaDescricaoCifraEGenericaSemLetra(t)) return [];
 
-  // Letras na description costumam usar " / " como separador de linhas
-  return t.split(/\s*\/\s*/).map((s) => s.trim()).filter(Boolean);
+  // A description usa " / " entre LINHAS, não entre estrofes. Devolver uma linha
+  // por posição fazia cada linha virar um slide, ignorando "linhas por slide".
+  // Um único bloco preserva as linhas e deixa o fatiamento para quem normaliza.
+  return linhasComoBlocoUnico(t);
+}
+
+/**
+ * Junta linhas separadas por " / " num único bloco de estrofe.
+ *
+ * A meta description não tem informação de fronteira de estrofe, então tratar
+ * cada linha como uma estrofe separada é errado: quebra o agrupamento por
+ * "linhas por slide". Um bloco só permite o fatiamento correto depois.
+ *
+ * @param {string} texto
+ * @returns {string[]} array com 0 ou 1 elemento
+ */
+function linhasComoBlocoUnico(texto) {
+  const linhas = String(texto || '')
+    .split(/\s*\/\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return linhas.length ? [linhas.join('\n')] : [];
 }
 
 /**
@@ -744,11 +825,8 @@ function estrofesDeTextoLetrasMetaEOg(html) {
   // Tenta primeiro a meta og:description (mais limpa)
   const og = metaTagContent(html, { property: 'og:description' });
   if (og) {
-    const partes = decodeHtmlEntidades(og)
-      .split(/\s*\/\s*/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (partes.length) return partes;
+    const bloco = linhasComoBlocoUnico(decodeHtmlEntidades(og));
+    if (bloco.length) return bloco;
   }
 
   // Fallback para meta description normal
@@ -1334,15 +1412,27 @@ async function previewDiretoNaWeb(trimmed, fonteNorm, signal) {
   );
 
   const falhas = [...(falhasCifra || [])];
-  let estrofes = [];
   let tituloLetras = '';
   let artistaLetras = '';
 
-  if (html) {
-    estrofes = estrofesDePaginaCifraClub(html);
-    if (!estrofes.length) estrofes = estrofesFallbackMetaDescricaoCifra(html);
-  }
+  /**
+   * Ordem dos fallbacks — e por que ela importa.
+   *
+   * A meta description do CifraClub traz só as 4 PRIMEIRAS LINHAS da música, e
+   * antes ela era tentada logo depois do HTML do Cifra. Como vinha não-vazia, a
+   * cadeia parava ali e a página do Letras.mus.br (que tem a letra completa)
+   * nunca era consultada: importava-se uma música de 4 linhas achando que era a
+   * letra inteira. Verificado com "Galileu" (Fernandinho): 17 estrofes / 71
+   * linhas nas fontes HTML, contra 4 linhas na meta description.
+   *
+   * Agora as fontes completas vêm primeiro e as meta tags são o último recurso,
+   * marcando o resultado como `parcial` para a UI poder avisar.
+   */
+  let estrofes = html ? estrofesDePaginaCifraClub(html) : [];
+  let parcial = false;
+  let ogGuardada = [];
 
+  // Página completa do Letras.mus.br antes de qualquer meta tag.
   if (!estrofes.length && dns && songSlug) {
     // Limitado a MAX_SLUGS_ALTERNATIVOS: antes, cada tentativa custava um timeout
     // completo e a lista era ilimitada — a origem do pior caso de ~130s.
@@ -1355,17 +1445,39 @@ async function previewDiretoNaWeb(trimmed, fonteNorm, signal) {
       try {
         const hl = await fetchHtmlLetrasMus(dns, slugTry, signal);
         estrofes = estrofesDePaginaLetrasMusHtml(hl);
-        if (!estrofes.length) estrofes = estrofesDeTextoLetrasMetaEOg(hl);
         if (estrofes.length) {
           const pa = tituloArtistaDoScriptPageArgsLetras(hl);
           tituloLetras = pa.titulo;
           artistaLetras = pa.artista;
           break;
         }
+        // Guarda a og:description como último recurso, sem encerrar a busca aqui.
+        if (!ogGuardada.length) {
+          const og = estrofesDeTextoLetrasMetaEOg(hl);
+          if (og.length) {
+            ogGuardada = og;
+            const pa = tituloArtistaDoScriptPageArgsLetras(hl);
+            tituloLetras = tituloLetras || pa.titulo;
+            artistaLetras = artistaLetras || pa.artista;
+          }
+        }
       } catch (e) {
         if (e?.motivo === 'cancelado') throw e;
         falhas.push({ hop: 'letras/pagina', erro: e?.message || String(e), motivo: e?.motivo || null });
       }
+    }
+  }
+
+  // Últimos recursos, os dois apenas com o começo da letra.
+  if (!estrofes.length && ogGuardada.length) {
+    estrofes = ogGuardada;
+    parcial = true;
+  }
+  if (!estrofes.length && html) {
+    const meta = estrofesFallbackMetaDescricaoCifra(html);
+    if (meta.length) {
+      estrofes = meta;
+      parcial = true;
     }
   }
 
@@ -1387,5 +1499,5 @@ async function previewDiretoNaWeb(trimmed, fonteNorm, signal) {
   const artista = String(artistaLetras || aHtml || '').trim() || slugParaTituloExibicao(dns);
 
   const pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return { titulo, artista, estrofes, path: pathNorm };
+  return { titulo, artista, estrofes, path: pathNorm, parcial };
 }

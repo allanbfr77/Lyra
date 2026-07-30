@@ -1,6 +1,7 @@
 'use strict';
 
-const https = require('https');
+const https = require('https'); // usado por buscarLetraVagalume
+const { buscarNoIndiceDeMusicas } = require('./indiceMusicasBusca');
 
 // ─── Utilitários de texto ─────────────────────────────────────────
 function foldAccents(str) {
@@ -65,54 +66,6 @@ function parseCaminhoLetraCifraClub(decodedUrl) {
   }
 }
 
-function extrairParesRuCifraClub(html) {
-  const out = [];
-  const re =
-    /RU=(https%3[aA]%2[fF]%2[fF](?:www\.)?cifraclub\.com\.br(?:%2[fF][a-z0-9_.-]+)+(?:%2[fF])?)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    let decoded;
-    try {
-      decoded = decodeURIComponent(m[1]);
-    } catch (_) {
-      continue;
-    }
-    const path = parseCaminhoLetraCifraClub(decoded);
-    if (!path) continue;
-    const resto = html.slice(m.index, m.index + 14000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 700);
-    out.push({ path, snippet: trechoPlano });
-  }
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-function candidatoCombinaBusca(row, qBruto, { titulo, artista, letra }) {
-  const q = foldAccents(qBruto.trim());
-  if (!q) return true;
-  const seg = row.path.split('/').filter(Boolean);
-  const dns = seg[0] || '';
-  const slug = seg[1] || '';
-  const slugTxt = foldAccents(slug.replace(/-/g, ' '));
-  const dnsTxt = foldAccents(dns.replace(/-/g, ' '));
-  const snip = foldAccents(row.snippet || '');
-  let ok = false;
-  if (titulo && slugTxt.includes(q)) ok = true;
-  if (artista && dnsTxt.includes(q)) ok = true;
-  if (letra && snip.includes(q)) ok = true;
-  return ok;
-}
-
 async function fetchTextoTimeout(url, init, ms = 14000) {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), ms);
@@ -121,59 +74,6 @@ async function fetchTextoTimeout(url, init, ms = 14000) {
   } finally {
     clearTimeout(tid);
   }
-}
-
-function httpsGetUtf8(urlStr, ms = 14000) {
-  return new Promise((resolve, reject) => {
-    let u;
-    try {
-      u = new URL(urlStr);
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    const req = https.request(
-      {
-        hostname: u.hostname,
-        port: u.port || 443,
-        path: `${u.pathname}${u.search}`,
-        method: 'GET',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.6',
-        },
-      },
-      (res) => {
-        const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          const txt = Buffer.concat(chunks).toString('utf8');
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`Yahoo HTTP ${res.statusCode}`));
-            return;
-          }
-          resolve(txt);
-        });
-      }
-    );
-    const tid = setTimeout(() => {
-      req.destroy(new Error('Tempo esgotado ao contactar Yahoo.'));
-    }, ms);
-    req.on('error', (e) => {
-      clearTimeout(tid);
-      reject(e);
-    });
-    req.on('close', () => clearTimeout(tid));
-    req.end();
-  });
-}
-
-async function yahooHtmlSiteCifraClub(termo) {
-  const q = `site:cifraclub.com.br ${termo}`;
-  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`;
-  return await httpsGetUtf8(url);
 }
 
 function extrairHtmlInternoDivPorClasse(html, classToken) {
@@ -207,12 +107,53 @@ function extrairHtmlInternoDivPorClasse(html, classToken) {
   return null;
 }
 
-function estrofesDePaginaCifraClub(html) {
-  const blob = extrairHtmlInternoDivPorClasse(html, 'letra');
-  if (!blob) return [];
-  const ps = [...blob.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+/**
+ * Extrai o conteúdo interno do primeiro elemento que tenha o atributo informado.
+ *
+ * Ancorar em `data-*` em vez de classe é deliberado: o CifraClub migrou para
+ * Next.js e as classes viraram hashes de build (`XjgwI`, `_0TPj`), que mudam a
+ * cada deploy. Já `data-chord-content` é semântico e sobrevive.
+ *
+ * @param {string} html
+ * @param {string} atributo - ex.: 'data-chord-content'
+ * @param {string} [tag='div']
+ * @returns {string|null}
+ */
+function extrairHtmlInternoPorAtributo(html, atributo, tag = 'div') {
+  const abre = new RegExp(`<${tag}\\b[^>]*\\b${atributo}\\b[^>]*>`, 'i');
+  const openMatch = html.match(abre);
+  if (!openMatch || openMatch.index === undefined) return null;
+
+  const innerStart = openMatch.index + openMatch[0].length;
+  const reAbre = new RegExp(`<${tag}\\b`, 'i');
+  const reFecha = new RegExp(`</${tag}>`, 'i');
+
+  let i = innerStart;
+  let depth = 1;
+  while (i < html.length && depth > 0) {
+    const slice = html.slice(i);
+    const mOpen = reAbre.exec(slice);
+    const mClose = reFecha.exec(slice);
+    const openRel = mOpen ? mOpen.index : -1;
+    const closeRel = mClose ? mClose.index : -1;
+    if (closeRel === -1) return null;
+    if (openRel !== -1 && openRel < closeRel) {
+      depth += 1;
+      i += openRel + mOpen[0].length;
+    } else {
+      depth -= 1;
+      const closeAbs = i + closeRel;
+      if (depth === 0) return html.slice(innerStart, closeAbs);
+      i += closeRel + mClose[0].length;
+    }
+  }
+  return null;
+}
+
+/** Converte `<p>…<br>…</p>` num array de estrofes, uma por `<p>`. */
+function estrofesDeParagrafos(blob) {
   const estrofes = [];
-  for (const m of ps) {
+  for (const m of blob.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
     let inner = m[1];
     inner = inner.replace(/<br\s*\/?>/gi, '\n');
     inner = inner.replace(/<[^>]+>/g, '');
@@ -226,6 +167,31 @@ function estrofesDePaginaCifraClub(html) {
     if (stanza) estrofes.push(stanza);
   }
   return estrofes;
+}
+
+/**
+ * Estrofes da página de letra do CifraClub.
+ *
+ * Duas estratégias: `div.letra` (markup antigo) e `data-chord-content` (Next.js
+ * atual). A segunda foi acrescentada depois de constatar que a primeira não casa
+ * mais — e que, sem ela, a extração caía na meta description, que traz **apenas
+ * as 4 primeiras linhas** da música.
+ */
+function estrofesDePaginaCifraClub(html) {
+  const legado = extrairHtmlInternoDivPorClasse(html, 'letra');
+  if (legado) {
+    const estrofes = estrofesDeParagrafos(legado);
+    if (estrofes.length) return estrofes;
+  }
+
+  for (const atributo of ['data-chord-content', 'data-chord-container']) {
+    const blob = extrairHtmlInternoPorAtributo(html, atributo, atributo === 'data-chord-container' ? 'article' : 'div');
+    if (!blob) continue;
+    const estrofes = estrofesDeParagrafos(blob);
+    if (estrofes.length) return estrofes;
+  }
+
+  return [];
 }
 
 function metaTagContent(html, { name, property }) {
@@ -262,7 +228,26 @@ function estrofesFallbackMetaDescricaoCifra(html) {
     t = t.slice(i + (t.indexOf(markerLongo) === i ? markerLongo.length : markerCurto.length)).trim();
   }
   if (!t || metaDescricaoCifraEGenericaSemLetra(t)) return [];
-  return t.split(/\s*\/\s*/).map((s) => s.trim()).filter(Boolean);
+  // A description usa " / " entre LINHAS, não entre estrofes. Devolver uma linha
+  // por posição fazia cada linha virar um slide, ignorando "linhas por slide".
+  return linhasComoBlocoUnico(t);
+}
+
+/**
+ * Junta linhas separadas por " / " num único bloco de estrofe.
+ *
+ * A meta description não carrega fronteira de estrofe, então tratar cada linha
+ * como estrofe separada quebrava o agrupamento por "linhas por slide".
+ *
+ * @param {string} texto
+ * @returns {string[]} array com 0 ou 1 elemento
+ */
+function linhasComoBlocoUnico(texto) {
+  const linhas = String(texto || '')
+    .split(/\s*\/\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return linhas.length ? [linhas.join('\n')] : [];
 }
 
 function estrofesDePaginaLetrasMusHtml(html) {
@@ -292,11 +277,8 @@ function estrofesDePaginaLetrasMusHtml(html) {
 function estrofesDeTextoLetrasMetaEOg(html) {
   const og = metaTagContent(html, { property: 'og:description' });
   if (og) {
-    const partes = decodeHtmlEntidades(og)
-      .split(/\s*\/\s*/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (partes.length) return partes;
+    const bloco = linhasComoBlocoUnico(decodeHtmlEntidades(og));
+    if (bloco.length) return bloco;
   }
   const desc = metaTagContent(html, { name: 'description' });
   if (!desc) return [];
@@ -308,10 +290,7 @@ function estrofesDeTextoLetrasMetaEOg(html) {
     const dash = after.indexOf(' - ');
     if (dash !== -1) t = after.slice(dash + 3).trim();
   }
-  return t
-    .split(/\s*\/\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return linhasComoBlocoUnico(t);
 }
 
 function tituloArtistaDoScriptPageArgsLetras(html) {
@@ -606,8 +585,6 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
   if (!abs) return { erro: 'URL de música inválida para cifraclub.com.br.' };
 
   const html = await fetchHtmlLetraCifraClub(abs);
-  let estrofes = estrofesDePaginaCifraClub(html);
-  if (!estrofes.length) estrofes = estrofesFallbackMetaDescricaoCifra(html);
 
   const seg = abs.split('/').filter(Boolean);
   const dns = seg[0] || '';
@@ -615,20 +592,56 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
   let tituloLetras = '';
   let artistaLetras = '';
 
+  /**
+   * Ordem dos fallbacks — e por que ela importa.
+   *
+   * A meta description do CifraClub traz só as 4 PRIMEIRAS LINHAS da música, e
+   * antes ela era tentada logo depois do HTML do Cifra. Como vinha não-vazia, a
+   * cadeia parava ali e a página do Letras.mus.br (que tem a letra completa)
+   * nunca era consultada: o usuário importava uma música de 4 linhas achando que
+   * era a letra inteira. Verificado com "Galileu" (Fernandinho): 17 estrofes /
+   * 71 linhas nas fontes HTML, contra 4 linhas na meta description.
+   *
+   * Agora as fontes completas vêm primeiro e as meta tags são o último recurso,
+   * marcando o resultado como `parcial` para a UI poder avisar.
+   */
+  let estrofes = estrofesDePaginaCifraClub(html);
+  let parcial = false;
+
+  // Página completa do Letras.mus.br antes de qualquer meta tag.
   if (!estrofes.length && dns && songSlug) {
     const slugs = slugsLetrasParaTentar(html, dns, songSlug);
     for (const slugTry of slugs) {
       try {
         const hl = await fetchHtmlLetrasMus(dns, slugTry);
         estrofes = estrofesDePaginaLetrasMusHtml(hl);
-        if (!estrofes.length) estrofes = estrofesDeTextoLetrasMetaEOg(hl);
         if (estrofes.length) {
           const pa = tituloArtistaDoScriptPageArgsLetras(hl);
           tituloLetras = pa.titulo;
           artistaLetras = pa.artista;
           break;
         }
+        // Guarda a og:description desta página como último recurso, sem parar aqui.
+        if (!estrofes.length) {
+          const og = estrofesDeTextoLetrasMetaEOg(hl);
+          if (og.length && !parcial) {
+            estrofes = og;
+            parcial = true;
+            const pa = tituloArtistaDoScriptPageArgsLetras(hl);
+            tituloLetras = pa.titulo;
+            artistaLetras = pa.artista;
+          }
+        }
       } catch (_) { continue; }
+    }
+  }
+
+  // Último recurso: meta description do próprio CifraClub (só o começo da letra).
+  if (!estrofes.length) {
+    const meta = estrofesFallbackMetaDescricaoCifra(html);
+    if (meta.length) {
+      estrofes = meta;
+      parcial = true;
     }
   }
 
@@ -642,7 +655,7 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
   const titulo = String(tituloLetras || tHtml || '').trim() || slugParaTituloExibicao(seg[1] || '') || 'Sem título';
   const artista = String(artistaLetras || aHtml || '').trim() || slugParaTituloExibicao(seg[0] || '');
   const pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return { titulo, artista, estrofes, path: pathNorm, maxLinhasPorSlide };
+  return { titulo, artista, estrofes, path: pathNorm, maxLinhasPorSlide, parcial };
 }
 
 // ─── Funções de Busca de Letras ───────────────────────────────────
@@ -727,10 +740,12 @@ function buscarLetraVagalume(titulo, artista) {
 async function buscarLetraCifraClub(titulo, artista) {
   try {
     const texto = artista ? `${titulo} ${artista}` : titulo;
-    const html = await yahooHtmlSiteCifraClub(texto);
-    const bruto = extrairParesRuCifraClub(html);
-    const filt = { titulo: true, artista: !!artista, letra: false };
-    const filtradas = bruto.filter((row) => candidatoCombinaBusca(row, foldAccents(titulo), filt));
+    // Índice da Studio Sol em vez do SERP do Yahoo, que passou a dar timeout.
+    const filtradas = await buscarNoIndiceDeMusicas({
+      texto,
+      filtros: { titulo: true, artista: !!artista, letra: false },
+      fonte: 'cifraclub',
+    });
 
     if (!filtradas.length) return null;
 
@@ -738,9 +753,9 @@ async function buscarLetraCifraClub(titulo, artista) {
       try {
         const htmlLetra = await fetchHtmlLetraCifraClub(row.path);
         let estrofes = estrofesDePaginaCifraClub(htmlLetra);
-        if (!estrofes.length) estrofes = estrofesFallbackMetaDescricaoCifra(htmlLetra);
 
-        // Fallback para letras.mus.br
+        // Mesma ordem de extrairLetraCifraClubParaPreviewOuImport: fontes com a
+        // letra completa primeiro, meta tags (só as 4 primeiras linhas) por último.
         if (!estrofes.length) {
           const seg = row.path.split('/').filter(Boolean);
           const dns = seg[0] || '';
@@ -751,12 +766,13 @@ async function buscarLetraCifraClub(titulo, artista) {
               try {
                 const hl = await fetchHtmlLetrasMus(dns, slugTry);
                 estrofes = estrofesDePaginaLetrasMusHtml(hl);
-                if (!estrofes.length) estrofes = estrofesDeTextoLetrasMetaEOg(hl);
                 if (estrofes.length) break;
               } catch (_) { continue; }
             }
           }
         }
+
+        if (!estrofes.length) estrofes = estrofesFallbackMetaDescricaoCifra(htmlLetra);
 
         if (estrofes.length) {
           return {
@@ -780,12 +796,12 @@ module.exports = {
   decodeHtmlEntidades,
   slugParaTituloExibicao,
   parseCaminhoLetraCifraClub,
-  extrairParesRuCifraClub,
-  candidatoCombinaBusca,
-  yahooHtmlSiteCifraClub,
   normalizarMaxLinhasPorSlide,
   normalizarEstrofesComMaxLinhas,
   extrairLetraCifraClubParaPreviewOuImport,
+  estrofesDePaginaCifraClub,
+  estrofesFallbackMetaDescricaoCifra,
+  extrairHtmlInternoPorAtributo,
   estrofesDePaginaLetrasMusHtml,
   estrofesDeTextoLetrasMetaEOg,
   tituloArtistaDoScriptPageArgsLetras,

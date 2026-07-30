@@ -1,6 +1,6 @@
 'use strict';
 
-const https = require('https');
+const { buscarNoIndiceDeMusicas } = require('./indiceMusicasBusca');
 
 const {
   foldAccents,
@@ -49,185 +49,32 @@ function parseCaminhoLetraLetrasMusBr(decodedUrl) {
   }
 }
 
-function httpsGetUtf8(urlStr, ms = 14000) {
-  return new Promise((resolve, reject) => {
-    let u;
-    try {
-      u = new URL(urlStr);
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    const req = https.request(
-      {
-        hostname: u.hostname,
-        port: u.port || 443,
-        path: `${u.pathname}${u.search}`,
-        method: 'GET',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.6',
-        },
-      },
-      (res) => {
-        const chunks = [];
-        res.on('data', (c) => chunks.push(c));
-        res.on('end', () => {
-          const txt = Buffer.concat(chunks).toString('utf8');
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`Yahoo HTTP ${res.statusCode}`));
-            return;
-          }
-          resolve(txt);
-        });
-      }
-    );
-    const tid = setTimeout(() => {
-      req.destroy(new Error('Tempo esgotado ao contactar Yahoo.'));
-    }, ms);
-    req.on('error', (e) => {
-      clearTimeout(tid);
-      reject(e);
-    });
-    req.on('close', () => clearTimeout(tid));
-    req.end();
-  });
-}
-
-async function yahooHtmlSiteLetrasMusBr(termo) {
-  const q = `site:letras.mus.br ${termo}`;
-  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`;
-  return await httpsGetUtf8(url);
-}
-
-function extrairParesRuLetrasMusBr(html) {
-  const out = [];
-  const re =
-    /RU=(https%3[aA]%2[fF]%2[fF](?:www\.)?letras\.mus\.br(?:%2[fF][a-z0-9_.-]+)+(?:%2[fF])?)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    let decoded;
-    try {
-      decoded = decodeURIComponent(m[1]);
-    } catch (_) {
-      continue;
-    }
-    const path = parseCaminhoLetraLetrasMusBr(decoded);
-    if (!path) continue;
-    const resto = html.slice(m.index, m.index + 14000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 700);
-    out.push({ path, snippet: trechoPlano });
-  }
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-function mergeResultadosLetrasBusca(primario, secundario) {
-  const visto = new Set(primario.map((x) => x.path));
-  const out = [...primario];
-  for (const row of secundario) {
-    if (visto.has(row.path)) continue;
-    visto.add(row.path);
-    out.push(row);
-  }
-  return out;
-}
-
-async function fetchHtmlBuscaLetrasMus(termo) {
-  const q = encodeURIComponent(String(termo || '').trim());
-  const url = `${LETRAS_ORIGIN}/busca/?q=${q}`;
-  const r = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept-Language': 'pt-BR,pt;q=0.9',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      Referer: `${LETRAS_ORIGIN}/`,
-    },
-  });
-  return await r.text();
-}
-
-function extrairResultadosBuscaLetrasMusBr(html) {
-  const out = [];
-  const re = /href="(\/[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*\/)(?:"|[^>]*>)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const path = parseCaminhoLetraLetrasMusBr(`${LETRAS_ORIGIN}${m[1]}`);
-    if (!path) continue;
-    const resto = html.slice(m.index, m.index + 8000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 500);
-    out.push({ path, snippet: trechoPlano });
-  }
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-function candidatoCombinaBuscaLetras(row, qBruto, { titulo, artista, letra }) {
-  const q = foldAccents(qBruto.trim());
-  if (!q) return true;
-  const seg = row.path.split('/').filter(Boolean);
-  const dns = seg[0] || '';
-  const slug = seg[1] || '';
-  const slugTxt = foldAccents(slug.replace(/-/g, ' '));
-  const dnsTxt = foldAccents(dns.replace(/-/g, ' '));
-  const snip = foldAccents(row.snippet || '');
-  let ok = false;
-  if (titulo && slugTxt.includes(q)) ok = true;
-  if (artista && dnsTxt.includes(q)) ok = true;
-  if (letra && snip.includes(q)) ok = true;
-  if (!titulo && !artista && !letra) ok = true;
-  return ok;
-}
-
+/**
+ * Busca no Letras.mus.br.
+ *
+ * Delega ao índice da Studio Sol (`indiceMusicasBusca`), que serve as duas fontes
+ * porque os slugs são compartilhados com o CifraClub. Antes fazia scraping da
+ * página `/busca/?q=` do site somado ao SERP do Yahoo: o primeiro passou a
+ * responder HTTP 404 e o segundo a dar timeout, e ambos os erros eram apenas
+ * logados com `console.warn`, devolvendo lista vazia como se nada tivesse falhado.
+ *
+ * @param {string} termo
+ * @param {{ titulo?: boolean, artista?: boolean, letra?: boolean, termoFiltro?: string }} [opts]
+ * @returns {Promise<{ path: string, titulo: string, artista: string, fonte: string }[]>}
+ */
 async function buscarResultadosLetrasMusBr(termo, opts = {}) {
   const texto = String(termo || '').trim();
   if (!texto) return [];
 
-  let bruto = [];
-  try {
-    const htmlBusca = await fetchHtmlBuscaLetrasMus(texto);
-    bruto = extrairResultadosBuscaLetrasMusBr(htmlBusca);
-  } catch (e) {
-    console.warn('[Letras.mus.br] busca direta:', e.message);
-  }
-
-  try {
-    const htmlYahoo = await yahooHtmlSiteLetrasMusBr(texto);
-    bruto = mergeResultadosLetrasBusca(bruto, extrairParesRuLetrasMusBr(htmlYahoo));
-  } catch (e) {
-    console.warn('[Letras.mus.br] Yahoo:', e.message);
-  }
-
-  const filt = {
-    titulo: opts.titulo !== false,
-    artista: !!opts.artista,
-    letra: !!opts.letra,
-  };
-  const termoFiltro = foldAccents(opts.termoFiltro != null ? opts.termoFiltro : texto);
-  return bruto.filter((row) => candidatoCombinaBuscaLetras(row, termoFiltro, filt));
+  return await buscarNoIndiceDeMusicas({
+    texto,
+    filtros: {
+      titulo: opts.titulo !== false,
+      artista: !!opts.artista,
+      letra: !!opts.letra,
+    },
+    fonte: 'letras-mus-br',
+  });
 }
 
 async function extrairLetraLetrasMusParaPreviewOuImport(pathRaw, opts = {}) {

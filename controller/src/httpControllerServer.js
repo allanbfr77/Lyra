@@ -34,6 +34,7 @@ const {
 const { SERVER_URL } = require('./serverLink');
 const cifra = require('./lib/cifraLetras');
 const letrasMus = require('./lib/letrasMusBr');
+const indiceBusca = require('./lib/indiceMusicasBusca');
 const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 
 const HTTP_CONTROLLER_PORT = 3001;
@@ -1228,31 +1229,25 @@ async function iniciarServidorController(ctx, paths) {
       if (!tituloQ)
         return res.json({ sucesso: false, erro: 'Parâmetro titulo obrigatório', resultados: [] });
 
-      const textoBusca = tituloQ;
-      let filtradas = [];
-
-      if (fonte === 'letras-mus-br' || fonte === 'letrasmusbr') {
-        filtradas = await letrasMus.buscarResultadosLetrasMusBr(textoBusca, {
-          titulo: true,
-          artista: artistaMarcado,
-          termoFiltro: cifra.foldAccents(tituloQ),
-        });
-      } else {
-        const html = await cifra.yahooHtmlSiteCifraClub(textoBusca);
-        const bruto = cifra.extrairParesRuCifraClub(html) || [];
-        const filt = { titulo: true, artista: artistaMarcado, letra: false };
-        filtradas = bruto.filter((row) => cifra.candidatoCombinaBusca(row, cifra.foldAccents(tituloQ), filt));
-      }
-
-      const resultados = filtradas.slice(0, 40).map((row) => {
-        const seg = row.path.split('/').filter(Boolean);
-        return {
-          path: row.path,
-          titulo: cifra.slugParaTituloExibicao(seg[1] || ''),
-          artista: cifra.slugParaTituloExibicao(seg[0] || ''),
-          fonte: fonte === 'letras-mus-br' || fonte === 'letrasmusbr' ? 'letras-mus-br' : 'cifraclub',
-        };
+      // Um caminho só para as duas fontes: o índice da Studio Sol atende CifraClub
+      // e Letras.mus.br, porque os slugs são compartilhados entre os dois sites.
+      // Antes eram dois caminhos distintos, ambos por scraping — o do Yahoo passou
+      // a dar timeout e o de /busca/ do Letras a responder 404.
+      const fonteNorm = indiceBusca.normalizarFonteLetras(fonte);
+      const filtradas = await indiceBusca.buscarNoIndiceDeMusicas({
+        texto: tituloQ,
+        filtros: { titulo: true, artista: artistaMarcado, letra: false },
+        fonte: fonteNorm,
       });
+
+      // O índice já traz título e artista reais — não é mais preciso derivá-los
+      // do slug da URL.
+      const resultados = filtradas.slice(0, 40).map((row) => ({
+        path: row.path,
+        titulo: row.titulo || cifra.slugParaTituloExibicao((row.path.split('/').filter(Boolean))[1] || ''),
+        artista: row.artista || cifra.slugParaTituloExibicao((row.path.split('/').filter(Boolean))[0] || ''),
+        fonte: fonteNorm,
+      }));
 
       if (!resultados.length)
         return res.json({ sucesso: false, erro: 'Nenhum resultado encontrado', resultados: [] });

@@ -52,6 +52,34 @@ const CIFRA_PAGINA = `<html><head><title>Oceans - Hillsong United</title>${'<!--
 
 const PAGINA_SEM_LETRA = `<html><body>${'<!-- vazio -->'.repeat(30)}</body></html>`;
 
+
+/**
+ * Estrutura REAL do CifraClub (Next.js), conferida no HTML de "Galileu":
+ * <article data-chord-container><div data-chord-content><div class=hash><p class=hash>
+ * As classes sao hashes de build e mudam a cada deploy; os data-* nao.
+ */
+const CIFRA_NEXTJS = `<!doctype html><html><head>
+<meta name="description" content="Deixou Sua gloria / Foi por amor, foi por amor / E o Seu sangue derramou / Que grande amor"/>
+</head><body><h1 class="t1">Galileu</h1><h2 class="t3">Fernandinho</h2>
+<article data-chord-container="true" class="XjgwI"><div class="_5QAC"><div data-chord-content="true" data-chord-select="true"><div class="kvMV">
+<p class="_0TPj">Deixou Sua gloria<br/>Foi por amor, foi por amor<br/>E o Seu sangue derramou<br/>Que grande amor</p>
+<p class="_0TPj">Naquela via dolorosa se entregou<br/>Eu nao mereco, mas Sua graca me alcancou</p>
+<p class="_0TPj">Eu me rendo ao Seu amor<br/>Eu me rendo ao Seu amor<br/>Eu me rendo ao Seu amor<br/>Eu me rendo, eu me rendo</p>
+</div></div></div></article></body></html>`;
+
+/** CifraClub sem os containers de letra (so a meta description sobra). */
+const CIFRA_SEM_LETRA = CIFRA_NEXTJS
+  .replace(/data-chord-content/g, 'data-x1')
+  .replace(/data-chord-container/g, 'data-x2');
+
+const LETRAS_PAGINA_COMPLETA = `<!doctype html><html><head>
+<meta property="og:description" content="Deixou Sua gloria / Foi por amor, foi por amor / E o Seu sangue derramou / Que grande amor">
+</head><body><div class="lyric-original">
+<p>Deixou Sua gloria<br/>Foi por amor, foi por amor<br/>E o Seu sangue derramou<br/>Que grande amor</p>
+<p>Naquela via dolorosa se entregou<br/>Eu nao mereco, mas Sua graca me alcancou</p>
+<p>Eu me rendo ao Seu amor<br/>Eu me rendo ao Seu amor<br/>Eu me rendo ao Seu amor<br/>Eu me rendo, eu me rendo</p>
+</div></body></html>`;
+
 let chamadas = [];
 
 /** Instala um fetch falso. `rotas` mapeia substring de URL -> handler. */
@@ -359,6 +387,90 @@ teste('previa — fonte letras-mus-br extrai da og:description', async () => {
   assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
   assert.ok(r.estrofes.length > 0);
   return `${r.estrofes.length} slide(s)`;
+});
+
+
+// ============================================================ truncagem da letra
+
+teste('CifraClub Next.js — extrai a letra completa via data-chord-content', async () => {
+  instalarFetch({ 'cifraclub.com.br': () => resOk(CIFRA_NEXTJS) });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+
+  assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
+  const linhas = r.estrofes.join('\n').split('\n').length;
+  assert.equal(linhas, 10, `deveria trazer as 10 linhas, trouxe ${linhas}`);
+  assert.equal(r.parcial, false, 'letra completa nao e parcial');
+  return `${r.estrofes.length} slide(s), ${linhas} linhas, parcial=${r.parcial}`;
+});
+
+teste('REGRESSAO — nao trunca em 4 linhas quando o HTML tem a letra inteira', async () => {
+  // O bug: a meta description tem so as 4 primeiras linhas e vinha nao-vazia,
+  // encerrando a cadeia antes de tentar as fontes completas.
+  instalarFetch({ 'cifraclub.com.br': () => resOk(CIFRA_NEXTJS) });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+  const linhas = r.estrofes.join('\n').split('\n').length;
+
+  assert.ok(linhas > 4, `truncou em ${linhas} linha(s)`);
+  return `${linhas} linhas (meta description daria 4)`;
+});
+
+teste('CifraClub sem letra no HTML — cai no Letras.mus.br COMPLETO, nao na meta', async () => {
+  instalarFetch({
+    'cifraclub.com.br': () => resOk(CIFRA_SEM_LETRA),
+    'letras.mus.br': () => resOk(LETRAS_PAGINA_COMPLETA),
+  });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+  const linhas = r.estrofes.join('\n').split('\n').length;
+
+  assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
+  assert.equal(linhas, 10, `deveria usar a pagina completa do Letras, trouxe ${linhas}`);
+  assert.equal(r.parcial, false);
+  return `${linhas} linhas via Letras.mus.br, parcial=${r.parcial}`;
+});
+
+teste('so a meta description disponivel — marca parcial=true', async () => {
+  instalarFetch({
+    'cifraclub.com.br': () => resOk(CIFRA_SEM_LETRA),
+    'letras.mus.br': () => resStatus(503),
+  });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+
+  assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
+  assert.equal(r.parcial, true, 'precisa avisar que a letra esta incompleta');
+  assert.equal(r.estrofes.length, 1, '4 linhas com max=4 -> 1 slide, nao 4');
+  return `parcial=${r.parcial}, ${r.estrofes.length} slide`;
+});
+
+teste('REGRESSAO — meta description agrupa em 1 slide, nao 1 slide por linha', async () => {
+  // Antes: 4 estrofes de 1 linha -> 4 slides, ignorando "linhas por slide".
+  instalarFetch({
+    'cifraclub.com.br': () => resOk(CIFRA_SEM_LETRA),
+    'letras.mus.br': () => resStatus(503),
+  });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+
+  assert.equal(r.estrofes.length, 1);
+  assert.equal(r.estrofes[0].split('\n').length, 4);
+  return '1 slide com 4 linhas';
+});
+
+teste('troca de hash de classe no CifraClub nao quebra a extracao', async () => {
+  const outroDeploy = CIFRA_NEXTJS
+    .replace(/XjgwI/g, 'aB9zZ')
+    .replace(/kvMV/g, 'qq11W')
+    .replace(/_0TPj/g, '_9ZZq');
+  instalarFetch({ 'cifraclub.com.br': () => resOk(outroDeploy) });
+
+  const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
+  const linhas = r.estrofes.join('\n').split('\n').length;
+
+  assert.equal(linhas, 10, 'a extracao deve depender de data-*, nao de classe');
+  return `${linhas} linhas apos trocar todos os hashes`;
 });
 
 // ============================================================ runner

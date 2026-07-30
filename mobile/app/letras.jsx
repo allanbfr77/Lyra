@@ -82,6 +82,8 @@ export default function LetrasMusScreen() {
   const [previewTitulo, setPreviewTitulo] = useState('');
   const [previewArtista, setPreviewArtista] = useState('');
   const [previewEstrofes, setPreviewEstrofes] = useState([]);
+  /** Letra veio só de meta tag (começo da música), não da página completa. */
+  const [previewParcial, setPreviewParcial] = useState(false);
 
   // --- Estado de importação ---
   const [importando, setImportando] = useState(false);
@@ -225,6 +227,7 @@ export default function LetrasMusScreen() {
     setPreviewTitulo('');
     setPreviewArtista('');
     setPreviewEstrofes([]);
+    setPreviewParcial(false);
 
     try {
       const data = await extrairLetraParaPreviewOuImport(path, optsLetrasPreview());
@@ -236,6 +239,7 @@ export default function LetrasMusScreen() {
       setPreviewTitulo(data.titulo || '');
       setPreviewArtista(data.artista || '');
       setPreviewEstrofes(Array.isArray(data.estrofes) ? data.estrofes : []);
+      setPreviewParcial(!!data.parcial);
     } catch (e) {
       Alert.alert('Pré-visualização', mensagemWebDiretaFalhou(e));
       setModalVisible(false);
@@ -501,6 +505,15 @@ export default function LetrasMusScreen() {
                   {previewArtista ? ` · ${previewArtista}` : ''}
                 </Text>
 
+                {/* A letra veio de meta tag: costuma ser só o começo da música. */}
+                {previewParcial ? (
+                  <Text style={styles.avisoParcial}>
+                    ⚠ Só o início da letra foi encontrado ({previewEstrofes.length} slide
+                    {previewEstrofes.length === 1 ? '' : 's'}). As fontes completas não
+                    responderam — confira antes de usar no culto.
+                  </Text>
+                ) : null}
+
                 {/* Lista de slides em scroll */}
                 <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
                   {previewEstrofes.map((bloco, idx) => (
@@ -727,6 +740,18 @@ const styles = StyleSheet.create({
   },
   modalTitulo: { fontSize: 17, fontFamily: FONTS.bold, color: COLORS.accent, marginBottom: 8 },
   modalMeta: { fontSize: 14, color: COLORS.text, fontFamily: FONTS.semibold, marginBottom: 10 },
+  avisoParcial: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.accent2,
+    backgroundColor: COLORS.surface2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 10,
+    marginBottom: 10,
+    fontFamily: FONTS.regular,
+  },
   modalScroll: { maxHeight: 340 },
   slideCard: {
     backgroundColor: COLORS.surface2,

@@ -10761,12 +10761,21 @@ async function carregarPreviewLetrasNoModal() {
     const metaLinhas = mostraLinhas ? ` · ${letrasPreviewMaxLinhasPorSlide} linha(s)/slide` : '';
     meta.innerHTML = `<strong>${escapeHtml(data.titulo || '')}</strong>${data.artista ? ` · ${escapeHtml(data.artista)}` : ''} · ${escapeHtml(fonteLabel)}${metaLinhas}`;
     const parts = Array.isArray(data.estrofes) ? data.estrofes : [];
-    scroll.innerHTML = parts
-      .map(
-        (bloco, idx) =>
-          `<div class="letras-preview-bloco"><span class="letras-preview-num">Trecho ${idx + 1}</span><pre class="letras-preview-pre">${escapeHtml(bloco)}</pre></div>`
-      )
-      .join('');
+
+    // `parcial` = a letra veio de meta tag, que só traz o começo da música.
+    // Sem este aviso, uma letra truncada em 4 linhas passava por completa.
+    const avisoParcial = data.parcial
+      ? `<div class="letras-preview-aviso">⚠ Só o início da letra foi encontrado (${parts.length} trecho${parts.length === 1 ? '' : 's'}). As fontes completas não responderam — confira antes de importar.</div>`
+      : '';
+
+    scroll.innerHTML =
+      avisoParcial +
+      parts
+        .map(
+          (bloco, idx) =>
+            `<div class="letras-preview-bloco"><span class="letras-preview-num">Trecho ${idx + 1}</span><pre class="letras-preview-pre">${escapeHtml(bloco)}</pre></div>`
+        )
+        .join('');
   } catch (e) {
     if (reqId !== letrasPreviewReqSeq) return;
     scroll.innerHTML = `<div class="placeholder-msg">${escapeHtml(e.message || 'Falha ao carregar.')}</div>`;

@@ -231,7 +231,26 @@ Também foi fechada uma brecha: resposta 200 cujo corpo não é JSON (portal cat
 
 Código morto removido: `yahooHtmlSiteCifraClub`, `yahooHtmlSiteLetrasMusBr`, `fetchHtmlBuscaLetrasMus`, `extrairParesRuCifraClub`, `extrairParesRuLetrasMusBr`, `extrairResultadosBuscaLetrasMusBr`, `mergeResultadosLetrasBusca`, `candidatoCombinaBusca`.
 
-**Pendência no desktop.** O `/api/letras/buscar` do controlador (`controller/src/lib/cifraLetras.js`) ainda faz scraping do Yahoo e vai continuar estourando. A rota via PC só volta a ser útil quando receber a mesma troca. O app não depende dela — o índice atende sozinho.
+### Mesma troca no desktop
+
+O controlador sofria do mesmo problema: `/api/letras/buscar` scrapeava o Yahoo, e por isso estourava o timeout no log acima mesmo com a LAN perfeita.
+
+Novo módulo **`controller/src/lib/indiceMusicasBusca.js`** (CommonJS), espelho do cliente mobile:
+
+| Arquivo | Mudança |
+|---|---|
+| `controller/src/lib/indiceMusicasBusca.js` | **novo** — busca no índice, parsing e classificação de bloqueio |
+| `controller/src/lib/indiceMusicasBusca.test.js` | **novo** — 15 testes, incluindo o payload real de `galileu` |
+| `controller/src/lib/cifraLetras.js` | −102 linhas: fora `httpsGetUtf8`, `yahooHtmlSiteCifraClub`, `extrairParesRuCifraClub`, `candidatoCombinaBusca`; `buscarLetraCifraClub` religado ao índice |
+| `controller/src/lib/letrasMusBr.js` | −153 linhas: fora todo o scraping de `/busca/` e do Yahoo; `buscarResultadosLetrasMusBr` delega ao índice |
+| `controller/src/httpControllerServer.js` | a rota virou um caminho único para as duas fontes |
+| `package.json` | testes do índice no `npm test`; novo `npm run test:mobile` |
+
+A rota `/api/letras/buscar` manteve o contrato (`{ sucesso, resultados: [{ path, titulo, artista, fonte }] }`), então o app não precisa de mudança para se beneficiar — e como o índice é rápido, o controlador voltou a vencer a corrida quando o celular está na LAN.
+
+Um detalhe que o `console.warn` escondia por anos: o `buscarResultadosLetrasMusBr` antigo capturava as falhas dos dois hops de scraping e devolvia lista vazia como se nada tivesse dado errado.
+
+**Verificação:** `npm test` na raiz → 37/37 (22 pré-existentes + 15 novos). `npm run test:mobile` → 17/17. `npm run lint` → 0 erros; os 29 warnings são de estilo (`eqeqeq`) e pré-existentes. A rota foi exercitada com o payload real nas três grafias de fonte (`cifraclub`, `letras-mus-br`, `letrasmusbr`), devolvendo `/fernandinho/galileu/ · Galileu · Fernandinho`.
 
 ### Verificação com dados reais
 
@@ -247,11 +266,64 @@ Os 10 `docs` retornados viraram 9 resultados — o `doc` de tipo artista (`t: "1
 
 Foi adicionado ao processo um gate de `no-undef`/`no-unused-vars` no ESLint sobre esses módulos, depois que uma remoção de código morto em lote apagou quatro funções ainda em uso. O gate pegou; os testes sozinhos não teriam pego tudo.
 
+### Quarta rodada — letra truncada em 4 linhas
+
+Com a busca funcionando, apareceu o defeito seguinte: a prévia mostrava 4 "trechos" de **uma linha cada**, ignorando o seletor "4 linhas por slide". Dois bugs distintos, um deles muito mais grave que o outro.
+
+**1. Truncagem (grave).** A letra completa de "Galileu" tem 17 estrofes / 71 linhas. O que chegava eram **4 linhas** — o valor exato da `meta name="description"` do CifraClub:
+
+```
+Deixou Sua glória / Foi por amor, foi por amor / E o Seu sangue derramou / Que grande amor
+```
+
+Causa: o CifraClub migrou para Next.js e não tem mais `div.letra`, então `estrofesDePaginaCifraClub` voltava vazio. A cadeia então tentava a meta description **antes** da página do Letras.mus.br. Como a meta vinha não-vazia, a cadeia parava ali — e o Letras.mus.br, que tem a letra inteira em `div.lyric-original`, nunca era consultado. O usuário importava uma música de 4 linhas achando que era a letra completa.
+
+Duas correções:
+
+- **Extração nova para o CifraClub Next.js**, ancorada em `data-chord-content` / `data-chord-container` em vez de classe. As classes do novo CifraClub são hashes de build (`XjgwI`, `kvMV`, `_0TPj`) e mudam a cada deploy; os `data-*` são semânticos. Há teste que troca todos os hashes e confirma que a extração sobrevive.
+- **Reordenação da cadeia**: fontes com a letra completa primeiro (HTML do CifraClub → página do Letras.mus.br), meta tags só como último recurso.
+
+**2. Agrupamento.** A meta description usa `" / "` entre **linhas**, mas o código devolvia um array com uma linha por posição, e o normalizador trata cada posição como uma **estrofe**. Resultado: 4 estrofes de 1 linha → 4 slides, e o seletor "linhas por slide" sem efeito. `linhasComoBlocoUnico` passou a devolver um bloco só, deixando o fatiamento para quem normaliza.
+
+**3. Aviso de letra parcial.** Quando a letra vem de meta tag, o resultado agora carrega `parcial: true` e as duas UIs (prévia do controlador e do app) mostram um aviso. Este é o ponto que importa mais que os outros: o bug passou porque o resultado errado *parecia plausível*. Um trecho de 4 linhas é indistinguível de uma música curta — só o aviso quebra essa ambiguidade antes do culto.
+
+**Verificação com HTML real.** As páginas foram salvas e a extração rodada contra elas:
+
+| Fonte | Estrofes | Linhas |
+|---|---|---|
+| CifraClub via `data-chord-content` | 17 | 71 |
+| Letras.mus.br via `lyric-original` | 17 | 71 |
+| meta description (o que chegava) | 1 | **4** |
+
+Ponta a ponta com `maxLinhasPorSlide: 4` → 22 slides, `parcial: false`. Cenário degradado (sem os containers e sem Letras.mus.br) → 1 slide, `parcial: true`. Sem nenhuma fonte → erro explícito.
+
+Os HTML salvos foram apagados; as fixtures dos testes reproduzem a estrutura real em forma compacta.
+
 ### Risco residual
 
 O índice é um endpoint interno da Studio Sol, sem contrato público — pode mudar de formato ou endereço sem aviso, como aconteceu com `/busca/?q=`. Mitigações já no lugar: qualquer resposta inesperada é classificada e aparece no diagnóstico em vez de virar lista vazia, e a arquitetura de corrida aceita hops novos sem custo de latência, então adicionar uma fonte alternativa é barato.
 
 Vale considerar como próximo passo usar o `catalog.db` que o controlador já mantém (via `/api/letras/buscar-local`, que é consulta de banco e responde instantaneamente) como hop extra na corrida — daria resultados do acervo da igreja sem depender de terceiros.
+
+### A lição que atravessa as quatro rodadas
+
+Os quatro defeitos desta investigação são o mesmo defeito:
+
+| Defeito | Dependência que quebrou | Como falhava |
+|---|---|---|
+| Busca não retornava nada | SERP do Yahoo | timeout, erro engolido |
+| Busca não retornava nada | `/busca/?q=` do Letras | HTTP 404, erro engolido |
+| Letra truncada em 4 linhas | `div.letra` do CifraClub | fallback plausível |
+| Slides de 1 linha | separador `" / "` da meta | resultado plausível |
+
+Todos são acoplamento a markup/comportamento de terceiro que mudou sem aviso, e **todos falhavam silenciosamente produzindo um resultado que parecia certo**. Nenhum deles teria sido detectado por um teste de "não lançou exceção".
+
+O que mudou estruturalmente:
+
+- **Busca** saiu do scraping para JSON estruturado — não depende mais de markup.
+- **Extração** ainda depende de markup, mas agora ancora em `data-*` semântico em vez de classe hasheada, tenta múltiplas estratégias, e **marca o resultado como parcial** quando cai no pior fallback.
+- **Erros** deixaram de ser engolidos: `res.ok` é checado, 403/429/captcha são classificados, e o log por hop está visível na UI.
+- **Testes** passaram a asserir sobre a *qualidade* do resultado (quantas linhas, veio de que fonte, é parcial?), não só sobre ausência de erro. Foi essa mudança que pegou dois bugs meus durante a própria implementação.
 
 ---
 
