@@ -3,15 +3,46 @@
  * Lógica espelhada ao controlador (`cifraLetras.js` + `letrasMusBr.js`) — manter alinhado.
  *
  * Fluxo principal:
- * 1. `buscarLetrasNaWeb` → CifraClub (Yahoo) ou Letras.mus.br (busca + Yahoo), conforme `fonte`
- * 2. `extrairLetraParaPreviewOuImport` → extrai estrofes da fonte escolhida
+ * 1. `buscarLetrasNaWeb` → índice de músicas da Studio Sol (JSON), em corrida com
+ *    a API do controlador na LAN quando há um IP salvo
+ * 2. `extrairLetraParaPreviewOuImport` → baixa a página e extrai as estrofes da
+ *    fonte escolhida (CifraClub com fallback no Letras.mus.br), também em corrida
+ *    com o controlador
+ *
+ * Histórico: a busca usava scraping do SERP do Yahoo (`site:cifraclub.com.br …`)
+ * e da página `/busca/` do Letras.mus.br. Os dois pararam de funcionar — Yahoo dá
+ * timeout total e `/busca/?q=` responde 404 — e foram trocados pelo índice JSON.
  */
 
 // --- Constantes de origem e configuração ---
 
-import { urlApiControlador } from './lyraEndpoints';
+// Extensões explícitas para que este módulo também rode no Node (teste de fumaça
+// em `letrasWebClient.test.mjs`); o Metro lida com elas normalmente.
+import { urlApiControlador } from './lyraEndpoints.js';
+import { fetchComTimeout } from './fetchComTimeout.js';
+import { registrarHop } from './diagnosticoRede.js';
 
 const CIFRA_ORIGIN = 'https://www.cifraclub.com.br';
+
+/**
+ * Índice de busca da Studio Sol — a mesma empresa que opera o CifraClub e o
+ * Letras.mus.br, então os slugs de artista/música servem para os dois sites.
+ *
+ * Substitui o scraping do Yahoo, que morreu: em campo, `search.yahoo.com` dava
+ * timeout completo (15s sem resposta) e `letras.mus.br/busca/?q=` respondia 404.
+ * Era essa a razão real de a busca não retornar nada — não a rede móvel.
+ *
+ * Vantagens sobre o scraping: JSON pequeno (dezenas de KB contra centenas do SERP),
+ * sem muro de bot, sem regex sobre HTML de terceiros, e já devolve o slug exato da
+ * música (`url`), que antes tinha de ser adivinhado por `slugsLetrasParaTentar`.
+ *
+ * Formato de cada `doc`: `t` (tipo: "1" artista, "2" música), `dns` (slug do
+ * artista), `url` (slug da música), `art` (artista), `txt` (título),
+ * `full_txt` (título + artista).
+ */
+const INDICE_BUSCA_URL = 'https://solr.sscdn.co/cifraclub/h/';
+const INDICE_TIPO_MUSICA = '2';
+const MAX_RESULTADOS_INDICE = 40;
 /** Fallback quando o Cifra não envia mais a letra no HTML (Next.js); mesmos slugs costumam funcionar no Letras. */
 const LETRAS_ORIGIN = 'https://www.letras.mus.br';
 
@@ -50,8 +81,41 @@ const LETRAS_SEG_RESERVADOS = new Set([
   'ccid',
 ]);
 
-/** Timeout em ms para requisições HTTP externas (evita travar a UI indefinidamente). */
-const FETCH_MS = 22000;
+/**
+ * Timeouts por tipo de hop.
+ *
+ * Antes havia um único valor de 22s aplicado também ao hop do controlador na LAN.
+ * Em 4G/5G um IP privado (192.168.x) não é alcançável e o SYN é descartado sem RST:
+ * o socket ficava pendurado os 22s inteiros ANTES de a busca na web começar
+ * (era o primeiro `await` do fluxo). Somando os hops em série, a busca levava
+ * 44s (CifraClub) ou 66s (Letras.mus.br) — o que o usuário via como "travado".
+ *
+ * A correção é a corrida em `corridaPrimeiroNaoVazio`: o controlador e a web
+ * correm em paralelo, então um controlador inalcançável não atrasa nada. O timeout
+ * dele pode continuar generoso, porque a API do PC faz rede própria (Yahoo) e
+ * legitimamente demora alguns segundos quando ESTÁ na LAN.
+ */
+const TIMEOUT_WEB_MS = 15000;
+
+/**
+ * O hop do controlador é curto de propósito.
+ *
+ * A corrida resolve assim que ALGUÉM traz resultado, mas quando ninguém traz
+ * (busca sem correspondência, por exemplo) ela precisa esperar o hop mais lento.
+ * Com 20s aqui, uma busca infrutífera em 4G ficava 20s no spinner só por causa de
+ * um IP de LAN que nunca responderia.
+ *
+ * Com o índice JSON respondendo em centenas de milissegundos, a corrida quase sempre
+ * termina antes deste prazo, então ele só pesa quando a busca não acha nada. 12s dá
+ * folga para a API do PC (que faz rede própria) sem prender o usuário por muito tempo.
+ *
+ * Nota: em campo o `/api/letras/buscar` do controlador também dependia do Yahoo e
+ * estourava. O desktop precisa da mesma troca para essa rota voltar a ser útil.
+ */
+const TIMEOUT_CONTROLADOR_MS = 12000;
+
+/** Máximo de slugs alternativos tentados no Letras.mus.br ao extrair uma letra. */
+const MAX_SLUGS_ALTERNATIVOS = 3;
 
 // --- Utilitários de texto ---
 
@@ -151,56 +215,14 @@ function parseCaminhoLetraCifraClub(decodedUrl) {
   }
 }
 
-// --- Extração de resultados do Yahoo ---
+// --- Parsing de URLs do Letras.mus.br ---
 
 /**
- * Extrai pares {path, snippet} de URLs do CifraClub encontradas no HTML da página de resultados do Yahoo.
- * Usa o parâmetro `RU=` dos links de redirecionamento do Yahoo para obter as URLs reais.
+ * Valida e normaliza um caminho de URL do letras.mus.br para `/artista/musica/`.
  *
- * @param {string} html - HTML bruto da página de resultados do Yahoo
- * @returns {{ path: string, snippet: string }[]} Lista de resultados únicos (sem duplicatas de path)
+ * @param {string} decodedUrl
+ * @returns {string|null}
  */
-function extrairParesRuCifraClub(html) {
-  const out = [];
-  // Regex para encontrar URLs do CifraClub codificadas no parâmetro RU= do Yahoo
-  const re =
-    /RU=(https%3[aA]%2[fF]%2[fF](?:www\.)?cifraclub\.com\.br(?:%2[fF][a-z0-9_.-]+)+(?:%2[fF])?)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    let decoded;
-    try {
-      decoded = decodeURIComponent(m[1]);
-    } catch (_) {
-      continue;
-    }
-
-    const path = parseCaminhoLetraCifraClub(decoded);
-    if (!path) continue;
-
-    // Extrai um trecho de texto próximo ao link para usar como snippet de busca
-    const resto = html.slice(m.index, m.index + 14000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 700);
-
-    out.push({ path, snippet: trechoPlano });
-  }
-
-  // Remove caminhos duplicados mantendo apenas a primeira ocorrência
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-// --- Parsing e busca Letras.mus.br (espelho de controller/src/lib/letrasMusBr.js) ---
-
 function parseCaminhoLetraLetrasMusBr(decodedUrl) {
   try {
     const u = new URL(decodedUrl);
@@ -217,168 +239,147 @@ function parseCaminhoLetraLetrasMusBr(decodedUrl) {
   }
 }
 
-function extrairParesRuLetrasMusBr(html) {
-  const out = [];
-  const re =
-    /RU=(https%3[aA]%2[fF]%2[fF](?:www\.)?letras\.mus\.br(?:%2[fF][a-z0-9_.-]+)+(?:%2[fF])?)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    let decoded;
-    try {
-      decoded = decodeURIComponent(m[1]);
-    } catch (_) {
-      continue;
-    }
-    const path = parseCaminhoLetraLetrasMusBr(decoded);
-    if (!path) continue;
-    const resto = html.slice(m.index, m.index + 14000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 700);
-    out.push({ path, snippet: trechoPlano });
-  }
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-function extrairResultadosBuscaLetrasMusBr(html) {
-  const out = [];
-  const re = /href="(\/[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*\/)(?:"|[^>]*>)/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    const path = parseCaminhoLetraLetrasMusBr(`${LETRAS_ORIGIN}${m[1]}`);
-    if (!path) continue;
-    const resto = html.slice(m.index, m.index + 8000);
-    const trechoPlano = resto
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 500);
-    out.push({ path, snippet: trechoPlano });
-  }
-  const visto = new Set();
-  return out.filter((x) => {
-    if (visto.has(x.path)) return false;
-    visto.add(x.path);
-    return true;
-  });
-}
-
-function mergeResultadosLetrasBusca(primario, secundario) {
-  const visto = new Set(primario.map((x) => x.path));
-  const out = [...primario];
-  for (const row of secundario) {
-    if (visto.has(row.path)) continue;
-    visto.add(row.path);
-    out.push(row);
-  }
-  return out;
-}
-
-async function yahooHtmlSiteLetrasMusBr(termo) {
-  const q = `site:letras.mus.br ${termo}`;
-  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`;
-  const res = await fetchComTimeout(url, { headers: { ...HEADERS_NAVEGADOR } });
-  if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
-  return await res.text();
-}
-
-async function fetchHtmlBuscaLetrasMus(termo) {
-  const q = encodeURIComponent(String(termo || '').trim());
-  const url = `${LETRAS_ORIGIN}/busca/?q=${q}`;
-  const res = await fetchComTimeout(url, {
-    headers: {
-      ...HEADERS_NAVEGADOR,
-      Referer: `${LETRAS_ORIGIN}/`,
-    },
-  });
-  return await res.text();
-}
-
-async function buscarResultadosLetrasMusBr(termo, { titulo, artista, letra }) {
-  const texto = String(termo || '').trim();
-  let bruto = [];
-  try {
-    const htmlBusca = await fetchHtmlBuscaLetrasMus(texto);
-    bruto = extrairResultadosBuscaLetrasMusBr(htmlBusca);
-  } catch (_) {
-    // busca direta pode falhar; Yahoo abaixo
-  }
-  try {
-    const htmlYahoo = await yahooHtmlSiteLetrasMusBr(texto);
-    bruto = mergeResultadosLetrasBusca(bruto, extrairParesRuLetrasMusBr(htmlYahoo));
-  } catch (_) {
-    // Yahoo opcional
-  }
-  const filt = { titulo, artista, letra };
-  return bruto.filter((row) => candidatoCombinaBusca(row, texto, filt));
-}
+// --- Fonte de busca ---
 
 function normalizarFonteLetras(fonte) {
   return fonte === 'letras-mus-br' ? 'letras-mus-br' : 'cifraclub';
 }
 
-async function buscarLetrasViaControlador({ hostControlador, texto, artista, fonte }) {
-  const base = urlApiControlador(hostControlador);
-  if (!base) return null;
+/**
+ * Um resultado do índice combina com o que o usuário pediu?
+ *
+ * Mais tolerante que o antigo `candidatoCombinaBusca`, que casava o termo contra
+ * os *slugs* da URL. O índice já fez o casamento por relevância sobre
+ * "título + artista", então filtrar de novo pelo slug descartava acertos bons:
+ * buscar "fernandinho galileu" não casaria com o slug `galileu` nem com
+ * `fernandinho` isoladamente. Aqui o casamento é sobre os nomes reais, por palavra.
+ */
+function resultadoDoIndiceCombina(row, qBruto, { titulo, artista, letra }) {
+  const q = foldAccents(String(qBruto || '').trim());
+  if (!q) return true;
+
+  const tit = foldAccents(row.titulo);
+  const art = foldAccents(row.artista);
+
+  if (titulo && tit.includes(q)) return true;
+  if (artista && art.includes(q)) return true;
+
+  // Termo que mistura título e artista ("fernandinho galileu"), ou busca por
+  // trecho: confia na relevância do índice, exigindo só que todas as palavras
+  // apareçam em algum lugar do par título+artista.
+  const combinado = `${tit} ${art}`;
+  if (letra || combinado.includes(q)) return true;
+  const palavras = q.split(/\s+/).filter(Boolean);
+  return palavras.length > 1 && palavras.every((p) => combinado.includes(p));
+}
+
+/**
+ * Busca no índice da Studio Sol. Único hop de busca na web — rápido e em JSON.
+ *
+ * @returns {Promise<{ resultados: object[] }>}
+ */
+async function buscarNoIndiceDeMusicas({ texto, filtros, fonte, signal }) {
+  const url = `${INDICE_BUSCA_URL}?q=${encodeURIComponent(String(texto || '').trim())}`;
+
+  // Via fetchTexto para reaproveitar a checagem de status, a classificação de
+  // bloqueio e o registro de bytes no diagnóstico.
+  const corpo = await fetchTexto(
+    url,
+    {
+      headers: {
+        Accept: 'application/json,text/plain,*/*',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
+      },
+      signal,
+      rotulo: 'indice/busca',
+    },
+    TIMEOUT_WEB_MS
+  );
+
+  let data = null;
   try {
-    const params = new URLSearchParams({
-      titulo: texto,
-      artista: artista ? '1' : '0',
-      fonte: normalizarFonteLetras(fonte),
-    });
-    const res = await fetchComTimeout(`${base}/api/letras/buscar?${params}`);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.sucesso || !Array.isArray(data.resultados)) return null;
-    return data.resultados.map((row) => ({
+    data = JSON.parse(corpo);
+  } catch (_) {
+    // Corpo 200 que não é JSON quase sempre é muro de bot ou portal cativo de
+    // Wi-Fi. Sem esta checagem viraria "nenhum resultado" silencioso.
+    if (pareceBloqueioHtml(corpo)) throw erroDeBloqueio('Índice de busca');
+    const err = new Error('índice de busca devolveu resposta inesperada');
+    err.motivo = 'http';
+    throw err;
+  }
+
+  const docs = Array.isArray(data?.response?.docs) ? data.response.docs : [];
+  registrarHop({ rotulo: 'indice/busca:docs', url, status: 200, ms: 0, bytes: docs.length });
+
+  const candidatos = docs
+    .filter((d) => String(d?.t) === INDICE_TIPO_MUSICA && d?.dns && d?.url)
+    .map((d) => ({
+      path: `/${d.dns}/${d.url}/`,
+      titulo: String(d.txt || '').trim() || slugParaTituloExibicao(d.url),
+      artista: String(d.art || '').trim() || slugParaTituloExibicao(d.dns),
+      fonte,
+    }));
+
+  // Remove duplicatas de path preservando a ordem de relevância do índice.
+  const visto = new Set();
+  const resultados = [];
+  for (const row of candidatos) {
+    if (visto.has(row.path)) continue;
+    if (!resultadoDoIndiceCombina(row, texto, filtros)) continue;
+    visto.add(row.path);
+    resultados.push(row);
+    if (resultados.length >= MAX_RESULTADOS_INDICE) break;
+  }
+
+  return { resultados };
+}
+
+/**
+ * Busca via API HTTP do controlador (PC na LAN, porta 3001).
+ *
+ * Só alcançável na mesma rede local, por isso corre em PARALELO com o índice em
+ * vez de bloqueá-lo. Erros são devolvidos, não engolidos.
+ *
+ * @returns {Promise<{ resultados: object[], falhas: object[] }>}
+ */
+async function buscarLetrasViaControlador({ base, texto, artista, fonte, signal }) {
+  if (!base) return { resultados: [], falhas: [] };
+
+  const params = new URLSearchParams({
+    titulo: texto,
+    artista: artista ? '1' : '0',
+    fonte: normalizarFonteLetras(fonte),
+  });
+
+  const res = await fetchComTimeout(
+    `${base}/api/letras/buscar?${params}`,
+    { signal, rotulo: 'controlador/buscar' },
+    TIMEOUT_CONTROLADOR_MS
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.sucesso || !Array.isArray(data.resultados)) {
+    return {
+      resultados: [],
+      falhas: [
+        {
+          hop: 'controlador/buscar',
+          erro: data?.erro || `HTTP ${res.status}`,
+          motivo: 'controlador',
+        },
+      ],
+    };
+  }
+
+  return {
+    resultados: data.resultados.map((row) => ({
       path: row.path,
       titulo: row.titulo || '',
       artista: row.artista || '',
       fonte: normalizarFonteLetras(fonte),
-    }));
-  } catch (_) {
-    return null;
-  }
-}
-
-// --- Filtragem de candidatos ---
-
-/**
- * Verifica se um resultado de busca combina com a query do usuário,
- * de acordo com os critérios de filtragem selecionados.
- *
- * @param {{ path: string, snippet: string }} row - Resultado candidato
- * @param {string} qBruto - Termo de busca original do usuário
- * @param {{ titulo: boolean, artista: boolean, letra: boolean }} filtros - Critérios ativos
- * @returns {boolean}
- */
-function candidatoCombinaBusca(row, qBruto, { titulo, artista, letra }) {
-  const q = foldAccents(qBruto.trim());
-  if (!q) return true; // sem query = aceita tudo
-
-  // Extrai slug do artista e da música a partir do path "/artista/musica/"
-  const seg = row.path.split('/').filter(Boolean);
-  const dns = seg[0] || '';
-  const slug = seg[1] || '';
-  const slugTxt = foldAccents(slug.replace(/-/g, ' '));
-  const dnsTxt = foldAccents(dns.replace(/-/g, ' '));
-  const snip = foldAccents(row.snippet || '');
-
-  let ok = false;
-  if (titulo && slugTxt.includes(q)) ok = true;
-  if (artista && dnsTxt.includes(q)) ok = true;
-  if (letra && snip.includes(q)) ok = true;
-  return ok;
+    })),
+    falhas: [],
+  };
 }
 
 // --- Requisições HTTP ---
@@ -411,21 +412,152 @@ function headersLetrasMus(pathRel) {
 }
 
 /**
- * Faz uma requisição fetch com timeout automático via AbortController.
+ * Baixa o corpo como texto, exigindo status 2xx e registrando o tamanho no
+ * diagnóstico. Antes, `fetchHtmlBuscaLetrasMus` não checava `res.ok` e entregava
+ * o corpo de erro (403/captcha) ao parser, que devolvia lista vazia em silêncio —
+ * indistinguível de "nenhum resultado encontrado".
  *
  * @param {string} url
- * @param {RequestInit} [init={}]
- * @param {number} [ms=FETCH_MS] - Timeout em milissegundos
- * @returns {Promise<Response>}
+ * @param {RequestInit & { rotulo?: string }} init
+ * @param {number} ms
+ * @returns {Promise<string>}
  */
-async function fetchComTimeout(url, init = {}, ms = FETCH_MS) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } finally {
-    clearTimeout(t);
+async function fetchTexto(url, init, ms) {
+  const res = await fetchComTimeout(url, init, ms);
+  if (!res.ok) {
+    const err = new Error(`${init?.rotulo || 'HTTP'} ${res.status}`);
+    err.status = res.status;
+    err.motivo = res.status === 403 || res.status === 401 || res.status === 429 ? 'bloqueado' : 'http';
+    throw err;
   }
+  const texto = await res.text();
+  registrarHop({ rotulo: `${init?.rotulo || 'fetch'}:corpo`, url, status: res.status, ms: 0, bytes: texto.length });
+  return texto;
+}
+
+/** Marcadores de página de bloqueio/consentimento servida com status 200. */
+const MARCADORES_BLOQUEIO = [
+  'captcha',
+  'unusual traffic',
+  'attention required',
+  'verifying you are human',
+  'access denied',
+  'consent.yahoo',
+  'are you a robot',
+  'cf-browser-verification',
+];
+
+/**
+ * Detecta uma resposta 200 que na verdade é muro de bot/consentimento.
+ * Faixas de IP de operadora móvel (CGNAT, muito compartilhadas) recebem score de
+ * bot bem mais agressivo que IP residencial, então isto acontece em 4G/5G e não
+ * em Wi-Fi — sem esta checagem o app reportava "nenhum resultado".
+ *
+ * @param {string} html
+ * @returns {boolean}
+ */
+function pareceBloqueioHtml(html) {
+  const amostra = String(html || '').slice(0, 4000).toLowerCase();
+  if (!amostra) return false;
+  return MARCADORES_BLOQUEIO.some((m) => amostra.includes(m));
+}
+
+function erroDeBloqueio(rotulo) {
+  const err = new Error(`${rotulo} respondeu com verificação de robô.`);
+  err.motivo = 'bloqueado';
+  return err;
+}
+
+/** Uma falha coletada indica bloqueio por anti-bot / rede restrita? */
+function falhaEhBloqueio(f) {
+  return f?.motivo === 'bloqueado';
+}
+
+/**
+ * A falha veio do hop do controlador (PC na LAN)?
+ *
+ * Essencial para classificar a mensagem ao usuário. O controlador é inalcançável
+ * por definição em 4G/5G, então o timeout dele é ESPERADO e não diz nada sobre a
+ * Internet do celular. Uma primeira versão desta correção não fazia essa
+ * distinção e mostrava "Sem resposta da Internet" só porque o IP da LAN não
+ * respondeu — enganando o diagnóstico.
+ */
+function falhaEhDoControlador(f) {
+  return String(f?.hop || '').startsWith('controlador') || f?.motivo === 'controlador';
+}
+
+/** Só as falhas que realmente dizem algo sobre a Internet do aparelho. */
+function falhasDaWeb(falhas) {
+  return (Array.isArray(falhas) ? falhas : []).filter((f) => !falhaEhDoControlador(f));
+}
+
+/**
+ * Corre várias tarefas em paralelo e resolve com a PRIMEIRA que produzir
+ * resultado útil (`temResultado`). As perdedoras são canceladas via AbortSignal.
+ *
+ * Substitui o encadeamento em série que fazia o hop do controlador na LAN
+ * bloquear a busca na web. Uma tarefa que falha ou volta vazia não decide a
+ * corrida — as outras continuam —, e só quando TODAS terminarem sem resultado
+ * é que as falhas são agregadas.
+ *
+ * @template T
+ * @param {{ nome: string, executar: (signal: AbortSignal) => Promise<T> }[]} tarefas
+ * @param {(valor: T) => boolean} temResultado
+ * @returns {Promise<{ vencedor: string|null, valor: T|null, falhas: { hop: string, erro: string, motivo: string|null }[] }>}
+ */
+async function corridaPrimeiroNaoVazio(tarefas, temResultado) {
+  const ctrl = new AbortController();
+  /** @type {{ hop: string, erro: string, motivo: string|null }[]} */
+  const falhas = [];
+
+  const vencedor = await new Promise((resolve) => {
+    let pendentes = tarefas.length;
+    let decidido = false;
+
+    const encerrar = (valor) => {
+      if (decidido) return;
+      decidido = true;
+      resolve(valor);
+    };
+
+    if (!pendentes) {
+      encerrar(null);
+      return;
+    }
+
+    for (const tarefa of tarefas) {
+      Promise.resolve()
+        .then(() => tarefa.executar(ctrl.signal))
+        .then((valor) => {
+          if (temResultado(valor)) {
+            encerrar({ nome: tarefa.nome, valor });
+            return;
+          }
+          // Sem resultado: guarda o motivo, se houver, e deixa os outros correrem.
+          if (valor && valor.erro) {
+            falhas.push({ hop: tarefa.nome, erro: String(valor.erro), motivo: valor.motivo || null });
+          }
+          if (Array.isArray(valor?.falhas)) falhas.push(...valor.falhas);
+        })
+        .catch((e) => {
+          // Cancelamento é consequência de outro hop ter ganhado — não é falha.
+          if (e?.motivo === 'cancelado') return;
+          falhas.push({ hop: tarefa.nome, erro: e?.message || String(e), motivo: e?.motivo || null });
+        })
+        .then(() => {
+          pendentes -= 1;
+          if (pendentes === 0) encerrar(null);
+        });
+    }
+  });
+
+  ctrl.abort(); // libera os sockets das tarefas perdedoras
+
+  return {
+    vencedor: vencedor ? vencedor.nome : null,
+    valor: vencedor ? vencedor.valor : null,
+    falhas,
+  };
 }
 
 /**
@@ -435,18 +567,6 @@ async function fetchComTimeout(url, init = {}, ms = FETCH_MS) {
  * @param {string} termo - Termo de busca do usuário
  * @returns {Promise<string>} HTML da página de resultados
  */
-async function yahooHtmlSiteCifraClub(termo) {
-  const q = `site:cifraclub.com.br ${termo}`;
-  const url = `https://search.yahoo.com/search?p=${encodeURIComponent(q)}`;
-  const res = await fetchComTimeout(url, {
-    headers: {
-      ...HEADERS_NAVEGADOR,
-    },
-  });
-  if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
-  return await res.text();
-}
-
 // --- Extração de letra do HTML ---
 
 /**
@@ -698,16 +818,18 @@ function slugsLetrasParaTentar(htmlCifra, dns, songSlug) {
  * @param {string} slugMusica - Slug da música (ex.: "oceans")
  * @returns {Promise<string>} HTML da página
  */
-async function fetchHtmlLetrasMus(dns, slugMusica) {
+async function fetchHtmlLetrasMus(dns, slugMusica, signal) {
   const d = String(dns || '').replace(/^\/|\/$/g, '');
   const s = String(slugMusica || '').replace(/^\/|\/$/g, '');
   const pathRel = `/${d}/${s}/`;
   const url = `${LETRAS_ORIGIN}${pathRel}`;
-  const r = await fetchComTimeout(url, {
-    headers: headersLetrasMus(pathRel),
-  });
-  if (!r.ok) throw new Error(`Letras HTTP ${r.status}`);
-  return await r.text();
+  const html = await fetchTexto(
+    url,
+    { headers: headersLetrasMus(pathRel), signal, rotulo: 'letras/pagina' },
+    TIMEOUT_WEB_MS
+  );
+  if (pareceBloqueioHtml(html)) throw erroDeBloqueio('Letras.mus.br');
+  return html;
 }
 
 /** Limite de caracteres por linha antes do fatiamento (alinhado ao controlador). */
@@ -944,35 +1066,45 @@ function tituloArtistaDoHtmlCifra(html) {
  * @param {string} pathRel
  * @returns {Promise<{ html: string|null, bloqueado: boolean }>}
  */
-async function fetchHtmlLetraCifraClubComFallback(pathRel) {
+async function fetchHtmlLetraCifraClubComFallback(pathRel, signal) {
   const pathNorm = (pathRel.startsWith('/') ? pathRel : `/${pathRel}`).replace(/\/?$/, '/');
   const urls = [`${CIFRA_ORIGIN}${pathNorm}letra/`, `${CIFRA_ORIGIN}${pathNorm}`];
   let bloqueado = false;
+  const falhas = [];
 
   for (const url of urls) {
+    if (signal?.aborted) break;
     try {
-      const r = await fetchComTimeout(url, { headers: headersCifraClub(pathNorm) });
-      if (r.status === 403 || r.status === 401) {
+      const r = await fetchComTimeout(
+        url,
+        { headers: headersCifraClub(pathNorm), signal, rotulo: 'cifraclub/pagina' },
+        TIMEOUT_WEB_MS
+      );
+      if (r.status === 403 || r.status === 401 || r.status === 429) {
         bloqueado = true;
+        falhas.push({ hop: 'cifraclub/pagina', erro: `HTTP ${r.status}`, motivo: 'bloqueado' });
         continue;
       }
-      if (!r.ok) continue;
+      if (!r.ok) {
+        falhas.push({ hop: 'cifraclub/pagina', erro: `HTTP ${r.status}`, motivo: 'http' });
+        continue;
+      }
       const html = await r.text();
-      if (html && html.length > 200) return { html, bloqueado: false };
-    } catch (_) {}
+      registrarHop({ rotulo: 'cifraclub/pagina:corpo', url, status: r.status, ms: 0, bytes: html.length });
+      if (pareceBloqueioHtml(html)) {
+        bloqueado = true;
+        falhas.push({ hop: 'cifraclub/pagina', erro: 'verificação de robô', motivo: 'bloqueado' });
+        continue;
+      }
+      if (html && html.length > 200) return { html, bloqueado: false, falhas };
+    } catch (e) {
+      if (e?.motivo === 'cancelado') break;
+      if (e?.motivo === 'bloqueado') bloqueado = true;
+      falhas.push({ hop: 'cifraclub/pagina', erro: e?.message || String(e), motivo: e?.motivo || null });
+    }
   }
 
-  return { html: null, bloqueado };
-}
-
-/** @deprecated use fetchHtmlLetraCifraClubComFallback */
-async function fetchHtmlLetraCifraClub(pathRel) {
-  const out = await fetchHtmlLetraCifraClubComFallback(pathRel);
-  if (!out.html) {
-    if (out.bloqueado) throw new Error('Cifra Club HTTP 403');
-    throw new Error('Cifra Club indisponível');
-  }
-  return out.html;
+  return { html: null, bloqueado, falhas };
 }
 
 // --- API Pública ---
@@ -1000,40 +1132,56 @@ export async function buscarLetrasNaWeb({ q, titulo, artista, letra, fonte, host
 
   const fonteNorm = normalizarFonteLetras(fonte);
   const host = hostControlador ? String(hostControlador).trim() : '';
+  const base = host ? urlApiControlador(host) : '';
 
-  if (host) {
-    const viaPc = await buscarLetrasViaControlador({
-      hostControlador: host,
-      texto,
-      artista,
-      fonte: fonteNorm,
+  const filtros = { titulo, artista, letra };
+  const tarefas = [];
+
+  // O controlador é uma rota alternativa útil (o PC não sofre o bloqueio 403 que
+  // o celular sofre), mas só existe na LAN. Corre em paralelo — nunca à frente.
+  if (base) {
+    tarefas.push({
+      nome: 'controlador',
+      executar: (signal) =>
+        buscarLetrasViaControlador({ base, texto, artista, fonte: fonteNorm, signal }),
     });
-    if (viaPc && viaPc.length) return { resultados: viaPc };
   }
 
-  let filtradas = [];
-  if (fonteNorm === 'letras-mus-br') {
-    filtradas = await buscarResultadosLetrasMusBr(texto, { titulo, artista, letra });
-  } else {
-    const html = await yahooHtmlSiteCifraClub(texto);
-    const bruto = extrairParesRuCifraClub(html);
-    const filt = { titulo, artista, letra };
-    filtradas = bruto.filter((row) => candidatoCombinaBusca(row, texto, filt));
-  }
-
-  const resultados = filtradas.map((row) => {
-    const seg = row.path.split('/').filter(Boolean);
-    const dns = seg[0] || '';
-    const slug = seg[1] || '';
-    return {
-      path: row.path,
-      titulo: slugParaTituloExibicao(slug),
-      artista: slugParaTituloExibicao(dns),
-      fonte: fonteNorm,
-    };
+  // Um único hop de busca na web: o índice da Studio Sol serve CifraClub e
+  // Letras.mus.br, porque os slugs são os mesmos nos dois sites.
+  tarefas.push({
+    nome: 'indice',
+    executar: (signal) => buscarNoIndiceDeMusicas({ texto, filtros, fonte: fonteNorm, signal }),
   });
 
-  return { resultados };
+  const { vencedor, valor, falhas } = await corridaPrimeiroNaoVazio(
+    tarefas,
+    (v) => Array.isArray(v?.resultados) && v.resultados.length > 0
+  );
+
+  if (vencedor) {
+    return { resultados: valor.resultados, via: vencedor, falhas };
+  }
+
+  // Ninguém trouxe resultado. Diferencia "bloqueado/sem rede" de "não achei nada":
+  // antes os dois casos chegavam à UI como uma lista vazia idêntica.
+  // A classificação ignora o hop do controlador — ver `falhaEhDoControlador`.
+  const daWeb = falhasDaWeb(falhas);
+
+  return {
+    resultados: [],
+    via: null,
+    falhas,
+    bloqueado: daWeb.some(falhaEhBloqueio),
+    semRede: daWeb.some((f) => f?.motivo === 'timeout' || f?.motivo === 'rede'),
+    diagnostico: resumirFalhas(falhas),
+  };
+}
+
+/** Resumo curto das falhas, para exibir ou anexar a um relato de bug. */
+function resumirFalhas(falhas) {
+  if (!Array.isArray(falhas) || !falhas.length) return '';
+  return falhas.map((f) => `${f.hop}: ${f.erro}`).join(' · ');
 }
 
 /**
@@ -1049,7 +1197,7 @@ export async function buscarLetrasNaWeb({ q, titulo, artista, letra, fonte, host
  * @param {{ hostControlador?: string, fonte?: string }} [opts]
  * @returns {Promise<{ titulo: string, artista: string, estrofes: string[], path: string } | { erro: string }>}
  */
-async function extrairLetraLetrasMusDireto(pathRaw) {
+async function extrairLetraLetrasMusDireto(pathRaw, signal) {
   const trimmed = pathRaw != null ? String(pathRaw).trim() : '';
   const abs = parseCaminhoLetraLetrasMusBr(
     `${LETRAS_ORIGIN}${trimmed.startsWith('/') ? trimmed : `/${trimmed}`}`
@@ -1062,9 +1210,10 @@ async function extrairLetraLetrasMusDireto(pathRaw) {
 
   let html;
   try {
-    html = await fetchHtmlLetrasMus(dns, slug);
+    html = await fetchHtmlLetrasMus(dns, slug, signal);
   } catch (e) {
-    return { erro: e?.message || 'Letras.mus.br indisponível.' };
+    if (e?.motivo === 'cancelado') throw e;
+    return { erro: e?.message || 'Letras.mus.br indisponível.', motivo: e?.motivo || null };
   }
 
   let estrofes = estrofesDePaginaLetrasMusHtml(html);
@@ -1088,32 +1237,86 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
 
   const fonteNorm = normalizarFonteLetras(opts.fonte);
   const hostControlador = opts.hostControlador ? String(opts.hostControlador).trim() : '';
-  if (hostControlador) {
-    const base = urlApiControlador(hostControlador);
-    if (base) {
-      try {
-        const res = await fetchComTimeout(`${base}/api/letras/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: trimmed, fonte: fonteNorm }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (!data?.erro && Array.isArray(data.estrofes) && data.estrofes.length) {
-            return {
-              titulo: data.titulo || '',
-              artista: data.artista || '',
-              estrofes: normalizarEstrofesQuatroLinhas(data.estrofes),
-              path: data.path || trimmed,
-            };
-          }
-        }
-      } catch (_) {}
-    }
+  const base = hostControlador ? urlApiControlador(hostControlador) : '';
+
+  const tarefas = [];
+
+  if (base) {
+    tarefas.push({
+      nome: 'controlador',
+      executar: (signal) => previewViaControlador({ base, path: trimmed, fonte: fonteNorm, signal }),
+    });
   }
 
+  tarefas.push({
+    nome: 'web',
+    executar: (signal) => previewDiretoNaWeb(trimmed, fonteNorm, signal),
+  });
+
+  const { vencedor, valor, falhas } = await corridaPrimeiroNaoVazio(
+    tarefas,
+    (v) => Array.isArray(v?.estrofes) && v.estrofes.length > 0
+  );
+
+  if (vencedor) return { ...valor, via: vencedor };
+
+  const daWeb = falhasDaWeb(falhas);
+  const bloqueado = daWeb.some(falhaEhBloqueio);
+  if (bloqueado) {
+    return {
+      erro: base
+        ? 'Cifra Club bloqueou o celular (403). Verifique se o controlador está aberto no PC e na mesma rede.'
+        : 'Cifra Club bloqueou o acesso a partir desta rede (403). Em Wi‑Fi da igreja, conecte ao IP do controlador na tela inicial para baixar pelo PC.',
+      falhas,
+      diagnostico: resumirFalhas(falhas),
+    };
+  }
+
+  const semRede = daWeb.some((f) => f?.motivo === 'timeout' || f?.motivo === 'rede');
+  return {
+    erro: semRede
+      ? 'Sem resposta da Internet ao baixar a letra. Verifique a conexão e tente novamente.'
+      : 'Não foi possível ler a letra (Cifra Club e Letras.mus.br falharam).',
+    falhas,
+    diagnostico: resumirFalhas(falhas),
+  };
+}
+
+/** Prévia pela API do PC (porta 3001). Só alcançável na LAN. */
+async function previewViaControlador({ base, path, fonte, signal }) {
+  const res = await fetchComTimeout(
+    `${base}/api/letras/preview`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, fonte }),
+      signal,
+      rotulo: 'controlador/preview',
+    },
+    TIMEOUT_CONTROLADOR_MS
+  );
+
+  if (!res.ok) {
+    return { erro: `controlador HTTP ${res.status}`, motivo: 'controlador' };
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (data?.erro || !Array.isArray(data.estrofes) || !data.estrofes.length) {
+    return { erro: data?.erro || 'controlador sem estrofes', motivo: 'controlador' };
+  }
+
+  return {
+    titulo: data.titulo || '',
+    artista: data.artista || '',
+    estrofes: normalizarEstrofesQuatroLinhas(data.estrofes),
+    path: data.path || path,
+  };
+}
+
+/** Extração direta no celular (CifraClub com fallback no Letras.mus.br). */
+async function previewDiretoNaWeb(trimmed, fonteNorm, signal) {
   if (fonteNorm === 'letras-mus-br') {
-    return extrairLetraLetrasMusDireto(trimmed);
+    return extrairLetraLetrasMusDireto(trimmed, signal);
   }
 
   const pathNormCifra = parseCaminhoLetraCifraClub(
@@ -1125,8 +1328,12 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
   const dns = seg[0] || '';
   const songSlug = seg[1] || '';
 
-  const { html, bloqueado } = await fetchHtmlLetraCifraClubComFallback(pathNormCifra);
+  const { html, bloqueado, falhas: falhasCifra } = await fetchHtmlLetraCifraClubComFallback(
+    pathNormCifra,
+    signal
+  );
 
+  const falhas = [...(falhasCifra || [])];
   let estrofes = [];
   let tituloLetras = '';
   let artistaLetras = '';
@@ -1137,10 +1344,16 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
   }
 
   if (!estrofes.length && dns && songSlug) {
-    const slugs = html ? slugsLetrasParaTentar(html, dns, songSlug) : [songSlug];
+    // Limitado a MAX_SLUGS_ALTERNATIVOS: antes, cada tentativa custava um timeout
+    // completo e a lista era ilimitada — a origem do pior caso de ~130s.
+    const slugs = (html ? slugsLetrasParaTentar(html, dns, songSlug) : [songSlug]).slice(
+      0,
+      MAX_SLUGS_ALTERNATIVOS
+    );
     for (const slugTry of slugs) {
+      if (signal?.aborted) break;
       try {
-        const hl = await fetchHtmlLetrasMus(dns, slugTry);
+        const hl = await fetchHtmlLetrasMus(dns, slugTry, signal);
         estrofes = estrofesDePaginaLetrasMusHtml(hl);
         if (!estrofes.length) estrofes = estrofesDeTextoLetrasMetaEOg(hl);
         if (estrofes.length) {
@@ -1149,30 +1362,29 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
           artistaLetras = pa.artista;
           break;
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e?.motivo === 'cancelado') throw e;
+        falhas.push({ hop: 'letras/pagina', erro: e?.message || String(e), motivo: e?.motivo || null });
+      }
     }
   }
 
   if (!estrofes.length) {
-    if (bloqueado) {
-      return {
-        erro: hostControlador
-          ? 'Cifra Club bloqueou o celular (403). Verifique se o controlador está aberto no PC.'
-          : 'Cifra Club bloqueou o acesso (403). Conecte na tela inicial ao IP do controlador para buscar pelo PC.',
-      };
-    }
-    return { erro: 'Não foi possível ler a letra (Cifra e Letras.mus.br falharam).' };
+    return {
+      erro: bloqueado ? 'Cifra Club bloqueou o acesso (403).' : 'Letra não encontrada nas fontes.',
+      motivo: bloqueado ? 'bloqueado' : null,
+      falhas,
+    };
   }
 
   estrofes = normalizarEstrofesQuatroLinhas(estrofes);
 
-  const { titulo: tHtml, artista: aHtml } = html ? tituloArtistaDoHtmlCifra(html) : { titulo: '', artista: '' };
+  const { titulo: tHtml, artista: aHtml } = html
+    ? tituloArtistaDoHtmlCifra(html)
+    : { titulo: '', artista: '' };
   const titulo =
-    String(tituloLetras || tHtml || '').trim() ||
-    slugParaTituloExibicao(seg[1] || '') ||
-    'Sem título';
-  const artista =
-    String(artistaLetras || aHtml || '').trim() || slugParaTituloExibicao(seg[0] || '');
+    String(tituloLetras || tHtml || '').trim() || slugParaTituloExibicao(songSlug) || 'Sem título';
+  const artista = String(artistaLetras || aHtml || '').trim() || slugParaTituloExibicao(dns);
 
   const pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return { titulo, artista, estrofes, path: pathNorm };

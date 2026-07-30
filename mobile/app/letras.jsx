@@ -32,10 +32,12 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import {
   buscarLetrasNaWeb,
   extrairLetraParaPreviewOuImport,
 } from '../src/letrasWebClient';
+import { formatarRegistrosRede } from '../src/diagnosticoRede';
 import { criarMusicaLocalCompleta } from '../src/localMusicStore';
 import CultoSelectModal from '../src/CultoSelectModal';
 import { COLORS, FONTS } from '../src/theme';
@@ -65,6 +67,11 @@ export default function LetrasMusScreen() {
   const [filtroLetra, setFiltroLetra] = useState(false);
   const [resultados, setResultados] = useState([]);
   const [buscando, setBuscando] = useState(false);
+  /** Explica uma lista vazia: bloqueio, falta de rede ou realmente nada encontrado. */
+  const [avisoVazio, setAvisoVazio] = useState('');
+  /** Log de rede por hop, para relatar bug sem precisar de build de desenvolvimento. */
+  const [modalDiag, setModalDiag] = useState(false);
+  const [textoDiag, setTextoDiag] = useState('');
   /** `cifraclub` (padrão) ou `letras-mus-br` */
   const [fonteLetras, setFonteLetras] = useState('cifraclub');
 
@@ -101,6 +108,23 @@ export default function LetrasMusScreen() {
     setFonteLetras(f);
     AsyncStorage.setItem(LS_LETRAS_SITE_FONTE, f).catch(() => {});
     setResultados([]);
+    setAvisoVazio('');
+  }
+
+  /** Abre o log dos últimos hops de rede (status, duração, bytes, erro). */
+  function abrirDiagnostico() {
+    const log = formatarRegistrosRede();
+    setTextoDiag(log || 'Nenhum hop de rede registrado ainda.');
+    setModalDiag(true);
+  }
+
+  async function copiarDiagnostico() {
+    try {
+      await Clipboard.setStringAsync(textoDiag);
+      Alert.alert('Diagnóstico', 'Log copiado. Cole no relato do problema.');
+    } catch (e) {
+      Alert.alert('Diagnóstico', 'Não foi possível copiar.');
+    }
   }
 
   function labelFonteLetras() {
@@ -149,8 +173,9 @@ export default function LetrasMusScreen() {
     }
 
     setBuscando(true);
+    setAvisoVazio('');
     try {
-      const { resultados: lista } = await buscarLetrasNaWeb({
+      const resposta = await buscarLetrasNaWeb({
         q: texto,
         titulo: filtroTitulo,
         artista: filtroArtista,
@@ -158,10 +183,29 @@ export default function LetrasMusScreen() {
         fonte: fonteLetras,
         hostControlador: hostControladorRef.current,
       });
+
+      const lista = Array.isArray(resposta.resultados) ? resposta.resultados : [];
       setResultados(lista);
+
+      // Lista vazia tem três causas muito diferentes. Antes todas apareciam como
+      // "Use BUSCAR para ver resultados do site", o que escondia o bug em 4G/5G.
+      if (lista.length === 0) {
+        if (resposta.bloqueado) {
+          setAvisoVazio(
+            `O ${labelFonteLetras()} ou o Yahoo bloquearam a busca a partir desta rede. ` +
+              'Isso é comum em dados móveis (4G/5G). Tente pelo Wi‑Fi, ou conecte ao IP do controlador na tela inicial para buscar pelo PC.'
+          );
+        } else if (resposta.semRede) {
+          setAvisoVazio('Sem resposta da Internet. Verifique a conexão e tente de novo.');
+        } else {
+          setAvisoVazio(`Nenhum resultado para "${texto}" no ${labelFonteLetras()}.`);
+        }
+        if (__DEV__ && resposta.diagnostico) console.log('[busca] ', resposta.diagnostico);
+      }
     } catch (e) {
       Alert.alert('Busca', mensagemWebDiretaFalhou(e));
       setResultados([]);
+      setAvisoVazio(mensagemWebDiretaFalhou(e));
     } finally {
       setBuscando(false);
     }
@@ -427,7 +471,16 @@ export default function LetrasMusScreen() {
         contentContainerStyle={{ padding: 12, paddingBottom: 32 }}
         ListEmptyComponent={
           !buscando ? (
-            <Text style={styles.emptyHint}>Use BUSCAR para ver resultados do site.</Text>
+            <View>
+              <Text style={[styles.emptyHint, avisoVazio && styles.emptyAviso]}>
+                {avisoVazio || 'Use BUSCAR para ver resultados do site.'}
+              </Text>
+              {avisoVazio ? (
+                <TouchableOpacity style={styles.diagBtn} onPress={abrirDiagnostico}>
+                  <Text style={styles.diagBtnTxt}>VER DETALHES TÉCNICOS</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null
         }
       />
@@ -479,6 +532,29 @@ export default function LetrasMusScreen() {
                 ) : (
                   <Text style={styles.btnPriTxt}>GUARDAR NO CELULAR</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de diagnóstico de rede — mostra o que cada hop respondeu */}
+      <Modal visible={modalDiag} animationType="slide" transparent onRequestClose={() => setModalDiag(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>Diagnóstico de rede</Text>
+            <Text style={styles.modalNota}>
+              Últimas requisições, mais recente primeiro: hop · endereço · status HTTP · duração · bytes · erro.
+            </Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.diagTxt}>{textoDiag}</Text>
+            </ScrollView>
+            <View style={styles.modalBotoes}>
+              <TouchableOpacity style={styles.btnSec} onPress={() => setModalDiag(false)}>
+                <Text style={styles.btnSecTxt}>FECHAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnPri} onPress={copiarDiagnostico}>
+                <Text style={styles.btnPriTxt}>COPIAR</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -613,6 +689,28 @@ const styles = StyleSheet.create({
   },
   btnPriTxt: { color: COLORS.onAccent, fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 1 },
   emptyHint: { textAlign: 'center', color: COLORS.textDim, marginTop: 24, fontFamily: FONTS.regular, fontSize: 14 },
+  emptyAviso: {
+    color: COLORS.accent2,
+    textAlign: 'left',
+    lineHeight: 20,
+    paddingHorizontal: 4,
+  },
+  diagBtn: {
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  diagBtnTxt: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 1 },
+  diagTxt: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(42,38,34,0.55)',

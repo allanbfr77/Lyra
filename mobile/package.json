@@ -9,7 +9,8 @@
     "start:tunnel:clear": "expo start --tunnel --clear",
     "adb:reverse": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8083 tcp:8083",
     "android": "expo start --android",
-    "build": "eas build --platform android --profile preview"
+    "build": "eas build --platform android --profile preview",
+    "test": "node --no-warnings --experimental-detect-module src/letrasWebClient.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
