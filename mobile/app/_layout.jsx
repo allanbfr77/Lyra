@@ -79,7 +79,7 @@ export default function Layout() {
           <Stack.Screen name="home" options={{ title: 'Lyra', headerShown: false }} />
           <Stack.Screen name="musicas" options={{ title: 'MÚSICAS' }} />
           <Stack.Screen name="cultos" options={{ title: 'CULTOS & PLAYLISTS' }} />
-          <Stack.Screen name="letras" options={headerComBotaoInicio('CIFRA CLUB')} />
+          <Stack.Screen name="letras" options={headerComBotaoInicio('BUSCA ONLINE')} />
           <Stack.Screen name="biblia" options={{ title: 'BÍBLIA SAGRADA' }} />
           <Stack.Screen name="estrofes" options={{ title: 'ESTROFES' }} />
           <Stack.Screen name="local" options={headerComBotaoInicio('BIBLIOTECA LOCAL')} />

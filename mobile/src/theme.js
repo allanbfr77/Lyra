@@ -32,6 +32,8 @@ export const COLORS = {
   red: '#b03028',
   /** Amarelo para alertas */
   yellow: '#c48800',
+  /** Fundo suave âmbar — caixas de alerta (borda: `yellow`, texto: `accent2`) */
+  amberBg: '#fcf0de',
   /** Texto sobre botões primary (fundo accent) */
   onAccent: '#1a1612',
   /** Branco puro — para textos sobre fundos escuros */

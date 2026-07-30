@@ -26,7 +26,6 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Switch,
   Alert,
   Keyboard,
 } from 'react-native';
@@ -40,7 +39,15 @@ import {
 import { formatarRegistrosRede } from '../src/diagnosticoRede';
 import { criarMusicaLocalCompleta } from '../src/localMusicStore';
 import CultoSelectModal from '../src/CultoSelectModal';
+import SegmentedControl from '../src/SegmentedControl';
+import ChipToggle from '../src/ChipToggle';
 import { COLORS, FONTS } from '../src/theme';
+
+/** Fontes disponíveis para o segmented control (valores iguais aos usados na busca). */
+const FONTES_LETRAS = [
+  { valor: 'cifraclub', label: 'CifraClub' },
+  { valor: 'letras-mus-br', label: 'Letras.mus.br' },
+];
 
 const LS_LETRAS_SITE_FONTE = 'lyra_letras_site_fonte';
 
@@ -370,51 +377,38 @@ export default function LetrasMusScreen() {
   const header = (
     <View style={styles.headerBlock}>
       <Text style={styles.ajuda}>
-        Busca na web (<Text style={styles.ajudaStrong}>{labelFonteLetras()}</Text>){' '}
-        <Text style={styles.ajudaStrong}>neste aparelho</Text>. Ao guardar, a música entra na{' '}
-        <Text style={styles.ajudaStrong}>biblioteca local</Text>; em casa use «Compartilhar com PC» e na igreja «Importar via Código».
+        Busque no Cifra Club ou Letras.mus.br e guarde na biblioteca.
       </Text>
 
-      <Text style={styles.ajudaRede}>
-        Precisa de Internet (Wi‑Fi ou dados).
-      </Text>
+      {/* Seletor de fonte — segmented control, lado ativo preenchido */}
+      <SegmentedControl
+        opcoes={FONTES_LETRAS}
+        valor={fonteLetras}
+        onChange={escolherFonteLetras}
+        style={styles.segmented}
+      />
 
-      <View style={styles.fonteRow}>
-        <TouchableOpacity
-          style={[styles.fonteBtn, fonteLetras === 'cifraclub' && styles.fonteBtnAtivo]}
-          onPress={() => escolherFonteLetras('cifraclub')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: fonteLetras === 'cifraclub' }}
-        >
-          <Text style={[styles.fonteBtnTxt, fonteLetras === 'cifraclub' && styles.fonteBtnTxtAtivo]}>CifraClub</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.fonteBtn, fonteLetras === 'letras-mus-br' && styles.fonteBtnAtivo]}
-          onPress={() => escolherFonteLetras('letras-mus-br')}
-          accessibilityRole="button"
-          accessibilityState={{ selected: fonteLetras === 'letras-mus-br' }}
-        >
-          <Text style={[styles.fonteBtnTxt, fonteLetras === 'letras-mus-br' && styles.fonteBtnTxtAtivo]}>
-            Letras.mus.br
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Switches de critério de busca */}
-      <View style={styles.filtroRow}>
-        <Text style={styles.filtroLabel}>Música (título)</Text>
-        <Switch value={filtroTitulo} onValueChange={setFiltroTitulo} trackColor={{ false: COLORS.border, true: COLORS.accent }} />
-      </View>
-      <View style={styles.filtroRow}>
-        <Text style={styles.filtroLabel}>Artista</Text>
-        <Switch value={filtroArtista} onValueChange={setFiltroArtista} trackColor={{ false: COLORS.border, true: COLORS.accent }} />
-      </View>
-      <View style={styles.filtroRow}>
-        <Text style={styles.filtroLabel}>Letra (trecho)</Text>
-        <Switch value={filtroLetra} onValueChange={setFiltroLetra} trackColor={{ false: COLORS.border, true: COLORS.accent }} />
+      {/* Critérios de busca — mesmos toggles, agora como chips compactos */}
+      <Text style={styles.filtrosLabel}>BUSCAR POR</Text>
+      <View style={styles.chipsWrap}>
+        <ChipToggle
+          label="Música"
+          ativo={filtroTitulo}
+          onToggle={() => setFiltroTitulo(!filtroTitulo)}
+        />
+        <ChipToggle
+          label="Artista"
+          ativo={filtroArtista}
+          onToggle={() => setFiltroArtista(!filtroArtista)}
+        />
+        <ChipToggle
+          label="Letra (trecho)"
+          ativo={filtroLetra}
+          onToggle={() => setFiltroLetra(!filtroLetra)}
+        />
       </View>
 
-      {/* Campo de busca com botão */}
+      {/* Campo de busca com botão — ação principal, logo abaixo dos filtros */}
       <View style={styles.buscaRow}>
         <TextInput
           style={styles.buscaInput}
@@ -439,6 +433,8 @@ export default function LetrasMusScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {resultados.length ? <Text style={styles.resultadosLabel}>RESULTADOS</Text> : null}
     </View>
   );
 
@@ -592,57 +588,38 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   headerBlock: { marginBottom: 8 },
   ajuda: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textDim,
-    lineHeight: 18,
-    marginBottom: 10,
+    lineHeight: 19,
+    marginBottom: 14,
     fontFamily: FONTS.regular,
   },
   ajudaStrong: { fontFamily: FONTS.semibold, color: COLORS.text },
-  ajudaRede: {
+  segmented: { marginBottom: 16 },
+  filtrosLabel: {
     fontSize: 11,
-    color: COLORS.accent2,
-    lineHeight: 17,
-    marginBottom: 12,
-    fontFamily: FONTS.regular,
-  },
-  fonteRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  fonteBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-  },
-  fonteBtnAtivo: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.surface2,
-  },
-  fonteBtnTxt: {
-    fontSize: 12,
+    letterSpacing: 1,
     color: COLORS.textDim,
     fontFamily: FONTS.semibold,
+    marginBottom: 8,
+    marginLeft: 2,
   },
-  fonteBtnTxtAtivo: {
-    color: COLORS.accent,
-  },
-  filtroRow: {
+  chipsWrap: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
   },
-  filtroLabel: { fontSize: 14, color: COLORS.text, fontFamily: FONTS.regular },
-  buscaRow: { flexDirection: 'row', gap: 8, marginTop: 14, alignItems: 'center' },
+  resultadosLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: COLORS.textDim,
+    fontFamily: FONTS.semibold,
+    marginTop: 22,
+    marginBottom: 4,
+    marginLeft: 2,
+  },
+  buscaRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   buscaInput: {
     flex: 1,
     backgroundColor: COLORS.surface,

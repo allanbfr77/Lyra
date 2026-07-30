@@ -31,6 +31,7 @@ import {
 import { publicarPlaylistNaNuvem } from '../src/lyraShare';
 import CodigoShareModal from '../src/CodigoShareModal';
 import CultoSelectModal from '../src/CultoSelectModal';
+import CardAcao from '../src/CardAcao';
 import { COLORS, FONTS } from '../src/theme';
 
 /** Se todas as músicas tiverem o mesmo cultoId, devolve esse culto. */
@@ -220,38 +221,38 @@ export default function BibliotecaLocalScreen() {
   const listHeader = (
     <>
       <Text style={styles.intro}>
-        Cadastre manualmente ou busque na internet. Em casa, use «Compartilhar com PC» para gerar o código; na igreja,
-        conecte ao controlador e use «Importar via Código» na tela logada.
+        Adicione músicas manualmente ou busque online.
       </Text>
 
-      <TouchableOpacity
-        style={[styles.btnCompartilharPc, compartilhando && styles.btnCompartilharPcDisabled]}
-        onPress={compartilharComPc}
-        disabled={compartilhando}
-        activeOpacity={0.85}
-      >
-        {compartilhando ? (
-          <ActivityIndicator color={COLORS.accent} />
-        ) : (
-          <Text style={styles.btnCompartilharPcTxt}>COMPARTILHAR COM PC</Text>
-        )}
-      </TouchableOpacity>
+      {/* GRUPO: adicionar música — mesma família de ação */}
+      <View style={styles.grupoAdicionar}>
+        <Text style={styles.grupoLabel}>ADICIONAR MÚSICA</Text>
 
-      {/* Atalho para a busca no Cifra Club */}
-      <TouchableOpacity
-        style={styles.cardLetras}
-        onPress={abrirBuscaCifraClub}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.cardLetrasIcon}>♫</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardLetrasTit}>Buscar em Cifra Club</Text>
-          <Text style={styles.cardLetrasSub}>
-            Busca na internet neste aparelho e guarda aqui; depois compartilhe com o PC para levar à igreja.
-          </Text>
-        </View>
-        <Text style={styles.cardLetrasArrow}>›</Text>
-      </TouchableOpacity>
+        {/* Ação mais frequente: botão sólido */}
+        <TouchableOpacity style={styles.btnNova} onPress={novaMusica} activeOpacity={0.85}>
+          <Text style={styles.btnNovaTxt}>+ NOVA MÚSICA (MANUAL)</Text>
+        </TouchableOpacity>
+
+        <CardAcao
+          icone="♫"
+          titulo="Buscar online"
+          descricao="Busca na internet e guarda aqui neste aparelho."
+          onPress={abrirBuscaCifraClub}
+        />
+      </View>
+
+      {/* Ação de sincronização — isolada do grupo de adicionar */}
+      <CardAcao
+        icone="⇅"
+        titulo="Compartilhar com PC"
+        descricao="Gera código para importar na igreja."
+        onPress={compartilharComPc}
+        carregando={compartilhando}
+        style={styles.cardCompartilhar}
+      />
+
+      {/* Divisória: separa as ações da lista de músicas já salvas */}
+      <View style={styles.divisoria} />
 
       {/* Campo de filtro local */}
       <View style={styles.searchBox}>
@@ -265,10 +266,7 @@ export default function BibliotecaLocalScreen() {
         />
       </View>
 
-      {/* Botão de nova música em branco */}
-      <TouchableOpacity style={styles.btnNova} onPress={novaMusica}>
-        <Text style={styles.btnNovaTxt}>+ Nova música (manual)</Text>
-      </TouchableOpacity>
+      <Text style={styles.listaLabel}>MÚSICAS SALVAS</Text>
     </>
   );
 
@@ -296,7 +294,7 @@ export default function BibliotecaLocalScreen() {
       keyboardDismissMode="on-drag"
       contentContainerStyle={styles.listPad}
       ListEmptyComponent={
-        <Text style={styles.empty}>Nenhuma música local. Use o Cifra Club ou «Nova música».</Text>
+        <Text style={styles.empty}>Nenhuma música local. Use «Buscar online» ou «Nova música».</Text>
       }
       renderItem={({ item }) => (
         <View style={styles.row}>
@@ -313,7 +311,7 @@ export default function BibliotecaLocalScreen() {
             <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
 
-          {/* Botão de exclusão com ícone */}
+          {/* Botão de exclusão — separado do chevron por borda + folga, para evitar toque errado */}
           <TouchableOpacity style={styles.btnLixo} onPress={() => confirmarExcluir(item)}>
             <Text style={styles.btnLixoTxt}>🗑</Text>
           </TouchableOpacity>
@@ -347,76 +345,77 @@ const styles = StyleSheet.create({
   listPad: { paddingBottom: 32 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   intro: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textDim,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 12,
+    paddingBottom: 16,
     lineHeight: 18,
     fontFamily: FONTS.regular,
   },
-  btnCompartilharPc: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: COLORS.surface2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  btnCompartilharPcTxt: {
-    fontFamily: FONTS.bold,
+
+  // --- Bloco de ações ---
+  grupoAdicionar: { marginHorizontal: 16, marginBottom: 16 },
+  grupoLabel: {
     fontSize: 11,
-    letterSpacing: 2,
-    color: COLORS.accent,
+    letterSpacing: 1.5,
+    color: COLORS.textDim,
+    fontFamily: FONTS.semibold,
+    marginBottom: 8,
+    marginLeft: 2,
   },
-  btnCompartilharPcDisabled: { opacity: 0.6 },
-  cardLetras: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: COLORS.surface2,
+  btnNova: {
+    backgroundColor: COLORS.accent,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  cardLetrasIcon: { fontSize: 22, color: COLORS.accent },
-  cardLetrasTit: { fontFamily: FONTS.bold, fontSize: 11, letterSpacing: 1.5, color: COLORS.accent },
-  cardLetrasSub: { fontFamily: FONTS.regular, fontSize: 11, color: COLORS.textDim, marginTop: 4, lineHeight: 16 },
-  cardLetrasArrow: { fontSize: 22, color: COLORS.accent },
+  btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
+  cardCompartilhar: { marginHorizontal: 16, marginBottom: 16 },
+
+  // --- Separação entre ações e lista ---
+  divisoria: { height: 1, backgroundColor: COLORS.border, marginHorizontal: 16, marginBottom: 14 },
+  listaLabel: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: COLORS.textDim,
+    fontFamily: FONTS.semibold,
+    marginHorizontal: 18,
+    marginBottom: 8,
+  },
+
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
   },
   searchIcon: { fontSize: 18, color: COLORS.textDim },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
-  btnNova: {
-    marginHorizontal: 16,
-    marginVertical: 10,
-    backgroundColor: COLORS.accent,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, letterSpacing: 2 },
+
+  // --- Lista ---
   sep: { height: 1, backgroundColor: COLORS.border, marginLeft: 16 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingLeft: 16 },
   tit: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.semibold },
   art: { fontSize: 13, color: COLORS.textDim, marginTop: 2, fontFamily: FONTS.regular },
   meta: { fontSize: 11, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
-  arrow: { fontSize: 22, color: COLORS.accent2, paddingRight: 8 },
-  btnLixo: { paddingHorizontal: 14, paddingVertical: 14 },
+  arrow: { fontSize: 22, color: COLORS.accent2, paddingHorizontal: 12 },
+  btnLixo: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginLeft: 4,
+    borderLeftWidth: 1, // Separador visual: reduz risco de toque errado no chevron
+    borderLeftColor: COLORS.border,
+  },
   btnLixoTxt: { fontSize: 18 },
   empty: { color: COLORS.textDim, padding: 24, textAlign: 'center', fontStyle: 'italic', fontFamily: FONTS.regular },
 });

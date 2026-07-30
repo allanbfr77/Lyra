@@ -19,6 +19,8 @@ import { useSocketContext } from '../src/SocketProvider';
 import { COLORS, FONTS } from '../src/theme';
 import { normalizarHost } from '../src/lyraEndpoints';
 import { playlistTemMusicas } from '../src/playlistItens';
+import NetworkWarning from '../src/NetworkWarning';
+import ConfigAvancadasModal from '../src/ConfigAvancadasModal';
 
 // --- Estado global do IP (socket em SocketProvider) ---
 
@@ -54,9 +56,11 @@ function normalizarHostServidor(valor) {
  *
  * Estado local:
  * - `ip` — endereço digitado pelo usuário para conectar ao servidor
+ * - `configAberta` — visibilidade do modal de configurações avançadas (portas)
  */
 export default function HomeScreen() {
   const [ip, setIp] = useState('');
+  const [configAberta, setConfigAberta] = useState(false);
 
   // Hook que gerencia o ciclo de vida do Socket.IO
   const {
@@ -136,25 +140,51 @@ export default function HomeScreen() {
           <Text style={styles.logoVersao}>v1.0 · App mobile</Text>
         </View>
 
-        {/* Card de acesso à biblioteca local (sempre visível, sem precisar de servidor) */}
-        <TouchableOpacity
-          style={styles.cardLocal}
-          onPress={() => router.push('/local')}
-          activeOpacity={0.85}
-        >
-          
+        {/* CARD PRIMÁRIO — biblioteca local (sempre acessível, sem precisar de servidor) */}
+        <View style={styles.cardLocal}>
           <Text style={styles.cardLocalTitle}>BIBLIOTECA LOCAL</Text>
           <Text style={styles.cardLocalSub}>
-            Cadastro manual, Cifra Club e «Compartilhar com PC» para gerar o código. Na igreja, conecte e use
-            «Importar via Código» na tela logada.
+            Cadastre músicas manualmente ou importe do Cifra Club.
           </Text>
-          <Text style={styles.cardLocalTap}>Abrir biblioteca local ›</Text>
-        </TouchableOpacity>
 
-        {/* Card de configuração do servidor (opcional) */}
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimary]}
+            onPress={() => router.push('/local')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.btnPrimaryTxt}>ABRIR BIBLIOTECA</Text>
+          </TouchableOpacity>
+
+          <View style={styles.chipRow}>
+            <Text style={styles.chip}>Importar via código</Text>
+            <Text style={styles.chipNota}>disponível na tela logada</Text>
+          </View>
+        </View>
+
+        {/* CARD SECUNDÁRIO — controlador (opcional) */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>CONTROLADOR (OPCIONAL)</Text>
-          <Text style={styles.label}>IP OU HOST DO PC CONTROLADOR</Text>
+          {/* Cabeçalho: label + badge de status */}
+          <View style={styles.cardHead}>
+            <Text style={styles.cardTitle}>CONTROLADOR (OPCIONAL)</Text>
+            <View style={styles.statusBadge}>
+              <View
+                style={[
+                  styles.dot,
+                  conectado ? styles.dotOnline : conectando ? styles.dotPending : styles.dotOff,
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statusTxt,
+                  conectado ? styles.statusTxtOnline : conectando ? styles.statusTxtPending : styles.statusTxtOff,
+                ]}
+              >
+                {conectando ? 'Conectando...' : conectado ? 'Conectado' : 'Desconectado'}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.label}>IP DO PC SERVIDOR</Text>
           <TextInput
             style={styles.input}
             value={ip}
@@ -165,41 +195,30 @@ export default function HomeScreen() {
             autoCorrect={false}
             editable={!conectado} // Bloqueia edição enquanto conectado
           />
-          <Text style={styles.hint}>
-            Dados (músicas, bíblia): porta 3001 · Projeção nas telas: porta 5510 (app Servidor no mesmo PC).{' '}
-            Use o IP do PC operador na rede da igreja (LAN).{' '}
-            <Text style={styles.hintEmph}>
-              Em 4G/5G, um IP 192.168.x não alcança o PC — ligue o Wi‑Fi da mesma rede.
-            </Text>
-          </Text>
+          <Text style={styles.hint}>Use o IP do PC servidor, na rede da igreja.</Text>
+
+          {/* Alerta de rede móvel — hoje sempre visível; futuramente `visible={isCellular}` (NetInfo) */}
+          <NetworkWarning visible />
 
           {/* Mensagem de erro de conexão */}
           {erro && <Text style={styles.erroTxt}>{erro}</Text>}
 
-          {/* Botão de conectar/desconectar */}
+          {/* Botão de conectar/desconectar — secundário (outline) */}
           {!conectado ? (
             <TouchableOpacity
-              style={[styles.btn, styles.btnPrimary, conectando && styles.btnDisabled]}
+              style={[styles.btn, styles.btnOutline, conectando && styles.btnDisabled]}
               onPress={handleConectar}
               disabled={conectando}
             >
               {conectando
-                ? <ActivityIndicator color={COLORS.onAccent} />
-                : <Text style={styles.btnPrimaryTxt}>CONECTAR</Text>}
+                ? <ActivityIndicator color={COLORS.textDim} />
+                : <Text style={styles.btnOutlineTxt}>CONECTAR</Text>}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={handleDesconectar}>
               <Text style={styles.btnDangerTxt}>DESCONECTAR</Text>
             </TouchableOpacity>
           )}
-
-          {/* Indicador de status da conexão */}
-          <View style={styles.statusRow}>
-            <View style={[styles.dot, conectado ? styles.dotOnline : styles.dotOff]} />
-            <Text style={styles.statusTxt}>
-              {conectando ? 'Conectando...' : conectado ? `Conectado · ${ip}` : 'Desconectado'}
-            </Text>
-          </View>
 
           {/* Resumo do catálogo recebido do controlador */}
           {conectado && catalogoRemoto?.cultos?.length ? (
@@ -211,9 +230,19 @@ export default function HomeScreen() {
             </Text>
           ) : null}
 
+          {/* Rodapé: detalhes técnicos (portas) fora da tela principal */}
+          <TouchableOpacity
+            style={styles.avancadas}
+            onPress={() => setConfigAberta(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.avancadasTxt}>Configurações avançadas</Text>
+          </TouchableOpacity>
         </View>
 
       </ScrollView>
+
+      <ConfigAvancadasModal visible={configAberta} onClose={() => setConfigAberta(false)} />
     </View>
   );
 }
@@ -228,56 +257,77 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderRadius: 18,
   },
+  // --- Card primário: biblioteca local ---
   cardLocal: {
     backgroundColor: COLORS.surface,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: 2, // Borda reforçada: elemento primário da tela
     borderColor: COLORS.accent,
-    padding: 16,
+    padding: 18,
     marginBottom: 16,
   },
-  cardLocalKicker: {
-    fontSize: 10,
-    letterSpacing: 2,
-    color: COLORS.accent2,
-    fontFamily: FONTS.semibold,
-    marginBottom: 6,
-  },
   cardLocalTitle: {
-    fontFamily: FONTS.semibold,
+    fontFamily: FONTS.bold,
     fontSize: 11,
     letterSpacing: 2,
-    color: COLORS.accent,
+    color: COLORS.accent2,
     marginBottom: 8,
   },
-  cardLocalSub: { fontSize: 12, color: COLORS.textDim, lineHeight: 18, fontFamily: FONTS.regular },
-  cardLocalTap: {
-    fontSize: 13,
-    color: COLORS.accent,
-    fontFamily: FONTS.semibold,
-    marginTop: 10,
-    marginBottom: 4,
+  cardLocalSub: {
+    fontSize: 14,
+    color: COLORS.textDim,
+    lineHeight: 20,
+    fontFamily: FONTS.regular,
+    marginBottom: 16,
   },
+  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2 },
+  chip: {
+    backgroundColor: COLORS.surface2,
+    color: COLORS.accent2,
+    fontFamily: 'monospace',
+    fontSize: 11,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  chipNota: { fontSize: 12, color: COLORS.textDim, fontFamily: FONTS.regular },
+
   logoVersao: { fontSize: 12, color: COLORS.textDim, marginTop: 8, letterSpacing: 1, fontFamily: FONTS.regular },
-  card: { backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 20, marginBottom: 16 },
-  cardTitle: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 3, color: COLORS.textDim, marginBottom: 16 },
-  label: { fontSize: 11, letterSpacing: 2, color: COLORS.textDim, fontFamily: FONTS.semibold, marginBottom: 6 },
-  input: { backgroundColor: COLORS.surface2, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, color: COLORS.text, padding: 12, fontSize: 16, fontFamily: 'monospace', marginBottom: 6 },
-  hint: { fontSize: 12, color: COLORS.textDim, marginBottom: 10, lineHeight: 18, fontFamily: FONTS.regular },
-  hintEmph: { fontFamily: FONTS.semibold, color: COLORS.accent2 },
-  hintDev: { fontSize: 11, color: COLORS.accent2, marginBottom: 16, lineHeight: 17, opacity: 0.95, fontFamily: FONTS.regular },
+
+  // --- Card secundário: controlador ---
+  card: { backgroundColor: COLORS.surface, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  cardTitle: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 2, color: COLORS.textDim },
+  label: { fontSize: 11, letterSpacing: 1, color: COLORS.textDim, fontFamily: FONTS.semibold, marginBottom: 6 },
+  input: { backgroundColor: COLORS.surface2, borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, color: COLORS.text, padding: 12, fontSize: 16, fontFamily: 'monospace', marginBottom: 10 },
+  hint: { fontSize: 13, color: COLORS.textDim, marginBottom: 14, lineHeight: 18, fontFamily: FONTS.regular },
   erroTxt: { color: COLORS.red, fontSize: 13, marginBottom: 12, lineHeight: 18, fontFamily: FONTS.regular },
-  btn: { borderRadius: 6, padding: 14, alignItems: 'center', marginBottom: 14 },
+
+  // --- Botões ---
+  btn: { borderRadius: 8, padding: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 14, minHeight: 48 },
   btnPrimary: { backgroundColor: COLORS.accent },
-  btnDisabled: { opacity: 0.6 },
   btnPrimaryTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
+  btnOutline: { borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: 'transparent' },
+  btnOutlineTxt: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2 },
+  btnDisabled: { opacity: 0.6 },
   btnDanger: { borderWidth: 1, borderColor: COLORS.red },
   btnDangerTxt: { color: COLORS.red, fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+
+  // --- Badge de status da conexão (topo do card do controlador) ---
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
   dotOnline: { backgroundColor: COLORS.green },
   dotOff: { backgroundColor: COLORS.red },
-  statusTxt: { fontSize: 13, color: COLORS.textDim, fontFamily: FONTS.regular },
+  dotPending: { backgroundColor: COLORS.yellow },
+  statusTxt: { fontSize: 11, letterSpacing: 0.3, fontFamily: FONTS.semibold },
+  statusTxtOnline: { color: COLORS.green },
+  statusTxtOff: { color: COLORS.red },
+  statusTxtPending: { color: COLORS.accent2 },
+
+  // --- Rodapé: detalhes técnicos ---
+  avancadas: { alignItems: 'center', paddingTop: 2, paddingBottom: 2 },
+  avancadasTxt: { fontSize: 12, color: COLORS.textDim, fontFamily: FONTS.regular, opacity: 0.8 },
   previewCard: { backgroundColor: COLORS.surface2, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 20, marginBottom: 16, alignItems: 'center' },
   previewCardDual: { alignItems: 'stretch' },
   previewBlackout: { backgroundColor: '#1a1612', borderColor: COLORS.border, justifyContent: 'center', minHeight: 100 },

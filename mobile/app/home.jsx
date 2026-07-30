@@ -31,7 +31,7 @@ import {
   solicitarPlaylistsDoControlador,
 } from '../src/playlistsControladorStore';
 import { limparBibliotecaLocalJaNoControlador } from '../src/localLimpezaControlador';
-import { IconMusicas, IconCultos, IconBiblia } from '../src/HubIcons';
+import { IconMusicas, IconCultos, IconBiblia, IconImportarCodigo } from '../src/HubIcons';
 import { COLORS, FONTS } from '../src/theme';
 
 const CARDS = [
@@ -68,6 +68,11 @@ export default function HomeLogadaScreen() {
     desconectar();
     limparGlobalIp();
     router.replace('/');
+  }
+
+  /** Volta na pilha de navegação — não mexe na conexão. */
+  function voltar() {
+    if (router.canGoBack()) router.back();
   }
 
   async function executarImportacaoComCulto(codigo, musicasDoCodigo, culto) {
@@ -164,42 +169,37 @@ export default function HomeLogadaScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Topo: apenas navegação — sem relação com desconectar */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={handleDesconectar} activeOpacity={0.85}>
-          <Text style={styles.backBtnTxt}>‹ VOLTAR / DESCONECTAR</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={voltar} activeOpacity={0.85}>
+          <Text style={styles.backBtnTxt}>‹ VOLTAR</Text>
         </TouchableOpacity>
-        {ip ? (
-          <View style={styles.conectadoBadge}>
+      </View>
+
+      {/* Status da conexão + gatilho de desconectar, isolado da navegação */}
+      {ip ? (
+        <View style={styles.statusCard}>
+          <View style={styles.statusLeft}>
             <View style={styles.conectadoDot} />
             <Text style={styles.conectadoBadgeTxt} numberOfLines={1}>
-              Conectado · {ip}
+              Conectado · <Text style={styles.statusIp}>{ip}</Text>
             </Text>
           </View>
-        ) : null}
-      </View>
+          <TouchableOpacity
+            style={styles.btnDesconectar}
+            onPress={handleDesconectar}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Desconectar do controlador"
+          >
+            <Text style={styles.btnDesconectarTxt}>DESCONECTAR</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Text style={styles.titulo}>O QUE DESEJA ABRIR?</Text>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.importCard}>
-          <Text style={styles.importTitle}>IMPORTAR VIA CÓDIGO</Text>
-          <Text style={styles.importSub}>
-            Cole o código gerado em «Compartilhar com PC» (celular ou controlador).
-          </Text>
-          <TouchableOpacity
-            style={[styles.btnImport, importandoCodigo && styles.btnDisabled]}
-            onPress={() => setImportCodigoModal(true)}
-            disabled={importandoCodigo || !ip.trim()}
-            activeOpacity={0.85}
-          >
-            {importandoCodigo ? (
-              <ActivityIndicator color={COLORS.onAccent} />
-            ) : (
-              <Text style={styles.btnImportTxt}>IMPORTAR VIA CÓDIGO</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
         {CARDS.map((card) => {
           const Icon = card.Icon;
           return (
@@ -213,9 +213,33 @@ export default function HomeLogadaScreen() {
                 <Icon size={44} />
               </View>
               <Text style={styles.cardLabel}>{card.label}</Text>
+              <Text style={styles.cardChevron}>›</Text>
             </TouchableOpacity>
           );
         })}
+
+        {/* Divisor: separa a navegação do dia a dia da ação de uso raro */}
+        <View style={styles.divisorWrap}>
+          <View style={styles.divisorLinha} />
+          <Text style={styles.divisorLabel}>OCASIONAL</Text>
+          <View style={styles.divisorLinha} />
+        </View>
+
+        {/* Importar via código — mesmo card dos demais; o fluxo abre no CodigoShareModal */}
+        <TouchableOpacity
+          style={[styles.card, (importandoCodigo || !ip.trim()) && styles.btnDisabled]}
+          onPress={() => setImportCodigoModal(true)}
+          disabled={importandoCodigo || !ip.trim()}
+          activeOpacity={0.85}
+        >
+          <View style={styles.cardIconWrap}>
+            {importandoCodigo
+              ? <ActivityIndicator color={COLORS.accent} />
+              : <IconImportarCodigo size={44} />}
+          </View>
+          <Text style={styles.cardLabel}>IMPORTAR VIA CÓDIGO</Text>
+          <Text style={styles.cardChevron}>›</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <CultoSelectModal
@@ -243,51 +267,57 @@ export default function HomeLogadaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 56, paddingHorizontal: 20 },
-  topBar: { marginBottom: 24 },
-  backBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4, marginBottom: 8 },
+  topBar: { marginBottom: 12 },
+  backBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
   backBtnTxt: { fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 1.5, color: COLORS.accent },
-  conectadoBadge: {
+
+  // --- Card de status + desconectar ---
+  statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 8,
-    marginTop: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 22,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.green,
     backgroundColor: COLORS.surface,
   },
+  statusLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   conectadoDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.green },
   conectadoBadgeTxt: {
     flexShrink: 1,
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.green,
     fontFamily: FONTS.semibold,
     letterSpacing: 0.3,
   },
+  statusIp: { fontFamily: 'monospace', fontSize: 12 },
+  btnDesconectar: { paddingVertical: 4, paddingLeft: 8 },
+  btnDesconectarTxt: {
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    color: COLORS.red,
+  },
+
   titulo: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 3, color: COLORS.textDim, marginBottom: 20 },
   scrollContent: { paddingBottom: 40, gap: 14 },
-  importCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 16,
-  },
-  importTitle: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 2, color: COLORS.accent2, marginBottom: 8 },
-  importSub: { fontSize: 12, color: COLORS.textDim, lineHeight: 18, fontFamily: FONTS.regular, marginBottom: 12 },
-  btnImport: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    minHeight: 44,
-    justifyContent: 'center',
-  },
-  btnImportTxt: { color: COLORS.onAccent, fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 1, textAlign: 'center' },
   btnDisabled: { opacity: 0.6 },
+
+  // --- Divisor «ocasional» ---
+  divisorWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 0 },
+  divisorLinha: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  divisorLabel: {
+    fontFamily: FONTS.semibold,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: COLORS.textDim,
+  },
+
+  // --- Cards de navegação (idênticos entre si) ---
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 12,
@@ -308,4 +338,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardLabel: { flex: 1, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 2, color: COLORS.accent },
+  cardChevron: { fontSize: 22, color: COLORS.accent2 },
 });
