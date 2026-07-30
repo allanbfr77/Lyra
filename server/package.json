@@ -1,6 +1,6 @@
 {
   "name": "lyra-server",
-  "version": "1.0.5",
+  "version": "1.0.1",
   "description": "Servidor Lyra — gerencia telas e recebe comandos",
   "main": "src/main.js",
   "scripts": {
