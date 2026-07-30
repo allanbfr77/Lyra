@@ -32,6 +32,7 @@ import { publicarPlaylistNaNuvem } from '../src/lyraShare';
 import CodigoShareModal from '../src/CodigoShareModal';
 import CultoSelectModal from '../src/CultoSelectModal';
 import CardAcao from '../src/CardAcao';
+import { IconBusca, IconLixeira, IconChevron, IconNotaMusical, IconSincronizar } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 
 /** Se todas as músicas tiverem o mesmo cultoId, devolve esse culto. */
@@ -234,7 +235,7 @@ export default function BibliotecaLocalScreen() {
         </TouchableOpacity>
 
         <CardAcao
-          icone="♫"
+          Icone={IconNotaMusical}
           titulo="Buscar online"
           descricao="Busca na internet e guarda aqui neste aparelho."
           onPress={abrirBuscaCifraClub}
@@ -243,7 +244,7 @@ export default function BibliotecaLocalScreen() {
 
       {/* Ação de sincronização — isolada do grupo de adicionar */}
       <CardAcao
-        icone="⇅"
+        Icone={IconSincronizar}
         titulo="Compartilhar com PC"
         descricao="Gera código para importar na igreja."
         onPress={compartilharComPc}
@@ -256,7 +257,7 @@ export default function BibliotecaLocalScreen() {
 
       {/* Campo de filtro local */}
       <View style={styles.searchBox}>
-        <Text style={styles.searchIcon}>⌕</Text>
+        <IconBusca size={18} color={COLORS.textDim} />
         <TextInput
           style={styles.searchInput}
           value={busca}
@@ -308,12 +309,19 @@ export default function BibliotecaLocalScreen() {
                 {item.estrofes?.length || 0} slide(s)
               </Text>
             </View>
-            <Text style={styles.arrow}>›</Text>
+            <View style={styles.arrow}>
+              <IconChevron size={20} color={COLORS.accent2} />
+            </View>
           </TouchableOpacity>
 
           {/* Botão de exclusão — separado do chevron por borda + folga, para evitar toque errado */}
-          <TouchableOpacity style={styles.btnLixo} onPress={() => confirmarExcluir(item)}>
-            <Text style={styles.btnLixoTxt}>🗑</Text>
+          <TouchableOpacity
+            style={styles.btnLixo}
+            onPress={() => confirmarExcluir(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Remover ${item.titulo || 'música'} deste celular`}
+          >
+            <IconLixeira size={19} color={COLORS.red} />
           </TouchableOpacity>
         </View>
       )}
@@ -398,7 +406,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
   },
-  searchIcon: { fontSize: 18, color: COLORS.textDim },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
 
   // --- Lista ---
@@ -408,14 +415,15 @@ const styles = StyleSheet.create({
   tit: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.semibold },
   art: { fontSize: 13, color: COLORS.textDim, marginTop: 2, fontFamily: FONTS.regular },
   meta: { fontSize: 11, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
-  arrow: { fontSize: 22, color: COLORS.accent2, paddingHorizontal: 12 },
+  arrow: { paddingHorizontal: 12 },
   btnLixo: {
     paddingHorizontal: 18,
     paddingVertical: 16,
     marginLeft: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderLeftWidth: 1, // Separador visual: reduz risco de toque errado no chevron
     borderLeftColor: COLORS.border,
   },
-  btnLixoTxt: { fontSize: 18 },
   empty: { color: COLORS.textDim, padding: 24, textAlign: 'center', fontStyle: 'italic', fontFamily: FONTS.regular },
 });

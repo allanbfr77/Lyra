@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { isoFromCultoId, listarCultosDasPlaylists } from '../src/cultosMes';
+import { isoFromCultoId, listarCultosDasPlaylists, periodoDoCultoId } from '../src/cultosMes';
+import { IconSol, IconLua } from '../src/Icons';
 import {
   subscribePlaylistsDoControlador,
   solicitarPlaylistsDoControlador,
@@ -35,6 +36,18 @@ function tituloDataPt(iso) {
     year: 'numeric',
   });
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : iso;
+}
+
+/** Ícone que identifica o período do culto (manhã/noite). */
+function IconePeriodo({ chave }) {
+  if (chave === 'manha') return <IconSol size={14} color={COLORS.accent} />;
+  if (chave === 'noite') return <IconLua size={14} color={COLORS.accent2} />;
+  return null;
+}
+
+/** Total de músicas de uma seção (soma os blocos de tema). */
+function totalMusicasDaSecao(secao) {
+  return secao.blocos.reduce((n, b) => n + b.musicas.length, 0);
 }
 
 export default function CultosPlaylistsScreen() {
@@ -76,31 +89,34 @@ export default function CultosPlaylistsScreen() {
     }, [host])
   );
 
-  /** Datas com pelo menos uma música (marcadores de tema/ABERTURA não contam como música). */
-  const datasComPlaylist = useMemo(() => {
+  /**
+   * Um item por culto — domingo de manhã e domingo à noite são entradas
+   * independentes, cada uma com a própria data, playlist e expansão.
+   * Marcadores de tema/ABERTURA não contam como música.
+   */
+  const cultosComPlaylist = useMemo(() => {
     const cultos = listarCultosDasPlaylists(playlists);
-    const map = new Map();
+    const out = [];
     for (const c of cultos) {
       const pl = Array.isArray(playlists[c.id]) ? playlists[c.id] : [];
       if (!playlistTemMusicas(pl)) continue;
       const iso = isoFromCultoId(c.id);
       if (!iso) continue;
-      if (!map.has(iso)) map.set(iso, []);
-      map.get(iso).push({
+      out.push({
         culto: c,
+        iso,
+        periodo: periodoDoCultoId(c.id),
         blocos: playlistParaBlocos(pl),
       });
     }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([iso, secoes]) => ({ iso, secoes }));
+    return out;
   }, [playlists]);
 
-  /** Qual data está expandida (um toque abre, outro fecha). */
-  const [datasExpandidas, setDatasExpandidas] = useState(() => ({}));
+  /** Qual culto está expandido (um toque abre, outro fecha). */
+  const [cultosExpandidos, setCultosExpandidos] = useState(() => ({}));
 
-  function alternarData(iso) {
-    setDatasExpandidas((prev) => ({ ...prev, [iso]: !prev[iso] }));
+  function alternarCulto(cultoId) {
+    setCultosExpandidos((prev) => ({ ...prev, [cultoId]: !prev[cultoId] }));
   }
 
   function abrirMusica(m) {
@@ -137,64 +153,71 @@ export default function CultosPlaylistsScreen() {
       ) : null}
 
       <FlatList
-        data={datasComPlaylist}
-        keyExtractor={(item) => item.iso}
+        data={cultosComPlaylist}
+        keyExtractor={(item) => item.culto.id}
         renderItem={({ item }) => {
-          const aberto = !!datasExpandidas[item.iso];
+          const aberto = !!cultosExpandidos[item.culto.id];
+          const noite = item.periodo.chave === 'noite';
+          const total = totalMusicasDaSecao(item);
           return (
             <View style={styles.dateBlock}>
               <TouchableOpacity
-                style={styles.dateHeader}
-                onPress={() => alternarData(item.iso)}
+                style={[styles.dateHeader, noite ? styles.dateHeaderNoite : styles.dateHeaderManha]}
+                onPress={() => alternarCulto(item.culto.id)}
                 activeOpacity={0.75}
               >
-                <Text style={styles.dateHeaderText}>{tituloDataPt(item.iso)}</Text>
+                <View style={styles.dateHeaderText}>
+                  {/* Período em destaque: cada culto é uma entrada própria na lista */}
+                  <View style={styles.periodoRow}>
+                    <IconePeriodo chave={item.periodo.chave} />
+                    <Text style={[styles.periodoTxt, noite && styles.periodoTxtNoite]}>
+                      {item.periodo.label || 'CULTO'}
+                    </Text>
+                  </View>
+                  <Text style={styles.dateHeaderTit}>{tituloDataPt(item.iso)}</Text>
+                  <Text style={styles.dateHeaderSub}>
+                    {total} música{total === 1 ? '' : 's'}
+                  </Text>
+                </View>
                 <Text style={styles.dateChevron} accessibilityLabel={aberto ? 'Recolher' : 'Expandir'}>
                   {aberto ? '▼' : '▶'}
                 </Text>
               </TouchableOpacity>
               {aberto ? (
                 <View style={styles.dateBody}>
-                  {item.secoes.map((sec) => (
-                    <View key={sec.culto.id} style={styles.sec}>
-                      <Text style={styles.secTit}>{sec.culto.label}</Text>
-                      {sec.blocos
-                        .filter((bloco) => bloco.musicas.length > 0)
-                        .map((bloco, bi) => (
-                        <View key={`${sec.culto.id}-tema-${bi}`} style={styles.temaBlock}>
-                          {bloco.tema ? (
-                            <Text style={styles.temaTit}>{bloco.tema}</Text>
-                          ) : null}
-                          {bloco.musicas.map((m) => (
-                            <View key={`${sec.culto.id}-${m.id}-${m.versaoLocalId || ''}`} style={styles.rowWrap}>
-                              <TouchableOpacity
-                                style={styles.row}
-                                onPress={() => abrirMusica(m)}
-                                activeOpacity={0.75}
-                              >
-                                <View style={styles.rowText}>
-                                  <Text style={styles.rowTit}>
-                                    {m.titulo || '—'}
-                                    {rotuloVersaoPlaylist(m) ? (
-                                      <Text style={styles.rowVersao}> · {rotuloVersaoPlaylist(m)}</Text>
-                                    ) : null}
-                                  </Text>
-                                  {m.artista ? <Text style={styles.rowArt}>{m.artista}</Text> : null}
-                                </View>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.rowEditBtn}
-                                onPress={() => abrirEditarServidor(m)}
-                                hitSlop={10}
-                              >
-                                <Text style={styles.rowEditIcon}>✎</Text>
-                              </TouchableOpacity>
-                            </View>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  ))}
+                  {item.blocos
+                    .filter((bloco) => bloco.musicas.length > 0)
+                    .map((bloco, bi) => (
+                      <View key={`${item.culto.id}-tema-${bi}`} style={styles.temaBlock}>
+                        {bloco.tema ? <Text style={styles.temaTit}>{bloco.tema}</Text> : null}
+                        {bloco.musicas.map((m) => (
+                          <View key={`${item.culto.id}-${m.id}-${m.versaoLocalId || ''}`} style={styles.rowWrap}>
+                            <TouchableOpacity
+                              style={styles.row}
+                              onPress={() => abrirMusica(m)}
+                              activeOpacity={0.75}
+                            >
+                              <View style={styles.rowText}>
+                                <Text style={styles.rowTit}>
+                                  {m.titulo || '—'}
+                                  {rotuloVersaoPlaylist(m) ? (
+                                    <Text style={styles.rowVersao}> · {rotuloVersaoPlaylist(m)}</Text>
+                                  ) : null}
+                                </Text>
+                                {m.artista ? <Text style={styles.rowArt}>{m.artista}</Text> : null}
+                              </View>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.rowEditBtn}
+                              onPress={() => abrirEditarServidor(m)}
+                              hitSlop={10}
+                            >
+                              <Text style={styles.rowEditIcon}>✎</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    ))}
                 </View>
               ) : null}
             </View>
@@ -239,12 +262,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
   },
-  dateHeaderText: {
-    flex: 1,
+  // Faixa lateral por período: manhã dourada, noite dourado escuro
+  dateHeaderManha: { borderLeftWidth: 4, borderLeftColor: COLORS.accent },
+  dateHeaderNoite: { borderLeftWidth: 4, borderLeftColor: COLORS.accent2 },
+  dateHeaderText: { flex: 1, paddingRight: 12 },
+  periodoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  periodoTxt: {
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    letterSpacing: 2,
+    color: COLORS.accent,
+  },
+  periodoTxtNoite: { color: COLORS.accent2 },
+  dateHeaderTit: {
     fontFamily: FONTS.semibold,
     fontSize: 15,
     color: COLORS.text,
-    paddingRight: 12,
+  },
+  dateHeaderSub: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textDim,
+    marginTop: 3,
   },
   dateChevron: {
     fontSize: 12,
@@ -255,14 +294,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingLeft: 4,
     paddingRight: 0,
-  },
-  sec: { marginBottom: 18 },
-  secTit: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11,
-    letterSpacing: 2,
-    color: COLORS.accent,
-    marginBottom: 10,
   },
   temaBlock: { marginBottom: 12 },
   temaTit: {

@@ -123,6 +123,25 @@ export function labelDeCultoId(id) {
 }
 
 /**
+ * Período do culto a partir do sufixo do id (`culto_YYYY-MM-DD_manha`).
+ *
+ * Só interpreta o id — não consulta playlists nem altera nada. Serve para a UI
+ * distinguir domingo de manhã e domingo à noite, que caem na mesma data.
+ *
+ * @param {string} id
+ * @returns {{ chave: 'manha'|'noite'|'quarta'|'outro', label: string }}
+ */
+export function periodoDoCultoId(id) {
+  const m = /^culto_\d{4}-\d{2}-\d{2}_(\w+)$/i.exec(String(id || '').trim());
+  const sufixo = String(m?.[1] || '').toLowerCase();
+
+  if (sufixo === 'manha') return { chave: 'manha', label: 'MANHÃ' };
+  if (sufixo === 'noite') return { chave: 'noite', label: 'NOITE' };
+  if (sufixo === 'quarta') return { chave: 'quarta', label: 'QUARTA-FEIRA' };
+  return { chave: 'outro', label: sufixo ? sufixo.toUpperCase() : '' };
+}
+
+/**
  * Cultos automáticos do mês + ids das playlists do controlador que pertencem ao mesmo mês/ano.
  * Cultos extras (manuais) de outros meses não entram na lista.
  *

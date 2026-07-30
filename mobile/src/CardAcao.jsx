@@ -1,14 +1,16 @@
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { IconChevron } from './Icons';
 import { COLORS, FONTS } from './theme';
 
 /**
  * Card de ação com ícone + título + descrição de apoio + chevron.
  *
- * Extraído do atalho «Buscar em Cifra Club» da biblioteca local para ser
+ * Extraído do atalho «Buscar online» da biblioteca local para ser
  * reaproveitado por qualquer ação de linha única (buscar, compartilhar, importar).
  *
  * @param {object} props
- * @param {string} props.icone — glifo exibido no chip à esquerda (ex.: '♫', '⇅')
+ * @param {React.ComponentType<{ size?: number, color?: string }>} props.Icone
+ *   — componente de ícone SVG exibido no chip à esquerda (ver `Icons.jsx`)
  * @param {string} props.titulo
  * @param {string} props.descricao — texto de apoio, 1 linha
  * @param {() => void} props.onPress
@@ -17,7 +19,7 @@ import { COLORS, FONTS } from './theme';
  * @param {object} [props.style] — ajustes pontuais de margem no ponto de uso
  */
 export default function CardAcao({
-  icone,
+  Icone,
   titulo,
   descricao,
   onPress,
@@ -37,7 +39,7 @@ export default function CardAcao({
       accessibilityLabel={titulo}
     >
       <View style={styles.iconeChip}>
-        <Text style={styles.iconeTxt}>{icone}</Text>
+        {Icone ? <Icone size={19} color={COLORS.accent} /> : null}
       </View>
 
       <View style={styles.txt}>
@@ -47,7 +49,7 @@ export default function CardAcao({
 
       {carregando
         ? <ActivityIndicator color={COLORS.accent} />
-        : <Text style={styles.chevron}>›</Text>}
+        : <IconChevron size={20} color={COLORS.accent2} />}
     </TouchableOpacity>
   );
 }
@@ -73,7 +75,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconeTxt: { fontSize: 17, color: COLORS.accent },
   txt: { flex: 1 },
   titulo: { fontFamily: FONTS.semibold, fontSize: 14, color: COLORS.text },
   descricao: {

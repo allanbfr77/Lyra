@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { splitTextoEmEstrofesPorLinhaVaziaStrict, novoIdSlide } from './slideRules';
+import InfoTooltip from './InfoTooltip';
 import { COLORS, FONTS } from './theme';
 
 /**
@@ -138,22 +139,26 @@ export default function SlideEditorPanel({
   const HeaderInterno = (
     <>
       {listHeaderComponent}
-      {/* Instruções de uso do editor de slides */}
-      <Text style={styles.regraHint}>
-        Entre linhas do <Text style={styles.regraStrong}>mesmo slide</Text>, use só Enter. Uma linha{' '}
-        <Text style={styles.regraStrong}>totalmente vazia</Text> (sem espaços) entre blocos cria{' '}
-        <Text style={styles.regraStrong}>slides novos</Text> ao sair do campo. Para um espaço visual dentro do slide:
-        Enter e um <Text style={styles.regraStrong}>espaço</Text> na linha.
-      </Text>
       <View style={styles.slidesHeader}>
-        <Text style={styles.label}>LETRA (SLIDES)</Text>
+        <View style={styles.slidesHeaderLeft}>
+          <Text style={styles.label}>LETRA (SLIDES)</Text>
+          {/* Instruções de uso do editor — sob demanda, fora do fluxo permanente */}
+          <InfoTooltip titulo="COMO FUNCIONAM OS SLIDES" accessibilityLabel="Regras de formatação dos slides">
+            <Text style={styles.regraHint}>
+              Entre linhas do <Text style={styles.regraStrong}>mesmo slide</Text>, use só Enter. Uma linha{' '}
+              <Text style={styles.regraStrong}>totalmente vazia</Text> (sem espaços) entre blocos cria{' '}
+              <Text style={styles.regraStrong}>slides novos</Text> ao sair do campo. Para um espaço visual dentro do slide:
+              Enter e um <Text style={styles.regraStrong}>espaço</Text> na linha.
+            </Text>
+            <Text style={[styles.regraHint, styles.regraHintUltima]}>
+              Use <Text style={styles.regraStrong}>↑ ↓</Text> no topo de cada card para mudar a ordem dos slides.
+            </Text>
+          </InfoTooltip>
+        </View>
         <TouchableOpacity style={styles.btnAddSlide} onPress={adicionar} activeOpacity={0.85}>
           <Text style={styles.btnAddSlideTxt}>+ Slide</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.ordemHint}>
-        Use <Text style={styles.regraStrong}>↑ ↓</Text> para mudar a ordem dos slides.
-      </Text>
     </>
   );
 
@@ -171,7 +176,7 @@ export default function SlideEditorPanel({
           <View style={styles.slideCard}>
             {/* Barra superior do card: botões de ordem, número do slide, botão apagar */}
             <View style={styles.slideCardTop}>
-              {/* Botões de reordenação vertical */}
+              {/* Botões de reordenação, lado a lado */}
               <View style={styles.ordemBtns}>
                 <TouchableOpacity
                   style={[styles.ordemBtn, index === 0 && styles.ordemBtnOff]}
@@ -226,26 +231,22 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: { paddingBottom: 32 },
   regraHint: {
-    fontSize: 11,
+    fontSize: 13,
     color: COLORS.textDim,
-    lineHeight: 17,
+    lineHeight: 20,
     marginBottom: 10,
     fontFamily: FONTS.regular,
   },
-  ordemHint: {
-    fontSize: 10,
-    color: COLORS.textDim,
-    marginBottom: 12,
-    fontFamily: FONTS.regular,
-  },
+  regraHintUltima: { marginBottom: 0 },
   regraStrong: { fontFamily: FONTS.semibold, color: COLORS.text },
   slidesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
     marginTop: 4,
   },
+  slidesHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: { fontSize: 11, letterSpacing: 2, color: COLORS.textDim, fontFamily: FONTS.semibold },
   btnAddSlide: {
     borderWidth: 1,
@@ -275,17 +276,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ordemBtns: {
-    flexDirection: 'column',
-    marginRight: 6,
-    gap: 4,
+    flexDirection: 'row', // Lado a lado: libera altura do card
+    marginRight: 10,
+    gap: 6,
   },
   ordemBtn: {
     backgroundColor: COLORS.surface2,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: COLORS.border,
-    width: 36,
-    height: 30,
+    width: 30,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },

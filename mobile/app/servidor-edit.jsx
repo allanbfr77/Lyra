@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import SlideEditorPanel from '../src/SlideEditorPanel';
+import AlertaAmbar from '../src/AlertaAmbar';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador } from '../src/lyraEndpoints';
 
@@ -202,16 +203,15 @@ export default function ServidorEditScreen() {
           onSlidesChange={setSlides}
           listHeaderComponent={
             <View style={styles.headerBlock}>
-              <Text style={styles.hint}>
-                Alterações gravadas na <Text style={styles.hintStrong}>base do controlador</Text>{' '}
-                (PC da igreja, porta 3001). Regra de slides igual ao painel.
-              </Text>
-              {imutavel ? (
-                <Text style={styles.hintFork}>
-                  Original protegido: mudar a letra cria uma nova cópia; só título/artista atualizam
-                  o original.
-                </Text>
-              ) : null}
+              <Text style={styles.hint}>Alterações gravadas na base do controlador.</Text>
+
+              {/* Comportamento crítico da tela — mesmo alerta âmbar usado na home */}
+              <AlertaAmbar
+                visible={imutavel}
+                destaque="Original protegido:"
+                texto="mudar a letra cria uma nova cópia; só título/artista atualizam o original."
+              />
+
               {rotulo ? <Text style={styles.hintRotulo}>Versão: {rotulo}</Text> : null}
 
               <Text style={styles.label}>TÍTULO</Text>
@@ -248,15 +248,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.bg },
   pad: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   headerBlock: { paddingBottom: 4 },
-  hint: { fontSize: 12, color: COLORS.textDim, marginBottom: 12, lineHeight: 18, fontFamily: FONTS.regular },
-  hintStrong: { fontFamily: FONTS.semibold, color: COLORS.text },
-  hintFork: {
-    fontSize: 12,
-    color: COLORS.accent2,
-    marginBottom: 10,
-    lineHeight: 18,
-    fontFamily: FONTS.regular,
-  },
+  hint: { fontSize: 13, color: COLORS.textDim, marginBottom: 14, lineHeight: 19, fontFamily: FONTS.regular },
   hintRotulo: {
     fontSize: 11,
     color: COLORS.accent,

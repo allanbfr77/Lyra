@@ -32,6 +32,7 @@ import {
 } from '../src/playlistsControladorStore';
 import { limparBibliotecaLocalJaNoControlador } from '../src/localLimpezaControlador';
 import { IconMusicas, IconCultos, IconBiblia, IconImportarCodigo } from '../src/HubIcons';
+import { IconChevron } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 
 const CARDS = [
@@ -68,11 +69,6 @@ export default function HomeLogadaScreen() {
     desconectar();
     limparGlobalIp();
     router.replace('/');
-  }
-
-  /** Volta na pilha de navegação — não mexe na conexão. */
-  function voltar() {
-    if (router.canGoBack()) router.back();
   }
 
   async function executarImportacaoComCulto(codigo, musicasDoCodigo, culto) {
@@ -169,14 +165,7 @@ export default function HomeLogadaScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Topo: apenas navegação — sem relação com desconectar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={voltar} activeOpacity={0.85}>
-          <Text style={styles.backBtnTxt}>‹ VOLTAR</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Status da conexão + gatilho de desconectar, isolado da navegação */}
+      {/* Status da conexão + desconectar (que já devolve para a tela inicial) */}
       {ip ? (
         <View style={styles.statusCard}>
           <View style={styles.statusLeft}>
@@ -213,7 +202,7 @@ export default function HomeLogadaScreen() {
                 <Icon size={44} />
               </View>
               <Text style={styles.cardLabel}>{card.label}</Text>
-              <Text style={styles.cardChevron}>›</Text>
+              <IconChevron size={22} color={COLORS.accent2} />
             </TouchableOpacity>
           );
         })}
@@ -238,7 +227,7 @@ export default function HomeLogadaScreen() {
               : <IconImportarCodigo size={44} />}
           </View>
           <Text style={styles.cardLabel}>IMPORTAR VIA CÓDIGO</Text>
-          <Text style={styles.cardChevron}>›</Text>
+          <IconChevron size={22} color={COLORS.accent2} />
         </TouchableOpacity>
       </ScrollView>
 
@@ -267,10 +256,6 @@ export default function HomeLogadaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 56, paddingHorizontal: 20 },
-  topBar: { marginBottom: 12 },
-  backBtn: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backBtnTxt: { fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 1.5, color: COLORS.accent },
-
   // --- Card de status + desconectar ---
   statusCard: {
     flexDirection: 'row',
@@ -338,5 +323,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardLabel: { flex: 1, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 2, color: COLORS.accent },
-  cardChevron: { fontSize: 22, color: COLORS.accent2 },
 });

@@ -206,13 +206,13 @@ export default function HomeScreen() {
           {/* Botão de conectar/desconectar — secundário (outline) */}
           {!conectado ? (
             <TouchableOpacity
-              style={[styles.btn, styles.btnOutline, conectando && styles.btnDisabled]}
+              style={[styles.btn, styles.btnConectar, conectando && styles.btnDisabled]}
               onPress={handleConectar}
               disabled={conectando}
             >
               {conectando
-                ? <ActivityIndicator color={COLORS.textDim} />
-                : <Text style={styles.btnOutlineTxt}>CONECTAR</Text>}
+                ? <ActivityIndicator color={COLORS.green} />
+                : <Text style={styles.btnConectarTxt}>CONECTAR</Text>}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={handleDesconectar}>
@@ -308,8 +308,9 @@ const styles = StyleSheet.create({
   btn: { borderRadius: 8, padding: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 14, minHeight: 48 },
   btnPrimary: { backgroundColor: COLORS.accent },
   btnPrimaryTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
-  btnOutline: { borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: 'transparent' },
-  btnOutlineTxt: { color: COLORS.textDim, fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2 },
+  // Outline verde: sinaliza "conectar" sem virar o CTA mais forte da tela (esse é o da biblioteca)
+  btnConectar: { borderWidth: 1.5, borderColor: COLORS.green, backgroundColor: 'transparent' },
+  btnConectarTxt: { color: COLORS.green, fontFamily: FONTS.bold, fontSize: 12, letterSpacing: 2 },
   btnDisabled: { opacity: 0.6 },
   btnDanger: { borderWidth: 1, borderColor: COLORS.red },
   btnDangerTxt: { color: COLORS.red, fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2 },

@@ -1,4 +1,5 @@
 import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { IconCheck } from './Icons';
 import { COLORS, FONTS } from './theme';
 
 /**
@@ -22,15 +23,17 @@ export default function ChipToggle({ label, ativo, onToggle, style }) {
       accessibilityState={{ checked: !!ativo }}
       accessibilityLabel={label}
     >
-      <Text style={[styles.txt, ativo ? styles.txtAtivo : styles.txtInativo]}>
-        {ativo ? `✓ ${label}` : label}
-      </Text>
+      {ativo ? <IconCheck size={13} color={COLORS.accent2} /> : null}
+      <Text style={[styles.txt, ativo ? styles.txtAtivo : styles.txtInativo]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 16,

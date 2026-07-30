@@ -30,6 +30,7 @@ import {
   paramsRotaMusicaPlaylist,
   fonteBancoPlaylist,
 } from '../src/playlistItens';
+import BotaoEncerrarProjecao from '../src/BotaoEncerrarProjecao';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
 import { prepararProjecaoMusica, resetarSessaoRotaMusica } from '../src/musicaProjecao';
@@ -524,31 +525,40 @@ export default function EstrofesScreen() {
 
       {/* Barra de controle fixada na parte inferior */}
       <View style={styles.controlBar}>
-        {/* Botão de slide anterior */}
-        <TouchableOpacity
-          style={[styles.navBtn, estrofeAtiva <= 0 && styles.navBtnDisabled]}
-          onPress={() => navegarEstrofe(-1)}
-          disabled={estrofeAtiva <= 0}
-        >
-          <Text style={styles.navBtnTxt}>◀</Text>
-        </TouchableOpacity>
+        {/* Linha de navegação — só ◀ ▶ e a posição atual */}
+        <View style={styles.navRow}>
+          <TouchableOpacity
+            style={[styles.navBtn, estrofeAtiva <= 0 && styles.navBtnDisabled]}
+            onPress={() => navegarEstrofe(-1)}
+            disabled={estrofeAtiva <= 0}
+            accessibilityRole="button"
+            accessibilityLabel="Slide anterior"
+          >
+            <Text style={styles.navBtnTxt}>◀</Text>
+          </TouchableOpacity>
 
-        {/* Botão de limpar tela */}
-        <TouchableOpacity style={styles.limparBtn} onPress={limparTela}>
-          <Text style={styles.limparBtnTxt}>✕ LIMPAR</Text>
-        </TouchableOpacity>
+          <Text style={styles.navPosicao} numberOfLines={1}>
+            {estrofeAtiva < 0
+              ? `${musica.estrofes.length + 1} SLIDES`
+              : `SLIDE ${estrofeAtiva + 1} DE ${musica.estrofes.length + 1}`}
+          </Text>
 
-        {/* Botão de próximo slide */}
-        <TouchableOpacity
-          style={[
-            styles.navBtn,
-            estrofeAtiva >= musica.estrofes.length && styles.navBtnDisabled,
-          ]}
-          onPress={() => navegarEstrofe(1)}
-          disabled={estrofeAtiva >= musica.estrofes.length}
-        >
-          <Text style={styles.navBtnTxt}>▶</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.navBtn,
+              estrofeAtiva >= musica.estrofes.length && styles.navBtnDisabled,
+            ]}
+            onPress={() => navegarEstrofe(1)}
+            disabled={estrofeAtiva >= musica.estrofes.length}
+            accessibilityRole="button"
+            accessibilityLabel="Próximo slide"
+          >
+            <Text style={styles.navBtnTxt}>▶</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Encerrar projeção — fora do fluxo de toque repetido do ◀ ▶, 1 toque, sempre visível */}
+        <BotaoEncerrarProjecao onPress={limparTela} style={styles.btnEncerrar} />
       </View>
     </View>
   );
@@ -648,15 +658,23 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingBottom: 28, // Espaço extra para home indicator em iPhones
-    gap: 12,
   },
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  navPosicao: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: COLORS.textDim,
+    fontFamily: FONTS.semibold,
+  },
+  /** Afastamento do ◀ ▶: evita toque acidental durante a navegação ao vivo. */
+  btnEncerrar: { marginTop: 14 },
   navBtn: {
-    width: 56,
+    flex: 1,
     height: 48,
     backgroundColor: COLORS.surface2,
     borderRadius: 8,
@@ -667,14 +685,4 @@ const styles = StyleSheet.create({
   },
   navBtnDisabled: { opacity: 0.3 },
   navBtnTxt: { fontSize: 20, color: COLORS.accent },
-  limparBtn: {
-    flex: 1,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.red,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  limparBtnTxt: { color: COLORS.red, fontFamily: FONTS.semibold, fontSize: 13, letterSpacing: 2 },
 });

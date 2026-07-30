@@ -12,8 +12,28 @@ import {
   FlatList, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { IconChevron } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador } from '../src/lyraEndpoints';
+
+/**
+ * Monta a linha de metadata do item, no mesmo formato da Biblioteca Local
+ * (ex.: «QUARTA-FEIRA · 01/07 · 22 SLIDES»).
+ *
+ * Somente exibe o que vier no dado — se a música não trouxer culto nem
+ * estrofes, devolve string vazia e a linha não é renderizada.
+ *
+ * @param {{ cultoLabel?: string, estrofes?: unknown[] }} musica
+ * @returns {string}
+ */
+function metaDaMusica(musica) {
+  const partes = [];
+  const culto = String(musica?.cultoLabel || '').trim();
+  if (culto) partes.push(culto);
+  const n = Array.isArray(musica?.estrofes) ? musica.estrofes.length : null;
+  if (n != null) partes.push(`${n} slide(s)`);
+  return partes.join(' · ');
+}
 
 /**
  * Componente da tela de músicas do servidor.
@@ -145,19 +165,26 @@ export default function MusicasScreen() {
       <FlatList
         data={filtradas}
         keyExtractor={item => String(item.id)}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.musicaItem}
-            onPress={() => abrirEditarServidor(item)}
-            activeOpacity={0.75}
-          >
-            <View style={styles.musicaInfo}>
-              <Text style={styles.musicaTitulo}>{item.titulo}</Text>
-              {item.artista ? <Text style={styles.musicaArtista}>{item.artista}</Text> : null}
-            </View>
-            <Text style={styles.musicaEditHint}>✎</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const meta = metaDaMusica(item);
+          return (
+            <TouchableOpacity
+              style={styles.musicaItem}
+              onPress={() => abrirEditarServidor(item)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.musicaInfo}>
+                <Text style={styles.musicaTitulo}>{item.titulo}</Text>
+                {item.artista ? <Text style={styles.musicaArtista}>{item.artista}</Text> : null}
+                {meta ? <Text style={styles.musicaMeta}>{meta}</Text> : null}
+              </View>
+              {/* Chevron: a linha inteira abre a edição — não há ação exclusiva do ícone */}
+              <View style={styles.musicaChevron}>
+                <IconChevron size={20} color={COLORS.accent2} />
+              </View>
+            </TouchableOpacity>
+          );
+        }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={() => (
           <View style={styles.center}>
@@ -195,10 +222,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: COLORS.surface,
   },
-  musicaEditHint: { fontSize: 20, color: COLORS.accent, paddingLeft: 8 },
+  musicaChevron: { paddingLeft: 12 },
   musicaInfo: { flex: 1 },
   musicaTitulo: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.semibold },
   musicaArtista: { fontSize: 13, color: COLORS.textDim, fontStyle: 'italic', marginTop: 2, fontFamily: FONTS.regular },
+  // Mesmo estilo do `meta` da Biblioteca Local (local.jsx)
+  musicaMeta: { fontSize: 11, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
   separator: { height: 1, backgroundColor: COLORS.border, marginLeft: 16 },
   emptyTxt: { color: COLORS.textDim, fontSize: 14, fontStyle: 'italic', fontFamily: FONTS.regular },
 });

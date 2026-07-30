@@ -22,6 +22,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { Ionicons } from '@expo/vector-icons';
+import BotaoEncerrarProjecao from '../src/BotaoEncerrarProjecao';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
 import { TRADUCOES_PADRAO, resolverLivroBiblia } from '../src/bibliaLivros';
@@ -329,12 +330,7 @@ export default function BibliaScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <Text style={styles.kicker}>MODO BÍBLIA</Text>
-            <Text style={styles.sub}>
-              Dados no controlador (3001) · Projeção nas telas (5510)
-            </Text>
-          </View>
+          <Text style={[styles.label, styles.labelHeader]}>MODO BÍBLIA</Text>
           <TouchableOpacity
             style={styles.btnCfg}
             onPress={() => setModalCfgVisible(true)}
@@ -363,7 +359,7 @@ export default function BibliaScreen() {
           style={styles.input}
           value={livroInput}
           onChangeText={setLivroInput}
-          placeholder=""
+          placeholder="Ex: João, Jo, Salmos..."
           placeholderTextColor={COLORS.textDim}
           autoCapitalize="none"
           autoCorrect={false}
@@ -437,9 +433,7 @@ export default function BibliaScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.btnLimpar} onPress={limparTela}>
-          <Text style={styles.btnLimparTxt}>✕ ENCERRAR PROJEÇÃO</Text>
-        </TouchableOpacity>
+        <BotaoEncerrarProjecao onPress={limparTela} style={styles.btnLimpar} />
 
         {preview ? (
           <View style={styles.previewCard}>
@@ -487,11 +481,10 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, paddingBottom: 40 },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
   },
-  headerText: { flex: 1, paddingRight: 12 },
   btnCfg: {
     width: 44,
     height: 44,
@@ -503,20 +496,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 2,
   },
-  kicker: {
-    fontFamily: FONTS.semibold,
-    fontSize: 11,
-    letterSpacing: 3,
-    color: COLORS.accent2,
-    marginBottom: 4,
-  },
-  sub: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textDim,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
   label: {
     fontFamily: FONTS.semibold,
     fontSize: 10,
@@ -525,6 +504,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 12,
   },
+  /** Mesmo label de seção, sem as margens verticais — alinha com a engrenagem. */
+  labelHeader: { marginTop: 0, marginBottom: 0 },
   rowVersoes: { flexDirection: 'row', gap: 8 },
   chip: {
     flex: 1,
@@ -702,20 +683,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2,
   },
-  btnLimpar: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: COLORS.red,
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-  },
-  btnLimparTxt: {
-    color: COLORS.red,
-    fontFamily: FONTS.semibold,
-    fontSize: 13,
-    letterSpacing: 2,
-  },
+  btnLimpar: { marginTop: 10 },
   previewCard: {
     marginTop: 20,
     backgroundColor: COLORS.surface,
