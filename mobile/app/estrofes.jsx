@@ -7,7 +7,9 @@
  *
  * Funcionalidades:
  * - Lista de slides com indicador "AO VIVO" no slide atual
- * - Navegação por botões ◀ ▶ ou toque direto no slide
+ * - Navegação por botões ◀ ▶ ou toque no slide
+ * - Toque em dois passos quando nada está projetado (1º selecciona, 2º projeta),
+ *   evitando projeções acidentais; com projeção ao vivo, um toque troca de slide
  * - Avanço para próxima música da playlist (se existir)
  * - Vibração háptica ao trocar de slide para feedback tátil
  * - Slide extra no final (fundo sem letra) alinhado ao servidor
@@ -20,6 +22,7 @@ import {
   Vibration,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { gerarCultosDoMes } from '../src/cultosMes';
@@ -127,10 +130,18 @@ function listaSlidesComFinalVazio(estrofes) {
  * Estado local:
  * - `musica` — dados completos carregados do servidor (título, artista, estrofes)
  * - `estrofeAtiva` — índice do slide atualmente projetado (-1 = nenhum)
+ * - `estrofeSelecionada` — índice pré-seleccionado à espera de confirmação (-1 = nenhum)
  * - `proximaCarregando` — indica carregamento da próxima música
  */
 export default function EstrofesScreen() {
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+  /**
+   * Folga entre «Encerrar projeção» e a barra de navegação do sistema.
+   * `insets.bottom` cobre gesture bar/home indicator; o mínimo garante respiro
+   * também em Android com botões clássicos (inset 0).
+   */
+  const folgaInferior = Math.max(insets.bottom, 12) + 16;
   const ip = paramStr(params.ip);
   const musicaIdParam = paramStr(params.musicaId);
   const musicaFonteParam = paramStr(params.musicaFonte) || 'user';
@@ -140,6 +151,8 @@ export default function EstrofesScreen() {
   const [musica, setMusica] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [estrofeAtiva, setEstrofeAtiva] = useState(-1); // -1 = nenhum slide ativo
+  /** Slide pré-seleccionado (1º toque) enquanto não há nada projetado. -1 = nenhum. */
+  const [estrofeSelecionada, setEstrofeSelecionada] = useState(-1);
   const [proximaCarregando, setProximaCarregando] = useState(false);
 
   const socketRef = useRef(null);
@@ -193,9 +206,10 @@ export default function EstrofesScreen() {
     carregarMusica();
   }, [carregarMusica]);
 
-  // Reseta o flag de projeção inicial ao trocar de música
+  // Reseta o flag de projeção inicial e a pré-selecção ao trocar de música
   useEffect(() => {
     projetaInicialFeito.current = '';
+    setEstrofeSelecionada(-1);
   }, [musicaIdParam]);
 
   // --- Conexão Socket.IO ---
@@ -339,14 +353,36 @@ export default function EstrofesScreen() {
       return;
     }
     Vibration.vibrate(30);
+    setEstrofeSelecionada(-1);
     setEstrofeAtiva(index);
     socketRef.current.emit('exibir_musica', montarPayloadExibirMusica(index));
+  }
+
+  /**
+   * Toque num slide da lista.
+   *
+   * - Sem nada projetado: o 1º toque apenas selecciona e o 2º toque no mesmo
+   *   slide é que projeta — evita projeções acidentais.
+   * - Com projeção ao vivo: um único toque troca de slide na hora, para não
+   *   atrasar a passagem durante o culto.
+   *
+   * @param {number} index - Índice do slide tocado
+   */
+  function tocarEstrofe(index) {
+    if (estrofeAtiva >= 0 || estrofeSelecionada === index) {
+      exibirEstrofe(index);
+      return;
+    }
+    Vibration.vibrate(15);
+    setEstrofeSelecionada(index);
   }
 
   /** Limpa as telas da igreja (slide em branco / tela limpa). */
   function limparTela() {
     Vibration.vibrate(40);
     setEstrofeAtiva(-1);
+    // Volta ao modo de confirmação em dois toques
+    setEstrofeSelecionada(-1);
     socketRef.current?.emit('limpar_tela');
   }
 
@@ -495,21 +531,46 @@ export default function EstrofesScreen() {
         keyExtractor={(row) => (row.kind === 'final' ? 'slide-final' : String(row.index))}
         renderItem={({ item: row }) => {
           const ativa = estrofeAtiva === row.index;
+          const selecionada = !ativa && estrofeAtiva < 0 && estrofeSelecionada === row.index;
           const numEtiqueta = row.index + 1; // Exibição 1-based para o usuário
           return (
             <TouchableOpacity
-              style={[styles.estrofeCard, ativa && styles.estrofeCardAtiva]}
-              onPress={() => exibirEstrofe(row.index)}
+              style={[
+                styles.estrofeCard,
+                selecionada && styles.estrofeCardSelecionada,
+                ativa && styles.estrofeCardAtiva,
+              ]}
+              onPress={() => tocarEstrofe(row.index)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={
+                ativa
+                  ? `Slide ${numEtiqueta}, ao vivo`
+                  : selecionada
+                    ? `Slide ${numEtiqueta} seleccionado, toque novamente para projetar`
+                    : `Slide ${numEtiqueta}`
+              }
             >
               <View style={styles.estrofeHeader}>
-                <Text style={[styles.estrofeNum, ativa && styles.estrofeNumAtiva]}>
+                <Text
+                  style={[
+                    styles.estrofeNum,
+                    selecionada && styles.estrofeNumSelecionada,
+                    ativa && styles.estrofeNumAtiva,
+                  ]}
+                >
                   {row.kind === 'final' ? `SLIDE ${numEtiqueta} · FUNDO` : `SLIDE ${numEtiqueta}`}
                 </Text>
                 {/* Badge "AO VIVO" no slide atualmente projetado */}
                 {ativa && (
                   <View style={styles.aovivoBadge}>
                     <Text style={styles.aovivoTxt}>● AO VIVO</Text>
+                  </View>
+                )}
+                {/* Pré-selecção: pede confirmação antes de projetar */}
+                {selecionada && (
+                  <View style={styles.selecionadaBadge}>
+                    <Text style={styles.selecionadaTxt}>TOQUE P/ PROJETAR</Text>
                   </View>
                 )}
               </View>
@@ -520,11 +581,11 @@ export default function EstrofesScreen() {
             </TouchableOpacity>
           );
         }}
-        contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 }}
+        contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 140 + folgaInferior }}
       />
 
-      {/* Barra de controle fixada na parte inferior */}
-      <View style={styles.controlBar}>
+      {/* Barra de controle fixada na parte inferior, acima da safe area */}
+      <View style={[styles.controlBar, { paddingBottom: folgaInferior }]}>
         {/* Linha de navegação — só ◀ ▶ e a posição atual */}
         <View style={styles.navRow}>
           <TouchableOpacity
@@ -642,11 +703,26 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
+  /** Pré-selecção (1º toque): destaque discreto, sem confundir com o «AO VIVO» */
+  estrofeCardSelecionada: {
+    borderColor: COLORS.accent2,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+  },
   estrofeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   estrofeNum: { fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 2, color: COLORS.textDim },
   estrofeNumAtiva: { color: COLORS.accent },
+  estrofeNumSelecionada: { color: COLORS.accent2 },
   aovivoBadge: { backgroundColor: COLORS.accent, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
   aovivoTxt: { fontSize: 9, color: COLORS.onAccent, fontFamily: FONTS.bold, letterSpacing: 1 },
+  selecionadaBadge: {
+    borderWidth: 1,
+    borderColor: COLORS.accent2,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  selecionadaTxt: { fontSize: 9, color: COLORS.accent2, fontFamily: FONTS.bold, letterSpacing: 1 },
   estrofeTxt: { fontSize: 16, color: COLORS.text, lineHeight: 26, fontFamily: FONTS.regular },
   estrofeTxtAtiva: { color: COLORS.accent },
   /** Barra de controle fixada na parte inferior da tela */
@@ -659,8 +735,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 28, // Espaço extra para home indicator em iPhones
+    paddingTop: 12,
+    // paddingBottom vem da safe area do dispositivo (ver `folgaInferior`)
   },
   navRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   navPosicao: {

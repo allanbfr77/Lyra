@@ -24,7 +24,6 @@ import { getPlaylistsDoControladorSnapshot } from '../src/playlistsControladorSt
 import { limparBibliotecaLocalJaNoControlador } from '../src/localLimpezaControlador';
 import {
   listarMusicasLocais,
-  criarMusicaLocalRascunho,
   excluirMusicaLocal,
   subscribeBibliotecaLocal,
 } from '../src/localMusicStore';
@@ -32,7 +31,14 @@ import { publicarPlaylistNaNuvem } from '../src/lyraShare';
 import CodigoShareModal from '../src/CodigoShareModal';
 import CultoSelectModal from '../src/CultoSelectModal';
 import CardAcao from '../src/CardAcao';
-import { IconBusca, IconLixeira, IconChevron, IconNotaMusical, IconSincronizar } from '../src/Icons';
+import {
+  IconBusca,
+  IconLixeira,
+  IconChevron,
+  IconNotaMusical,
+  IconSincronizar,
+  IconBancoDados,
+} from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 
 /** Se todas as músicas tiverem o mesmo cultoId, devolve esse culto. */
@@ -99,6 +105,12 @@ export default function BibliotecaLocalScreen() {
     router.push('/letras');
   }
 
+  /** Busca no catálogo offline embarcado no app (independente da busca online). */
+  function abrirBuscaBancoLocal() {
+    Keyboard.dismiss();
+    router.push('/catalogo');
+  }
+
   // Filtragem local (sem nova consulta ao storage)
   const filtradas = !busca.trim()
     ? lista
@@ -112,10 +124,13 @@ export default function BibliotecaLocalScreen() {
 
   // --- Handlers de ação ---
 
-  /** Cria um rascunho em branco e navega para a tela de edição. */
-  async function novaMusica() {
-    const m = await criarMusicaLocalRascunho();
-    router.push({ pathname: '/local-edit', params: { localId: m.localId } });
+  /**
+   * Abre a tela de edição em modo «nova música».
+   * Nada é persistido aqui: a música só nasce ao «Guardar no celular»
+   * (com culto escolhido). Sair antes disso não deixa rascunho na lista.
+   */
+  function novaMusica() {
+    router.push({ pathname: '/local-edit', params: { novo: '1' } });
   }
 
   /**
@@ -239,6 +254,15 @@ export default function BibliotecaLocalScreen() {
           titulo="Buscar online"
           descricao="Busca na internet e guarda aqui neste aparelho."
           onPress={abrirBuscaCifraClub}
+        />
+
+        {/* Catálogo que viaja dentro do app — funciona longe da igreja, sem rede */}
+        <CardAcao
+          Icone={IconBancoDados}
+          titulo="Buscar no banco local"
+          descricao="Catálogo offline do app, sem Internet e sem o PC."
+          onPress={abrirBuscaBancoLocal}
+          style={styles.cardBancoLocal}
         />
       </View>
 
@@ -380,6 +404,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
+  cardBancoLocal: { marginTop: 10 },
   cardCompartilhar: { marginHorizontal: 16, marginBottom: 16 },
 
   // --- Separação entre ações e lista ---

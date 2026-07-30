@@ -8,7 +8,7 @@
  * Todos aceitam `size` e `color` e herdam o traço de 2 do resto do projeto.
  */
 
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Ellipse } from 'react-native-svg';
 import { COLORS } from './theme';
 
 /** Seta «avançar» — substitui o caractere › usado em listas e cards. */
@@ -65,6 +65,27 @@ export function IconNotaMusical({ size = 20, color = COLORS.accent }) {
       />
       <Circle cx={6.5} cy={17.5} r={2.5} stroke={color} strokeWidth={2} />
       <Circle cx={17.5} cy={15.5} r={2.5} stroke={color} strokeWidth={2} />
+    </Svg>
+  );
+}
+
+/** Cilindro de banco de dados — busca no catálogo offline embarcado no app. */
+export function IconBancoDados({ size = 20, color = COLORS.accent }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Ellipse cx={12} cy={5.5} rx={7} ry={2.8} stroke={color} strokeWidth={2} />
+      <Path
+        d="M5 5.5v13c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-13"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M5 12c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }

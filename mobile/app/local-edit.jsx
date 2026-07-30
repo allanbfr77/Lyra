@@ -9,6 +9,11 @@
  *
  * Ao guardar, pede um culto se nenhum foi definido ainda.
  * Alterações ficam na biblioteca local até compartilhar com o PC (código).
+ *
+ * Aceita dois modos:
+ * - edição: recebe `localId` e carrega a música existente;
+ * - nova música (`novo=1`): não existe registo nenhum até «Guardar no celular»,
+ *   por isso sair da tela antes de guardar não cria rascunho na biblioteca.
  */
 
 import { useState, useEffect } from 'react';
@@ -24,7 +29,11 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { obterMusicaLocal, salvarMusicaLocal } from '../src/localMusicStore';
+import {
+  obterMusicaLocal,
+  salvarMusicaLocal,
+  criarMusicaLocalCompleta,
+} from '../src/localMusicStore';
 import CultoSelectModal from '../src/CultoSelectModal';
 import SlideEditorPanel from '../src/SlideEditorPanel';
 import { COLORS, FONTS } from '../src/theme';
@@ -45,7 +54,8 @@ function normalizarEstrofesInicial(arr) {
  * Tela de edição de uma música local.
  *
  * Props via Expo Router params:
- * - `localId` — ID local da música no AsyncStorage
+ * - `localId` — ID local da música no AsyncStorage (ausente em «Nova música»)
+ * - `novo` — marcador do fluxo de criação; sem `localId` nada existe ainda
  *
  * Estado local:
  * - `titulo` — título da música
@@ -57,18 +67,22 @@ function normalizarEstrofesInicial(arr) {
  */
 export default function LocalEditScreen() {
   const { localId } = useLocalSearchParams();
+  /** Sem `localId` = música ainda não existe no armazenamento (fluxo «Nova música»). */
+  const idExistente = Array.isArray(localId) ? String(localId[0] || '') : String(localId || '');
+  const musicaNova = !idExistente;
   const [titulo, setTitulo] = useState('');
   const [artista, setArtista] = useState('');
   const [slides, setSlides] = useState(['']);
   const [cultoId, setCultoId] = useState(null);
   const [cultoLabel, setCultoLabel] = useState(null);
   const [modalCulto, setModalCulto] = useState(false);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(!musicaNova);
 
-  // Carrega os dados da música ao montar o componente
+  // Carrega os dados da música ao montar o componente (só no modo edição)
   useEffect(() => {
+    if (musicaNova) return; // Nada a carregar: formulário começa em branco
     (async () => {
-      const m = await obterMusicaLocal(localId);
+      const m = await obterMusicaLocal(idExistente);
       if (!m) {
         Alert.alert('Erro', 'Música não encontrada.');
         router.back();
@@ -82,7 +96,7 @@ export default function LocalEditScreen() {
       setCultoLabel(m.cultoLabel ?? null);
       setCarregando(false);
     })();
-  }, [localId]);
+  }, [idExistente, musicaNova]);
 
   // --- Handler de salvamento ---
 
@@ -118,8 +132,21 @@ export default function LocalEditScreen() {
       return;
     }
 
+    if (musicaNova) {
+      // Só agora a música passa a existir na biblioteca local
+      await criarMusicaLocalCompleta({
+        titulo: t,
+        artista: artista.trim(),
+        estrofes,
+        cultoId: cid,
+        cultoLabel: clab,
+      });
+      router.back();
+      return;
+    }
+
     // Carrega a música atual para preservar campos não editados (localId, serverId, etc.)
-    const m = await obterMusicaLocal(localId);
+    const m = await obterMusicaLocal(idExistente);
     if (!m) return;
 
     await salvarMusicaLocal({
@@ -163,14 +190,14 @@ export default function LocalEditScreen() {
           ao navegar entre músicas diferentes (garante estado limpo)
         */}
         <SlideEditorPanel
-          key={String(localId)}
+          key={idExistente || 'nova-musica'}
           initialSlides={slides}
           onSlidesChange={setSlides}
           listHeaderComponent={
             <View style={styles.headerBlock}>
+              {/* Ajuda em 1 linha: a escolha do culto é explicada no próprio momento do guardar */}
               <Text style={styles.hint}>
-                Cada bloco abaixo é um <Text style={styles.hintStrong}>slide</Text> na projeção. Ao guardar, escolha o
-                culto (mesma lista do controlador no PC).
+                Cada bloco abaixo é um <Text style={styles.hintStrong}>slide</Text> na projeção.
               </Text>
 
               {/* Exibe culto atual ou aviso de ausência */}

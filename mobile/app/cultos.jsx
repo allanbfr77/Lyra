@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { isoFromCultoId, listarCultosDasPlaylists, periodoDoCultoId } from '../src/cultosMes';
@@ -91,7 +93,7 @@ export default function CultosPlaylistsScreen() {
 
   /**
    * Um item por culto — domingo de manhã e domingo à noite são entradas
-   * independentes, cada uma com a própria data, playlist e expansão.
+   * independentes, cada uma com a própria data e playlist.
    * Marcadores de tema/ABERTURA não contam como música.
    */
   const cultosComPlaylist = useMemo(() => {
@@ -112,11 +114,29 @@ export default function CultosPlaylistsScreen() {
     return out;
   }, [playlists]);
 
-  /** Qual culto está expandido (um toque abre, outro fecha). */
-  const [cultosExpandidos, setCultosExpandidos] = useState(() => ({}));
+  /** Culto escolhido no dropdown (guardamos só o id; o item é derivado). */
+  const [cultoSelecionadoId, setCultoSelecionadoId] = useState(null);
+  const [dropdownAberto, setDropdownAberto] = useState(false);
 
-  function alternarCulto(cultoId) {
-    setCultosExpandidos((prev) => ({ ...prev, [cultoId]: !prev[cultoId] }));
+  const cultoSelecionado = useMemo(
+    () => cultosComPlaylist.find((c) => c.culto.id === cultoSelecionadoId) || null,
+    [cultosComPlaylist, cultoSelecionadoId]
+  );
+
+  /**
+   * Nada é seleccionado automaticamente: o ecrã abre no placeholder e só mostra
+   * playlist depois de uma escolha explícita. Aqui apenas limpamos a selecção se
+   * o culto escolhido deixar de existir numa sincronização posterior.
+   */
+  useEffect(() => {
+    if (cultoSelecionadoId === null) return;
+    const aindaExiste = cultosComPlaylist.some((c) => c.culto.id === cultoSelecionadoId);
+    if (!aindaExiste) setCultoSelecionadoId(null);
+  }, [cultosComPlaylist, cultoSelecionadoId]);
+
+  function escolherCulto(cultoId) {
+    setCultoSelecionadoId(cultoId);
+    setDropdownAberto(false);
   }
 
   function abrirMusica(m) {
@@ -138,6 +158,15 @@ export default function CultosPlaylistsScreen() {
     });
   }
 
+  /** Blocos de tema com músicas do culto seleccionado — é isto que a lista mostra. */
+  const blocosDoSelecionado = useMemo(
+    () => (cultoSelecionado ? cultoSelecionado.blocos.filter((b) => b.musicas.length > 0) : []),
+    [cultoSelecionado]
+  );
+
+  const noiteSel = cultoSelecionado?.periodo?.chave === 'noite';
+  const semSelecao = !cultoSelecionado;
+
   return (
     <View style={styles.container}>
       <Text style={styles.intro}>
@@ -152,87 +181,142 @@ export default function CultosPlaylistsScreen() {
         </View>
       ) : null}
 
-      <FlatList
-        data={cultosComPlaylist}
-        keyExtractor={(item) => item.culto.id}
-        renderItem={({ item }) => {
-          const aberto = !!cultosExpandidos[item.culto.id];
-          const noite = item.periodo.chave === 'noite';
-          const total = totalMusicasDaSecao(item);
-          return (
-            <View style={styles.dateBlock}>
-              <TouchableOpacity
-                style={[styles.dateHeader, noite ? styles.dateHeaderNoite : styles.dateHeaderManha]}
-                onPress={() => alternarCulto(item.culto.id)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.dateHeaderText}>
-                  {/* Período em destaque: cada culto é uma entrada própria na lista */}
-                  <View style={styles.periodoRow}>
-                    <IconePeriodo chave={item.periodo.chave} />
-                    <Text style={[styles.periodoTxt, noite && styles.periodoTxtNoite]}>
-                      {item.periodo.label || 'CULTO'}
-                    </Text>
-                  </View>
-                  <Text style={styles.dateHeaderTit}>{tituloDataPt(item.iso)}</Text>
-                  <Text style={styles.dateHeaderSub}>
-                    {total} música{total === 1 ? '' : 's'}
-                  </Text>
-                </View>
-                <Text style={styles.dateChevron} accessibilityLabel={aberto ? 'Recolher' : 'Expandir'}>
-                  {aberto ? '▼' : '▶'}
+      {/* Dropdown de cultos: no topo, começa no placeholder até haver escolha */}
+      {cultosComPlaylist.length > 0 ? (
+        <TouchableOpacity
+          style={[
+            styles.select,
+            semSelecao ? styles.selectVazio : noiteSel ? styles.selectNoite : styles.selectManha,
+          ]}
+          onPress={() => setDropdownAberto(true)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Escolher culto"
+        >
+          <View style={styles.selectText}>
+            {semSelecao ? null : (
+              <View style={styles.periodoRow}>
+                <IconePeriodo chave={cultoSelecionado.periodo?.chave} />
+                <Text style={[styles.periodoTxt, noiteSel && styles.periodoTxtNoite]}>
+                  {cultoSelecionado.periodo?.label || 'CULTO'}
                 </Text>
-              </TouchableOpacity>
-              {aberto ? (
-                <View style={styles.dateBody}>
-                  {item.blocos
-                    .filter((bloco) => bloco.musicas.length > 0)
-                    .map((bloco, bi) => (
-                      <View key={`${item.culto.id}-tema-${bi}`} style={styles.temaBlock}>
-                        {bloco.tema ? <Text style={styles.temaTit}>{bloco.tema}</Text> : null}
-                        {bloco.musicas.map((m) => (
-                          <View key={`${item.culto.id}-${m.id}-${m.versaoLocalId || ''}`} style={styles.rowWrap}>
-                            <TouchableOpacity
-                              style={styles.row}
-                              onPress={() => abrirMusica(m)}
-                              activeOpacity={0.75}
-                            >
-                              <View style={styles.rowText}>
-                                <Text style={styles.rowTit}>
-                                  {m.titulo || '—'}
-                                  {rotuloVersaoPlaylist(m) ? (
-                                    <Text style={styles.rowVersao}> · {rotuloVersaoPlaylist(m)}</Text>
-                                  ) : null}
-                                </Text>
-                                {m.artista ? <Text style={styles.rowArt}>{m.artista}</Text> : null}
-                              </View>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={styles.rowEditBtn}
-                              onPress={() => abrirEditarServidor(m)}
-                              hitSlop={10}
-                            >
-                              <Text style={styles.rowEditIcon}>✎</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                </View>
-              ) : null}
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          !esperaSyncControlador ? (
-            <Text style={styles.empty}>
-              Nenhuma música nas playlists do controlador. Confirme que o painel no PC está aberto e ligado ao mesmo IP;
-              na tela inicial use o fluxo que atualiza o pedido ao controlador se precisar.
+              </View>
+            )}
+            <Text
+              style={[styles.selectTit, semSelecao && styles.selectTitPlaceholder]}
+              numberOfLines={1}
+            >
+              {semSelecao ? 'Selecione um culto' : tituloDataPt(cultoSelecionado.iso)}
             </Text>
+            <Text style={styles.selectSub}>
+              {semSelecao
+                ? `${cultosComPlaylist.length} culto${cultosComPlaylist.length === 1 ? '' : 's'} disponíve${
+                    cultosComPlaylist.length === 1 ? 'l' : 'is'
+                  }`
+                : `${totalMusicasDaSecao(cultoSelecionado)} música${
+                    totalMusicasDaSecao(cultoSelecionado) === 1 ? '' : 's'
+                  }`}
+            </Text>
+          </View>
+          <Text style={styles.selectChevron}>▼</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Apenas a playlist do culto seleccionado */}
+      <FlatList
+        data={blocosDoSelecionado}
+        keyExtractor={(_bloco, i) => `${cultoSelecionadoId || 'x'}-tema-${i}`}
+        renderItem={({ item: bloco, index: bi }) => (
+          <View style={styles.temaBlock}>
+            {bloco.tema ? <Text style={styles.temaTit}>{bloco.tema}</Text> : null}
+            {bloco.musicas.map((m) => (
+              <View key={`${cultoSelecionadoId}-${bi}-${m.id}-${m.versaoLocalId || ''}`} style={styles.rowWrap}>
+                <TouchableOpacity style={styles.row} onPress={() => abrirMusica(m)} activeOpacity={0.75}>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTit}>
+                      {m.titulo || '—'}
+                      {rotuloVersaoPlaylist(m) ? (
+                        <Text style={styles.rowVersao}> · {rotuloVersaoPlaylist(m)}</Text>
+                      ) : null}
+                    </Text>
+                    {m.artista ? <Text style={styles.rowArt}>{m.artista}</Text> : null}
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.rowEditBtn} onPress={() => abrirEditarServidor(m)} hitSlop={10}>
+                  <Text style={styles.rowEditIcon}>✎</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+        ListEmptyComponent={
+          semSelecao ? (
+            cultosComPlaylist.length > 0 ? (
+              <Text style={styles.empty}>
+                Escolha um culto no seletor acima para ver a playlist correspondente.
+              </Text>
+            ) : !esperaSyncControlador ? (
+              <Text style={styles.empty}>
+                Nenhuma música nas playlists do controlador. Confirme que o painel no PC está aberto e ligado ao mesmo
+                IP; na tela inicial use o fluxo que atualiza o pedido ao controlador se precisar.
+              </Text>
+            ) : null
           ) : null
         }
         contentContainerStyle={styles.listContent}
       />
+
+      {/* Opções do dropdown */}
+      <Modal
+        visible={dropdownAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDropdownAberto(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setDropdownAberto(false)}>
+          <Pressable style={styles.dropdownCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dropdownTit}>Escolha o culto</Text>
+            <FlatList
+              data={cultosComPlaylist}
+              keyExtractor={(item) => item.culto.id}
+              style={styles.dropdownList}
+              renderItem={({ item }) => {
+                const ativo = item.culto.id === cultoSelecionadoId;
+                const total = totalMusicasDaSecao(item);
+                return (
+                  <TouchableOpacity
+                    style={[styles.opt, ativo && styles.optAtivo]}
+                    onPress={() => escolherCulto(item.culto.id)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.optText}>
+                      <View style={styles.periodoRow}>
+                        <IconePeriodo chave={item.periodo.chave} />
+                        <Text
+                          style={[
+                            styles.periodoTxt,
+                            item.periodo.chave === 'noite' && styles.periodoTxtNoite,
+                          ]}
+                        >
+                          {item.periodo.label || 'CULTO'}
+                        </Text>
+                      </View>
+                      <Text style={styles.optTit}>{tituloDataPt(item.iso)}</Text>
+                      <Text style={styles.optSub}>
+                        {total} música{total === 1 ? '' : 's'}
+                      </Text>
+                    </View>
+                    {ativo ? <Text style={styles.optCheck}>✓</Text> : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity style={styles.btnCancel} onPress={() => setDropdownAberto(false)}>
+              <Text style={styles.btnCancelTxt}>Cancelar</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -250,8 +334,9 @@ const styles = StyleSheet.create({
   aguardaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   aguardaTxt: { fontSize: 13, color: COLORS.accent2, fontFamily: FONTS.regular },
   listContent: { paddingBottom: 28 },
-  dateBlock: { marginBottom: 12 },
-  dateHeader: {
+
+  /** Botão que faz as vezes de <select>: mostra sempre o culto activo. */
+  select: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -261,11 +346,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingVertical: 14,
     paddingHorizontal: 14,
+    marginBottom: 14,
   },
   // Faixa lateral por período: manhã dourada, noite dourado escuro
-  dateHeaderManha: { borderLeftWidth: 4, borderLeftColor: COLORS.accent },
-  dateHeaderNoite: { borderLeftWidth: 4, borderLeftColor: COLORS.accent2 },
-  dateHeaderText: { flex: 1, paddingRight: 12 },
+  selectManha: { borderLeftWidth: 4, borderLeftColor: COLORS.accent },
+  selectNoite: { borderLeftWidth: 4, borderLeftColor: COLORS.accent2 },
+  // Sem escolha: faixa neutra, para não sugerir um culto activo
+  selectVazio: { borderLeftWidth: 4, borderLeftColor: COLORS.border },
+  selectText: { flex: 1, paddingRight: 12 },
+  selectTit: { fontFamily: FONTS.semibold, fontSize: 15, color: COLORS.text },
+  selectTitPlaceholder: { color: COLORS.textDim, fontFamily: FONTS.regular },
+  selectSub: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textDim, marginTop: 3 },
+  selectChevron: { fontSize: 12, color: COLORS.accent, fontFamily: FONTS.semibold },
+
   periodoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   periodoTxt: {
     fontFamily: FONTS.bold,
@@ -274,27 +367,40 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
   },
   periodoTxtNoite: { color: COLORS.accent2 },
-  dateHeaderTit: {
-    fontFamily: FONTS.semibold,
-    fontSize: 15,
-    color: COLORS.text,
+
+  /** Painel de opções do dropdown */
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(42,38,34,0.55)',
+    justifyContent: 'center',
+    padding: 16,
   },
-  dateHeaderSub: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textDim,
-    marginTop: 3,
+  dropdownCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    maxHeight: '78%',
+    padding: 14,
   },
-  dateChevron: {
-    fontSize: 12,
-    color: COLORS.accent,
-    fontFamily: FONTS.semibold,
+  dropdownTit: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.accent, marginBottom: 10 },
+  dropdownList: { maxHeight: 400 },
+  opt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  dateBody: {
-    paddingTop: 10,
-    paddingLeft: 4,
-    paddingRight: 0,
-  },
+  optAtivo: { backgroundColor: COLORS.surface2, borderRadius: 8 },
+  optText: { flex: 1 },
+  optTit: { fontFamily: FONTS.semibold, fontSize: 14, color: COLORS.text },
+  optSub: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textDim, marginTop: 3 },
+  optCheck: { fontSize: 16, color: COLORS.accent, fontFamily: FONTS.bold, paddingLeft: 10 },
+  btnCancel: { marginTop: 12, alignItems: 'center', paddingVertical: 10 },
+  btnCancelTxt: { color: COLORS.accent2, fontFamily: FONTS.semibold, fontSize: 14 },
+
   temaBlock: { marginBottom: 12 },
   temaTit: {
     fontFamily: FONTS.semibold,

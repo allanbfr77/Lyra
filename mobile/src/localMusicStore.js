@@ -128,28 +128,12 @@ export async function salvarMusicaLocal(musica) {
   return next;
 }
 
-/**
- * Cria uma nova música local em branco (rascunho sem título nem letra).
- * Pronta para ser editada na tela de edição local.
- *
- * @returns {Promise<MusicaLocal>} O rascunho criado
+/*
+ * Não existe criação de rascunho vazio: «Nova música» apenas abre o formulário
+ * e a música só é persistida em `criarMusicaLocalCompleta` ao guardar, já com
+ * título, slides e culto. Assim, sair da edição sem guardar não deixa entradas
+ * «(sem título)» na biblioteca.
  */
-export async function criarMusicaLocalRascunho() {
-  const m = {
-    localId: gerarLocalId(),
-    serverId: null,
-    titulo: '',
-    artista: '',
-    estrofes: [''],   // Começa com um slide vazio
-    pendente: true,
-    cultoId: null,
-    cultoLabel: null,
-  };
-  const list = await listarMusicasLocais();
-  list.push(m);
-  await salvarTodas(list);
-  return m;
-}
 
 /**
  * Importação a partir da busca na web (Cifra Club no próprio celular).

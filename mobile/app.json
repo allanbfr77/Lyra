@@ -27,9 +27,13 @@
         "ACCESS_WIFI_STATE"
       ]
     },
+    "assetBundlePatterns": [
+      "assets/**"
+    ],
     "plugins": [
       "expo-router",
-      "expo-asset"
+      "expo-asset",
+      "expo-sqlite"
     ],
     "extra": {
       "router": {},
