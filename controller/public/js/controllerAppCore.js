@@ -13377,6 +13377,8 @@ function bibliaPayloadCfgExibicao() {
     },
     ministrante: {
       fontSize: mon.fontSize,
+      fontSizeAtual: mon.fontSize,
+      fontSizeProximo: mon.fontSize,
       fontFamily: mon.fontFamily,
       lineSpacing: mon.lineSpacing,
       wrapLongLines: mon.wrapLongLines !== false,
