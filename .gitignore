@@ -6,3 +6,6 @@ release/
 .env
 # Nota: os .sqlite da Bíblia agora vivem em controller/data/biblia/ e são
 # versionados de propósito, pois precisam ir embutidos no instalador do controller.
+
+# Artefatos do sistema de arquivos montado (FUSE) — aparecem ao apagar ficheiro ainda aberto
+.fuse_hidden*

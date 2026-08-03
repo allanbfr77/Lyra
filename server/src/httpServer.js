@@ -46,6 +46,7 @@ function iniciarServidor(ctx, paths, deps) {
     enviarComandoAudioParaControle,
     enviarSyncVideoApresentacaoParaDisplays,
     sincronizarJanelasRelogio,
+    aplicarDisplayConfigNasJanelas,
   } = windowsApi;
 
   /**
@@ -577,6 +578,7 @@ function iniciarServidor(ctx, paths, deps) {
       displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
         persistirSlides: modoConfig !== displayConfigModo.MODO_CFG_BIBLIA,
         displayConfigPath: paths.displayConfigPath,
+        enviar: aplicarDisplayConfigNasJanelas,
       });
       try { sincronizarJanelasRelogio(); } catch (e) {
         logError('sincronizar-janelas-relogio', e);
@@ -597,6 +599,7 @@ function iniciarServidor(ctx, paths, deps) {
       const { forcarModo } = displayConfigModo.extrairPatchDisplayConfig(cfg);
       const enviada = displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
         persistirSlides: false,
+        enviar: aplicarDisplayConfigNasJanelas,
       });
       try { sincronizarJanelasRelogio(); } catch (e) {
         logError('sincronizar-janelas-relogio', e);
@@ -749,7 +752,10 @@ function iniciarServidor(ctx, paths, deps) {
       if (!comandoAutorizado(socket)) return;
       try {
         if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return;
-        displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, { persistirSlides: false });
+        displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
+          persistirSlides: false,
+          enviar: aplicarDisplayConfigNasJanelas,
+        });
         try { sincronizarJanelasRelogio(); } catch (err) {
           logError('sincronizar-janelas-relogio', err);
         }
@@ -772,6 +778,7 @@ function iniciarServidor(ctx, paths, deps) {
         displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
           persistirSlides: modoConfig !== displayConfigModo.MODO_CFG_BIBLIA,
           displayConfigPath: paths.displayConfigPath,
+          enviar: aplicarDisplayConfigNasJanelas,
         });
         try { sincronizarJanelasRelogio(); } catch (err) {
           logError('sincronizar-janelas-relogio', err);
@@ -876,7 +883,7 @@ function iniciarServidor(ctx, paths, deps) {
         ctx.projecaoLiveAtiva = false;
 
         garantirTelasAbertasParaProjecao();
-        displayConfigModo.enviarDisplayConfigParaJanelas(ctx, {
+        aplicarDisplayConfigNasJanelas({
           forcarModo: 'slides',
         });
         atualizarDisplays(ctx.estadoAtual);
@@ -960,7 +967,7 @@ function iniciarServidor(ctx, paths, deps) {
       const reenviarConfig =
         payload.reenviarDisplayConfig === true || payload.somenteTexto !== true;
       if (reenviarConfig) {
-        displayConfigModo.enviarDisplayConfigParaJanelas(ctx, {
+        aplicarDisplayConfigNasJanelas({
           forcarModo: 'biblia',
         });
       }
@@ -988,7 +995,7 @@ function iniciarServidor(ctx, paths, deps) {
       atualizarDisplays(ctx.estadoAtual);
       ctx.estadoMinistrante = snapshotMinistranteAtual();
       atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      displayConfigModo.enviarDisplayConfigParaJanelas(ctx, {
+      aplicarDisplayConfigNasJanelas({
         forcarModo: 'slides',
       });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
@@ -1002,7 +1009,7 @@ function iniciarServidor(ctx, paths, deps) {
       atualizarDisplays(ctx.estadoAtual);
       ctx.estadoMinistrante = snapshotMinistranteAtual();
       atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      displayConfigModo.enviarDisplayConfigParaJanelas(ctx, { forcarModo: 'biblia' });
+      aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
       emitirEstadoBibliaObs();
     });
@@ -1027,7 +1034,7 @@ function iniciarServidor(ctx, paths, deps) {
       ctx.estadoMinistrante = { titulo: '', atual: '', proximo: '', telaLimpa: true };
       atualizarDisplays(ctx.estadoAtual);
       atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      displayConfigModo.enviarDisplayConfigParaJanelas(ctx, {
+      aplicarDisplayConfigNasJanelas({
         forcarModo: 'slides',
       });
       ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());

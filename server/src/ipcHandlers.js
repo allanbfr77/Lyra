@@ -61,6 +61,7 @@ function registerIpcHandlers(ctx, paths, deps) {
       const enviada = displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
         persistirSlides: true,
         displayConfigPath: paths.displayConfigPath,
+        enviar: windowsApi.aplicarDisplayConfigNasJanelas,
       });
       try { windowsApi.sincronizarJanelasRelogio(); } catch (err) {
         logError('sincronizar-janelas-relogio', err);
