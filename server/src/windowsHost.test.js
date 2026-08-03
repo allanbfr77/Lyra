@@ -65,7 +65,7 @@ const paths = {
 
 function montar(over = {}) {
   const ctx = {
-    windowsDisplay: [],
+    // sem `windowsDisplay`: desde o sub-passo 3b o registo é privado ao motor
     windowControl: null,
     displayConfig: { publico: {}, ministrante: {}, clock: { showClock: false } },
     displayConfigBiblia: null,
@@ -134,23 +134,28 @@ test('Esc num modo que não é slides não avisa o host', () => {
 
 test('o motor pergunta ao host se há operador ligado', () => {
   let chamadas = 0;
-  const { ctx, api } = montar({ haOperadorConectado: () => { chamadas += 1; return true; } });
-  ctx.windowsDisplay = [{ role: 'publico', index: 0, win: fakeWin() }];
+  const { api } = montar({ haOperadorConectado: () => { chamadas += 1; return true; } });
   api.garantirTelasAbertasParaProjecao();
   assert.ok(chamadas > 0, 'haOperadorConectado devia ter sido consultado');
 });
 
 test('aplicarDisplayConfigNasJanelas escreve nas janelas de projeção e na de controle', () => {
   const { ctx, api } = montar();
-  const pub = fakeWin();
   const ctrl = fakeWin();
-  ctx.windowsDisplay = [{ role: 'publico', index: 1, win: pub }];
   ctx.windowControl = ctrl;
+  // As janelas vêm do registo interno do motor — abre-se pelo motor, não injetando no ctx.
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.sincronizarJanelasRelogio();
+  const abertas = api.janelasDeProjecao();
+  assert.ok(abertas.length > 0, 'cenário precisa de pelo menos uma janela no registo');
 
   const cfg = api.aplicarDisplayConfigNasJanelas({ forcarModo: 'slides' });
 
   assert.ok(cfg && typeof cfg === 'object', 'devolve a config enviada');
-  assert.ok(pub.sends.some((s) => s.canal === 'display_config'), 'janela de projeção recebeu');
+  assert.ok(
+    abertas.every((e) => e.win.sends.some((s) => s.canal === 'display_config')),
+    'todas as janelas do registo receberam'
+  );
   assert.ok(ctrl.sends.some((s) => s.canal === 'display_config'), 'janela de controle recebeu');
 });
 
@@ -163,7 +168,7 @@ test('resincronizar o relógio com a janela já no lugar não mexe na janela nat
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
   api.sincronizarJanelasRelogio();
 
-  const relogios = ctx.windowsDisplay.filter((e) => e.role === 'relogio');
+  const relogios = api.janelasDeProjecao().filter((e) => e.role === 'relogio');
   assert.ok(relogios.length > 0, 'o cenário precisa de pelo menos uma janela de relógio aberta');
   relogios.forEach((e) => { e.win.nativas.length = 0; });
 
@@ -183,7 +188,7 @@ test('relógio num monitor que mudou de posição é reposicionado', () => {
   const { ctx, api } = montar();
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
   api.sincronizarJanelasRelogio();
-  const relogio = ctx.windowsDisplay.find((e) => e.role === 'relogio');
+  const relogio = api.janelasDeProjecao().find((e) => e.role === 'relogio');
   assert.ok(relogio, 'cenário precisa de janela de relógio');
 
   relogio.win.nativas.length = 0;
@@ -196,8 +201,7 @@ test('relógio num monitor que mudou de posição é reposicionado', () => {
 
 test('o predicado é consultado a cada decisão, não memorizado na construção', () => {
   let chamadas = 0;
-  const { ctx, api } = montar({ haOperadorConectado: () => { chamadas += 1; return true; } });
-  ctx.windowsDisplay = [{ role: 'publico', index: 0, win: fakeWin() }];
+  const { api } = montar({ haOperadorConectado: () => { chamadas += 1; return true; } });
   api.garantirTelasAbertasParaProjecao();
   const apos1 = chamadas;
   api.garantirTelasAbertasParaProjecao();

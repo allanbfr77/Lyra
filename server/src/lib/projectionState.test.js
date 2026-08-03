@@ -42,7 +42,16 @@ test('leitura devolve a MESMA referência do ctx (não uma cópia)', () => {
   const porta = createProjectionState(ctx);
   assert.strictEqual(porta.estadoAtual, ctx.estadoAtual);
   assert.strictEqual(porta.displayConfig, ctx.displayConfig);
-  assert.strictEqual(porta.windowsDisplay, ctx.windowsDisplay);
+  assert.strictEqual(porta.windowControl, ctx.windowControl);
+});
+
+test('o registo de janelas NÃO passa pela porta (saiu no sub-passo 3b)', () => {
+  const ctx = ctxFalso();
+  const porta = createProjectionState(ctx);
+  assert.ok(!CAMPOS_PORTA.includes('windowsDisplay'), 'windowsDisplay não é campo da porta');
+  assert.strictEqual(porta.windowsDisplay, undefined);
+  /* `undefined` é a resposta certa: código antigo que tente `state.windowsDisplay.filter`
+     rebenta alto, em vez de operar sobre uma lista vazia em silêncio. */
 });
 
 test('escrita na porta escreve no ctx (o motor também muta o estado)', () => {
@@ -59,8 +68,9 @@ test('escrita na porta escreve no ctx (o motor também muta o estado)', () => {
   porta.estadoPublicoOverride = null;
   assert.strictEqual(ctx.estadoPublicoOverride, null);
 
-  porta.windowsDisplay = [{ role: 'publico', index: 1 }];
-  assert.strictEqual(ctx.windowsDisplay.length, 1);
+  const janelaControle = { id: 'wc' };
+  porta.windowControl = janelaControle;
+  assert.strictEqual(ctx.windowControl, janelaControle);
 });
 
 test('mudança feita fora, no ctx, aparece na porta (sem cache)', () => {

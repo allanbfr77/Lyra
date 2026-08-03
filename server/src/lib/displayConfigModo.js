@@ -1,89 +1,28 @@
 'use strict';
 
 const displayConfigLib = require('./displayConfig');
-
-const MODO_CFG_SLIDES = 'slides';
-const MODO_CFG_BIBLIA = 'biblia';
-
-/** Campos exclusivos do overlay Bíblia — não devem permanecer no telão em modo Slides. */
-const CHAVES_REF_BIBLIA = ['refMostrar', 'refFontSize', 'refColor'];
-
-function clonarCfg(cfg) {
-  try {
-    return JSON.parse(JSON.stringify(cfg));
-  } catch (_) {
-    return cfg;
-  }
-}
+const transforms = require('../core/displayConfigTransforms');
 
 /**
- * Limpa apenas campos de fundo (imagem órfã) — preserva referência e tipografia da Bíblia.
- * @param {object} layer
+ * Camada do modo de exibição dependente de estado (`ctx`) e Electron (envio às janelas).
+ *
+ * As transformações PURAS de config foram extraídas para ../core/displayConfigTransforms
+ * (refatoração do Projection Core — ver docs/architecture/projection-core.md). Este módulo
+ * reexporta essas funções puras para preservar a API pública histórica.
  */
-function sanitizarCamadaFundoBasico(layer) {
-  if (!layer || typeof layer !== 'object') return layer;
-  const out = { ...layer };
-  if (out.bgType !== 'image') {
-    out.bgImage = '';
-    if (!out.bgType) out.bgType = 'solid';
-  }
-  return out;
-}
 
-/**
- * Garante que fundo de imagem da Bíblia não «grude» quando o modo activo é Slides.
- * Remove campos exclusivos do overlay Bíblia.
- * @param {object} layer
- */
-function sanitizarCamadaFundoSlides(layer) {
-  const out = sanitizarCamadaFundoBasico(layer);
-  for (const k of CHAVES_REF_BIBLIA) delete out[k];
-  return out;
-}
-
-/**
- * Config enviada às janelas em modo Slides: só `displayConfig`, fundo explícito.
- * @param {object} cfg
- */
-function sanitizarConfigSlidesParaJanelas(cfg) {
-  const base = clonarCfg(cfg || displayConfigLib.DEFAULT_DISPLAY_CONFIG);
-  return {
-    ...base,
-    publico: sanitizarCamadaFundoSlides(base.publico || {}),
-    ministrante: sanitizarCamadaFundoSlides(base.ministrante || {}),
-  };
-}
-
-/**
- * Remove metadados de roteamento do payload antes do merge.
- * @param {object} cfg
- */
-function extrairPatchDisplayConfig(cfg) {
-  const o = cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? { ...cfg } : {};
-  const modoConfig = o.modoConfig === MODO_CFG_BIBLIA ? MODO_CFG_BIBLIA : MODO_CFG_SLIDES;
-  const forcarModo =
-    o.forcarModo === MODO_CFG_BIBLIA
-      ? MODO_CFG_BIBLIA
-      : o.forcarModo === MODO_CFG_SLIDES
-        ? MODO_CFG_SLIDES
-        : null;
-  delete o.modoConfig;
-  delete o.forcarModo;
-  delete o._modoConfig;
-  return { modoConfig, forcarModo, patch: o };
-}
-
-/** Patch de Slides: nunca aceitar campos exclusivos da Bíblia no armazenamento de slides. */
-function sanitizarPatchSlides(patch) {
-  const p = clonarCfg(patch || {});
-  for (const chave of ['publico', 'ministrante']) {
-    const layer = p[chave];
-    if (!layer || typeof layer !== 'object') continue;
-    for (const k of CHAVES_REF_BIBLIA) delete layer[k];
-    if (layer.bgType !== 'image') layer.bgImage = '';
-  }
-  return p;
-}
+const {
+  MODO_CFG_SLIDES,
+  MODO_CFG_BIBLIA,
+  CHAVES_REF_BIBLIA,
+  clonarCfg,
+  sanitizarCamadaFundoBasico,
+  sanitizarConfigSlidesParaJanelas,
+  extrairPatchDisplayConfig,
+  sanitizarPatchSlides,
+  corBackgroundJanelaPublica,
+  mesclarCamadaDisplay,
+} = transforms;
 
 /**
  * Config efetiva do modo Bíblia: overlay `displayConfigBiblia` sobre defaults neutros.
@@ -137,20 +76,6 @@ function resolverConfigParaJanelas(ctx, opts = {}) {
 }
 
 /**
- * Cor sólida de fundo do telão para `backgroundColor` da BrowserWindow (evita flash na abertura).
- * @param {object} cfg
- */
-function corBackgroundJanelaPublica(cfg) {
-  const pb = (cfg && cfg.publico) || {};
-  if (pb.bgType === 'image') return '#000000';
-  if (pb.bgType === 'gradient') {
-    const m = String(pb.bgGradient || '').match(/#[0-9a-fA-F]{3,8}/);
-    return m ? m[0] : '#000000';
-  }
-  return pb.bgColor || '#000000';
-}
-
-/**
  * Modo visual activo para novas janelas / IPC inicial (Bíblia vs Slides).
  * @param {object} ctx
  * @returns {'slides'|'biblia'}
@@ -161,36 +86,6 @@ function inferirForcarModoJanelas(ctx) {
     return MODO_CFG_BIBLIA;
   }
   return MODO_CFG_SLIDES;
-}
-
-/**
- * Mescla camada de display preservando bgImage quando o patch não traz imagem
- * (evita apagar fundo ao actualizar só tipografia/cores no modo Bíblia).
- * @param {object} [atual]
- * @param {object} [patch]
- */
-function mesclarCamadaDisplay(atual, patch) {
-  if (!patch || typeof patch !== 'object') return atual || {};
-  const base = atual && typeof atual === 'object' ? { ...atual } : {};
-  const camada = { ...patch };
-  const bgType = camada.bgType != null ? camada.bgType : base.bgType || 'solid';
-  const merged = { ...base, ...camada, bgType };
-  merged.bgColor = camada.bgColor != null ? camada.bgColor : base.bgColor;
-  merged.bgGradient = camada.bgGradient != null ? camada.bgGradient : base.bgGradient;
-  if (bgType === 'image') {
-    const imgPatch = camada.bgImage;
-    const imgBase = base.bgImage;
-    if (imgPatch != null && String(imgPatch).length > 0) {
-      merged.bgImage = String(imgPatch);
-    } else if (imgBase != null && String(imgBase).length > 0) {
-      merged.bgImage = String(imgBase);
-    } else {
-      merged.bgImage = '';
-    }
-  } else {
-    merged.bgImage = '';
-  }
-  return merged;
 }
 
 /**
@@ -229,11 +124,26 @@ function aplicarPatchNoModo(ctx, patch, modo) {
 
 /**
  * @param {object} ctx
- * @param {{ forcarModo?: 'slides'|'biblia', io?: object, windowControl?: object }} [opts]
+ * @param {{
+ *   forcarModo?: 'slides'|'biblia', io?: object, windowControl?: object,
+ *   janelas?: Array<{ win: object }>
+ * }} [opts]
+ *   `janelas` — registo de janelas de projeção, fornecido pelo motor (sub-passo 3b), que é
+ *   o seu dono. Sem ele cai no `ctx.windowsDisplay` histórico.
  */
 function enviarDisplayConfigParaJanelas(ctx, opts = {}) {
   const cfg = resolverConfigParaJanelas(ctx, opts);
-  (ctx.windowsDisplay || []).forEach((entry) => {
+  const janelas = opts.janelas ?? ctx.windowsDisplay;
+  /* Loud de propósito: sem registo, o `forEach` correria sobre uma lista vazia e a config
+     simplesmente não chegaria às telas — sem erro, sem log, sem sintoma até alguém reparar
+     que a fonte parou de mudar. É a falha silenciosa que o sub-passo 3a existiu para evitar. */
+  if (!Array.isArray(janelas)) {
+    throw new TypeError(
+      'enviarDisplayConfigParaJanelas: sem registo de janelas — passe `opts.janelas` ' +
+        '(use windowsApi.aplicarDisplayConfigNasJanelas)'
+    );
+  }
+  janelas.forEach((entry) => {
     const win = entry?.win;
     if (!win || win.isDestroyed()) return;
     try {
@@ -256,9 +166,21 @@ function enviarDisplayConfigParaJanelas(ctx, opts = {}) {
 
 /**
  * Preview ou gravação vinda do controlador.
+ *
+ * A parte de ESTADO (patch + persistência) é feita aqui; a ENTREGA às janelas é delegada
+ * a `opts.enviar`, que deve ser `windowsApi.aplicarDisplayConfigNasJanelas` — o motor é o
+ * dono das janelas de projeção e o único que deve escrever nelas (sub-passo 3a).
+ *
+ * Sem `opts.enviar` cai no caminho histórico (alcançar `ctx.windowsDisplay` daqui), que
+ * deixa de funcionar assim que o registo de janelas se tornar interno ao motor (3b).
+ *
  * @param {object} ctx
  * @param {object} cfg
- * @param {{ persistirSlides?: boolean, displayConfigPath?: () => string }} [opts]
+ * @param {{
+ *   persistirSlides?: boolean,
+ *   displayConfigPath?: () => string,
+ *   enviar?: (opts: { forcarModo?: 'slides'|'biblia' }) => object
+ * }} [opts]
  */
 function processarDisplayConfigDoControlador(ctx, cfg, opts = {}) {
   const { modoConfig, forcarModo, patch } = extrairPatchDisplayConfig(cfg);
@@ -267,9 +189,8 @@ function processarDisplayConfigDoControlador(ctx, cfg, opts = {}) {
   if (modoConfig === MODO_CFG_SLIDES && opts.persistirSlides && opts.displayConfigPath) {
     displayConfigLib.saveDisplayConfig(opts.displayConfigPath, ctx.displayConfig);
   }
-  return enviarDisplayConfigParaJanelas(ctx, {
-    forcarModo: forcarModo || modoConfig,
-  });
+  const enviar = opts.enviar || ((o) => enviarDisplayConfigParaJanelas(ctx, o));
+  return enviar({ forcarModo: forcarModo || modoConfig });
 }
 
 module.exports = {

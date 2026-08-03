@@ -189,10 +189,30 @@ Verificado por: fingerprint com **uma única diferença — a chave nova na supe
 exactamente a mudança pretendida; `npm test` 63/63 (+5 em `lib/displayConfigModo.test.js`, que
 guardam justamente a falha silenciosa, e +1 em `windowsHost.test.js`); `eslint` sem erros novos.
 
-**Sub-passo 3b — Internalizar o registro (a fazer).**
-Com um só escritor, `windowsDisplay` sai da porta de estado e vira estado interno do motor,
-manipulado por uma API de registo (`adicionar`/`porRole`/`substituir`/`limpar`) em vez de 28
-manipulações directas do array. `serverContext.windowsDisplay` deixa de existir.
+**Sub-passo 3b — Internalizar o registro. ✅ FEITO.**
+`windowsDisplay` saiu da porta de estado e do `serverContext`. O registo vive em
+`lib/windowRegistry.js`, com o array **privado ao módulo**, e o motor manipula-o por
+`todas`/`porRole`/`vivasPorRole`/`adicionar`/`substituirPor`/`remover`/`limpar`/`tamanho` — em vez
+das 28 manipulações directas do array. Leitura de fora (diagnóstico e testes) por
+`windowsApi.janelasDeProjecao()`, que devolve cópia do array.
+
+Duas escolhas que valem registo:
+
+- **`todas()` copia o array, mas não as entradas.** O motor anota estado nas entradas
+  (`entry.ocultoParaRelogio`) e essa anotação tem de sobreviver. Copiar em profundidade
+  partiria isso em silêncio.
+- **`enviarDisplayConfigParaJanelas` passou a distinguir "lista vazia" de "registo ausente".**
+  Vazia é legítimo (pode não haver telas abertas); ausente lança `TypeError`. O antigo
+  `ctx.windowsDisplay || []` transformava um erro de ligação em zero janelas — a falha
+  silenciosa que o 3a existiu para prevenir agora é impossível de ignorar.
+
+Verificado por: fingerprint com **240 eventos e zero diferenças comportamentais** (a única
+diferença é a chave `janelasDeProjecao` na superfície da API); `npm test` 75/75 (+7 em
+`lib/windowRegistry.test.js`, +2 em `displayConfigModo.test.js`, +1 na porta); `eslint` sem erros.
+
+> Nota de método: o harness lia o registo em `ctx.windowsDisplay`. Como o registo saiu do `ctx`,
+> foi preciso passá-lo a lêr por `api.janelasDeProjecao()` — senão o fingerprint continuaria a
+> comparar listas vazias e daria "idêntico" sem exercitar nada. Mesma lição do bug do relógio.
 
 **Sub-passo 4 — Mover o motor para `core/` com shim.**
 Só agora mover o corpo do motor (abrir/sincronizar/renderizar janelas) para `core/`, deixando em
@@ -241,7 +261,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (65 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (75 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -314,6 +334,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ---
 
-> Próximo movimento: **sub-passo 3** — extrair o registo de janelas de projeção
-> (`windowsDisplay`, 29 referências) para estado próprio do motor. É a maior das costuras
-> restantes; a porta de estado já é o sítio por onde ele passa hoje, o que torna a mudança local.
+> Próximo movimento: **sub-passo 4** — mover o corpo do motor para `core/`, deixando em
+> `windows.js` um shim fino que injecta as dependências do Server. Bloqueios conhecidos a
+> resolver nesse passo: `lib/iconPath.js` faz `require('electron')` no topo (tem de ser
+> injectado), e a criação da janela de controle ainda vive aqui — é o último uso do `ctx`.

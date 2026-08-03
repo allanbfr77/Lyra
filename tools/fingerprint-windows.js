@@ -169,12 +169,19 @@ const CAMPOS_CTX_OBSERVADOS = [
   'windowsDisplay', 'windowControl',
 ];
 
-/** Snapshot do ctx sem os handles de janela (guarda só role/index/id). */
+/**
+ * Snapshot do estado observável sem os handles de janela (guarda só role/index/id).
+ *
+ * O registo de janelas não está no `ctx` desde o sub-passo 3b — é privado ao motor. Lê-se
+ * por `api.janelasDeProjecao()`. Deixar de o gravar aqui tornaria o harness cego a todo o
+ * comportamento de abertura/fecho de janelas.
+ */
 function snapshotCtx(ctx) {
   const out = {};
   for (const c of CAMPOS_CTX_OBSERVADOS) {
     if (c === 'windowsDisplay') {
-      out[c] = (ctx.windowsDisplay || []).map((e) => ({
+      const registo = typeof api !== 'undefined' && api.janelasDeProjecao ? api.janelasDeProjecao() : [];
+      out[c] = registo.map((e) => ({
         role: e?.role, index: e?.index, win: e?.win?.__id ?? null, destruida: e?.win?.isDestroyed?.() ?? null,
       }));
     } else if (c === 'windowControl') {

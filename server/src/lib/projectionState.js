@@ -34,14 +34,16 @@ const CAMPOS_ESTADO = [
 /**
  * Registro de janelas (balde A do plano).
  *
- * `windowsDisplay` passa a ser propriedade do Core no sub-passo 3.
+ * `windowsDisplay` **saiu daqui no sub-passo 3b**: o registo das janelas de projeção é
+ * agora privado ao motor (`lib/windowRegistry.js`). Se algum código antigo ainda tentar
+ * `state.windowsDisplay`, obtém `undefined` e rebenta — que é o que se quer, por oposição
+ * a operar sobre uma lista vazia em silêncio.
  *
  * `windowControl` é a janela do Server, não do motor — está aqui só porque o motor
- * ainda a notifica directamente (`estado_atualizado`, `telas_projecao_encerradas_esc`)
- * e porque `displayConfigModo.enviarDisplayConfigParaJanelas` a lê do contexto que
- * recebe. Sai da porta no sub-passo 2/4, quando essas notificações virarem eventos.
+ * ainda a notifica directamente (`estado_atualizado`, `telas_projecao_encerradas_esc`).
+ * Sai da porta no sub-passo 4, quando essas notificações virarem eventos.
  */
-const CAMPOS_JANELAS = ['windowsDisplay', 'windowControl'];
+const CAMPOS_JANELAS = ['windowControl'];
 
 const CAMPOS_PORTA = [...CAMPOS_ESTADO, ...CAMPOS_JANELAS];
 

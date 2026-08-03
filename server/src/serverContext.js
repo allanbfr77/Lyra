@@ -13,7 +13,9 @@ module.exports = {
   verificacaoManualAtualizacao: false,
   checkingManual: false,
 
-  windowsDisplay: [],
+  /* `windowsDisplay` saiu daqui no sub-passo 3b: o registo das janelas de projeção é
+     privado ao motor (`lib/windowRegistry.js`), que é o seu dono. Para lêr, use
+     `windowsApi.janelasDeProjecao()`. */
   io: null,
   /** Controle de acesso / write-lock (criado em httpServer.js). */
   acesso: null,
