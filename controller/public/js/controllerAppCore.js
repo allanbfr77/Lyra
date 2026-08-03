@@ -3561,6 +3561,13 @@ function encerrarProjecaoAoSairDoModoSlides() {
   slidesDockVisivel = false;
   projecaoMusicaEmitidaNoServidor = false;
   bloqueioSincronizarEstrofeDoServidor = false;
+  /**
+   * Limpa a seleção da playlist do modo slides já na saída (e não só ao reentrar):
+   * a faixa é sempre rearmada por clique na playlist, então deixá-la «ligada» aqui
+   * fazia a linha voltar destacada sobre uma grade vazia.
+   * `musicaAtiva` fica intacta de propósito — a Home continua com a música no editor.
+   */
+  faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
   estadoServidor = {
     tipo: null,
     titulo: '',
@@ -7284,6 +7291,29 @@ function playlistItemMesmaVersaoQueAtiva(it) {
   return va === vb && itBf === curBf;
 }
 
+/**
+ * `musicaAtiva` sobrevive à saída do modo slides (a Home mantém a música no editor),
+ * mas a faixa de slides é rearmada do zero ao reentrar. Sem esta distinção, a linha
+ * ficava destacada com a grade vazia e o primeiro clique caía no ramo «desmarcar»,
+ * exigindo um segundo clique para os slides voltarem.
+ *
+ * No modo slides, só há seleção enquanto a faixa está de facto preenchida.
+ */
+function playlistSelecaoVisivelNoModoAtual() {
+  if (!musicaAtiva) return false;
+  if (!ehModoSlidesOperador()) return true;
+  return faixaSlidesHabilitadaPorPlaylistNoModoSlides;
+}
+
+/**
+ * Seleção como a UI a mostra — usar para o destaque da linha e para decidir o clique.
+ * Para lógica funcional (próxima música, deduplicação da playlist) usar
+ * `playlistItemMesmaVersaoQueAtiva`, que ignora o estado da faixa.
+ */
+function playlistItemSelecionadoNaUi(it) {
+  return playlistSelecaoVisivelNoModoAtual() && playlistItemMesmaVersaoQueAtiva(it);
+}
+
 /** Segundo clique na mesma linha da playlist: desmarca (como ESC no modo slides). */
 function deselecionarMusicaAtivaAPartirDaPlaylist() {
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = true;
@@ -7361,7 +7391,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
   let songNum = 0;
   let songAppendParent = el;
   const idxMusicaNaPlaylist = musicaAtiva
-    ? pl.findIndex((it) => !ehMarcadorTemaPlaylist(it) && playlistItemMesmaVersaoQueAtiva(it))
+    ? pl.findIndex((it) => !ehMarcadorTemaPlaylist(it) && playlistItemSelecionadoNaUi(it))
     : -1;
 
   const appendSongRow = (item, idxPl) => {
@@ -7371,7 +7401,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
     const compacto = idxMusicaNaPlaylist !== -1 && idxPl !== idxMusicaNaPlaylist;
     row.className =
       'playlist-row' +
-      (playlistItemMesmaVersaoQueAtiva(item) ? ' ativo' : '') +
+      (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
       (compacto ? ' playlist-row--compacto' : '');
     const rotuloVersao =
       item.versaoRotulo ? ` · ${escapeHtml(item.versaoRotulo)}` : '';
@@ -7405,7 +7435,8 @@ function renderPlaylistItensComMarcadores(el, pl) {
       const idNum = Number(item.id);
       playlistRowClickTimer = setTimeout(() => {
         playlistRowClickTimer = null;
-        if (playlistItemMesmaVersaoQueAtiva(item)) {
+        /* Só desmarca o que a UI mostra como selecionado; com a faixa vazia, carrega. */
+        if (playlistItemSelecionadoNaUi(item)) {
           deselecionarMusicaAtivaAPartirDaPlaylist();
           return;
         }
@@ -7543,7 +7574,7 @@ function renderPlaylist() {
   }
 
   const idxMusicaNaPlaylist = musicaAtiva
-    ? pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it))
+    ? pl.findIndex((it) => playlistItemSelecionadoNaUi(it))
     : -1;
 
   /* Ordem linear = ordem real do array (subir/descer reflecte-se na lista).
@@ -7569,7 +7600,7 @@ function renderPlaylist() {
       item.versaoRotulo ? ` · ${escapeHtml(item.versaoRotulo)}` : '';
     row.className =
       'playlist-row' +
-      (playlistItemMesmaVersaoQueAtiva(item) ? ' ativo' : '') +
+      (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
       (compacto ? ' playlist-row--compacto' : '');
     row.innerHTML = `
       <div class="playlist-row-top">
@@ -7601,7 +7632,8 @@ function renderPlaylist() {
       const idNum = Number(item.id);
       playlistRowClickTimer = setTimeout(() => {
         playlistRowClickTimer = null;
-        if (playlistItemMesmaVersaoQueAtiva(item)) {
+        /* Só desmarca o que a UI mostra como selecionado; com a faixa vazia, carrega. */
+        if (playlistItemSelecionadoNaUi(item)) {
           deselecionarMusicaAtivaAPartirDaPlaylist();
           return;
         }
