@@ -2800,11 +2800,16 @@
       gap: 8px;
     }
 
+    /**
+     * O scroll do painel esquerdo vive na lista do SQLite, não aqui: com o
+     * `overflow-y: auto` neste contentor, a busca, os filtros e o botão de nova
+     * música rolavam junto com a lista de resultados. Aqui só se reparte a altura
+     * entre o cabeçalho (tamanho natural) e a secção do banco (resto do espaço).
+     */
     .banco-painel-conteudo {
       flex: 1;
       min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -2819,7 +2824,9 @@
       padding: 0 12px 0 16px;
     }
 
+    /* Cabeçalho fixo: mantém a altura natural, nunca é comprimido nem rola. */
     .banco-secao-internet {
+      flex: 0 0 auto;
       padding-top: 12px;
       padding-bottom: 4px;
     }
@@ -2836,10 +2843,21 @@
       gap: 10px;
     }
 
+    /* Ocupa o espaço restante do painel; só a lista lá dentro é que rola. */
     .banco-secao-sqlite {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
       border-top: 1px solid var(--border);
       padding-top: 12px;
       padding-bottom: 12px;
+    }
+
+    /* Título + seta de recolher e o campo «Filtrar o banco local…» ficam fixos. */
+    .banco-secao-sqlite .banco-secao-titulo-linha,
+    .banco-secao-sqlite .banco-busca-local-wrap,
+    .banco-secao-sqlite .banco-sqlite-lista-recolhida-aviso {
+      flex: 0 0 auto;
     }
 
     .lista-internet {
@@ -2867,13 +2885,19 @@
       margin: 0;
     }
 
+    /* Único elemento com scroll no painel: altura = espaço restante da secção. */
     .lista-sqlite {
-      flex: none;
-      overflow: visible;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
       max-height: none;
       padding: 2px 0 4px;
       margin: 0;
     }
+
+    .lista-sqlite::-webkit-scrollbar { width: 3px; }
+    .lista-sqlite::-webkit-scrollbar-thumb { background: var(--border); }
 
     .busca-letras-row2 {
       display: flex;
