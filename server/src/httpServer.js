@@ -96,7 +96,7 @@ function iniciarServidor(ctx, paths, deps) {
 
   /**
    * Constrói o override público telão (`estadoPublicoOverride`) compatível com
-   * `server/public/js/publicProjectionRender.js` (`tipo` + `linhas` / `apresentacao`).
+   * `@lyra/projection-core/public/js/publicProjectionRender.js` (`tipo` + `linhas` / `apresentacao`).
    */
   function estadoPublicoOverrideDePayloadApresentacao(payload) {
     const pl = payload && typeof payload === 'object' ? payload : {};

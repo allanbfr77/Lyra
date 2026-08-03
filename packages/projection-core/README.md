@@ -1,11 +1,33 @@
-# Projection Core (em formação)
+# Projection Core
 
-Este diretório é o começo do **Projection Core** descrito em
-`docs/architecture/projection-core.md`.
+Motor de projeção embutível, partilhado pelo **Servidor** e (em breve) pelo **Controlador**.
+Ver `docs/architecture/projection-core.md`.
 
-Regra de ouro (ver §0 e §5.8 da RFC): o Core é um **motor de projeção** puro. Ele **não** conhece
-Controller, Server, Socket, HTTP, SQLite, músicas, Bíblia nem playlists. Só entra aqui código que
-seja parte do motor de projeção — de preferência puro e sem dependência de plataforma.
+Regra de ouro: o Core é um **motor de projeção**. Ele **não** conhece Controller, Server, Socket,
+HTTP, SQLite, músicas, Bíblia nem playlists. Recebe tudo por `deps` — incluindo `BrowserWindow`,
+`screen`, o estado (`state`) e o canal de eventos.
+
+```js
+const { createProjectionEngine, paginaProjecao } = require('@lyra/projection-core');
+
+const engine = createProjectionEngine(paths, {
+  logError, screen, BrowserWindow,
+  state,                      // porta de estado da projeção
+  onProjecaoEncerrada,        // o motor avisa; o host propaga
+  haOperadorConectado,        // "há operador ligado?"
+  resolverPaginaProjecao: paginaProjecao,
+  caminhoIconeApp,
+});
+
+const { estadoPublico } = engine.render({ estado });
+```
+
+## O que vive aqui
+
+- `src/projectionEngine.js` — o motor: abre, sincroniza e renderiza as janelas físicas.
+- `public/` — as páginas do renderer (`display.html`, `display-operator.html`,
+  `display-clock.html`), os módulos que elas carregam (`js/`) e as fontes que usam. São do Core:
+  sem elas o Controlador não projeta.
 
 ## Estado atual da extração
 

@@ -9,3 +9,6 @@ release/
 
 # Artefatos do sistema de arquivos montado (FUSE) — aparecem ao apagar ficheiro ainda aberto
 .fuse_hidden*
+
+# Mensagem de commit temporária (git commit -F)
+.commit-msg.tmp

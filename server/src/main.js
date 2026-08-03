@@ -33,6 +33,7 @@ const displayConfigLib = require('./lib/displayConfig');
 const displayConfigModo = require('./lib/displayConfigModo');
 const { buildMonitorsList } = require('./lib/monitorsList');
 const serverPrefs = require('./lib/serverPrefs');
+const projectionCore = require('@lyra/projection-core');
 const { createWindowsApi } = require('./windows');
 const { createTrayApi } = require('./tray');
 const { createUpdaterApi } = require('./updater');
@@ -65,9 +66,9 @@ const windowsApi = createWindowsApi(ctx, paths, {
   },
   /* No Server, "operador ligado" = há um painel controlador com socket registrado. */
   haOperadorConectado: () => !!ctx.controladorSocketId,
-  /* Onde vivem as páginas do renderer de projeção. Enquanto o motor mora no Server, é a
-     pasta `public` dele; quando o Core for pacote próprio, passa a resolver as suas. */
-  resolverPaginaProjecao: (nome) => path.join(__dirname, '../public', nome),
+  /* As páginas do renderer viajam com o Core desde que ele virou pacote — o Servidor já
+     não é dono delas. Continua injectável para um host poder servir as suas. */
+  resolverPaginaProjecao: projectionCore.paginaProjecao,
   caminhoIconeApp,
 });
 

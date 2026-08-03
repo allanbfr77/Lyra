@@ -2,7 +2,7 @@
 
 const { createControlWindowApi } = require('./controlWindow');
 const { createProjectionState } = require('./lib/projectionState');
-const { createProjectionEngine } = require('./core/projectionEngine');
+const { createProjectionEngine } = require('@lyra/projection-core');
 
 /**
  * Adaptador do Server sobre o Projection Core.

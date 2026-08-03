@@ -1,7 +1,8 @@
 # Projection Core — Documento de Arquitetura
 
-> **Status:** aprovado — extração incremental em andamento (`core/` criado com módulos puros;
-> extração do `windows.js` nos sub-passos 0 e 1 — ver `windows-extraction-plan.md`).
+> **Status:** aprovado — extração do `windows.js` **concluída** (ver `windows-extraction-plan.md`)
+> e o Core promovido a pacote próprio, `packages/projection-core`, consumido pelos dois apps.
+> Falta o adaptador local do Controlador — o último passo antes da projeção sem Servidor.
 > **Branch:** `refactor/projection-core`
 > **Ponto de restauração:** tag `pre-projection-core-refactor`.
 > **Objetivo deste documento:** fixar as decisões arquiteturais ANTES de mover qualquer

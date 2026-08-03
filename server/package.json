@@ -15,7 +15,8 @@
     "better-sqlite3": "^12.9.0",
     "electron-updater": "^6.3.9",
     "express": "^4.18.3",
-    "socket.io": "4.7.4"
+    "socket.io": "4.7.4",
+    "@lyra/projection-core": "file:../packages/projection-core"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.1",

@@ -2,5 +2,6 @@
   "watch": ["src", "public"],
   "ext": "js,json,html,css,html",
   "ignore": ["node_modules", "dist"],
-  "exec": "electron . --dev"
+  "exec": "electron . --dev",
+  "onChangeOnly": true
 }
