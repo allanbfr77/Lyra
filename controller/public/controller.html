@@ -3329,6 +3329,22 @@
       background: rgba(166,124,45,0.1);
     }
 
+    /**
+     * O slide selecionado é comunicado por `.ativo` (destaque dourado) — nunca pelo foco
+     * do DOM: as setas são tratadas num `keydown` global e não movem o foco.
+     *
+     * Sem isto, o anel branco do agente de utilizador somava-se ao dourado assim que se
+     * tocava numa tecla: o chip clicado antes continuava focado e a primeira tecla vira a
+     * modalidade de foco do Chromium para «teclado», passando o `:focus-visible` a casar.
+     *
+     * Só se neutraliza `outline` — o `box-shadow` aqui tem a mesma especificidade que
+     * `.slide-chip.ativo` e apagaria o brilho dourado do chip focado.
+     */
+    .slide-chip:focus,
+    .slide-chip:focus-visible {
+      outline: none;
+    }
+
     .slide-num {
       font-family: var(--slide-font);
       font-weight: 700;
