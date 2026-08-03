@@ -576,11 +576,11 @@ function ajustarSlidesSemConflitoComApresentacao(rotaSlide) {
   if (a.live) return s;
   const lista = monitoresServidorCache;
   const out = { ...s };
-  if (a.publicoIndex >= 0 && out.publicoIndex === a.publicoIndex) {
+  if (a.publicoIndex >= 0 && out.publicoIndex === a.publicoIndex && apresentacaoProjecaoAtivaNoCanalPublico()) {
     const alt = outroIndiceMonitor(a.publicoIndex, lista);
     out.publicoIndex = alt >= 0 ? alt : -1;
   }
-  if (a.ministranteIndex >= 0 && out.ministranteIndex === a.ministranteIndex) {
+  if (a.ministranteIndex >= 0 && out.ministranteIndex === a.ministranteIndex && apresentacaoProjecaoAtivaNoCanalMinistrante()) {
     const alt = outroIndiceMonitor(a.ministranteIndex, lista);
     out.ministranteIndex = alt >= 0 ? alt : -1;
   }
