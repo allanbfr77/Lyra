@@ -9,6 +9,8 @@ const projectionEncerrar = require('./lib/projectionEncerrar');
 const displayConfigModo = require('./lib/displayConfigModo');
 const { getOrderedDisplays } = require('./lib/monitorsList');
 const { caminhoIconeApp } = require('./lib/iconPath');
+const { createControlWindowApi } = require('./controlWindow');
+const { createProjectionState } = require('./lib/projectionState');
 
 const { indicesJanelasProjecaoDeRoteamentoDual } = displayRoutingMod;
 
@@ -85,12 +87,28 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
 
 /**
  * Janela de controle + telas de projeção (público / ministrante) e push de estado.
+ *
+ * O motor de projeção lê e escreve o estado SÓ pela porta `state`
+ * (`lib/projectionState.js`) — nunca pelo `ctx` directamente. Ver
+ * docs/architecture/windows-extraction-plan.md §4, sub-passo 1.
+ *
+ * O `ctx` continua aqui apenas para o que ainda não foi desacoplado:
+ * `ctx.io` e `ctx.controladorSocketId` (transporte — sai no sub-passo 2) e a janela de
+ * controle do Server, que não é motor.
+ *
  * @param {object} ctx Estado mutável (`serverContext.js`).
  * @param {object} paths Objeto retornado por `createUserPaths(userData)`.
- * @param {{ logError: Function, screen: object, BrowserWindow: object, app: object, WINDOW_TITLE: string }} deps
+ * @param {{ logError: Function, screen: object, BrowserWindow: object, app: object, WINDOW_TITLE: string, state?: object }} deps
+ *   `deps.state` permite injectar outra porta de estado (o Core, mais à frente);
+ *   omitido, a porta é criada sobre o próprio `ctx`.
  */
 function createWindowsApi(ctx, paths, deps) {
   const { logError, screen, BrowserWindow, app, WINDOW_TITLE } = deps;
+
+  /** Porta de estado do motor. Encaminha para o `ctx` enquanto o motor viver no Server. */
+  const state = deps.state || createProjectionState(ctx);
+
+  const controlWindowApi = createControlWindowApi(ctx, { logError, BrowserWindow, app, WINDOW_TITLE });
 
   function obterDisplaysOrdenados() {
     return getOrderedDisplays(screen);
@@ -109,7 +127,7 @@ function createWindowsApi(ctx, paths, deps) {
    * Necessário em multi-monitor: o concorrente pode cobrir só o M2 sem gerar blur no M3.
    */
   function reafirmarTopoTodasJanelasProjecao() {
-    for (const entry of ctx.windowsDisplay) {
+    for (const entry of state.windowsDisplay) {
       if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) continue;
       const win = entry?.win;
       if (!win || win.isDestroyed() || !win.isVisible()) continue;
@@ -118,7 +136,7 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function haJanelaProjecaoVisivelNoTopo() {
-    return ctx.windowsDisplay.some((entry) => {
+    return state.windowsDisplay.some((entry) => {
       if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) return false;
       const win = entry?.win;
       return !!(win && !win.isDestroyed() && win.isVisible());
@@ -167,16 +185,12 @@ function createWindowsApi(ctx, paths, deps) {
     return displayIndicesMod.loadDisplayIndices(paths.displaySettingsPath);
   }
 
-  function getJanelaControle() {
-    return ctx.windowControl && !ctx.windowControl.isDestroyed() ? ctx.windowControl : null;
-  }
-
   function atualizarDisplays(estado) {
     const payload = projectionPayloads.clonePayloadSafe(estado);
-    const payloadPublico = projectionPayloads.payloadPublicoAtual(payload, ctx.estadoPublicoOverride);
-    const payloadPublicoJanelas = ctx.projecaoLiveAtiva ? estadoOciosoPublico() : payloadPublico;
+    const payloadPublico = projectionPayloads.payloadPublicoAtual(payload, state.estadoPublicoOverride);
+    const payloadPublicoJanelas = state.projecaoLiveAtiva ? estadoOciosoPublico() : payloadPublico;
 
-    const telasPublicas = ctx.windowsDisplay.filter((entry) => entry?.role === 'publico');
+    const telasPublicas = state.windowsDisplay.filter((entry) => entry?.role === 'publico');
     telasPublicas.forEach((entry) => {
       const win = entry.win;
       if (!win || win.isDestroyed()) return;
@@ -187,20 +201,20 @@ function createWindowsApi(ctx, paths, deps) {
 
     ajustarVisibilidadeProjecaoParaRelogio('publico', !hayProjecaoAtivaPublica());
 
-    if (ctx.windowControl && !ctx.windowControl.isDestroyed()) {
-      ctx.windowControl.webContents.send('estado_atualizado', payload);
+    if (state.windowControl && !state.windowControl.isDestroyed()) {
+      state.windowControl.webContents.send('estado_atualizado', payload);
     }
   }
 
   function atualizarDisplayMinistrante(estado) {
     let payload;
-    if (ctx.projecaoLiveAtiva) {
+    if (state.projecaoLiveAtiva) {
       payload = estadoOciosoMinistrante();
-    } else if (ctx.ministranteApresentacaoOverride) {
+    } else if (state.ministranteApresentacaoOverride) {
       try {
-        payload = JSON.parse(JSON.stringify(ctx.ministranteApresentacaoOverride));
+        payload = JSON.parse(JSON.stringify(state.ministranteApresentacaoOverride));
       } catch (_) {
-        payload = ctx.ministranteApresentacaoOverride;
+        payload = state.ministranteApresentacaoOverride;
       }
     } else {
       try {
@@ -208,7 +222,7 @@ function createWindowsApi(ctx, paths, deps) {
       } catch (_) {
         payload = estado;
       }
-      const tipoAtual = ctx.estadoAtual?.tipo;
+      const tipoAtual = state.estadoAtual?.tipo;
       let modoMin = 'texto';
       if (tipoAtual === 'biblia') modoMin = 'biblia';
       else if (tipoAtual === 'musica') modoMin = 'musica';
@@ -222,7 +236,7 @@ function createWindowsApi(ctx, paths, deps) {
       };
     }
 
-    ctx.windowsDisplay
+    state.windowsDisplay
       .filter((entry) => entry?.role === 'ministrante')
       .forEach((entry) => {
         const win = entry.win;
@@ -237,16 +251,16 @@ function createWindowsApi(ctx, paths, deps) {
 
   function estadoPublicoParaSocketsOuApi() {
     const out = projectionPayloads.estadoPublicoParaSocketsOuApi(
-      ctx.estadoAtual,
-      ctx.estadoPublicoOverride,
-      ctx.ministranteApresentacaoOverride
+      state.estadoAtual,
+      state.estadoPublicoOverride,
+      state.ministranteApresentacaoOverride
     );
-    if (out && typeof out === 'object') out.projecaoLive = !!ctx.projecaoLiveAtiva;
+    if (out && typeof out === 'object') out.projecaoLive = !!state.projecaoLiveAtiva;
     return out;
   }
 
   function snapshotMinistranteAtual() {
-    return projectionPayloads.snapshotMinistranteAtual(ctx.estadoAtual, logError);
+    return projectionPayloads.snapshotMinistranteAtual(state.estadoAtual, logError);
   }
 
   function controladorAtivo() {
@@ -254,8 +268,8 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function hayProjecaoAtivaPublica() {
-    if (ctx.projecaoLiveAtiva) return false;
-    const st = projectionPayloads.payloadPublicoAtual(ctx.estadoAtual, ctx.estadoPublicoOverride);
+    if (state.projecaoLiveAtiva) return false;
+    const st = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
     if (!st || typeof st !== 'object') return false;
     if (st.blackout || st.slidePretoFinal) return true;
     if (st.telaLimpa) return false;
@@ -269,9 +283,9 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function hayProjecaoAtivaMinistrante() {
-    if (ctx.projecaoLiveAtiva) return false;
-    if (ctx.ministranteApresentacaoOverride) {
-      const ov = ctx.ministranteApresentacaoOverride;
+    if (state.projecaoLiveAtiva) return false;
+    if (state.ministranteApresentacaoOverride) {
+      const ov = state.ministranteApresentacaoOverride;
       if (ov && typeof ov === 'object') {
         if (ov.telaLimpa) return false;
         if (ov.modo === 'apresentacao') {
@@ -292,8 +306,8 @@ function createWindowsApi(ctx, paths, deps) {
   /** Relógio ocioso deixa de usar janela transparente — esconde a projeção por cima. */
   function deveRevelarRelogioNoRole(role) {
     try {
-      const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
-      const cfg = displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo });
+      const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
+      const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
       const clk = (cfg && cfg.clock) || {};
       if (clk.showClock === false) return false;
       const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
@@ -307,7 +321,7 @@ function createWindowsApi(ctx, paths, deps) {
 
   function ajustarVisibilidadeProjecaoParaRelogio(role, ocioso) {
     const revelar = !!ocioso && deveRevelarRelogioNoRole(role);
-    ctx.windowsDisplay
+    state.windowsDisplay
       .filter((entry) => entry?.role === role)
       .forEach((entry) => {
         const win = entry?.win;
@@ -342,14 +356,14 @@ function createWindowsApi(ctx, paths, deps) {
   function aplicarPretoInativoNasJanelasAbertas() {
     const pubOcioso = estadoOciosoPublico();
     const minOcioso = estadoOciosoMinistrante();
-    ctx.projecaoLiveAtiva = false;
-    ctx.estadoPublicoOverride = null;
-    ctx.ministranteApresentacaoOverride = null;
-    ctx.estadoAtual = pubOcioso;
-    ctx.estadoMinistrante = minOcioso;
+    state.projecaoLiveAtiva = false;
+    state.estadoPublicoOverride = null;
+    state.ministranteApresentacaoOverride = null;
+    state.estadoAtual = pubOcioso;
+    state.estadoMinistrante = minOcioso;
     atualizarDisplays(pubOcioso);
     atualizarDisplayMinistrante(minOcioso);
-    ctx.windowsDisplay
+    state.windowsDisplay
       .filter((entry) => entry?.role === 'escudo' && entry?.win && !entry.win.isDestroyed())
       .forEach((entry) => {
         try { entry.win.webContents.send('atualizar', pubOcioso); } catch (_) {
@@ -359,32 +373,32 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function fecharTodasJanelasProjecao() {
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       if (entry?.win && !entry.win.isDestroyed()) {
         try { entry.win.close(); } catch (_) {
   // intencional — erro ignorado
 }
       }
     });
-    ctx.windowsDisplay = [];
+    state.windowsDisplay = [];
     atualizarLoopTopoAbsolutoProjecao();
   }
 
   function encerrarProjecaoPorEsc(canal) {
     const canais = {
       apresentacaoDominaPublico: true,
-      apresentacaoDominaMinistrante: !!ctx.ministranteApresentacaoOverride,
+      apresentacaoDominaMinistrante: !!state.ministranteApresentacaoOverride,
     };
-    const modo = projectionEncerrar.inferirModoEncerrarPorCanalJanela(ctx, canal, canais);
+    const modo = projectionEncerrar.inferirModoEncerrarPorCanalJanela(state, canal, canais);
     if (modo !== projectionEncerrar.MODO_SLIDES) return;
 
-    projectionEncerrar.encerrarCamadaSlides(ctx);
-    ctx.estadoMinistrante = snapshotMinistranteAtual();
-    atualizarDisplays(ctx.estadoAtual);
-    atualizarDisplayMinistrante(ctx.estadoMinistrante);
+    projectionEncerrar.encerrarCamadaSlides(state);
+    state.estadoMinistrante = snapshotMinistranteAtual();
+    atualizarDisplays(state.estadoAtual);
+    atualizarDisplayMinistrante(state.estadoMinistrante);
 
-    if (ctx.windowControl && !ctx.windowControl.isDestroyed()) {
-      ctx.windowControl.webContents.send('telas_projecao_encerradas_esc');
+    if (state.windowControl && !state.windowControl.isDestroyed()) {
+      state.windowControl.webContents.send('telas_projecao_encerradas_esc');
     }
 
     if (ctx.io) ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
@@ -453,10 +467,10 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function enviarBootstrapJanelaPublica(win) {
-    const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
-    const cfg = displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo });
+    const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
+    const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
     const payload = hayProjecaoAtivaPublica()
-      ? projectionPayloads.payloadPublicoAtual(ctx.estadoAtual, ctx.estadoPublicoOverride)
+      ? projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride)
       : estadoOciosoPublico();
     try {
       win.webContents.send('display_config', cfg);
@@ -467,8 +481,8 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function enviarBootstrapJanelaMinistrante(win) {
-    const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
-    const cfg = displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo });
+    const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
+    const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
     const payload = hayProjecaoAtivaMinistrante()
       ? snapshotMinistranteAtual()
       : estadoOciosoMinistrante();
@@ -483,7 +497,7 @@ function createWindowsApi(ctx, paths, deps) {
   function resolverClockConfigPersistida() {
     return {
       ...(displayConfigLib.DEFAULT_DISPLAY_CONFIG.clock || {}),
-      ...(((ctx.displayConfig || {}).clock) || {}),
+      ...(((state.displayConfig || {}).clock) || {}),
     };
   }
 
@@ -491,7 +505,7 @@ function createWindowsApi(ctx, paths, deps) {
     const cfg = { clock: resolverClockConfigPersistida() };
     const entradas = targetWin
       ? [{ win: targetWin }]
-      : ctx.windowsDisplay.filter((entry) => entry?.role === 'relogio');
+      : state.windowsDisplay.filter((entry) => entry?.role === 'relogio');
     entradas.forEach((entry) => {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
@@ -557,7 +571,7 @@ function createWindowsApi(ctx, paths, deps) {
     const displays = obterDisplaysOrdenados();
     const restantes = [];
 
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       if (entry?.role !== 'relogio') {
         restantes.push(entry);
         return;
@@ -590,12 +604,12 @@ function createWindowsApi(ctx, paths, deps) {
       desejados.delete(entry.index);
     });
 
-    ctx.windowsDisplay = restantes;
+    state.windowsDisplay = restantes;
 
     desejados.forEach((displayIndex) => {
       const win = abrirJanelaRelogio(displayIndex, `Relógio (Monitor ${displayIndex + 1})`);
       if (!win) return;
-      ctx.windowsDisplay.push({ role: 'relogio', index: displayIndex, win });
+      state.windowsDisplay.push({ role: 'relogio', index: displayIndex, win });
     });
   }
 
@@ -655,8 +669,8 @@ function createWindowsApi(ctx, paths, deps) {
 
     win.webContents.on('did-finish-load', () => {
       try {
-        const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
-        const cfg = displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo });
+        const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
+        const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
         win.webContents.send('display_config', cfg);
         win.webContents.send('atualizar', estadoOciosoPublico());
       } catch (_) {
@@ -781,14 +795,14 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function obterEntradasPorRole(role) {
-    return ctx.windowsDisplay.filter(
+    return state.windowsDisplay.filter(
       (e) => e?.role === role && e?.win && !e.win.isDestroyed()
     );
   }
 
   function fecharJanelasPorRole(role) {
     const restantes = [];
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       if (entry?.role === role && entry?.win && !entry.win.isDestroyed()) {
         try { entry.win.close(); } catch (_) {
   // intencional — erro ignorado
@@ -797,7 +811,7 @@ function createWindowsApi(ctx, paths, deps) {
         restantes.push(entry);
       }
     });
-    ctx.windowsDisplay = restantes;
+    state.windowsDisplay = restantes;
   }
 
   /** Aguarda janela preta visível antes de abrir a seguinte (evita M2 sem fullscreen no Windows). */
@@ -866,7 +880,7 @@ function createWindowsApi(ctx, paths, deps) {
       }
     });
     if (entradas.length > 1) {
-      ctx.windowsDisplay = ctx.windowsDisplay.filter(
+      state.windowsDisplay = state.windowsDisplay.filter(
         (e) => !(e?.role === role && e !== principal)
       );
     }
@@ -903,7 +917,7 @@ function createWindowsApi(ctx, paths, deps) {
 
     const win = abrirFn(displayIndex, labelFn(displayIndex));
     if (win) {
-      ctx.windowsDisplay.push({ role, index: displayIndex, win });
+      state.windowsDisplay.push({ role, index: displayIndex, win });
       aguardarJanelaProjecaoVisivel(win, next);
       return;
     }
@@ -913,7 +927,7 @@ function createWindowsApi(ctx, paths, deps) {
   function sincronizarJanelasEscudo(indicesDesejados, next) {
     const desejados = new Set(indicesDesejados);
     const restantes = [];
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       if (entry?.role === 'escudo') {
         if (entry?.win && !entry.win.isDestroyed()) {
           restantes.push(entry);
@@ -950,11 +964,11 @@ function createWindowsApi(ctx, paths, deps) {
         restantes.push(entry);
       }
     });
-    ctx.windowsDisplay = restantes;
+    state.windowsDisplay = restantes;
 
     // Inclui ocultos: janela já existe, não precisa criar nova
     const abertos = new Set(
-      ctx.windowsDisplay
+      state.windowsDisplay
         .filter((e) => e?.role === 'escudo' && e?.win && !e.win.isDestroyed())
         .map((e) => e.index)
     );
@@ -974,7 +988,7 @@ function createWindowsApi(ctx, paths, deps) {
     pendentes.forEach((displayIndex) => {
       const win = abrirJanelaEscudoPreto(displayIndex, `Escudo (Monitor ${displayIndex + 1})`);
       if (win) {
-        ctx.windowsDisplay.push({ role: 'escudo', index: displayIndex, win });
+        state.windowsDisplay.push({ role: 'escudo', index: displayIndex, win });
         aguardarJanelaProjecaoVisivel(win, umTerminou);
       } else {
         umTerminou();
@@ -1070,8 +1084,8 @@ function createWindowsApi(ctx, paths, deps) {
     const { publicoIndex: pub } = resolverIndicesEfetivosProjecao(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     // Apenas janelas visíveis — ocultas não contam para evitar resync espúrio
-    const pubWins = ctx.windowsDisplay.filter((e) => e?.role === 'publico' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
-    const minWins = ctx.windowsDisplay.filter((e) => e?.role === 'ministrante' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
+    const pubWins = state.windowsDisplay.filter((e) => e?.role === 'publico' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
+    const minWins = state.windowsDisplay.filter((e) => e?.role === 'ministrante' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
 
     if (pub < 0 && min < 0) {
       if (controladorAtivo()) {
@@ -1092,7 +1106,7 @@ function createWindowsApi(ctx, paths, deps) {
     }
 
     const escudoIndices = indicesMonitoresEscudoPreto(routingDual);
-    const escudoWins = ctx.windowsDisplay.filter(
+    const escudoWins = state.windowsDisplay.filter(
       (e) => e?.role === 'escudo' && e?.win && !e.win.isDestroyed() && e.win.isVisible()
     );
     for (const idx of escudoIndices) {
@@ -1128,7 +1142,7 @@ function createWindowsApi(ctx, paths, deps) {
         atualizarDisplayMinistrante(estadoOciosoMinistrante());
       }
       const pubOcioso = estadoOciosoPublico();
-      ctx.windowsDisplay
+      state.windowsDisplay
         .filter((entry) => entry?.role === 'escudo' && entry?.win && !entry.win.isDestroyed())
         .forEach((entry) => {
           try { entry.win.webContents.send('atualizar', pubOcioso); } catch (_) {
@@ -1142,92 +1156,23 @@ function createWindowsApi(ctx, paths, deps) {
     }
     sincronizarTelasComRota(routingDual, () => {
       try {
-        const forcarModo = displayConfigModo.inferirForcarModoJanelas(ctx);
-        displayConfigModo.enviarDisplayConfigParaJanelas(ctx, { forcarModo });
+        const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
+        displayConfigModo.enviarDisplayConfigParaJanelas(state, { forcarModo });
         sincronizarJanelasRelogio(routingDual);
         if (!hayProjecaoAtivaPublica()) atualizarDisplays(estadoOciosoPublico());
-        else atualizarDisplays(ctx.estadoAtual);
+        else atualizarDisplays(state.estadoAtual);
         if (!hayProjecaoAtivaMinistrante()) atualizarDisplayMinistrante(estadoOciosoMinistrante());
-        else atualizarDisplayMinistrante(ctx.estadoMinistrante);
+        else atualizarDisplayMinistrante(state.estadoMinistrante);
       } catch (e) {
         logError('garantir-telas-abertas', e);
       }
     });
   }
 
-  function criarJanelaControle() {
-    ctx.windowControl = new BrowserWindow({
-      width: 400,
-      height: 550,
-      resizable: false,
-      title: WINDOW_TITLE,
-      icon: caminhoIconeApp(),
-      backgroundColor: '#111111',
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        backgroundThrottling: false,
-      },
-    });
-
-    ctx.windowControl.loadFile(path.join(__dirname, '../public/control.html'));
-
-    ctx.windowControl.on('page-title-updated', (event) => {
-      event.preventDefault();
-      ctx.windowControl?.setTitle(WINDOW_TITLE);
-    });
-
-    ctx.windowControl.webContents.on('did-finish-load', () => {
-      ctx.windowControl?.setTitle(WINDOW_TITLE);
-    });
-
-    ctx.windowControl.on('minimize', (e) => {
-      if (!ctx.minimizeToTrayEnabled) return;
-      e.preventDefault();
-      ctx.windowControl.setSkipTaskbar(true);
-      ctx.windowControl.hide();
-    });
-
-    ctx.windowControl.on('show', () => {
-      if (!ctx.windowControl || ctx.windowControl.isDestroyed()) return;
-      ctx.windowControl.setSkipTaskbar(false);
-    });
-
-    ctx.windowControl.on('closed', () => app.quit());
-  }
-
-  function showMainWindow() {
-    if (!ctx.windowControl || ctx.windowControl.isDestroyed()) return;
-    ctx.windowControl.setSkipTaskbar(false);
-    if (ctx.windowControl.isMinimized()) ctx.windowControl.restore();
-    ctx.windowControl.show();
-    ctx.windowControl.focus();
-  }
-
-  function recarregarJanelaControle() {
-    const win = getJanelaControle();
-    if (!win) return false;
-    try {
-      win.webContents.reloadIgnoringCache();
-      return true;
-    } catch (e) {
-      logError('recarregar-janela-controle', e);
-      return false;
-    }
-  }
-
-  function openMainDevTools() {
-    if (!ctx.windowControl || ctx.windowControl.isDestroyed()) return;
-    showMainWindow();
-    try { ctx.windowControl.webContents.openDevTools({ mode: 'detach' }); } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-
   function openDisplayDevToolsPorRole(role = null) {
     const possuiJanelaAlvo = role
-      ? ctx.windowsDisplay.some((e) => e?.role === role && e?.win && !e.win.isDestroyed())
-      : ctx.windowsDisplay.length > 0;
+      ? state.windowsDisplay.some((e) => e?.role === role && e?.win && !e.win.isDestroyed())
+      : state.windowsDisplay.length > 0;
 
     if (!possuiJanelaAlvo) {
       try { garantirTelasAbertasParaProjecao(); } catch (_) {
@@ -1241,7 +1186,7 @@ function createWindowsApi(ctx, paths, deps) {
 
   function abrirDevToolsPorRole(role) {
     let n = 0;
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       if (role && entry?.role !== role) return;
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
@@ -1268,9 +1213,9 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   function enviarComandoAudioParaControle(channel, payload = {}) {
-    if (!ctx.windowControl || ctx.windowControl.isDestroyed()) return;
+    if (!state.windowControl || state.windowControl.isDestroyed()) return;
     try {
-      ctx.windowControl.webContents.send(channel, payload);
+      state.windowControl.webContents.send(channel, payload);
     } catch (_) {
   // intencional — erro ignorado
 }
@@ -1279,7 +1224,7 @@ function createWindowsApi(ctx, paths, deps) {
   /** Sincroniza vídeo do card 5 nas janelas de projeção (público e ministrante). */
   function enviarSyncVideoApresentacaoParaDisplays(payload = {}) {
     const data = payload && typeof payload === 'object' ? payload : {};
-    ctx.windowsDisplay.forEach((entry) => {
+    state.windowsDisplay.forEach((entry) => {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
       try {
@@ -1291,7 +1236,7 @@ function createWindowsApi(ctx, paths, deps) {
   }
 
   return {
-    getJanelaControle,
+    getJanelaControle: controlWindowApi.getJanelaControle,
     atualizarDisplays,
     atualizarDisplayMinistrante,
     estadoPublicoParaSocketsOuApi,
@@ -1301,10 +1246,10 @@ function createWindowsApi(ctx, paths, deps) {
     abrirTelasConfiguradas,
     garantirTelasAbertasParaProjecao,
     sincronizarJanelasRelogio,
-    criarJanelaControle,
-    showMainWindow,
-    recarregarJanelaControle,
-    openMainDevTools,
+    criarJanelaControle: controlWindowApi.criarJanelaControle,
+    showMainWindow: controlWindowApi.showMainWindow,
+    recarregarJanelaControle: controlWindowApi.recarregarJanelaControle,
+    openMainDevTools: controlWindowApi.openMainDevTools,
     openDisplayDevTools,
     openPublicDevTools,
     openMinistranteDevTools,

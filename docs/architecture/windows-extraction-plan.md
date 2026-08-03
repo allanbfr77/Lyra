@@ -62,11 +62,22 @@ extração viável:
   controle do Server). São *handles* de janelas Electron. O Core precisa ser dono do registro das
   **janelas de projeção**; a `windowControl` fica com o Server.
 
-**Balde B — Estado da projeção (vira parâmetro/estado do Core):**
-- `ctx.estadoAtual`, `ctx.estadoMinistrante`, `ctx.estadoPublicoOverride`,
-  `ctx.ministranteApresentacaoOverride`, `ctx.projecaoLiveAtiva`, `ctx.displayConfig`.
-- Hoje o motor **lê** esses campos diretamente do `ctx`. No modelo `render(payload)`, o motor deve
-  **receber** o estado desejado como argumento, não buscá-lo no `ctx`. Este é o coração da mudança.
+**Balde B — Estado da projeção (vira estado do Core):**
+- `ctx.estadoAtual` (8), `ctx.ministranteApresentacaoOverride` (8), `ctx.projecaoLiveAtiva` (6),
+  `ctx.estadoPublicoOverride` (5), `ctx.estadoMinistrante` (4), `ctx.displayConfig` (1).
+- O motor **lê e escreve** esses campos. A escrita não é marginal: `aplicarPretoInativoNasJanelasAbertas`
+  zera cinco campos de uma vez, e `projectionEncerrar.encerrarCamadaSlides(ctx)` escreve mais seis
+  por baixo. Portanto **não basta passar o estado como argumento de entrada** — a fronteira precisa
+  ser bidirecional. Este é o coração da mudança.
+
+**Balde D — o `ctx` inteiro atravessando o motor (medido depois do plano original):**
+- Além das referências a campos, há **13 pontos** onde o `ctx` é passado *inteiro* para helpers:
+  `displayConfigModo.*` (10), `projectionEncerrar.*` (2), `createControlWindowApi` (1).
+- Esses helpers leem por conta própria `estadoAtual`, `displayConfig`, `displayConfigBiblia`,
+  `modoVisualProjecaoAtivo`, `windowsDisplay`, `windowControl` — e `displayConfigModo` também
+  **escreve** em `displayConfig`, `displayConfigBiblia` e `modoVisualProjecaoAtivo`.
+- Consequência prática: mudar só as assinaturas de topo do `windows.js` não desacoplaria nada,
+  porque o `ctx` continuaria entrando no motor por baixo.
 
 **Balde C — Transporte/coordenação (NÃO é Core; fica no Server/adaptador):**
 - `ctx.io` (Socket.io — usado em 1 ponto: `encerrarProjecaoPorEsc`, linha ~390, faz
@@ -88,16 +99,40 @@ extração viável:
 A ordem abaixo minimiza risco mantendo o Server funcional em cada parada. **Nenhum passo promove o
 Core a pacote compartilhado ainda** — isso vem depois, num incremento próprio.
 
-**Sub-passo 0 — Separar a janela de controle do motor de projeção.**
-Extrair `criarJanelaControle`/`showMainWindow`/`recarregarJanelaControle`/`openMainDevTools`/tray-
-hooks para um módulo próprio do Server (ex.: `controlWindow.js` em `lib/`), fora do futuro Core.
-Barato, reduz o `windows.js` e isola o que **nunca** será Core. Verificável isoladamente.
+**Sub-passo 0 — Separar a janela de controle do motor de projeção. ✅ FEITO.**
+Extraídas `getJanelaControle`/`criarJanelaControle`/`showMainWindow`/`recarregarJanelaControle`/
+`openMainDevTools` para `server/src/controlWindow.js` (fábrica `createControlWindowApi`). O
+`windowsApi` reexpõe por delegação, então a API pública ficou idêntica. O módulo ficou em
+`server/src/` (não em `lib/`) de propósito: assim `__dirname` e os caminhos relativos
+(`../public/control.html`, `./lib/iconPath`) permanecem iguais aos do `windows.js` — zero risco de
+path quebrado. `windows.js` caiu de 1317 para 1244 linhas. Verificado por *fingerprint*
+comportamental idêntico (API + interações de `criarJanelaControle` contra `BrowserWindow` falso) +
+`npm test` 45/45.
 
-**Sub-passo 1 — Introduzir a fronteira de estado sem mover lógica.**
-Fazer o motor deixar de **ler** `ctx.estado*`/`ctx.displayConfig` diretamente e passar a recebê-los
-por parâmetro nas funções de topo (`atualizarDisplays`, `garantirTelasAbertasParaProjecao`, etc.).
-Nesta etapa a assinatura muda, mas o código continua no Server e o `httpServer.js` passa o `ctx.*`
-explicitamente. É o equivalente a "instalar a porta" antes de mudar de casa. Comportamento idêntico.
+**Sub-passo 1 — Introduzir a fronteira de estado sem mover lógica. ✅ FEITO.**
+
+O plano original previa passar o estado **por parâmetro** nas funções de topo. O mapeamento
+função-a-função (feito antes de codar, exactamente para isso) mostrou que essa forma não serve:
+
+1. o motor **escreve** no estado, não só lê — parâmetro de entrada não cobre escrita;
+2. o `ctx` entra no motor por baixo, em 13 chamadas que o repassam inteiro a helpers (balde D);
+3. `atualizarDisplays`/`atualizarDisplayMinistrante` têm ~20 call sites fora do `windows.js` —
+   mudar assinatura custaria 20 pontos de risco sem ganho estrutural nesta etapa.
+
+**Forma adoptada:** uma **porta de estado** (`server/src/lib/projectionState.js`) injectada na
+fábrica — `createWindowsApi(ctx, paths, { ..., state })`. A porta expõe os campos dos baldes A e B
+como acessores (`get`/`set`) que encaminham para o `ctx`: mesma leitura, mesma escrita, mesmas
+referências. O motor passa a falar só com `state`; os helpers do balde D recebem `state` em vez de
+`ctx`, fechando o vazamento no mesmo passo. `deps.state` é opcional — omitido, a porta é criada
+sobre o próprio `ctx`, e é por aí que o Core injectará o seu armazém no sub-passo 4.
+
+Resultado medido: referências a `ctx` no `windows.js` caíram de **89 para 2** — exactamente
+`ctx.io` e `ctx.controladorSocketId`, o balde C, que é o alvo do sub-passo 2. Nenhuma assinatura
+pública mudou; nenhum call site fora do `windows.js` foi tocado.
+
+Verificado por: fingerprint comportamental **byte-a-byte idêntico** (34 cenários, 4273 linhas de
+registo — ver `tools/fingerprint-windows.js`), `npm test` 53/53 (45 anteriores + 8 novos em
+`lib/projectionState.test.js`), `eslint` sem erros novos.
 
 **Sub-passo 2 — Converter o vazamento de transporte em evento.**
 Trocar o `ctx.io.emit(...)` interno por um *callback/emit* de evento (ex.: `onProjecaoEncerrada`)
@@ -156,11 +191,27 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (45 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (53 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
-- *Fingerprint* comportamental (entradas fixas → saídas JSON, antes/depois) para as funções que
-  puderem rodar fora do Electron.
+- *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
+  com um Electron falso, corre 34 cenários (render, modo Bíblia, override de apresentação, projeção
+  live, encerrar por Esc, DevTools, fechar tudo) e serializa tudo que saiu — `send` por canal,
+  janelas criadas, mutações do estado, retornos. Uso:
+
+  ```sh
+  # guardar a cópia de referência dentro de server/src (os requires são relativos)
+  cp server/src/windows.js server/src/__windows_antes.js
+  node tools/fingerprint-windows.js server/src/__windows_antes.js > /tmp/antes.json
+  # ... refatorar ...
+  node tools/fingerprint-windows.js server/src/windows.js > /tmp/depois.json
+  diff /tmp/antes.json /tmp/depois.json   # tem de ser vazio
+  ```
+
+  Nota: `lib/iconPath.js` faz `require('electron')` no topo, por isso o harness stuba o módulo
+  `electron` antes de carregar o alvo. Ou seja, a afirmação de §3 de que "o motor não faz
+  `require('electron')` direto" vale para o `windows.js`, mas não para toda a sua árvore de
+  dependências — `iconPath` terá de ser injectado quando o motor for para o `core/` (sub-passo 4).
 - Smoke test visual roteirizado: abrir telas, trocar slide, blackout, encerrar por Esc, modo Bíblia,
   relógio/countdown.
 
@@ -185,5 +236,13 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 3. O canal de eventos do Core: `EventEmitter`, callbacks simples, ou retorno de `render()`? (Decidir
    no sub-passo 2, quando o primeiro evento — `onProjecaoEncerrada` — aparecer.)
 
-> Próximo movimento recomendado: **sub-passo 0** (separar a janela de controle), que é o de menor
-> risco e já reduz o `windows.js`, antes de tocar em qualquer coisa de estado.
+4. `windowControl` está temporariamente dentro da porta de estado (sub-passo 1) porque o motor ainda
+   notifica a janela de controle directamente e `displayConfigModo.enviarDisplayConfigParaJanelas`
+   a lê do contexto que recebe. Sai da porta quando essas notificações virarem eventos (sub-passo
+   2/4) — não é estado de projeção.
+
+---
+
+> Próximo movimento: **sub-passo 2** — converter `ctx.io.emit('estado', ...)` em
+> `encerrarProjecaoPorEsc` num evento do chamador. São as **2 últimas referências a `ctx`** no
+> `windows.js`; depois delas o motor fica com `ctx` zerado e a fábrica pode deixar de o receber.

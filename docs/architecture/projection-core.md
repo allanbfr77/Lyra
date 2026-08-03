@@ -1,6 +1,7 @@
 # Projection Core — Documento de Arquitetura
 
-> **Status:** aprovado — extração incremental em andamento (Incremento 1 concluído: `core/` criado com módulos puros).
+> **Status:** aprovado — extração incremental em andamento (`core/` criado com módulos puros;
+> extração do `windows.js` nos sub-passos 0 e 1 — ver `windows-extraction-plan.md`).
 > **Branch:** `refactor/projection-core`
 > **Ponto de restauração:** tag `pre-projection-core-refactor`.
 > **Objetivo deste documento:** fixar as decisões arquiteturais ANTES de mover qualquer
@@ -268,6 +269,16 @@ qual for o host que o carrega.
 
 Invariante: **há exatamente um dono do estado por vez — o host do Core ativo.** Nunca os dois ao
 mesmo tempo na mesma projeção. Isso evita o pior risco da mudança (dois motores disputando as telas).
+
+**Superfície já instalada (sub-passo 1 da extração do `windows.js`).** O campo de batalha dessa
+decisão é `server/src/lib/projectionState.js`: a **porta de estado** pela qual o motor lê e escreve.
+Hoje ela encaminha para o `serverContext` (o Server continua dono de facto); quando o Core passar a
+ter armazém próprio, é a mesma porta que ele serve, via `deps.state`. Os campos que ela expõe são,
+na prática, a definição executável do "estado da projeção" descrito abaixo — `estadoAtual`,
+`estadoMinistrante`, os dois overrides, `projecaoLiveAtiva`, `displayConfig`/`displayConfigBiblia`,
+`modoVisualProjecaoAtivo` e o registo de janelas. O que ficou **de fora** é igualmente informativo:
+`io`, `controladorSocketId`, `acesso`, `tray`, `minimizeToTrayEnabled` — transporte e app-shell,
+que nunca serão do Core.
 
 **Escopo do estado do Core — projeção, nunca aplicação.** O Core é dono *apenas* do estado da
 **projeção**. Ele conhece somente: slide/conteúdo atual, monitor ativo e roteamento, blackout,
