@@ -7090,6 +7090,50 @@ function removerVersaoLocalDasPlaylists(idMusica, copiaId) {
   if (mudou) savePlaylists();
 }
 
+/**
+ * Edição rápida no modo slides: o servidor não altera originais imutáveis — cria um fork.
+ * Sem repontar a entrada da playlist do dia para o fork, ao voltar ao modo slides
+ * recarregava-se o original (a edição só existia no estado da sessão).
+ *
+ * Reaponta apenas as entradas do culto indicado que correspondiam à versão editada;
+ * o `id` da entrada continua a ser o root (identidade da música na playlist), muda só
+ * `versaoLocalId`/`versaoRotulo`. Não mexe em ordem, nem adiciona/remove entradas.
+ *
+ * @param {string} cid culto (dia) cuja playlist deve ser repontada
+ * @param {number} rootId root da família de versões
+ * @param {string} versaoAntes versão ativa antes de gravar ('' = original do servidor)
+ * @param {number|string} novaVersaoId id do fork criado pelo servidor
+ * @param {string} [novoRotulo] rótulo do fork, para o cache visual da linha
+ * @returns {boolean} true se alguma entrada foi repontada
+ */
+function repontarVersaoNaPlaylistDoCulto(cid, rootId, versaoAntes, novaVersaoId, novoRotulo) {
+  const root = Number(rootId);
+  const novoVid = novaVersaoId != null && String(novaVersaoId).trim() ? String(novaVersaoId).trim() : '';
+  if (!cid || !Number.isFinite(root) || !novoVid) return false;
+  const pl = playlists[cid];
+  if (!Array.isArray(pl)) return false;
+
+  const antes = versaoAntes ? String(versaoAntes).trim() : '';
+  const rotulo = String(novoRotulo || '').trim();
+  let mudou = false;
+
+  pl.forEach((it) => {
+    if (!it || ehMarcadorTemaPlaylist(it)) return;
+    /* Catálogo é somente leitura: nunca chega aqui, mas não repontar por segurança. */
+    if (it.bancoFonte === 'catalog') return;
+    if (Number(it.id) !== root) return;
+    const vidItem = it.versaoLocalId ? String(it.versaoLocalId).trim() : '';
+    if (vidItem !== antes) return;
+    if (vidItem === novoVid) return;
+    it.versaoLocalId = novoVid;
+    it.versaoRotulo = rotulo;
+    mudou = true;
+  });
+
+  if (mudou) savePlaylists();
+  return mudou;
+}
+
 /** Atualiza o rótulo em cache das entradas de playlist que apontam para esta versão. */
 function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo) {
   const idStr = String(Number(idMusica));
@@ -9950,6 +9994,10 @@ async function persistirMusicaAtivaNoServidor() {
   const versaoLocalIdAtiva =
     musicaVersaoLocalId && String(musicaVersaoLocalId).trim() ? String(musicaVersaoLocalId) : null;
   const idPersistencia = Number(musicaAtiva.id);
+  /* Capturado antes de gravar: se o servidor bifurcar, é por aqui que se acha a entrada da playlist a repontar. */
+  const rootAntesDeGravar = obterRootIdMusicaAtiva();
+  const versaoPlaylistAntesDeGravar = versaoAtivaParaCompararPlaylist();
+  const cultoDaEdicao = cultoId;
 
   const api = getControllerApiBase();
 
@@ -10040,6 +10088,21 @@ async function persistirMusicaAtivaNoServidor() {
     const idAlvo = forked && data.id != null ? Number(data.id) : idPersistencia;
     musicaVersaoLocalId = null;
     await aplicarMusicaRecarregada(idAlvo, forked);
+    /**
+     * Fork = a edição virou uma versão nova; a playlist do dia continuaria a apontar
+     * para o original imutável e recarregaria a letra antiga ao reentrar no modo slides.
+     */
+    if (forked) {
+      const rootFork = Number(data.rootId ?? musicaRootId ?? rootAntesDeGravar);
+      const repontou = repontarVersaoNaPlaylistDoCulto(
+        cultoDaEdicao,
+        rootFork,
+        versaoPlaylistAntesDeGravar,
+        idAlvo,
+        musicaAtiva?.rotulo || ''
+      );
+      if (repontou) renderPlaylist();
+    }
     return true;
   } catch (e) {
     alert(e.message || 'Erro ao salvar no banco local do controlador.');
