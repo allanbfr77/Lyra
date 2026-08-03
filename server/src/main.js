@@ -36,7 +36,8 @@ const serverPrefs = require('./lib/serverPrefs');
 const { createWindowsApi } = require('./windows');
 const { createTrayApi } = require('./tray');
 const { createUpdaterApi } = require('./updater');
-const { caminhoIconeDock } = require('./lib/iconPath');
+const path = require('path');
+const { caminhoIconeDock, caminhoIconeApp } = require('./lib/iconPath');
 const { iniciarServidor } = require('./httpServer');
 const { registerIpcHandlers } = require('./ipcHandlers');
 
@@ -64,6 +65,10 @@ const windowsApi = createWindowsApi(ctx, paths, {
   },
   /* No Server, "operador ligado" = há um painel controlador com socket registrado. */
   haOperadorConectado: () => !!ctx.controladorSocketId,
+  /* Onde vivem as páginas do renderer de projeção. Enquanto o motor mora no Server, é a
+     pasta `public` dele; quando o Core for pacote próprio, passa a resolver as suas. */
+  resolverPaginaProjecao: (nome) => path.join(__dirname, '../public', nome),
+  caminhoIconeApp,
 });
 
 const trayApi = createTrayApi(ctx, paths, {

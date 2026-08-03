@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('path');
 const displayRoutingMod = require('./lib/displayRouting');
 const displayIndicesMod = require('./lib/displayIndices');
 const displayConfigLib = require('./lib/displayConfig');
@@ -8,7 +7,6 @@ const projectionPayloads = require('./lib/projectionPayloads');
 const projectionEncerrar = require('./lib/projectionEncerrar');
 const displayConfigModo = require('./lib/displayConfigModo');
 const { getOrderedDisplays } = require('./lib/monitorsList');
-const { caminhoIconeApp } = require('./lib/iconPath');
 const { createControlWindowApi } = require('./controlWindow');
 const { createProjectionState } = require('./lib/projectionState');
 const { createWindowRegistry } = require('./lib/windowRegistry');
@@ -63,6 +61,7 @@ function aplicarTopoAbsolutoProjecao(win) {
  */
 function opcoesBrowserWindowProjecao(display, title, extra = {}) {
   const d = display;
+  const icon = extra.icon;
   const webPrefs = {
     nodeIntegration: true,
     contextIsolation: false,
@@ -74,7 +73,7 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
     y: d.bounds.y,
     width: d.bounds.width,
     height: d.bounds.height,
-    icon: caminhoIconeApp(),
+    icon,
     show: true,
     fullscreen: true,
     frame: false,
@@ -103,11 +102,19 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
  *   logError: Function, screen: object, BrowserWindow: object, app: object, WINDOW_TITLE: string,
  *   onProjecaoEncerrada: (ev: { canal: string|null, estadoPublico: object }) => void,
  *   haOperadorConectado: () => boolean,
+ *   resolverPaginaProjecao: (nome: string) => string,
+ *   caminhoIconeApp: () => string,
  *   state?: object
  * }} deps
  *   `onProjecaoEncerrada` — o motor avisa que a projeção terminou por Esc; o host propaga
  *   (no Server, `io.emit('estado', …)`). O motor não conhece transporte.
  *   `haOperadorConectado` — ver `controladorAtivo()` abaixo.
+ *   `resolverPaginaProjecao` — caminho absoluto da página do renderer (`display.html`,
+ *   `display-operator.html`, `display-clock.html`). O motor usava `__dirname` +
+ *   `../public/`, o que o prendia à pasta do Server e partiria ao mover para `core/`.
+ *   `caminhoIconeApp` — ícone das janelas. Vinha de `lib/iconPath`, que faz
+ *   `require('electron')` no topo — era o último acoplamento directo ao Electron na
+ *   árvore do motor.
  *   `state` — permite injectar outra porta de estado (o Core, mais à frente); omitido, a
  *   porta é criada sobre o próprio `ctx`.
  */
@@ -116,12 +123,18 @@ function createWindowsApi(ctx, paths, deps) {
 
   /* Obrigatórios de propósito: um default silencioso aqui é uma regressão silenciosa
      (deixar de avisar os controladores, ou fechar telas que deviam ficar pretas). */
-  const { onProjecaoEncerrada, haOperadorConectado } = deps;
+  const { onProjecaoEncerrada, haOperadorConectado, resolverPaginaProjecao, caminhoIconeApp } = deps;
   if (typeof onProjecaoEncerrada !== 'function') {
     throw new TypeError('createWindowsApi: deps.onProjecaoEncerrada é obrigatório');
   }
   if (typeof haOperadorConectado !== 'function') {
     throw new TypeError('createWindowsApi: deps.haOperadorConectado é obrigatório');
+  }
+  if (typeof resolverPaginaProjecao !== 'function') {
+    throw new TypeError('createWindowsApi: deps.resolverPaginaProjecao é obrigatório');
+  }
+  if (typeof caminhoIconeApp !== 'function') {
+    throw new TypeError('createWindowsApi: deps.caminhoIconeApp é obrigatório');
   }
 
   /** Porta de estado do motor. Encaminha para o `ctx` enquanto o motor viver no Server. */
@@ -615,7 +628,7 @@ function createWindowsApi(ctx, paths, deps) {
       },
     });
     finalizarJanelaRelogioNativa(win);
-    win.loadFile(path.join(__dirname, '../public/display-clock.html'));
+    win.loadFile(resolverPaginaProjecao('display-clock.html'));
     win.setMenuBarVisibility(false);
     win.webContents.on('did-finish-load', () => {
       enviarDisplayConfigParaJanelasRelogio(win);
@@ -711,6 +724,7 @@ function createWindowsApi(ctx, paths, deps) {
     const win = new BrowserWindow(
       {
         ...opcoesBrowserWindowProjecao(d, label, {
+        icon: caminhoIconeApp(),
           webPreferences: { zoomFactor: d.scaleFactor || 1 },
         }),
         show: false,
@@ -720,7 +734,7 @@ function createWindowsApi(ctx, paths, deps) {
     );
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
-    win.loadFile(path.join(__dirname, '../public/display.html'));
+    win.loadFile(resolverPaginaProjecao('display.html'));
     win.setMenuBarVisibility(false);
 
     win.webContents.on('did-finish-load', () => {
@@ -746,12 +760,13 @@ function createWindowsApi(ctx, paths, deps) {
 
     const win = new BrowserWindow(
       opcoesBrowserWindowProjecao(d, label, {
+        icon: caminhoIconeApp(),
         webPreferences: { zoomFactor: d.scaleFactor || 1 },
       })
     );
     finalizarJanelaProjecaoNativa(win);
 
-    win.loadFile(path.join(__dirname, '../public/display.html'));
+    win.loadFile(resolverPaginaProjecao('display.html'));
     win.setMenuBarVisibility(false);
 
     win.webContents.on('did-finish-load', () => {
@@ -777,14 +792,14 @@ function createWindowsApi(ctx, paths, deps) {
 
     /* Opaca — mesmo motivo do telão público (vídeo preto com transparent:true). */
     const win = new BrowserWindow({
-      ...opcoesBrowserWindowProjecao(d, label),
+      ...opcoesBrowserWindowProjecao(d, label, { icon: caminhoIconeApp() }),
       show: false,
       transparent: false,
       backgroundColor: PRETO_NATIVO_PROJECAO,
     });
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
-    win.loadFile(path.join(__dirname, '../public/display-operator.html'));
+    win.loadFile(resolverPaginaProjecao('display-operator.html'));
     win.setMenuBarVisibility(false);
 
     win.webContents.on('did-finish-load', () => {

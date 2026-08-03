@@ -85,6 +85,8 @@ function montar(over = {}) {
     WINDOW_TITLE: 'Lyra — Test',
     onProjecaoEncerrada: (ev) => eventos.push(ev),
     haOperadorConectado: () => true,
+    resolverPaginaProjecao: (nome) => `/fake/public/${nome}`,
+    caminhoIconeApp: () => '/fake/icone.ico',
     ...over,
   };
   return { ctx, eventos, api: createWindowsApi(ctx, paths, deps) };
@@ -95,6 +97,7 @@ test('deps obrigatórios: falha alto em vez de degradar em silêncio', () => {
     logError: () => {}, screen: { getAllDisplays: () => DISPLAYS, on: () => {} },
     BrowserWindow: function (opts) { return fakeWin(opts); }, app: fakeApp, WINDOW_TITLE: 't',
     onProjecaoEncerrada: () => {}, haOperadorConectado: () => true,
+    resolverPaginaProjecao: (nome) => `/fake/public/${nome}`, caminhoIconeApp: () => '/fake/icone.ico',
   };
   assert.throws(
     () => createWindowsApi({}, paths, { ...base, onProjecaoEncerrada: undefined }),
@@ -104,6 +107,26 @@ test('deps obrigatórios: falha alto em vez de degradar em silêncio', () => {
     () => createWindowsApi({}, paths, { ...base, haOperadorConectado: undefined }),
     /haOperadorConectado/
   );
+  assert.throws(
+    () => createWindowsApi({}, paths, { ...base, resolverPaginaProjecao: undefined }),
+    /resolverPaginaProjecao/
+  );
+  assert.throws(
+    () => createWindowsApi({}, paths, { ...base, caminhoIconeApp: undefined }),
+    /caminhoIconeApp/
+  );
+});
+
+test('o motor carrega a página que o host resolveu, não um caminho próprio', () => {
+  /* O motor usava `__dirname` + '../public/', o que o prendia à pasta do Server. Agora
+     pergunta ao host. Guarda contra alguém repor um caminho relativo no motor — o que
+     partiria assim que ele mudasse de pasta (sub-passo 4b). */
+  const pedidas = [];
+  const { ctx, api } = montar({ resolverPaginaProjecao: (nome) => { pedidas.push(nome); return `/host/${nome}`; } });
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.sincronizarJanelasRelogio();
+
+  assert.ok(pedidas.includes('display-clock.html'), `host devia ter resolvido a página do relógio; pediu: ${pedidas}`);
 });
 
 test('encerrar por Esc avisa o host (e o motor não toca em transporte)', () => {

@@ -215,9 +215,42 @@ diferença é a chave `janelasDeProjecao` na superfície da API); `npm test` 75/
 > comparar listas vazias e daria "idêntico" sem exercitar nada. Mesma lição do bug do relógio.
 
 **Sub-passo 4 — Mover o motor para `core/` com shim.**
-Só agora mover o corpo do motor (abrir/sincronizar/renderizar janelas) para `core/`, deixando em
-`lib/windows.js` um shim/adaptador fino que injeta as dependências do Server. Mesmo padrão comprovado
-dos incrementos anteriores.
+
+O mapeamento encontrou um acoplamento maior que o `iconPath` previsto: **o motor carregava o próprio
+renderer por caminho relativo.**
+
+```js
+win.loadFile(path.join(__dirname, '../public/display.html'));          // telão
+win.loadFile(path.join(__dirname, '../public/display-operator.html')); // ministrante
+win.loadFile(path.join(__dirname, '../public/display-clock.html'));    // relógio
+```
+
+Mover para `core/` partiria os três (`server/src/core/../public` não existe). E o problema é mais
+fundo que o path: **essas páginas são o Core**. No modo local o Controller precisa exactamente
+delas — se ficarem em `server/public/`, o Core embutido no Controller carregaria HTML de dentro do
+pacote do Server. São autocontidas (28K/28K/12K; única referência externa é a fonte do Google).
+
+Por isso o passo foi dividido, como o 3.
+
+**Sub-passo 4a — Tirar os acoplamentos de plataforma sem mover nada. ✅ FEITO.**
+Duas `deps` novas, ambas obrigatórias: `resolverPaginaProjecao(nome)` (o host devolve o caminho
+absoluto da página) e `caminhoIconeApp()`. O motor deixou de usar `__dirname` e de fazer
+`require('./lib/iconPath')` — que era o **último `require('electron')` da árvore do motor** (agora
+só resta a referência de tipo em JSDoc, que não é runtime). `require('path')` também saiu.
+
+Onde os HTML ficam *fisicamente* fica para o passo de promover o `core/` a pacote compartilhado —
+é lá que "de quem é este ficheiro" precisa de resposta. Injectar agora não fecha nenhuma porta.
+
+Verificado por: fingerprint com **240 eventos e 2 diferenças**, ambas o valor do ícone (todas as
+outras opções de criação de janela idênticas); `npm test` 76/76; `eslint` sem erros novos.
+
+> Efeito colateral bom: os baselines antigos guardavam o caminho absoluto do ícone — um valor
+> específico da máquina, que nunca devia estar num ficheiro de comparação entre ambientes. O
+> harness passou a usar sentinela.
+
+**Sub-passo 4b — Mover o corpo para `core/` com shim (a fazer).**
+Movimento puro, sem mudança de lógica. Fica por resolver: `createControlWindowApi` ainda é chamado
+de dentro do motor — é o último uso do `ctx` e não é Core.
 
 **Sub-passo 5 — Consolidar sob o contrato `render(payload)`.**
 Envolver as funções do motor numa fachada `render(payload)` declarativa (RFC §5.8). Aqui o payload
@@ -261,7 +294,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (75 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (76 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -334,7 +367,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ---
 
-> Próximo movimento: **sub-passo 4** — mover o corpo do motor para `core/`, deixando em
+> Próximo movimento: **sub-passo 4b** — mover o corpo do motor para `core/`, deixando em
 > `windows.js` um shim fino que injecta as dependências do Server. Bloqueios conhecidos a
 > resolver nesse passo: `lib/iconPath.js` faz `require('electron')` no topo (tem de ser
 > injectado), e a criação da janela de controle ainda vive aqui — é o último uso do `ctx`.

@@ -225,6 +225,14 @@ const depsHost = {
     if (ctx.io) ctx.io.emit('estado', estadoPublico);
   },
   haOperadorConectado: () => !!ctx.controladorSocketId,
+  /* O motor deixou de resolver as páginas do renderer por __dirname (sub-passo 4a); quem
+     resolve é o host. Devolvemos um caminho (não só o nome) porque o registo de `loadFile`
+     guarda o `basename` — assim o fingerprint continua a afirmar QUAL página foi carregada,
+     que é o comportamento, sem depender de onde o motor mora. */
+  resolverPaginaProjecao: (nome) => path.join('/fingerprint/public', nome),
+  /* Sentinela de propósito: o caminho real do ícone é absoluto e específico da máquina —
+     não devia estar num baseline comparável entre ambientes. */
+  caminhoIconeApp: () => '<icone-app>',
 };
 
 const api = createWindowsApi(ctx, paths, {
