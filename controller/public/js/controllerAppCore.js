@@ -9364,9 +9364,12 @@ function atualizarToolbarModoEdicao() {
   const bAnt = document.getElementById('btn-seta-anterior');
   const bProx = document.getElementById('btn-seta-proxima');
   const bSair = document.getElementById('btn-sair-projecao');
-  if (bAnt) bAnt.style.display = emModoEdicaoVisual ? 'none' : '';
-  if (bProx) bProx.style.display = emModoEdicaoVisual ? 'none' : '';
-  if (bSair) bSair.style.display = emModoEdicaoVisual ? 'none' : '';
+  /* Navegar/encerrar só faz sentido com música carregada — sem o `m` estas
+     ficavam visíveis sobre o placeholder «Escolha uma música…». */
+  const mostrarNavegacaoProjecao = m && !emModoEdicaoVisual;
+  if (bAnt) bAnt.style.display = mostrarNavegacaoProjecao ? '' : 'none';
+  if (bProx) bProx.style.display = mostrarNavegacaoProjecao ? '' : 'none';
+  if (bSair) bSair.style.display = mostrarNavegacaoProjecao ? '' : 'none';
   const et = document.getElementById('edit-titulo');
   const ea = document.getElementById('edit-artista');
   if (et) {
@@ -9391,7 +9394,13 @@ function atualizarToolbarModoEdicao() {
   const sep1 = document.getElementById('toolbar-sep-1');
   const sep2 = document.getElementById('toolbar-sep-2');
   if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
-  if (sep2) sep2.style.display = emModoEdicaoVisual ? 'none' : '';
+  if (sep2) sep2.style.display = mostrarNavegacaoProjecao ? '' : 'none';
+
+  /* Sem música a linha fica sem nenhum botão: esconder remove também a
+     divisória que ela desenha por baixo dos campos de título/artista. */
+  document
+    .getElementById('centro-toolbar-acoes')
+    ?.classList.toggle('centro-toolbar-acoes--sem-musica', !m);
 
   atualizarToolbarModoLetraCompleta();
 }

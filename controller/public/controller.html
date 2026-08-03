@@ -1907,6 +1907,16 @@
       border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
     }
 
+    /**
+     * Estado vazio (nenhuma música ativa): todos os botões desta linha já se
+     * escondem sozinhos, mas a linha continuava a desenhar a sua divisória
+     * (`border-top`) solta por baixo dos campos de título/artista. Some com a
+     * linha inteira — os campos ficam, que são do cartão acima.
+     */
+    .centro-toolbar-acoes--sem-musica {
+      display: none;
+    }
+
     /* Com os botões contextuais + separadores, a barra ganhou itens. Fonte um
        pouco menor e padding proporcional aliviam o peso visual, mantendo caixa
        alta e a monospace (--font-ui). Vale para todos os botões deste menu,
@@ -6648,7 +6658,7 @@
             </div>
             <div id="musica-versoes-bar" class="musica-versoes-bar" hidden aria-label="Versões locais da música"></div>
           </div>
-          <div class="centro-toolbar-row centro-toolbar-acoes">
+          <div class="centro-toolbar-row centro-toolbar-acoes" id="centro-toolbar-acoes">
             <button type="button" class="btn" onclick="editarNomeVersaoSelecionada()" id="btn-editar-nome-versao" style="display:none" title="Renomear a cópia/versão selecionada">EDITAR NOME</button>
             <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada">APAGAR CÓPIA</button>
             <span class="toolbar-sep" id="toolbar-sep-1" aria-hidden="true" style="display:none"></span>
