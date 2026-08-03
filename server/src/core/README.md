@@ -19,6 +19,14 @@ adiado para manter cada passo pequeno e reversível.
 - `projectionPayloads.js` — construção dos payloads de projeção (puro).
 - `displayRouting.js` — roteamento de monitores (público/ministrante, slides/apresentação) (puro).
 - `displayIndices.js` — persistência dos índices de monitores selecionados (puro).
+- `displayConfig.js` — defaults + merge + load/save da configuração de exibição (puro).
+- `monitorsList.js` — descoberta/ordenação de monitores físicos (puro; recebe `screen` por parâmetro).
+
+### Candidato a split futuro (ainda NÃO movido)
+
+- `lib/displayConfigModo.js` é **misto**: parte pura (transformações de config) + parte que mexe em
+  `ctx`/estado e envia às janelas via Electron. Só entra no core depois de separar a metade pura da
+  metade que depende de estado/transporte — isso é um refactor, não uma simples mudança de lugar.
 
 Os caminhos antigos em `server/src/lib/` foram mantidos como **shims de reexportação**, para não
 quebrar nenhum import existente durante a transição. Quando todos os importadores forem atualizados
