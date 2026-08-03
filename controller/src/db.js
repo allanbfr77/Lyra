@@ -173,6 +173,42 @@ function initControllerDatabase(paths, Database) {
 
 const ROTULO_COPIA_MODIFICADA = 'Cópia/Modificada';
 const ROTULO_COPIA_IMPORTADA = 'CÓPIA/IMPORTADA';
+const ROTULO_COPIA_MANUAL = 'CÓPIA/MANUAL';
+
+/** Marcas de acentuação isoladas pela decomposição NFD (U+0300..U+036F). */
+const REGEX_MARCAS_ACENTO = /[\u0300-\u036f]/g;
+
+/**
+ * Normaliza texto para comparação de duplicidade de músicas.
+ *
+ * Motivo: os dados vindos de scraping (CifraClub / Letras.mus.br) raramente
+ * batem caractere a caractere com o que o usuário já tem salvo — «Paulo César
+ * Baruk» vs «Paulo Cesar Baruk», «Clamo a Jesus!» vs «Clamo a Jesus». A
+ * comparação exata anterior deixava passar esses casos e criava duplicatas.
+ *
+ * Não é fuzzy matching: só remove acentos, caixa, pontuação simples e espaços
+ * redundantes. Diferenças reais de palavra continuam sendo músicas distintas.
+ */
+function normalizarChaveComparacao(texto) {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(REGEX_MARCAS_ACENTO, '')
+    .toLowerCase()
+    .replace(/[.,;:!?¡¿"'’‘“”`´^~(){}[\]<>/\\|@#$%&*+=_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Igual a `normalizarChaveComparacao`, mas descarta participações no fim do
+ * nome do artista («Baruk feat. Fernandinho» → «baruk»), muito comuns nos
+ * títulos das fontes online e ausentes no banco do usuário.
+ */
+function normalizarArtistaComparacao(texto) {
+  return normalizarChaveComparacao(texto)
+    .replace(/\s(?:feat|ft|featuring|part|participacao)(?:\s.*)?$/, '')
+    .trim();
+}
 
 function colunaExiste(nomeTabela, nomeColuna) {
   const cols = db.prepare(`PRAGMA table_info(${nomeTabela})`).all();
@@ -376,37 +412,98 @@ function apagarMusicaUsuarioNoDb(idRaw) {
   return { ok: true, removidos: r.changes, rootId, cascade: false };
 }
 
-/**
- * Importa música (playlist, sync, letras): nova original ou cópia filha se já existir root igual.
- */
-function importarMusicaUsuarioNoDb(titulo, artista, estrofes) {
+/** Valida entrada comum aos fluxos de importação/criação de música do usuário. */
+function prepararEntradaMusicaUsuario(titulo, artista, estrofes) {
   const tituloTrim = String(titulo || '').trim();
   const artistaTrim = String(artista || '').trim();
-  if (!tituloTrim) return { ok: false, erro: 'titulo obrigatório' };
+  if (!tituloTrim) return { erro: 'titulo obrigatório' };
   if (!Array.isArray(estrofes) || !estrofes.length)
-    return { ok: false, erro: 'estrofes deve ser um array não vazio' };
+    return { erro: 'estrofes deve ser um array não vazio' };
+  return {
+    tituloTrim,
+    artistaTrim,
+    norm: estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? ''))),
+  };
+}
 
-  const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
-  const existId = musicaIdPorTituloArtistaIgual(tituloTrim, artistaTrim);
+/**
+ * Grava a música quando já existe uma equivalente: sempre como cópia filha,
+ * preservando o original intacto.
+ */
+function gravarComoCopiaDeExistente(existente, tituloTrim, artistaTrim, norm, rotulo) {
+  const row = obterMusicaUsuarioPorId(existente.id);
+  if (!row) return { ok: false, erro: 'Não encontrado' };
+  const fork = inserirCopiaMusica(row, tituloTrim, artistaTrim, norm, { rotulo });
+  return { ok: true, id: fork.id, rootId: fork.rootId, copyImportada: true };
+}
 
-  if (existId == null) {
+/**
+ * Importa música (playlist, sync, letras): nova original ou cópia filha se já existir equivalente.
+ *
+ * @param {object} [opts]
+ * @param {'copiar'|'perguntar'} [opts.aoDuplicar] `copiar` (padrão) mantém o
+ *   comportamento automático usado pelos fluxos em lote do celular. `perguntar`
+ *   **não grava nada** ao detectar duplicidade e devolve `{ duplicado: true }`
+ *   para que a decisão seja do usuário.
+ */
+function importarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
+  const entrada = prepararEntradaMusicaUsuario(titulo, artista, estrofes);
+  if (entrada.erro) return { ok: false, erro: entrada.erro };
+  const { tituloTrim, artistaTrim, norm } = entrada;
+
+  const existente = encontrarMusicaUsuarioDuplicada(tituloTrim, artistaTrim);
+
+  if (!existente) {
     const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
     if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
     return { ok: true, id: ins.id, rootId: ins.id, copyImportada: false };
   }
 
-  const row = obterMusicaUsuarioPorId(existId);
-  if (!row) return { ok: false, erro: 'Não encontrado' };
+  if (String(opts.aoDuplicar || 'copiar') === 'perguntar') {
+    return { ok: false, duplicado: true, existente, erro: 'Música já existe no banco' };
+  }
 
-  const fork = inserirCopiaMusica(row, tituloTrim, artistaTrim, norm, {
-    rotulo: ROTULO_COPIA_IMPORTADA,
-  });
-  return {
-    ok: true,
-    id: fork.id,
-    rootId: fork.rootId,
-    copyImportada: true,
-  };
+  return gravarComoCopiaDeExistente(
+    existente,
+    tituloTrim,
+    artistaTrim,
+    norm,
+    ROTULO_COPIA_IMPORTADA
+  );
+}
+
+/**
+ * Cadastro manual de música pelo usuário, com a mesma checagem de duplicidade
+ * dos fluxos de importação. Antes esta rota inseria sempre uma nova original,
+ * mesmo com título e artista idênticos a uma já existente.
+ *
+ * @param {object} [opts]
+ * @param {'copiar'|'perguntar'} [opts.aoDuplicar] Ver `importarMusicaUsuarioNoDb`.
+ */
+function criarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
+  const entrada = prepararEntradaMusicaUsuario(titulo, artista, estrofes);
+  if (entrada.erro) return { ok: false, erro: entrada.erro };
+  const { tituloTrim, artistaTrim, norm } = entrada;
+
+  const existente = encontrarMusicaUsuarioDuplicada(tituloTrim, artistaTrim);
+
+  if (!existente) {
+    const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
+    if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
+    return { ok: true, id: ins.id, rootId: ins.id, copyImportada: false };
+  }
+
+  if (String(opts.aoDuplicar || 'copiar') === 'perguntar') {
+    return { ok: false, duplicado: true, existente, erro: 'Música já existe no banco' };
+  }
+
+  return gravarComoCopiaDeExistente(
+    existente,
+    tituloTrim,
+    artistaTrim,
+    norm,
+    ROTULO_COPIA_MANUAL
+  );
 }
 
 /** Cópia B — nova versão nomeada a partir do conteúdo atual do registro (sem alterar o pai). */
@@ -459,16 +556,56 @@ function atualizarRotuloVersaoNoDb(idRaw, rotuloRaw) {
   return { ok: true, id, rotulo, rootId: resolverRootIdDaMusica(row) };
 }
 
-function musicaIdPorTituloArtistaIgual(titulo, artista) {
-  const t = String(titulo || '').trim().toLowerCase();
-  const a = String(artista || '').trim().toLowerCase();
+/**
+ * Procura no banco do usuário uma música equivalente à informada.
+ *
+ * A comparação é feita em JS (e não em SQL) porque o SQLite não decompõe
+ * acentos: `lower(trim(titulo))` não faz «César» bater com «Cesar». A varredura
+ * cobre só os originais (`parent_id IS NULL`) e o banco pessoal é pequeno.
+ *
+ * `motivo`:
+ *  - `titulo-artista`: título e artista equivalentes;
+ *  - `titulo`: título equivalente e um dos lados sem artista preenchido.
+ *
+ * @returns {{id:number, titulo:string, artista:string, rootId:number, motivo:string}|null}
+ */
+function encontrarMusicaUsuarioDuplicada(titulo, artista) {
+  const tituloAlvo = normalizarChaveComparacao(titulo);
+  if (!tituloAlvo) return null;
+  const artistaAlvo = normalizarArtistaComparacao(artista);
+
   const rows = db
-    .prepare('SELECT id, artista FROM musicas WHERE lower(trim(titulo)) = ? AND parent_id IS NULL')
-    .all(t);
+    .prepare(
+      'SELECT id, titulo, artista, root_id FROM musicas WHERE parent_id IS NULL ORDER BY id ASC'
+    )
+    .all();
+
+  const montar = (row, motivo) => ({
+    id: row.id,
+    titulo: String(row.titulo || '').trim(),
+    artista: String(row.artista || '').trim(),
+    rootId: row.root_id != null ? row.root_id : row.id,
+    motivo,
+  });
+
+  let candidatoSoTitulo = null;
   for (const row of rows) {
-    if (String(row.artista ?? '').trim().toLowerCase() === a) return row.id;
+    if (normalizarChaveComparacao(row.titulo) !== tituloAlvo) continue;
+    const artistaRow = normalizarArtistaComparacao(row.artista);
+    if (artistaRow === artistaAlvo) return montar(row, 'titulo-artista');
+    // Título idêntico e artista ausente de um dos lados: tratamos como possível
+    // duplicata, mas com prioridade menor — quem decide é o usuário.
+    if ((!artistaRow || !artistaAlvo) && !candidatoSoTitulo) {
+      candidatoSoTitulo = montar(row, 'titulo');
+    }
   }
-  return null;
+  return candidatoSoTitulo;
+}
+
+/** Compatibilidade: id da música equivalente já existente, ou `null`. */
+function musicaIdPorTituloArtistaIgual(titulo, artista) {
+  const dup = encontrarMusicaUsuarioDuplicada(titulo, artista);
+  return dup ? dup.id : null;
 }
 
 function normalizarMusicasUsuarioParaSync(musicas) {
@@ -565,6 +702,10 @@ module.exports = {
   rowMusicaParaJson,
   inserirMusicaUsuario,
   importarMusicaUsuarioNoDb,
+  criarMusicaUsuarioNoDb,
+  encontrarMusicaUsuarioDuplicada,
+  normalizarChaveComparacao,
+  normalizarArtistaComparacao,
   atualizarMusicaNoDb,
   apagarMusicaUsuarioNoDb,
   criarVersaoMusicaNoDb,

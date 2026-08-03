@@ -11827,15 +11827,72 @@ async function buscarLetrasExterno() {
   }
 }
 
-async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte) {
+/**
+ * Diálogo de decisão quando o backend responde 409 (música equivalente já
+ * existe no banco do usuário). Nada foi gravado até aqui — a escolha do usuário
+ * é que define o fluxo.
+ *
+ * @param {{ existente?: object, titulo?: string, artista?: string }} data Corpo do 409.
+ * @returns {Promise<'usar'|'criar'|null>} `null` = cancelar.
+ */
+async function decidirDuplicidadeMusica(data) {
+  const existente = (data && data.existente) || {};
+  const tituloExistente = String(existente.titulo || data?.titulo || 'Sem título').trim();
+  const artistaExistente = String(existente.artista || '').trim();
+  const tituloNovo = String(data?.titulo || '').trim();
+  const artistaNovo = String(data?.artista || '').trim();
+
+  const descreve = (t, a) => (a ? `«${t}» — ${a}` : `«${t}»`);
+  const linhas = [`Já existe no seu banco: ${descreve(tituloExistente, artistaExistente)}.`];
+  // Só mostra o "a importar" quando a grafia difere — é justamente o caso que
+  // a comparação normalizada passou a reconhecer.
+  if (tituloNovo && (tituloNovo !== tituloExistente || artistaNovo !== artistaExistente)) {
+    linhas.push(`A adicionar: ${descreve(tituloNovo, artistaNovo)}.`);
+  }
+  linhas.push(
+    '',
+    'Usar a existente: abre a música já salva, sem gravar nada.',
+    'Criar mesmo assim: grava uma nova versão ligada à existente; o original não é alterado.'
+  );
+
+  return appEscolherOpcao(
+    'Música já existe no banco',
+    [
+      { label: 'Usar a música existente', value: 'usar' },
+      { label: 'Criar mesmo assim como nova versão', value: 'criar' },
+    ],
+    linhas.join('\n'),
+    { cancelLabel: 'Cancelar' }
+  );
+}
+
+/** Abre no editor a música já existente apontada pelo 409, sem gravar nada. */
+async function usarMusicaExistenteDoBanco(data) {
+  const idExistente = Number(data?.existente?.id);
+  if (!Number.isFinite(idExistente)) {
+    alert('Não foi possível localizar a música existente no banco.');
+    return;
+  }
+  await carregarMusicas();
+  await selecionarMusicaDoBanco(idExistente, { fonte: 'user' });
+}
+
+async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decisaoDuplicidade = '') {
   const fonteEnvio = fonte === 'letras-mus-br' ? 'letras-mus-br' : 'cifraclub';
   try {
     const res = await fetch(`${getControllerApiBase()}/api/letras/importar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, maxLinhasPorSlide, fonte: fonteEnvio }),
+      body: JSON.stringify({ path, maxLinhasPorSlide, fonte: fonteEnvio, decisaoDuplicidade }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.duplicado) {
+      const escolha = await decidirDuplicidadeMusica(data);
+      if (escolha === 'usar') return usarMusicaExistenteDoBanco(data);
+      if (escolha === 'criar')
+        return importarLetrasParaBanco(path, maxLinhasPorSlide, fonte, 'criar');
+      return;
+    }
     if (!res.ok) {
       alert(
         res.status === 404
@@ -11851,14 +11908,21 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte) {
   }
 }
 
-async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 4) {
+async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 4, decisaoDuplicidade = '') {
   try {
     const res = await fetch(`${getControllerApiBase()}/api/letras/importar-do-catalogo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: catalogId, maxLinhasPorSlide }),
+      body: JSON.stringify({ id: catalogId, maxLinhasPorSlide, decisaoDuplicidade }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.duplicado) {
+      const escolha = await decidirDuplicidadeMusica(data);
+      if (escolha === 'usar') return usarMusicaExistenteDoBanco(data);
+      if (escolha === 'criar')
+        return importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide, 'criar');
+      return;
+    }
     if (!res.ok) {
       alert(data.erro || `Erro HTTP ${res.status}`);
       return;
@@ -11893,7 +11957,18 @@ function fecharModalNovaMusicaManual() {
   }
 }
 
-async function salvarNovaMusicaManualNoServidor() {
+/** Reabre o modal preservando o que já foi digitado (usado ao cancelar o
+ *  diálogo de duplicidade — o modal precisa sair da frente porque o
+ *  `app-dialog-overlay` fica numa camada abaixo dele). */
+function reabrirModalNovaMusicaManual() {
+  const bd = document.getElementById('nova-musica-manual-backdrop');
+  if (bd) {
+    bd.hidden = false;
+    bd.setAttribute('aria-hidden', 'false');
+  }
+}
+
+async function salvarNovaMusicaManualNoServidor(decisaoDuplicidade = '') {
   const titulo = document.getElementById('nova-musica-manual-titulo')?.value.trim() || '';
   const artista = document.getElementById('nova-musica-manual-artista')?.value.trim() || '';
   const raw = document.getElementById('nova-musica-manual-estrofes')?.value || '';
@@ -11908,9 +11983,18 @@ async function salvarNovaMusicaManualNoServidor() {
     const res = await fetch(`${getControllerApiBase()}/api/musicas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titulo, artista, estrofes }),
+      body: JSON.stringify({ titulo, artista, estrofes, decisaoDuplicidade }),
     });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.duplicado) {
+      fecharModalNovaMusicaManual();
+      const escolha = await decidirDuplicidadeMusica(data);
+      if (escolha === 'usar') return usarMusicaExistenteDoBanco(data);
+      if (escolha === 'criar') return salvarNovaMusicaManualNoServidor('criar');
+      // Cancelou: devolve o formulário com o texto preservado.
+      reabrirModalNovaMusicaManual();
+      return;
+    }
     if (!res.ok) {
       alert(data.erro || `Erro HTTP ${res.status}`);
       return;

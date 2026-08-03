@@ -15,8 +15,8 @@ const {
   apagarMusicaUsuarioNoDb,
   criarVersaoMusicaNoDb,
   atualizarRotuloVersaoNoDb,
-  inserirMusicaUsuario,
   importarMusicaUsuarioNoDb,
+  criarMusicaUsuarioNoDb,
   listarVersoesPorRootId,
   listarMusicasUsuarioParaSync,
   obterMusicaUsuarioPorId,
@@ -658,6 +658,28 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
+  /**
+   * Modo de resolução de duplicidade a partir do corpo da requisição.
+   *
+   * Sem `decisaoDuplicidade` o backend apenas **detecta** e devolve 409, sem
+   * gravar: quem decide é o usuário, no diálogo do controlador. Com
+   * `decisaoDuplicidade: 'criar'` a escolha já foi feita e a cópia é gravada.
+   */
+  function modoDuplicidadeDoBody(body) {
+    const decisao = String((body && body.decisaoDuplicidade) || '').trim().toLowerCase();
+    return decisao === 'criar' ? 'copiar' : 'perguntar';
+  }
+
+  /** Resposta padrão de duplicidade detectada (nada foi gravado no banco). */
+  function responderDuplicidade(res, resultado, titulo, artista) {
+    return res.status(409).json({
+      duplicado: true,
+      existente: resultado.existente,
+      titulo: String(titulo || '').trim(),
+      artista: String(artista || '').trim(),
+    });
+  }
+
   expressApp.post('/api/musicas', (req, res) => {
     try {
       const { titulo, artista, estrofes } = req.body || {};
@@ -665,7 +687,10 @@ async function iniciarServidorController(ctx, paths) {
       if (!Array.isArray(estrofes) || !estrofes.length)
         return res.status(400).json({ erro: 'estrofes deve ser array não vazio' });
       const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
-      const ins = inserirMusicaUsuario(titulo.trim(), String(artista || '').trim(), norm);
+      const ins = criarMusicaUsuarioNoDb(titulo.trim(), String(artista || '').trim(), norm, {
+        aoDuplicar: modoDuplicidadeDoBody(req.body),
+      });
+      if (ins.duplicado) return responderDuplicidade(res, ins, titulo, artista);
       if (!ins.ok) return res.status(400).json({ erro: ins.erro || 'Falha ao inserir' });
       const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
@@ -673,18 +698,21 @@ async function iniciarServidorController(ctx, paths) {
         id: ins.id,
         titulo: titulo.trim(),
         artista: String(artista || '').trim(),
-        root_id: ins.id,
-        is_immutable: 1,
+        root_id: ins.rootId,
+        is_immutable: ins.copyImportada ? 0 : 1,
+        copyImportada: !!ins.copyImportada,
       });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e) });
     }
   });
 
+  // Rota usada pelo celular (importação em lote por código): sem interface para
+  // perguntar, mantém o comportamento automático de gravar como CÓPIA/IMPORTADA.
   expressApp.post('/api/musicas/importar', (req, res) => {
     try {
       const { titulo, artista, estrofes } = req.body || {};
-      const r = importarMusicaUsuarioNoDb(titulo, artista, estrofes);
+      const r = importarMusicaUsuarioNoDb(titulo, artista, estrofes, { aoDuplicar: 'copiar' });
       if (!r.ok) return res.status(400).json({ erro: r.erro || 'Falha ao importar' });
       const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
@@ -868,7 +896,8 @@ async function iniciarServidorController(ctx, paths) {
         }
 
         const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
-        const imp = importarMusicaUsuarioNoDb(titulo, artista, norm);
+        // Lote vindo do celular: sem diálogo possível, mantém CÓPIA/IMPORTADA.
+        const imp = importarMusicaUsuarioNoDb(titulo, artista, norm, { aoDuplicar: 'copiar' });
         if (!imp.ok) {
           resultados.push({ status: 'erro', clientId, erro: imp.erro || 'Falha ao importar' });
           continue;
@@ -1207,7 +1236,10 @@ async function iniciarServidorController(ctx, paths) {
       const artista = String(row.artista || '').trim();
       if (!titulo) return res.status(400).json({ erro: 'Título obrigatório' });
 
-      const imp = importarMusicaUsuarioNoDb(titulo, artista, estrofes);
+      const imp = importarMusicaUsuarioNoDb(titulo, artista, estrofes, {
+        aoDuplicar: modoDuplicidadeDoBody(req.body),
+      });
+      if (imp.duplicado) return responderDuplicidade(res, imp, titulo, artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
       const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
@@ -1291,7 +1323,10 @@ async function iniciarServidorController(ctx, paths) {
           : await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
       if (r.erro) return res.status(400).json({ erro: r.erro });
 
-      const imp = importarMusicaUsuarioNoDb(r.titulo, r.artista, r.estrofes || []);
+      const imp = importarMusicaUsuarioNoDb(r.titulo, r.artista, r.estrofes || [], {
+        aoDuplicar: modoDuplicidadeDoBody(req.body),
+      });
+      if (imp.duplicado) return responderDuplicidade(res, imp, r.titulo, r.artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
       const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
