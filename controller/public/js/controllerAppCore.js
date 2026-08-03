@@ -7385,6 +7385,27 @@ function onCultoChange() {
   renderPlaylist();
 }
 
+/**
+ * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
+ * em controller/src/db.js). Como quase toda a entrada da playlist acaba por ser uma cópia,
+ * repeti-lo em cada linha é ruído — só nomes dados pelo operador dizem algo.
+ * Comparação insensível a maiúsculas e normalizada, para tolerar variações de acentuação.
+ */
+const ROTULO_VERSAO_AUTOMATICO = 'cópia/modificada'.normalize('NFC');
+
+/** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
+function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
+  const r = String(rotulo || '').trim();
+  if (!r) return '';
+  return r.normalize('NFC').toLowerCase() === ROTULO_VERSAO_AUTOMATICO ? '' : r;
+}
+
+/** Sufixo « · NOME» da linha da playlist, já escapado (vazio se não houver nome próprio). */
+function sufixoRotuloVersaoPlaylist(item) {
+  const r = rotuloVersaoParaExibicaoNaPlaylist(item?.versaoRotulo);
+  return r ? ` · ${escapeHtml(r)}` : '';
+}
+
 /** Ordem da playlist respeitando marcadores de tema (cabeçalhos mesmo sem música). */
 function renderPlaylistItensComMarcadores(el, pl) {
   let i = 0;
@@ -7403,8 +7424,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
       'playlist-row' +
       (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
       (compacto ? ' playlist-row--compacto' : '');
-    const rotuloVersao =
-      item.versaoRotulo ? ` · ${escapeHtml(item.versaoRotulo)}` : '';
+    const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.innerHTML = `
       <div class="playlist-row-top">
         <div class="tit">${songNum}. ${escapeHtml(item.titulo)}${rotuloVersao}</div>
@@ -7596,8 +7616,7 @@ function renderPlaylist() {
     const row = document.createElement('div');
     row.dataset.plIdx = String(idx);
     const compacto = idxMusicaNaPlaylist !== -1 && idx !== idxMusicaNaPlaylist;
-    const rotuloVersao =
-      item.versaoRotulo ? ` · ${escapeHtml(item.versaoRotulo)}` : '';
+    const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.className =
       'playlist-row' +
       (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
