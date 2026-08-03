@@ -40,7 +40,14 @@ function criarFakeWindow(opts) {
   const win = {
     __id: id,
     __opts: estavel(opts),
+    bounds: {
+      x: opts?.x ?? 0,
+      y: opts?.y ?? 0,
+      width: opts?.width ?? 1920,
+      height: opts?.height ?? 1080,
+    },
     destroyed: false,
+    fullscreen: !!opts?.fullscreen,
     visivel: false,
     handlers: {},
     webContents: {
@@ -64,17 +71,27 @@ function criarFakeWindow(opts) {
     setTitle: (t) => rec('setTitle', { win: id, t }),
     setSkipTaskbar: (b) => rec('setSkipTaskbar', { win: id, b }),
     setBackgroundColor: (c) => rec('setBackgroundColor', { win: id, c }),
-    setFullScreen: (b) => rec('setFullScreen', { win: id, b }),
+    /* `fullscreen` precisa de estado real: o motor faz `if (win.isFullScreen())` dentro de
+       um try/catch, e um método em falta virava TypeError engolido em silêncio — o bloco
+       inteiro nunca corria e o harness ficava cego a ele. */
+    setFullScreen: (b) => { win.fullscreen = !!b; rec('setFullScreen', { win: id, b }); },
+    isFullScreen: () => !!win.fullscreen,
     setSimpleFullScreen: (b) => rec('setSimpleFullScreen', { win: id, b }),
     setAlwaysOnTop: (...a) => rec('setAlwaysOnTop', { win: id, a: estavel(a) }),
     setVisibleOnAllWorkspaces: (...a) => rec('setVisibleOnAllWorkspaces', { win: id, a: estavel(a) }),
     moveTop: () => rec('moveTop', { win: id }),
-    setBounds: (b) => rec('setBounds', { win: id, b: estavel(b) }),
+    setBounds: (b) => {
+      win.bounds = { ...win.bounds, ...b };
+      rec('setBounds', { win: id, b: estavel(b) });
+    },
     setMenuBarVisibility: (b) => rec('setMenuBarVisibility', { win: id, b }),
     setIgnoreMouseEvents: (...a) => rec('setIgnoreMouseEvents', { win: id, a: estavel(a) }),
     loadFile: (f) => rec('loadFile', { win: id, f: path.basename(String(f)) }),
     loadURL: (u) => rec('loadURL', { win: id, u: String(u) }),
-    getBounds: () => ({ x: 0, y: 0, width: 1920, height: 1080 }),
+    /* Bounds REAIS da janela falsa (vindos das opções de criação e de setBounds).
+       Devolver um valor fixo aqui escondia o caminho de "já está no lugar certo"
+       e tornava o harness cego a churn de fullscreen desnecessário. */
+    getBounds: () => ({ ...win.bounds }),
   };
   rec('novaJanela', { win: id, opts: win.__opts });
   return win;
@@ -241,6 +258,12 @@ passo('atualizarDisplays:comControle', () => api.atualizarDisplays(ctx.estadoAtu
 passo('abrirTelasConfiguradas', () => api.abrirTelasConfiguradas());
 passo('garantirTelasAbertasParaProjecao', () => api.garantirTelasAbertasParaProjecao());
 passo('sincronizarJanelasRelogio', () => api.sincronizarJanelasRelogio());
+/* Simula o arrasto de um slider no controlador: `preview_display_config` chama
+   sincronizarJanelasRelogio a cada tick. Com as janelas já no monitor certo, estes
+   ticks não devem produzir churn nativo (sair/entrar de fullscreen pisca a barra de
+   tarefas do Windows). */
+passo('sincronizarJanelasRelogio:tick2', () => api.sincronizarJanelasRelogio());
+passo('sincronizarJanelasRelogio:tick3', () => api.sincronizarJanelasRelogio());
 
 // 5. Modo Bíblia -> muda a config resolvida para as janelas (inferirForcarModoJanelas).
 passo('trocarParaBiblia', () => {

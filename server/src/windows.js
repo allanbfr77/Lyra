@@ -529,6 +529,22 @@ function createWindowsApi(ctx, paths, deps) {
     };
   }
 
+  /**
+   * Único caminho para escrever `display_config` nas janelas de projeção.
+   *
+   * Antes do sub-passo 3a o `httpServer.js` e o `ipcHandlers.js` chamavam
+   * `displayConfigModo.enviarDisplayConfigParaJanelas(ctx, …)` directamente, alcançando
+   * `ctx.windowsDisplay` por fora do motor — um segundo escritor nas janelas. Com o
+   * registo a caminho de ser interno ao motor (3b), esse caminho passaria a não encontrar
+   * janela nenhuma e falharia em SILÊNCIO (um `forEach` sobre lista vazia não dá erro).
+   *
+   * @param {{ forcarModo?: 'slides'|'biblia' }} [opts]
+   * @returns {object} a config efectivamente enviada
+   */
+  function aplicarDisplayConfigNasJanelas(opts = {}) {
+    return displayConfigModo.enviarDisplayConfigParaJanelas(state, opts);
+  }
+
   function enviarDisplayConfigParaJanelasRelogio(targetWin = null) {
     const cfg = { clock: resolverClockConfigPersistida() };
     const entradas = targetWin
@@ -594,6 +610,27 @@ function createWindowsApi(ctx, paths, deps) {
     return win;
   }
 
+  /**
+   * A janela já cobre exactamente este monitor?
+   *
+   * Conservador de propósito: se `getBounds()` não estiver disponível ou lançar, devolve
+   * `false` — ou seja, reposiciona. Melhor um pisca do que uma janela no monitor errado.
+   */
+  function boundsIguais(win, bounds) {
+    try {
+      const b = win.getBounds();
+      return (
+        !!b &&
+        b.x === bounds.x &&
+        b.y === bounds.y &&
+        b.width === bounds.width &&
+        b.height === bounds.height
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   function sincronizarJanelasRelogio() {
     const desejados = new Set(indicesMonitoresRelogioDesejados());
     const displays = obterDisplaysOrdenados();
@@ -614,15 +651,24 @@ function createWindowsApi(ctx, paths, deps) {
       }
       const d = displays[entry.index];
       try {
-        if (win.isFullScreen()) win.setFullScreen(false);
-        win.setBounds({
-          x: d.bounds.x,
-          y: d.bounds.y,
-          width: d.bounds.width,
-          height: d.bounds.height,
-        });
+        /* O ciclo sair-do-fullscreen → reposicionar → voltar existe para quando o monitor
+           muda de posição/resolução. Aplicá-lo incondicionalmente pisca a barra de tarefas
+           do Windows: esta função roda a cada `preview_display_config`, ou seja, a cada tick
+           do arrasto de um slider no controlador — e sair do fullscreen revela a barra.
+           Como a janela de relógio é `alwaysOnTop(false)` de propósito (fica atrás da
+           projeção), o pisca fica visível sempre que o relógio é a janela visível no
+           monitor, como no modo Bíblia. */
+        if (!boundsIguais(win, d.bounds)) {
+          if (win.isFullScreen()) win.setFullScreen(false);
+          win.setBounds({
+            x: d.bounds.x,
+            y: d.bounds.y,
+            width: d.bounds.width,
+            height: d.bounds.height,
+          });
+          win.setFullScreen(true);
+        }
         win.setAlwaysOnTop(false);
-        win.setFullScreen(true);
         if (!win.isVisible()) win.show();
       } catch (_) {
   // intencional — erro ignorado
@@ -1185,7 +1231,7 @@ function createWindowsApi(ctx, paths, deps) {
     sincronizarTelasComRota(routingDual, () => {
       try {
         const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
-        displayConfigModo.enviarDisplayConfigParaJanelas(state, { forcarModo });
+        aplicarDisplayConfigNasJanelas({ forcarModo });
         sincronizarJanelasRelogio(routingDual);
         if (!hayProjecaoAtivaPublica()) atualizarDisplays(estadoOciosoPublico());
         else atualizarDisplays(state.estadoAtual);
@@ -1278,6 +1324,7 @@ function createWindowsApi(ctx, paths, deps) {
     showMainWindow: controlWindowApi.showMainWindow,
     recarregarJanelaControle: controlWindowApi.recarregarJanelaControle,
     openMainDevTools: controlWindowApi.openMainDevTools,
+    aplicarDisplayConfigNasJanelas,
     openDisplayDevTools,
     openPublicDevTools,
     openMinistranteDevTools,

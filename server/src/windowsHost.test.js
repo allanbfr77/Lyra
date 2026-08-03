@@ -24,19 +24,28 @@ Module._load = function (pedido, pai, isMain) {
 
 const { createWindowsApi } = require('./windows');
 
-function fakeWin() {
+function fakeWin(opts = {}) {
   const win = {
     destruida: false,
     visivel: true,
+    fullscreen: !!opts.fullscreen,
+    bounds: { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 1920, height: opts.height ?? 1080 },
     sends: [],
+    /** Chamadas que mexem na janela nativa — é o churn que pisca a barra de tarefas. */
+    nativas: [],
     webContents: { send: (canal, payload) => win.sends.push({ canal, payload }), on: () => {}, once: () => {} },
     isDestroyed: () => win.destruida,
     isVisible: () => win.visivel,
+    isFullScreen: () => win.fullscreen,
+    getBounds: () => ({ ...win.bounds }),
     on: () => {}, once: () => {},
     close: () => { win.destruida = true; },
-    setBackgroundColor: () => {}, setFullScreen: () => {}, setAlwaysOnTop: () => {},
+    setBackgroundColor: () => {},
+    setFullScreen: (b) => { win.fullscreen = !!b; win.nativas.push(`setFullScreen(${!!b})`); },
+    setBounds: (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); },
+    setAlwaysOnTop: () => {},
     moveTop: () => {}, show: () => {}, hide: () => { win.visivel = false; },
-    setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {}, setBounds: () => {},
+    setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {},
     setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {}, loadFile: () => {}, loadURL: () => {},
   };
   return win;
@@ -71,7 +80,7 @@ function montar(over = {}) {
   const deps = {
     logError: () => {},
     screen: { getAllDisplays: () => DISPLAYS, getPrimaryDisplay: () => DISPLAYS[0], on: () => {} },
-    BrowserWindow: function () { return fakeWin(); },
+    BrowserWindow: function (opts) { return fakeWin(opts); },
     app: fakeApp,
     WINDOW_TITLE: 'Lyra — Test',
     onProjecaoEncerrada: (ev) => eventos.push(ev),
@@ -84,7 +93,7 @@ function montar(over = {}) {
 test('deps obrigatórios: falha alto em vez de degradar em silêncio', () => {
   const base = {
     logError: () => {}, screen: { getAllDisplays: () => DISPLAYS, on: () => {} },
-    BrowserWindow: function () { return fakeWin(); }, app: fakeApp, WINDOW_TITLE: 't',
+    BrowserWindow: function (opts) { return fakeWin(opts); }, app: fakeApp, WINDOW_TITLE: 't',
     onProjecaoEncerrada: () => {}, haOperadorConectado: () => true,
   };
   assert.throws(
@@ -129,6 +138,60 @@ test('o motor pergunta ao host se há operador ligado', () => {
   ctx.windowsDisplay = [{ role: 'publico', index: 0, win: fakeWin() }];
   api.garantirTelasAbertasParaProjecao();
   assert.ok(chamadas > 0, 'haOperadorConectado devia ter sido consultado');
+});
+
+test('aplicarDisplayConfigNasJanelas escreve nas janelas de projeção e na de controle', () => {
+  const { ctx, api } = montar();
+  const pub = fakeWin();
+  const ctrl = fakeWin();
+  ctx.windowsDisplay = [{ role: 'publico', index: 1, win: pub }];
+  ctx.windowControl = ctrl;
+
+  const cfg = api.aplicarDisplayConfigNasJanelas({ forcarModo: 'slides' });
+
+  assert.ok(cfg && typeof cfg === 'object', 'devolve a config enviada');
+  assert.ok(pub.sends.some((s) => s.canal === 'display_config'), 'janela de projeção recebeu');
+  assert.ok(ctrl.sends.some((s) => s.canal === 'display_config'), 'janela de controle recebeu');
+});
+
+test('resincronizar o relógio com a janela já no lugar não mexe na janela nativa', () => {
+  /* Regressão: `sincronizarJanelasRelogio` roda a cada `preview_display_config`, ou seja
+     a cada tick do arrasto de um slider. Fazer sair/entrar de fullscreen a cada tick pisca
+     a barra de tarefas do Windows — visível sempre que o relógio é a janela da frente no
+     monitor (modo Bíblia). Sem bounds novos, não deve haver chamada nativa nenhuma. */
+  const { ctx, api } = montar();
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.sincronizarJanelasRelogio();
+
+  const relogios = ctx.windowsDisplay.filter((e) => e.role === 'relogio');
+  assert.ok(relogios.length > 0, 'o cenário precisa de pelo menos uma janela de relógio aberta');
+  relogios.forEach((e) => { e.win.nativas.length = 0; });
+
+  api.sincronizarJanelasRelogio();
+  api.sincronizarJanelasRelogio();
+
+  relogios.forEach((e) => {
+    assert.deepStrictEqual(
+      e.win.nativas, [],
+      `janela de relógio do monitor ${e.index} sofreu churn nativo: ${e.win.nativas.join(', ')}`
+    );
+  });
+});
+
+test('relógio num monitor que mudou de posição é reposicionado', () => {
+  // O contrapeso do teste acima: a guarda não pode impedir o reposicionamento legítimo.
+  const { ctx, api } = montar();
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.sincronizarJanelasRelogio();
+  const relogio = ctx.windowsDisplay.find((e) => e.role === 'relogio');
+  assert.ok(relogio, 'cenário precisa de janela de relógio');
+
+  relogio.win.nativas.length = 0;
+  relogio.win.bounds = { x: -5000, y: -5000, width: 800, height: 600 };
+  api.sincronizarJanelasRelogio();
+
+  assert.ok(relogio.win.nativas.includes('setBounds'), 'devia reposicionar');
+  assert.deepStrictEqual(relogio.win.getBounds(), DISPLAYS[relogio.index].bounds);
 });
 
 test('o predicado é consultado a cada decisão, não memorizado na construção', () => {

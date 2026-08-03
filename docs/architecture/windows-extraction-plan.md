@@ -163,9 +163,36 @@ fazer o papel do host, que é exactamente a mudança), `npm test` 58/58 (+5 em
 `server/src/windowsHost.test.js`, cobrindo o contrato com o host), `eslint` sem erros novos.
 
 **Sub-passo 3 — Extrair o registro de janelas de projeção para o Core.**
-Mover `ctx.windowsDisplay` (e a lógica que o gerencia) para dentro de um estado próprio do Core. O
-motor passa a ser dono das janelas de projeção; o Server deixa de tocar `ctx.windowsDisplay`
-diretamente.
+
+O mapeamento revelou um bloqueio que o plano original não previa, e por isso o passo foi dividido.
+
+Boa notícia primeiro: `windowsDisplay` **já é quase privado do motor** — fora do `windows.js` há
+**um único acesso em produção**, em `lib/displayConfigModo.js` (`enviarDisplayConfigParaJanelas`).
+
+Má notícia: esse acesso é alcançado por **10 call sites** de `httpServer.js` e `ipcHandlers.js`, que
+passam o `ctx` cru para o `displayConfigModo`. É um **segundo escritor** nas janelas de projeção,
+morando fora do motor — mesma classe de problema do `ctx.io`. E se o registo saísse do `ctx` com
+esse caminho no lugar, ele **falharia em silêncio**: um `forEach` sobre lista vazia não lança nada.
+O sintoma seria fonte/fundo parando de atualizar ao vivo, e o fingerprint não pegaria, porque só
+exercita o `windows.js`.
+
+**Sub-passo 3a — O motor vira o único escritor das janelas. ✅ FEITO.**
+`windowsApi.aplicarDisplayConfigNasJanelas(opts)` passa a ser o único caminho para escrever
+`display_config` nas janelas de projeção. Os 5 chamadores diretos de
+`enviarDisplayConfigParaJanelas(ctx, …)` passaram a chamá-lo; os 5 de
+`processarDisplayConfigDoControlador` passam-no como sink em `opts.enviar` (que mantém o caminho
+histórico como default, para não quebrar nada agora). A parte de *estado* do
+`processarDisplayConfigDoControlador` (patch + persistência) continua onde estava — é config, não
+janela.
+
+Verificado por: fingerprint com **uma única diferença — a chave nova na superfície da API**, que é
+exactamente a mudança pretendida; `npm test` 63/63 (+5 em `lib/displayConfigModo.test.js`, que
+guardam justamente a falha silenciosa, e +1 em `windowsHost.test.js`); `eslint` sem erros novos.
+
+**Sub-passo 3b — Internalizar o registro (a fazer).**
+Com um só escritor, `windowsDisplay` sai da porta de estado e vira estado interno do motor,
+manipulado por uma API de registo (`adicionar`/`porRole`/`substituir`/`limpar`) em vez de 28
+manipulações directas do array. `serverContext.windowsDisplay` deixa de existir.
 
 **Sub-passo 4 — Mover o motor para `core/` com shim.**
 Só agora mover o corpo do motor (abrir/sincronizar/renderizar janelas) para `core/`, deixando em
@@ -214,7 +241,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (58 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (65 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -237,6 +264,13 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
   dependências — `iconPath` terá de ser injectado quando o motor for para o `core/` (sub-passo 4).
 - Smoke test visual roteirizado: abrir telas, trocar slide, blackout, encerrar por Esc, modo Bíblia,
   relógio/countdown.
+
+> **O harness mente por omissão — métodos em falta viram silêncio.** O motor faz
+> `if (win.isFullScreen())` dentro de `try/catch`. Enquanto a janela falsa não implementava
+> `isFullScreen`, o `TypeError` era engolido e o bloco inteiro **nunca corria** — o fingerprint
+> dava "idêntico" sobre código que não era exercitado. O mesmo valia para `getBounds`, que devolvia
+> um valor fixo. Ao adicionar um método ao motor que consulte a janela, adicionar o equivalente
+> **com estado real** em `tools/fingerprint-windows.js`, ou o harness fica cego a ele.
 
 > **Armadilha ao montar cenários manuais: "sem configuração" não se obtém apagando ficheiros.**
 > `loadDisplayIndices` devolve `[1, 2]` *hardcoded* quando `display-screens.json` não existe (e
