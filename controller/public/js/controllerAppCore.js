@@ -9436,11 +9436,184 @@ function splitTextoLetraCompletaEmEstrofes(texto) {
   return splitTextoEmEstrofesPorLinhaVaziaStrict(texto);
 }
 
+/**
+ * Divisórias entre estrofes no modo «letra completa».
+ *
+ * Um `<textarea>` desenha apenas texto puro, portanto as linhas não podem ser filhas dele.
+ * A alternativa seria trocá-lo por blocos `contenteditable`, o que sacrificaria o histórico
+ * de desfazer nativo, o IME e a colagem sanitizada. Em vez disso desenha-se numa camada por
+ * baixo, e o textarea — que continua a ser a única fonte de verdade — fica transparente.
+ *
+ * Para saber onde cai cada linha em branco (que pode estar deslocada por quebras suaves de
+ * linhas longas), o texto é reproduzido num espelho invisível que copia as métricas
+ * tipográficas do textarea em tempo de execução, via `getComputedStyle`. Copiar em vez de
+ * duplicar valores no CSS evita que as guias se desalinhem se a tipografia do painel mudar.
+ *
+ * Nada aqui lê ou escreve `musicaAtiva`: é estritamente decorativo.
+ */
+const guiasEstrofesLetraCompleta = (() => {
+  /**
+   * Propriedades que afetam a disposição do texto e têm de ser idênticas no espelho.
+   * As larguras de borda ficam de fora de propósito: a camada `.centro-letra-completa-guias`
+   * já tem uma borda transparente da mesma espessura, e o filho posicionado em absoluto
+   * ancora no interior dela — copiá-las aqui contaria o desvio duas vezes.
+   */
+  const PROPS_METRICA = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+    'letterSpacing', 'wordSpacing', 'lineHeight', 'textIndent', 'textTransform',
+    'tabSize', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  ];
+
+  let espelho = null;
+  let desloca = null;
+  let agendado = false;
+
+  function elementos() {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    const guias = document.getElementById('centro-letra-completa-guias');
+    if (!ta || !guias) return null;
+    if (!desloca || desloca.parentNode !== guias) {
+      guias.innerHTML = '';
+      desloca = document.createElement('div');
+      desloca.className = 'centro-letra-completa-guias-desloca';
+      espelho = document.createElement('div');
+      espelho.className = 'centro-letra-completa-espelho';
+      desloca.appendChild(espelho);
+      guias.appendChild(desloca);
+    }
+    return { ta, guias };
+  }
+
+  /**
+   * Índices das linhas em branco que separam de facto duas estrofes.
+   * Espelha `splitTextoEmEstrofesPorLinhaVaziaStrict`: corridas de linhas vazias contam
+   * como um único corte, e vazios no início/fim não separam nada.
+   * @param {string[]} linhas
+   * @returns {number[]}
+   */
+  function indicesLinhasSeparadoras(linhas) {
+    const idx = [];
+    let viuConteudo = false;
+    let inicioCorrida = -1;
+    for (let i = 0; i < linhas.length; i++) {
+      if (linhas[i] === '') {
+        if (viuConteudo && inicioCorrida === -1) inicioCorrida = i;
+        continue;
+      }
+      /* Só é separadora se houver conteúdo antes e depois. */
+      if (inicioCorrida !== -1) idx.push(inicioCorrida);
+      inicioCorrida = -1;
+      viuConteudo = true;
+    }
+    return idx;
+  }
+
+  function desenhar() {
+    agendado = false;
+    const els = elementos();
+    if (!els) return;
+    const { ta, guias } = els;
+    if (!modoLetraCompletaCentral || guias.offsetParent === null) {
+      espelho.textContent = '';
+      desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+      return;
+    }
+
+    const cs = getComputedStyle(ta);
+    PROPS_METRICA.forEach((p) => {
+      espelho.style[p] = cs[p];
+    });
+    /* `clientWidth` já exclui a barra de deslocamento — a largura útil bate certo. */
+    espelho.style.width = `${ta.clientWidth}px`;
+    espelho.style.border = '0';
+    desloca.style.width = `${ta.clientWidth}px`;
+
+    const linhas = String(ta.value ?? '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .split('\n');
+    const separadoras = indicesLinhasSeparadoras(linhas);
+
+    desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+    if (!separadoras.length) {
+      espelho.textContent = '';
+      desloca.style.transform = 'translateY(0px)';
+      return;
+    }
+
+    /* Espelho = mesmo texto, com marcas de largura zero no início das linhas separadoras.
+       Marcas em linha e vazias não alteram a quebra de linha, mas dão-nos o `offsetTop`. */
+    espelho.textContent = '';
+    const marcas = [];
+    const alvo = new Set(separadoras);
+    linhas.forEach((linha, i) => {
+      if (i > 0) espelho.appendChild(document.createTextNode('\n'));
+      if (alvo.has(i)) {
+        const marca = document.createElement('span');
+        espelho.appendChild(marca);
+        marcas.push(marca);
+      }
+      if (linha !== '') espelho.appendChild(document.createTextNode(linha));
+    });
+
+    const alturaLinha = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+    /* Recuo igual ao do texto, para a régua não invadir o espaço da barra de deslocamento. */
+    const recuoEsq = cs.paddingLeft;
+    const recuoDir = cs.paddingRight;
+    marcas.forEach((marca) => {
+      const regua = document.createElement('div');
+      regua.className = 'centro-letra-completa-guia';
+      regua.style.top = `${Math.round(marca.offsetTop + alturaLinha / 2)}px`;
+      regua.style.left = recuoEsq;
+      regua.style.right = recuoDir;
+      desloca.appendChild(regua);
+    });
+
+    desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
+  }
+
+  function sincronizarDeslocamento() {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    if (!ta || !desloca) return;
+    desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
+  }
+
+  /** Recalcula na próxima pintura (agrupa rajadas de `input`). */
+  function agendar() {
+    if (agendado) return;
+    agendado = true;
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(desenhar);
+    else setTimeout(desenhar, 0);
+  }
+
+  function ligar() {
+    const els = elementos();
+    if (!els) return;
+    const { ta } = els;
+    if (ta.dataset.guiasLigadas === '1') {
+      agendar();
+      return;
+    }
+    ta.dataset.guiasLigadas = '1';
+    ta.addEventListener('input', agendar);
+    ta.addEventListener('scroll', sincronizarDeslocamento, { passive: true });
+    window.addEventListener('resize', agendar);
+    if (typeof ResizeObserver === 'function') {
+      /* O textarea tem `resize: vertical`; o operador pode arrastá-lo. */
+      new ResizeObserver(agendar).observe(ta);
+    }
+    agendar();
+  }
+
+  return { ligar, agendar };
+})();
+
 function atualizarTextoPainelLetraCompleta() {
   const ta = document.getElementById('centro-letra-completa-ta');
   if (!ta || !musicaAtiva?.estrofes) return;
   if (!modoLetraCompletaCentral) return;
   ta.value = juntarEstrofesParaLetraCompleta();
+  guiasEstrofesLetraCompleta.agendar();
 }
 
 /**
@@ -9462,6 +9635,9 @@ function aplicarLayoutModoLetraCompleta(opts = {}) {
   full.hidden = !on;
   ed.style.display = on ? 'none' : '';
   if (on && preencherTextarea) atualizarTextoPainelLetraCompleta();
+  /* As guias só medem com o painel visível — (re)calcular sempre que ele alterna. */
+  if (on) guiasEstrofesLetraCompleta.ligar();
+  else guiasEstrofesLetraCompleta.agendar();
 }
 
 /** Grava o conteúdo do textarea de letra completa em `musicaAtiva.estrofes` e atualiza faixa/previews. */

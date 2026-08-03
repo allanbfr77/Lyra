@@ -2091,6 +2091,15 @@
       line-height: 1.4;
     }
 
+    /* Caixa de posicionamento para a camada de divisórias ficar atrás do textarea. */
+    .centro-letra-completa-editor {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
     .centro-letra-completa-ta {
       flex: 1;
       min-height: 220px;
@@ -2110,6 +2119,58 @@
 
     .centro-letra-completa-ta:focus {
       border-color: var(--accent);
+    }
+
+    /**
+     * Divisórias entre estrofes. Um textarea só desenha texto puro, por isso as linhas
+     * vivem numa camada por baixo dele (o textarea fica com fundo transparente).
+     * O posicionamento é medido por um espelho invisível que copia, em tempo de execução,
+     * as métricas tipográficas do textarea — ver `guiasEstrofesLetraCompleta` no JS.
+     * Puramente decorativa: `pointer-events: none` e `aria-hidden`.
+     */
+    .centro-letra-completa-editor .centro-letra-completa-ta {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+
+    .centro-letra-completa-guias {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--surface2);
+      box-sizing: border-box;
+    }
+
+    .centro-letra-completa-guias-desloca {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      will-change: transform;
+    }
+
+    .centro-letra-completa-guia {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      height: 1px;
+      background: color-mix(in srgb, var(--border) 70%, transparent);
+      opacity: 0.55;
+    }
+
+    /* Espelho invisível: existe só para medir onde cai cada linha em branco. */
+    .centro-letra-completa-espelho {
+      visibility: hidden;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: normal;
+      box-sizing: border-box;
+      margin: 0;
     }
 
     .estrofe-slide-edit {
@@ -6679,7 +6740,12 @@
           <p class="centro-letra-completa-hint">
             Edite aqui a letra inteira. Entre cada estrofe (slide) deixe uma <strong>linha em branco</strong> (Enter duas vezes). Use <strong>Salvar alterações</strong> para gravar no banco e voltar aos cartões, ou <strong>Cancelar</strong> para descartar.
           </p>
-          <textarea id="centro-letra-completa-ta" class="centro-letra-completa-ta" spellcheck="false" aria-label="Letra completa editável"></textarea>
+          <!-- O textarea continua a ser a única fonte de verdade do texto. A camada
+               por baixo só desenha as divisórias entre estrofes (ver guiasEstrofesLetraCompleta). -->
+          <div class="centro-letra-completa-editor" id="centro-letra-completa-editor">
+            <div class="centro-letra-completa-guias" id="centro-letra-completa-guias" aria-hidden="true"></div>
+            <textarea id="centro-letra-completa-ta" class="centro-letra-completa-ta" spellcheck="false" aria-label="Letra completa editável"></textarea>
+          </div>
         </div>
         <div id="estrofes-slide-editor" class="estrofes-slide-editor"></div>
       </div>
