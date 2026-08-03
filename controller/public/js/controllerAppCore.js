@@ -3334,6 +3334,8 @@ function onTraducaoBibliaChange() {
 
 async function alternarModoBiblia() {
   const ativo = document.body.classList.contains('app-mod-biblia');
+  /* Slide → Bíblia tem de encerrar a projeção, tal como Slide → Home. */
+  const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
   if (!ativo) {
     const trad = await perguntarTraducaoBibliaSeNecessario();
     if (!trad) return;
@@ -3346,6 +3348,14 @@ async function alternarModoBiblia() {
       salvarSlideCfgNoStorage();
       document.body.classList.add('app-mod-biblia');
       document.title = 'Lyra — Modo Bíblia';
+      if (vinhaDoModoSlides) {
+        try { localStorage.setItem(LS_UI_MODO_SLIDES, '0'); } catch (_) {
+          // intencional — erro ignorado
+        }
+        encerrarProjecaoAoSairDoModoSlides();
+        renderSlidesStrip();
+        atualizarPreviewOperador();
+      }
       carregarBibliaCfgDoStorage();
       if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
         rotasPorModo.biblia = rotaDesativada();
@@ -3541,6 +3551,35 @@ function agendarTrabalhoPesadoAposModoSlides(ativo) {
   }
 }
 
+/**
+ * Ao sair do modo slides: público sem projeção e ministrante em relógio (telaLimpa).
+ * Partilhado por todas as saídas do modo slides (Home, Bíblia, Apresentação) para que
+ * a transição encerre sempre a projeção de música.
+ */
+function encerrarProjecaoAoSairDoModoSlides() {
+  estrofeAtiva = -1;
+  slidesDockVisivel = false;
+  projecaoMusicaEmitidaNoServidor = false;
+  bloqueioSincronizarEstrofeDoServidor = false;
+  estadoServidor = {
+    tipo: null,
+    titulo: '',
+    linhas: [],
+    estrofeIndex: 0,
+    totalEstrofes: 0,
+    telaLimpa: true,
+    blackout: false,
+    slidePretoFinal: false,
+  };
+  if (socket && socket.connected) {
+    try {
+      socket.emit('limpar_tela');
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
+}
+
 async function alternarModoSlidesOperador(opts = {}) {
   const permitirDesativar = opts.permitirDesativar === true;
   if (ehModoSlidesOperador() && !permitirDesativar) return;
@@ -3590,24 +3629,7 @@ async function alternarModoSlidesOperador(opts = {}) {
       syncRoteamentoTelasModoSlidesNaUi();
     } else {
       atualizarVisibilidadeAbasCfgPorModo();
-      /** Ao sair do modo slides: público sem projeção e ministrante em relógio (telaLimpa). */
-      estrofeAtiva = -1;
-      slidesDockVisivel = false;
-      projecaoMusicaEmitidaNoServidor = false;
-      bloqueioSincronizarEstrofeDoServidor = false;
-      estadoServidor = {
-        tipo: null,
-        titulo: '',
-        linhas: [],
-        estrofeIndex: 0,
-        totalEstrofes: 0,
-        telaLimpa: true,
-        blackout: false,
-        slidePretoFinal: false,
-      };
-      if (socket && socket.connected) {
-        socket.emit('limpar_tela');
-      }
+      encerrarProjecaoAoSairDoModoSlides();
     }
     atualizarBtnToggleModoSlides();
     atualizarBtnModoApresentacao();
