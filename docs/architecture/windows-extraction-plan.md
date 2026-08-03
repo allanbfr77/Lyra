@@ -248,9 +248,33 @@ outras opções de criação de janela idênticas); `npm test` 76/76; `eslint` s
 > específico da máquina, que nunca devia estar num ficheiro de comparação entre ambientes. O
 > harness passou a usar sentinela.
 
-**Sub-passo 4b — Mover o corpo para `core/` com shim (a fazer).**
-Movimento puro, sem mudança de lógica. Fica por resolver: `createControlWindowApi` ainda é chamado
-de dentro do motor — é o último uso do `ctx` e não é Core.
+**Sub-passo 4b-prep — Mover `projectionEncerrar` e `displayConfigModo` para `core/`. ✅ FEITO.**
+O motor usa os dois. Movê-lo deixando-os em `lib/` faria `core/` depender de `../lib/`, invertendo
+a direcção dos shims. E são lógica de projeção legítima — é ela que decide o que aparece na tela;
+em `lib/`, o Controller teria de a fornecer no modo local. Os requires internos resolveram sem
+edição de caminho (já pediam módulos que hoje vivem em `core/`). Fingerprint sem diferenças.
+
+**Sub-passo 4b — Mover o motor para `core/`. ✅ FEITO.**
+
+`core/projectionEngine.js` (1362 linhas) contém o motor; `windows.js` passou de **1364 para 65
+linhas** e é agora só o adaptador do Server: cria a janela de controle (que precisa de `ctx`, `app`
+e `WINDOW_TITLE`) e o motor (que não precisa de nada disso), e junta as duas APIs. A API pública
+ficou idêntica — nenhum chamador mudou.
+
+O `ctx` **não é repassado ao motor**: o adaptador converte-o na porta de estado. `app` e
+`WINDOW_TITLE` ficaram de fora do motor porque eram usados só pela janela de controle — verificado
+antes de mover, e foi o que tornou o corte limpo.
+
+`core/windowRegistry.js` veio junto (é estado do motor). `lib/projectionState.js` **ficou no
+Server** de propósito: é o adaptador `ctx` → porta, não a porta em si.
+
+Verificado por: fingerprint com **zero diferenças** — mesmo os 240 eventos, mesma superfície de
+API; `npm test` 82/82 (+6 em `core/projectionEngine.test.js`); `eslint` sem erros.
+
+> `core/projectionEngine.test.js` é o teste que representa o objectivo final: instancia o motor
+> **sem `ctx`, sem transporte e sem stubar `electron`** — com um armazém simples no lugar do
+> `state`, que é exactamente o que o Controller fará no modo local. Se algum dia esse ficheiro
+> precisar de um `ctx` ou de um stub de `electron`, o Core voltou a acoplar-se ao Server.
 
 **Sub-passo 5 — Consolidar sob o contrato `render(payload)`.**
 Envolver as funções do motor numa fachada `render(payload)` declarativa (RFC §5.8). Aqui o payload
@@ -294,7 +318,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (76 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (82 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -367,7 +391,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ---
 
-> Próximo movimento: **sub-passo 4b** — mover o corpo do motor para `core/`, deixando em
-> `windows.js` um shim fino que injecta as dependências do Server. Bloqueios conhecidos a
-> resolver nesse passo: `lib/iconPath.js` faz `require('electron')` no topo (tem de ser
-> injectado), e a criação da janela de controle ainda vive aqui — é o último uso do `ctx`.
+> Próximo movimento: **sub-passo 5** — consolidar as funções do motor sob a fachada
+> `render(payload)` (RFC §5.8). Só agora faz sentido desenhar o formato do payload: o motor já
+> não conhece `ctx`, transporte nem plataforma, então o que sobra na sua superfície é exactamente
+> o que o payload precisa de carregar.

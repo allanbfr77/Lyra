@@ -29,6 +29,12 @@ adiado para manter cada passo pequeno e reversível.
   estado da projeção. Movido no sub-passo 4b-prep.
 - `displayConfigModo.js` — config efectiva para as janelas conforme o modo activo (Slides/Bíblia),
   aplicação de patch e envio às janelas. Movido no sub-passo 4b-prep.
+- `windowRegistry.js` — registo das janelas de projeção abertas, privado ao motor.
+- `projectionEngine.js` — **o motor**: abre, sincroniza e renderiza as janelas físicas de projeção
+  (telão, ministrante, escudo preto, relógio). Movido no sub-passo 4b. Não conhece `ctx`,
+  transporte, nem faz `require('electron')` — recebe tudo por `deps`. O que ficou no Server é o
+  adaptador `server/src/windows.js` (65 linhas), que cria a janela de controle e o motor e junta
+  as duas APIs.
 
 ### Por que estes dois vieram antes do motor
 
