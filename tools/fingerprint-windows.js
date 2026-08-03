@@ -192,12 +192,24 @@ Module._load = function (pedido, pai, isMain) {
 const ctx = novoCtx();
 const { createWindowsApi } = require(alvo);
 
+/* O harness faz o papel do host (main.js): traduz o evento do motor em io.emit e
+   responde à pergunta "há operador ligado?". Antes do sub-passo 2 o próprio motor
+   fazia as duas coisas lendo ctx.io/ctx.controladorSocketId — por isso o registo
+   gravado tem de continuar idêntico. */
+const depsHost = {
+  onProjecaoEncerrada: ({ estadoPublico }) => {
+    if (ctx.io) ctx.io.emit('estado', estadoPublico);
+  },
+  haOperadorConectado: () => !!ctx.controladorSocketId,
+};
+
 const api = createWindowsApi(ctx, paths, {
   logError: (escopo, err) => rec('logError', { escopo, msg: String(err && err.message) }),
   screen: fakeScreen,
   BrowserWindow: FakeBrowserWindow,
   app: fakeApp,
   WINDOW_TITLE: 'Lyra — Fingerprint',
+  ...depsHost,
 });
 
 rec('apiSurface', { chaves: Object.keys(api).sort(), tipos: Object.keys(api).sort().map((k) => typeof api[k]) });

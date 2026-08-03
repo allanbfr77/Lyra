@@ -57,6 +57,13 @@ const windowsApi = createWindowsApi(ctx, paths, {
   BrowserWindow,
   app,
   WINDOW_TITLE,
+  /* Tradução evento-do-motor → transporte. É o Server que conhece Socket.io, não o motor.
+     Lazy de propósito: `ctx.io` só existe depois de `iniciarServidor`. */
+  onProjecaoEncerrada: ({ estadoPublico }) => {
+    if (ctx.io) ctx.io.emit('estado', estadoPublico);
+  },
+  /* No Server, "operador ligado" = há um painel controlador com socket registrado. */
+  haOperadorConectado: () => !!ctx.controladorSocketId,
 });
 
 const trayApi = createTrayApi(ctx, paths, {

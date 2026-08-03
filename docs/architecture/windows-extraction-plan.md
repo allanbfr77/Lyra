@@ -134,10 +134,33 @@ Verificado por: fingerprint comportamental **byte-a-byte idêntico** (34 cenári
 registo — ver `tools/fingerprint-windows.js`), `npm test` 53/53 (45 anteriores + 8 novos em
 `lib/projectionState.test.js`), `eslint` sem erros novos.
 
-**Sub-passo 2 — Converter o vazamento de transporte em evento.**
-Trocar o `ctx.io.emit(...)` interno por um *callback/emit* de evento (ex.: `onProjecaoEncerrada`)
-fornecido pelo chamador. O Server liga esse evento ao `io.emit`. Depois disso, o motor não tem mais
-nenhuma referência a `ctx.io`/Socket.io.
+**Sub-passo 2 — Converter o vazamento de transporte em evento. ✅ FEITO.**
+
+O balde C não era uma coisa só. O mapeamento separou duas naturezas diferentes:
+
+- **`ctx.io.emit('estado', …)` em `encerrarProjecaoPorEsc`** — saída de verdade. Virou
+  `deps.onProjecaoEncerrada({ canal, estadoPublico })`. O motor avisa; o host propaga
+  (`main.js` faz o `io.emit`). O motor não conhece Socket.io.
+- **`ctx.controladorSocketId`, via `controladorAtivo()`** — **não é transporte**, apesar de ler um
+  id de socket. É uma *entrada de decisão*, consultada em 4 pontos
+  (`resolverIndiceJanelaPersistenteMinistrante`, `sincronizarTelasComRota`,
+  `telasAbertasCorrespondemRota`, `garantirTelasAbertasParaProjecao`): sem rota configurada, decide
+  se o motor mantém as janelas abertas em preto ou fecha tudo. Evento não resolveria isso. Virou o
+  predicado `deps.haOperadorConectado()` — a pergunta que o motor realmente faz. No Server a
+  resposta é `!!ctx.controladorSocketId`; no modo local o Controller responde sempre `true`,
+  porque ele *é* o operador.
+
+Ambas as `deps` são **obrigatórias** (a fábrica lança `TypeError` se faltarem): um default
+silencioso aqui seria uma regressão silenciosa — deixar de avisar os controladores, ou fechar telas
+que deviam ficar pretas.
+
+Resultado: **zero acessos a `ctx` dentro do motor.** O `ctx` sobrevive no parâmetro da fábrica só
+porque a janela de controle do Server ainda é criada aqui (`createControlWindowApi`) — sai no
+sub-passo 4, junto com a mudança do motor para `core/`.
+
+Verificado por: fingerprint byte-a-byte idêntico ao baseline pré-sub-passo-1 (o harness passou a
+fazer o papel do host, que é exactamente a mudança), `npm test` 58/58 (+5 em
+`server/src/windowsHost.test.js`, cobrindo o contrato com o host), `eslint` sem erros novos.
 
 **Sub-passo 3 — Extrair o registro de janelas de projeção para o Core.**
 Mover `ctx.windowsDisplay` (e a lógica que o gerencia) para dentro de um estado próprio do Core. O
@@ -191,7 +214,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (53 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (58 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -215,6 +238,15 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 - Smoke test visual roteirizado: abrir telas, trocar slide, blackout, encerrar por Esc, modo Bíblia,
   relógio/countdown.
 
+> **Armadilha ao montar cenários manuais: "sem configuração" não se obtém apagando ficheiros.**
+> `loadDisplayIndices` devolve `[1, 2]` *hardcoded* quando `display-screens.json` não existe (e
+> `clock.monitorRelogio` tem default `'ministrante'`). Apagar os ficheiros não produz um estado
+> vazio — produz o estado default, que é diferente. Na prática isso torna o ramo
+> `pub < 0 && min < 0 && escudos.length === 0` de `garantirTelasAbertasParaProjecao`
+> **inalcançável por configuração manual**: com `fixos = [1,2]`, `indicesMonitoresEscudoPreto()`
+> devolve `[1]` e a condição nunca é verdadeira. Ramos assim exercitam-se pelo fingerprint e pelos
+> testes de contrato, não pelo smoke test.
+
 ---
 
 ## 8. Definição de pronto (deste sub-projeto)
@@ -233,8 +265,13 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
    (evitar cristalizar cedo).
 2. O registro de janelas (`windowsDisplay`) vira estado interno do Core ou é injetado pelo host?
    (Inclina para interno ao Core, dono das janelas de projeção.)
-3. O canal de eventos do Core: `EventEmitter`, callbacks simples, ou retorno de `render()`? (Decidir
-   no sub-passo 2, quando o primeiro evento — `onProjecaoEncerrada` — aparecer.)
+3. ~~O canal de eventos do Core: `EventEmitter`, callbacks simples, ou retorno de `render()`?~~
+   **Decidido no sub-passo 2: callbacks simples injectados em `deps`.** Há exactamente um evento
+   (`onProjecaoEncerrada`); um `EventEmitter` instalaria uma API de eventos completa — e o problema
+   de ciclo de vida dos listeners — para servir um caso só. Retorno de `render()` não serve: o Esc
+   é assíncrono e não nasce de um `render()`. **Revisitar se os sub-passos 3–5 fizerem aparecer 3+
+   eventos** — a troca para `EventEmitter` seria então um incremento próprio, com o mesmo padrão de
+   fingerprint.
 
 4. `windowControl` está temporariamente dentro da porta de estado (sub-passo 1) porque o motor ainda
    notifica a janela de controle directamente e `displayConfigModo.enviarDisplayConfigParaJanelas`
@@ -243,6 +280,6 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ---
 
-> Próximo movimento: **sub-passo 2** — converter `ctx.io.emit('estado', ...)` em
-> `encerrarProjecaoPorEsc` num evento do chamador. São as **2 últimas referências a `ctx`** no
-> `windows.js`; depois delas o motor fica com `ctx` zerado e a fábrica pode deixar de o receber.
+> Próximo movimento: **sub-passo 3** — extrair o registo de janelas de projeção
+> (`windowsDisplay`, 29 referências) para estado próprio do motor. É a maior das costuras
+> restantes; a porta de estado já é o sítio por onde ele passa hoje, o que torna a mudança local.

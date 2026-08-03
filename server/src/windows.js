@@ -92,18 +92,36 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
  * (`lib/projectionState.js`) — nunca pelo `ctx` directamente. Ver
  * docs/architecture/windows-extraction-plan.md §4, sub-passo 1.
  *
- * O `ctx` continua aqui apenas para o que ainda não foi desacoplado:
- * `ctx.io` e `ctx.controladorSocketId` (transporte — sai no sub-passo 2) e a janela de
- * controle do Server, que não é motor.
+ * O motor não acede mais ao `ctx`: fala com a porta de estado (`state`) e com o host
+ * (`onProjecaoEncerrada`, `haOperadorConectado`). O `ctx` só continua no parâmetro porque
+ * a janela de controle do Server — que não é motor — é criada aqui e sai no sub-passo 4.
  *
- * @param {object} ctx Estado mutável (`serverContext.js`).
+ * @param {object} ctx Estado mutável (`serverContext.js`) — usado só pela janela de controle.
  * @param {object} paths Objeto retornado por `createUserPaths(userData)`.
- * @param {{ logError: Function, screen: object, BrowserWindow: object, app: object, WINDOW_TITLE: string, state?: object }} deps
- *   `deps.state` permite injectar outra porta de estado (o Core, mais à frente);
- *   omitido, a porta é criada sobre o próprio `ctx`.
+ * @param {{
+ *   logError: Function, screen: object, BrowserWindow: object, app: object, WINDOW_TITLE: string,
+ *   onProjecaoEncerrada: (ev: { canal: string|null, estadoPublico: object }) => void,
+ *   haOperadorConectado: () => boolean,
+ *   state?: object
+ * }} deps
+ *   `onProjecaoEncerrada` — o motor avisa que a projeção terminou por Esc; o host propaga
+ *   (no Server, `io.emit('estado', …)`). O motor não conhece transporte.
+ *   `haOperadorConectado` — ver `controladorAtivo()` abaixo.
+ *   `state` — permite injectar outra porta de estado (o Core, mais à frente); omitido, a
+ *   porta é criada sobre o próprio `ctx`.
  */
 function createWindowsApi(ctx, paths, deps) {
   const { logError, screen, BrowserWindow, app, WINDOW_TITLE } = deps;
+
+  /* Obrigatórios de propósito: um default silencioso aqui é uma regressão silenciosa
+     (deixar de avisar os controladores, ou fechar telas que deviam ficar pretas). */
+  const { onProjecaoEncerrada, haOperadorConectado } = deps;
+  if (typeof onProjecaoEncerrada !== 'function') {
+    throw new TypeError('createWindowsApi: deps.onProjecaoEncerrada é obrigatório');
+  }
+  if (typeof haOperadorConectado !== 'function') {
+    throw new TypeError('createWindowsApi: deps.haOperadorConectado é obrigatório');
+  }
 
   /** Porta de estado do motor. Encaminha para o `ctx` enquanto o motor viver no Server. */
   const state = deps.state || createProjectionState(ctx);
@@ -263,8 +281,16 @@ function createWindowsApi(ctx, paths, deps) {
     return projectionPayloads.snapshotMinistranteAtual(state.estadoAtual, logError);
   }
 
+  /**
+   * "Há um operador ligado?" — NÃO é uma pergunta sobre rede.
+   *
+   * Decide, quando não há rota de monitores configurada, se o motor mantém as janelas
+   * abertas em preto (operador presente, vai projetar já) ou fecha tudo (ninguém a
+   * operar). No Server a resposta vem do socket do controlador; no modo local o próprio
+   * Controller é o operador e responde sempre `true`.
+   */
   function controladorAtivo() {
-    return !!ctx.controladorSocketId;
+    return !!haOperadorConectado();
   }
 
   function hayProjecaoAtivaPublica() {
@@ -401,7 +427,9 @@ function createWindowsApi(ctx, paths, deps) {
       state.windowControl.webContents.send('telas_projecao_encerradas_esc');
     }
 
-    if (ctx.io) ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+    /* O motor não conhece Socket.io: avisa o host, que decide como propagar
+       (no Server, `io.emit('estado', …)`; no modo local, nada). */
+    onProjecaoEncerrada({ canal: canal ?? null, estadoPublico: estadoPublicoParaSocketsOuApi() });
   }
 
   /** Garante fullscreen, topo absoluto e fundo nativo assim que a janela existe. */
