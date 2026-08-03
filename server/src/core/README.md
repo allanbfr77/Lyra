@@ -17,6 +17,8 @@ adiado para manter cada passo pequeno e reversível.
 
 - `comentariosSlide.js` — filtragem/formatação de comentários do ministrante (puro).
 - `projectionPayloads.js` — construção dos payloads de projeção (puro).
+- `displayRouting.js` — roteamento de monitores (público/ministrante, slides/apresentação) (puro).
+- `displayIndices.js` — persistência dos índices de monitores selecionados (puro).
 
 Os caminhos antigos em `server/src/lib/` foram mantidos como **shims de reexportação**, para não
 quebrar nenhum import existente durante a transição. Quando todos os importadores forem atualizados
