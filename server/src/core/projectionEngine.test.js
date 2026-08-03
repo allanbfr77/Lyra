@@ -128,6 +128,85 @@ test('encerrar por Esc avisa o host em vez de falar com a rede', () => {
   assert.strictEqual(state.estadoAtual.telaLimpa, true, 'o motor escreveu no armazém pela porta');
 });
 
+/* ------------------------------------------------------------------ render() */
+
+/** Tudo o que saiu para as janelas, achatado e comparável. */
+function sends(engine) {
+  return engine.janelasDeProjecao().flatMap((e) =>
+    e.win.sends.map((s) => ({ role: e.role, index: e.index, canal: s.canal, payload: s.payload }))
+  );
+}
+
+function limparSends(engine) {
+  engine.janelasDeProjecao().forEach((e) => { e.win.sends.length = 0; });
+}
+
+test('render() é equivalente à sequência manual que substitui', () => {
+  /* Esta é a afirmação central do sub-passo 5: a fachada não é um caminho novo, é o
+     mesmo caminho com um nome. Se divergir, os 8 call sites migrados mudam de
+     comportamento sem ninguém reparar. */
+  const manual = montar();
+  manual.engine.sincronizarJanelasRelogio();
+  manual.engine.abrirTelasConfiguradas();
+  limparSends(manual.engine);
+
+  manual.engine.atualizarDisplays(manual.state.estadoAtual);
+  manual.state.estadoMinistrante = manual.engine.snapshotMinistranteAtual();
+  manual.engine.atualizarDisplayMinistrante(manual.state.estadoMinistrante);
+  const publicoManual = manual.engine.estadoPublicoParaSocketsOuApi();
+
+  const viaRender = montar();
+  viaRender.engine.sincronizarJanelasRelogio();
+  viaRender.engine.abrirTelasConfiguradas();
+  limparSends(viaRender.engine);
+
+  const saida = viaRender.engine.render({ estado: viaRender.state.estadoAtual });
+
+  assert.deepStrictEqual(sends(viaRender.engine), sends(manual.engine), 'mesmos envios às janelas');
+  assert.deepStrictEqual(saida.estadoPublico, publicoManual, 'mesmo estado público devolvido');
+  assert.deepStrictEqual(saida.estadoMinistrante, manual.state.estadoMinistrante);
+  assert.deepStrictEqual(viaRender.state.estadoMinistrante, manual.state.estadoMinistrante,
+    'render escreve o ministrante na porta, como o bloco antigo fazia');
+});
+
+test('render() sem estado re-renderiza o que já está na porta', () => {
+  const { state, engine } = montar();
+  const antes = state.estadoAtual;
+  const saida = engine.render();
+  assert.strictEqual(state.estadoAtual, antes, 'não mexe no estado quando não recebe estado');
+  assert.ok(saida.estadoPublico && typeof saida.estadoPublico === 'object');
+});
+
+test('render() com estado escreve na porta antes de renderizar', () => {
+  const { state, engine } = montar();
+  const novo = { tipo: 'biblia', titulo: 'João 3', linhas: ['Porque Deus amou'], telaLimpa: false };
+  engine.render({ estado: novo });
+  assert.strictEqual(state.estadoAtual, novo);
+});
+
+test('render() não emite nada — devolve, e o host propaga', () => {
+  const { eventos, engine } = montar();
+  engine.render({ estado: { tipo: 'musica', linhas: ['a'], telaLimpa: false } });
+  assert.strictEqual(eventos.length, 0, 'render não é encerramento; nada de eventos ao host');
+});
+
+test('reforcarMinistrante repete o push do ministrante (workaround de timing)', async () => {
+  const { engine } = montar();
+  engine.sincronizarJanelasRelogio();
+  engine.abrirTelasConfiguradas();
+
+  limparSends(engine);
+  engine.render({ estado: { tipo: 'musica', linhas: ['a'], telaLimpa: false } });
+  const semReforco = sends(engine).filter((s) => s.canal === 'atualizar_ministrante').length;
+
+  limparSends(engine);
+  engine.render({ estado: { tipo: 'musica', linhas: ['a'], telaLimpa: false }, reforcarMinistrante: true });
+  await new Promise((r) => setTimeout(r, 220));
+  const comReforco = sends(engine).filter((s) => s.canal === 'atualizar_ministrante').length;
+
+  assert.strictEqual(comReforco, semReforco * 3, 'push imediato + setImmediate + setTimeout(160)');
+});
+
 test('dois motores no mesmo processo não partilham estado', () => {
   /* O modo local pode acabar com um motor no Controller enquanto um Server corre noutro
      processo; e os testes acima já dependem de instâncias independentes. */

@@ -128,16 +128,16 @@ function createProjectionEngine(paths, deps) {
      (deixar de avisar os controladores, ou fechar telas que deviam ficar pretas). */
   const { onProjecaoEncerrada, haOperadorConectado, resolverPaginaProjecao, caminhoIconeApp } = deps;
   if (typeof onProjecaoEncerrada !== 'function') {
-    throw new TypeError('createWindowsApi: deps.onProjecaoEncerrada é obrigatório');
+    throw new TypeError('createProjectionEngine: deps.onProjecaoEncerrada é obrigatório');
   }
   if (typeof haOperadorConectado !== 'function') {
-    throw new TypeError('createWindowsApi: deps.haOperadorConectado é obrigatório');
+    throw new TypeError('createProjectionEngine: deps.haOperadorConectado é obrigatório');
   }
   if (typeof resolverPaginaProjecao !== 'function') {
-    throw new TypeError('createWindowsApi: deps.resolverPaginaProjecao é obrigatório');
+    throw new TypeError('createProjectionEngine: deps.resolverPaginaProjecao é obrigatório');
   }
   if (typeof caminhoIconeApp !== 'function') {
-    throw new TypeError('createWindowsApi: deps.caminhoIconeApp é obrigatório');
+    throw new TypeError('createProjectionEngine: deps.caminhoIconeApp é obrigatório');
   }
 
   if (!state || typeof state !== 'object') {
@@ -147,7 +147,6 @@ function createProjectionEngine(paths, deps) {
   /* Registo das janelas de projeção — privado ao motor desde o sub-passo 3b. Nada fora
      daqui o manipula; quem precisa de lêr usa `janelasDeProjecao()`. */
   const registro = createWindowRegistry();
-
 
   function obterDisplaysOrdenados() {
     return getOrderedDisplays(screen);
@@ -1222,6 +1221,64 @@ function createProjectionEngine(paths, deps) {
     return true;
   }
 
+  /**
+   * **Fachada de renderização do Core** (RFC §5.8, sub-passo 5).
+   *
+   * Substitui a sequência que se repetia **8 vezes** no `httpServer.js`:
+   *
+   * ```js
+   * atualizarDisplays(ctx.estadoAtual);
+   * ctx.estadoMinistrante = snapshotMinistranteAtual();
+   * atualizarDisplayMinistrante(ctx.estadoMinistrante);
+   * ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+   * ```
+   *
+   * O contrato foi desenhado a partir desses 8 sítios reais, não inventado. Duas coisas
+   * ficaram **de fora de propósito**:
+   *
+   * - `garantirTelasAbertasParaProjecao()` — nem todos os sítios a chamam;
+   * - `aplicarDisplayConfigNasJanelas()` — aparece **antes** do render em dois sítios e
+   *   **depois** em outros dois. Absorvê-la aqui fixaria uma ordem e mudaria o
+   *   comportamento de metade dos chamadores. Fica explícita, na ordem de cada um.
+   *
+   * O motor **não emite** o estado público: devolve-o, e o host propaga como souber
+   * (no Server, `io.emit`; no modo local, nada).
+   *
+   * @param {{
+   *   estado?: object,
+   *   reforcarMinistrante?: boolean
+   * }} [payload]
+   *   `estado` — estado público desejado. Omitido, re-renderiza o que já está na porta.
+   *   `reforcarMinistrante` — repete o push do ministrante num `setImmediate` e num
+   *   `setTimeout(160)`. É um *workaround* de timing descoberto por tentativa e erro
+   *   (a janela do ministrante perdia a primeira atualização em alguns casos); usado nos
+   *   caminhos de música e de Bíblia. Movido verbatim — não racionalizar.
+   * @returns {{ estadoPublico: object, estadoMinistrante: object }}
+   */
+  function render(payload = {}) {
+    if (payload.estado !== undefined) {
+      state.estadoAtual = payload.estado;
+    }
+
+    atualizarDisplays(state.estadoAtual);
+    state.estadoMinistrante = snapshotMinistranteAtual();
+    atualizarDisplayMinistrante(state.estadoMinistrante);
+
+    if (payload.reforcarMinistrante) {
+      const reforcar = () => {
+        state.estadoMinistrante = snapshotMinistranteAtual();
+        atualizarDisplayMinistrante(state.estadoMinistrante);
+      };
+      setImmediate(reforcar);
+      setTimeout(reforcar, 160);
+    }
+
+    return {
+      estadoPublico: estadoPublicoParaSocketsOuApi(),
+      estadoMinistrante: state.estadoMinistrante,
+    };
+  }
+
   function garantirTelasAbertasParaProjecao() {
     const routingDual = loadDisplayRouting();
     const { publicoIndex: pub } = resolverIndicesEfetivosProjecao(routingDual);
@@ -1339,6 +1396,7 @@ function createProjectionEngine(paths, deps) {
   }
 
   return {
+    render,
     atualizarDisplays,
     atualizarDisplayMinistrante,
     estadoPublicoParaSocketsOuApi,

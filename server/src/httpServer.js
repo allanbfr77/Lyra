@@ -47,6 +47,7 @@ function iniciarServidor(ctx, paths, deps) {
     enviarSyncVideoApresentacaoParaDisplays,
     sincronizarJanelasRelogio,
     aplicarDisplayConfigNasJanelas,
+    render,
   } = windowsApi;
 
   /**
@@ -240,10 +241,8 @@ function iniciarServidor(ctx, paths, deps) {
       (alvo === 'ministrante' || alvo === 'ambos') && minOv != null ? minOv : null;
 
     garantirTelasAbertasParaProjecao();
-    atualizarDisplays(ctx.estadoAtual);
-    ctx.estadoMinistrante = snapshotMinistranteAtual();
-    atualizarDisplayMinistrante(ctx.estadoMinistrante);
-    ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+    const { estadoPublico } = render({ estado: ctx.estadoAtual });
+    ctx.io.emit('estado', estadoPublico);
     emitirEstadoBibliaObs();
   }
 
@@ -252,10 +251,8 @@ function iniciarServidor(ctx, paths, deps) {
     ctx.estadoPublicoOverride = null;
     ctx.ministranteApresentacaoOverride = null;
     garantirTelasAbertasParaProjecao();
-    atualizarDisplays(ctx.estadoAtual);
-    ctx.estadoMinistrante = snapshotMinistranteAtual();
-    atualizarDisplayMinistrante(ctx.estadoMinistrante);
-    if (ctx.io) ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+    const { estadoPublico } = render({ estado: ctx.estadoAtual });
+    if (ctx.io) ctx.io.emit('estado', estadoPublico);
     emitirEstadoBibliaObs();
   }
 
@@ -886,20 +883,9 @@ function iniciarServidor(ctx, paths, deps) {
         aplicarDisplayConfigNasJanelas({
           forcarModo: 'slides',
         });
-        atualizarDisplays(ctx.estadoAtual);
-        ctx.estadoMinistrante = snapshotMinistranteAtual();
-        atualizarDisplayMinistrante(ctx.estadoMinistrante);
+        const { estadoPublico } = render({ estado: ctx.estadoAtual, reforcarMinistrante: true });
 
-        setImmediate(() => {
-          ctx.estadoMinistrante = snapshotMinistranteAtual();
-          atualizarDisplayMinistrante(ctx.estadoMinistrante);
-        });
-        setTimeout(() => {
-          ctx.estadoMinistrante = snapshotMinistranteAtual();
-          atualizarDisplayMinistrante(ctx.estadoMinistrante);
-        }, 160);
-
-        ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+        ctx.io.emit('estado', estadoPublico);
         emitirEstadoBibliaObs();
       } catch (e) {
         logError('exibir_musica-ws', e);
@@ -971,20 +957,9 @@ function iniciarServidor(ctx, paths, deps) {
           forcarModo: 'biblia',
         });
       }
-      atualizarDisplays(ctx.estadoAtual);
-      ctx.estadoMinistrante = snapshotMinistranteAtual();
-      atualizarDisplayMinistrante(ctx.estadoMinistrante);
+      const { estadoPublico } = render({ estado: ctx.estadoAtual, reforcarMinistrante: true });
 
-      setImmediate(() => {
-        ctx.estadoMinistrante = snapshotMinistranteAtual();
-        atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      });
-      setTimeout(() => {
-        ctx.estadoMinistrante = snapshotMinistranteAtual();
-        atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      }, 160);
-
-      ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      ctx.io.emit('estado', estadoPublico);
       emitirEstadoBibliaObs();
     });
 
@@ -992,13 +967,11 @@ function iniciarServidor(ctx, paths, deps) {
       if (!comandoAutorizado(socket)) return;
       ctx.projecaoLiveAtiva = false;
       projectionEncerrar.encerrarCamadaSlides(ctx);
-      atualizarDisplays(ctx.estadoAtual);
-      ctx.estadoMinistrante = snapshotMinistranteAtual();
-      atualizarDisplayMinistrante(ctx.estadoMinistrante);
+      const { estadoPublico } = render({ estado: ctx.estadoAtual });
       aplicarDisplayConfigNasJanelas({
         forcarModo: 'slides',
       });
-      ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      ctx.io.emit('estado', estadoPublico);
       emitirEstadoBibliaObs();
     });
 
@@ -1006,11 +979,9 @@ function iniciarServidor(ctx, paths, deps) {
       if (!comandoAutorizado(socket)) return;
       ctx.projecaoLiveAtiva = false;
       projectionEncerrar.encerrarCamadaBiblia(ctx);
-      atualizarDisplays(ctx.estadoAtual);
-      ctx.estadoMinistrante = snapshotMinistranteAtual();
-      atualizarDisplayMinistrante(ctx.estadoMinistrante);
+      const { estadoPublico } = render({ estado: ctx.estadoAtual });
       aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
-      ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+      ctx.io.emit('estado', estadoPublico);
       emitirEstadoBibliaObs();
     });
 

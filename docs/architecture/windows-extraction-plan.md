@@ -276,10 +276,41 @@ API; `npm test` 82/82 (+6 em `core/projectionEngine.test.js`); `eslint` sem erro
 > `state`, que é exactamente o que o Controller fará no modo local. Se algum dia esse ficheiro
 > precisar de um `ctx` ou de um stub de `electron`, o Core voltou a acoplar-se ao Server.
 
-**Sub-passo 5 — Consolidar sob o contrato `render(payload)`.**
-Envolver as funções do motor numa fachada `render(payload)` declarativa (RFC §5.8). Aqui o payload
-já carrega estado + referências de mídia resolvíveis. O `httpServer.js` (adaptador remoto) passa a
-chamar `render(payload)` em vez das funções internas.
+**Sub-passo 5 — Consolidar sob o contrato `render(payload)`. ✅ FEITO.**
+
+O contrato foi **lido do código, não inventado**. A sequência abaixo repetia-se no `httpServer.js`:
+
+```js
+atualizarDisplays(ctx.estadoAtual);
+ctx.estadoMinistrante = snapshotMinistranteAtual();
+atualizarDisplayMinistrante(ctx.estadoMinistrante);
+ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
+```
+
+`render({ estado, reforcarMinistrante? })` faz isso e **devolve** `{ estadoPublico,
+estadoMinistrante }` — o motor não emite; o host propaga como souber. **6 call sites** migraram.
+
+Três coisas que o mapeamento evitou:
+
+1. **`aplicarDisplayConfigNasJanelas` ficou de fora.** Aparece **antes** do render em dois sítios e
+   **depois** em outros dois. Absorvê-la fixaria uma ordem e mudaria o comportamento de metade dos
+   chamadores. Continua explícita, na ordem de cada um.
+2. **Eram 6 sítios, não 8.** A contagem inicial por `grep atualizarDisplays(ctx.estadoAtual)` dava
+   8, mas dois têm forma diferente: `encerrar_projecao` define o ministrante à mão em vez de o
+   derivar por `snapshotMinistranteAtual()`, e `toggle_blackout` não toca no ministrante de todo.
+   Forçá-los no `render()` teria acrescentado um push que hoje não existe.
+3. **`garantirTelasAbertasParaProjecao` ficou de fora** — nem todos os sítios a chamam.
+
+O *workaround* de timing (`setImmediate` + `setTimeout(160)` repetindo o push do ministrante) entrou
+no motor atrás de `reforcarMinistrante`, verbatim. É conhecimento adquirido por tentativa e erro.
+
+Verificado por: fingerprint com **uma diferença — a chave `render` na superfície da API**;
+`npm test` 87/87 (+5), incluindo um teste que compara **envio a envio** o `render()` contra a
+sequência manual que ele substitui; `eslint` sem erros.
+
+> **Exposição conhecida:** as 6 migrações vivem no `httpServer.js`, que o fingerprint **não**
+> exercita — ele instrumenta o motor. A mesma situação do sub-passo 3a. O que cobre isto é o teste
+> de equivalência (garante que a fachada não diverge) mais o smoke test.
 
 Cada sub-passo: `npm test` verde + smoke test visual (monitores virtuais bastam) antes de seguir.
 
@@ -318,7 +349,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 7. Como validar sem monitores físicos
 
-- `npm test` (82 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
+- `npm test` (87 testes, JS puro) a cada sub-passo — cobre regressões de lógica.
 - **Monitores virtuais** reproduzem descoberta/roteamento/abertura de janelas (já usados com
   sucesso nos incrementos anteriores).
 - *Fingerprint* comportamental via `tools/fingerprint-windows.js`: instancia o `createWindowsApi`
@@ -362,9 +393,9 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ## 8. Definição de pronto (deste sub-projeto)
 
-- O motor de projeção vive em `core/`, sem nenhuma referência a `ctx`, Socket.io ou `require('electron')`.
-- O `httpServer.js` aciona o motor via `render(payload)` + eventos.
-- A janela de controle e o tray saíram do motor e vivem no Server.
+- ✅ O motor de projeção vive em `core/`, sem nenhuma referência a `ctx`, Socket.io ou `require('electron')`.
+- ✅ O `httpServer.js` aciona o motor via `render(payload)` + eventos.
+- ✅ A janela de controle e o tray saíram do motor e vivem no Server.
 - `npm test` verde e smoke test visual completo sem diferença perceptível.
 - Modo remoto inalterado para o usuário.
 
@@ -391,7 +422,7 @@ allowlist/bastão/heartbeat, overlay OBS, e a tradução evento-do-Core → `io.
 
 ---
 
-> Próximo movimento: **sub-passo 5** — consolidar as funções do motor sob a fachada
-> `render(payload)` (RFC §5.8). Só agora faz sentido desenhar o formato do payload: o motor já
-> não conhece `ctx`, transporte nem plataforma, então o que sobra na sua superfície é exactamente
-> o que o payload precisa de carregar.
+> **Extração do `windows.js` concluída.** Próximo movimento, já fora deste plano: promover o
+> `core/` de dentro do Server para um pacote compartilhado, e dar ao Controller um adaptador local
+> que instancia o motor e chama `render(payload)` — a projeção local sem Server, que é o objectivo
+> de tudo isto. `core/projectionEngine.test.js` já mostra a forma dessa instanciação.
