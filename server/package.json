@@ -35,7 +35,8 @@
       "public/**/*",
       "data/**/*",
       "node_modules/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.test.js"
     ],
     "extraResources": [
       {
