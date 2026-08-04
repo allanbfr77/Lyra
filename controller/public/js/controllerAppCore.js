@@ -11553,7 +11553,10 @@ function configurarModalPreviewLetras() {
     const fontePend = letrasPreviewFontePendente;
     fecharModalPreviewLetras();
     if (userId != null && fontePend === 'banco-local') {
+      // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
+      // o seu papel — limpa igual aos demais para manter o painel consistente.
       await selecionarMusicaDoBanco(userId, { fonte: 'user' });
+      limparBuscaLetras();
     } else if (catalogId != null && fontePend === 'banco-local') {
       await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
     } else if (p) {
@@ -11964,8 +11967,8 @@ function onBancoFonteChange() {
   letrasSiteFonte = normalizarFonteLetrasSite(sel?.value);
   aplicarPlaceholderBuscaLetras();
   garantirBuscaLetrasEditavel();
-  resultadosLetrasCache = [];
-  renderizarListaInternet([]);
+  limparResultadosBuscaLetras();
+  atualizarBotaoLimparBuscaLetras();
   setTimeout(() => document.getElementById('busca-letras-q')?.focus(), 0);
 }
 
@@ -11984,6 +11987,47 @@ function garantirBuscaLetrasEditavel() {
   busca.disabled = false;
   busca.readOnly = false;
   busca.removeAttribute('disabled');
+}
+
+/* ── Limpeza da busca de letras (vale para as três fontes) ───────────────── */
+
+/** O «x» dentro do campo só aparece havendo texto. */
+function atualizarBotaoLimparBuscaLetras() {
+  const inp = document.getElementById('busca-letras-q');
+  const btn = document.getElementById('busca-letras-limpar');
+  if (!inp || !btn) return;
+  btn.hidden = !String(inp.value || '').trim();
+}
+
+/** Zera só os resultados exibidos (cache + lista + contagem), preservando o texto. */
+function limparResultadosBuscaLetras() {
+  resultadosLetrasCache = [];
+  renderizarListaInternet([]);
+}
+
+/** Limpa campo e resultados de uma vez: botão «x» e fim de uma importação. */
+function limparBuscaLetras({ focar = false } = {}) {
+  const inp = document.getElementById('busca-letras-q');
+  if (inp) inp.value = '';
+  atualizarBotaoLimparBuscaLetras();
+  limparResultadosBuscaLetras();
+  if (focar && inp) {
+    try {
+      inp.focus();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
+}
+
+/**
+ * Digitação no campo. Esvaziando-o à mão, os resultados anteriores deixam de
+ * ter termo associado e são descartados — antes ficavam presos na tela.
+ */
+function onBuscaLetrasInput() {
+  atualizarBotaoLimparBuscaLetras();
+  const inp = document.getElementById('busca-letras-q');
+  if (inp && !String(inp.value || '').trim()) limparResultadosBuscaLetras();
 }
 
 function onFiltroBuscaChange() {
@@ -12315,6 +12359,7 @@ async function usarMusicaExistenteDoBanco(data) {
   }
   await carregarMusicas();
   await selecionarMusicaDoBanco(idExistente, { fonte: 'user' });
+  limparBuscaLetras();
 }
 
 async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decisaoDuplicidade = '') {
@@ -12343,6 +12388,7 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decis
     }
     await carregarMusicas();
     await selecionarMusicaDoBanco(data.id);
+    limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar.');
   }
@@ -12369,6 +12415,7 @@ async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 
     }
     await carregarMusicas();
     await selecionarMusicaDoBanco(data.id);
+    limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar do catálogo.');
   }
@@ -13079,6 +13126,8 @@ exporCallbacksParaAtributosHtml({
   onBancoFonteChange,
   alternarListaBancoSqlite,
   onFiltroBuscaChange,
+  onBuscaLetrasInput,
+  limparBuscaLetras,
   filtrar,
   onPublicoBgTypeCtrlChange,
   onPublicoBgImageCtrlChange,

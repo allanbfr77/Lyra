@@ -2978,6 +2978,44 @@
 
     .busca-letras-row2 .search-box { flex: 1; min-width: 0; }
 
+    /* Campo de busca com botão «x» embutido (limpa texto + resultados). */
+    .busca-letras-row2 .search-box-limpavel {
+      position: relative;
+      display: flex;
+      flex: 1;
+      min-width: 0;
+    }
+    /* Texto um pouco menor: o espaço reservado ao «x» cortava o fim do
+       placeholder mais longo («Buscar no banco offline…»). */
+    .search-box-limpavel .search-box {
+      padding-right: 26px;
+      font-size: 13px;
+    }
+    .search-box-limpar {
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .search-box-limpar:hover {
+      color: var(--text);
+      background: color-mix(in srgb, var(--text) 12%, transparent);
+    }
+    .search-box-limpar[hidden] { display: none; }
+
     .banco-letras-ajuda {
       font-size: 10px;
       line-height: 1.45;
@@ -7037,7 +7075,10 @@
         </div>
         <div class="busca-letras-panel" id="busca-letras-panel">
           <div class="busca-letras-row2">
-            <input type="text" class="search-box" id="busca-letras-q" placeholder="Buscar em cifraclub.com.br…" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarLetrasExterno();}">
+            <div class="search-box-limpavel">
+              <input type="text" class="search-box" id="busca-letras-q" placeholder="Buscar em cifraclub.com.br…" oninput="onBuscaLetrasInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarLetrasExterno();}">
+              <button type="button" class="search-box-limpar" id="busca-letras-limpar" title="Limpar busca" aria-label="Limpar busca" hidden onclick="limparBuscaLetras({ focar: true })">×</button>
+            </div>
             <button type="button" class="btn sm primary" onclick="buscarLetrasExterno()">Buscar</button>
           </div>
         </div>
