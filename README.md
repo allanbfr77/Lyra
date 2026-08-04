@@ -28,6 +28,28 @@ Tudo funciona na **rede local (LAN)** — sem depender de internet durante o cul
 
 ## Arquitetura
 
+O Lyra roda de duas formas. **Um PC só** é o padrão e não exige configuração; **dois PCs** é a opção
+para quando os monitores estão noutra máquina.
+
+**Um PC (padrão)** — o Controlador projeta nele mesmo. Ao abrir, já assume os monitores; o app
+Servidor não entra na história.
+
+```
+┌──────────────────────────────────┐
+│  Controlador (PC)                │
+│  painel + motor de projeção      │
+│                                  │
+│  ┌── Telão (HDMI)                │
+│  └── TV (HDMI)                   │
+└──────────────────────────────────┘
+         ▲  Socket.IO :5510 · API REST :3001
+         │
+   Mobile (Android) · OBS
+```
+
+**Dois PCs** — escolha declarada em `Ferramentas → Conectar a servidor remoto…`, lembrada nas
+próximas aberturas.
+
 ```
 ┌─────────────────────┐     Wi-Fi / LAN      ┌─────────────────────┐
 │  Controlador (PC)   │ ───────────────────► │   Servidor (PC)     │
@@ -39,6 +61,9 @@ Tudo funciona na **rede local (LAN)** — sem depender de internet durante o cul
          ▼
    Músicas · Playlists · Bíblia · Projeção
 ```
+
+Os dois modos não coexistem na mesma máquina: quem chegar primeiro à porta 5510 fica com ela, e o
+outro avisa em vez de disputar as telas.
 
 | Módulo | Função | Tecnologia |
 |--------|--------|------------|
@@ -125,18 +150,33 @@ npm start --prefix mobile      # Expo (celular)
 
 ## Uso básico
 
-### No servidor (PC das telas)
+### Um PC só — o padrão
+
+1. Abra o **Lyra Controlador**. Ele já projeta nesta máquina; não é preciso abrir o Servidor nem
+   informar IP nenhum
+2. Em **Ajustes → Telão/Ministrante**, escolha quais monitores recebem cada canal
+3. Clique em uma estrofe ou versículo para exibir nas telas
+4. Pressione **ESC** numa janela de projeção para encerrar
+
+Os monitores secundários ficam pretos enquanto não há nada projetado — com o relógio por cima, se
+ligado em Ajustes. A área de trabalho do operador nunca aparece no telão.
+
+### Dois PCs — quando os monitores estão noutra máquina
+
+**No PC das telas:**
 
 1. Inicie o **Lyra Servidor** e anote o **IP local** exibido na tela
 2. Clique em **Abrir Telas** para abrir as janelas nos monitores
-3. Selecione músicas e clique nas estrofes para projetar
-4. Pressione **ESC** para limpar a tela
 
-### No controlador (PC operador)
+**No PC do operador:**
 
-1. Informe o **IP do servidor** e clique em **Conectar**
-2. Use as abas Músicas, Playlists, Bíblia e Configurações
-3. Clique em uma estrofe ou versículo para exibir nas telas
+1. Abra o **Lyra Controlador** e vá a **Ferramentas → Conectar a servidor remoto…**
+2. Informe o **IP do servidor** e clique em **Conectar**
+3. Use as abas Músicas, Playlists, Bíblia e Configurações
+4. Clique em uma estrofe ou versículo para exibir nas telas
+
+O Controlador lembra dessa escolha e volta a conectar-se nas próximas aberturas. Para regressar ao
+modo de um PC só, use **Ferramentas → Projetar nesta máquina**.
 
 ### No celular
 

@@ -97,6 +97,7 @@ import {
   criarTransporteLocal,
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
+import { decidirModoDeArranque } from './modules/modoArranque.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -5388,8 +5389,11 @@ async function sincronizarEstadoModoApresentacaoServidor() {
     syncApresentacaoPending = true;
     return;
   }
-  const ip = getServidorIp();
-  if (!ip) return;
+  /* O destino do `fetch` abaixo é o banco desta máquina (:3001), não o Servidor — o nome
+     da função é herança de quando o Controlador retransmitia. O guard existe para não
+     gravar quando não há projeção alcançável, e no modo local há: é aqui mesmo. */
+  const host = hostProjecao();
+  if (!host) return;
   syncApresentacaoInFlight = true;
   try {
     await fetch(`${getControllerApiBase()}/api/apresentacao/state`, {
@@ -5417,8 +5421,9 @@ function agendarSincronizacaoEstadoModoApresentacaoServidor() {
 }
 
 async function carregarEstadoModoApresentacaoDoServidor() {
-  const ip = getServidorIp();
-  if (!ip) return;
+  /* Como em `sincronizarEstadoModoApresentacaoServidor`: lê do banco desta máquina. */
+  const host = hostProjecao();
+  if (!host) return;
   const localAntes = coletarEstadoModoApresentacaoAtual();
   const localTemConteudo =
     (localAntes.biblioteca && localAntes.biblioteca.length > 0) ||
@@ -6775,8 +6780,11 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
     return modalImportarPlaylistErro(wrap, 'Código inválido — sem músicas.', codigoNorm);
   }
 
-  const ip = getServidorIp();
-  if (!ip) return modalImportarPlaylistErro(wrap, 'Conecte ao servidor antes de importar.', codigoNorm);
+  /* Não há guard de Servidor aqui, e não havia razão para o haver: este fluxo lê do
+     serviço de partilha na nuvem (`CLOUD_SHARE_URL`) e escreve no banco desta máquina
+     (`getControllerApiBase`, :3001). O Servidor de projeção não participa em nenhum dos
+     dois lados. Exigir ligação a ele bloqueava a importação no modo local — e também em
+     modo remoto antes de conectar — sem nada em troca. */
 
   const cultoIdCodigo = String(data.cultoId || '').trim();
   const cultoNomeCodigo = String(data.cultoNome || data.cultoLabel || '').trim();
@@ -7394,10 +7402,17 @@ function emitirSolicitacaoSincronizacaoBanco(payload) {
 
 async function solicitarSincronizacaoManualBanco() {
   const wrap = abrirModalSincronizarBanco();
+  /* `getServidorIp` e não `hostProjecao`, de propósito: sincronizar o banco é serviço do
+     Servidor e não tem equivalente local (ver docs/architecture/projection-core.md §12.8).
+     Apontar para `127.0.0.1` no modo local mandaria o snapshot para o próprio Controlador. */
   const ip = getServidorIp();
   // Caso 1 — sem conexão: mostrado como aviso dentro do mesmo modal.
   if (!ip || !socket || !socket.connected) {
-    modalSincronizarAviso(wrap, 'Conecte ao servidor antes de sincronizar o banco.');
+    modalSincronizarAviso(
+      wrap,
+      'A sincronização do banco acontece através do Servidor, e este Controlador não está ligado a nenhum. ' +
+        'Conecte-se a um servidor remoto em Ajustes › Conexão e tente de novo.'
+    );
     return;
   }
 
@@ -7447,8 +7462,12 @@ async function tratarPedidoSincronizacaoBanco(payload) {
 }
 
 async function enviarPlaylistsParaServidor() {
-  const ipAtual = getServidorIp();
-  if (!ipAtual) return;
+  /* Escreve no `/api/playlists` desta máquina (:3001), que é de onde o celular as lê —
+     inclusive no modo local, via `solicitar_playlists_controlador`. Com o guard preso a
+     `getServidorIp`, uma instalação sem IP gravado nunca publicava a playlist e o celular
+     ficava a ver uma lista vazia. */
+  const hostAtual = hostProjecao();
+  if (!hostAtual) return;
   try {
     await fetch(`${getControllerApiBase()}/api/playlists`, {
       method: 'PUT',
@@ -10900,14 +10919,44 @@ async function salvarMusicaServidor() {
   renderPlaylist();
 }
 
+/**
+ * Estado de «há projeção alcançável», na barra do topo.
+ *
+ * O texto distingue os dois modos porque a mesma bandeira verde significa coisas
+ * diferentes: no remoto há um Servidor do outro lado da rede, no local as telas são deste
+ * PC. Enquanto a dica falava só de ligação, o modo local — que passou a ser o padrão —
+ * herdava uma frase sobre uma ligação que não existe.
+ */
 function atualizarUiConexao(conectado) {
   document.body.classList.toggle('socket-conectado', !!conectado);
   const bar = document.getElementById('conn-bar');
-  if (bar) bar.title = conectado ? 'CONECTADO — feche a janela para desligar' : '';
+  if (!bar) return;
+  if (!conectado) {
+    bar.title = '';
+    return;
+  }
+  bar.title = emModoProjecaoLocal()
+    ? 'PROJETANDO NESTA MÁQUINA — as telas são servidas por este PC'
+    : 'CONECTADO — feche a janela para desligar';
 }
 
 // --- SECÇÃO F — Ligação ao servidor (IP), pedidos HTTP ao controlador :3001, filas e debounces ---
 async function conectar() {
+  /*
+   * Esta é a acção que declara o modo remoto, e por isso é aqui — e só aqui — que a
+   * preferência se grava.
+   *
+   * Fora do `if` abaixo de propósito: o modo local pode já estar em baixo (arranque que
+   * caiu no fallback por porta ocupada, ou item de menu desmarcado antes) e a intenção de
+   * quem carrega em «Conectar» é a mesma nos dois casos. Prendê-la ao `if` faria a
+   * escolha perder-se justamente em quem está a montar o cenário de dois PCs.
+   */
+  try {
+    localStorage.setItem(LS_PROJETAR_LOCAL, '0');
+  } catch (_) {
+    // intencional — sem `localStorage` a sessão liga na mesma; só não se lembra na próxima
+  }
+
   /* Pedir para ligar a um Servidor é dizer, sem ambiguidade, que não se quer projetar
      nesta máquina. Sem isto o painel ligava o socket e continuava a resolver monitores e
      config contra `127.0.0.1` — meio ligado a cada um dos dois. */
@@ -10944,6 +10993,20 @@ async function conectar() {
  * ocupada e o modo local recusa arrancar.
  */
 
+/**
+ * Preferência de modo, com três estados — e os três importam desde que o padrão inverteu.
+ *
+ * - ausente: o operador nunca decidiu → **projetar nesta máquina**, que é o padrão;
+ * - `'0'`: escolheu o Servidor remoto, deliberadamente, em Ajustes › Conexão;
+ * - `'1'`: escolheu o modo local, deliberadamente.
+ *
+ * Ausente e `'1'` levam ao mesmo arranque; distingui-los serve para saber se houve
+ * escolha, o que uma migração futura pode querer consultar.
+ *
+ * Quem grava `'0'` é só `conectar()`. Desmarcar «Projetar nesta máquina» no menu derruba o
+ * motor na sessão e não escreve nada: parar de projetar agora não é o mesmo que declarar
+ * que este PC opera contra um Servidor da rede.
+ */
 const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
 
 /** Verdadeiro entre o clique no menu e a resposta do processo principal. */
@@ -10992,12 +11055,32 @@ function ponteProjecaoLocal() {
   return window.lyraElectron?.projecaoLocal || null;
 }
 
-function projetarNestaMaquinaPreferido() {
+/**
+ * Valor cru da preferência de modo, ou `null` se não houver — ou não se puder ler.
+ *
+ * Devolver `null` no `catch` não é o mesmo que devolver o padrão: é dizer «não sei», e é
+ * `decidirModoDeArranque` quem resolve o que fazer com isso. A leitura fica com uma
+ * responsabilidade só, que é o que torna a decisão testável sem `localStorage`.
+ */
+function preferenciaModoProjecao() {
   try {
-    return localStorage.getItem(LS_PROJETAR_LOCAL) === '1';
+    return localStorage.getItem(LS_PROJETAR_LOCAL);
   } catch (_) {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Em que modo arrancar — a decisão vive em `modules/modoArranque.js`, e aqui só se
+ * recolhem os dois factos de que ela precisa.
+ *
+ * @returns {'local'|'remoto'}
+ */
+function modoDeArranqueDoPainel() {
+  return decidirModoDeArranque({
+    preferencia: preferenciaModoProjecao(),
+    temPonte: !!ponteProjecaoLocal(),
+  });
 }
 
 /**
@@ -11069,20 +11152,28 @@ async function ligarProjecaoNestaMaquina() {
   return { ok: true };
 }
 
-/** Desliga o modo local e devolve o painel ao caminho remoto. */
+/**
+ * Desliga o modo local — só nesta sessão.
+ *
+ * Não escreve a preferência de propósito. Desde que projetar nesta máquina passou a ser o
+ * padrão, gravar `'0'` aqui fazia com que desmarcar o item de menu para parar de projetar
+ * por um instante tirasse o PC do padrão para sempre — e no arranque seguinte ele não
+ * projetava nada, porque sem IP gravado o caminho remoto é um no-op silencioso.
+ *
+ * Quem declara «este PC opera contra um Servidor da rede» é `conectar()`, que é a acção
+ * onde essa intenção existe de facto.
+ */
 async function desligarProjecaoNestaMaquina() {
   const ponte = ponteProjecaoLocal();
-  try {
-    localStorage.setItem(LS_PROJETAR_LOCAL, '0');
-  } catch (_) {
-    // intencional
-  }
   projecaoLocalActiva = false;
   motorAudioLocal?.desligar();
   if (ponte) await ponte.desligar();
   projecao.usarTransporte(null);
   atualizarUiConexao(false);
-  setStatus('desconectado', 'DESCONECTADO');
+  /* «DESCONECTADO» descrevia um Servidor que caiu, e aqui não caiu nada: o operador
+     desligou a projeção de propósito. Com o modo local por padrão este passou a ser um
+     estado que se alcança de propósito, e o badge tem de o dizer sem soar a avaria. */
+  setStatus('desconectado', 'PROJEÇÃO DESLIGADA');
 }
 
 /** Alterna o modo, para ligar a um botão ou item de menu. */
@@ -11739,8 +11830,12 @@ function configurarModalPreviewLetras() {
 async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;
   if (!projecao.pronta()) return alert('Conecte ao servidor para projetar.');
-  const ipAtual = getServidorIp();
-  if (!ipAtual) return alert('Informe o IP ou use «Conectar».');
+  /* `hostProjecao`, não `getServidorIp`: a pergunta é «onde está a projeção», e no modo
+     local a resposta é esta máquina mesmo sem IP nenhum configurado. Com `getServidorIp`
+     uma instalação que nunca se ligou a um Servidor abortava aqui, com um pedido de IP
+     que não se aplica a quem projeta localmente. */
+  const hostAtual = hostProjecao();
+  if (!hostAtual) return alert('Informe o IP ou use «Conectar».');
   const item =
     typeof itemOuId === 'object' && itemOuId !== null && !Array.isArray(itemOuId)
       ? itemOuId
@@ -13089,8 +13184,11 @@ async function selecionarMusicaDoBanco(id, opts) {
 
 async function projecaoProximaMusicaPlaylist() {
   if (!projecao.pronta()) return alert('Conecte ao servidor.');
-  const ipAtual = getServidorIp();
-  if (!ipAtual) return alert('Informe o IP ou use «Conectar».');
+  /* Mesma razão de `playlistDuploCliqueIniciarProjecao`: o guard é sobre alcançar a
+     projeção, e no modo local ela está nesta máquina — pedir um IP aqui bloqueava quem
+     nunca configurou nenhum. */
+  const hostAtual = hostProjecao();
+  if (!hostAtual) return alert('Informe o IP ou use «Conectar».');
   if (!musicaAtiva) return alert('Selecione uma música primeiro.');
   const pl = getPlaylist(cultoId);
   const idx = pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it));
@@ -14923,6 +15021,49 @@ document.addEventListener('keydown', (e) => {
     fecharSlideQuickEditModal();
     return;
   }
+  /*
+   * Escape com o foco num campo — tratado **antes** do bloqueio abaixo.
+   *
+   * O bloco seguinte devolve o controlo ao campo sempre que o foco está num
+   * `INPUT`/`TEXTAREA`/`SELECT`, e isso engolia o Escape. No modo Bíblia o foco está quase
+   * sempre num campo — a busca rápida, os selectores de tradução/livro/capítulo — e o
+   * resultado era o Escape não encerrar a projeção. Só voltava a funcionar depois de um
+   * clique num versículo, que tira o foco do campo. `bibliaTratarKeydownModo` também não
+   * salvava: para Escape ele só fecha o popup e, fora disso, devolve `false`.
+   *
+   * Precedência: popup aberto → encerrar a projeção activa → deixar o campo tratar.
+   * Encerrar ganha ao campo de propósito: é a tecla de pânico durante o culto, e o campo
+   * tem outras saídas. Sem projeção activa não há nada a encerrar, e o Escape volta a ser
+   * do campo (limpar, desfocar).
+   */
+  if (
+    e.key === 'Escape' &&
+    (e.target.tagName === 'INPUT' ||
+      e.target.tagName === 'TEXTAREA' ||
+      e.target.tagName === 'SELECT') &&
+    !ehModoApresentacaoOperador()
+  ) {
+    if (ehModoBibliaOperador()) {
+      if (bibliaNavPopupAberto()) {
+        e.preventDefault();
+        bibliaNavPopupFechar();
+        return;
+      }
+      if (bibliaVersiculoProjetado != null) {
+        e.preventDefault();
+        encerrarProjecaoModoBiblia();
+        return;
+      }
+    } else if (ehModoSlidesOperador() && projecao.pronta() && projecaoMusicaEmitidaNoServidor) {
+      /* O modo slide já encerrava com o foco fora de campo; isto cobre o caso simétrico,
+         que falhava pela mesma razão e que ninguém notava por ali se digitar menos. */
+      e.preventDefault();
+      slidesRailUserRecolhido = true;
+      encerrarProjecaoDoControlador({ limparMusica: true });
+      return;
+    }
+    /* Sem nada projetado: cai no bloco abaixo e o campo trata o Escape. */
+  }
   if (
     e.target.tagName === 'INPUT' ||
     e.target.tagName === 'TEXTAREA' ||
@@ -15229,12 +15370,20 @@ document.getElementById('ip-input').addEventListener('change', (e) => {
 });
 
 setTimeout(() => {
-  /* Quem escolheu projetar nesta máquina não deve ser arrastado para um Servidor da rede
-     ao abrir o app — seriam dois donos das mesmas telas, que é o que isto evita. */
-  if (projetarNestaMaquinaPreferido() && ponteProjecaoLocal()) {
+  /*
+   * Projetar nesta máquina é o padrão de arranque.
+   *
+   * O caso comum é um PC só — o que tem os monitores — e nele procurar um Servidor da rede
+   * ao abrir era pedir uma máquina que não existe. Ir ao Servidor passou a ser a excepção,
+   * declarada em Ajustes › Conexão e lembrada em `LS_PROJETAR_LOCAL`.
+   *
+   * Sem ponte não há modo local (o painel está num browser, fora do aplicativo), e aí só
+   * resta o caminho remoto.
+   */
+  if (modoDeArranqueDoPainel() === 'local') {
     /* Se não der para subir o motor local — porta ocupada, tipicamente porque o Servidor
-       está aberto — o painel não pode ficar sem nada. Cai para o caminho remoto, que é
-       exactamente o que o operador faria à mão. */
+       está aberto nesta mesma máquina — o painel não pode ficar sem nada. Cai para o
+       caminho remoto, que é exactamente o que o operador faria à mão. */
     void ligarProjecaoNestaMaquina().then((r) => {
       if (!r?.ok) tentarAutoConectarSeDesconectado();
     });
@@ -15536,11 +15685,16 @@ const LYRA_MANUAL_SECTIONS = [
     ],
   },
   {
-    title: 'Servidor e conexão',
+    title: 'Onde a projeção acontece',
     items: [
-      'O Servidor exibe o IP local e publica a API principal na porta 5510. O Controlador usa essa conexão para enviar estado, projeção e comandos de janelas.',
-      'Se a conexão cair, revise IP, firewall e rede local. O Lyra foi pensado para uso em LAN confiável, com Servidor e Controlador na mesma rede.',
-      'O item <strong>Ferramentas → Reiniciar servidor</strong> reinicia o servidor local e aguarda até ele responder novamente.',
+      '<strong>Por padrão, o Lyra projeta nesta máquina.</strong> Ao abrir, ele já assume os monitores deste PC — nada precisa ser configurado, e nenhum servidor precisa estar rodando. É o caso de quem opera no mesmo computador que tem os projetores.',
+      'Os monitores secundários ficam <strong>pretos</strong> quando não há nada projetado, com o relógio por cima se você o tiver ligado em Ajustes. Isso é proposital: a área de trabalho do operador nunca aparece no telão.',
+      'O menu <strong>Ferramentas → Projetar nesta máquina</strong> mostra e controla esse modo. A marca indica se ele está mesmo de pé.',
+      '<strong>Dois PCs:</strong> se os monitores estiverem em outro computador, abra o app <strong>Servidor</strong> nele e, aqui, use <strong>Ferramentas → Conectar a servidor remoto…</strong> (ou Ajustes → Conexão), informe o IP daquele PC e clique em <strong>Conectar</strong>. O Lyra lembra dessa escolha nas próximas aberturas.',
+      'Para voltar ao padrão, use <strong>Ferramentas → Projetar nesta máquina</strong>.',
+      'O Servidor publica a API principal na porta 5510 e exibe o IP local. Se a conexão cair, revise IP, firewall e rede local — o Lyra foi pensado para uso em LAN confiável, com Servidor e Controlador na mesma rede.',
+      'O item <strong>Ferramentas → Reiniciar servidor</strong> só aparece quando você está conectado a um Servidor remoto; ele reinicia esse servidor e aguarda até ele responder novamente.',
+      'Os dois modos não podem coexistir na mesma máquina: quem chegar primeiro à porta 5510 fica com ela, e o outro avisa em vez de disputar as telas.',
     ],
   },
   {
@@ -16052,6 +16206,13 @@ async function tratarComandoMenuLyra(payload) {
   if (command === 'tools-projetar-nesta-maquina') {
     const r = await alternarProjecaoNestaMaquina();
     if (r && r.ok === false && r.erro) alert(r.erro);
+    return;
+  }
+  /* Leva ao sítio onde o IP se escreve; quem liga é o botão «Conectar» de lá, que é também
+     quem grava a preferência do modo remoto. O menu é só o atalho descobrível. */
+  if (command === 'tools-conectar-servidor-remoto') {
+    abrirCfgModal('conexao');
+    document.getElementById('ip-input')?.focus();
     return;
   }
   if (command === 'help-open-manual') {

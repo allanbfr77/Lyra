@@ -419,6 +419,84 @@ distribuição).
    a acontecer. A primeira versão era um item sem estado visível e isso, sozinho, produziu dois
    diagnósticos errados durante os testes — não havia como saber se o modo estava ligado.
 
+   > **O sujeito desta decisão mudou; o argumento não.** Quando o padrão inverteu (§10.3), a escolha
+   > explícita passou a ser **conectar ao Servidor remoto**, não ligar o modo local. A recusa da
+   > detecção automática continua a valer com a mesma força, e pela mesma razão: uma varredura da
+   > rede a decidir sozinha reintroduziria exactamente a ambiguidade de estado que custou aqueles
+   > dois diagnósticos. O que se pede ao operador é uma decisão, não uma adivinhação do programa.
+
+### 10.3 Por que projetar nesta máquina virou o padrão
+
+A pergunta que o arranque fazia era «onde está o Servidor?», e para o caso comum — um PC só, o que
+tem os monitores — a resposta certa era «não há». O Controlador gastava ~20 s a procurar uma máquina
+inexistente antes de desistir, e quem quisesse o que já tinha à frente precisava de saber que
+existia um item de menu. O padrão servia a excepção.
+
+Hoje o arranque não pergunta nada: sobe o motor local. Ir ao Servidor é um acto declarado em
+Ajustes › Conexão, com atalho em Ferramentas › «Conectar a servidor remoto…», e fica lembrado — quem
+opera com dois PCs declara-o uma vez.
+
+**A preferência tem três estados** (`lyra_projetar_nesta_maquina`), e a distinção não é decorativa:
+
+| valor   | significa                              | arranque |
+|---------|----------------------------------------|----------|
+| ausente | nunca decidiu                          | local    |
+| `'1'`   | escolheu o modo local                  | local    |
+| `'0'`   | escolheu o Servidor remoto             | remoto   |
+
+Ausente e `'1'` levam ao mesmo sítio; separá-los é o que permite a uma migração futura saber se houve
+escolha ou se o valor é o padrão a passar. A decisão em si é uma função pura,
+`controller/public/js/modules/modoArranque.js`, precisamente para deixar de ser verificável só a olho.
+
+**Só `conectar()` grava `'0'`.** Desmarcar o item de menu derruba o motor na sessão e não escreve
+nada. A tentação era gravar nos dois sítios, e ela custa caro: com o padrão local, desmarcar para
+parar de projetar por um instante tirava o PC do padrão para sempre, e no arranque seguinte ele não
+projetava nada — sem IP gravado, o caminho remoto é um no-op silencioso. Parar de projetar agora não
+é o mesmo que declarar que este PC opera contra um Servidor da rede.
+
+**As telas secundárias em preto no arranque são intencionais.** Subir o motor abre as janelas de
+projeção em estado ocioso e, se o relógio estiver ligado, a janela de relógio. Isso **não** é efeito
+colateral a corrigir: o objectivo declarado é que os monitores secundários nunca mostrem a área de
+trabalho do operador, ficando pretos por padrão com o relógio sobreposto quando configurado — em
+repouso e no arranque. Quem for tentado a desacoplar «subir o motor» de «sincronizar as telas» para
+evitar isto, leia este parágrafo primeiro: o comportamento é o pedido, não o acidente.
+
+**E a cobertura é activa, não incidental.** `ligarInterno()` chama `garantirTelasAbertasParaProjecao()`
+logo após `activa = true` (`controller/src/projecaoLocal.js`), que é a contraparte exacta do que o
+Servidor faz no `whenReady()` (`server/src/main.js:155-159`). A frase acima descreve uma garantia, e
+esta chamada é o que a sustenta — sem ela, o parágrafo anterior seria uma intenção por cumprir.
+
+> **O bug que obrigou a escrever isto.** Antes desta chamada, as janelas do público só nasciam quando
+> algo disparasse um `PUT /api/display-routing` ou um comando de projeção — na prática, quando o
+> operador trocasse de modo no painel. O resultado, num PC de três monitores: o M2 mostrava a **área
+> de trabalho do Windows** nos primeiros segundos, enquanto o M3 já mostrava o relógio. A assimetria
+> era a pista: o relógio vem de `preview_display_config` → `sincronizarJanelasRelogio`, caminho
+> incondicional; o público dependia do PUT, que era condicional.
+>
+> Duas coisas mascaravam o defeito. Numa instalação **virgem** ele não aparece: sem roteamento
+> gravado, `carregarRoteamentoTelasDoServidor` dispara o PUT de inicialização e tapa o buraco por
+> acidente — só a partir do **segundo** arranque é que falha. E navegar entre modos corrigia o
+> estado, porque cada troca faz `aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true })`,
+> que também acaba em PUT. Um defeito que se auto-corrige quando se mexe nele é dos piores de
+> reproduzir; o roteiro de teste manual §4 ganhou um bloco «segundo arranque» por causa disto.
+>
+> O defeito era **anterior** à inversão do padrão — a lacuna existia desde que o modo local foi
+> construído, e afectava também a activação manual pelo menu. O que a inversão fez foi promovê-lo de
+> caminho raro a caminho de arranque de toda instalação de um PC só.
+
+**Mudanças de monitor também são do motor.** `ligarInterno()` regista `display-added`,
+`display-removed` e `display-metrics-changed` (os mesmos três do Servidor, `server/src/main.js:160-163`)
+e volta a chamar `garantirTelasAbertasParaProjecao()`. Sem isto, ligar um projetor com o app aberto
+deixava o monitor novo a mostrar a área de trabalho — a mesma falha, por outro gatilho.
+
+A diferença face ao Servidor está na **desmontagem**: ele regista e nunca larga, porque é dono do
+processo; aqui o modo local liga e desliga na mesma sessão, e listeners deixados para trás chamariam
+um motor já desmontado. Por isso `desligar()` remove-os antes de largar o `engine`.
+
+**O que se perdeu, de propósito:** quem opera com dois PCs deixou de se ligar sozinho ao abrir e
+passa a carregar em «Conectar» uma vez. É a contrapartida aceite de tornar o modo remoto deliberado,
+e não há assimetria escondida — a escolha fica gravada, tal como a outra.
+
 **Quem deriva público × ministrante — separando arquitetura final de estratégia de migração:**
 
 - *Arquitetura final:* o Controller entrega o conteúdo já pronto por janela; o Core apenas o
@@ -527,8 +605,12 @@ Registadas porque o objetivo era paridade, e estas são as excepções conscient
 ### 12.8 O que ficou por fazer
 
 - A derivação público × ministrante continua no Core; movê-la para o Controller permanece adiado.
-- O processo principal do Controlador mantém um cliente Socket.IO fixo a `localhost:5510`
-  (`serverLink.js`). No modo local isso é um laço: ele liga-se ao seu próprio servidor. Inofensivo,
-  mas é resíduo da época em que só o Servidor atendia ali.
 - O modo local não implementa bastão, heartbeat nem sincronização de banco — são serviços do
   Servidor e não têm equivalente com um só operador presente.
+- **Limpeza pendente do `serverLink.js`.** O processo principal já não se liga ao arranque (era o
+  laço registado aqui antes: ligava-se ao seu próprio servidor no modo local), mas o módulo
+  sobreviveu e com ele um ramo morto — `abrirConsoleProjecaoServidor` ainda tenta a via socket, que
+  nunca está de pé, antes de cair no HTTP que resolve. Falta remover esse ramo, mover `SERVER_URL`
+  para um módulo de constantes e apagar `serverLink.js`. Ficou de fora da inversão do padrão de
+  propósito: misturar as duas coisas arriscava regressão no console de diagnóstico do telão, que é
+  ferramenta de depuração e não tem teste automatizado.

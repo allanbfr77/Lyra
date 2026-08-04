@@ -166,14 +166,73 @@ controller**, e a ordem exata dos passos — com isso a correção é direta.
 Valida que o Controlador projeta sem Servidor nenhum aberto, com paridade de comportamento.
 Roda num PC só, o que tem os monitores. Marque conforme confirma.
 
+**Este é o modo padrão.** Ao abrir, o Controlador projeta nesta máquina sem perguntar nada; ir a um
+Servidor da rede é a escolha declarada em Ajustes › Conexão. O roteiro parte daí — o que se exercita
+abaixo é sobretudo a **saída** do padrão e o regresso a ele.
+
 **Onde ver o estado:** menu Ferramentas › «Projetar nesta máquina» é uma **caixa de seleção** — a
 marca diz se o modo está ligado. Confirme-a antes de cada cenário; sem isso, um teste pode partir de
 um estado diferente do que se julga (foi o que aconteceu na primeira ronda destes testes, e
-produziu dois diagnósticos errados).
+produziu dois diagnósticos errados). A marca vem do **facto** — o motor está de pé? — e não da
+preferência gravada, por isso divergir dela é informação, não defeito: é o que se vê quando o
+arranque tentou o local e caiu no remoto.
+
+### Arranque — o padrão e as suas excepções
+
+O caso «sem preferência gravada» é o de qualquer instalação nova, e é o mais comum de todos. Para o
+reproduzir, apague a chave `lyra_projetar_nesta_maquina` no `localStorage` do painel (DevTools ›
+Application) e reabra o app.
+
+- [ ] **Sem preferência, num PC com 2+ monitores:** abre já a projetar nesta máquina. O badge diz
+      «PROJETANDO NESTA MÁQUINA» e o item do menu aparece marcado.
+- [ ] **Sem preferência, num PC de monitor único:** o motor sobe na mesma, sem abrir janela nenhuma
+      e sem erro no painel. (As janelas secundárias exigem 2+ monitores.)
+- [ ] **Monitores secundários em repouso:** ficam **pretos**, nunca a mostrar a área de trabalho do
+      operador, com o relógio sobreposto se estiver ligado em Ajustes. Isto é intencional, no
+      arranque e em repouso — ver `docs/architecture/projection-core.md` §10.3.
+
+#### Segundo arranque — o cenário que expôs o bug
+
+Os testes acima, feitos numa instalação virgem, **não** apanham a regressão que interessa: sem
+roteamento gravado, o arranque disparava um `PUT /api/display-routing` de inicialização que tapava o
+buraco por acidente. O defeito só aparecia da segunda abertura em diante. **Faça sempre este bloco a
+seguir ao anterior, sem apagar nada entre os dois.**
+
+- [ ] Depois de já ter escolhido monitores uma vez, **feche e reabra** o Controlador. Nos primeiros
+      segundos, **antes de tocar em coisa nenhuma**, olhe para os monitores secundários: têm de
+      estar pretos (ou com relógio). Ver a **área de trabalho** ali, ainda que por um instante, é a
+      falha — era este o sintoma.
+- [ ] Repita mais duas ou três vezes. O sintoma era intermitente na percepção mas determinístico na
+      causa; uma passagem só não confirma.
+- [ ] **Sem navegar entre modos**, confirme que o estado permanece estável. Antes, «andar pelo app»
+      corrigia o problema por acidente — daí a importância de não mexer em nada durante a
+      observação.
+- [ ] Repita com o relógio **desligado** em Ajustes. Sem relógio, o monitor do ministrante deixa de
+      ter quem o tape por outro caminho, e passa a depender inteiramente da cobertura do arranque.
+
+#### Mudança de monitores com o app aberto
+
+Mesma classe de problema, gatilho diferente: o modo local não escutava os eventos de monitor do
+sistema, ao contrário do Servidor.
+
+- [ ] Com o Controlador aberto a projetar nesta máquina, **desligue o cabo** de um monitor
+      secundário e volte a ligá-lo → as telas reorganizam-se sozinhas, sem expor a área de trabalho.
+- [ ] **Mude a resolução** ou a escala de um monitor secundário nas definições do Windows → as
+      janelas acompanham.
+- [ ] Desligar o modo local e ligar de novo várias vezes não deve degradar nada — os listeners são
+      desmontados a cada desligar, e ficarem acumulados faria o motor ser chamado depois de cair.
+- [ ] **Com `'0'` gravado** (feche o app depois de usar «Conectar»): abre no caminho remoto e **não**
+      sobe o motor local.
+- [ ] **Com o Servidor já aberto nesta mesma máquina:** o arranque tenta o local, apanha a porta
+      ocupada e cai no remoto sozinho. O painel não pode ficar sem nada.
+- [ ] **Menu Ferramentas › «Reiniciar servidor»:** invisível enquanto o modo local está ligado;
+      reaparece ao conectar a um Servidor.
 
 ### Base de comparação (Servidor + Controlador)
 
-Faça primeiro, para ter com que comparar. Com o Servidor aberto e o Controlador ligado a ele:
+Faça primeiro, para ter com que comparar. Abra o Servidor e ligue-se a ele **à mão** — Ferramentas ›
+«Conectar a servidor remoto…», ou Ajustes › Conexão, informe o IP e carregue em «Conectar». Já não
+há ligação automática ao abrir.
 
 - [ ] Projetar música, passar de estrofe.
 - [ ] Projetar versículo, encerrar.
@@ -190,14 +249,31 @@ Feche o Servidor. Ligue «Projetar nesta máquina» e confirme a marca no menu.
 - [ ] Repita os cinco itens acima. Tudo tem de se comportar **igual**, incluindo a aparência no OBS.
 - [ ] Áudio do modo apresentação toca (é o painel que toca agora, não a janela do Servidor).
 - [ ] ESC numa janela de projeção encerra e o painel reflete.
+- [ ] **Sem IP nenhum jamais configurado:** duplo-clique na playlist projeta, «próxima música»
+      funciona, e o celular vê as playlists. (Estes três dependiam do campo de IP e falhavam em
+      silêncio numa instalação que nunca se ligou a um Servidor.)
+
+### A preferência lembra-se — e o que não a escreve
+
+Com o padrão invertido, importa distinguir «parei de projetar agora» de «este PC opera contra um
+Servidor da rede». Só a segunda se grava.
+
+- [ ] **Desmarcar** «Projetar nesta máquina», fechar e reabrir → volta a **projetar nesta máquina**.
+      Desmarcar é um acto de sessão e não tira o PC do padrão.
+- [ ] Ao desmarcar, o badge diz «PROJEÇÃO DESLIGADA» — e não «DESCONECTADO», que descreveria um
+      Servidor que caiu.
+- [ ] **Conectar** a um Servidor, fechar e reabrir → abre no caminho remoto, sem subir o motor.
+- [ ] A partir daí, «Projetar nesta máquina» no menu devolve o padrão na sessão; para o devolver
+      também nas próximas aberturas, apague a chave ou volte a marcar e reabra.
 
 ### Um só dono das telas
 
 - [ ] Com o modo local **ligado**, abrir o Servidor → mensagem em português a explicar a porta
       ocupada, e o Servidor **encerra**. Não pode ficar de pé a anunciar ONLINE.
 - [ ] Com o Servidor **aberto**, ligar o modo local → «PORTA OCUPADA» no painel.
-- [ ] Ida e volta sem fechar o Controlador: desligar o modo local → abrir o Servidor → o painel
-      liga-se a ele sozinho.
+- [ ] Ida e volta sem fechar o Controlador: desligar o modo local → abrir o Servidor → ligar-se a ele
+      **à mão**. Já não é automático: o auto-reconectar só actua depois de haver um IP configurado e
+      uma ligação estabelecida ao menos uma vez.
 
 ### Acesso do celular no modo local
 

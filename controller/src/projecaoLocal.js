@@ -65,7 +65,55 @@ function criarProjecaoLocal(deps) {
   let acesso = null;
   let activa = false;
 
+  /**
+   * Listeners de mudança de monitores, guardados para se poderem desmontar.
+   *
+   * O Servidor regista os seus e nunca os larga (`server/src/main.js:160-163`), o que ali
+   * é legítimo: ele é dono do processo e só os perde ao fechar. Aqui não — o modo local
+   * liga e desliga na mesma sessão, e listeners deixados para trás chamariam um motor já
+   * desmontado a cada monitor ligado.
+   *
+   * @type {Array<[string, Function]>}
+   */
+  let listenersDeMonitores = [];
+
   const registarErro = typeof logError === 'function' ? logError : () => {};
+
+  /**
+   * Ligar um projetor, desligá-lo ou mudar a resolução tem de reabrir/reposicionar as
+   * telas — senão as janelas ficam em monitores que já não existem, ou o monitor novo
+   * fica a mostrar a área de trabalho. Mesmos três eventos que o Servidor escuta.
+   */
+  function registarListenersDeMonitores() {
+    removerListenersDeMonitores();
+    const aoMudar = () => {
+      if (!activa || !engine) return;
+      try {
+        engine.garantirTelasAbertasParaProjecao();
+      } catch (e) {
+        registarErro('projecao-local-display-change-garantir-telas', e);
+      }
+    };
+    for (const evento of ['display-added', 'display-removed', 'display-metrics-changed']) {
+      try {
+        screen.on(evento, aoMudar);
+        listenersDeMonitores.push([evento, aoMudar]);
+      } catch (e) {
+        registarErro(`projecao-local-listener-${evento}`, e);
+      }
+    }
+  }
+
+  function removerListenersDeMonitores() {
+    for (const [evento, fn] of listenersDeMonitores) {
+      try {
+        screen.removeListener(evento, fn);
+      } catch (e) {
+        registarErro(`projecao-local-remover-listener-${evento}`, e);
+      }
+    }
+    listenersDeMonitores = [];
+  }
 
   /**
    * Difunde os eventos do aplicador.
@@ -572,12 +620,42 @@ function criarProjecaoLocal(deps) {
     }
 
     activa = true;
+
+    /*
+     * Vestir as telas faz parte de arrancar — não é consequência de alguém navegar.
+     *
+     * Contraparte exacta de `server/src/main.js:155-159`, que o Servidor faz no
+     * `whenReady()`. Sem esta chamada, as janelas de projeção só nasciam quando algo
+     * disparasse um `PUT /api/display-routing` (ver a rota acima) ou um comando de
+     * projeção. Ou seja: por acidente, ao trocar de modo no painel.
+     *
+     * O sintoma era o monitor do público a mostrar a **área de trabalho** do operador
+     * durante os primeiros segundos, enquanto o do ministrante já mostrava o relógio — o
+     * relógio vinha por outro caminho, esse incondicional (`preview_display_config` →
+     * `sincronizarJanelasRelogio`). E só a partir do segundo arranque: com o roteamento
+     * ainda por gravar, o PUT de inicialização acontecia e tapava o buraco por sorte.
+     *
+     * Depois de `activa = true` de propósito — há caminhos do motor que consultam o estado.
+     * Em `try/catch` porque falhar a abrir as telas não pode derrubar um motor que já tem
+     * as portas de pé: o painel continua a comandar, e o operador vê o problema nas telas.
+     */
+    try {
+      engine.garantirTelasAbertasParaProjecao();
+    } catch (e) {
+      registarErro('projecao-local-arranque-garantir-telas', e);
+    }
+
+    registarListenersDeMonitores();
+
     return { ok: true, lanIp: getPreferredLocalIPv4() };
   }
 
   /** Desliga a projeção local e larga as portas. */
   async function desligar() {
     activa = false;
+    /* Antes de largar o motor: um evento de monitor a chegar depois disto encontraria
+       `engine` a `null`. O guard em `aoMudar` cobre a corrida, isto evita-a. */
+    removerListenersDeMonitores();
     try {
       if (engine) engine.fecharTodasJanelasProjecao();
     } catch (e) {

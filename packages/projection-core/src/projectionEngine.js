@@ -28,6 +28,46 @@ const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
 const INTERVALO_RECLAIM_TOPO_MS = 800;
 
 /**
+ * Marca (ou desmarca) uma janela como **ocultada de propósito** para revelar o relógio.
+ *
+ * A marca vive no `win`, e não só na entrada do registo, porque quem precisa de a
+ * consultar são os `show()` do ciclo de vida da janela — `finalizarJanelaProjecaoNativa`
+ * e `aguardarJanelaProjecaoVisivel` — e esses recebem o `win`, não a entrada.
+ *
+ * @param {import('electron').BrowserWindow} win
+ * @param {boolean} oculto
+ */
+function marcarOcultoParaRelogio(win, oculto) {
+  if (!win || win.isDestroyed()) return;
+  try {
+    win.__lyraOcultoParaRelogio = !!oculto;
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/**
+ * A janela foi escondida de propósito, para o relógio aparecer por baixo?
+ *
+ * Existe porque havia **três** `show()` no ciclo de vida da janela que a mostravam sem
+ * perguntar se alguém a tinha escondido por uma razão. No arranque isso era uma corrida
+ * perdida: a cadeia de sincronização escondia a janela do ministrante no `onComplete`, e
+ * logo a seguir o `did-finish-load` — ou o `ready-to-show` que ainda não tinha chegado —
+ * voltava a mostrá-la, tapando o relógio. O sintoma era o M3 preto no arranque e o
+ * relógio a aparecer só depois de trocar de modo, que era quando a janela já tinha
+ * passado do ciclo de carregamento e o `hide()` finalmente pegava.
+ *
+ * @param {import('electron').BrowserWindow} win
+ */
+function ocultoParaRelogio(win) {
+  try {
+    return !!(win && !win.isDestroyed() && win.__lyraOcultoParaRelogio);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Mantém a janela de projeção acima de qualquer outro app topmost.
  * O construtor só aceita `alwaysOnTop: true` (nível padrão); o nível alto
  * precisa de `setAlwaysOnTop(true, 'screen-saver')` + `moveTop()`.
@@ -380,11 +420,13 @@ function createProjectionEngine(paths, deps) {
               // intencional — erro ignorado
             }
             entry.ocultoParaRelogio = true;
+            marcarOcultoParaRelogio(win, true);
           }
           return;
         }
         if (!entry.ocultoParaRelogio) return;
         entry.ocultoParaRelogio = false;
+        marcarOcultoParaRelogio(win, false);
         try {
           if (!win.isVisible()) {
             win.show();
@@ -463,7 +505,8 @@ function createProjectionEngine(paths, deps) {
     try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
-    try { if (!win.isVisible()) win.show(); } catch (_) {
+    /* Não mostrar o que foi escondido de propósito — ver `ocultoParaRelogio`. */
+    try { if (!win.isVisible() && !ocultoParaRelogio(win)) win.show(); } catch (_) {
   // intencional — erro ignorado
 }
     // Outro software topmost pode cobrir só um monitor; reclaim global (M2+M3).
@@ -477,6 +520,9 @@ function createProjectionEngine(paths, deps) {
     }
     win.once('ready-to-show', () => {
       if (win.isDestroyed()) return;
+      /* Este é o disparo que costumava chegar depois do `hide()` da cadeia de arranque e
+         desfazê-lo. `setFullScreen` numa janela oculta revelaria-a; sair cedo é o correcto. */
+      if (ocultoParaRelogio(win)) return;
       try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
@@ -931,14 +977,20 @@ function createProjectionEngine(paths, deps) {
     let concluiu = false;
     const finalizar = () => {
       if (concluiu || win.isDestroyed()) return;
-      if (!win.isVisible()) return;
+      /* Uma janela escondida de propósito conta como assente: continuar à espera de a ver
+         visível travaria a cadeia de sincronização a meio, e o `next()` nunca chegaria às
+         janelas seguintes. */
+      if (!win.isVisible() && !ocultoParaRelogio(win)) return;
       concluiu = true;
       if (typeof cb === 'function') cb();
     };
     win.once('ready-to-show', finalizar);
     win.webContents.once('did-finish-load', () => {
       try {
-        if (!win.isVisible()) win.show();
+        /* O `show()` que desfazia o `hide()` do relógio. Na primeira passagem a marca está
+           limpa e nada muda; é no disparo tardio, já depois de a cadeia ter escondido a
+           janela, que ela evita a regressão. */
+        if (!win.isVisible() && !ocultoParaRelogio(win)) win.show();
         finalizarJanelaProjecaoNativa(win);
       } catch (_) {
   // intencional — erro ignorado
@@ -995,6 +1047,11 @@ function createProjectionEngine(paths, deps) {
         const d = displays[displayIndex];
         if (d && !principal.win.isDestroyed()) {
           try {
+            /* A rota voltou a querer esta janela visível, o que substitui qualquer
+               ocultação anterior. Limpar as duas marcas juntas — deixá-las de pé faria
+               um `finalizarJanelaProjecaoNativa` posterior recusar-se a mostrá-la. */
+            principal.ocultoParaRelogio = false;
+            marcarOcultoParaRelogio(principal.win, false);
             if (principal.win.isFullScreen()) principal.win.setFullScreen(false);
             principal.win.setBounds({
               x: d.bounds.x,
@@ -1044,6 +1101,10 @@ function createProjectionEngine(paths, deps) {
             const displays = obterDisplaysOrdenados();
             const d = displays[entry.index];
             try {
+              /* Mesma razão do `sincronizarJanelaRole`: mostrar de propósito revoga a
+                 ocultação anterior, e as duas marcas têm de acompanhar. */
+              entry.ocultoParaRelogio = false;
+              marcarOcultoParaRelogio(entry.win, false);
               if (entry.win.isFullScreen()) entry.win.setFullScreen(false);
               if (d) {
                 entry.win.setBounds({
@@ -1185,9 +1246,23 @@ function createProjectionEngine(paths, deps) {
       : displayRoutingMod.normalizarRoteamentoDual(routingDualOuLegado);
     const { publicoIndex: pub } = resolverIndicesEfetivosProjecao(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
-    // Apenas janelas visíveis — ocultas não contam para evitar resync espúrio
-    const pubWins = registro.todas().filter((e) => e?.role === 'publico' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
-    const minWins = registro.todas().filter((e) => e?.role === 'ministrante' && e?.win && !e.win.isDestroyed() && e.win.isVisible());
+    /*
+     * Conta como presente a janela **visível** ou a **escondida de propósito** para o
+     * relógio. As duas cumprem a rota; a segunda está apenas a deixar ver o que está por
+     * baixo. Ocultas por outra razão — o papel foi desactivado, `displayIndex < 0` — é que
+     * não contam, e era só isso que a regra original queria dizer.
+     *
+     * A distinção passou a importar quando o `hide()` do relógio começou a pegar: em modo
+     * Bíblia a projectar só no público, cada versículo chama
+     * `garantirTelasAbertasParaProjecao` (`commandApplier.js`), e com o ministrante oculto
+     * a rota parecia desrespeitada. O resultado era um resync completo por versículo, que
+     * mostrava a janela do ministrante e a escondia logo a seguir — o monitor a piscar, com
+     * lampejo branco na sequência `setFullScreen(false)` → `setBounds` → `show`.
+     */
+    const cumpreRota = (e) =>
+      e?.win && !e.win.isDestroyed() && (e.win.isVisible() || ocultoParaRelogio(e.win));
+    const pubWins = registro.todas().filter((e) => e?.role === 'publico' && cumpreRota(e));
+    const minWins = registro.todas().filter((e) => e?.role === 'ministrante' && cumpreRota(e));
 
     if (pub < 0 && min < 0) {
       if (controladorAtivo()) {
@@ -1208,9 +1283,7 @@ function createProjectionEngine(paths, deps) {
     }
 
     const escudoIndices = indicesMonitoresEscudoPreto(routingDual);
-    const escudoWins = registro.todas().filter(
-      (e) => e?.role === 'escudo' && e?.win && !e.win.isDestroyed() && e.win.isVisible()
-    );
+    const escudoWins = registro.todas().filter((e) => e?.role === 'escudo' && cumpreRota(e));
     for (const idx of escudoIndices) {
       if (escudoWins.filter((e) => e.index === idx).length !== 1) return false;
     }

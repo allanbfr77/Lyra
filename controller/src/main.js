@@ -71,8 +71,18 @@ app.whenReady().then(async () => {
   initControllerDatabase(paths, Database);
   await iniciarServidorController(ctx, paths);
 
+  /*
+   * Criado, não ligado. O cliente Socket.IO deste processo aponta para `localhost:5510`
+   * fixo (`serverLink.js`), nunca para o IP que o operador configura — quem fala com um
+   * Servidor da rede é o socket do renderer. Ligá-lo no arranque não servia ninguém: os
+   * quatro eventos que ele reencaminha (`server-status`, `server-estado`,
+   * `server-display-config`, `server-audio-state`) não têm listener no painel, e o único
+   * consumidor real do objeto — `abrirConsoleProjecaoServidor` — já cai no caminho HTTP
+   * quando o socket não está de pé.
+   *
+   * Ver docs/architecture/projection-core.md §12.8.
+   */
   ctx.serverLink = createServerLink(ctx);
-  ctx.serverLink.conectarServer();
 
   /*
    * Motor de projeção embutido. Criar não é ligar: só arranca depois que o operador

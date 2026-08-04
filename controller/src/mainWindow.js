@@ -424,7 +424,10 @@ function criarMenuAplicativo(ctx, updaterApi) {
            * se o modo estava ligado — nem onde desligá-lo. O operador ficava a adivinhar,
            * e cada teste do modo local partia de um estado incerto.
            *
-           * O `checked` vem do facto (o motor está de pé?), não da preferência gravada.
+           * Continua a ser uma caixa de seleção agora que este é o modo *padrão*, e por uma
+           * razão que não mudou: o que ela mostra é o facto (o motor está de pé?), e o facto
+           * pode divergir da intenção — o arranque cai no caminho remoto quando a 5510 está
+           * ocupada. Uma marca que viesse da preferência mentiria exactamente aí.
            *
            * O comando vai ao renderer, e não directamente ao `ctx.projecaoLocal`, porque
            * ligar o modo local não é só subir o motor: é também trocar o transporte da
@@ -436,13 +439,40 @@ function criarMenuAplicativo(ctx, updaterApi) {
           checked: !!ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-projetar-nesta-maquina'),
         },
+        {
+          /*
+           * O caminho para o cenário de dois PCs, que deixou de ser automático.
+           *
+           * Não faz a ligação: abre Ajustes › Conexão, que é onde o IP se escreve e onde o
+           * botão «Conectar» já vive. Duplicar aqui a acção pediria um IP que o menu não
+           * tem como recolher — e criaria um segundo sítio a fazer a mesma coisa.
+           *
+           * As reticências no rótulo seguem a convenção: isto abre um painel, não executa.
+           */
+          label: 'Conectar a servidor remoto…',
+          click: () => enviarComandoMenuAoRenderer(ctx, 'tools-conectar-servidor-remoto'),
+        },
         { type: 'separator' },
         {
           label: 'Limpar cache',
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-clear-cache'),
         },
         {
+          /*
+           * Some no modo local, porque ali não há o que reiniciar.
+           *
+           * `reiniciarServidorLocal` faz `POST api/internal/restart` contra a 5510, e essa
+           * rota é do app Servidor — o host local não a serve (ver as rotas em
+           * `projecaoLocal.js`). Com o modo local a ser o padrão, deixar o item à vista
+           * dava, no arranque normal, um erro a dizer que não se conseguiu contactar o
+           * servidor na 5510: enganoso duas vezes, porque a porta responde e quem responde
+           * é este mesmo processo.
+           *
+           * Como o `checked` do item acima, deriva do facto e não de uma preferência; o
+           * menu é reconstruído por `actualizarMenuAplicativo` na troca de modo.
+           */
           label: 'Reiniciar servidor',
+          visible: !ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-restart-local-server'),
         },
       ],
