@@ -189,6 +189,29 @@ function ministranteOverrideDePayloadApresentacao(payload) {
 }
 
 /**
+ * A quem entregar um evento, dado de onde veio o comando.
+ *
+ * Regra única: `ALCANCE_OUTROS` significa «todos menos quem pediu». O que muda entre os
+ * dois hosts é apenas quem é «quem pediu» — no Servidor é sempre um socket; no
+ * Controlador em modo local pode ser o painel, que está no mesmo processo e não tem
+ * socket nenhum. Sem esta função, cada host reinventava a regra e o modo local acabaria
+ * a devolver ao painel a config que o próprio painel acabou de enviar.
+ *
+ * @param {EventoDeProjecao} evento
+ * @param {boolean} origemEhCliente `true` se o comando veio de um cliente de rede;
+ *   `false` se veio do painel local.
+ * @returns {{ painel: boolean, clientes: boolean, excluirOrigemNaRede: boolean }}
+ */
+function alvosDaDifusao(evento, origemEhCliente) {
+  const excluiQuemPediu = evento.alcance === ALCANCE_OUTROS;
+  return {
+    painel: !(excluiQuemPediu && !origemEhCliente),
+    clientes: true,
+    excluirOrigemNaRede: excluiQuemPediu && origemEhCliente,
+  };
+}
+
+/**
  * @typedef {object} EventoDeProjecao
  * @property {string} nome Nome do evento, no vocabulário da porta 5510.
  * @property {any} dados
@@ -686,6 +709,7 @@ function criarAplicadorDeComandos(deps) {
 module.exports = {
   criarAplicadorDeComandos,
   estadoBibliaParaObs,
+  alvosDaDifusao,
   ALCANCE_TODOS,
   ALCANCE_OUTROS,
 };

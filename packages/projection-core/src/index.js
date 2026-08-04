@@ -24,15 +24,34 @@ function paginaProjecao(nome) {
   return path.join(__dirname, '..', 'public', nome);
 }
 
+/**
+ * Caminho absoluto de uma página de overlay do OBS, dentro deste pacote.
+ *
+ * Viveram em `server/public/` enquanto o OBS era assunto do Servidor. Deixaram de ser: no
+ * modo local é o Controlador que hospeda a porta 5510 e serve estas páginas. Mesma
+ * mudança que as `display*.html` fizeram no sub-passo 4a, e pelo mesmo motivo — um host
+ * não deve ir buscar HTML ao pacote do outro.
+ *
+ * @param {'obs.html'|'obs-biblia.html'|'obs-slides.html'} nome
+ */
+function paginaObs(nome) {
+  return path.join(__dirname, '..', 'public', nome);
+}
+
 module.exports = {
   // motor
   createProjectionEngine: require('./projectionEngine').createProjectionEngine,
   createWindowRegistry: require('./windowRegistry').createWindowRegistry,
   paginaProjecao,
+  paginaObs,
+
+  // estado da projeção sem hospedeiro (o Controlador não tem serverContext)
+  criarArmazemDeProjecao: require('./projectionStore').criarArmazemDeProjecao,
 
   // tradutor comando → motor (o miolo dos handlers de socket do Servidor)
   criarAplicadorDeComandos: require('./commandApplier').criarAplicadorDeComandos,
   estadoBibliaParaObs: require('./commandApplier').estadoBibliaParaObs,
+  alvosDaDifusao: require('./commandApplier').alvosDaDifusao,
   ALCANCE_TODOS: require('./commandApplier').ALCANCE_TODOS,
   ALCANCE_OUTROS: require('./commandApplier').ALCANCE_OUTROS,
 
@@ -43,6 +62,7 @@ module.exports = {
   displayConfigTransforms: require('./displayConfigTransforms'),
   displayIndices: require('./displayIndices'),
   displayRouting: require('./displayRouting'),
+  localIp: require('./localIp'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),

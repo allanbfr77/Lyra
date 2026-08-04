@@ -63,6 +63,17 @@ function createUserPaths(userDataRoot) {
     bibliaSqlitePath: (traducao) => bibliaSqlitePathProjeto(traducao),
     /** Vídeos do card 5 (modo apresentação) persistidos em disco. */
     apresentacaoVideosDir: () => path.join(userDataRoot, 'apresentacao-videos'),
+
+    /*
+     * Ficheiros da projeção no modo «projetar nesta máquina».
+     *
+     * Mesmos nomes que o Servidor usa, mas sob o `userData` do Controlador — são dois
+     * aplicativos distintos e cada um guarda a sua configuração de telas. Partilhar
+     * ficheiro entre eles criaria a corrida que o modo local existe para evitar.
+     */
+    displaySettingsPath: () => path.join(userDataRoot, 'display-screens.json'),
+    displayRoutingPath: () => path.join(userDataRoot, 'display-routing.json'),
+    displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
   };
 }
 

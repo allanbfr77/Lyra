@@ -50,6 +50,8 @@ const { iniciarServidorController } = require('./httpControllerServer');
 const mainWindow = require('./mainWindow');
 const { createUpdaterApi } = require('./updater');
 const { caminhoIconeDock } = require('./lib/iconPath');
+const { criarProjecaoLocal } = require('./projecaoLocal');
+const { buscarMusicaLocalParaProjecao } = require('./lib/musicaParaProjecao');
 
 const updaterApi = createUpdaterApi(ctx, {
   app,
@@ -71,6 +73,23 @@ app.whenReady().then(async () => {
 
   ctx.serverLink = createServerLink(ctx);
   ctx.serverLink.conectarServer();
+
+  /*
+   * Motor de projeção embutido. Criar não é ligar: só arranca depois que o operador
+   * escolhe «projetar nesta máquina», e é o `listen` na 5510 que decide se pode.
+   */
+  ctx.projecaoLocal = criarProjecaoLocal({
+    paths,
+    logError: (rotulo, erro) => console.error(`[projecao-local] ${rotulo}`, erro),
+    buscarMusicaPorId: buscarMusicaLocalParaProjecao,
+    /* O painel é o cliente que está no mesmo processo — recebe por IPC, não por socket. */
+    aoEmitirParaPainel: (evento, dados) => {
+      const win = mainWindow.getJanelaPrincipal(ctx);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('projecao-local-evento', { evento, dados });
+      }
+    },
+  });
 
   mainWindow.registerMainWindowIpc(ctx, updaterApi);
   mainWindow.criarJanela(ctx);

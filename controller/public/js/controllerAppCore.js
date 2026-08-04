@@ -91,7 +91,11 @@ import {
   aplicarClasseLinhas,
   reaplicarFontesPreviewPainel,
 } from './painel/tipografiaPainelPreview.js';
-import { criarPortaProjecao, criarTransporteSocket } from './modules/projecaoPorta.js';
+import {
+  criarPortaProjecao,
+  criarTransporteSocket,
+  criarTransporteLocal,
+} from './modules/projecaoPorta.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -10900,6 +10904,95 @@ function conectar() {
   document.head.appendChild(script);
 }
 
+/* ─── Modo «projetar nesta máquina» ─────────────────────────────────────────────
+ *
+ * O painel não muda: os mesmos comandos, pela mesma porta de projeção. O que muda é o
+ * transporte por baixo dela — IPC para o motor deste processo, em vez de socket para o
+ * Servidor. Nenhum call site sabe em qual dos dois está, que era o propósito da Peça 1.
+ *
+ * OBS e celular continuam a ligar-se à 5510, agora servida pelo Controlador. Quem impede
+ * dois donos das mesmas telas é o próprio `listen`: com o Servidor aberto, a porta está
+ * ocupada e o modo local recusa arrancar.
+ */
+
+const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
+
+/** A ponte só existe dentro do Electron; no browser o modo local não se aplica. */
+function ponteProjecaoLocal() {
+  return window.lyraElectron?.projecaoLocal || null;
+}
+
+function projetarNestaMaquinaPreferido() {
+  try {
+    return localStorage.getItem(LS_PROJETAR_LOCAL) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Liga o modo local e aponta a porta de projeção ao motor deste processo.
+ *
+ * @returns {Promise<{ ok: boolean, erro?: string }>}
+ */
+async function ligarProjecaoNestaMaquina() {
+  const ponte = ponteProjecaoLocal();
+  if (!ponte) return { ok: false, erro: 'modo local indisponível fora do aplicativo' };
+
+  setStatus('conectando', 'INICIANDO PROJEÇÃO LOCAL...');
+  const r = await ponte.ligar();
+  if (!r?.ok) {
+    setStatus('erro', 'PORTA OCUPADA');
+    atualizarUiConexao(false);
+    return r || { ok: false, erro: 'falha desconhecida' };
+  }
+
+  /* Desligar o socket antes de trocar de transporte: um Servidor ainda ligado continuaria
+     a mandar `estado` para o painel e a disputar as telas com o motor local. */
+  try {
+    if (socket) socket.disconnect();
+  } catch (_) {
+    // intencional
+  }
+
+  projecao.usarTransporte(criarTransporteLocal(ponte));
+  try {
+    localStorage.setItem(LS_PROJETAR_LOCAL, '1');
+  } catch (_) {
+    // intencional
+  }
+  papelControladorLocal = { primario: true, podeEscrever: true, donoAtual: null };
+  setStatus('conectado', 'PROJETANDO NESTA MÁQUINA');
+  atualizarUiConexao(true);
+  if (r.lanIp) {
+    servidorLanIpObs = String(r.lanIp).trim();
+    atualizarUrlsObs();
+  }
+  return { ok: true };
+}
+
+/** Desliga o modo local e devolve o painel ao caminho remoto. */
+async function desligarProjecaoNestaMaquina() {
+  const ponte = ponteProjecaoLocal();
+  try {
+    localStorage.setItem(LS_PROJETAR_LOCAL, '0');
+  } catch (_) {
+    // intencional
+  }
+  if (ponte) await ponte.desligar();
+  projecao.usarTransporte(null);
+  atualizarUiConexao(false);
+  setStatus('desconectado', 'DESCONECTADO');
+}
+
+/** Alterna o modo, para ligar a um botão ou item de menu. */
+async function alternarProjecaoNestaMaquina() {
+  const ponte = ponteProjecaoLocal();
+  const estado = ponte ? await ponte.estado() : null;
+  if (estado?.activa) return desligarProjecaoNestaMaquina();
+  return ligarProjecaoNestaMaquina();
+}
+
 /** IP de LAN do servidor de projeção informado por ele (evento `server_info`); vazio até conectar. */
 let servidorLanIpObs = '';
 /** Porta do servidor HTTP das páginas de Browser Source do OBS (informada pelo servidor). */
@@ -13072,6 +13165,9 @@ const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
 exporCallbacksParaAtributosHtml({
   recarregarPainelControlador,
   conectar,
+  alternarProjecaoNestaMaquina,
+  ligarProjecaoNestaMaquina,
+  desligarProjecaoNestaMaquina,
   copiarUrlObs,
   irParaTelaInicial,
   alternarModoSlidesOperador,
@@ -15011,7 +15107,15 @@ document.getElementById('ip-input').addEventListener('change', (e) => {
   setTimeout(() => carregarRoteamentoTelasDoServidor(), 120);
 });
 
-setTimeout(() => tentarAutoConectarSeDesconectado(), 200);
+setTimeout(() => {
+  /* Quem escolheu projetar nesta máquina não deve ser arrastado para um Servidor da rede
+     ao abrir o app — seriam dois donos das mesmas telas, que é o que isto evita. */
+  if (projetarNestaMaquinaPreferido() && ponteProjecaoLocal()) {
+    void ligarProjecaoNestaMaquina();
+    return;
+  }
+  tentarAutoConectarSeDesconectado();
+}, 200);
 
 // ════════════════════════════════════════════════════════════
 //  Dark Mode + Configurações de Exibição (Controlador remoto)
@@ -15817,6 +15921,11 @@ async function tratarComandoMenuLyra(payload) {
   }
   if (command === 'tools-restart-local-server') {
     await reiniciarServidorLocalViaMenu();
+    return;
+  }
+  if (command === 'tools-projetar-nesta-maquina') {
+    const r = await alternarProjecaoNestaMaquina();
+    if (r && r.ok === false && r.erro) alert(r.erro);
     return;
   }
   if (command === 'help-open-manual') {

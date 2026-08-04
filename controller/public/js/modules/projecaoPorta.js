@@ -244,3 +244,97 @@ export function criarTransporteSocket(socket) {
     },
   };
 }
+
+/**
+ * Transporte local: o motor de projeção corre neste mesmo aplicativo, no processo
+ * principal, e falamos com ele por IPC em vez de rede.
+ *
+ * ## Mesmo vocabulário, outro meio
+ *
+ * `enviar('exibir_musica', payload)` leva exactamente o payload que iria pelo socket. Não
+ * é conveniência: no modo local o Controlador continua a hospedar a porta 5510 para o OBS
+ * e o app de celular, e o que o motor recebe do painel tem de ser indistinguível do que
+ * recebe da rede. Duas gramáticas obrigariam a traduzir numa das pontas.
+ *
+ * ## Porque `enviar` devolve `true` sem esperar
+ *
+ * A ponte IPC é assíncrona; a porta é síncrona. Devolver `true` significa «entregue ao
+ * processo principal», que é a mesma promessa que o transporte socket faz — o `emit`
+ * também não espera pelo servidor. Quem precisa de saber o resultado usa o `ack`, que é
+ * resolvido quando o processo principal responde.
+ *
+ * O fallback HTTP dos call sites nunca corre neste transporte: não há rede a falhar
+ * entre o painel e um motor que vive no mesmo processo.
+ *
+ * @param {{
+ *   enviar: (evento: string, dados: any) => Promise<any>,
+ *   aoReceber: (handler: (evento: string, dados: any) => void) => (() => void),
+ *   pronta?: () => boolean
+ * }} ponte Exposta pelo preload do Controlador.
+ * @returns {TransporteProjecao}
+ */
+export function criarTransporteLocal(ponte) {
+  /**
+   * A ponte entrega um canal só, com `(evento, dados)`. A porta assina por evento. Este
+   * mapa é o desmultiplexador entre os dois — e a razão de assinarmos a ponte uma vez, e
+   * não uma vez por evento.
+   *
+   * @type {Map<string, Set<Function>>}
+   */
+  const porEvento = new Map();
+  let cancelarPonte = null;
+
+  function garantirLigacaoAPonte() {
+    if (cancelarPonte) return;
+    cancelarPonte = ponte.aoReceber((evento, dados) => {
+      for (const handler of porEvento.get(evento) || []) {
+        try {
+          handler(dados);
+        } catch (_) {
+          // Um handler do painel a falhar não pode impedir os outros de receber.
+        }
+      }
+    });
+  }
+
+  return {
+    pronto() {
+      return typeof ponte.pronta === 'function' ? !!ponte.pronta() : true;
+    },
+    enviar(evento, dados, ack) {
+      const promessa = ponte.enviar(evento, dados);
+      if (typeof ack === 'function') {
+        Promise.resolve(promessa).then(
+          (r) => ack(r || { ok: true }),
+          (e) => ack({ ok: false, erro: e?.message || String(e) })
+        );
+      } else {
+        Promise.resolve(promessa).catch(() => {
+          // Sem ack não há a quem contar; o processo principal já registou o erro.
+        });
+      }
+      return true;
+    },
+    enfileirar(evento, dados) {
+      Promise.resolve(ponte.enviar(evento, dados)).catch(() => {
+        // idem
+      });
+    },
+    inscrever(evento, handler) {
+      garantirLigacaoAPonte();
+      if (!porEvento.has(evento)) porEvento.set(evento, new Set());
+      porEvento.get(evento).add(handler);
+    },
+    desinscrever(evento, handler) {
+      const handlers = porEvento.get(evento);
+      if (!handlers) return;
+      handlers.delete(handler);
+      if (handlers.size > 0) return;
+      porEvento.delete(evento);
+      if (porEvento.size === 0 && cancelarPonte) {
+        cancelarPonte();
+        cancelarPonte = null;
+      }
+    },
+  };
+}

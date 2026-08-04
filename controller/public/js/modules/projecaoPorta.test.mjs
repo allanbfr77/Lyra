@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { criarPortaProjecao, criarTransporteSocket } from './projecaoPorta.js';
+import {
+  criarPortaProjecao,
+  criarTransporteSocket,
+  criarTransporteLocal,
+} from './projecaoPorta.js';
 
 /**
  * Duplo do cliente Socket.IO, com a distinção que interessa aqui: `emit` funciona
@@ -156,4 +160,123 @@ test('um transporte que lança não derruba o painel', () => {
 
   assert.equal(porta.enviar('exibir_musica', {}), false);
   assert.doesNotThrow(() => porta.enfileirar('limpar_tela'));
+});
+
+// --- transporte local ---------------------------------------------------------------
+
+/** Duplo da ponte IPC exposta pelo preload. */
+function ponteFalsa({ pronta = true, responder = () => ({ ok: true }) } = {}) {
+  const enviados = [];
+  const handlers = new Set();
+  return {
+    enviados,
+    nInscricoes: () => handlers.size,
+    enviar(evento, dados) {
+      enviados.push({ evento, dados });
+      return Promise.resolve(responder(evento, dados));
+    },
+    aoReceber(handler) {
+      handlers.add(handler);
+      return () => handlers.delete(handler);
+    },
+    pronta: () => pronta,
+    emitir(evento, dados) {
+      for (const h of [...handlers]) h(evento, dados);
+    },
+  };
+}
+
+test('o transporte local entrega o mesmo vocabulário do socket', () => {
+  const ponte = ponteFalsa();
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+
+  assert.equal(porta.enviar('exibir_musica', { estrofeIndex: 2 }), true);
+  assert.deepEqual(ponte.enviados, [
+    { evento: 'exibir_musica', dados: { estrofeIndex: 2 } },
+  ]);
+});
+
+test('no modo local a porta está pronta sem socket nenhum', () => {
+  const porta = criarPortaProjecao(criarTransporteLocal(ponteFalsa()));
+  assert.equal(porta.ligada(), true);
+  assert.equal(porta.pronta(), true);
+});
+
+test('o ack local é resolvido pela resposta do processo principal', async () => {
+  const ponte = ponteFalsa({ responder: () => ({ ok: true, gravado: true }) });
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+
+  const resposta = await new Promise((resolve) => {
+    porta.enviar('set_display_config', { modoConfig: 'slides' }, resolve);
+  });
+  assert.deepEqual(resposta, { ok: true, gravado: true });
+});
+
+test('uma falha no processo principal vira ack de erro, não exceção', async () => {
+  const ponte = ponteFalsa();
+  ponte.enviar = () => Promise.reject(new Error('motor em baixo'));
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+
+  const resposta = await new Promise((resolve) => {
+    porta.enviar('set_display_config', {}, resolve);
+  });
+  assert.deepEqual(resposta, { ok: false, erro: 'motor em baixo' });
+});
+
+test('o canal único da ponte é desmultiplexado por evento', () => {
+  const ponte = ponteFalsa();
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+  const estados = [];
+  const audios = [];
+  porta.aoReceber('estado', (e) => estados.push(e));
+  porta.aoReceber('audio_state', (a) => audios.push(a));
+
+  assert.equal(ponte.nInscricoes(), 1, 'assina a ponte uma vez, não uma vez por evento');
+
+  ponte.emitir('estado', { tipo: 'musica' });
+  ponte.emitir('audio_state', { playing: true });
+  ponte.emitir('evento_que_ninguem_quer', {});
+
+  assert.deepEqual(estados, [{ tipo: 'musica' }]);
+  assert.deepEqual(audios, [{ playing: true }]);
+});
+
+test('um handler que rebenta não impede os outros de receber', () => {
+  const ponte = ponteFalsa();
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+  const recebidos = [];
+  porta.aoReceber('estado', () => {
+    throw new Error('erro no painel');
+  });
+  porta.aoReceber('estado', (e) => recebidos.push(e));
+
+  ponte.emitir('estado', { tipo: 'biblia' });
+  assert.deepEqual(recebidos, [{ tipo: 'biblia' }]);
+});
+
+test('cancelar a última inscrição solta a ponte', () => {
+  const ponte = ponteFalsa();
+  const porta = criarPortaProjecao(criarTransporteLocal(ponte));
+  const cancelar = porta.aoReceber('estado', () => {});
+
+  assert.equal(ponte.nInscricoes(), 1);
+  cancelar();
+  assert.equal(ponte.nInscricoes(), 0);
+});
+
+test('trocar de remoto para local leva as inscrições consigo', () => {
+  // É o que acontece ao ligar «projetar nesta máquina» com o painel já aberto.
+  const s = socketFalso();
+  const ponte = ponteFalsa();
+  const porta = criarPortaProjecao(criarTransporteSocket(s));
+  const recebidos = [];
+  porta.aoReceber('estado', (e) => recebidos.push(e));
+
+  porta.usarTransporte(criarTransporteLocal(ponte));
+  s.receber('estado', 'pelo socket');
+  ponte.emitir('estado', 'pelo motor local');
+
+  assert.deepEqual(recebidos, ['pelo motor local']);
+  assert.equal(porta.enviar('limpar_tela'), true);
+  assert.deepEqual(ponte.enviados, [{ evento: 'limpar_tela', dados: undefined }]);
 });

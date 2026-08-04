@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('path');
 const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
@@ -22,6 +21,7 @@ const {
   criarAplicadorDeComandos,
   estadoBibliaParaObs: derivarEstadoBibliaParaObs,
   ALCANCE_OUTROS,
+  paginaObs,
 } = require('@lyra/projection-core');
 const { createProjectionState } = require('./lib/projectionState');
 
@@ -789,16 +789,18 @@ function iniciarServidor(ctx, paths, deps) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     next();
   });
+  /* As páginas de overlay vivem no Core desde que o OBS deixou de ser assunto exclusivo
+     do Servidor — no modo local é o Controlador que as serve, da mesma origem. */
   obsApp.get('/obs', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/obs.html'));
+    res.sendFile(paginaObs('obs.html'));
   });
   /** Fonte dedicada só para conteúdo de Bíblia — Browser Source separada no OBS. */
   obsApp.get('/obs/biblia', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/obs-biblia.html'));
+    res.sendFile(paginaObs('obs-biblia.html'));
   });
   /** Fonte dedicada só para slides/letra de música (e avisos) — Browser Source separada no OBS. */
   obsApp.get('/obs/slides', (_req, res) => {
-    res.sendFile(path.join(__dirname, '../public/obs-slides.html'));
+    res.sendFile(paginaObs('obs-slides.html'));
   });
   const obsServer = http.createServer(obsApp);
   // `0.0.0.0`: o OBS pode rodar noutro PC da rede local — precisa alcançar a porta pela LAN,

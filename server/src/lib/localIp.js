@@ -1,49 +1,10 @@
 'use strict';
 
-const { networkInterfaces } = require('os');
-
 /**
- * IPv4 “principal” para exibir ao usuário (LAN), penalizando interfaces virtuais.
- * @returns {string}
+ * Shim de compatibilidade — a logica real migrou para @lyra/projection-core.
+ *
+ * Passou para o Core quando o Controlador ganhou modo local: os dois hosts precisam do
+ * IP de LAN para anunciar os enderecos do OBS e do celular, e uma terceira copia seria
+ * a duplicacao que esta refatoracao existe para desfazer.
  */
-function getPreferredLocalIPv4() {
-  const nets = networkInterfaces();
-
-  const isV4 = (net) => net.family === 'IPv4' || net.family === 4;
-
-  const isVirtualAdapterName = (name) => {
-    const n = String(name).toLowerCase();
-    return (
-      n.includes('vethernet') || n.includes('hyper-v') || n.includes('wsl') ||
-      n.includes('virtualbox') || n.includes('vmware') || n.includes('docker') ||
-      n.includes('tailscale') || n.includes('zerotier')
-    );
-  };
-
-  const score = (address, ifaceName) => {
-    let s = 0;
-    const [a, b] = address.split('.').map(Number);
-    if (a === 192 && b === 168) s += 120;
-    else if (a === 10) s += 90;
-    else if (a === 172 && b >= 16 && b <= 31) s += 40;
-    const nm = String(ifaceName).toLowerCase();
-    if (nm.includes('wi-fi') || nm.includes('wifi') || nm.includes('wlan') || nm.includes('wireless')) s += 60;
-    if (nm.includes('ethernet') || nm.includes('gb ethernet') || nm === 'eth') s += 55;
-    if (isVirtualAdapterName(ifaceName)) s -= 250;
-    return s;
-  };
-
-  const candidates = [];
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (!isV4(net) || net.internal) continue;
-      candidates.push({ address: net.address, name, score: score(net.address, name) });
-    }
-  }
-
-  if (candidates.length === 0) return 'localhost';
-  candidates.sort((x, y) => y.score - x.score);
-  return candidates[0].address;
-}
-
-module.exports = { getPreferredLocalIPv4 };
+module.exports = require('@lyra/projection-core').localIp;

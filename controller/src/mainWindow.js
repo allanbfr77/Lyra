@@ -418,6 +418,15 @@ function criarMenuAplicativo(ctx, updaterApi) {
         },
         { type: 'separator' },
         {
+          /* O comando vai ao renderer, e não directamente ao `ctx.projecaoLocal`, porque
+             ligar o modo local não é só subir o motor: é também trocar o transporte da
+             porta de projeção do painel. Quem sabe fazer as duas coisas na ordem certa é
+             o renderer. */
+          label: 'Projetar nesta máquina',
+          click: () => enviarComandoMenuAoRenderer(ctx, 'tools-projetar-nesta-maquina'),
+        },
+        { type: 'separator' },
+        {
           label: 'Limpar cache',
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-clear-cache'),
         },
@@ -745,6 +754,50 @@ function registerMainWindowIpc(ctx, updaterApi) {
   ipcMain.handle('lyra-clear-cache', () => limparCacheElectron(ctx));
   ipcMain.handle('lyra-restart-local-server', () => reiniciarServidorLocal(ctx));
   ipcMain.handle('lyra-app-version', () => app.getVersion());
+
+  registarIpcProjecaoLocal(ctx);
+}
+
+/**
+ * IPC do modo «projetar nesta máquina».
+ *
+ * `ctx.projecaoLocal` é montado no `main.js`; aqui só se liga o painel a ele. Os três
+ * verbos de controlo (ligar/desligar/estado) e o canal de comandos são o equivalente
+ * exacto do que o painel faria por socket contra o Servidor — de propósito, para que a
+ * porta de projeção do renderer não precise de saber em que modo está.
+ *
+ * @param {object} ctx
+ */
+function registarIpcProjecaoLocal(ctx) {
+  for (const canal of [
+    'projecao-local-ligar',
+    'projecao-local-desligar',
+    'projecao-local-estado',
+    'projecao-local-comando',
+  ]) {
+    ipcMain.removeHandler(canal);
+  }
+
+  ipcMain.handle('projecao-local-ligar', async () => {
+    if (!ctx.projecaoLocal) return { ok: false, erro: 'projeção local indisponível' };
+    return ctx.projecaoLocal.ligar();
+  });
+
+  ipcMain.handle('projecao-local-desligar', async () => {
+    if (!ctx.projecaoLocal) return { ok: true };
+    return ctx.projecaoLocal.desligar();
+  });
+
+  ipcMain.handle('projecao-local-estado', () => ({
+    disponivel: !!ctx.projecaoLocal,
+    activa: !!ctx.projecaoLocal?.estaActiva(),
+    inicial: ctx.projecaoLocal?.estadoParaClienteNovo?.() || null,
+  }));
+
+  ipcMain.handle('projecao-local-comando', async (_ev, payload) => {
+    if (!ctx.projecaoLocal) return { ok: false, erro: 'projeção local indisponível' };
+    return ctx.projecaoLocal.receberComando(payload?.evento, payload?.dados, null);
+  });
 }
 
 module.exports = {

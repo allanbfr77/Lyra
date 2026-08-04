@@ -765,3 +765,41 @@ test('todos os comandos de projeção do Servidor estão cobertos', () => {
   ];
   assert.deepEqual(aplicador.comandos.sort(), esperados.sort());
 });
+
+// --- regra de difusão partilhada pelos dois hosts -----------------------------------
+
+const { alvosDaDifusao } = require('./commandApplier');
+
+test('evento para todos chega ao painel e aos clientes, venha de onde vier', () => {
+  const ev = { nome: 'estado', alcance: ALCANCE_TODOS };
+
+  assert.deepEqual(alvosDaDifusao(ev, true), {
+    painel: true,
+    clientes: true,
+    excluirOrigemNaRede: false,
+  });
+  assert.deepEqual(alvosDaDifusao(ev, false), {
+    painel: true,
+    clientes: true,
+    excluirOrigemNaRede: false,
+  });
+});
+
+test('alcance OUTROS exclui o painel quando foi o painel que pediu', () => {
+  // O caso que só existe no modo local: o operador grava a config e não pode receber de
+  // volta o que acabou de enviar, ou o formulário salta por cima da edição dele.
+  const ev = { nome: 'display_config', alcance: ALCANCE_OUTROS };
+  const doPainel = alvosDaDifusao(ev, false);
+
+  assert.equal(doPainel.painel, false);
+  assert.equal(doPainel.clientes, true, 'OBS e celular continuam a receber');
+  assert.equal(doPainel.excluirOrigemNaRede, false, 'não há socket de origem a excluir');
+});
+
+test('alcance OUTROS exclui o socket de origem quando o pedido veio da rede', () => {
+  const ev = { nome: 'display_config', alcance: ALCANCE_OUTROS };
+  const daRede = alvosDaDifusao(ev, true);
+
+  assert.equal(daRede.painel, true, 'o painel não foi quem pediu, logo recebe');
+  assert.equal(daRede.excluirOrigemNaRede, true);
+});

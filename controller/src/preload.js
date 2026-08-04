@@ -34,6 +34,28 @@ contextBridge.exposeInMainWorld('lyraElectron', {
   reiniciarServidorLocal: () => ipcRenderer.invoke('lyra-restart-local-server'),
   obterVersaoApp: () => ipcRenderer.invoke('lyra-app-version'),
 
+  /**
+   * Ponte para o motor de projeção que corre neste mesmo aplicativo.
+   *
+   * `enviar` e `aoReceber` são os dois verbos que a porta de projeção do painel espera de
+   * um transporte (ver `public/js/modules/projecaoPorta.js`), no mesmo vocabulário dos
+   * eventos de socket — porque o OBS e o celular continuam a falá-lo pela porta 5510.
+   *
+   * O canal de retorno é um só, com `(evento, dados)`; quem separa por evento é o
+   * transporte, do lado do painel. Assim há um listener de IPC em vez de um por evento.
+   */
+  projecaoLocal: {
+    ligar: () => ipcRenderer.invoke('projecao-local-ligar'),
+    desligar: () => ipcRenderer.invoke('projecao-local-desligar'),
+    estado: () => ipcRenderer.invoke('projecao-local-estado'),
+    enviar: (evento, dados) => ipcRenderer.invoke('projecao-local-comando', { evento, dados }),
+    aoReceber: (cb) => {
+      const handler = (_ev, payload) => cb(payload?.evento, payload?.dados);
+      ipcRenderer.on('projecao-local-evento', handler);
+      return () => ipcRenderer.removeListener('projecao-local-evento', handler);
+    },
+  },
+
   onMenuCommand: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on('lyra-menu-command', handler);
