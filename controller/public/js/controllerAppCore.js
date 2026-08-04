@@ -96,6 +96,7 @@ import {
   criarTransporteSocket,
   criarTransporteLocal,
 } from './modules/projecaoPorta.js';
+import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -10936,6 +10937,21 @@ const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
 let projecaoLocalEmCurso = false;
 
 /**
+ * Motor que toca o áudio quando a projeção corre nesta máquina.
+ *
+ * Criado só quando há ponte (dentro do aplicativo) e ligado só no modo local — no remoto
+ * quem toca é a janela de controle do Servidor, e dois motores a tocar dariam eco.
+ */
+let motorAudioLocal = null;
+
+function garantirMotorAudioLocal() {
+  const ponte = ponteProjecaoLocal();
+  if (!ponte?.audio) return null;
+  if (!motorAudioLocal) motorAudioLocal = criarMotorAudioLocal(ponte.audio);
+  return motorAudioLocal;
+}
+
+/**
  * O painel está — ou está a ficar — em modo local?
  *
  * Serve de guarda ao auto-reconectar. A preferência sozinha não bastaria: entre escolher
@@ -10995,6 +11011,7 @@ async function ligarProjecaoNestaMaquina() {
   }
 
   projecao.usarTransporte(criarTransporteLocal(ponte));
+  garantirMotorAudioLocal()?.ligar();
   try {
     localStorage.setItem(LS_PROJETAR_LOCAL, '1');
   } catch (_) {
@@ -11032,6 +11049,7 @@ async function desligarProjecaoNestaMaquina() {
   } catch (_) {
     // intencional
   }
+  motorAudioLocal?.desligar();
   if (ponte) await ponte.desligar();
   projecao.usarTransporte(null);
   atualizarUiConexao(false);

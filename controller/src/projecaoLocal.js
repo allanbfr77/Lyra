@@ -53,7 +53,7 @@ const PORTA_OBS = 5001;
  * coordenação que escrevêssemos.
  */
 function criarProjecaoLocal(deps) {
-  const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel } = deps;
+  const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel } = deps;
 
   let io = null;
   let servidorApi = null;
@@ -321,8 +321,31 @@ function criarProjecaoLocal(deps) {
     return msg;
   }
 
+  /**
+   * Estado do player, vindo de quem toca.
+   *
+   * No Servidor este caminho é `ipcMain.on('audio_state_update')` → `io.emit`. Aqui é o
+   * mesmo, com o painel no lugar da janela de controle: o evento volta para ele **e** para
+   * a rede, porque o celular também mostra a barra de progresso.
+   */
+  function publicarEstadoAudio(estado) {
+    if (!activa) return;
+    difundir(
+      [{ nome: 'audio_state', dados: estado && typeof estado === 'object' ? estado : {}, alcance: 'todos' }],
+      null
+    );
+  }
+
   async function ligarInterno() {
     store = criarArmazemDeProjecao();
+    /*
+     * A «janela de controle» do motor, no modo local, é o próprio painel.
+     *
+     * É por este campo que `enviarComandoAudioParaControle` entrega `audio_play` e
+     * companhia. Deixá-lo a `null` — como estava — fazia os comandos de áudio chegarem ao
+     * motor e morrerem lá, sem erro: o som não saía e nada apontava porquê.
+     */
+    store.windowControl = typeof obterJanelaPainel === 'function' ? obterJanelaPainel() : null;
     engine = createProjectionEngine(paths, {
       logError: registarErro,
       screen,
@@ -414,6 +437,7 @@ function criarProjecaoLocal(deps) {
     ligar,
     desligar,
     receberComando,
+    publicarEstadoAudio,
     estaActiva: () => activa,
     /** Exposto para o painel poder sincronizar-se ao ligar, sem esperar por um comando. */
     estadoParaClienteNovo: () => (activa ? estadoParaClienteNovo() : null),

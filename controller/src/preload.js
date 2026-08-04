@@ -54,6 +54,26 @@ contextBridge.exposeInMainWorld('lyraElectron', {
       ipcRenderer.on('projecao-local-evento', handler);
       return () => ipcRenderer.removeListener('projecao-local-evento', handler);
     },
+
+    /**
+     * Motor de áudio: no modo local é o painel que toca.
+     *
+     * Os canais são os mesmos que o motor de projeção usa para falar com a janela de
+     * controle do Servidor (`audio_play`, `audio_pause`, …) — o motor não sabe, nem
+     * precisa de saber, que do outro lado agora está o painel.
+     */
+    audio: {
+      aoReceberComando: (cb) => {
+        const canais = ['audio_play', 'audio_pause', 'audio_stop', 'audio_volume', 'audio_seek'];
+        const registados = canais.map((canal) => {
+          const handler = (_ev, dados) => cb(canal, dados);
+          ipcRenderer.on(canal, handler);
+          return () => ipcRenderer.removeListener(canal, handler);
+        });
+        return () => registados.forEach((cancelar) => cancelar());
+      },
+      publicarEstado: (estado) => ipcRenderer.send('projecao-local-audio-state', estado),
+    },
   },
 
   onMenuCommand: (cb) => {

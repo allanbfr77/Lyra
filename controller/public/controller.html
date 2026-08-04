@@ -8245,6 +8245,15 @@
 </div>
 
 <audio id="lyra-audio-local" preload="auto" style="display:none" aria-hidden="true"></audio>
+<!--
+  Motor de áudio/vídeo do modo «projetar nesta máquina».
+
+  Elementos próprios, separados do `lyra-audio-local` acima: aquele é a barra de
+  progresso (sem som), estes são os que tocam. É a mesma divisão que existe entre o
+  painel e a janela de controle do Servidor no modo remoto — só que agora na mesma janela.
+-->
+<audio id="lyra-audio-engine" preload="auto" style="display:none" aria-hidden="true"></audio>
+<video id="lyra-video-engine" preload="auto" playsinline style="display:none" aria-hidden="true"></video>
 <div id="lyra-video-overlay" aria-hidden="true"><video id="lyra-video-local" preload="auto" playsinline muted></video></div>
 </body>
 </html>

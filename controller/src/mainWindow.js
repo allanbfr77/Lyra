@@ -798,6 +798,13 @@ function registarIpcProjecaoLocal(ctx) {
     if (!ctx.projecaoLocal) return { ok: false, erro: 'projeção local indisponível' };
     return ctx.projecaoLocal.receberComando(payload?.evento, payload?.dados, null);
   });
+
+  /* Contraparte do `audio_state_update` do Servidor: quem toca informa o estado, e ele
+     segue para o painel e para a rede. */
+  ipcMain.removeAllListeners('projecao-local-audio-state');
+  ipcMain.on('projecao-local-audio-state', (_ev, estado) => {
+    ctx.projecaoLocal?.publicarEstadoAudio(estado);
+  });
 }
 
 module.exports = {

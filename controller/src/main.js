@@ -89,6 +89,8 @@ app.whenReady().then(async () => {
         win.webContents.send('projecao-local-evento', { evento, dados });
       }
     },
+    /* E é também quem toca o áudio, no lugar da janela de controle do Servidor. */
+    obterJanelaPainel: () => mainWindow.getJanelaPrincipal(ctx),
   });
 
   mainWindow.registerMainWindowIpc(ctx, updaterApi);
