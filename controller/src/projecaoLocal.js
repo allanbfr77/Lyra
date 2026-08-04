@@ -11,6 +11,7 @@ const {
   paginaProjecao,
   paginaObs,
   alvosDaDifusao,
+  displayConfigModo,
   localIp,
 } = require('@lyra/projection-core');
 const { caminhoIconeApp } = require('./lib/iconPath');
@@ -116,11 +117,19 @@ function criarProjecaoLocal(deps) {
     }
   }
 
-  /** Estado inicial que um cliente novo (OBS, celular) precisa de receber ao ligar. */
+  /**
+   * Estado inicial que um cliente novo (OBS, celular) precisa de receber ao ligar.
+   *
+   * Os três eventos são os mesmos que o Servidor envia na conexão, e a lista não é
+   * arbitrária: `obs.html` assina `display_config` e sem ele desenharia com a tipografia
+   * por omissão até alguém gravar a configuração — um overlay com a fonte errada no meio
+   * do culto, sem erro nenhum a apontar a causa.
+   */
   function estadoParaClienteNovo() {
     return {
       estado: engine.estadoPublicoParaSocketsOuApi(),
       estado_biblia_obs: estadoBibliaParaObs(store),
+      display_config: displayConfigModo.resolverConfigParaJanelas(store),
     };
   }
 
@@ -143,6 +152,7 @@ function criarProjecaoLocal(deps) {
       const inicial = estadoParaClienteNovo();
       socket.emit('estado', inicial.estado);
       socket.emit('estado_biblia_obs', inicial.estado_biblia_obs);
+      socket.emit('display_config', inicial.display_config);
 
       for (const comando of aplicador.comandos) {
         socket.on(comando, (dados, ack) => {
