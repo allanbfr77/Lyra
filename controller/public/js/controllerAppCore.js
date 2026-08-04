@@ -659,7 +659,7 @@ function emitirApresentacao(payload) {
 
 async function emitirEncerrarApresentacaoPublicoAoServidor() {
   if (projecao.enviar('encerrar_apresentacao_publico')) return true;
-  const ip = getServidorIp();
+  const ip = hostProjecao();
   if (!ip) return false;
   try {
     const r = await fetch(`http://${ip}:5510/api/comando/encerrar_apresentacao_publico`, {
@@ -1609,7 +1609,7 @@ function emitirEstadoVideoParaServidor(opts = {}) {
       Number(opts.currentTime ?? (el && !videoPlaybackUsaTelaoComoFonte() ? el.currentTime : audioStateRemoto.currentTime)) || 0;
   }
   if (projecao.enviar('apresentacao_video_state', payload)) return;
-  const ip = getServidorIp();
+  const ip = hostProjecao();
   if (!ip) {
     return;
   }
@@ -1741,7 +1741,7 @@ function pararAudioLocalApresentacao() {
       volume: Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1)),
     };
     if (!projecao.enviar('apresentacao_video_state', payload)) {
-      const ip = getServidorIp();
+      const ip = hostProjecao();
       if (ip) {
         fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
           method: 'POST',
@@ -1764,7 +1764,7 @@ function definirVolumeAudioLocalApresentacao(volume) {
   if (audioStateRemoto.mediaKind === 'video') {
     const payloadVol = { playing: !!audioStateRemoto.playing, volume: v };
     if (!projecao.enviar('apresentacao_video_state', payloadVol)) {
-      const ip = getServidorIp();
+      const ip = hostProjecao();
       if (ip) {
         fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
           method: 'POST',
@@ -4678,9 +4678,24 @@ function getControllerApiBase() {
   return 'http://127.0.0.1:3001';
 }
 
-/** IP do servidor de projeção (5510); sem «Conectar», assume o mesmo PC. */
+/**
+ * Endereço de quem hospeda a projeção na porta 5510.
+ *
+ * É o análogo HTTP do que a porta de projeção fez para os comandos: os call sites
+ * perguntam «onde está a projeção», não «qual é o IP do Servidor». No modo local a
+ * resposta é sempre esta máquina, mesmo que o campo de IP tenha sobrado de uma ligação
+ * anterior — apontar para lá pediria os monitores ao PC errado.
+ *
+ * @returns {string|null} `null` quando não há projeção alcançável (modo remoto sem IP).
+ */
+function hostProjecao() {
+  if (emModoProjecaoLocal()) return '127.0.0.1';
+  return getServidorIp();
+}
+
+/** Como `hostProjecao`, mas assume o próprio PC quando nada está configurado. */
 function getServidorProjeccaoIp() {
-  return getServidorIp() || '127.0.0.1';
+  return hostProjecao() || '127.0.0.1';
 }
 
 /**
@@ -10992,6 +11007,20 @@ async function ligarProjecaoNestaMaquina() {
     servidorLanIpObs = String(r.lanIp).trim();
     atualizarUrlsObs();
   }
+
+  /* O mesmo que o handler de `connect` do socket faz no modo remoto. Sem isto o painel
+     ficava com os seletores de tela vazios: a carga do arranque corre antes de a 5510
+     estar de pé, falha em silêncio, e no modo local não há evento de ligação a seguir
+     que a repita. */
+  try {
+    await carregarRoteamentoTelasDoServidor();
+    if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
+    else slidesAplicarCfgArmazenada();
+    renderSlidesStrip();
+    emitirEstadoMinistranteAoServidor();
+  } catch (_) {
+    // intencional — o modo local já está de pé; o painel recupera ao trocar de modo
+  }
   return { ok: true };
 }
 
@@ -11078,7 +11107,7 @@ async function copiarUrlObs(inputId, btn) {
 }
 
 async function carregarRoteamentoTelasDoServidor() {
-  const ip = getServidorIp();
+  const ip = hostProjecao();
   if (!ip) return;
   try {
     const [rMon, rRoute] = await Promise.all([
@@ -11214,7 +11243,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     return;
   }
 
-  const ip = getServidorIp();
+  const ip = hostProjecao();
   if (!ip) {
     try {
       aplicarPreviewPainelOcultoNoDom();
@@ -14062,7 +14091,7 @@ function enviarPreviewDisplayConfig(cfg, opts = {}) {
     forcarModo: opts.forcarModo || modo,
   };
   if (projecao.enviar('preview_display_config', payload)) return;
-  const ip = (document.getElementById('ip-input')?.value || '').trim();
+  const ip = hostProjecao();
   if (!ip) return;
   fetch(`http://${ip}:5510/api/display-config/preview`, {
     method: 'PUT',
@@ -14964,7 +14993,7 @@ try {
 window.addEventListener('beforeunload', () => {
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
-  const ip = getServidorIp();
+  const ip = hostProjecao();
   if (!ip) return;
   try {
     const payload = JSON.stringify({
@@ -16339,7 +16368,7 @@ function mudarAbaCfg(aba) {
 }
 
 async function carregarCfgDoServidor() {
-  const ip = (document.getElementById('ip-input')?.value || '').trim();
+  const ip = hostProjecao();
   if (!ip) return;
   const cfgLocal = carregarSlideCfgDoStorage();
   if (cfgLocal) {
@@ -16725,7 +16754,7 @@ function debounceSalvarCfg() {
 }
 
 async function salvarCfgNoServidor() {
-  const ip = (document.getElementById('ip-input')?.value || '').trim();
+  const ip = hostProjecao();
   const statusEl = document.getElementById('cfg-status-ctrl');
   if (!ip) { if (statusEl) statusEl.textContent = 'Sem IP configurado'; return; }
 
