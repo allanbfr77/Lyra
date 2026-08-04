@@ -3,6 +3,7 @@
 const projectionEncerrar = require('./projectionEncerrar');
 const projectionPayloads = require('./projectionPayloads');
 const comentariosSlide = require('./comentariosSlide');
+const displayConfigModo = require('./displayConfigModo');
 
 /**
  * Aplicador de comandos de projeção.
@@ -218,6 +219,23 @@ function criarAplicadorDeComandos(deps) {
     typeof deps.buscarMusicaPorId === 'function' ? deps.buscarMusicaPorId : null;
   const reescreverSrcMidia =
     typeof deps.reescreverSrcMidia === 'function' ? deps.reescreverSrcMidia : (src) => src;
+  const displayConfigPath = deps.displayConfigPath || null;
+  const logError = typeof deps.logError === 'function' ? deps.logError : () => {};
+
+  /** Corpo de config tem de ser um objeto simples — array e null não servem de patch. */
+  const ehCorpoDeConfig = (cfg) => typeof cfg === 'object' && cfg !== null && !Array.isArray(cfg);
+
+  /**
+   * O relógio é acessório: se a sincronização falhar, o resto do comando de config tem
+   * de seguir — nomeadamente o `display_config` que vai aos outros clientes.
+   */
+  function sincronizarRelogioSemDerrubar() {
+    try {
+      engine.sincronizarJanelasRelogio();
+    } catch (err) {
+      logError('sincronizar-janelas-relogio', err);
+    }
+  }
   if (!state || typeof state !== 'object') {
     throw new TypeError('criarAplicadorDeComandos: porta de estado inválida');
   }
@@ -298,11 +316,11 @@ function criarAplicadorDeComandos(deps) {
      */
     exibir_musica(dados = {}) {
       const estrofes = Array.isArray(dados.estrofes) ? dados.estrofes : [];
-      if (estrofes.length === 0) return [];
+      if (estrofes.length === 0) return null;
 
       const idx = Number(dados.estrofeIndex);
       const n = estrofes.length;
-      if (!Number.isFinite(idx) || idx < 0 || idx > n) return [];
+      if (!Number.isFinite(idx) || idx < 0 || idx > n) return null;
 
       const proxMeta = projectionPayloads.linhasProximoParaMusica(estrofes, idx);
       const musicaIdNum = Number(dados.musicaId);
@@ -330,7 +348,7 @@ function criarAplicadorDeComandos(deps) {
         };
       } else {
         const estrofe = estrofes[idx];
-        if (!estrofe) return [];
+        if (!estrofe) return null;
         state.estadoAtual = {
           tipo: 'musica',
           musicaId,
@@ -451,7 +469,7 @@ function criarAplicadorDeComandos(deps) {
      * o texto do painel não pode passar-lhe à frente.
      */
     exibir_ministrante(dados = {}) {
-      if (state.ministranteApresentacaoOverride) return [];
+      if (state.ministranteApresentacaoOverride) return null;
       const pl = dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {};
       const snapshot = engine.snapshotMinistranteAtual();
       /* O controlador envia strings do painel; clientes legacy sem corpo ficam só com o
@@ -467,6 +485,124 @@ function criarAplicadorDeComandos(deps) {
           }
         : snapshot;
       engine.atualizarDisplayMinistrante(state.estadoMinistrante);
+      return [];
+    },
+
+    /**
+     * Pré-visualização de config: aplica nas janelas sem gravar em disco.
+     *
+     * É o que corre enquanto o operador arrasta um slider. Persistir a cada frame
+     * escreveria centenas de vezes no disco por ajuste.
+     */
+    preview_display_config(dados) {
+      if (!ehCorpoDeConfig(dados)) return null;
+      displayConfigModo.processarDisplayConfigDoControlador(state, dados, {
+        persistirSlides: false,
+        enviar: engine.aplicarDisplayConfigNasJanelas,
+      });
+      sincronizarRelogioSemDerrubar();
+      return [];
+    },
+
+    /**
+     * Config definitiva: aplica, grava e conta aos outros clientes.
+     *
+     * `ALCANCE_OUTROS` não é detalhe de implementação — quem enviou já tem a config no
+     * seu formulário, e devolvê-la faria o painel do operador saltar por cima do que ele
+     * está a editar. Os restantes (segundo controlador, OBS, celular) precisam de saber.
+     *
+     * A config de Bíblia não persiste na camada de slides: são dois conjuntos separados,
+     * e gravar um por cima do outro faria o modo Bíblia comer o tema dos slides.
+     */
+    set_display_config(dados) {
+      if (!ehCorpoDeConfig(dados)) {
+        throw new Error('corpo deve ser um objeto de configuração');
+      }
+      const { modoConfig, forcarModo } = displayConfigModo.extrairPatchDisplayConfig(dados);
+      displayConfigModo.processarDisplayConfigDoControlador(state, dados, {
+        persistirSlides: modoConfig !== displayConfigModo.MODO_CFG_BIBLIA,
+        displayConfigPath,
+        enviar: engine.aplicarDisplayConfigNasJanelas,
+      });
+      sincronizarRelogioSemDerrubar();
+
+      const modoEnvio =
+        forcarModo === displayConfigModo.MODO_CFG_BIBLIA
+          ? displayConfigModo.MODO_CFG_BIBLIA
+          : forcarModo === displayConfigModo.MODO_CFG_SLIDES
+            ? displayConfigModo.MODO_CFG_SLIDES
+            : modoConfig;
+
+      return [
+        {
+          nome: 'display_config',
+          dados: displayConfigModo.resolverConfigParaJanelas(state, { forcarModo: modoEnvio }),
+          alcance: ALCANCE_OUTROS,
+        },
+      ];
+    },
+
+    /**
+     * Toca áudio ou vídeo do modo apresentação.
+     *
+     * Quem é o «dono» do áudio — para o parar quando esse cliente cair — é contabilidade
+     * do host, não da projeção: depende de haver sockets, e no modo local não há. Por
+     * isso o comando devolve apenas se foi aceite, e o host tira daí a sua conclusão.
+     */
+    audio_play(dados) {
+      const src = String(dados?.src || '').trim();
+      if (!src) return null;
+      engine.enviarComandoAudioParaControle('audio_play', {
+        src,
+        name: String(dados?.name || 'audio'),
+        mediaKind: dados?.mediaKind === 'video' ? 'video' : 'audio',
+        autoplay: dados?.autoplay !== false,
+        volume: dados?.volume,
+      });
+      return [];
+    },
+
+    audio_pause() {
+      engine.enviarComandoAudioParaControle('audio_pause', {});
+      return [];
+    },
+
+    audio_volume(dados) {
+      const v = Number(dados?.volume);
+      if (!Number.isFinite(v)) return null;
+      engine.enviarComandoAudioParaControle('audio_volume', { volume: Math.max(0, Math.min(1, v)) });
+      return [];
+    },
+
+    audio_seek(dados) {
+      const t = Number(dados?.time);
+      if (!Number.isFinite(t)) return null;
+      engine.enviarComandoAudioParaControle('audio_seek', { time: Math.max(0, t) });
+      return [];
+    },
+
+    audio_stop() {
+      engine.enviarComandoAudioParaControle('audio_stop', {});
+      return [];
+    },
+
+    /**
+     * Sincroniza play/pause/tempo/volume do vídeo da apresentação com as telas.
+     *
+     * `syncTime` é opt-in: sem ele, só play/pause e volume seguem. Reposicionar o vídeo a
+     * cada evento produziria micro-saltos na imagem a cada ajuste de volume.
+     */
+    apresentacao_video_state(dados) {
+      const pl = dados && typeof dados === 'object' ? dados : {};
+      const sync = { playing: !!pl.playing };
+      const vol = Number(pl.volume);
+      if (pl.syncTime === true) {
+        sync.syncTime = true;
+        const ct = Number(pl.currentTime);
+        if (Number.isFinite(ct)) sync.currentTime = Math.max(0, ct);
+      }
+      if (Number.isFinite(vol)) sync.volume = Math.max(0, Math.min(1, vol));
+      engine.enviarSyncVideoApresentacaoParaDisplays(sync);
       return [];
     },
   };
@@ -523,8 +659,12 @@ function criarAplicadorDeComandos(deps) {
     if (!suporta(comando)) {
       throw new Error(`comando de projeção desconhecido: ${comando}`);
     }
-    const eventos = COMANDOS[comando](dados) || [];
-    return { eventos };
+    const saida = COMANDOS[comando](dados);
+    /* Um comando devolve `null` quando se recusa a agir — payload inválido, índice fora
+       do intervalo, canal já ocupado. É diferente de agir e não ter nada a difundir
+       (`[]`), que é o caso normal do `exibir_ministrante`. O host precisa da distinção:
+       é ela que decide, por exemplo, se o cliente vira dono do áudio. */
+    return { eventos: saida || [], aplicado: saida != null };
   }
 
   /**

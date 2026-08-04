@@ -45,6 +45,15 @@ function motorFalso() {
       chamadas.push(['snapshotMinistranteAtual']);
       return { titulo: 'do snapshot', atual: 'atual snap', proximo: 'prox snap', telaLimpa: false };
     },
+    sincronizarJanelasRelogio() {
+      chamadas.push(['sincronizarJanelasRelogio']);
+    },
+    enviarComandoAudioParaControle(comando, dados) {
+      chamadas.push(['enviarComandoAudioParaControle', comando, dados]);
+    },
+    enviarSyncVideoApresentacaoParaDisplays(sync) {
+      chamadas.push(['enviarSyncVideoApresentacaoParaDisplays', sync]);
+    },
   };
 }
 
@@ -88,10 +97,10 @@ test('o aplicador rejeita motor ou estado inválidos', () => {
 });
 
 test('comando desconhecido falha alto, em vez de não fazer nada em silêncio', () => {
-  // `set_display_config` ainda não migrou — a família de config é a próxima.
   const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine: motorFalso() });
-  assert.equal(aplicador.suporta('set_display_config'), false);
-  assert.throws(() => aplicador.aplicar('set_display_config', {}), /desconhecido/);
+  // `registrar_controlador` é do Servidor e nunca deve ser aceite aqui.
+  assert.equal(aplicador.suporta('registrar_controlador'), false);
+  assert.throws(() => aplicador.aplicar('registrar_controlador', {}), /desconhecido/);
   assert.equal(aplicador.suporta('exibir_musica'), true);
 });
 
@@ -578,4 +587,181 @@ test('exibir_ministrante recusa-se a passar à frente de uma apresentação', ()
 
   assert.deepEqual(engine.chamadas, []);
   assert.equal(state.estadoMinistrante.atual, '', 'a apresentação continua dona do canal');
+});
+
+// --- famílias «config» e «áudio/vídeo» --------------------------------------------
+
+const { ALCANCE_OUTROS } = require('./commandApplier');
+const displayConfigLib = require('./displayConfig');
+
+/** Estado com as camadas de config que o displayConfigModo espera encontrar. */
+function estadoComConfig() {
+  return estadoFalso({
+    displayConfig: displayConfigLib.mergeDisplayConfigLayers(
+      displayConfigLib.DEFAULT_DISPLAY_CONFIG,
+      {}
+    ),
+    displayConfigBiblia: { publico: {}, ministrante: {}, clock: {} },
+    modoVisualProjecaoAtivo: 'slides',
+  });
+}
+
+test('preview_display_config aplica nas janelas sem persistir', () => {
+  const state = estadoComConfig();
+  const engine = motorFalso();
+  const { aplicado } = criarAplicadorDeComandos({
+    state,
+    engine,
+    // Se persistisse, precisaria deste caminho; o teste falha alto caso o use.
+    displayConfigPath: () => {
+      throw new Error('preview não pode gravar em disco');
+    },
+  }).aplicar('preview_display_config', { publico: { fontSize: 42 } });
+
+  assert.equal(aplicado, true);
+  assert.equal(engine.chamadas[0][0], 'aplicarDisplayConfigNasJanelas');
+  assert.equal(engine.chamadas.at(-1)[0], 'sincronizarJanelasRelogio');
+});
+
+test('preview_display_config recusa corpo que não seja objeto de config', () => {
+  const engine = motorFalso();
+  const aplicador = criarAplicadorDeComandos({ state: estadoComConfig(), engine });
+
+  for (const corpo of [null, undefined, [], 'texto', 7]) {
+    assert.equal(aplicador.aplicar('preview_display_config', corpo).aplicado, false);
+  }
+  assert.deepEqual(engine.chamadas, [], 'o motor não foi tocado');
+});
+
+test('set_display_config lança em corpo inválido, para o ack poder responder', () => {
+  const aplicador = criarAplicadorDeComandos({ state: estadoComConfig(), engine: motorFalso() });
+  assert.throws(
+    () => aplicador.aplicar('set_display_config', []),
+    /corpo deve ser um objeto de configuração/
+  );
+});
+
+test('set_display_config difunde display_config só aos OUTROS clientes', () => {
+  // Devolver a config a quem a enviou faria o painel do operador saltar por cima do
+  // formulário que ele está a editar.
+  const { eventos } = criarAplicadorDeComandos({
+    state: estadoComConfig(),
+    engine: motorFalso(),
+  }).aplicar('set_display_config', { publico: { fontSize: 30 }, modoConfig: 'slides' });
+
+  assert.equal(eventos.length, 1);
+  assert.equal(eventos[0].nome, 'display_config');
+  assert.equal(eventos[0].alcance, ALCANCE_OUTROS);
+});
+
+test('set_display_config não persiste a camada de Bíblia junto com a de slides', () => {
+  let gravou = false;
+  criarAplicadorDeComandos({
+    state: estadoComConfig(),
+    engine: motorFalso(),
+    displayConfigPath: () => {
+      gravou = true;
+      return '/tmp/nao-usar.json';
+    },
+  }).aplicar('set_display_config', { modoConfig: 'biblia', publico: { fontSize: 30 } });
+
+  assert.equal(gravou, false, 'a config de Bíblia comeria o tema dos slides');
+});
+
+test('uma falha do relógio não impede o resto do comando de config', () => {
+  const engine = motorFalso();
+  engine.sincronizarJanelasRelogio = () => {
+    throw new Error('sem janela de relógio');
+  };
+  const erros = [];
+
+  const { eventos } = criarAplicadorDeComandos({
+    state: estadoComConfig(),
+    engine,
+    logError: (rotulo) => erros.push(rotulo),
+  }).aplicar('set_display_config', { publico: { fontSize: 30 }, modoConfig: 'slides' });
+
+  assert.deepEqual(erros, ['sincronizar-janelas-relogio']);
+  assert.equal(eventos.length, 1, 'o display_config seguiu para os outros clientes');
+});
+
+test('audio_play normaliza o payload e exige src', () => {
+  const engine = motorFalso();
+  const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine });
+
+  assert.equal(aplicador.aplicar('audio_play', { src: '  ' }).aplicado, false);
+  assert.equal(aplicador.aplicar('audio_play', {}).aplicado, false);
+  assert.deepEqual(engine.chamadas, []);
+
+  assert.equal(aplicador.aplicar('audio_play', { src: 'f.mp3' }).aplicado, true);
+  assert.deepEqual(engine.chamadas.at(-1), [
+    'enviarComandoAudioParaControle',
+    'audio_play',
+    { src: 'f.mp3', name: 'audio', mediaKind: 'audio', autoplay: true, volume: undefined },
+  ]);
+});
+
+test('audio_volume e audio_seek limitam os valores e recusam lixo', () => {
+  const engine = motorFalso();
+  const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine });
+
+  aplicador.aplicar('audio_volume', { volume: 5 });
+  assert.deepEqual(engine.chamadas.at(-1)[2], { volume: 1 });
+
+  aplicador.aplicar('audio_seek', { time: -3 });
+  assert.deepEqual(engine.chamadas.at(-1)[2], { time: 0 });
+
+  assert.equal(aplicador.aplicar('audio_volume', { volume: 'alto' }).aplicado, false);
+  assert.equal(aplicador.aplicar('audio_seek', {}).aplicado, false);
+});
+
+test('apresentacao_video_state só sincroniza o tempo quando pedido', () => {
+  // Reposicionar o vídeo a cada ajuste de volume produziria micro-saltos na imagem.
+  const engine = motorFalso();
+  const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine });
+
+  aplicador.aplicar('apresentacao_video_state', { playing: true, currentTime: 12, volume: 0.5 });
+  assert.deepEqual(engine.chamadas.at(-1)[1], { playing: true, volume: 0.5 });
+
+  aplicador.aplicar('apresentacao_video_state', { playing: true, syncTime: true, currentTime: 12 });
+  assert.deepEqual(engine.chamadas.at(-1)[1], { playing: true, syncTime: true, currentTime: 12 });
+});
+
+test('aplicado distingue «recusou» de «agiu e não há nada a difundir»', () => {
+  const state = estadoFalso({ ministranteApresentacaoOverride: { modo: 'apresentacao' } });
+  const bloqueado = criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar(
+    'exibir_ministrante',
+    { atual: 'x' }
+  );
+  assert.deepEqual(bloqueado, { eventos: [], aplicado: false });
+
+  const passou = criarAplicadorDeComandos({ state: estadoFalso(), engine: motorFalso() }).aplicar(
+    'exibir_ministrante',
+    { atual: 'x' }
+  );
+  assert.deepEqual(passou, { eventos: [], aplicado: true });
+});
+
+test('todos os comandos de projeção do Servidor estão cobertos', () => {
+  const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine: motorFalso() });
+  const esperados = [
+    'limpar_tela',
+    'encerrar_projecao_biblia',
+    'encerrar_projecao',
+    'toggle_blackout',
+    'exibir_musica',
+    'exibir_versiculo',
+    'exibir_apresentacao',
+    'encerrar_apresentacao_publico',
+    'exibir_ministrante',
+    'preview_display_config',
+    'set_display_config',
+    'audio_play',
+    'audio_pause',
+    'audio_volume',
+    'audio_seek',
+    'audio_stop',
+    'apresentacao_video_state',
+  ];
+  assert.deepEqual(aplicador.comandos.sort(), esperados.sort());
 });

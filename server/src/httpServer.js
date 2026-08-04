@@ -46,7 +46,6 @@ function iniciarServidor(ctx, paths, deps) {
     openPublicDevTools,
     openMinistranteDevTools,
     enviarComandoAudioParaControle,
-    enviarSyncVideoApresentacaoParaDisplays,
     sincronizarJanelasRelogio,
     aplicarDisplayConfigNasJanelas,
   } = windowsApi;
@@ -72,6 +71,9 @@ function iniciarServidor(ctx, paths, deps) {
     /* O banco de músicas é do Controlador; o Servidor vai buscá-lo por HTTP. No modo
        local esta dependência aponta para o banco da própria máquina. */
     buscarMusicaPorId: fetchMusicaByIdParaProjecao,
+    /* Onde a config de slides é gravada — caminho do perfil do utilizador, do host. */
+    displayConfigPath: paths.displayConfigPath,
+    logError,
     /* Controladores antigos enviavam `http://127.0.0.1:3001/...` — endereço inacessível a
        partir dos telões, que podem estar noutra máquina. */
     reescreverSrcMidia: (src, kind) => {
@@ -119,10 +121,12 @@ function iniciarServidor(ctx, paths, deps) {
    */
   function aplicarEDifundir(socket, comando, dados) {
     try {
-      const { eventos } = aplicador.aplicar(comando, dados);
+      const { eventos, aplicado } = aplicador.aplicar(comando, dados);
       difundir(socket, eventos);
+      return aplicado;
     } catch (e) {
       logError(`${comando}-ws`, e);
+      return false;
     }
   }
 
@@ -382,87 +386,33 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  /** Fallback HTTP — mesmo comportamento dos eventos Socket `audio_*` (modo apresentação). */
-  expressApp.post('/api/comando/audio_play', (req, res) => {
+  /**
+   * Fallback HTTP dos comandos de áudio/vídeo — o caminho que o painel usa quando o
+   * socket está em baixo. Mesmo aplicador dos eventos Socket: a normalização de payload
+   * (clamp de volume, `syncTime` opt-in) existe uma vez só.
+   *
+   * `aplicado === false` significa payload recusado pela regra — daí o 400.
+   */
+  const rotaComandoAudio = (comando, erroPayload) => (req, res) => {
     try {
-      const src = String(req.body?.src || '').trim();
-      if (!src) return res.status(400).json({ ok: false, erro: 'src obrigatório' });
-      enviarComandoAudioParaControle('audio_play', {
-        src,
-        name: String(req.body?.name || 'audio'),
-        mediaKind: req.body?.mediaKind === 'video' ? 'video' : 'audio',
-        autoplay: req.body?.autoplay !== false,
-        volume: req.body?.volume,
-      });
+      const { aplicado } = aplicador.aplicar(comando, req.body || {});
+      if (!aplicado) return res.status(400).json({ ok: false, erro: erroPayload });
       res.json({ ok: true });
     } catch (e) {
-      logError('post-audio_play', e);
+      logError(`post-${comando}`, e);
       res.status(500).json({ ok: false, erro: e.message || String(e) });
     }
-  });
+  };
 
-  expressApp.post('/api/comando/audio_pause', (_req, res) => {
-    try {
-      enviarComandoAudioParaControle('audio_pause', {});
-      res.json({ ok: true });
-    } catch (e) {
-      logError('post-audio_pause', e);
-      res.status(500).json({ ok: false, erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.post('/api/comando/audio_stop', (_req, res) => {
-    try {
-      enviarComandoAudioParaControle('audio_stop', {});
-      res.json({ ok: true });
-    } catch (e) {
-      logError('post-audio_stop', e);
-      res.status(500).json({ ok: false, erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.post('/api/comando/audio_volume', (req, res) => {
-    try {
-      const v = Number(req.body?.volume);
-      if (!Number.isFinite(v)) return res.status(400).json({ ok: false, erro: 'volume inválido' });
-      enviarComandoAudioParaControle('audio_volume', { volume: Math.max(0, Math.min(1, v)) });
-      res.json({ ok: true });
-    } catch (e) {
-      logError('post-audio_volume', e);
-      res.status(500).json({ ok: false, erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.post('/api/comando/audio_seek', (req, res) => {
-    try {
-      const t = Number(req.body?.time);
-      if (!Number.isFinite(t)) return res.status(400).json({ ok: false, erro: 'time inválido' });
-      enviarComandoAudioParaControle('audio_seek', { time: Math.max(0, t) });
-      res.json({ ok: true });
-    } catch (e) {
-      logError('post-audio_seek', e);
-      res.status(500).json({ ok: false, erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.post('/api/comando/apresentacao_video_state', (req, res) => {
-    try {
-      const playing = !!req.body?.playing;
-      const currentTime = Number(req.body?.currentTime);
-      const volume = Number(req.body?.volume);
-      const payload = { playing };
-      if (req.body?.syncTime === true) {
-        payload.syncTime = true;
-        if (Number.isFinite(currentTime)) payload.currentTime = Math.max(0, currentTime);
-      }
-      if (Number.isFinite(volume)) payload.volume = Math.max(0, Math.min(1, volume));
-      enviarSyncVideoApresentacaoParaDisplays(payload);
-      res.json({ ok: true });
-    } catch (e) {
-      logError('post-apresentacao_video_state', e);
-      res.status(500).json({ ok: false, erro: e.message || String(e) });
-    }
-  });
+  expressApp.post('/api/comando/audio_play', rotaComandoAudio('audio_play', 'src obrigatório'));
+  expressApp.post('/api/comando/audio_pause', rotaComandoAudio('audio_pause'));
+  expressApp.post('/api/comando/audio_stop', rotaComandoAudio('audio_stop'));
+  expressApp.post('/api/comando/audio_volume', rotaComandoAudio('audio_volume', 'volume inválido'));
+  expressApp.post('/api/comando/audio_seek', rotaComandoAudio('audio_seek', 'time inválido'));
+  expressApp.post(
+    '/api/comando/apresentacao_video_state',
+    rotaComandoAudio('apresentacao_video_state')
+  );
 
   expressApp.get('/api/monitores', (_req, res) => {
     res.json(buildMonitorsList(screen));
@@ -486,6 +436,15 @@ function iniciarServidor(ctx, paths, deps) {
     res.json(ctx.displayConfig);
   });
 
+  /**
+   * As duas rotas de display-config abaixo NÃO passam pelo aplicador, de propósito.
+   *
+   * Parecem o gémeo HTTP de `set_display_config`, mas não são: o evento de socket difunde
+   * `display_config` aos outros clientes e estas rotas não difundem nada. Encaminhá-las
+   * para o mesmo comando acrescentaria um broadcast que nunca existiu. Além disso
+   * respondem com a config aplicada no corpo, coisa que só interessa a um cliente HTTP.
+   * A semelhança é de forma, não de comportamento.
+   */
   expressApp.put('/api/display-config', (req, res) => {
     try {
       const cfg = req.body;
@@ -666,51 +625,21 @@ function iniciarServidor(ctx, paths, deps) {
       try { openMinistranteDevTools(); } catch (e) { logError('open_ministrante_devtools-ws', e); }
     });
 
+    /* Família «config». O `set_display_config` é o único comando com ack: o aplicador
+       lança em corpo inválido e o `reply` traduz isso na resposta ao cliente. */
+
     socket.on('preview_display_config', (cfg) => {
       if (!comandoAutorizado(socket)) return;
-      try {
-        if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return;
-        displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
-          persistirSlides: false,
-          enviar: aplicarDisplayConfigNasJanelas,
-        });
-        try { sincronizarJanelasRelogio(); } catch (err) {
-          logError('sincronizar-janelas-relogio', err);
-        }
-      } catch (e) {
-        logError('preview_display_config-ws', e);
-      }
+      aplicarEDifundir(socket, 'preview_display_config', cfg);
     });
 
     socket.on('set_display_config', (cfg, ack) => {
       const reply = (obj) => { try { if (typeof ack === 'function') ack(obj); } catch (_) {
-  // intencional — erro ignorado
-} };
+        // intencional — cliente pode ter saído antes da resposta
+      } };
       if (!comandoAutorizado(socket, ack)) return;
       try {
-        if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) {
-          reply({ ok: false, erro: 'corpo deve ser um objeto de configuração' });
-          return;
-        }
-        const { modoConfig, forcarModo } = displayConfigModo.extrairPatchDisplayConfig(cfg);
-        displayConfigModo.processarDisplayConfigDoControlador(ctx, cfg, {
-          persistirSlides: modoConfig !== displayConfigModo.MODO_CFG_BIBLIA,
-          displayConfigPath: paths.displayConfigPath,
-          enviar: aplicarDisplayConfigNasJanelas,
-        });
-        try { sincronizarJanelasRelogio(); } catch (err) {
-          logError('sincronizar-janelas-relogio', err);
-        }
-        const modoEnvio =
-          forcarModo === displayConfigModo.MODO_CFG_BIBLIA
-            ? displayConfigModo.MODO_CFG_BIBLIA
-            : forcarModo === displayConfigModo.MODO_CFG_SLIDES
-              ? displayConfigModo.MODO_CFG_SLIDES
-              : modoConfig;
-        socket.broadcast.emit(
-          'display_config',
-          displayConfigModo.resolverConfigParaJanelas(ctx, { forcarModo: modoEnvio })
-        );
+        difundir(socket, aplicador.aplicar('set_display_config', cfg).eventos);
         reply({ ok: true });
       } catch (e) {
         logError('set_display_config-ws', e);
@@ -767,61 +696,38 @@ function iniciarServidor(ctx, paths, deps) {
       aplicarEDifundir(socket, 'exibir_ministrante', incoming);
     });
 
+    /* Família «áudio/vídeo». Quem é o dono do áudio depende de haver sockets — é do
+       Servidor, e fica aqui. O aplicador só diz se o comando foi aceite. */
+
     socket.on('audio_play', (payload) => {
       if (!comandoAutorizado(socket)) return;
-      const src = String(payload?.src || '').trim();
-      if (!src) return;
-      ctx.audioOwnerSocketId = socket.id;
-      enviarComandoAudioParaControle('audio_play', {
-        src,
-        name: String(payload?.name || 'audio'),
-        mediaKind: payload?.mediaKind === 'video' ? 'video' : 'audio',
-        autoplay: payload?.autoplay !== false,
-        volume: payload?.volume,
-      });
+      if (aplicarEDifundir(socket, 'audio_play', payload)) ctx.audioOwnerSocketId = socket.id;
     });
 
     socket.on('audio_pause', () => {
       if (!comandoAutorizado(socket)) return;
-      enviarComandoAudioParaControle('audio_pause', {});
+      aplicarEDifundir(socket, 'audio_pause');
     });
 
     socket.on('audio_volume', (payload) => {
       if (!comandoAutorizado(socket)) return;
-      const v = Number(payload?.volume);
-      if (!Number.isFinite(v)) return;
-      enviarComandoAudioParaControle('audio_volume', { volume: Math.max(0, Math.min(1, v)) });
+      aplicarEDifundir(socket, 'audio_volume', payload);
     });
 
     socket.on('audio_seek', (payload) => {
       if (!comandoAutorizado(socket)) return;
-      const t = Number(payload?.time);
-      if (!Number.isFinite(t)) return;
-      enviarComandoAudioParaControle('audio_seek', { time: Math.max(0, t) });
+      aplicarEDifundir(socket, 'audio_seek', payload);
     });
 
     socket.on('audio_stop', () => {
       if (!comandoAutorizado(socket)) return;
-      enviarComandoAudioParaControle('audio_stop', {});
+      aplicarEDifundir(socket, 'audio_stop');
       ctx.audioOwnerSocketId = null;
     });
 
     socket.on('apresentacao_video_state', (payload) => {
       if (!comandoAutorizado(socket)) return;
-      try {
-        const pl = payload && typeof payload === 'object' ? payload : {};
-        const sync = { playing: !!pl.playing };
-        const vol = Number(pl.volume);
-        if (pl.syncTime === true) {
-          sync.syncTime = true;
-          const ct = Number(pl.currentTime);
-          if (Number.isFinite(ct)) sync.currentTime = Math.max(0, ct);
-        }
-        if (Number.isFinite(vol)) sync.volume = Math.max(0, Math.min(1, vol));
-        enviarSyncVideoApresentacaoParaDisplays(sync);
-      } catch (e) {
-        logError('apresentacao_video_state-ws', e);
-      }
+      aplicarEDifundir(socket, 'apresentacao_video_state', payload);
     });
 
     /** Mobile (ou outro cliente) pede playlists → reencaminha ao painel controlador. */
