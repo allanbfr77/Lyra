@@ -37,6 +37,7 @@ const {
   encontrarMusicaUsuarioDuplicada,
   importarMusicaUsuarioNoDb,
   criarMusicaUsuarioNoDb,
+  substituirMusicaUsuarioNoDb,
 } = require('./db');
 
 /** Paths mínimos exigidos por `initControllerDatabase`, apontando para tmp. */
@@ -201,6 +202,65 @@ test('cadastro manual sem duplicata cria original imutável', () => {
   const row = db.prepare('SELECT * FROM musicas WHERE id = ?').get(r.id);
   assert.strictEqual(row.is_immutable, 1);
   assert.strictEqual(row.parent_id, null);
+});
+
+test('duplicata detectada devolve as estrofes da música atual', () => {
+  const db = bancoLimpo();
+  const id = semear(db, 'Clamo Jesus', 'Paulo César Baruk');
+  db.prepare('UPDATE musicas SET estrofes = ? WHERE id = ?').run(
+    JSON.stringify(['Bloco A', 'Bloco B']),
+    id
+  );
+
+  const dup = encontrarMusicaUsuarioDuplicada('Clamo Jesus', 'Paulo Cesar Baruk');
+  assert.deepStrictEqual(dup.estrofes, ['Bloco A', 'Bloco B']);
+});
+
+test('substituir sobrescreve o original preservando id e root_id', () => {
+  const db = bancoLimpo();
+  const id = semear(db, 'Clamo Jesus', 'Paulo César Baruk');
+  const antes = db.prepare('SELECT COUNT(*) AS c FROM musicas').get().c;
+
+  const r = substituirMusicaUsuarioNoDb(id, 'Clamo Jesus', 'Paulo Cesar Baruk', ['Letra nova']);
+
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.id, id);
+  assert.strictEqual(r.rootId, id);
+  assert.strictEqual(r.substituida, true);
+  assert.strictEqual(r.copyImportada, false);
+  // Não cria linha nova: a playlist que aponta para este id continua válida.
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM musicas').get().c, antes);
+
+  const row = db.prepare('SELECT * FROM musicas WHERE id = ?').get(id);
+  assert.deepStrictEqual(JSON.parse(row.estrofes), ['Letra nova']);
+  assert.strictEqual(row.artista, 'Paulo Cesar Baruk');
+  assert.strictEqual(row.is_immutable, 1);
+  assert.strictEqual(row.parent_id, null);
+});
+
+test('substituir não altera versões filhas já existentes', () => {
+  const db = bancoLimpo();
+  const id = semear(db, 'Clamo Jesus', 'Paulo César Baruk');
+  const fork = importarMusicaUsuarioNoDb('Clamo Jesus', 'Paulo César Baruk', ['Versão do usuário'], {
+    aoDuplicar: 'copiar',
+  });
+
+  substituirMusicaUsuarioNoDb(id, 'Clamo Jesus', 'Paulo César Baruk', ['Letra recebida']);
+
+  const filha = db.prepare('SELECT * FROM musicas WHERE id = ?').get(fork.id);
+  assert.deepStrictEqual(JSON.parse(filha.estrofes), ['Versão do usuário']);
+  assert.strictEqual(filha.parent_id, id);
+});
+
+test('substituir valida id e entrada', () => {
+  const db = bancoLimpo();
+  const id = semear(db, 'Clamo Jesus', 'Paulo César Baruk');
+  assert.strictEqual(substituirMusicaUsuarioNoDb('abc', 'T', 'A', ['x']).erro, 'id inválido');
+  assert.strictEqual(substituirMusicaUsuarioNoDb(999999, 'T', 'A', ['x']).erro, 'Não encontrado');
+  assert.strictEqual(
+    substituirMusicaUsuarioNoDb(id, 'T', 'A', []).erro,
+    'estrofes deve ser um array não vazio'
+  );
 });
 
 test('entradas inválidas continuam rejeitadas', () => {

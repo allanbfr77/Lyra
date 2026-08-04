@@ -6412,6 +6412,297 @@ function modalImportarPlaylistSucesso(wrap, msg, autoFechar = true) {
   }
 }
 
+/* ── Confirmação da importação por código (antes de gravar) ──────────────── */
+
+const NOMES_MES_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+let confirmarImportResolver = null;
+
+/** Data de referência do código: o mês do culto que ele traz, senão o mês atual. */
+function dataRefDoCultoImportado(cultoIdCodigo) {
+  const iso = isoFromCultoId(cultoIdCodigo);
+  if (!iso) return new Date();
+  const [y, m, d] = iso.split('-').map((n) => parseInt(n, 10));
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return Number.isNaN(dt.getTime()) ? new Date() : dt;
+}
+
+/** Rótulo curto de uma opção do seletor: «09/08 — DOMINGO | MANHÃ». */
+function rotuloOpcaoCultoImport(item) {
+  const p = parseLabelCulto(item.label);
+  return p.desc ? `${p.data} — ${p.desc}` : p.data || String(item.id || '');
+}
+
+function fecharJanelaConfirmarImport(resultado) {
+  const bd = document.getElementById('confirmar-import-backdrop');
+  if (bd) {
+    bd.hidden = true;
+    bd.setAttribute('aria-hidden', 'true');
+  }
+  const r = confirmarImportResolver;
+  confirmarImportResolver = null;
+  if (r) r(resultado || { confirmado: false, cultoId: '', cultoLabel: '' });
+}
+
+/**
+ * Lista as músicas recebidas no código e pede confirmação + culto de destino.
+ * Nada é gravado enquanto esta janela estiver aberta.
+ *
+ * @param {{ musicas: Array<object>, cultoIdCodigo: string, cultoNomeCodigo: string }} ctx
+ * @returns {Promise<{ confirmado: boolean, cultoId: string, cultoLabel: string }>}
+ */
+function abrirJanelaConfirmarImport(ctx) {
+  const bd = document.getElementById('confirmar-import-backdrop');
+  const lista = document.getElementById('confirmar-import-lista');
+  const sel = document.getElementById('confirmar-import-culto');
+  if (!bd || !lista || !sel) {
+    // Sem a janela no DOM não há como perguntar: segue com o destino do código.
+    return Promise.resolve({
+      confirmado: true,
+      cultoId: String(ctx?.cultoIdCodigo || cultoId || '').trim(),
+      cultoLabel: String(ctx?.cultoNomeCodigo || '').trim(),
+    });
+  }
+
+  const musicas = Array.isArray(ctx?.musicas) ? ctx.musicas : [];
+  const cultoIdCodigo = String(ctx?.cultoIdCodigo || '').trim();
+
+  lista.innerHTML = '';
+  musicas.forEach((m) => {
+    const linha = document.createElement('div');
+    linha.className = 'confirmar-import-item';
+
+    const nome = document.createElement('span');
+    nome.className = 'confirmar-import-item-nome';
+    nome.textContent = String(m.titulo || '').trim() || 'Sem título';
+    linha.appendChild(nome);
+
+    // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'Cópia/Modificada').
+    const rotulo = String(m.rotulo || '').trim();
+    if (rotulo) {
+      const tag = document.createElement('span');
+      tag.className = 'confirmar-import-item-rotulo';
+      tag.textContent = `(${rotulo})`;
+      linha.appendChild(tag);
+    }
+
+    const artista = String(m.artista || '').trim();
+    if (artista) {
+      const art = document.createElement('span');
+      art.className = 'confirmar-import-item-artista';
+      art.textContent = `(${artista})`;
+      linha.appendChild(art);
+    }
+
+    lista.appendChild(linha);
+  });
+  lista.scrollTop = 0;
+
+  // Seletor: cultos do mês de referência + o culto do código, se ainda não existir.
+  const dataRef = dataRefDoCultoImportado(cultoIdCodigo);
+  const disponiveis = listarCultosDisponiveis(dataRef);
+  const jaNaLista = new Set(disponiveis.map((c) => c.id));
+  const opcoes = [...disponiveis];
+  if (cultoIdCodigo && !jaNaLista.has(cultoIdCodigo)) {
+    opcoes.unshift({
+      id: cultoIdCodigo,
+      label: String(ctx?.cultoNomeCodigo || '').trim() || labelFallbackDeCultoIdImport(cultoIdCodigo),
+      novo: true,
+    });
+  }
+
+  sel.innerHTML = '';
+  opcoes.forEach((item) => {
+    const op = document.createElement('option');
+    op.value = item.id;
+    op.textContent = item.novo
+      ? `${rotuloOpcaoCultoImport(item)}  ·  novo (do código)`
+      : rotuloOpcaoCultoImport(item);
+    sel.appendChild(op);
+  });
+
+  // Pré-seleção: o culto do código; senão o culto ativo; senão o primeiro.
+  const preferido = [cultoIdCodigo, cultoId].find((c) => c && opcoes.some((o) => o.id === c));
+  sel.value = preferido || (opcoes[0] ? opcoes[0].id : '');
+
+  const mes = document.getElementById('confirmar-import-mes');
+  if (mes) mes.textContent = `${NOMES_MES_PT[dataRef.getMonth()]}/${dataRef.getFullYear()}`;
+
+  const btnSim = document.getElementById('confirmar-import-sim');
+  if (btnSim) btnSim.disabled = !opcoes.length;
+
+  bd.hidden = false;
+  bd.setAttribute('aria-hidden', 'false');
+
+  return new Promise((resolve) => {
+    confirmarImportResolver = resolve;
+    const cancelar = () => fecharJanelaConfirmarImport({ confirmado: false, cultoId: '', cultoLabel: '' });
+    btnSim.onclick = () => {
+      const escolhido = String(sel.value || '').trim();
+      if (!escolhido) return;
+      const item = opcoes.find((o) => o.id === escolhido);
+      fecharJanelaConfirmarImport({
+        confirmado: true,
+        cultoId: escolhido,
+        cultoLabel: item ? String(item.label || '') : '',
+      });
+    };
+    document.getElementById('confirmar-import-nao').onclick = cancelar;
+    document.getElementById('confirmar-import-fechar').onclick = cancelar;
+  });
+}
+
+/** Escape cancela a confirmação da importação. */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && confirmarImportResolver) {
+    e.preventDefault();
+    fecharJanelaConfirmarImport({ confirmado: false, cultoId: '', cultoLabel: '' });
+  }
+});
+
+/* ── Janela de conflito da importação por código ─────────────────────────── */
+
+let conflitoImportResolver = null;
+
+/** Cabeçalho + letra de um dos lados da comparação.
+ *  `estrofesOutroLado` serve só para realçar os trechos que diferem. */
+function renderizarLadoConflitoImport(el, musica, estrofesOutroLado) {
+  if (!el) return;
+  el.innerHTML = '';
+  const titulo = String(musica?.titulo || '').trim() || 'Sem título';
+  const artista = String(musica?.artista || '').trim();
+  const estrofes = Array.isArray(musica?.estrofes) ? musica.estrofes : [];
+
+  const nome = document.createElement('div');
+  nome.className = 'conflito-import-nome';
+  nome.textContent = titulo;
+  el.appendChild(nome);
+
+  if (artista) {
+    const autor = document.createElement('div');
+    autor.className = 'conflito-import-autor';
+    autor.textContent = `Autor: ${artista}`;
+    el.appendChild(autor);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'conflito-import-meta';
+  meta.textContent = `${estrofes.length} trecho(s)`;
+  el.appendChild(meta);
+
+  if (!estrofes.length) {
+    const vazio = document.createElement('div');
+    vazio.className = 'conflito-import-vazio';
+    vazio.textContent = 'Sem letra.';
+    el.appendChild(vazio);
+    return;
+  }
+
+  const outro = Array.isArray(estrofesOutroLado) ? estrofesOutroLado : null;
+  estrofes.forEach((bloco, i) => {
+    const pre = document.createElement('pre');
+    pre.className = 'conflito-import-estrofe';
+    if (outro && String(outro[i] ?? '') !== String(bloco ?? '')) {
+      pre.classList.add('conflito-import-estrofe--dif');
+    }
+    pre.textContent = String(bloco ?? '');
+    el.appendChild(pre);
+  });
+}
+
+function fecharJanelaConflitoImport(resultado) {
+  const bd = document.getElementById('conflito-import-backdrop');
+  if (bd) {
+    bd.hidden = true;
+    bd.setAttribute('aria-hidden', 'true');
+  }
+  const r = conflitoImportResolver;
+  conflitoImportResolver = null;
+  if (r) r(resultado || { acao: 'cancelar', aplicarATodos: false });
+}
+
+/**
+ * Abre a janela de conflito e resolve com a decisão do usuário.
+ *
+ * @param {{ atual: object, recebida: object, indice: number, total: number, restantes: number }} ctx
+ * @returns {Promise<{ acao: 'substituir'|'manter'|'duplicar'|'cancelar', aplicarATodos: boolean }>}
+ */
+function abrirJanelaConflitoImport(ctx) {
+  const bd = document.getElementById('conflito-import-backdrop');
+  const elAtual = document.getElementById('conflito-import-atual');
+  const elRecebido = document.getElementById('conflito-import-recebido');
+  if (!bd || !elAtual || !elRecebido) {
+    // Sem a janela no DOM não há como perguntar: mantém o comportamento antigo.
+    return Promise.resolve({ acao: 'duplicar', aplicarATodos: true });
+  }
+
+  const atual = ctx?.atual || {};
+  const recebida = ctx?.recebida || {};
+  renderizarLadoConflitoImport(elAtual, atual, recebida.estrofes);
+  renderizarLadoConflitoImport(elRecebido, recebida, atual.estrofes);
+  elAtual.scrollTop = 0;
+  elRecebido.scrollTop = 0;
+
+  const prog = document.getElementById('conflito-import-progresso');
+  if (prog) {
+    prog.textContent = ctx?.total > 1 ? `Conflito ${ctx.indice} de ${ctx.total}` : '';
+  }
+
+  // «Aplicar aos demais» só faz sentido havendo mais músicas por processar.
+  const restantes = Number(ctx?.restantes || 0);
+  const todosWrap = document.getElementById('conflito-import-todos-wrap');
+  const todos = document.getElementById('conflito-import-todos');
+  const todosLabel = document.getElementById('conflito-import-todos-label');
+  if (todos) todos.checked = false;
+  if (todosWrap) todosWrap.hidden = restantes <= 0;
+  if (todosLabel) {
+    todosLabel.textContent =
+      restantes === 1 ? 'Aplicar à próxima música' : `Aplicar às ${restantes} músicas restantes`;
+  }
+
+  bd.hidden = false;
+  bd.setAttribute('aria-hidden', 'false');
+
+  return new Promise((resolve) => {
+    conflitoImportResolver = resolve;
+    const decidir = (acao) =>
+      fecharJanelaConflitoImport({ acao, aplicarATodos: !!(todos && todos.checked) });
+
+    document.getElementById('conflito-import-substituir').onclick = () => decidir('substituir');
+    document.getElementById('conflito-import-manter').onclick = () => decidir('manter');
+    document.getElementById('conflito-import-duplicar').onclick = () => decidir('duplicar');
+    document.getElementById('conflito-import-fechar').onclick = () =>
+      fecharJanelaConflitoImport({ acao: 'cancelar', aplicarATodos: false });
+  });
+}
+
+/** Escape fecha a janela de conflito como «cancelar importação». */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && conflitoImportResolver) {
+    e.preventDefault();
+    fecharJanelaConflitoImport({ acao: 'cancelar', aplicarATodos: false });
+  }
+});
+
+/** Grava uma música do código no banco, conforme a decisão já tomada (ou sem decisão). */
+async function postImportarMusicaDoCodigo(m, decisaoDuplicidade) {
+  const res = await fetch(`${getControllerApiBase()}/api/musicas/importar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      titulo: m.titulo,
+      artista: m.artista || '',
+      estrofes: m.estrofes,
+      ...(decisaoDuplicidade ? { decisaoDuplicidade } : {}),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
 /** Fluxo completo de importação; evolui o modal in-place (loading → sucesso/erro). */
 async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
   modalImportarPlaylistLoading(wrap, 'Importando playlist...');
@@ -6436,45 +6727,114 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
     return modalImportarPlaylistErro(wrap, 'Código inválido — sem músicas.', codigoNorm);
   }
 
-  const cultoIdCodigo = String(data.cultoId || '').trim();
-  const cultoDestino = cultoIdCodigo || cultoId;
-  if (!cultoDestino) {
-    return modalImportarPlaylistErro(
-      wrap,
-      'Este código não traz o culto. Selecione o dia na lista ou gere um novo código no celular («Compartilhar com PC»).',
-      codigoNorm
-    );
-  }
-
-  if (cultoIdCodigo) {
-    garantirCultoDisponivelParaImportacaoCodigo(cultoIdCodigo, data.cultoNome || data.cultoLabel);
-    ativarCultoNaUiParaImportacaoCodigo(cultoDestino);
-  } else if (!cultoId) {
-    return modalImportarPlaylistErro(wrap, 'Selecione um culto primeiro.', codigoNorm);
-  }
-
   const ip = getServidorIp();
   if (!ip) return modalImportarPlaylistErro(wrap, 'Conecte ao servidor antes de importar.', codigoNorm);
 
+  const cultoIdCodigo = String(data.cultoId || '').trim();
+  const cultoNomeCodigo = String(data.cultoNome || data.cultoLabel || '').trim();
+
+  const elegiveis = data.musicas.filter(
+    (m) => m.titulo && Array.isArray(m.estrofes) && m.estrofes.length
+  );
+  if (!elegiveis.length) {
+    return modalImportarPlaylistErro(wrap, 'Código inválido — nenhuma música com letra.', codigoNorm);
+  }
+
+  // Confirmação ANTES de qualquer escrita: o usuário vê o que veio no código e
+  // escolhe o culto de destino. Antes daqui nada é gravado nem o culto é criado.
+  modalImportarPlaylistLoading(wrap, 'Aguardando confirmação...');
+  const confirmacao = await abrirJanelaConfirmarImport({
+    musicas: elegiveis,
+    cultoIdCodigo,
+    cultoNomeCodigo,
+  });
+
+  if (!confirmacao.confirmado) {
+    fecharAppDialog(false);
+    return;
+  }
+
+  const cultoDestino = String(confirmacao.cultoId || '').trim();
+  if (!cultoDestino) {
+    return modalImportarPlaylistErro(wrap, 'Selecione um culto de destino.', codigoNorm);
+  }
+
+  modalImportarPlaylistLoading(wrap, 'Importando playlist...');
+
+  // Só agora o culto é criado (se for novo, vindo do código) e ativado na UI.
+  if (!idsCultosJaNaLista().has(cultoDestino)) {
+    garantirCultoDisponivelParaImportacaoCodigo(
+      cultoDestino,
+      confirmacao.cultoLabel || cultoNomeCodigo
+    );
+  }
+  ativarCultoNaUiParaImportacaoCodigo(cultoDestino);
+
   let importadas = 0;
   let copiasImportadas = 0;
+  let substituidas = 0;
+  let mantidas = 0;
+  let cancelada = false;
+  // Decisão memorizada por «Aplicar aos demais conflitos» (null = perguntar sempre).
+  let decisaoParaTodos = null;
 
-  for (const m of data.musicas) {
-    if (!m.titulo || !Array.isArray(m.estrofes) || !m.estrofes.length) continue;
+  for (let i = 0; i < elegiveis.length; i++) {
+    const m = elegiveis[i];
 
     try {
-      const res2 = await fetch(`${getControllerApiBase()}/api/musicas/importar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo: m.titulo, artista: m.artista || '', estrofes: m.estrofes }),
-      });
+      // 1.ª chamada: só detecta. Nada é gravado enquanto houver conflito em aberto.
+      let { res: res2, data: nova } = await postImportarMusicaDoCodigo(m, 'perguntar');
+
+      if (res2.status === 409 && nova.duplicado) {
+        let decisao = decisaoParaTodos;
+        if (!decisao) {
+          modalImportarPlaylistLoading(wrap, 'Aguardando decisão sobre o conflito...');
+          const escolha = await abrirJanelaConflitoImport({
+            atual: nova.existente || {},
+            recebida: m,
+            indice: i + 1,
+            total: elegiveis.length,
+            restantes: elegiveis.length - (i + 1),
+          });
+          decisao = escolha.acao;
+          if (escolha.aplicarATodos && decisao !== 'cancelar') decisaoParaTodos = decisao;
+          modalImportarPlaylistLoading(wrap, 'Importando playlist...');
+        }
+
+        if (decisao === 'cancelar') {
+          cancelada = true;
+          break;
+        }
+
+        if (decisao === 'manter') {
+          // Não grava nada: a playlist passa a apontar para a música já existente.
+          const idExistente = Number(nova.existente?.id);
+          if (Number.isFinite(idExistente) && idExistente > 0) {
+            addMusicaNaPlaylistParaCulto(cultoDestino, {
+              id: Number(nova.existente.rootId || idExistente),
+              titulo: nova.existente.titulo || m.titulo,
+              artista: nova.existente.artista || m.artista || '',
+              bancoFonte: 'user',
+            });
+            importadas++;
+            mantidas++;
+          }
+          continue;
+        }
+
+        // 2.ª chamada: agora sim grava, conforme a decisão do usuário.
+        ({ res: res2, data: nova } = await postImportarMusicaDoCodigo(
+          m,
+          decisao === 'substituir' ? 'substituir' : 'criar'
+        ));
+      }
+
       if (!res2.ok) continue;
-      const nova = await res2.json();
       const rootId = nova.copyImportada ? Number(nova.rootId) : Number(nova.id);
       // Rótulo de origem enviado no payload (ex.: 'Cópia/Modificada'). Compat.: se o app
       // de origem não enviou, fica vazio e o item segue sem tag como hoje.
       const rotuloOrigem = String(m.rotulo || '').trim();
-      addMusicaNaPlaylistParaCulto(cultoId, {
+      addMusicaNaPlaylistParaCulto(cultoDestino, {
         id: rootId,
         titulo: m.titulo,
         artista: m.artista || '',
@@ -6487,6 +6847,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
       });
       importadas++;
       if (nova.copyImportada) copiasImportadas++;
+      if (nova.substituida) substituidas++;
     } catch (_) {
       // intencional — erro ignorado
     }
@@ -6498,19 +6859,33 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
   await carregarMusicas(ip);
 
   if (!importadas) {
-    return modalImportarPlaylistErro(wrap, 'Nenhuma música pôde ser importada. Tente novamente.', codigoNorm);
+    return modalImportarPlaylistErro(
+      wrap,
+      cancelada
+        ? 'Importação cancelada. Nada foi gravado no banco.'
+        : 'Nenhuma música pôde ser importada. Tente novamente.',
+      codigoNorm
+    );
   }
 
-  const itemCulto = listarCultosDisponiveis().find((c) => c.id === cultoId);
+  const itemCulto = listarCultosDisponiveis(dataRefDoCultoImportado(cultoDestino)).find(
+    (c) => c.id === cultoDestino
+  );
   const nomeCulto = itemCulto
     ? parseLabelCulto(itemCulto.label).data + ' — ' + parseLabelCulto(itemCulto.label).desc
-    : cultoId;
-  let msg = `Playlist importada para ${nomeCulto}!\n${importadas} música(s) adicionada(s) à playlist.`;
-  if (copiasImportadas > 0) {
-    msg += `\n\n${copiasImportadas} música(s) que já existiam no banco foram preservadas e gravadas automaticamente como versão «CÓPIA/IMPORTADA» (o original não foi alterado).`;
-  }
-  // Caso simples auto-fecha; quando há aviso de cópias (info importante), exige fechar manual.
-  modalImportarPlaylistSucesso(wrap, msg, copiasImportadas === 0);
+    : cultoDestino;
+  let msg = cancelada
+    ? `Importação interrompida.\n${importadas} música(s) já tinham sido adicionada(s) a ${nomeCulto}.`
+    : `Playlist importada para ${nomeCulto}!\n${importadas} música(s) adicionada(s) à playlist.`;
+
+  const detalhes = [];
+  if (substituidas > 0) detalhes.push(`${substituidas} substituída(s) pela versão recebida`);
+  if (mantidas > 0) detalhes.push(`${mantidas} mantida(s) como já estavam no banco`);
+  if (copiasImportadas > 0) detalhes.push(`${copiasImportadas} duplicada(s) como «CÓPIA/IMPORTADA»`);
+  if (detalhes.length) msg += `\n\nConflitos resolvidos: ${detalhes.join('; ')}.`;
+
+  // Caso simples auto-fecha; havendo conflitos resolvidos, exige fechar manual.
+  modalImportarPlaylistSucesso(wrap, msg, detalhes.length === 0 && !cancelada);
 }
 
 function excluirTemaDoCulto(tema) {

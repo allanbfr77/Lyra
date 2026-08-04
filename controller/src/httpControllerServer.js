@@ -17,6 +17,8 @@ const {
   atualizarRotuloVersaoNoDb,
   importarMusicaUsuarioNoDb,
   criarMusicaUsuarioNoDb,
+  substituirMusicaUsuarioNoDb,
+  encontrarMusicaUsuarioDuplicada,
   listarVersoesPorRootId,
   listarMusicasUsuarioParaSync,
   obterMusicaUsuarioPorId,
@@ -707,12 +709,44 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
-  // Rota usada pelo celular (importação em lote por código): sem interface para
-  // perguntar, mantém o comportamento automático de gravar como CÓPIA/IMPORTADA.
+  /**
+   * Importação por código (playlist compartilhada entre máquinas).
+   *
+   * `decisaoDuplicidade` no corpo controla o que fazer se já existir equivalente:
+   *  - ausente / `copiar`: grava CÓPIA/IMPORTADA automaticamente. **Default por
+   *    compatibilidade** — é o que o app do celular usa, onde não há janela de
+   *    conflito para perguntar;
+   *  - `perguntar`: só detecta e responde 409, sem gravar nada (usado pelo
+   *    controlador para abrir a janela de conflito);
+   *  - `criar`: duplica como nova versão (decisão «Duplicar»);
+   *  - `substituir`: sobrescreve a música existente (decisão «Substituir»).
+   */
   expressApp.post('/api/musicas/importar', (req, res) => {
     try {
       const { titulo, artista, estrofes } = req.body || {};
-      const r = importarMusicaUsuarioNoDb(titulo, artista, estrofes, { aoDuplicar: 'copiar' });
+      const decisao = String((req.body && req.body.decisaoDuplicidade) || '').trim().toLowerCase();
+
+      if (decisao === 'substituir') {
+        const alvo = encontrarMusicaUsuarioDuplicada(titulo, artista);
+        if (!alvo) return res.status(409).json({ erro: 'Música existente não encontrada para substituir' });
+        const sub = substituirMusicaUsuarioNoDb(alvo.id, titulo, artista, estrofes);
+        if (!sub.ok) return res.status(400).json({ erro: sub.erro || 'Falha ao substituir' });
+        const metaSub = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+        notificarBancoCompartilhadoAlterado(metaSub.updatedAt);
+        return res.json({
+          id: sub.id,
+          rootId: sub.rootId,
+          copyImportada: false,
+          substituida: true,
+          titulo: String(titulo || '').trim(),
+          artista: String(artista || '').trim(),
+        });
+      }
+
+      const r = importarMusicaUsuarioNoDb(titulo, artista, estrofes, {
+        aoDuplicar: decisao === 'perguntar' ? 'perguntar' : 'copiar',
+      });
+      if (r.duplicado) return responderDuplicidade(res, r, titulo, artista);
       if (!r.ok) return res.status(400).json({ erro: r.erro || 'Falha ao importar' });
       const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
       notificarBancoCompartilhadoAlterado(meta.updatedAt);

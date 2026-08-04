@@ -5593,6 +5593,341 @@
       background: var(--surface);
     }
 
+    /* ── Confirmação da importação por código (lista recebida + destino) ──
+       Abre por cima do modal de importação (app-dialog-overlay, z-index 9200)
+       e abaixo da janela de conflito (9900), que só entra depois do «Sim». */
+    .confirmar-import-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.62);
+      z-index: 9850;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .confirmar-import-backdrop[hidden] { display: none !important; }
+    .confirmar-import {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 560px;
+      max-height: min(86vh, 720px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 24px 68px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+    }
+    .confirmar-import-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px 12px 18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: var(--on-accent);
+    }
+    .confirmar-import-head-copy { flex: 1; min-width: 0; }
+    .confirmar-import-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+    .confirmar-import-titulo {
+      margin: 1px 0 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .confirmar-import-mes {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.16);
+      white-space: nowrap;
+    }
+    .confirmar-import-mes:empty { display: none; }
+    .confirmar-import-fechar {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 22px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      opacity: 0.75;
+    }
+    .confirmar-import-fechar:hover { opacity: 1; background: rgba(0, 0, 0, 0.14); }
+
+    .confirmar-import-lista {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 14px 18px;
+      background: color-mix(in srgb, var(--surface) 90%, var(--surface2));
+    }
+    .confirmar-import-lista:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .confirmar-import-item {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      flex-wrap: wrap;
+      padding: 5px 0;
+      font-size: 14px;
+      line-height: 1.4;
+      color: var(--text);
+    }
+    .confirmar-import-item + .confirmar-import-item {
+      border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    }
+    .confirmar-import-item-nome { font-weight: 600; }
+    .confirmar-import-item-rotulo {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--accent);
+    }
+    .confirmar-import-item-artista { font-size: 13px; color: var(--text-dim); }
+
+    .confirmar-import-rodape {
+      padding: 13px 18px 15px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .confirmar-import-pergunta {
+      margin: 0 0 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+    .confirmar-import-pergunta strong { color: var(--text); font-size: 14px; }
+    .confirmar-import-destino {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 14px;
+    }
+    .confirmar-import-destino > span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .confirmar-import-destino select {
+      width: 100%;
+      padding: 9px 11px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .confirmar-import-destino select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .confirmar-import-acoes {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .confirmar-import-acoes .btn { min-width: 96px; }
+
+    /* ── Janela de conflito da importação por código (Atual × Recebido) ──
+       Usa só as variáveis de tema, portanto acompanha claro/escuro sozinha.
+       z-index acima dos demais modais porque abre por cima do modal de
+       importação, que ocupa o app-dialog-overlay. */
+    .conflito-import-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.62);
+      z-index: 9900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .conflito-import-backdrop[hidden] { display: none !important; }
+    .conflito-import {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 1100px;
+      height: min(88vh, 780px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 24px 68px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+    }
+    .conflito-import-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px 12px 18px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: var(--on-accent);
+    }
+    .conflito-import-head-copy { flex: 1; min-width: 0; }
+    .conflito-import-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      opacity: 0.72;
+    }
+    .conflito-import-titulo {
+      margin: 1px 0 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .conflito-import-progresso {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.16);
+      white-space: nowrap;
+    }
+    .conflito-import-progresso:empty { display: none; }
+    .conflito-import-fechar {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 22px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      opacity: 0.75;
+    }
+    .conflito-import-fechar:hover { opacity: 1; background: rgba(0, 0, 0, 0.14); }
+
+    .conflito-import-colunas {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      min-height: 0;
+      background: var(--border);
+    }
+    .conflito-import-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      background: var(--surface);
+    }
+    .conflito-import-col-head {
+      padding: 9px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text);
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    .conflito-import-col--recebida .conflito-import-col-head {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .conflito-import-col-tag {
+      margin-left: 6px;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text-dim);
+    }
+    .conflito-import-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px 18px;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .conflito-import-scroll:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .conflito-import-nome {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .conflito-import-autor { color: var(--text-dim); font-size: 13px; }
+    .conflito-import-meta {
+      color: var(--text-dim);
+      font-size: 12px;
+      margin-top: 2px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .conflito-import-estrofe {
+      white-space: pre-wrap;
+      margin: 0 0 14px;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .conflito-import-estrofe:last-child { margin-bottom: 0; }
+    /* Realce dos trechos em que a versão recebida difere da atual. */
+    .conflito-import-estrofe--dif {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      border-left: 3px solid var(--accent);
+      padding: 4px 8px;
+      border-radius: 0 6px 6px 0;
+    }
+    .conflito-import-vazio { color: var(--text-dim); font-style: italic; }
+
+    .conflito-import-rodape {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .conflito-import-pergunta {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex: 1;
+      min-width: 190px;
+    }
+    .conflito-import-pergunta strong { font-size: 17px; color: var(--text); }
+    .conflito-import-pergunta span { font-size: 13px; color: var(--text-dim); }
+    .conflito-import-todos {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .conflito-import-todos input { accent-color: var(--accent); cursor: pointer; }
+    .conflito-import-todos[hidden] { display: none !important; }
+    .conflito-import-acoes { display: flex; gap: 8px; }
+
+    @media (max-width: 880px) {
+      .conflito-import-colunas { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    }
+
     /* ── Modal Compartilhar Playlist (loading → código) ── */
     .share-modal {
       display: flex;
@@ -7728,6 +8063,72 @@
     <div class="app-dialog-actions">
       <button type="button" class="btn" id="app-dialog-cancel" style="display:none">Cancelar</button>
       <button type="button" class="btn primary" id="app-dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmação da importação por código: lista recebida + escolha do culto de destino.
+     Abre ANTES de qualquer gravação no banco ou na playlist. -->
+<div class="confirmar-import-backdrop" id="confirmar-import-backdrop" hidden aria-hidden="true">
+  <div class="confirmar-import" role="dialog" aria-modal="true" aria-labelledby="confirmar-import-titulo">
+    <div class="confirmar-import-head">
+      <h2 class="confirmar-import-titulo" id="confirmar-import-titulo">Importar playlist</h2>
+      <button type="button" class="confirmar-import-fechar" id="confirmar-import-fechar" aria-label="Cancelar importação">×</button>
+    </div>
+
+    <div class="confirmar-import-lista" id="confirmar-import-lista" tabindex="0"></div>
+
+    <div class="confirmar-import-rodape">
+      <div class="confirmar-import-pergunta-linha">
+        <span class="confirmar-import-pergunta">Adicionar à lista de reprodução?</span>
+        <span class="confirmar-import-mes" id="confirmar-import-mes"></span>
+      </div>
+      <select id="confirmar-import-culto" aria-label="Culto de destino"></select>
+      <div class="confirmar-import-acoes">
+        <button type="button" class="btn" id="confirmar-import-nao">Não</button>
+        <button type="button" class="btn primary" id="confirmar-import-sim">Sim</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Janela de conflito da importação por código: comparação Atual × Recebido. -->
+<div class="conflito-import-backdrop" id="conflito-import-backdrop" hidden aria-hidden="true">
+  <div class="conflito-import" role="dialog" aria-modal="true" aria-labelledby="conflito-import-titulo">
+    <div class="conflito-import-head">
+      <div class="conflito-import-head-copy">
+        <div class="conflito-import-eyebrow">Importar playlist</div>
+        <h2 class="conflito-import-titulo" id="conflito-import-titulo">Música já existe</h2>
+      </div>
+      <div class="conflito-import-progresso" id="conflito-import-progresso"></div>
+      <button type="button" class="conflito-import-fechar" id="conflito-import-fechar" aria-label="Cancelar importação">×</button>
+    </div>
+
+    <div class="conflito-import-colunas">
+      <section class="conflito-import-col">
+        <header class="conflito-import-col-head">Atual <span class="conflito-import-col-tag">no seu banco</span></header>
+        <div class="conflito-import-scroll" id="conflito-import-atual" tabindex="0"></div>
+      </section>
+      <section class="conflito-import-col conflito-import-col--recebida">
+        <header class="conflito-import-col-head">Recebido <span class="conflito-import-col-tag">do código</span></header>
+        <div class="conflito-import-scroll" id="conflito-import-recebido" tabindex="0"></div>
+      </section>
+    </div>
+
+    <div class="conflito-import-rodape">
+      <div class="conflito-import-pergunta">
+        <strong>Conflito</strong>
+        <span>O que deseja fazer?</span>
+      </div>
+      <label class="conflito-import-todos" id="conflito-import-todos-wrap" hidden>
+        <input type="checkbox" id="conflito-import-todos" />
+        <span id="conflito-import-todos-label">Aplicar aos demais conflitos</span>
+      </label>
+      <div class="conflito-import-acoes">
+        <button type="button" class="btn" id="conflito-import-substituir">Substituir</button>
+        <button type="button" class="btn" id="conflito-import-manter">Manter atual</button>
+        <button type="button" class="btn primary" id="conflito-import-duplicar">Duplicar</button>
+      </div>
     </div>
   </div>
 </div>

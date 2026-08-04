@@ -580,10 +580,18 @@ function encontrarMusicaUsuarioDuplicada(titulo, artista) {
     )
     .all();
 
+  // As estrofes só são lidas para a linha que casou — a janela de conflito da
+  // importação por código precisa delas para mostrar a letra atual lado a lado.
+  const estrofesDaLinha = (id) => {
+    const r = db.prepare('SELECT estrofes FROM musicas WHERE id = ?').get(id);
+    return r ? parseEstrofesJson(r.estrofes) : [];
+  };
+
   const montar = (row, motivo) => ({
     id: row.id,
     titulo: String(row.titulo || '').trim(),
     artista: String(row.artista || '').trim(),
+    estrofes: estrofesDaLinha(row.id),
     rootId: row.root_id != null ? row.root_id : row.id,
     motivo,
   });
@@ -600,6 +608,42 @@ function encontrarMusicaUsuarioDuplicada(titulo, artista) {
     }
   }
   return candidatoSoTitulo;
+}
+
+/**
+ * Sobrescreve uma música existente com o conteúdo recebido, preservando o `id`
+ * (as playlists que já apontam para ela continuam válidas) e a linhagem.
+ *
+ * Usada só pela decisão explícita «Substituir» na janela de conflito da
+ * importação por código. É o único caminho que altera o conteúdo de um
+ * original imutável — `atualizarMusicaNoDb` deliberadamente faz fork nesse
+ * caso, e esse comportamento continua valendo para a edição normal de letra.
+ *
+ * Versões filhas já existentes não são tocadas: mantêm as próprias letras.
+ */
+function substituirMusicaUsuarioNoDb(idRaw, titulo, artista, estrofes) {
+  const id = parseInt(idRaw, 10);
+  if (!Number.isFinite(id)) return { ok: false, erro: 'id inválido' };
+
+  const entrada = prepararEntradaMusicaUsuario(titulo, artista, estrofes);
+  if (entrada.erro) return { ok: false, erro: entrada.erro };
+  const { tituloTrim, artistaTrim, norm } = entrada;
+
+  const row = obterMusicaUsuarioPorId(id);
+  if (!row) return { ok: false, erro: 'Não encontrado' };
+
+  const r = db
+    .prepare('UPDATE musicas SET titulo = ?, artista = ?, estrofes = ? WHERE id = ?')
+    .run(tituloTrim, artistaTrim, JSON.stringify(norm), id);
+  if (r.changes === 0) return { ok: false, erro: 'Não encontrado' };
+
+  return {
+    ok: true,
+    id,
+    rootId: resolverRootIdDaMusica(row),
+    substituida: true,
+    copyImportada: false,
+  };
 }
 
 /** Compatibilidade: id da música equivalente já existente, ou `null`. */
@@ -703,6 +747,7 @@ module.exports = {
   inserirMusicaUsuario,
   importarMusicaUsuarioNoDb,
   criarMusicaUsuarioNoDb,
+  substituirMusicaUsuarioNoDb,
   encontrarMusicaUsuarioDuplicada,
   normalizarChaveComparacao,
   normalizarArtistaComparacao,
