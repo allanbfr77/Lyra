@@ -259,3 +259,68 @@ test('segredosConferem: compara em tempo constante e distingue valores', () => {
   assert.equal(segredosConferem('abc', 'abcd'), false); // tamanhos diferentes
   assert.equal(segredosConferem('', ''), true);
 });
+
+// --- guarda do host local -----------------------------------------------------------
+
+test('sem credencial o dispositivo conecta mas não é autorizado a comandar', (t) => {
+  // É o que permite ao OBS continuar a ver o que está projetado sem poder mexer nele.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-acesso-local-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const acesso = criarControleAcesso({
+    allowlistPath: () => path.join(dir, 'allowlist.json'),
+    emitParaSocket: () => {},
+    broadcast: () => {},
+    notificar: () => {},
+    logError: () => {},
+  });
+  t.after(() => acesso.pararHeartbeat());
+
+  const r = acesso.autenticar({});
+  assert.equal(r.ok, false);
+  assert.equal(r.motivo, 'credencial-ausente');
+});
+
+test('tofu: o primeiro acesso inscreve-se e o seguinte é reconhecido', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-acesso-local-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const allowlistPath = () => path.join(dir, 'allowlist.json');
+
+  const acesso = criarControleAcesso({
+    allowlistPath,
+    emitParaSocket: () => {},
+    broadcast: () => {},
+    notificar: () => {},
+    logError: () => {},
+  });
+  t.after(() => acesso.pararHeartbeat());
+
+  const cred = { deviceId: 'celular-1', secret: 's3gr3d0', nome: 'Celular da equipa' };
+  assert.equal(acesso.autenticar(cred).ok, true, 'primeiro acesso — auto-inscrito');
+  assert.equal(acesso.autenticar(cred).ok, true, 'segundo acesso — lembrado');
+  assert.equal(acesso.autenticar({ ...cred, secret: 'outro' }).ok, false, 'segredo errado');
+});
+
+test('travado: um dispositivo novo fica de fora até ser aprovado', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-acesso-local-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const acesso = criarControleAcesso({
+    allowlistPath: () => path.join(dir, 'allowlist.json'),
+    emitParaSocket: () => {},
+    broadcast: () => {},
+    notificar: () => {},
+    logError: () => {},
+  });
+  t.after(() => acesso.pararHeartbeat());
+
+  acesso.autenticar({ deviceId: 'conhecido', secret: 'a' });
+  acesso.travar();
+
+  const intruso = { deviceId: 'desconhecido', secret: 'b' };
+  assert.equal(acesso.autenticar(intruso).ok, false, 'depois de travar, ninguém novo entra');
+  assert.equal(acesso.autenticar({ deviceId: 'conhecido', secret: 'a' }).ok, true);
+
+  acesso.aprovarDispositivo('desconhecido');
+  assert.equal(acesso.autenticar(intruso).ok, true, 'aprovado à mão, passa a entrar');
+});

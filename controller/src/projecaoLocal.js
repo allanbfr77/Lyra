@@ -15,6 +15,7 @@ const {
   displayRouting,
   monitorsList,
   localIp,
+  controleAcesso,
 } = require('@lyra/projection-core');
 
 const { buildMonitorsList } = monitorsList;
@@ -61,6 +62,7 @@ function criarProjecaoLocal(deps) {
   let engine = null;
   let aplicador = null;
   let store = null;
+  let acesso = null;
   let activa = false;
 
   const registarErro = typeof logError === 'function' ? logError : () => {};
@@ -122,6 +124,29 @@ function criarProjecaoLocal(deps) {
   }
 
   /**
+   * Guarda de escrita para clientes de rede.
+   *
+   * ## Uma porta, não duas
+   *
+   * O Servidor tem duas: autenticação (dispositivo conhecido) e write-lock (entre
+   * controladores registados, só o primário escreve). A segunda não faz sentido aqui —
+   * o dono das telas é quem está sentado nesta máquina, e ele não entra por socket
+   * nenhum: fala com o motor por IPC, dentro do processo. Não há bastão a disputar
+   * porque não há dois candidatos ao mesmo canal.
+   *
+   * @param {object} socket
+   * @param {Function} [ack]
+   * @returns {boolean}
+   */
+  function comandoAutorizado(socket, ack) {
+    if (socket.data && socket.data.autorizado === true) return true;
+    const info = { erro: socket.data?.authMotivo || 'nao-autorizado', donoAtual: null };
+    if (typeof ack === 'function') ack({ ok: false, ...info });
+    else socket.emit('comando_recusado', info);
+    return false;
+  }
+
+  /**
    * Estado inicial que um cliente novo (OBS, celular) precisa de receber ao ligar.
    *
    * Os três eventos são os mesmos que o Servidor envia na conexão, e a lista não é
@@ -173,6 +198,38 @@ function criarProjecaoLocal(deps) {
 
     apiApp.get('/api/estado', (_req, res) => res.json(engine.estadoPublicoParaSocketsOuApi()));
 
+    /*
+     * Gestão dos dispositivos autorizados. Mesmas rotas do Servidor, para que qualquer
+     * ferramenta que já saiba falar com ele saiba falar com este host também.
+     *
+     * Só de loopback: aprovar um aparelho é decisão de quem está na máquina. Permitir
+     * isso pela rede daria a quem ainda não foi aprovado a chave para se aprovar.
+     */
+    const soLocal = (req, res, next) => {
+      const addr = String(req?.socket?.remoteAddress || '');
+      const local = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+      if (!local) return res.status(403).json({ ok: false, erro: 'apenas da própria máquina' });
+      next();
+    };
+
+    apiApp.get('/api/controladores', soLocal, (_req, res) => {
+      res.json({ ok: true, modo: acesso.getModo(), dispositivos: acesso.listarDispositivos() });
+    });
+    apiApp.post('/api/controladores/aprovar', soLocal, (req, res) => {
+      res.json({ ok: acesso.aprovarDispositivo(String(req.body?.deviceId || '')) });
+    });
+    apiApp.post('/api/controladores/revogar', soLocal, (req, res) => {
+      res.json({ ok: acesso.revogarDispositivo(String(req.body?.deviceId || '')) });
+    });
+    apiApp.post('/api/controladores/travar', soLocal, (_req, res) => {
+      acesso.travar();
+      res.json({ ok: true, modo: acesso.getModo() });
+    });
+    apiApp.post('/api/controladores/destravar', soLocal, (_req, res) => {
+      acesso.destravar();
+      res.json({ ok: true, modo: acesso.getModo() });
+    });
+
     /* Gémeos HTTP dos comandos de config. Tal como no Servidor, não difundem
        `display_config` — respondem com a config aplicada, que é o que um cliente HTTP
        espera. */
@@ -209,8 +266,17 @@ function criarProjecaoLocal(deps) {
     apiApp.put('/api/display-config', rotaConfig(true));
     apiApp.put('/api/display-config/preview', rotaConfig(false));
 
-    /* Fallbacks HTTP dos comandos. O painel em modo local quase nunca os usa — a porta de
-       projeção fala por IPC — mas `exibir_apresentacao` vem sempre por aqui. */
+    /*
+     * Fallbacks HTTP dos comandos. O painel em modo local quase nunca os usa — a porta de
+     * projeção fala por IPC — mas `exibir_apresentacao` vem sempre por aqui, porque
+     * ficheiros grandes não passam pelo socket.
+     *
+     * Restritos ao loopback, e aqui divirjo do Servidor de propósito: lá estas rotas são
+     * abertas, porque o painel que as chama está noutra máquina. Aqui quem as chama é o
+     * painel desta máquina, e deixá-las abertas seria contornar pela porta dos fundos a
+     * autenticação que acabou de se pôr no socket. O celular comanda pelo socket, com
+     * credencial; não perde nada.
+     */
     const rotaComando = (comando) => (req, res) => {
       void receberComando(comando, req.body || {}, null).then((r) => {
         if (r.ok) return res.json({ ok: true });
@@ -227,7 +293,7 @@ function criarProjecaoLocal(deps) {
       'audio_seek',
       'apresentacao_video_state',
     ]) {
-      apiApp.post(`/api/comando/${comando}`, rotaComando(comando));
+      apiApp.post(`/api/comando/${comando}`, soLocal, rotaComando(comando));
     }
   }
 
@@ -250,6 +316,26 @@ function criarProjecaoLocal(deps) {
       maxHttpBufferSize: Math.max(Number(process.env.SOCKET_MAX_BUFFER_MB || 110), 110) * 1024 * 1024,
     });
 
+    /*
+     * Autenticação no handshake — a mesma do Servidor, com o mesmo módulo.
+     *
+     * Não bloqueia a ligação: o OBS não manda credencial nenhuma e continua a ver o que
+     * está projetado, como sempre viu. O que a credencial decide é quem pode **comandar**.
+     * Sem isto, qualquer aparelho da rede que alcançasse a 5510 mandava nas telas.
+     */
+    io.use((socket, next) => {
+      try {
+        const r = acesso.autenticar(socket.handshake.auth || {});
+        socket.data.autorizado = !!r.ok;
+        socket.data.device = r.device || null;
+        socket.data.authMotivo = r.motivo || null;
+      } catch (e) {
+        socket.data.autorizado = false;
+        registarErro('projecao-local-auth', e);
+      }
+      next();
+    });
+
     io.on('connection', (socket) => {
       const inicial = estadoParaClienteNovo();
       socket.emit('estado', inicial.estado);
@@ -258,6 +344,7 @@ function criarProjecaoLocal(deps) {
 
       for (const comando of aplicador.comandos) {
         socket.on(comando, (dados, ack) => {
+          if (!comandoAutorizado(socket, ack)) return;
           void receberComando(comando, dados, socket).then((r) => {
             if (typeof ack === 'function') ack(r);
           });
@@ -337,6 +424,32 @@ function criarProjecaoLocal(deps) {
   }
 
   async function ligarInterno() {
+    /*
+     * Mesma política do Servidor, incluindo o padrão `tofu`: o primeiro acesso de cada
+     * aparelho é auto-inscrito e lembrado, e depois o operador pode travar a lista. Zero
+     * fricção para inscrever o celular da equipa, e uma tranca disponível para quando a
+     * rede não for de confiança.
+     */
+    acesso = controleAcesso.criarControleAcesso({
+      allowlistPath: paths.allowlistPath,
+      emitParaSocket: (id, evt, dados) => {
+        try {
+          io?.to(id).emit(evt, dados);
+        } catch (_) {
+          // intencional — o socket pode ter saído entretanto
+        }
+      },
+      broadcast: (evt, dados) => {
+        try {
+          io?.emit(evt, dados);
+        } catch (_) {
+          // intencional
+        }
+      },
+      notificar: (evt, dados) => registarErro(`acesso:${evt}`, dados || ''),
+      logError: registarErro,
+    });
+
     store = criarArmazemDeProjecao();
     /*
      * A «janela de controle» do motor, no modo local, é o próprio painel.
@@ -424,12 +537,18 @@ function criarProjecaoLocal(deps) {
         registarErro('projecao-local-io-close', e);
       }
     }
+    try {
+      acesso?.pararHeartbeat();
+    } catch (e) {
+      registarErro('projecao-local-acesso-parar', e);
+    }
     io = null;
     servidorApi = null;
     servidorObs = null;
     engine = null;
     aplicador = null;
     store = null;
+    acesso = null;
     return { ok: true };
   }
 

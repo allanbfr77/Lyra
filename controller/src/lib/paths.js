@@ -74,6 +74,8 @@ function createUserPaths(userDataRoot) {
     displaySettingsPath: () => path.join(userDataRoot, 'display-screens.json'),
     displayRoutingPath: () => path.join(userDataRoot, 'display-routing.json'),
     displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
+    /** Dispositivos autorizados a comandar a projeção desta máquina (celular, outro PC). */
+    allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
   };
 }
 

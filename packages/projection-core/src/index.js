@@ -63,6 +63,9 @@ module.exports = {
   displayIndices: require('./displayIndices'),
   displayRouting: require('./displayRouting'),
   localIp: require('./localIp'),
+  /* Guarda de acesso à porta 5510. Vive aqui porque os dois hosts a servem, e o celular
+     tem de se autenticar da mesma maneira nos dois modos. */
+  controleAcesso: require('./controleAcesso'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),
