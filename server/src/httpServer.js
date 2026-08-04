@@ -784,6 +784,34 @@ function iniciarServidor(ctx, paths, deps) {
     console.log(`[Lyra] Servidor rodando na porta ${HTTP_API_PORT}`);
   });
 
+  /**
+   * Falha ao tomar a porta principal.
+   *
+   * Antes isto não podia acontecer: só o Servidor punha alguém na 5510. Com o modo
+   * «projetar nesta máquina» do Controlador passou a haver um segundo candidato, e sem
+   * este tratamento o Electron mostrava o despejo cru de uma exceção não apanhada — e,
+   * pior, a janela do Servidor abria a seguir anunciando ONLINE. Dizer que está no ar sem
+   * ter a porta é a pior das saídas: o operador confia e descobre no meio do culto.
+   */
+  httpServer.on('error', (e) => {
+    logError('http-server-listen', e);
+    if (e && e.code === 'EADDRINUSE') {
+      deps.aoPerderPorta?.({
+        porta: HTTP_API_PORT,
+        mensagem:
+          `A porta ${HTTP_API_PORT} já está a ser usada por outro programa.\n\n` +
+          'Isto acontece quando o Controlador está com «Projetar nesta máquina» ligado — ' +
+          'nesse modo é ele que atende as telas.\n\n' +
+          'Desligue essa opção no Controlador e abra o Servidor de novo.',
+      });
+      return;
+    }
+    deps.aoPerderPorta?.({
+      porta: HTTP_API_PORT,
+      mensagem: `Não foi possível iniciar o servidor na porta ${HTTP_API_PORT}.\n\n${e?.message || e}`,
+    });
+  });
+
   const obsApp = express();
   obsApp.use((_req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');

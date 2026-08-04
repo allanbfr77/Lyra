@@ -141,6 +141,16 @@ app.whenReady().then(() => {
     logError,
     windowsApi,
     reiniciarApp: agendarReinicioServidorElectron,
+    /* Sem a porta principal o Servidor não serve para nada — e continuar de pé a mostrar
+       «ONLINE» seria pior do que fechar. Avisa em português e sai. */
+    aoPerderPorta: ({ mensagem }) => {
+      try {
+        dialog.showErrorBox('Lyra — Servidor', mensagem);
+      } catch (e) {
+        logError('aviso-porta-ocupada', e);
+      }
+      app.quit();
+    },
   });
   try {
     windowsApi.garantirTelasAbertasParaProjecao();
