@@ -710,6 +710,36 @@ async function iniciarServidorController(ctx, paths) {
   });
 
   /**
+   * Checagem de duplicidade em lote — **somente leitura**, nada é gravado.
+   *
+   * Serve à janela de confirmação da importação por código, que precisa marcar
+   * quais músicas recebidas já existem antes de o usuário decidir. Não dá para
+   * usar `/api/musicas/importar` com `perguntar` para isto: lá, a ausência de
+   * duplicata resulta em inserção.
+   */
+  expressApp.post('/api/musicas/checar-duplicidade', (req, res) => {
+    try {
+      const lista = Array.isArray(req.body && req.body.musicas) ? req.body.musicas : [];
+      const resultados = lista.map((m) => {
+        const existente = encontrarMusicaUsuarioDuplicada(m && m.titulo, m && m.artista);
+        if (!existente) return { duplicado: false };
+        // Sem as estrofes: aqui só interessa sinalizar. A letra completa é
+        // carregada depois, pela janela de conflito, música a música.
+        return {
+          duplicado: true,
+          id: existente.id,
+          titulo: existente.titulo,
+          artista: existente.artista,
+          motivo: existente.motivo,
+        };
+      });
+      res.json({ resultados });
+    } catch (e) {
+      res.status(500).json({ erro: e.message || String(e), resultados: [] });
+    }
+  });
+
+  /**
    * Importação por código (playlist compartilhada entre máquinas).
    *
    * `decisaoDuplicidade` no corpo controla o que fazer se já existir equivalente:

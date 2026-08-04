@@ -6469,37 +6469,71 @@ function abrirJanelaConfirmarImport(ctx) {
 
   const musicas = Array.isArray(ctx?.musicas) ? ctx.musicas : [];
   const cultoIdCodigo = String(ctx?.cultoIdCodigo || '').trim();
+  const jaExistem = Array.isArray(ctx?.jaExistem) ? ctx.jaExistem : [];
 
   lista.innerHTML = '';
-  musicas.forEach((m) => {
+  musicas.forEach((m, i) => {
     const linha = document.createElement('div');
     linha.className = 'confirmar-import-item';
 
-    const nome = document.createElement('span');
+    const num = document.createElement('span');
+    num.className = 'confirmar-import-item-num';
+    num.textContent = String(i + 1);
+    linha.appendChild(num);
+
+    const txt = document.createElement('div');
+    txt.className = 'confirmar-import-item-txt';
+
+    const nome = document.createElement('div');
     nome.className = 'confirmar-import-item-nome';
     nome.textContent = String(m.titulo || '').trim() || 'Sem título';
-    linha.appendChild(nome);
-
     // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'Cópia/Modificada').
     const rotulo = String(m.rotulo || '').trim();
     if (rotulo) {
       const tag = document.createElement('span');
       tag.className = 'confirmar-import-item-rotulo';
       tag.textContent = `(${rotulo})`;
-      linha.appendChild(tag);
+      nome.appendChild(tag);
     }
+    txt.appendChild(nome);
 
     const artista = String(m.artista || '').trim();
     if (artista) {
-      const art = document.createElement('span');
+      const art = document.createElement('div');
       art.className = 'confirmar-import-item-artista';
-      art.textContent = `(${artista})`;
-      linha.appendChild(art);
+      art.textContent = artista;
+      txt.appendChild(art);
+    }
+    linha.appendChild(txt);
+
+    if (jaExistem[i]) {
+      const badge = document.createElement('span');
+      badge.className = 'confirmar-import-badge';
+      badge.textContent = 'JÁ EXISTE';
+      badge.title = 'Você decidirá o que fazer com esta música no passo seguinte.';
+      linha.appendChild(badge);
     }
 
     lista.appendChild(linha);
   });
   lista.scrollTop = 0;
+
+  const total = musicas.length;
+  const conflitos = jaExistem.filter(Boolean).length;
+  const elTotal = document.getElementById('confirmar-import-total');
+  if (elTotal) elTotal.textContent = `${total} música${total === 1 ? '' : 's'} recebida${total === 1 ? '' : 's'}`;
+  const elExist = document.getElementById('confirmar-import-existentes');
+  if (elExist) {
+    elExist.innerHTML = '';
+    if (conflitos > 0) {
+      const n = document.createElement('strong');
+      n.textContent = String(conflitos);
+      elExist.appendChild(n);
+      elExist.appendChild(
+        document.createTextNode(conflitos === 1 ? ' já existe no seu banco' : ' já existem no seu banco')
+      );
+    }
+  }
 
   // Seletor: cultos do mês de referência + o culto do código, se ainda não existir.
   const dataRef = dataRefDoCultoImportado(cultoIdCodigo);
@@ -6553,6 +6587,32 @@ function abrirJanelaConfirmarImport(ctx) {
     document.getElementById('confirmar-import-nao').onclick = cancelar;
     document.getElementById('confirmar-import-fechar').onclick = cancelar;
   });
+}
+
+/**
+ * Marca quais músicas recebidas já existem no banco local. Somente leitura —
+ * usa a rota de checagem, e não a de importação, que gravaria as inéditas.
+ *
+ * @returns {Promise<boolean[]>} Um booleano por música, na mesma ordem.
+ */
+async function checarQuaisMusicasJaExistem(musicas) {
+  const vazio = musicas.map(() => false);
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/checar-duplicidade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        musicas: musicas.map((m) => ({ titulo: m.titulo, artista: m.artista || '' })),
+      }),
+    });
+    if (!res.ok) return vazio;
+    const data = await res.json().catch(() => ({}));
+    const arr = Array.isArray(data.resultados) ? data.resultados : [];
+    return musicas.map((_, i) => !!(arr[i] && arr[i].duplicado));
+  } catch (_) {
+    // Sem a marcação a janela ainda funciona; o conflito aparece adiante.
+    return vazio;
+  }
 }
 
 /** Escape cancela a confirmação da importação. */
@@ -6740,11 +6800,16 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
     return modalImportarPlaylistErro(wrap, 'Código inválido — nenhuma música com letra.', codigoNorm);
   }
 
-  // Confirmação ANTES de qualquer escrita: o usuário vê o que veio no código e
-  // escolhe o culto de destino. Antes daqui nada é gravado nem o culto é criado.
+  // Confirmação ANTES de qualquer escrita: o usuário vê o que veio no código,
+  // quais já existem no banco, e escolhe o culto de destino. Até aqui nada é
+  // gravado e o culto ainda não foi criado.
+  modalImportarPlaylistLoading(wrap, 'Analisando músicas recebidas...');
+  const jaExistem = await checarQuaisMusicasJaExistem(elegiveis);
+
   modalImportarPlaylistLoading(wrap, 'Aguardando confirmação...');
   const confirmacao = await abrirJanelaConfirmarImport({
     musicas: elegiveis,
+    jaExistem,
     cultoIdCodigo,
     cultoNomeCodigo,
   });
