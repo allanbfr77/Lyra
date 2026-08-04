@@ -30,6 +30,12 @@ module.exports = {
   createWindowRegistry: require('./windowRegistry').createWindowRegistry,
   paginaProjecao,
 
+  // tradutor comando → motor (o miolo dos handlers de socket do Servidor)
+  criarAplicadorDeComandos: require('./commandApplier').criarAplicadorDeComandos,
+  estadoBibliaParaObs: require('./commandApplier').estadoBibliaParaObs,
+  ALCANCE_TODOS: require('./commandApplier').ALCANCE_TODOS,
+  ALCANCE_OUTROS: require('./commandApplier').ALCANCE_OUTROS,
+
   // módulos de projeção (também usados directamente pelo Servidor)
   comentariosSlide: require('./comentariosSlide'),
   displayConfig: require('./displayConfig'),

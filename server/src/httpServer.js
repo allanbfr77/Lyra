@@ -6,9 +6,8 @@ const express = require('express');
 const { Server } = require('socket.io');
 const displayRoutingMod = require('./lib/displayRouting');
 const displayConfigModo = require('./lib/displayConfigModo');
-const projectionPayloads = require('./lib/projectionPayloads');
-const comentariosSlide = require('./lib/comentariosSlide');
-const projectionEncerrar = require('./lib/projectionEncerrar');
+/* `projectionEncerrar` saiu daqui: encerrar camadas é regra de projeção e passou a ser
+   chamada pelo aplicador, dentro do Core. */
 const { buildMonitorsList } = require('./lib/monitorsList');
 const { fetchMusicaByIdParaProjecao } = require('./lib/fetchMusicaFromControladorHttp');
 const { attachProxyMusicaAoControlador } = require('./lib/proxyMusicaAoControlador');
@@ -19,6 +18,12 @@ const {
 const { loadSharedDbSnapshot, saveSharedDbSnapshot } = require('./lib/sharedDbSyncStore');
 const { getPreferredLocalIPv4 } = require('./lib/localIp');
 const { criarControleAcesso } = require('./lib/controleAcesso');
+const {
+  criarAplicadorDeComandos,
+  estadoBibliaParaObs: derivarEstadoBibliaParaObs,
+  ALCANCE_OUTROS,
+} = require('@lyra/projection-core');
+const { createProjectionState } = require('./lib/projectionState');
 
 /** Porta da API + WebSocket; `0.0.0.0` para acesso na rede local. */
 const HTTP_API_PORT = 5510;
@@ -35,10 +40,7 @@ function iniciarServidor(ctx, paths, deps) {
   const { screen, logError, windowsApi, reiniciarApp } = deps;
   const {
     estadoPublicoParaSocketsOuApi,
-    snapshotMinistranteAtual,
     garantirTelasAbertasParaProjecao,
-    atualizarDisplays,
-    atualizarDisplayMinistrante,
     fecharTodasJanelasProjecao,
     openDisplayDevTools,
     openPublicDevTools,
@@ -47,148 +49,104 @@ function iniciarServidor(ctx, paths, deps) {
     enviarSyncVideoApresentacaoParaDisplays,
     sincronizarJanelasRelogio,
     aplicarDisplayConfigNasJanelas,
-    render,
   } = windowsApi;
 
   /**
-   * Estado do versículo em projeção para o overlay de Bíblia do OBS (`/obs/biblia`).
+   * Porta de estado da projeção. O aplicador de comandos escreve por aqui, tal como o
+   * motor — e não no `ctx` directamente. Hoje é encaminhamento puro; no Controlador em
+   * modo local, a mesma superfície será servida por um armazém do próprio Core.
+   */
+  const projectionState = createProjectionState(ctx);
+
+  /**
+   * Tradutor comando→motor. Vive em `@lyra/projection-core`; o Servidor é o primeiro
+   * consumidor e, por isso, o teste de regressão dele em produção.
    *
-   * Espelha o versículo vivo em QUALQUER canal físico (público ou ministrante),
-   * derivando de `ctx.estadoAtual` — que guarda o versículo independentemente do
-   * alvo. Assim, escolher o monitor do ministrante (ex.: M3) também alimenta o OBS,
-   * igual ao que já acontece com o monitor público (ex.: M2). Não reflete quando
-   * uma apresentação/aviso está cobrindo o público (aí o OBS de Bíblia fica limpo).
+   * A migração dos handlers é por famílias: `aplicador.suporta(comando)` diz quais já
+   * passam por aqui. Os restantes continuam com o corpo antigo neste ficheiro, até
+   * serem movidos e verificados.
    */
+  const aplicador = criarAplicadorDeComandos({
+    state: projectionState,
+    engine: windowsApi,
+    /* O banco de músicas é do Controlador; o Servidor vai buscá-lo por HTTP. No modo
+       local esta dependência aponta para o banco da própria máquina. */
+    buscarMusicaPorId: fetchMusicaByIdParaProjecao,
+    /* Controladores antigos enviavam `http://127.0.0.1:3001/...` — endereço inacessível a
+       partir dos telões, que podem estar noutra máquina. */
+    reescreverSrcMidia: (src, kind) => {
+      if (kind !== 'video') return src;
+      if (!/^https?:\/\/(127\.0\.0\.1|localhost):3001\/api\/apresentacao\/video\//i.test(src)) {
+        return src;
+      }
+      const lan = getPreferredLocalIPv4();
+      const host = lan && lan !== 'localhost' ? lan : '127.0.0.1';
+      return src.replace(/^https?:\/\/(127\.0\.0\.1|localhost):3001/i, `http://${host}:${HTTP_API_PORT}`);
+    },
+  });
+
+  /**
+   * Traduz os eventos devolvidos pelo aplicador em difusão Socket.IO.
+   *
+   * É aqui — e só aqui — que projeção vira rede. `ALCANCE_OUTROS` existe porque
+   * `set_display_config` sempre respondeu com `socket.broadcast.emit`, que exclui quem
+   * enviou o comando.
+   *
+   * @param {object|null} origem socket que originou o comando (null → tudo a todos)
+   * @param {Array<{nome: string, dados: any, alcance: string}>} eventos
+   */
+  function difundir(origem, eventos) {
+    if (!ctx.io) return;
+    for (const ev of eventos) {
+      try {
+        if (ev.alcance === ALCANCE_OUTROS && origem) origem.broadcast.emit(ev.nome, ev.dados);
+        else ctx.io.emit(ev.nome, ev.dados);
+      } catch (e) {
+        logError(`difundir-${ev.nome}`, e);
+      }
+    }
+  }
+
+  /**
+   * Executa um comando já migrado para o aplicador e difunde o resultado.
+   *
+   * Os handlers que usam isto ficam com três linhas: guarda, aplicar, difundir. O que
+   * sobra em cada um é exactamente a parte que é do Servidor e não da projeção.
+   *
+   * @param {object} socket origem do comando
+   * @param {string} comando
+   * @param {any} [dados]
+   */
+  function aplicarEDifundir(socket, comando, dados) {
+    try {
+      const { eventos } = aplicador.aplicar(comando, dados);
+      difundir(socket, eventos);
+    } catch (e) {
+      logError(`${comando}-ws`, e);
+    }
+  }
+
+  /**
+   * Variante para comandos cujo payload precisa de I/O antes de ser aplicado — hoje só
+   * `exibir_musica`, quando o cliente manda `musicaId` sem as estrofes.
+   *
+   * @param {object} socket
+   * @param {string} comando
+   * @param {any} [dados]
+   */
+  async function prepararAplicarEDifundir(socket, comando, dados) {
+    try {
+      const prontos = await aplicador.preparar(comando, dados);
+      const { eventos } = aplicador.aplicar(comando, prontos);
+      difundir(socket, eventos);
+    } catch (e) {
+      logError(`${comando}-ws`, e);
+    }
+  }
+
+  /** Estado do versículo em projeção para o overlay de Bíblia do OBS (`/obs/biblia`). */
   function estadoBibliaParaObs() {
-    const e = ctx.estadoAtual;
-    const ehBiblia =
-      !!e &&
-      e.tipo === 'biblia' &&
-      !e.telaLimpa &&
-      !e.blackout &&
-      Array.isArray(e.linhas) &&
-      e.linhas.some((l) => String(l == null ? '' : l).length > 0);
-    const ov = ctx.estadoPublicoOverride;
-    const apresentacaoCobrePublico =
-      !!ov &&
-      typeof ov === 'object' &&
-      (ov.tipo === 'apresentacao' || ov.tipo === 'aviso' || !!ov.apresentacao);
-    if (!ehBiblia || apresentacaoCobrePublico) {
-      return { tipo: null, titulo: '', linhas: [], telaLimpa: true, blackout: false, slidePretoFinal: false };
-    }
-    return {
-      tipo: 'biblia',
-      titulo: e.titulo || '',
-      linhas: e.linhas.slice(),
-      livro: e.livro || '',
-      capitulo: e.capitulo || '',
-      versiculo: e.versiculo || '',
-      telaLimpa: false,
-      blackout: false,
-      slidePretoFinal: false,
-    };
-  }
-
-  /** Emite o estado de Bíblia para o OBS a todos os clientes (idempotente). */
-  function emitirEstadoBibliaObs() {
-    if (ctx.io) ctx.io.emit('estado_biblia_obs', estadoBibliaParaObs());
-  }
-
-  /**
-   * Constrói o override público telão (`estadoPublicoOverride`) compatível com
-   * `@lyra/projection-core/public/js/publicProjectionRender.js` (`tipo` + `linhas` / `apresentacao`).
-   */
-  function estadoPublicoOverrideDePayloadApresentacao(payload) {
-    const pl = payload && typeof payload === 'object' ? payload : {};
-    const base = projectionPayloads.clonePayloadSafe(ctx.estadoAtual) || {};
-    const kind = String(pl.kind || '').toLowerCase();
-
-    /** Preserva blackout do slide actual; modo apresentação não usa slide preto / tela vazia como «sem conteúdo». */
-    const comum = {
-      ...base,
-      blackout: !!base.blackout,
-      slidePretoFinal: false,
-      telaLimpa: false,
-    };
-
-    if (kind === 'aviso') {
-      const texto = String(pl.texto || '');
-      return {
-        ...comum,
-        tipo: 'aviso',
-        linhas: texto ? texto.split(/\r\n|\r|\n/) : [''],
-        avisoConfig:
-          pl.avisoConfig && typeof pl.avisoConfig === 'object' ? pl.avisoConfig : undefined,
-      };
-    }
-
-    const src = String(pl.src || '').trim();
-    if (!src) return null;
-
-    const kindMidia =
-      kind === 'video' ? 'video' : kind === 'iframe' || kind === 'pdf' ? 'iframe' : 'image';
-
-    return {
-      ...comum,
-      tipo: 'apresentacao',
-      linhas: [],
-      apresentacao: {
-        kind: kindMidia,
-        src,
-        title: String(pl.title || pl.name || 'Apresentação'),
-      },
-    };
-  }
-
-  /**
-   * Payload para `display-operator.html` (`modo` + dados).
-   */
-  function ministranteOverrideDePayloadApresentacao(payload) {
-    const pl = payload && typeof payload === 'object' ? payload : {};
-    const kind = String(pl.kind || '').toLowerCase();
-
-    if (kind === 'aviso') {
-      const texto = String(pl.texto || '');
-      return {
-        modo: 'aviso',
-        telaLimpa: false,
-        linhas: texto ? texto.split(/\r\n|\r|\n/) : [''],
-        avisoConfig:
-          pl.avisoConfig && typeof pl.avisoConfig === 'object' ? pl.avisoConfig : undefined,
-      };
-    }
-
-    const src = String(pl.src || '').trim();
-    if (!src) return null;
-
-    const kindMidia =
-      kind === 'video' ? 'video' : kind === 'iframe' || kind === 'pdf' ? 'iframe' : 'image';
-
-    return {
-      modo: 'apresentacao',
-      telaLimpa: false,
-      apresentacao: {
-        kind: kindMidia,
-        src,
-        title: String(pl.title || pl.name || 'Apresentação'),
-      },
-    };
-  }
-
-  function normalizarCampoReferenciaBiblica(valor) {
-    if (valor == null) return '';
-    const texto = String(valor).trim();
-    if (!texto) return '';
-    const lower = texto.toLowerCase();
-    return lower === 'null' || lower === 'undefined' ? '' : texto;
-  }
-
-  function montarTituloBiblico(payload) {
-    const livro = normalizarCampoReferenciaBiblica(payload?.livro);
-    const capitulo = normalizarCampoReferenciaBiblica(payload?.capitulo);
-    const versiculo = normalizarCampoReferenciaBiblica(payload?.versiculo);
-    if (!livro || !capitulo || !versiculo) return '';
-    return `${livro} ${capitulo}:${versiculo}`;
+    return derivarEstadoBibliaParaObs(projectionState);
   }
 
   function requisicaoVemDaMaquinaLocal(req) {
@@ -212,48 +170,6 @@ function iniciarServidor(ctx, paths, deps) {
     if (nome) return nome;
     if (ip) return ip;
     return 'desconhecido';
-  }
-
-  function aplicarExibirApresentacao(payload) {
-    const pl = payload && typeof payload === 'object' ? { ...payload } : {};
-    /* Controladores antigos enviavam http://127.0.0.1:3001/... — inacessível nos telões. */
-    const srcBruto = String(pl.src || '').trim();
-    if (
-      String(pl.kind || '').toLowerCase() === 'video' &&
-      /^https?:\/\/(127\.0\.0\.1|localhost):3001\/api\/apresentacao\/video\//i.test(srcBruto)
-    ) {
-      const lan = getPreferredLocalIPv4();
-      const host = lan && lan !== 'localhost' ? lan : '127.0.0.1';
-      pl.src = srcBruto.replace(
-        /^https?:\/\/(127\.0\.0\.1|localhost):3001/i,
-        `http://${host}:${HTTP_API_PORT}`
-      );
-    }
-    const alvo = String(pl.alvoProjecao || 'ambos').toLowerCase();
-    ctx.projecaoLiveAtiva = alvo === 'live';
-
-    const pubOv = estadoPublicoOverrideDePayloadApresentacao(pl);
-    const minOv = ministranteOverrideDePayloadApresentacao(pl);
-
-    ctx.estadoPublicoOverride =
-      (alvo === 'publico' || alvo === 'ambos' || alvo === 'live') && pubOv != null ? pubOv : null;
-    ctx.ministranteApresentacaoOverride =
-      (alvo === 'ministrante' || alvo === 'ambos') && minOv != null ? minOv : null;
-
-    garantirTelasAbertasParaProjecao();
-    const { estadoPublico } = render({ estado: ctx.estadoAtual });
-    ctx.io.emit('estado', estadoPublico);
-    emitirEstadoBibliaObs();
-  }
-
-  function aplicarEncerrarApresentacaoPublicoServidor() {
-    ctx.projecaoLiveAtiva = false;
-    ctx.estadoPublicoOverride = null;
-    ctx.ministranteApresentacaoOverride = null;
-    garantirTelasAbertasParaProjecao();
-    const { estadoPublico } = render({ estado: ctx.estadoAtual });
-    if (ctx.io) ctx.io.emit('estado', estadoPublico);
-    emitirEstadoBibliaObs();
   }
 
   const expressApp = express();
@@ -440,10 +356,15 @@ function iniciarServidor(ctx, paths, deps) {
     res.json({ ok: true, modo: ctx.acesso.getModo() });
   });
 
-  /** Fallback quando o controlador não tem socket ligado — mesmo payload do evento Socket `exibir_apresentacao`. */
+  /**
+   * Fallback quando o controlador não tem socket ligado — mesmo payload do evento Socket
+   * `exibir_apresentacao`, e agora também o mesmo caminho de código: o aplicador do Core.
+   * Antes eram duas entradas para a mesma regra; a única diferença legítima entre elas é
+   * o transporte, e o transporte é o que sobrou aqui.
+   */
   expressApp.post('/api/comando/exibir_apresentacao', (req, res) => {
     try {
-      aplicarExibirApresentacao(req.body || {});
+      difundir(null, aplicador.aplicar('exibir_apresentacao', req.body || {}).eventos);
       res.json({ ok: true });
     } catch (e) {
       logError('post-exibir-apresentacao', e);
@@ -453,7 +374,7 @@ function iniciarServidor(ctx, paths, deps) {
 
   expressApp.post('/api/comando/encerrar_apresentacao_publico', (_req, res) => {
     try {
-      aplicarEncerrarApresentacaoPublicoServidor();
+      difundir(null, aplicador.aplicar('encerrar_apresentacao_publico').eventos);
       res.json({ ok: true });
     } catch (e) {
       logError('post-encerrar_apresentacao_publico', e);
@@ -799,248 +720,51 @@ function iniciarServidor(ctx, paths, deps) {
 
     socket.on('exibir_apresentacao', (payload) => {
       if (!comandoAutorizado(socket)) return;
-      try {
-        aplicarExibirApresentacao(payload);
-      } catch (e) {
-        logError('exibir_apresentacao-ws', e);
-      }
+      aplicarEDifundir(socket, 'exibir_apresentacao', payload);
     });
 
     socket.on('encerrar_apresentacao_publico', () => {
       if (!comandoAutorizado(socket)) return;
-      try {
-        aplicarEncerrarApresentacaoPublicoServidor();
-      } catch (e) {
-        logError('encerrar_apresentacao_publico-ws', e);
-      }
+      aplicarEDifundir(socket, 'encerrar_apresentacao_publico');
     });
 
     socket.on('exibir_musica', async (payload = {}) => {
       if (!comandoAutorizado(socket)) return;
-      try {
-        const musicaIdNum = Number(payload.musicaId);
-        let estrofes = Array.isArray(payload.estrofes)
-          ? payload.estrofes.map((s) => String(s ?? ''))
-          : [];
-        let tituloExibir = String(payload.titulo || '').trim();
-
-        if (estrofes.length === 0 && Number.isFinite(musicaIdNum) && musicaIdNum > 0) {
-          const fetched = await fetchMusicaByIdParaProjecao(musicaIdNum);
-          if (fetched && Array.isArray(fetched.estrofes)) {
-            estrofes = fetched.estrofes.map((s) => String(s ?? ''));
-            if (!tituloExibir) tituloExibir = String(fetched.titulo || '').trim();
-          }
-        }
-
-        if (!Array.isArray(estrofes) || estrofes.length === 0) return;
-        const idx = Number(payload.estrofeIndex);
-        const n = estrofes.length;
-
-        if (!Number.isFinite(idx) || idx < 0 || idx > n) return;
-
-        const proxMeta = projectionPayloads.linhasProximoParaMusica(estrofes, idx);
-
-        const musicaIdEstado =
-          Number.isFinite(musicaIdNum) && musicaIdNum > 0 ? Math.trunc(musicaIdNum) : null;
-
-        if (idx === n) {
-          ctx.estadoAtual = {
-            tipo: 'musica',
-            musicaId: musicaIdEstado,
-            titulo: '',
-            linhas: [],
-            linhasProximo: proxMeta.linhasProximo,
-            proximoSlidePreto: proxMeta.proximoSlidePreto,
-            estrofeIndex: idx,
-            totalEstrofes: n + 1,
-            telaLimpa: false,
-            blackout: false,
-            slidePretoFinal: true,
-            estrofes: estrofes,
-          };
-        } else {
-          const estrofe = estrofes[idx];
-          if (!estrofe) return;
-          ctx.estadoAtual = {
-            tipo: 'musica',
-            musicaId: musicaIdEstado,
-            titulo: tituloExibir,
-            linhas: comentariosSlide.filtrarLinhasParaPublico(String(estrofe).split('\n')),
-            linhasProximo: proxMeta.linhasProximo,
-            proximoSlidePreto: proxMeta.proximoSlidePreto,
-            estrofeIndex: idx,
-            totalEstrofes: n + 1,
-            telaLimpa: false,
-            blackout: false,
-            slidePretoFinal: false,
-            estrofes: estrofes,
-          };
-        }
-
-        ctx.projecaoLiveAtiva = false;
-
-        garantirTelasAbertasParaProjecao();
-        aplicarDisplayConfigNasJanelas({
-          forcarModo: 'slides',
-        });
-        const { estadoPublico } = render({ estado: ctx.estadoAtual, reforcarMinistrante: true });
-
-        ctx.io.emit('estado', estadoPublico);
-        emitirEstadoBibliaObs();
-      } catch (e) {
-        logError('exibir_musica-ws', e);
-      }
+      await prepararAplicarEDifundir(socket, 'exibir_musica', payload);
     });
 
     socket.on('exibir_versiculo', (payload = {}) => {
       if (!comandoAutorizado(socket)) return;
-      const texto = payload.texto != null ? String(payload.texto) : '';
-      const alvo = String(payload.alvoProjecao || 'ambos').toLowerCase();
-      ctx.projecaoLiveAtiva = alvo === 'live';
-      const livro = normalizarCampoReferenciaBiblica(payload?.livro);
-      const capitulo = normalizarCampoReferenciaBiblica(payload?.capitulo);
-      const versiculo = normalizarCampoReferenciaBiblica(payload?.versiculo);
-      const titulo = montarTituloBiblico(payload);
-
-      ctx.estadoAtual = {
-        tipo: 'biblia',
-        titulo,
-        livro,
-        capitulo,
-        versiculo,
-        linhas: [texto],
-        linhasProximo: [],
-        proximoSlidePreto: false,
-        estrofeIndex: 0,
-        totalEstrofes: 1,
-        telaLimpa: false,
-        blackout: false,
-        slidePretoFinal: false,
-      };
-
-      if (alvo === 'publico' || alvo === 'ambos' || alvo === 'live') {
-        ctx.estadoPublicoOverride = null;
-      } else {
-        ctx.estadoPublicoOverride = {
-          tipo: null,
-          titulo: '',
-          linhas: [],
-          linhasProximo: [],
-          proximoSlidePreto: false,
-          estrofeIndex: 0,
-          totalEstrofes: 0,
-          telaLimpa: true,
-          blackout: false,
-          slidePretoFinal: false,
-        };
-      }
-
-      if (alvo === 'ministrante' || alvo === 'ambos') {
-        ctx.ministranteApresentacaoOverride = null;
-      } else {
-        ctx.ministranteApresentacaoOverride = {
-          modo: 'biblia',
-          titulo: '',
-          atual: '',
-          proximo: '',
-          telaLimpa: true,
-        };
-      }
-
-      garantirTelasAbertasParaProjecao();
-      /* Fundo/tipografia da Bíblia já estão nas janelas (preview_display_config ao entrar no modo).
-         Reenviar display_config a cada versículo (bgImage em base64) causava atraso na navegação. */
-      const reenviarConfig =
-        payload.reenviarDisplayConfig === true || payload.somenteTexto !== true;
-      if (reenviarConfig) {
-        aplicarDisplayConfigNasJanelas({
-          forcarModo: 'biblia',
-        });
-      }
-      const { estadoPublico } = render({ estado: ctx.estadoAtual, reforcarMinistrante: true });
-
-      ctx.io.emit('estado', estadoPublico);
-      emitirEstadoBibliaObs();
+      aplicarEDifundir(socket, 'exibir_versiculo', payload);
     });
+
+    /* Família «encerramento» — primeira migrada para o aplicador do Core. O que resta em
+       cada handler é a guarda (Servidor) e a difusão (Servidor); a regra de projeção
+       vive em `@lyra/projection-core/src/commandApplier.js`. */
 
     socket.on('limpar_tela', () => {
       if (!comandoAutorizado(socket)) return;
-      ctx.projecaoLiveAtiva = false;
-      projectionEncerrar.encerrarCamadaSlides(ctx);
-      const { estadoPublico } = render({ estado: ctx.estadoAtual });
-      aplicarDisplayConfigNasJanelas({
-        forcarModo: 'slides',
-      });
-      ctx.io.emit('estado', estadoPublico);
-      emitirEstadoBibliaObs();
+      aplicarEDifundir(socket, 'limpar_tela');
     });
 
     socket.on('encerrar_projecao_biblia', () => {
       if (!comandoAutorizado(socket)) return;
-      ctx.projecaoLiveAtiva = false;
-      projectionEncerrar.encerrarCamadaBiblia(ctx);
-      const { estadoPublico } = render({ estado: ctx.estadoAtual });
-      aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
-      ctx.io.emit('estado', estadoPublico);
-      emitirEstadoBibliaObs();
+      aplicarEDifundir(socket, 'encerrar_projecao_biblia');
     });
 
     socket.on('encerrar_projecao', () => {
       if (!comandoAutorizado(socket)) return;
-      ctx.projecaoLiveAtiva = false;
-      ctx.estadoPublicoOverride = null;
-      ctx.ministranteApresentacaoOverride = null;
-      ctx.estadoAtual = {
-        tipo: null,
-        titulo: '',
-        linhas: [],
-        linhasProximo: [],
-        proximoSlidePreto: false,
-        estrofeIndex: 0,
-        totalEstrofes: 0,
-        telaLimpa: true,
-        blackout: false,
-        slidePretoFinal: false,
-      };
-      ctx.estadoMinistrante = { titulo: '', atual: '', proximo: '', telaLimpa: true };
-      atualizarDisplays(ctx.estadoAtual);
-      atualizarDisplayMinistrante(ctx.estadoMinistrante);
-      aplicarDisplayConfigNasJanelas({
-        forcarModo: 'slides',
-      });
-      ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
-      emitirEstadoBibliaObs();
+      aplicarEDifundir(socket, 'encerrar_projecao');
     });
 
     socket.on('toggle_blackout', () => {
       if (!comandoAutorizado(socket)) return;
-      const next = ctx.estadoAtual.blackout !== true;
-      ctx.estadoAtual = { ...ctx.estadoAtual, blackout: next };
-      atualizarDisplays(ctx.estadoAtual);
-      ctx.io.emit('estado', estadoPublicoParaSocketsOuApi());
-      emitirEstadoBibliaObs();
+      aplicarEDifundir(socket, 'toggle_blackout');
     });
 
     socket.on('exibir_ministrante', (incoming = {}) => {
       if (!comandoAutorizado(socket)) return;
-      if (ctx.ministranteApresentacaoOverride) return;
-      const pl = incoming && typeof incoming === 'object' && !Array.isArray(incoming) ? incoming : {};
-      const snapshot = snapshotMinistranteAtual();
-      /** Controlador envia strings do painel; clientes legacy sem corpo ficam só com o snapshot derivado da projeção. */
-      const usouCliente =
-        'titulo' in pl || 'atual' in pl || 'proximo' in pl || 'telaLimpa' in pl;
-      if (usouCliente) {
-        ctx.estadoMinistrante = {
-          titulo: pl.titulo != null ? String(pl.titulo) : snapshot.titulo || '',
-          atual: pl.atual != null ? String(pl.atual) : snapshot.atual || '',
-          proximo: pl.proximo != null ? String(pl.proximo) : snapshot.proximo || '',
-          projecaoAtiva: typeof pl.projecaoAtiva === 'boolean' ? pl.projecaoAtiva : undefined,
-          telaLimpa: typeof pl.telaLimpa === 'boolean' ? pl.telaLimpa : !!snapshot.telaLimpa,
-        };
-      } else {
-        ctx.estadoMinistrante = snapshot;
-      }
-      atualizarDisplayMinistrante(ctx.estadoMinistrante);
+      aplicarEDifundir(socket, 'exibir_ministrante', incoming);
     });
 
     socket.on('audio_play', (payload) => {

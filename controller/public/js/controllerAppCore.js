@@ -91,6 +91,17 @@ import {
   aplicarClasseLinhas,
   reaplicarFontesPreviewPainel,
 } from './painel/tipografiaPainelPreview.js';
+import { criarPortaProjecao, criarTransporteSocket } from './modules/projecaoPorta.js';
+
+/**
+ * Porta de projeção — ver `modules/projecaoPorta.js`.
+ *
+ * Todo comando destinado às telas passa por aqui, e todo retorno sobre o que está
+ * projetado entra por aqui. Nasce sem transporte: `iniciarSocket()` liga-lhe o socket.
+ * Enquanto não houver transporte, `pronta()` é `false` e nada é enviado — o mesmo que
+ * acontecia antes com `socket` ainda `null`.
+ */
+const projecao = criarPortaProjecao();
 
 // --- SECÇÃO A: modos de UI, localStorage de layout, ícones ---
 /** v2: padrão é modo completo; chave nova ignora preferência legada que deixava sempre «modo slides» ao abrir o .exe. */
@@ -380,7 +391,7 @@ function hayProjecaoAtivaModoBibliaOuApresentacao() {
   if (apresentacaoMidiaProjetadaId) return true;
   if (bibliaVersiculoProjetado != null) return true;
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
   if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
   if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) {
@@ -463,7 +474,7 @@ function apresentacaoProjecaoAtivaNoCanalPublico() {
   const ap = normalizarRota(rotasPorModo.apresentacao);
   if (ap.live || ap.publicoIndex < 0) return false;
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) {
     return true;
@@ -477,7 +488,7 @@ function apresentacaoProjecaoAtivaNoCanalMinistrante() {
   const ap = normalizarRota(rotasPorModo.apresentacao);
   if (ap.live || ap.ministranteIndex < 0) return false;
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   /* Apenas M3: telão no socket pode ficar «limpo» com projecaoMinistranteApresentacao. */
   if (e.projecaoMinistranteApresentacao) return true;
@@ -499,7 +510,7 @@ function apresentacaoProjecaoAtivaNoCanalMinistrante() {
  */
 function estadoServidorEhProjecaoApresentacaoAtivaNoTelao() {
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.tipo === 'biblia' || e.tipo === 'musica') return false;
   if (e.telaLimpa || e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'apresentacao') {
@@ -643,10 +654,7 @@ function emitirApresentacao(payload) {
 }
 
 async function emitirEncerrarApresentacaoPublicoAoServidor() {
-  if (socket && socket.connected) {
-    socket.emit('encerrar_apresentacao_publico');
-    return true;
-  }
+  if (projecao.enviar('encerrar_apresentacao_publico')) return true;
   const ip = getServidorIp();
   if (!ip) return false;
   try {
@@ -1596,14 +1604,7 @@ function emitirEstadoVideoParaServidor(opts = {}) {
     payload.currentTime =
       Number(opts.currentTime ?? (el && !videoPlaybackUsaTelaoComoFonte() ? el.currentTime : audioStateRemoto.currentTime)) || 0;
   }
-  if (socket && socket.connected) {
-    try {
-      socket.emit('apresentacao_video_state', payload);
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    return;
-  }
+  if (projecao.enviar('apresentacao_video_state', payload)) return;
   const ip = getServidorIp();
   if (!ip) {
     return;
@@ -1735,13 +1736,7 @@ function pararAudioLocalApresentacao() {
       currentTime: 0,
       volume: Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1)),
     };
-    if (socket && socket.connected) {
-      try {
-        socket.emit('apresentacao_video_state', payload);
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    } else {
+    if (!projecao.enviar('apresentacao_video_state', payload)) {
       const ip = getServidorIp();
       if (ip) {
         fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
@@ -1764,9 +1759,7 @@ function definirVolumeAudioLocalApresentacao(volume) {
   atualizarUiPlayerAudioRemoto();
   if (audioStateRemoto.mediaKind === 'video') {
     const payloadVol = { playing: !!audioStateRemoto.playing, volume: v };
-    if (socket && socket.connected) {
-      try { socket.emit('apresentacao_video_state', payloadVol); } catch (_) {}
-    } else {
+    if (!projecao.enviar('apresentacao_video_state', payloadVol)) {
       const ip = getServidorIp();
       if (ip) {
         fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
@@ -3480,13 +3473,7 @@ function encerrarProjecaoMidiaApresentacaoNoControlador() {
   // intencional — erro ignorado
 }
   void emitirEncerrarApresentacaoPublicoAoServidor();
-  if (socket && socket.connected) {
-    try {
-      socket.emit('encerrar_projecao');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
+  projecao.enviar('encerrar_projecao');
   apresentacaoAudioAtualId = null;
   audioStateRemoto = { ...audioStateRemoto, playing: false, currentTime: 0, duration: 0, name: '' };
   try {
@@ -3578,13 +3565,7 @@ function encerrarProjecaoAoSairDoModoSlides() {
     blackout: false,
     slidePretoFinal: false,
   };
-  if (socket && socket.connected) {
-    try {
-      socket.emit('limpar_tela');
-    } catch (_) {
-      // intencional — erro ignorado
-    }
-  }
+  projecao.enviar('limpar_tela');
 }
 
 async function alternarModoSlidesOperador(opts = {}) {
@@ -3661,11 +3642,7 @@ function recarregarPainelControlador() {
   _debounceRecarregarPainelT = setTimeout(() => {
     _debounceRecarregarPainelT = null;
     /* Recarregar não deve ressuscitar projeção anterior nas telas. */
-    if (socket && socket.connected) {
-      try { socket.emit('encerrar_projecao'); } catch (_) {
-  // intencional — erro ignorado
-}
-    }
+    projecao.enviar('encerrar_projecao');
     try {
       const ov = document.getElementById('app-dialog-overlay');
       if (ov) {
@@ -3712,7 +3689,7 @@ window.forcarRepinturaCompositorLyra = forcarRepinturaCompositorLyra;
 
 let lyraRepinturaAposEstadoT = 0;
 function agendarRepinturaCompositorAposEstadoServidor() {
-  if (!socket || !socket.connected) return;
+  if (!projecao.pronta()) return;
   const now = Date.now();
   if (now - lyraRepinturaAposEstadoT < 650) return;
   lyraRepinturaAposEstadoT = now;
@@ -3727,13 +3704,7 @@ try {
         api.abrirConsoleTelao().catch(() => {});
         return;
       }
-      if (socket && socket.connected) {
-        try {
-          socket.emit('open_display_devtools');
-        } catch (_) {
-  // intencional — erro ignorado
-}
-      } else {
+      if (!projecao.enviar('open_display_devtools')) {
         alert('Conecte ao servidor primeiro para abrir o console do telão.');
       }
     });
@@ -4713,10 +4684,7 @@ function getServidorProjeccaoIp() {
  * Preferência: Socket.IO; fallback HTTP (como `exibir_apresentacao`).
  */
 async function enviarComandoAudioProjeccao(evento, payload = {}) {
-  if (socket && socket.connected) {
-    socket.emit(evento, payload);
-    return true;
-  }
+  if (projecao.enviar(evento, payload)) return true;
   const rotas = {
     audio_play: '/api/comando/audio_play',
     audio_pause: '/api/comando/audio_pause',
@@ -8733,8 +8701,8 @@ function aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, texto, opts = {}) 
   renderEstrofesEditor();
   marcacaoEstrofeEditor();
 
-  if (emitSocket && socket && socket.connected && eraProjecaoNesteIndice && projecaoMusicaEmitidaNoServidor) {
-    socket.emit('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+  if (emitSocket && projecao.pronta() && eraProjecaoNesteIndice && projecaoMusicaEmitidaNoServidor) {
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
   }
 
   if (posCaretAposSplit != null && parts.length > 1) {
@@ -8789,7 +8757,7 @@ function textoSlideSnippetHtmlParaChip(estrofe) {
 /** Há algo efetivamente enviado às telas de projeção (servidor ligado). */
 function hayProjecaoAtivaNoServidor() {
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
   if (e.blackout) return true;
   if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) return true;
@@ -9355,7 +9323,7 @@ function atualizarPreviewOperador() {
 
 function emitirEstadoMinistranteAoServidor() {
   if (apresentacaoOcupandoCanalMinistrante()) return;
-  if (!socket || !socket.connected) return;
+  if (!projecao.pronta()) return;
   if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) return;
   if (
     ehModoBibliaOperador() &&
@@ -9373,7 +9341,7 @@ function emitirEstadoMinistranteAoServidor() {
   /** Se ainda há saída ativa (inclui blackout/slide preto), não abrir relógio no ministrante. */
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
   const telaLimpa = !atual && !proximo && !projecaoAtiva;
-  socket.emit('exibir_ministrante', {
+  projecao.enviar('exibir_ministrante', {
     titulo: musicaAtiva?.titulo || '',
     atual,
     proximo,
@@ -9496,7 +9464,7 @@ function renderSlidesStrip() {
       const pl = getPlaylist(cultoId);
       const ix = musicaAtiva ? pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it)) : -1;
       btnNxFast.disabled =
-        !socket || !socket.connected || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
+        !projecao.pronta() || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
     }
     atualizarSlidesInstrucoes();
     return;
@@ -9576,7 +9544,7 @@ function renderSlidesStrip() {
   if (btnNx) {
     const pl = getPlaylist(cultoId);
     const ix = musicaAtiva ? pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it)) : -1;
-    btnNx.disabled = !socket || !socket.connected || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
+    btnNx.disabled = !projecao.pronta() || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
   }
 
   atualizarSlidesInstrucoes();
@@ -9704,8 +9672,7 @@ async function executarExclusaoSlideConfirmada() {
 
   if (
     projecaoMusicaEmitidaNoServidor &&
-    socket &&
-    socket.connected &&
+    projecao.pronta() &&
     musicaAtiva &&
     estrofeAtiva >= 0
   ) {
@@ -10097,12 +10064,11 @@ function sincronizarEstrofesDesdeTextareaLetraCompleta() {
   marcacaoEstrofeEditor();
   if (
     projecaoMusicaEmitidaNoServidor &&
-    socket &&
-    socket.connected &&
+    projecao.pronta() &&
     estrofeAtiva >= 0 &&
     estrofeAtiva < n
   ) {
-    socket.emit('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
   }
 }
 
@@ -10240,12 +10206,11 @@ function cancelarModoLetraCompletaCentral() {
     marcacaoEstrofeEditor();
     if (
       projecaoMusicaEmitidaNoServidor &&
-      socket &&
-      socket.connected &&
+      projecao.pronta() &&
       estrofeAtiva >= 0 &&
       estrofeAtiva < n
     ) {
-      socket.emit('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+      projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
     }
   }
   snapshotLetraCompleta = null;
@@ -11151,7 +11116,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
       bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
       bibliaAplicarCfgExibicao();
     }
-    if (socket && socket.connected && modo === 'slides') {
+    if (projecao.pronta() && modo === 'slides') {
       const pubDepois = normalizarRota(rotasPorModo.slides).publicoIndex;
       const publicoFoiAtivadoAgora = slidesAntes.publicoIndex < 0 && pubDepois >= 0;
       if (publicoFoiAtivadoAgora) {
@@ -11204,7 +11169,7 @@ function hayConteudoExternoQueForcaPreviaPublicaModoSlide() {
   const rSlide = obterRotaSlidesParaUi();
   if (rSlide.publicoIndex < 0) return false;
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (slidesCanalPublicoSeparadoDaApresentacao()) {
     return (
       (e.tipo === 'musica' &&
@@ -11238,7 +11203,7 @@ function hayConteudoExternoQueForcaPreviaMinistranteModoSlide() {
   const rSlide = normalizarRota(rotasPorModo.slides);
   if (rSlide.ministranteIndex < 0) return false;
   const e = estadoServidor;
-  if (!e || !socket || !socket.connected) return false;
+  if (!e || !projecao.pronta()) return false;
   if (e.tipo === 'apresentacao' || e.tipo === 'aviso' || e.projecaoMinistranteApresentacao) return false;
   if (!hayProjecaoAtivaNoServidor()) return false;
   if (e.tipo !== 'musica' && e.tipo !== 'biblia') return false;
@@ -11580,7 +11545,7 @@ function configurarModalPreviewLetras() {
 
 async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;
-  if (!socket || !socket.connected) return alert('Conecte ao servidor para projetar.');
+  if (!projecao.pronta()) return alert('Conecte ao servidor para projetar.');
   const ipAtual = getServidorIp();
   if (!ipAtual) return alert('Informe o IP ou use «Conectar».');
   const item =
@@ -11662,13 +11627,104 @@ function aplicarDisplayConfigDoServidorNoPainel(cfg) {
   }
 }
 
+/**
+ * --- Canal de retorno da projeção ---
+ *
+ * O que as telas estão a mostrar volta por aqui. São funções **nomeadas** e de topo, e
+ * não arrow functions inline como antes, por uma razão de mecânica: `iniciarSocket()`
+ * corre a cada (re)ligação, e `projecao.aoReceber()` deduplica por identidade de função.
+ * Um arrow criado dentro de `iniciarSocket` seria uma função nova a cada chamada — e o
+ * painel passaria a reagir duas, três, N vezes ao mesmo `estado`. Com nomes de topo, a
+ * reinscrição é idempotente e o `socket.off(...)` manual deixa de ser necessário.
+ */
+
+/**
+ * Config autoritativa vinda de quem projeta. Pull-by-role:
+ *  - somente-leitura: reflete a config no painel (fonte de verdade é quem projeta);
+ *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
+ */
+function aoReceberDisplayConfigDaProjecao(cfg) {
+  ultimaDisplayConfigServidor = cfg;
+  if (controladorSomenteLeitura()) aplicarDisplayConfigDoServidorNoPainel(cfg);
+}
+
+/** Estado do que está projetado nas telas. */
+function aoReceberEstadoDaProjecao(estado) {
+
+  estadoServidor = estado;
+  sincronizarEstrofeAtiva(estado);
+  atualizarPreviewOperador();
+  atualizarIndicadorProjecaoLiveUi();
+  atualizarBtnModoApresentacao();
+  agendarRepinturaCompositorAposEstadoServidor();
+  try {
+    if (ehModoApresentacaoOperador() && apresentacaoMidiaProjetadaId) {
+      const tip = estado && estado.tipo;
+      const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
+      const aindaProjecaoApresentacao =
+        tip === 'apresentacao' ||
+        (tip === 'aviso' && apresentacaoMidiaProjetadaId === ID_PROJECAO_AVISO_CARD6) ||
+        minAp;
+      if (!aindaProjecaoApresentacao) {
+        apresentacaoMidiaProjetadaId = null;
+        atualizarFeedbackProjecaoApresentacaoUi();
+      }
+    }
+  } catch (_) {
+// intencional — erro ignorado
+}
+
+}
+
+/** Estado do player de áudio/vídeo da apresentação, do lado de quem projeta. */
+function aoReceberAudioStateDaProjecao(st) {
+
+  if (!st || typeof st !== 'object') return;
+  if (videoProjetadoAtivoNoPlayer()) return;
+  const estadoAnterior = { ...audioStateRemoto };
+  const stAjustado = ajustarEstadoVisualRetomadaAudio(st, estadoAnterior);
+  audioStateRemoto = {
+    ...audioStateRemoto,
+    ...stAjustado,
+  };
+  if (stAjustado.mediaKind) audioStateRemoto.mediaKind = stAjustado.mediaKind;
+  if (audioStateRemoto.playing) {
+    audioLoopReinicioPendente = false;
+  }
+  atualizarUiPlayerAudioRemoto();
+  const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
+  const atual = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
+  const terminouFaixa =
+    audioLoopAtivo &&
+    !audioLoopReinicioPendente &&
+    estadoAnterior.mediaKind === 'audio' &&
+    estadoAnterior.playing === true &&
+    audioStateRemoto.playing === false &&
+    dur > 0 &&
+    atual >= Math.max(0, dur - 0.35) &&
+    !!apresentacaoAudioAtualId;
+  if (!terminouFaixa) return;
+  const item = apresentacaoAudios.find((x) => x.id === apresentacaoAudioAtualId);
+  if (!item?.src) return;
+  audioLoopReinicioPendente = true;
+  void tocarAudioServidorApresentacao(item, { startTime: 0 }).then((ok) => {
+    if (ok) {
+      atualizarRodapeAudioApresentacao(item);
+      return;
+    }
+    audioLoopReinicioPendente = false;
+  });
+
+}
+
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
 function iniciarSocket(ip) {
   if (socket) {
     socket.off('disconnect');
     socket.off('connect_error');
     socket.off('connect');
-    socket.off('estado');
+    // `estado` já não consta desta lista: vive na porta de projeção, que reinscreve
+    // sozinha ao trocar de transporte (ver `usarTransporte`, abaixo).
     socket.off('apresentacao_state_atualizada');
     socket.off('solicitar_playlists_controlador');
     socket.off('musicas_sincronizadas');
@@ -11679,6 +11735,9 @@ function iniciarSocket(ip) {
   let _conectandoEmAndamento = false;
   // auth no handshake: credencial de dispositivo para a allowlist do servidor (etapa 3).
   socket = io(`http://${ip}:5510`, { auth: obterIdentidadeDispositivoLocal() });
+  /* Modo remoto: quem projeta é o Servidor, do outro lado deste socket. O transporte
+     prende-se a ESTA instância — daí ser recriado a cada ligação. */
+  projecao.usarTransporte(criarTransporteSocket(socket));
 
 socket.on('connect', async () => {
   if (_conectandoEmAndamento) {
@@ -11752,10 +11811,7 @@ socket.on('connect', async () => {
    *  - somente-leitura: reflete a config do servidor no painel (fonte de verdade);
    *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
    */
-  socket.on('display_config', (cfg) => {
-    ultimaDisplayConfigServidor = cfg;
-    if (controladorSomenteLeitura()) aplicarDisplayConfigDoServidorNoPainel(cfg);
-  });
+  projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
 
   // Heartbeat de aplicação: responde a cada ping do servidor. SEM isto, o servidor
   // consideraria este controlador (o socket registrado) "sem resposta" após N ciclos e
@@ -11797,68 +11853,9 @@ socket.on('connect', async () => {
     // TODO (UX): trocar por um toast no painel em vez de console.
   });
 
-  socket.on('estado', (estado) => {
-    estadoServidor = estado;
-    sincronizarEstrofeAtiva(estado);
-    atualizarPreviewOperador();
-    atualizarIndicadorProjecaoLiveUi();
-    atualizarBtnModoApresentacao();
-    agendarRepinturaCompositorAposEstadoServidor();
-    try {
-      if (ehModoApresentacaoOperador() && apresentacaoMidiaProjetadaId) {
-        const tip = estado && estado.tipo;
-        const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
-        const aindaProjecaoApresentacao =
-          tip === 'apresentacao' ||
-          (tip === 'aviso' && apresentacaoMidiaProjetadaId === ID_PROJECAO_AVISO_CARD6) ||
-          minAp;
-        if (!aindaProjecaoApresentacao) {
-          apresentacaoMidiaProjetadaId = null;
-          atualizarFeedbackProjecaoApresentacaoUi();
-        }
-      }
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  });
+  projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
 
-  socket.on('audio_state', (st) => {
-    if (!st || typeof st !== 'object') return;
-    if (videoProjetadoAtivoNoPlayer()) return;
-    const estadoAnterior = { ...audioStateRemoto };
-    const stAjustado = ajustarEstadoVisualRetomadaAudio(st, estadoAnterior);
-    audioStateRemoto = {
-      ...audioStateRemoto,
-      ...stAjustado,
-    };
-    if (stAjustado.mediaKind) audioStateRemoto.mediaKind = stAjustado.mediaKind;
-    if (audioStateRemoto.playing) {
-      audioLoopReinicioPendente = false;
-    }
-    atualizarUiPlayerAudioRemoto();
-    const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
-    const atual = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
-    const terminouFaixa =
-      audioLoopAtivo &&
-      !audioLoopReinicioPendente &&
-      estadoAnterior.mediaKind === 'audio' &&
-      estadoAnterior.playing === true &&
-      audioStateRemoto.playing === false &&
-      dur > 0 &&
-      atual >= Math.max(0, dur - 0.35) &&
-      !!apresentacaoAudioAtualId;
-    if (!terminouFaixa) return;
-    const item = apresentacaoAudios.find((x) => x.id === apresentacaoAudioAtualId);
-    if (!item?.src) return;
-    audioLoopReinicioPendente = true;
-    void tocarAudioServidorApresentacao(item, { startTime: 0 }).then((ok) => {
-      if (ok) {
-        atualizarRodapeAudioApresentacao(item);
-        return;
-      }
-      audioLoopReinicioPendente = false;
-    });
-  });
+  projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
 
   socket.on('disconnect', (motivo) => {
     atualizarUiConexao(false);
@@ -12877,7 +12874,7 @@ async function selecionarMusicaDoBanco(id, opts) {
 }
 
 async function projecaoProximaMusicaPlaylist() {
-  if (!socket || !socket.connected) return alert('Conecte ao servidor.');
+  if (!projecao.pronta()) return alert('Conecte ao servidor.');
   const ipAtual = getServidorIp();
   if (!ipAtual) return alert('Informe o IP ou use «Conectar».');
   if (!musicaAtiva) return alert('Selecione uma música primeiro.');
@@ -12929,11 +12926,11 @@ function montarPayloadExibirMusica(estrofeIndex) {
 }
 
 function emitirEstrofeAoServidor(index) {
-  if (!socket || !socket.connected || !musicaAtiva) return;
+  if (!projecao.pronta() || !musicaAtiva) return;
   bloqueioSincronizarEstrofeDoServidor = false;
   projecaoMusicaEmitidaNoServidor = true;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
-  socket.emit('exibir_musica', montarPayloadExibirMusica(index));
+  projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
 }
 
 /** Atualiza só o painel (estrofe «selecionada»). Não envia às telas — use duplo clique ou setas após projeção iniciada. */
@@ -12953,7 +12950,7 @@ function navegarEstrofe(dir) {
   const prox = estrofeAtiva + dir;
   if (prox >= 0 && prox <= idxMaxPreto) {
     exibirEstrofe(prox);
-    if (projecaoMusicaEmitidaNoServidor && socket && socket.connected) {
+    if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
       emitirEstrofeAoServidor(prox);
     }
   }
@@ -13007,7 +13004,7 @@ function navegarEstrofePassadorSlides(direcao) {
   if (base < 0 && direcao > 0) prox = 0;
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
   if (prox === estrofeAtiva && projecaoMusicaEmitidaNoServidor) return;
-  if (socket && socket.connected) {
+  if (projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
     exibirEstrofe(prox);
     return;
@@ -13020,7 +13017,7 @@ function projecionarEstrofeModoSlides(index) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
   const idxMaxPreto = musicaAtiva.estrofes.length;
   const idx = Math.max(0, Math.min(idxMaxPreto, Number(index)));
-  if (socket && socket.connected) {
+  if (projecao.pronta()) {
     emitirEstrofeAoServidor(idx);
     exibirEstrofe(idx);
     return;
@@ -13180,7 +13177,7 @@ function navegarEstrofePorSeta(tecla) {
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
   if (prox === estrofeAtiva) return;
   exibirEstrofe(prox);
-  if (projecaoMusicaEmitidaNoServidor && socket && socket.connected) {
+  if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
   }
 }
@@ -13228,12 +13225,12 @@ function sincronizarEstrofeAtiva(estado) {
 }
 
 function limparTela() {
-  if (!socket) return;
+  if (!projecao.ligada()) return;
   estrofeAtiva = -1;
   slidesDockVisivel = ehModoSlidesOperador();
   projecaoMusicaEmitidaNoServidor = false;
   bloqueioSincronizarEstrofeDoServidor = false;
-  socket.emit('limpar_tela');
+  projecao.enfileirar('limpar_tela');
   renderSlidesStrip();
   atualizarPreviewOperador();
   if (musicaAtiva) renderPlaylist();
@@ -13271,13 +13268,7 @@ function encerrarProjecaoDoControlador(opts = {}) {
     slidePretoFinal: false,
   };
   /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
-  if (socket && socket.connected) {
-    try {
-      socket.emit('limpar_tela');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
+  projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
     bibliaVersiculoProjetado = null;
     bibliaVersiculoSelecionadoIdx = null;
@@ -13298,12 +13289,12 @@ function encerrarProjecaoDoControlador(opts = {}) {
 }
 
 function toggleBlackoutTelas() {
-  if (!socket) return;
-  socket.emit('toggle_blackout');
+  if (!projecao.ligada()) return;
+  projecao.enfileirar('toggle_blackout');
 }
 
 function projetarPorDuploCliqueCentral(index) {
-  if (!musicaAtiva || !socket || !socket.connected) return;
+  if (!musicaAtiva || !projecao.pronta()) return;
   slidesRailUserRecolhido = false;
   slidesDockVisivel = true;
   /** Emitir antes de `exibirEstrofe`: senão `atualizarPreviewOperador` roda com `projecaoMusicaEmitidaNoServidor` ainda false e o painel espelha só o estado antigo do socket (telão físico atualiza, preview não). */
@@ -13944,10 +13935,7 @@ function enviarPreviewDisplayConfig(cfg, opts = {}) {
     modoConfig: modo,
     forcarModo: opts.forcarModo || modo,
   };
-  if (socket && socket.connected) {
-    socket.emit('preview_display_config', payload);
-    return;
-  }
+  if (projecao.enviar('preview_display_config', payload)) return;
   const ip = (document.getElementById('ip-input')?.value || '').trim();
   if (!ip) return;
   fetch(`http://${ip}:5510/api/display-config/preview`, {
@@ -14047,13 +14035,7 @@ function bibliaLimparEstadoOperador() {
 function encerrarProjecaoModoBiblia() {
   if (!ehModoBibliaOperador()) return;
   bibliaLimparEstadoOperador();
-  if (socket && socket.connected) {
-    try {
-      socket.emit('encerrar_projecao_biblia');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
+  projecao.enviar('encerrar_projecao_biblia');
   atualizarPreviewOperador();
 }
 
@@ -14215,7 +14197,7 @@ async function bibliaSincronizarRotaComServidorSeMudou() {
 }
 
 async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
-  if (!socket) return;
+  if (!projecao.ligada()) return;
   const alvo = obterAlvoProjecaoModoBiblia();
   const livroRef = bibliaNormalizarCampoReferencia(v?.livro) || bibliaNormalizarCampoReferencia(bibliaSelecionadoLivro);
   const capituloRef =
@@ -14235,7 +14217,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('projetado'));
   if (cardEl && cardEl.classList) cardEl.classList.add('projetado');
   bibliaVersiculoProjetado = v.versiculo;
-  socket.emit('exibir_versiculo', {
+  projecao.enfileirar('exibir_versiculo', {
     livro: livroRef,
     capitulo: capituloRef,
     versiculo: versiculoRef,
@@ -16617,9 +16599,9 @@ async function salvarCfgNoServidor() {
       modoConfig: 'biblia',
       forcarModo: 'biblia',
     };
-    if (socket && socket.connected) {
-      socket.emit('set_display_config', { clock: currentCfgCtrl?.clock || {}, modoConfig: 'slides' });
-      socket.emit('set_display_config', payloadBiblia, (ack) => {
+    if (projecao.pronta()) {
+      projecao.enviar('set_display_config', { clock: currentCfgCtrl?.clock || {}, modoConfig: 'slides' });
+      projecao.enviar('set_display_config', payloadBiblia, (ack) => {
         if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
         if (ack?.ok) {
           cfgDirtyCtrl = false;
@@ -16650,13 +16632,13 @@ async function salvarCfgNoServidor() {
     return;
   }
 
-  if (socket && socket.connected) {
+  if (projecao.pronta()) {
     const payloadSlides = {
       ...(currentCfgCtrl || {}),
       modoConfig: 'slides',
       forcarModo: 'slides',
     };
-    socket.emit('set_display_config', payloadSlides, (ack) => {
+    projecao.enviar('set_display_config', payloadSlides, (ack) => {
       if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
       if (ack?.ok) {
         cfgSnapshotSalvoCtrl = JSON.stringify(currentCfgCtrl || {});
