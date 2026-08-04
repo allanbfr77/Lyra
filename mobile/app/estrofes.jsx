@@ -230,7 +230,20 @@ export default function EstrofesScreen() {
       socket = io(urlSocketProjecao(ip), {
         path: '/socket.io',
         timeout: 4000,
-        transports: ['websocket', 'polling'],
+        /*
+         * Ordem deliberada: polling primeiro, WebSocket a seguir.
+         *
+         * Com `['websocket', ...]` o socket.io tenta APENAS o WebSocket na ligação
+         * inicial — e, se falhar, reporta erro sem nunca experimentar o polling que está
+         * na lista ao lado. Basta uma rede, antivírus ou proxy que não trate bem o
+         * cabeçalho de upgrade para o app ficar sem ligação, mesmo com o servidor
+         * acessível e a responder por HTTP.
+         *
+         * Nesta ordem, o polling estabelece a ligação e o WebSocket entra logo depois,
+         * automaticamente, quando está disponível. Ganha-se a robustez sem perder o
+         * desempenho — é por isso que é o padrão do socket.io.
+         */
+        transports: ['polling', 'websocket'],
         auth: ident,
       });
 
