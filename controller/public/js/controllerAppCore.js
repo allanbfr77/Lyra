@@ -7467,9 +7467,17 @@ function enviarPlaylistsParaServidorDebounced() {
 
 let emitirPlaylistsRedeTimer = null;
 
+/**
+ * Publica as playlists para quem estiver a hospedar a porta 5510.
+ *
+ * Vai pela porta de projeção, e não pelo socket cru, porque o destinatário muda com o
+ * modo: no remoto é o Servidor, que reencaminha aos telemóveis; no local é o próprio
+ * processo principal, que faz o mesmo reencaminhamento. O celular não nota diferença — é
+ * o mesmo evento com o mesmo formato.
+ */
 function emitirPlaylistsDoControlador() {
   try {
-    if (socket && socket.connected) socket.emit('controlador_playlists', playlists);
+    projecao.enviar('controlador_playlists', playlists);
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -11917,6 +11925,8 @@ function aoReceberAudioStateDaProjecao(st) {
  * de função.
  */
 projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
+/* Pedido de playlists vindo de um telemóvel, reencaminhado por quem hospeda a 5510. */
+projecao.aoReceber('solicitar_playlists_controlador', emitirPlaylistsDoControlador);
 projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
 projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
 
@@ -11996,8 +12006,6 @@ socket.on('connect', async () => {
     carregarEstadoModoApresentacaoDoServidor();
   });
 
-  socket.off('solicitar_playlists_controlador');
-  socket.on('solicitar_playlists_controlador', () => emitirPlaylistsDoControlador());
 
   socket.off('musicas_sincronizadas');
   socket.on('musicas_sincronizadas', async (payload) => {

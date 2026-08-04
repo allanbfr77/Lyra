@@ -111,6 +111,7 @@ function criarProjecaoLocal(deps) {
    */
   async function receberComando(comando, dados, origemSocket = null) {
     if (!activa || !aplicador) return { ok: false, erro: 'projeção local inactiva' };
+    if (COMANDOS_DE_HOST[comando]) return COMANDOS_DE_HOST[comando](dados, origemSocket);
     if (!aplicador.suporta(comando)) return { ok: false, erro: `comando desconhecido: ${comando}` };
     try {
       const prontos = await aplicador.preparar(comando, dados);
@@ -122,6 +123,56 @@ function criarProjecaoLocal(deps) {
       return { ok: false, erro: e.message || String(e) };
     }
   }
+
+  /**
+   * Últimas playlists publicadas pelo painel.
+   *
+   * O telemóvel que liga a meio do culto não pode ficar à espera do próximo pedido — o
+   * Servidor guarda isto pelo mesmo motivo.
+   */
+  let ultimasPlaylists = null;
+
+  /**
+   * Serviços do host que não são projeção.
+   *
+   * Reencaminhar playlists entre o painel e os telemóveis não desenha nada em tela
+   * nenhuma — não pertence ao aplicador, que só sabe de projeção. Mas é serviço de quem
+   * hospeda a 5510, e no modo local esse alguém é este módulo. No Servidor o mesmo
+   * reencaminhamento existe, atravessando a rede em ambos os sentidos; aqui uma das
+   * pontas é IPC.
+   */
+  const COMANDOS_DE_HOST = {
+    /** O painel publicou as suas playlists → cache e difusão aos telemóveis. */
+    controlador_playlists(dados) {
+      const pl = dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {};
+      ultimasPlaylists = pl;
+      try {
+        io?.emit('playlists_do_controlador', pl);
+      } catch (e) {
+        registarErro('projecao-local-playlists-difundir', e);
+      }
+      return { ok: true, aplicado: true };
+    },
+
+    /** Um telemóvel pediu as playlists → responde do cache e pede ao painel as actuais. */
+    solicitar_playlists_controlador(_dados, origemSocket) {
+      if (ultimasPlaylists && origemSocket) {
+        try {
+          origemSocket.emit('playlists_do_controlador', ultimasPlaylists);
+        } catch (e) {
+          registarErro('projecao-local-playlists-cache', e);
+        }
+      }
+      try {
+        if (typeof aoEmitirParaPainel === 'function') {
+          aoEmitirParaPainel('solicitar_playlists_controlador', null);
+        }
+      } catch (e) {
+        registarErro('projecao-local-playlists-pedir', e);
+      }
+      return { ok: true, aplicado: true };
+    },
+  };
 
   /**
    * Guarda de escrita para clientes de rede.
@@ -350,6 +401,12 @@ function criarProjecaoLocal(deps) {
           });
         });
       }
+
+      /* Pedir playlists é leitura, e não passa pela guarda de escrita — tal como no
+         Servidor, onde este handler também não tem `comandoAutorizado`. */
+      socket.on('solicitar_playlists_controlador', () => {
+        void receberComando('solicitar_playlists_controlador', null, socket);
+      });
     });
 
     /* Overlays do OBS, servidos das páginas do Core. */
