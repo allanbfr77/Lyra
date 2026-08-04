@@ -10899,7 +10899,12 @@ function atualizarUiConexao(conectado) {
 }
 
 // --- SECÇÃO F — Ligação ao servidor (IP), pedidos HTTP ao controlador :3001, filas e debounces ---
-function conectar() {
+async function conectar() {
+  /* Pedir para ligar a um Servidor é dizer, sem ambiguidade, que não se quer projetar
+     nesta máquina. Sem isto o painel ligava o socket e continuava a resolver monitores e
+     config contra `127.0.0.1` — meio ligado a cada um dos dois. */
+  if (projecaoLocalActiva) await desligarProjecaoNestaMaquina();
+
   const ip = document.getElementById('ip-input').value.trim() || 'localhost';
   setStatus('conectando', 'CONECTANDO...');
 
@@ -10937,6 +10942,18 @@ const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
 let projecaoLocalEmCurso = false;
 
 /**
+ * Verdadeiro enquanto o motor local está mesmo de pé.
+ *
+ * Distinto da preferência gravada, e a distinção não é académica: a preferência é a
+ * *intenção* do operador, este é o *facto*. Enquanto o modo local se derivava só da
+ * preferência, uma tentativa falhada — porta ocupada porque o Servidor está aberto —
+ * deixava o painel a acreditar que projetava localmente. E aí recusava-se a ligar ao
+ * Servidor, porque «está em modo local», e não projetava, porque não está. Ficava preso
+ * entre os dois.
+ */
+let projecaoLocalActiva = false;
+
+/**
  * Motor que toca o áudio quando a projeção corre nesta máquina.
  *
  * Criado só quando há ponte (dentro do aplicativo) e ligado só no modo local — no remoto
@@ -10954,11 +10971,12 @@ function garantirMotorAudioLocal() {
 /**
  * O painel está — ou está a ficar — em modo local?
  *
- * Serve de guarda ao auto-reconectar. A preferência sozinha não bastaria: entre escolher
- * o modo e ele arrancar há uma janela de tempo em que ainda nada está gravado.
+ * Serve de guarda ao auto-reconectar e à resolução do endereço da projeção. Cobre a
+ * janela entre o clique e o arranque (`emCurso`) e o período em que o motor está de facto
+ * a correr (`activa`) — nunca a mera intenção gravada.
  */
 function emModoProjecaoLocal() {
-  return projecaoLocalEmCurso || (projetarNestaMaquinaPreferido() && !!ponteProjecaoLocal());
+  return projecaoLocalEmCurso || projecaoLocalActiva;
 }
 
 /** A ponte só existe dentro do Electron; no browser o modo local não se aplica. */
@@ -10997,10 +11015,12 @@ async function ligarProjecaoNestaMaquina() {
     projecaoLocalEmCurso = false;
   }
   if (!r?.ok) {
+    projecaoLocalActiva = false;
     setStatus('erro', 'PORTA OCUPADA');
     atualizarUiConexao(false);
     return r || { ok: false, erro: 'falha desconhecida' };
   }
+  projecaoLocalActiva = true;
 
   /* Desligar o socket antes de trocar de transporte: um Servidor ainda ligado continuaria
      a mandar `estado` para o painel e a disputar as telas com o motor local. */
@@ -11049,6 +11069,7 @@ async function desligarProjecaoNestaMaquina() {
   } catch (_) {
     // intencional
   }
+  projecaoLocalActiva = false;
   motorAudioLocal?.desligar();
   if (ponte) await ponte.desligar();
   projecao.usarTransporte(null);
@@ -15203,7 +15224,12 @@ setTimeout(() => {
   /* Quem escolheu projetar nesta máquina não deve ser arrastado para um Servidor da rede
      ao abrir o app — seriam dois donos das mesmas telas, que é o que isto evita. */
   if (projetarNestaMaquinaPreferido() && ponteProjecaoLocal()) {
-    void ligarProjecaoNestaMaquina();
+    /* Se não der para subir o motor local — porta ocupada, tipicamente porque o Servidor
+       está aberto — o painel não pode ficar sem nada. Cai para o caminho remoto, que é
+       exactamente o que o operador faria à mão. */
+    void ligarProjecaoNestaMaquina().then((r) => {
+      if (!r?.ok) tentarAutoConectarSeDesconectado();
+    });
     return;
   }
   tentarAutoConectarSeDesconectado();
