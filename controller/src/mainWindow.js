@@ -382,6 +382,7 @@ function anexarMenuContextoEdicao(win) {
 }
 
 function criarMenuAplicativo(ctx, updaterApi) {
+  depsDoMenu = { updaterApi };
   // Nota: o menu "Editar" foi removido da barra de propósito. Os atalhos de edição
   // (desfazer/refazer, recortar/copiar/colar, selecionar tudo) continuam funcionando
   // dentro dos campos de texto — quem os trata é o Chromium/Electron, não este menu —
@@ -418,11 +419,21 @@ function criarMenuAplicativo(ctx, updaterApi) {
         },
         { type: 'separator' },
         {
-          /* O comando vai ao renderer, e não directamente ao `ctx.projecaoLocal`, porque
-             ligar o modo local não é só subir o motor: é também trocar o transporte da
-             porta de projeção do painel. Quem sabe fazer as duas coisas na ordem certa é
-             o renderer. */
+          /*
+           * Caixa de seleção, e não item simples: sem a marca visível não havia como saber
+           * se o modo estava ligado — nem onde desligá-lo. O operador ficava a adivinhar,
+           * e cada teste do modo local partia de um estado incerto.
+           *
+           * O `checked` vem do facto (o motor está de pé?), não da preferência gravada.
+           *
+           * O comando vai ao renderer, e não directamente ao `ctx.projecaoLocal`, porque
+           * ligar o modo local não é só subir o motor: é também trocar o transporte da
+           * porta de projeção do painel. Quem sabe fazer as duas coisas na ordem certa é
+           * o renderer.
+           */
           label: 'Projetar nesta máquina',
+          type: 'checkbox',
+          checked: !!ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-projetar-nesta-maquina'),
         },
         { type: 'separator' },
@@ -461,6 +472,24 @@ function criarMenuAplicativo(ctx, updaterApi) {
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/**
+ * Deps do menu, guardadas para o poder reconstruir quando o modo local liga ou desliga.
+ *
+ * O Electron não deixa mudar `checked` de um item já instalado sem guardar a referência;
+ * reconstruir o menu inteiro é mais simples e acontece raramente — só na troca de modo.
+ */
+let depsDoMenu = null;
+
+/** Redesenha a barra de menu para a marca de «Projetar nesta máquina» acompanhar o estado. */
+function actualizarMenuAplicativo(ctx) {
+  if (!depsDoMenu) return;
+  try {
+    criarMenuAplicativo(ctx, depsDoMenu.updaterApi);
+  } catch (e) {
+    console.error('[menu] falha ao actualizar', e);
+  }
 }
 
 function nudgeRepinturaJanelaWin32(win) {
@@ -780,12 +809,16 @@ function registarIpcProjecaoLocal(ctx) {
 
   ipcMain.handle('projecao-local-ligar', async () => {
     if (!ctx.projecaoLocal) return { ok: false, erro: 'projeção local indisponível' };
-    return ctx.projecaoLocal.ligar();
+    const r = await ctx.projecaoLocal.ligar();
+    actualizarMenuAplicativo(ctx);
+    return r;
   });
 
   ipcMain.handle('projecao-local-desligar', async () => {
     if (!ctx.projecaoLocal) return { ok: true };
-    return ctx.projecaoLocal.desligar();
+    const r = await ctx.projecaoLocal.desligar();
+    actualizarMenuAplicativo(ctx);
+    return r;
   });
 
   ipcMain.handle('projecao-local-estado', () => ({
@@ -810,6 +843,7 @@ function registarIpcProjecaoLocal(ctx) {
 module.exports = {
   criarJanela,
   criarMenuAplicativo,
+  actualizarMenuAplicativo,
   abrirConsoleTelaoServidor,
   registerMainWindowIpc,
   setUpdateStatusTitle,
