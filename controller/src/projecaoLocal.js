@@ -12,8 +12,12 @@ const {
   paginaObs,
   alvosDaDifusao,
   displayConfigModo,
+  displayRouting,
+  monitorsList,
   localIp,
 } = require('@lyra/projection-core');
+
+const { buildMonitorsList } = monitorsList;
 const { caminhoIconeApp } = require('./lib/iconPath');
 
 const { getPreferredLocalIPv4 } = localIp;
@@ -133,12 +137,110 @@ function criarProjecaoLocal(deps) {
     };
   }
 
+  /**
+   * API HTTP da projeção, na 5510.
+   *
+   * Não é acessório do socket: o painel depende dela para coisas que o socket nunca fez.
+   *
+   * - `/api/monitores` e `/api/display-routing` alimentam os seletores de tela. Sem elas o
+   *   painel não sabe que monitores existem nem qual é o público — mostra «desativado» nos
+   *   dois e uma lista vazia ao abrir.
+   * - `/api/comando/exibir_apresentacao` é o único caminho da mídia. O Socket.IO corta
+   *   pacotes grandes e derruba a ligação, por isso ficheiros e vídeo em base64 sempre
+   *   foram por POST — daí o limite de 200 MB, igual ao do Servidor.
+   */
+  function montarRotasApi(apiApp) {
+    apiApp.use(express.json({ limit: '200mb' }));
+
+    apiApp.get('/api/monitores', (_req, res) => res.json(buildMonitorsList(screen)));
+
+    apiApp.get('/api/display-routing', (_req, res) => {
+      res.json(displayRouting.loadDisplayRouting(paths.displayRoutingPath));
+    });
+
+    apiApp.put('/api/display-routing', (req, res) => {
+      try {
+        const routing = displayRouting.saveDisplayRouting(paths.displayRoutingPath, req.body || {});
+        engine.garantirTelasAbertasParaProjecao();
+        res.json({ ok: true, routing });
+      } catch (e) {
+        registarErro('projecao-local-put-display-routing', e);
+        res.status(500).json({ erro: e.message || String(e) });
+      }
+    });
+
+    apiApp.get('/api/display-config', (_req, res) => res.json(store.displayConfig));
+
+    apiApp.get('/api/estado', (_req, res) => res.json(engine.estadoPublicoParaSocketsOuApi()));
+
+    /* Gémeos HTTP dos comandos de config. Tal como no Servidor, não difundem
+       `display_config` — respondem com a config aplicada, que é o que um cliente HTTP
+       espera. */
+    const rotaConfig = (persistir) => (req, res) => {
+      try {
+        const cfg = req.body;
+        if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) {
+          return res.status(400).json({ erro: 'corpo deve ser um objeto de configuração' });
+        }
+        const { modoConfig, forcarModo } = displayConfigModo.extrairPatchDisplayConfig(cfg);
+        const enviada = displayConfigModo.processarDisplayConfigDoControlador(store, cfg, {
+          persistirSlides: persistir && modoConfig !== displayConfigModo.MODO_CFG_BIBLIA,
+          displayConfigPath: paths.displayConfigPath,
+          enviar: engine.aplicarDisplayConfigNasJanelas,
+        });
+        try {
+          engine.sincronizarJanelasRelogio();
+        } catch (e) {
+          registarErro('projecao-local-relogio', e);
+        }
+        res.json({
+          ok: true,
+          config:
+            enviada ||
+            displayConfigModo.resolverConfigParaJanelas(store, {
+              forcarModo: forcarModo || 'slides',
+            }),
+        });
+      } catch (e) {
+        registarErro('projecao-local-put-display-config', e);
+        res.status(500).json({ erro: e.message || String(e) });
+      }
+    };
+    apiApp.put('/api/display-config', rotaConfig(true));
+    apiApp.put('/api/display-config/preview', rotaConfig(false));
+
+    /* Fallbacks HTTP dos comandos. O painel em modo local quase nunca os usa — a porta de
+       projeção fala por IPC — mas `exibir_apresentacao` vem sempre por aqui. */
+    const rotaComando = (comando) => (req, res) => {
+      void receberComando(comando, req.body || {}, null).then((r) => {
+        if (r.ok) return res.json({ ok: true });
+        res.status(500).json(r);
+      });
+    };
+    for (const comando of [
+      'exibir_apresentacao',
+      'encerrar_apresentacao_publico',
+      'audio_play',
+      'audio_pause',
+      'audio_stop',
+      'audio_volume',
+      'audio_seek',
+      'apresentacao_video_state',
+    ]) {
+      apiApp.post(`/api/comando/${comando}`, rotaComando(comando));
+    }
+  }
+
   function montarServidores() {
     const apiApp = express();
-    apiApp.use((_req, res, next) => {
+    apiApp.use((req, res, next) => {
       res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') return res.sendStatus(204);
       next();
     });
+    montarRotasApi(apiApp);
     servidorApi = http.createServer(apiApp);
 
     const { Server } = require('socket.io');
