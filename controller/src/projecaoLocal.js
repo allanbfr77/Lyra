@@ -192,7 +192,34 @@ function criarProjecaoLocal(deps) {
    */
   async function ligar() {
     if (activa) return { ok: true, lanIp: getPreferredLocalIPv4() };
+    try {
+      return await ligarInterno();
+    } catch (e) {
+      /* Sem este `catch`, uma falha em montar o motor ou os servidores rejeitava o
+         `invoke` do IPC e o painel ficava sem resposta nenhuma — só via a mensagem do
+         auto-reconectar, que apontava para o lado errado do problema. */
+      registarErro('projecao-local-ligar', e);
+      await desligar();
+      return { ok: false, erro: explicarFalhaAoLigar(e) };
+    }
+  }
 
+  /**
+   * Traduz falhas de arranque em algo accionável.
+   *
+   * O `socket.io` é dependência nova do Controlador (o modo local hospeda a 5510). Num
+   * checkout sem `npm install` o `require` falha, e a mensagem crua do Node não diz ao
+   * operador o que fazer.
+   */
+  function explicarFalhaAoLigar(e) {
+    const msg = e?.message || String(e);
+    if (e?.code === 'MODULE_NOT_FOUND' && /socket\.io/.test(msg)) {
+      return 'Falta instalar as dependências do Controlador (socket.io). Rode `npm install` na pasta controller/ e reabra o app.';
+    }
+    return msg;
+  }
+
+  async function ligarInterno() {
     store = criarArmazemDeProjecao();
     engine = createProjectionEngine(paths, {
       logError: registarErro,

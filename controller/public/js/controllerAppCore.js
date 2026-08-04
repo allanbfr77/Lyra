@@ -10917,6 +10917,19 @@ function conectar() {
 
 const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
 
+/** Verdadeiro entre o clique no menu e a resposta do processo principal. */
+let projecaoLocalEmCurso = false;
+
+/**
+ * O painel está — ou está a ficar — em modo local?
+ *
+ * Serve de guarda ao auto-reconectar. A preferência sozinha não bastaria: entre escolher
+ * o modo e ele arrancar há uma janela de tempo em que ainda nada está gravado.
+ */
+function emModoProjecaoLocal() {
+  return projecaoLocalEmCurso || (projetarNestaMaquinaPreferido() && !!ponteProjecaoLocal());
+}
+
 /** A ponte só existe dentro do Electron; no browser o modo local não se aplica. */
 function ponteProjecaoLocal() {
   return window.lyraElectron?.projecaoLocal || null;
@@ -10940,7 +10953,18 @@ async function ligarProjecaoNestaMaquina() {
   if (!ponte) return { ok: false, erro: 'modo local indisponível fora do aplicativo' };
 
   setStatus('conectando', 'INICIANDO PROJEÇÃO LOCAL...');
-  const r = await ponte.ligar();
+  /* `projecaoLocalEmCurso` bloqueia o auto-reconectar enquanto isto decorre: abrir as
+     janelas de projeção rouba o foco, o foco dispara `tentarAutoConectarSeDesconectado`,
+     e o painel ia atrás de um Servidor no meio do arranque do modo local. */
+  projecaoLocalEmCurso = true;
+  let r;
+  try {
+    r = await ponte.ligar();
+  } catch (e) {
+    r = { ok: false, erro: e?.message || String(e) };
+  } finally {
+    projecaoLocalEmCurso = false;
+  }
   if (!r?.ok) {
     setStatus('erro', 'PORTA OCUPADA');
     atualizarUiConexao(false);
@@ -11984,6 +12008,12 @@ socket.on('connect', async () => {
 
 /** Liga ao servidor se há IP gravado. */
 function tentarAutoConectarSeDesconectado() {
+  /* Em modo local não há Servidor a procurar — e procurá-lo não era só inútil: o
+     auto-reconectar dispara ao mudar de foco, o que acontece precisamente quando as
+     janelas de projeção abrem. O painel passava de «iniciando projeção local» para
+     «servidor não encontrado» e o modo local ficava por baixo, sem ninguém a apontar
+     para ele. */
+  if (emModoProjecaoLocal()) return;
   const ip = (document.getElementById('ip-input')?.value || '').trim();
   if (!ip) return;
   if (socket && socket.connected) return;
