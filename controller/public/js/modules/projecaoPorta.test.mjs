@@ -280,3 +280,41 @@ test('trocar de remoto para local leva as inscrições consigo', () => {
   assert.equal(porta.enviar('limpar_tela'), true);
   assert.deepEqual(ponte.enviados, [{ evento: 'limpar_tela', dados: undefined }]);
 });
+
+test('inscrever antes de haver transporte continua a entregar quando ele chega', () => {
+  // Regressão do defeito que deixou o modo local sem canal de retorno: as inscrições
+  // viviam dentro de `iniciarSocket()`, que só corre no modo remoto. O painel enviava
+  // comandos e nunca recebia `estado` — sem preview, sem badge, sem estrofe activa.
+  // Registá-las ao carregar o módulo só é seguro se a porta as guardar sem transporte.
+  const porta = criarPortaProjecao();
+  const recebidos = [];
+  porta.aoReceber('estado', (e) => recebidos.push(e));
+
+  assert.equal(porta.ligada(), false, 'ainda não há para onde falar…');
+
+  const ponte = ponteFalsa();
+  porta.usarTransporte(criarTransporteLocal(ponte));
+  ponte.emitir('estado', { tipo: 'apresentacao' });
+
+  assert.deepEqual(recebidos, [{ tipo: 'apresentacao' }]);
+});
+
+test('as inscrições de arranque sobrevivem a remoto → local → remoto', () => {
+  const porta = criarPortaProjecao();
+  const recebidos = [];
+  porta.aoReceber('estado', (e) => recebidos.push(e));
+
+  const s = socketFalso();
+  porta.usarTransporte(criarTransporteSocket(s));
+  s.receber('estado', 'remoto');
+
+  const ponte = ponteFalsa();
+  porta.usarTransporte(criarTransporteLocal(ponte));
+  ponte.emitir('estado', 'local');
+
+  const s2 = socketFalso();
+  porta.usarTransporte(criarTransporteSocket(s2));
+  s2.receber('estado', 'remoto outra vez');
+
+  assert.deepEqual(recebidos, ['remoto', 'local', 'remoto outra vez']);
+});

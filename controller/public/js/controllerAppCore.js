@@ -11863,6 +11863,24 @@ function aoReceberAudioStateDaProjecao(st) {
 
 }
 
+/*
+ * As inscrições do canal de retorno são feitas UMA vez, ao carregar o painel — e não
+ * dentro de `iniciarSocket()`.
+ *
+ * Enquanto viveram lá, existiam só no modo remoto: `iniciarSocket()` corre a partir de
+ * `conectar()`, e no modo local nunca há ligação a fazer. O painel enviava comandos e não
+ * recebia `estado` nenhum. `estadoServidor` ficava em `null`, e com ele morriam o preview
+ * do operador, o badge do telão, a sincronização da estrofe activa e toda a decisão que
+ * pergunta «o que está projetado agora».
+ *
+ * Aqui em cima funcionam para os dois transportes: a porta guarda as inscrições e
+ * reinscreve-as sozinha ao trocar de transporte, e `aoReceber` deduplica por identidade
+ * de função.
+ */
+projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
+projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
+projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
+
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
 function iniciarSocket(ip) {
   if (socket) {
@@ -11957,7 +11975,6 @@ socket.on('connect', async () => {
    *  - somente-leitura: reflete a config do servidor no painel (fonte de verdade);
    *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
    */
-  projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
 
   // Heartbeat de aplicação: responde a cada ping do servidor. SEM isto, o servidor
   // consideraria este controlador (o socket registrado) "sem resposta" após N ciclos e
@@ -11999,9 +12016,7 @@ socket.on('connect', async () => {
     // TODO (UX): trocar por um toast no painel em vez de console.
   });
 
-  projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
 
-  projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
 
   socket.on('disconnect', (motivo) => {
     atualizarUiConexao(false);
