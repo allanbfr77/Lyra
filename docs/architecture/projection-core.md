@@ -1,8 +1,8 @@
 # Projection Core — Documento de Arquitetura
 
-> **Status:** aprovado — extração do `windows.js` **concluída** (ver `windows-extraction-plan.md`)
-> e o Core promovido a pacote próprio, `packages/projection-core`, consumido pelos dois apps.
-> Falta o adaptador local do Controlador — o último passo antes da projeção sem Servidor.
+> **Status:** **concluída e verificada em uso.** O Core é um pacote próprio
+> (`packages/projection-core`) consumido pelos dois apps, e o Controlador projeta sem Servidor
+> nenhum aberto — testado com telas físicas, celular e OBS. Ver §12 para o que foi construído.
 > **Branch:** `refactor/projection-core`
 > **Ponto de restauração:** tag `pre-projection-core-refactor`.
 > **Objetivo deste documento:** fixar as decisões arquiteturais ANTES de mover qualquer
@@ -405,10 +405,19 @@ distribuição).
   adaptador, não do Core (§5.8). Isso dissolve o antigo problema de mídia no modo local **sem**
   alterar a API HTTP — a API continua existindo, apenas deixa de ser pré-requisito do caminho local.
 
-**Ainda em aberto (acordar antes de codar):**
+**As duas questões em aberto, respondidas pela implementação:**
 
-1. O overlay OBS (5001) é responsabilidade só do Server (remoto), ou também deve existir no modo local?
-2. Como o Controlador decide "sou local" vs "sou remoto" (detecção automática vs escolha explícita)?
+1. **O overlay OBS existe nos dois modos.** A pergunta partia de um engano que só ficou visível ao
+   olhar para os clientes: OBS e o app de celular são clientes Socket.IO da porta 5510 e falam o
+   vocabulário de projeção. Tirar-lhes o Servidor tirar-lhes-ia a projeção. Logo, o modo local não é
+   «o motor sem servidor» — é **o Controlador a hospedar a 5510 e a 5001**, com o painel a falar com
+   o motor por IPC em vez de rede. As páginas `obs*.html` mudaram-se para o Core pela mesma razão que
+   as `display*.html`: pertencem a quem projeta, não ao pacote do Servidor.
+2. **Escolha explícita, com o estado visível.** Menu Ferramentas › «Projetar nesta máquina», caixa de
+   seleção cuja marca vem do facto (o motor está de pé?) e não da preferência gravada. Detecção
+   automática foi descartada: o operador tem de poder decidir, e sobretudo tem de **ver** o que está
+   a acontecer. A primeira versão era um item sem estado visível e isso, sozinho, produziu dois
+   diagnósticos errados durante os testes — não havia como saber se o modo estava ligado.
 
 **Quem deriva público × ministrante — separando arquitetura final de estratégia de migração:**
 
@@ -419,18 +428,107 @@ distribuição).
   vive (`server/src/lib/projectionPayloads.js`) e movê-la para o Controller **apenas quando o Core
   estiver estabilizado**. Não misturar as duas decisões — mover tudo de uma vez convida regressão.
 
-> Próxima etapa sugerida (ainda sem código): responder às 2 questões em aberto e só então desenhar a
-> forma concreta do `payload` como hipótese revisável.
+> A derivação público × ministrante continua onde vivia, agora dentro do Core
+> (`packages/projection-core/src/projectionPayloads.js`). Movê-la para o Controller permanece
+> desejável e permanece adiado — pela mesma razão de sempre: não misturar com a extração.
 
 ---
 
 ## 11. Critérios de sucesso
 
-A refatoração será considerada concluída quando:
+Todos verificados com telas físicas, celular e OBS ligados:
 
-- ✓ O Controlador conseguir projetar localmente **sem abrir o Server**.
-- ✓ O modo remoto continuar funcionando **sem alterações perceptíveis**.
-- ✓ O **mesmo Core** for utilizado nos dois modos.
-- ✓ **Não existir duplicação** da lógica de projeção.
-- ✓ O protocolo Socket atual permanecer **compatível**.
-- ✓ O usuário **não perceber diferença visual** na projeção.
+- ✓ O Controlador projeta localmente **sem abrir o Server**.
+- ✓ O modo remoto continua funcionando **sem alterações perceptíveis**.
+- ✓ O **mesmo Core** é utilizado nos dois modos.
+- ✓ **Não existe duplicação** da lógica de projeção — o Servidor consome o mesmo aplicador.
+- ✓ O protocolo Socket permanece **compatível**: o app de celular não precisou de mudar de
+  vocabulário, e o OBS não precisou de mudar de endereço.
+- ✓ Nenhuma diferença visual na projeção.
+
+---
+
+## 12. O que foi construído
+
+Mapa das decisões acima para o código, para quem chegar depois.
+
+### 12.1 As duas portas do painel — `controller/public/js/modules/projecaoPorta.js`
+
+Todo comando do painel para as telas sai por `projecao.enviar()`; tudo o que volta entra por
+`projecao.aoReceber()`. Por baixo há dois transportes com o **mesmo vocabulário**: o socket para o
+Servidor, e IPC para o motor em processo. Nenhum call site sabe em qual dos dois está.
+
+O vocabulário ser idêntico não é preguiça: OBS e celular falam-no pela 5510. Inventar nomes novos
+obrigaria a traduzir de volta na fronteira da rede.
+
+Três predicados, porque o código antigo usava `socket.connected` com três sentidos misturados:
+`ligada()` (há destino), `pronta()` (o destino atende agora) e a distinção entre `enviar` — que
+exige ligação viva — e `enfileirar`, que deixa o cliente Socket.IO bufferizar. Essa última distinção
+foi **herdada**, não inventada: o núcleo já tinha duas famílias de call site com comportamentos
+diferentes. Se ela deve continuar a existir é outra conversa (um `limpar_tela` bufferizado chega às
+telas minutos depois, possivelmente já com outro operador no bastão).
+
+### 12.2 O aplicador de comandos — `packages/projection-core/src/commandApplier.js`
+
+Os handlers de socket do Servidor sempre tiveram três camadas: guarda de escrita, regra de projeção,
+difusão. A do meio é a única que o Controlador precisa, e era a única presa dentro do `httpServer.js`.
+
+O aplicador **não emite** — devolve a lista de eventos a difundir, com um `alcance`. Chamar `io.emit`
+lá dentro traria o Socket.IO para o Core, que é o que a extração desfez. `ALCANCE_OUTROS` existe por
+um caso concreto: `set_display_config` responde excluindo quem enviou.
+
+Extrair em vez de duplicar tem uma consequência que vale enunciar: **o Servidor é o teste de
+regressão do aplicador**, exercitado em produção a cada culto.
+
+### 12.3 Estado sem hospedeiro — `packages/projection-core/src/projectionStore.js`
+
+A porta de estado (`server/src/lib/projectionState.js`) resolvia tirar o `ctx` de dentro do motor,
+mas o estado continuava a viver no `serverContext`. O Controlador não tem um, nem faz sentido
+inventar-lhe um só para projetar. Um teste garante que o armazém cobre exatamente os campos da porta
+— faltar um daria `undefined` só em produção.
+
+### 12.4 O host local — `controller/src/projecaoLocal.js`
+
+Motor + armazém + aplicador + a 5510 para OBS e celular + a 5001 dos overlays. O painel fala por
+IPC; os clientes de rede, por socket. A regra de difusão é partilhada (`alvosDaDifusao`), porque
+«todos menos quem pediu» tem de significar o mesmo nos dois hosts — só muda quem é «quem pediu».
+
+Duas dependências entram injectadas por serem do host e **inverterem de sentido**: a busca de música
+(HTTP ao Controlador no Servidor; banco local aqui) e a reescrita de URL de mídia (necessária lá,
+inútil aqui).
+
+### 12.5 Um só dono das telas
+
+Garantido pelo `EADDRINUSE`, não por uma flag. Com o Servidor de pé, o `listen` falha e o modo local
+recusa arrancar com mensagem clara; com o modo local de pé, o Servidor avisa e encerra em vez de
+ficar a anunciar ONLINE sem ter a porta. Um sistema operativo a dizer «ocupado» é mais fiável do que
+qualquer coordenação que escrevêssemos.
+
+### 12.6 Acesso — `packages/projection-core/src/controleAcesso.js`
+
+O mesmo módulo do Servidor, movido para o Core. Não uma senha nova: o celular já guarda credencial
+por dispositivo e já a manda no handshake, nos dois modos. Dois esquemas de autenticação para a
+mesma porta seria criar divergência onde ela custa mais caro.
+
+Só uma das duas portas do Servidor: o write-lock não faz sentido no modo local, porque o dono das
+telas é quem está na máquina e ele não entra por socket — fala por IPC. Não há bastão a disputar.
+
+### 12.7 Divergências deliberadas do Servidor
+
+Registadas porque o objetivo era paridade, e estas são as excepções conscientes:
+
+- As rotas HTTP `/api/comando/*` do host local são **de loopback**. No Servidor são abertas, porque o
+  painel que as chama está noutra máquina; aqui é o painel local, e deixá-las abertas contornaria
+  pela porta dos fundos a autenticação do socket.
+- Quatro handlers (`limpar_tela`, `encerrar_projecao_biblia`, `encerrar_projecao`,
+  `toggle_blackout`) ganharam `try/catch`. Eram os únicos sem — uma excepção neles subia como
+  uncaught.
+
+### 12.8 O que ficou por fazer
+
+- A derivação público × ministrante continua no Core; movê-la para o Controller permanece adiado.
+- O processo principal do Controlador mantém um cliente Socket.IO fixo a `localhost:5510`
+  (`serverLink.js`). No modo local isso é um laço: ele liga-se ao seu próprio servidor. Inofensivo,
+  mas é resíduo da época em que só o Servidor atendia ali.
+- O modo local não implementa bastão, heartbeat nem sincronização de banco — são serviços do
+  Servidor e não têm equivalente com um só operador presente.

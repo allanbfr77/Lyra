@@ -158,3 +158,52 @@ Simula PC do controller travado/dormindo (socket vivo, app sem responder).
 
 Ao encontrar qualquer um destes, anote **qual PC**, **o que apareceu no console do PC1 e do
 controller**, e a ordem exata dos passos — com isso a correção é direta.
+
+---
+
+## 4. Projeção local — «Projetar nesta máquina»
+
+Valida que o Controlador projeta sem Servidor nenhum aberto, com paridade de comportamento.
+Roda num PC só, o que tem os monitores. Marque conforme confirma.
+
+**Onde ver o estado:** menu Ferramentas › «Projetar nesta máquina» é uma **caixa de seleção** — a
+marca diz se o modo está ligado. Confirme-a antes de cada cenário; sem isso, um teste pode partir de
+um estado diferente do que se julga (foi o que aconteceu na primeira ronda destes testes, e
+produziu dois diagnósticos errados).
+
+### Base de comparação (Servidor + Controlador)
+
+Faça primeiro, para ter com que comparar. Com o Servidor aberto e o Controlador ligado a ele:
+
+- [ ] Projetar música, passar de estrofe.
+- [ ] Projetar versículo, encerrar.
+- [ ] Projetar imagem no público; ir para o modo slide → o telão vira «desativado» e o preview
+      mostra o selo da imagem; a música vai só para o ministrante.
+- [ ] Celular: Bíblia, estrofes e playlists.
+- [ ] OBS: `/obs`, `/obs/biblia`, `/obs/slides` — anote a aparência (fonte, fundo).
+
+### Modo local
+
+Feche o Servidor. Ligue «Projetar nesta máquina» e confirme a marca no menu.
+
+- [ ] O seletor de telas lista os monitores; escolha público e ministrante.
+- [ ] Repita os cinco itens acima. Tudo tem de se comportar **igual**, incluindo a aparência no OBS.
+- [ ] Áudio do modo apresentação toca (é o painel que toca agora, não a janela do Servidor).
+- [ ] ESC numa janela de projeção encerra e o painel reflete.
+
+### Um só dono das telas
+
+- [ ] Com o modo local **ligado**, abrir o Servidor → mensagem em português a explicar a porta
+      ocupada, e o Servidor **encerra**. Não pode ficar de pé a anunciar ONLINE.
+- [ ] Com o Servidor **aberto**, ligar o modo local → «PORTA OCUPADA» no painel.
+- [ ] Ida e volta sem fechar o Controlador: desligar o modo local → abrir o Servidor → o painel
+      liga-se a ele sozinho.
+
+### Acesso do celular no modo local
+
+A lista de dispositivos é **do Controlador**, separada da do Servidor — o celular inscreve-se de
+novo na primeira ligação (TOFU). Comandos de gestão iguais aos do §3, mas contra o Controlador.
+
+- [ ] Primeira ligação do celular: inscreve-se e comanda.
+- [ ] Depois de travar: aparelho novo não comanda; o já inscrito continua.
+- [ ] OBS continua a **ver** sem credencial nenhuma.
