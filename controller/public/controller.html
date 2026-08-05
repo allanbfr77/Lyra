@@ -64,6 +64,8 @@
 
     :root {
       --slides-rail-height: 520px;
+      /* Modo slides: piso da faixa de prévias — o arraste nunca encolhe abaixo disto. */
+      --preview-mod-card-h-min: 172px;
       --bg: #f5f3ee;
       --surface: #ffffff;
       --surface2: #ebe8e2;
@@ -3355,11 +3357,6 @@
     #btn-proxima-musica-playlist {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-    }
-    #btn-proxima-musica-playlist svg {
-      display: block;
-      flex-shrink: 0;
     }
 
     .slides-dock.oculto { display: none; }
@@ -3424,13 +3421,25 @@
       padding: 6px 4px 10px 2px;
     }
 
+    /*
+      As linhas seguem o conteúdo (`auto`), nunca esticam para preencher a altura —
+      com poucos slides os cartões ficariam enormes com o texto perdido no meio.
+      A grelha começa no topo e ganha scroll próprio quando não couber.
+    */
     body.app-mod-slides .slides-grid {
       grid-template-columns: repeat(7, minmax(0, 1fr));
+      align-content: start;
       overflow-x: hidden;
       overflow-y: auto;
       flex: 0 1 auto;
-      align-self: center;
+      align-self: stretch;
       max-width: 100%;
+    }
+
+    /* Número no topo (alinhado entre cartões); o texto centra-se no vão restante. */
+    body.app-mod-slides .slide-chip .slide-snippet {
+      flex: 1 1 auto;
+      justify-content: center;
     }
 
     .slides-grid::-webkit-scrollbar { width: 10px; }
@@ -3914,18 +3923,119 @@
     */
     body.app-mod-slides {
       /* Não redefinir --slides-rail-height aqui: o valor vem do :root (arrastar barra / armazenamento). */
-      /* Pré-visualizações: tamanho fixo em px (não segue conteúdo nem altura da grelha de slides). */
-      --preview-mod-card-h: 212px;
-      --preview-mod-head-h: 30px;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      /*
+        Prévias lado a lado numa única linha. Altura padrão em px — ajustável
+        arrastando a divisória (o valor vai inline no <body> e vence esta regra).
+      */
+      /* Padrão = piso (`--preview-mod-card-h-min`, no :root): o arraste só amplia. */
+      --preview-mod-card-h: var(--preview-mod-card-h-min);
+      --preview-mod-head-h: 18px;
+      /*
+        Largura da coluna do par de prévias. A fonte das prévias é calculada por
+        `calcularFontePxPreview` a partir da linha mais longa, então largura = tamanho
+        de letra: a 440px a linha de 42 caracteres batia no piso de 8px e quebrava;
+        640px dá ~306px por cartão e ~10,5px de fonte (contra 8,7px a 540px).
+      */
+      --preview-mod-stack-w: 640px;
+      /* Playlist lateral fixa — 230px acompanha a fonte maior sem cortar tanto título. */
+      --slides-playlist-w: 230px;
+      /*
+        Layout do modo slides — 2 colunas × 4 linhas:
+
+          ┌───────────────────────────────────────────────┬──────────┐
+          │ cabeçalho (linha 1, atravessa tudo)           │          │
+          ├───────────────────────────────────────────────┤          │
+          │ SLIDES·nome (?)  [TELÃO][TV]  [zoom][próxima] │ PLAYLIST │
+          ├───────────────────────────────────────────────┤ (col 2,  │
+          │ divisória arrastável (linha 3)                │  altura  │
+          ├───────────────────────────────────────────────┤  total)  │
+          │ grelha de slides (linha 4, 1fr)               │          │
+          └───────────────────────────────────────────────┴──────────┘
+
+        `.dashboard-main` e `.slides-dock` passam a `display: contents` (regras mais
+        abaixo) para que os seus filhos entrem diretamente nesta grelha. É isso que
+        permite a barra da faixa sair de dentro do dock e a playlist ser uma coluna de
+        altura total que a grelha de slides nunca sobrepõe nem corta.
+
+        Na linha 2 as prévias e a barra ocupam a MESMA célula de propósito: as prévias
+        centradas (`justify-self: center`) e a barra por cima ocupando a largura toda,
+        com os seus grupos empurrados para as pontas. Assim os controles preenchem as
+        laterais que sobravam ao lado das prévias, sem precisar de uma linha própria.
+      */
+      grid-template-columns: minmax(0, 1fr) var(--slides-playlist-w);
+      grid-template-rows: auto auto auto minmax(0, 1fr);
+    }
+
+    /* O cabeçalho atravessa todas as colunas. */
+    body.app-mod-slides > .app-header {
+      grid-column: 1 / -1;
+      grid-row: 1;
+    }
+
+    /* ── Colocação explícita dos blocos do modo slides ── */
+    body.app-mod-slides .panel-centro {
+      grid-column: 1;
+      grid-row: 2;
+      /* Prévias centradas no eixo da área à esquerda da playlist. */
+      justify-self: center;
+      /* Containing block dos absolutos internos (antes era `.dashboard-main`). */
+      position: relative;
+      background: none;
     }
 
     /*
-      Linha 3 com altura explícita — se usar minmax(..., 1fr) a faixa absorvia todo o espaço e o arrastar não mudava nada.
-      Linha 2 flexível para playlist + centro.
+      Mesma célula das prévias, largura toda: os grupos vão para as pontas e ocupam o
+      espaço que sobrava dos lados. Sem fundo próprio — não é um cartão, é a moldura.
+      `pointer-events` fica só nos grupos, senão a barra transparente roubaria os
+      cliques dos botões das prévias por baixo dela.
+    */
+    body.app-mod-slides .slides-dock-bar {
+      grid-column: 1;
+      grid-row: 2;
+      align-self: center;
+      width: 100%;
+      box-sizing: border-box;
+      background: none;
+      border: 0;
+      pointer-events: none;
+    }
+
+    body.app-mod-slides .slides-dock-bar > * {
+      pointer-events: auto;
+    }
+
+    body.app-mod-slides .slides-resize-handle {
+      grid-column: 1;
+      grid-row: 3;
+    }
+
+    body.app-mod-slides .slides-grid-viewport {
+      grid-column: 1;
+      grid-row: 4;
+      min-height: 0;
+      padding: 0 12px 10px;
+      box-sizing: border-box;
+    }
+
+    body.app-mod-slides .panel-playlist {
+      grid-column: 2;
+      grid-row: 2 / span 3;
+      position: relative;
+      width: var(--slides-playlist-w);
+      min-width: var(--slides-playlist-w);
+      max-width: var(--slides-playlist-w);
+      /* Rola sozinha, independente da área de slides. */
+      overflow: hidden;
+    }
+
+    /*
+      A grelha ocupa sempre o resto da altura (`1fr`): a divisória arrastável muda a
+      altura das prévias (`--preview-mod-card-h`, definida inline no <body> pelo JS)
+      e a grelha absorve a diferença — nunca sobra área morta. O `--slides-rail-height`
+      continua a valer nos outros modos.
     */
     body.app-mod-slides.slides-rail-aberto {
-      grid-template-rows: auto minmax(var(--preview-mod-card-h), 1fr) max(260px, var(--slides-rail-height));
+      grid-template-rows: auto auto auto minmax(0, 1fr);
     }
 
     body.app-mod-slides .tabs {
@@ -3940,44 +4050,60 @@
       display: none !important;
     }
 
-    body.app-mod-slides .dashboard-main {
-      grid-template-columns: 1fr minmax(300px, 440px);
-      align-items: stretch;
-      min-height: 0;
-      overflow: hidden;
+    /*
+      `display: contents` dissolve a caixa do wrapper: os filhos passam a ser itens
+      diretos da grelha do body (ver `body.app-mod-slides` acima). É o que permite a
+      playlist ser coluna de altura total e a barra da faixa subir para junto das prévias.
+      A caixa do `.slides-dock` desaparece — o seu fundo/padding passam para a barra e
+      para o viewport da grelha (regras acima).
+    */
+    body.app-mod-slides .dashboard-main,
+    body.app-mod-slides .slides-dock {
+      display: contents;
     }
 
-    body.app-mod-slides.slides-rail-aberto .dashboard-main {
-      max-height: 100%;
+    /* `.slides-dock.oculto` tem menos especificidade do que a regra acima. */
+    body.app-mod-slides .slides-dock.oculto {
+      display: none !important;
     }
 
     body.app-mod-slides .panel-centro {
       min-width: 0;
       min-height: 0;
       overflow: hidden;
+      /* Altura pelo conteúdo das prévias; estica só para acompanhar a barra ao lado. */
+      height: auto;
+      align-self: stretch;
     }
 
     body.app-mod-slides .centro-split-musicas {
       grid-template-columns: 1fr;
-      padding: 10px 12px;
-      gap: 10px;
+      padding: 6px 10px 4px;
+      gap: 6px;
       min-height: 0;
-      height: 100%;
+      height: auto;
+      flex: 0 0 auto;
       align-content: start;
     }
 
+    /* Prévias TELÃO + TV lado a lado, numa única linha compacta no topo. */
     body.app-mod-slides .centro-col-preview-stack {
       flex-direction: row;
       flex: 0 0 auto;
       flex-shrink: 0;
-      height: var(--preview-mod-card-h);
+      /* Altura pelo conteúdo: os cards têm --preview-mod-card-h fixo e a barra de
+         nota do slide (abaixo do card TELÃO) pode crescer sem ser cortada. */
+      height: auto;
       min-height: var(--preview-mod-card-h);
-      max-height: var(--preview-mod-card-h);
+      max-height: none;
       min-width: 0;
-      gap: 10px;
-      align-items: stretch;
+      gap: 8px;
+      align-items: flex-start;
       align-self: start;
-      width: 100%;
+      /* Centradas na largura da tela (área à esquerda da playlist). */
+      width: var(--preview-mod-stack-w);
+      max-width: 100%;
+      margin-inline: auto;
     }
 
     body.app-mod-slides .preview-stack-item {
@@ -4022,18 +4148,35 @@
       min-height: 0;
       height: auto;
       max-height: none;
-      padding: 10px;
+      padding: 3px 6px;
       overflow: hidden;
     }
 
     body.app-mod-slides .preview-card--dual-screen .preview-card-head {
       padding: 0 10px;
-      font-size: 12px;
+      font-size: 9px;
       letter-spacing: 1px;
     }
 
     body.app-mod-slides .preview-card--operator .preview-card-body {
-      padding: 10px;
+      padding: 3px 6px;
+    }
+
+    /* Texto das prévias reduzido para caber na faixa compacta (≈68px). */
+    body.app-mod-slides .pv-live-titulo {
+      font-size: 8px;
+      letter-spacing: 1.4px;
+      margin-bottom: 3px;
+    }
+
+    body.app-mod-slides .pv-live-letras,
+    body.app-mod-slides .op-slide-text {
+      font-size: 9px;
+      line-height: 1.2;
+    }
+
+    body.app-mod-slides .preview-operator-slides {
+      gap: 4px;
     }
 
     /*
@@ -4052,19 +4195,291 @@
         inset 0 1px 0 rgba(200, 169, 110, 0.07);
     }
 
+    /*
+      Divisória arrastável entre as prévias e a grelha: para baixo aumenta as prévias
+      (e encolhe a grelha), para cima faz o inverso. Ver `setupSlidesRailResize`.
+    */
     body.app-mod-slides .slides-resize-handle {
-      opacity: 0.55;
+      opacity: 0.5;
+      height: 10px;
+      margin: 0;
+      cursor: ns-resize;
+      border-top: 1px solid var(--border);
+      background: none;
+    }
+
+    body.app-mod-slides .slides-resize-handle:hover {
+      opacity: 1;
+      background: none;
     }
 
     body.app-mod-slides .slides-resize-handle::after {
-      opacity: 0.22;
-      background: var(--border);
+      opacity: 0.3;
+      width: 64px;
+      background: var(--text-dim);
     }
 
-    body.app-mod-slides .slides-dock {
+    body.app-mod-slides .slides-resize-handle:hover::after {
+      opacity: 0.85;
+      background: var(--accent2);
+    }
+
+    /* ── Barra da faixa (agora ao lado das prévias) — versão enxuta ── */
+    body.app-mod-slides .slides-dock-bar {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      padding: 0 18px;
+      min-width: 0;
+    }
+
+    /*
+      Teto por lado = metade do vão que sobra ao lado das prévias. Em janelas estreitas
+      os grupos encolhem em vez de avançar por cima dos cartões.
+    */
+    body.app-mod-slides .slides-dock-bar-left,
+    body.app-mod-slides .slides-dock-bar-right {
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: calc(50% - var(--preview-mod-stack-w) / 2 - 26px);
+    }
+
+    body.app-mod-slides .slides-dock-bar-left {
+      gap: 7px;
+    }
+
+    /* «›» precisa de mais presença do que o «•» que substitui. */
+    body.app-mod-slides .slides-dock-bar-left .slides-dock-sep {
+      font-size: 14px;
+      opacity: 0.75;
+    }
+
+    body.app-mod-slides .slides-dock-bar-left #slides-musica-nome {
+      max-width: 100%;
+    }
+
+    /* Empurra zoom + «Avançar música» para a ponta direita. */
+    body.app-mod-slides .slides-dock-bar-right {
+      margin-left: auto;
+    }
+
+    /*
+      As instruções são longas e espremiam a barra. Passam a viver num «?» discreto:
+      a barra fica «SLIDES · nome  (?)  [zoom]  [Avançar música]» e o texto completo
+      abre num balão ao passar o rato. Nada foi removido.
+    */
+    body.app-mod-slides .slides-dock-bar-center {
+      flex: 0 0 auto;
+      position: relative;
+      width: 24px;
+      height: 24px;
+      min-height: 24px;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      /* Dentro da pílula (surface2) o contraste tem de vir do tom mais escuro. */
+      background: var(--surface);
+      cursor: help;
+    }
+
+    body.app-mod-slides .slides-dock-bar-center::before {
+      content: '?';
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text-dim);
+    }
+
+    body.app-mod-slides .slides-dock-bar-center:hover {
+      border-color: var(--accent2);
+    }
+
+    body.app-mod-slides .slides-dock-bar-center:hover::before {
+      color: var(--accent);
+    }
+
+    body.app-mod-slides #slides-projecao-instrucoes {
+      display: none;
+      position: absolute;
+      z-index: 4000;
+      top: calc(100% + 8px);
+      left: -8px;
+      width: 430px;
+      max-width: 46vw;
+      text-align: left;
+      /* Só aparece a pedido, então pode ser confortável de ler. */
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 12px 16px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+    }
+
+    /* Uma ideia por linha (só no modo slides; nos outros o texto continua corrido). */
+    .slides-instr-tit {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .slides-instr-tit strong {
+      font-weight: 700;
+    }
+
+    .slides-instr-lista {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .slides-instr-lista li {
+      position: relative;
+      padding-left: 14px;
+    }
+
+    .slides-instr-lista li::before {
+      content: '';
+      position: absolute;
+      left: 1px;
+      top: 0.58em;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent2);
+      opacity: 0.85;
+    }
+
+    body.app-mod-slides .slides-dock-bar-center:hover #slides-projecao-instrucoes {
+      display: block;
+    }
+
+    /* Sobra espaço: o nome da música respira e o grupo da direita encosta na borda. */
+    body.app-mod-slides .slides-dock-bar-left {
+      flex: 0 1 auto;
+    }
+
+    body.app-mod-slides #slides-projecao-instrucoes kbd.slides-dock-kbd {
+      padding: 1px 5px;
+      margin: 0 1px;
+    }
+
+    /* Zoom em cima, «Avançar música» embaixo — empilhados e encostados à direita. */
+    body.app-mod-slides .slides-dock-bar-right {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 14px;
+    }
+
+    body.app-mod-slides .slides-dock-zoom-group {
+      padding: 3px 8px;
+      background: var(--surface);
+    }
+
+    /* ── Playlist lateral fixa (coluna estreita) — compactação ── */
+    body.app-mod-slides .panel-playlist .panel-section-head {
+      padding: 10px 10px 8px;
+      letter-spacing: 1.6px;
+      font-size: 12px;
+      align-items: center;
+    }
+
+    .playlist-panel-head-titulo {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    body.app-mod-slides .panel-playlist .culto-select-wrap {
+      padding: 8px 10px;
+    }
+
+    body.app-mod-slides .panel-playlist .culto-dd-btn {
+      grid-template-columns: auto 1fr auto;
+      gap: 6px;
+      padding: 0 8px;
+      min-height: 34px;
+      font-size: 12.5px;
+    }
+
+    body.app-mod-slides .panel-playlist .culto-dd-col-desc {
+      padding-left: 6px;
+    }
+
+    /* Scroll próprio, independente da grelha de slides. */
+    body.app-mod-slides .panel-playlist .playlist-list {
+      flex: 1 1 auto;
       min-height: 0;
-      height: 100%;
-      max-height: 100%;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row.ativo {
+      padding-left: 10px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row .tit {
+      font-size: 14px;
+    }
+
+    /* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
+    body.app-mod-slides .panel-playlist .playlist-row .mini {
+      margin-top: 3px;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /*
+      Os botões ↑↓✕ ficam invisíveis mas continuavam a reservar largura na linha —
+      numa coluna de 200px isso truncava o título («1. Mil Gr…»). Passam a flutuar
+      por cima da linha, só no hover.
+    */
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      z-index: 2;
+      gap: 2px;
+      padding: 2px;
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface2) 88%, #000000 12%);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    }
+
+    /* ↑ ↓ ✕ compactos — não competem com o título agora que a fonte da lista subiu. */
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .btn.sm {
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      line-height: 1;
+      letter-spacing: 0;
+      border-radius: 4px;
     }
 
     body.app-mod-slides .centro-col-letras {
@@ -7455,8 +7870,7 @@
         <button type="button" class="btn sm" id="slides-zoom-mais" aria-label="Aumentar slides">+</button>
       </div>
       <button type="button" class="btn sm primary" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
-        Próxima música
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        Avançar música
       </button>
     </div>
   </div>

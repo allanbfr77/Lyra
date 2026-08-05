@@ -59,6 +59,7 @@ import {
   LS_IP_KEY,
   LS_IP_LEGACY,
   LS_SLIDES_RAIL_PX,
+  LS_SLIDES_PREVIEW_H_PX,
   LS_SLIDES_CHIP_ZOOM,
   CLOUD_SHARE_URL,
   LS_FILTRO_TITULO,
@@ -187,15 +188,32 @@ function aplicarRotulosEPlaylistModoSlides() {
   const modo = ehModoSlidesOperador();
   const headPl = document.getElementById('playlist-panel-head');
 if (headPl) {
-  const texto = modo ? 'PLAYLIST — MÚSICAS DO DIA' : 'CULTO & PLAYLIST';
-  // Atualiza só o texto, preservando os botões
-  const primeiroNo = headPl.firstChild;
-  if (primeiroNo && primeiroNo.nodeType === Node.TEXT_NODE) {
-    primeiroNo.textContent = texto + ' ';
-  } else {
-    headPl.insertBefore(document.createTextNode(texto + ' '), headPl.firstChild);
+  /*
+    Título em elemento próprio (não num nó de texto solto): na coluna estreita do modo
+    slides o texto corrido quebrava a meio. Agora é só «PLAYLIST», numa linha, com os
+    botões do cabeçalho intactos.
+  */
+  let titulo = headPl.querySelector('.playlist-panel-head-titulo');
+  if (!titulo) {
+    titulo = document.createElement('span');
+    titulo.className = 'playlist-panel-head-titulo';
+    headPl.insertBefore(titulo, headPl.firstChild);
   }
+  // Neutraliza o nó de texto original do HTML («CULTO & PLAYLIST»), se ainda existir.
+  headPl.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent = '';
+  });
+  titulo.textContent = modo ? 'PLAYLIST' : 'CULTO & PLAYLIST';
 }
+  /*
+    Rótulo da barra da faixa: no modo slides ela identifica o que está carregado
+    («MÚSICA ATUAL › Clamo Jesus»); nos outros modos continua a nomear a secção
+    («SLIDES • Clamo Jesus»).
+  */
+  const marcaFaixa = document.querySelector('.slides-dock-bar-left .slides-dock-marca');
+  const sepFaixa = document.querySelector('.slides-dock-bar-left .slides-dock-sep');
+  if (marcaFaixa) marcaFaixa.textContent = modo ? 'Música atual' : 'Slides';
+  if (sepFaixa) sepFaixa.textContent = modo ? '›' : '•';
   const playlistAcoes =
     document.getElementById('playlist-compartilhar-btn')?.parentElement
     || document.getElementById('playlist-importar-btn')?.parentElement;
@@ -5083,19 +5101,63 @@ function initSlidesRailHeightFromStorage() {
   document.documentElement.style.setProperty('--slides-rail-height', clampSlidesRailHeight(base) + 'px');
 }
 
+/**
+ * Modo slides: a divisória arrasta a faixa de prévias (TELÃO/TV). Arrastar para baixo
+ * aumenta as prévias e encolhe a grelha de slides; para cima faz o inverso. A grelha
+ * fica sempre com o resto do espaço (`1fr`), por isso nunca sobra área morta.
+ */
+const SLIDES_PREVIEW_H_MIN_FALLBACK = 172;
+
+/** Piso vem do CSS (`--preview-mod-card-h-min`) para não haver dois valores a divergir. */
+function alturaMinimaPreviewMod() {
+  const px = parseInt(
+    getComputedStyle(document.body).getPropertyValue('--preview-mod-card-h-min'),
+    10
+  );
+  return Number.isFinite(px) ? px : SLIDES_PREVIEW_H_MIN_FALLBACK;
+}
+
+/**
+ * As prévias nunca encolhem abaixo do piso: arrastar a divisória para cima só
+ * devolve espaço à grelha até esse limite; para baixo aumenta as prévias.
+ */
+function clampAlturaPreviewMod(px) {
+  const min = alturaMinimaPreviewMod();
+  const max = Math.max(min + 60, Math.floor(window.innerHeight * 0.5));
+  return Math.min(Math.max(Math.round(px), min), max);
+}
+
+function alturaPreviewModAtualPx() {
+  const px = parseInt(getComputedStyle(document.body).getPropertyValue('--preview-mod-card-h'), 10);
+  return Number.isFinite(px) ? px : 68;
+}
+
+/* Inline no <body> para vencer o valor-padrão da regra `body.app-mod-slides`. */
+function aplicarAlturaPreviewMod(px) {
+  document.body.style.setProperty('--preview-mod-card-h', clampAlturaPreviewMod(px) + 'px');
+}
+
+function initAlturaPreviewModFromStorage() {
+  const saved = parseInt(localStorage.getItem(LS_SLIDES_PREVIEW_H_PX), 10);
+  if (Number.isFinite(saved)) aplicarAlturaPreviewMod(saved);
+}
+
 function setupSlidesRailResize() {
   const handle = document.getElementById('slides-resize-handle');
   if (!handle) return;
 
   handle.addEventListener('mousedown', (e) => {
-    if (!document.body.classList.contains('slides-rail-aberto')) return;
+    const emModoSlides = ehModoSlidesOperador();
+    if (!emModoSlides && !document.body.classList.contains('slides-rail-aberto')) return;
     slidesRailDrag.active = true;
+    slidesRailDrag.alvo = emModoSlides ? 'previa' : 'faixa';
     slidesRailDrag.startY = e.clientY;
-    const cur = parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height'),
-      10
-    ) || 520;
-    slidesRailDrag.startH = cur;
+    slidesRailDrag.startH = emModoSlides
+      ? alturaPreviewModAtualPx()
+      : parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height'),
+          10
+        ) || 520;
     e.preventDefault();
     document.body.style.cursor = 'ns-resize';
     document.body.style.userSelect = 'none';
@@ -5504,12 +5566,12 @@ let slidesDockVisivel = false;
 let slidesRailUserRecolhido = false;
 /**
  * Modo slides: a grelha de chips só aparece após escolher música na playlist (não ao carregar do banco na coluna esquerda).
- * Ao entrar no modo slides fica sempre false até clique/dupro na playlist ou «Próxima música».
+ * Ao entrar no modo slides fica sempre false até clique/dupro na playlist ou «Avançar música».
  */
 let faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
 /**
  * Quando false, mudanças de estrofe só atualizam o painel (sem enviar às telas) até o primeiro duplo clique
- * na faixa de slides ou no cartão central — ou até «Próxima música», sincronização do servidor, etc.
+ * na faixa de slides ou no cartão central — ou até «Avançar música», sincronização do servidor, etc.
  */
 let projecaoMusicaEmitidaNoServidor = false;
 /**
@@ -5519,11 +5581,16 @@ let projecaoMusicaEmitidaNoServidor = false;
 let bloqueioSincronizarEstrofeDoServidor = false;
 /** Evita que dois cliques rápidos na playlist disparem só seleção duas vezes + duplo clique (projeta sem querer). */
 let playlistRowClickTimer = null;
-let slidesRailDrag = { active: false, startY: 0, startH: 520 };
+let slidesRailDrag = { active: false, alvo: 'faixa', startY: 0, startH: 520 };
 let monitoresServidorCache = [];
 
 document.addEventListener('mousemove', (e) => {
   if (!slidesRailDrag.active) return;
+  if (slidesRailDrag.alvo === 'previa') {
+    /* Para baixo (dy > 0) = prévias maiores, grelha menor. */
+    aplicarAlturaPreviewMod(slidesRailDrag.startH + (e.clientY - slidesRailDrag.startY));
+    return;
+  }
   const dy = slidesRailDrag.startY - e.clientY;
   const nh = clampSlidesRailHeight(slidesRailDrag.startH + dy);
   document.documentElement.style.setProperty('--slides-rail-height', nh + 'px');
@@ -5534,9 +5601,13 @@ document.addEventListener('mouseup', () => {
   slidesRailDrag.active = false;
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
-  const raw = getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height');
-  const px = parseInt(raw, 10);
-  if (Number.isFinite(px)) localStorage.setItem(LS_SLIDES_RAIL_PX, String(px));
+  if (slidesRailDrag.alvo === 'previa') {
+    localStorage.setItem(LS_SLIDES_PREVIEW_H_PX, String(alturaPreviewModAtualPx()));
+  } else {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height');
+    const px = parseInt(raw, 10);
+    if (Number.isFinite(px)) localStorage.setItem(LS_SLIDES_RAIL_PX, String(px));
+  }
   queueMicrotask(() => {
     ajustarEncaixeGrelhaSlidesModoSlides();
     reaplicarFontesPreviewPainel();
@@ -5549,6 +5620,9 @@ window.addEventListener('resize', () => {
   const px = parseInt(raw, 10);
   if (Number.isFinite(px)) {
     document.documentElement.style.setProperty('--slides-rail-height', clampSlidesRailHeight(px) + 'px');
+  }
+  if (document.body.style.getPropertyValue('--preview-mod-card-h')) {
+    aplicarAlturaPreviewMod(alturaPreviewModAtualPx());
   }
   queueMicrotask(() => {
     ajustarEncaixeGrelhaSlidesModoSlides();
@@ -7779,7 +7853,7 @@ function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
   return j < lista.length ? j : -1;
 }
 
-/** Há música seguinte após a actualmente activa (para o botão «Próxima música»). */
+/** Há música seguinte após a actualmente activa (para o botão «Avançar música»). */
 function haProximaMusicaNaPlaylistAtiva() {
   if (!musicaAtiva) return false;
   const pl = getPlaylist(cultoId);
@@ -9489,47 +9563,102 @@ function configurarObserverPreviewMinistrante() {
   obs.observe(opP, { childList: true, subtree: true, characterData: true, attributes: true });
 }
 
-function renderInstrucoesProjecao(html) {
+/**
+ * As instruções vêm sempre como título + lista de ideias (uma por item), a partir de
+ * uma única fonte de texto. No modo slides — onde vivem num balão que só abre ao pedido
+ * — saem como lista, uma ideia por linha. Nos outros modos continuam em linha corrida
+ * separada por «·», como sempre estiveram na faixa inferior.
+ */
+function renderInstrucoesProjecao(titulo, itens) {
   const dock = document.getElementById('slides-projecao-instrucoes');
-  if (dock) dock.innerHTML = html;
+  if (!dock) return;
+  if (!itens || !itens.length) {
+    dock.innerHTML = titulo || '';
+    return;
+  }
+  if (ehModoSlidesOperador()) {
+    const lis = itens.map((t) => `<li>${t}</li>`).join('');
+    dock.innerHTML =
+      (titulo ? `<div class="slides-instr-tit">${titulo}</div>` : '') +
+      `<ul class="slides-instr-lista">${lis}</ul>`;
+    return;
+  }
+  dock.innerHTML = [titulo, ...itens].filter(Boolean).join(' · ');
 }
 
 /** Texto da faixa central — também quando só a grelha de slides atualiza (ex.: edição em tempo real). */
 function atualizarSlidesInstrucoes() {
   const kb = (t) => `<kbd class="slides-dock-kbd">${t}</kbd>`;
+  const atalhosProjecao = [
+    `${kb('←')} ${kb('→')} navegam entre os slides`,
+    `${kb('ESC')} limpa as telas e desmarca a música (fecha a faixa)`,
+    `${kb('F10')} alterna o blackout`,
+  ];
   if (ehModoBibliaOperador() && !ehModoSlidesOperador()) {
     renderInstrucoesProjecao('');
     return;
   }
   if (!musicaAtiva || !musicaAtiva.estrofes) {
-    renderInstrucoesProjecao(
-      ehModoSlidesOperador()
-        ? '<strong>Modo slides</strong> · escolha música na playlist (só carrega, não projeta) · <strong>duplo clique na música</strong> na lista para <strong>começar a projetar</strong> na 1.ª estrofe · na faixa: duplo clique no chip para mudar slide.'
-        : '<strong>Modo controlador</strong> · playlist só prepara a música (sem enviar às telas) · na central: <strong>clique</strong> seleciona slide · <strong>duplo clique</strong> projeta ou abre a faixa (1.ª vez) · duplo no chip da faixa projeta.'
-    );
+    if (ehModoSlidesOperador()) {
+      renderInstrucoesProjecao('<strong>Modo slides</strong>', [
+        'Escolher uma música na playlist só a carrega — não projeta',
+        '<strong>Duplo clique na música</strong> começa a projetar na 1.ª estrofe',
+        'Na faixa, duplo clique no chip muda o slide',
+      ]);
+    } else {
+      renderInstrucoesProjecao('<strong>Modo controlador</strong>', [
+        'A playlist só prepara a música, sem enviar às telas',
+        'Na coluna central, <strong>clique</strong> seleciona o slide',
+        '<strong>Duplo clique</strong> projeta ou abre a faixa (na 1.ª vez)',
+        'Duplo clique no chip da faixa projeta',
+      ]);
+    }
     return;
   }
   if (ehModoSlidesOperador() && !faixaSlidesHabilitadaPorPlaylistNoModoSlides) {
-    renderInstrucoesProjecao(
-      '<strong>Modo slides</strong> · toque numa música <strong>na playlist à direita</strong> para mostrar os slides aqui (clique = carregar · duplo clique = projetar). O que estiver aberto só pelo banco no modo completo não preenche esta faixa.'
-    );
+    renderInstrucoesProjecao('<strong>Modo slides</strong>', [
+      'Toque numa música <strong>na playlist à direita</strong> para mostrar os slides aqui',
+      'Clique carrega; duplo clique projeta',
+      'Música aberta só pelo banco (modo completo) não preenche esta faixa',
+    ]);
     return;
   }
   const n = musicaAtiva.estrofes.length;
   if (modoEdicaoEstrofes) {
-    renderInstrucoesProjecao(
-      `<strong>Edição</strong> · ${n} slide(s) · <strong>Linha vazia</strong> (Enter duplo, sem carácter no meio) = novo slide na hora · linha com <strong>um espaço</strong> = mesmo slide · <strong>Encerrar edição</strong> descarta · <strong>Salvar</strong> grava e sai · arrastar <strong>⋮⋮</strong> · último cartão = preto.`
-    );
+    renderInstrucoesProjecao(`<strong>Edição</strong> — ${n} slide(s)`, [
+      '<strong>Linha vazia</strong> (Enter duplo, sem carácter no meio) cria outro slide na hora',
+      'Linha com <strong>um espaço</strong> mantém tudo no mesmo slide',
+      '<strong>Encerrar edição</strong> descarta as alterações',
+      '<strong>Salvar</strong> grava e sai do modo edição',
+      'Arrastar <strong>⋮⋮</strong> reordena os slides',
+      'Último cartão = preto',
+    ]);
   } else if (ehModoSlidesOperador()) {
     renderInstrucoesProjecao(
+      `<strong>${n} slide(s)</strong>`,
       projecaoMusicaEmitidaNoServidor
-        ? `<strong>${n} slide(s)</strong> · com projeção ativa: <strong>um clique</strong> num chip envia esse slide às telas · último chip = preto · ${kb('←')} ${kb('→')} navegam · ${kb('ESC')} limpa as telas e desmarca a música (fecha a faixa) · ${kb('F10')} alterna blackout`
-        : `<strong>${n} slide(s)</strong> · <strong>duplo clique na música na playlist</strong> para iniciar na 1.ª estrofe · na faixa: <strong>clique</strong> só seleciona · <strong>duplo clique</strong> no chip projeta · último chip = preto · ${kb('←')} ${kb('→')} navegam · ${kb('ESC')} limpa as telas e desmarca a música (fecha a faixa) · ${kb('F10')} alterna blackout`
+        ? [
+            'Com projeção ativa, <strong>um clique</strong> num chip envia esse slide às telas',
+            'Último chip = preto',
+            ...atalhosProjecao,
+          ]
+        : [
+            '<strong>Duplo clique na música na playlist</strong> inicia na 1.ª estrofe',
+            'Na faixa, <strong>clique</strong> apenas seleciona',
+            '<strong>Duplo clique</strong> no chip projeta',
+            'Último chip = preto',
+            ...atalhosProjecao,
+          ]
     );
   } else {
-    renderInstrucoesProjecao(
-      `<strong>${n} estrofe(s)</strong> · coluna central: <strong>clique</strong> seleciona · <strong>duplo clique</strong> projeta direto · faixa inferior: duplo no chip projeta · botão direito no chip = edição rápida · último chip = preto · <strong>Próxima música</strong> · ${kb('←')} ${kb('→')} navegam · ${kb('ESC')} limpa telas / desmarca · ${kb('F10')} blackout`
-    );
+    renderInstrucoesProjecao(`<strong>${n} estrofe(s)</strong>`, [
+      'Coluna central: <strong>clique</strong> seleciona, <strong>duplo clique</strong> projeta direto',
+      'Faixa inferior: duplo clique no chip projeta',
+      'Botão direito no chip abre a edição rápida',
+      'Último chip = preto',
+      '<strong>Avançar música</strong> carrega a seguinte da playlist',
+      ...atalhosProjecao,
+    ]);
   }
 }
 
@@ -15406,6 +15535,7 @@ setTimeout(() => carregarRoteamentoTelasDoServidor(), 120);
 configurarAutoConectarAoAlternarJanelas();
 
 initSlidesRailHeightFromStorage();
+initAlturaPreviewModFromStorage();
 setupMenusRoteamentoTelas();
 setupSlidesRailResize();
 initSlidesChipZoomFromStorage();

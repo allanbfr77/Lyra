@@ -52,6 +52,8 @@ export const MAX_COPIAS_LOCAIS_POR_MUSICA = 5;
 export const LS_IP_KEY = 'lyra_ip';
 export const LS_IP_LEGACY = 'churchdisplay_ip';
 export const LS_SLIDES_RAIL_PX = 'lyra_slides_rail_px';
+/** Modo slides: altura (px) da faixa de prévias TELÃO/TV — ajustada arrastando a divisória. */
+export const LS_SLIDES_PREVIEW_H_PX = 'lyra_slides_preview_h_px';
 export const LS_SLIDES_CHIP_ZOOM = 'lyra_slides_chip_zoom';
 export const LS_BANCO_FONTE = 'lyra_banco_fonte';
 export const CLOUD_SHARE_URL = 'https://invb-share-api.onrender.com';
