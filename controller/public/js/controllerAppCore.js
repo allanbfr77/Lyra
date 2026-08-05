@@ -7252,7 +7252,14 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
   savePlaylists();
   renderSeletorTemasPlaylist();
   renderPlaylist();
-  await carregarMusicas(ip);
+  // `carregarMusicas` não usa IP — o banco é sempre o :3001 desta máquina.
+  // Um ReferenceError antigo em `ip` (variável inexistente aqui) impedia o
+  // modal de sucesso depois da playlist já ter sido renderizada.
+  try {
+    await carregarMusicas();
+  } catch (_) {
+    // intencional — playlist já gravada; só falhou o refresh da lista do banco
+  }
 
   if (!importadas) {
     return modalImportarPlaylistErro(
@@ -8855,7 +8862,7 @@ function addMusicaNaPlaylistParaCulto(cid, meta) {
  */
 async function processarMusicasSincronizadasPayload(payload) {
   try {
-    await carregarMusicas(ip);
+    await carregarMusicas();
     refreshListaBanco();
   } catch (_) {
   // intencional — erro ignorado
