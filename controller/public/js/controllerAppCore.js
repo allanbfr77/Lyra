@@ -618,8 +618,8 @@ function emitirApresentacao(payload) {
 
   /**
    * Nunca usar `socket.emit('exibir_apresentacao')` para ficheiros (data:, vídeo/Base64 grandes):
-   * o Socket.IO corta pacotes grandes (~1 MB por defeito) e **derruba a ligação** — aparecia
-   * «DESCONECTADO» e sumia «AO VIVO». O servidor aceita POST JSON até 200 MB.
+   * o Socket.IO corta pacotes grandes (~1 MB por defeito) e **derruba a ligação** — aparecia
+   * «DESCONECTADO» e sumia «AO VIVO». O servidor aceita POST JSON até 200 MB.
    */
   const url = `http://${ip}:5510/api/comando/exibir_apresentacao`;
 
@@ -2803,6 +2803,7 @@ function srcImagemApresentacaoSeguro(src, itemOuKind) {
   if (sl.startsWith('data:image/')) {
     const comma = s.indexOf(',');
     const meta = comma === -1 ? s : s.slice(0, comma);
+    // eslint-disable-next-line no-control-regex -- intencional: rejeitar control chars em URL de imagem
     if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(meta)) return '';
     return s;
   }
@@ -2815,6 +2816,7 @@ function srcImagemApresentacaoSeguro(src, itemOuKind) {
     if (!/^https?:$/i.test(u.protocol)) return '';
     const p = (u.pathname || '').replace(/\/+$/, '');
     if (!/\/api\/apresentacao\/media\/[^/]+$/i.test(p)) return '';
+    // eslint-disable-next-line no-control-regex -- intencional: rejeitar control chars em URL de imagem
     if (/[\u0000-\u001f\s"']/.test(s)) return '';
     if (!tratarComoImagem) return '';
     return s;
@@ -7228,12 +7230,20 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
       ? src.aberturaRemovidaPorCulto
       : {};
 
-  try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists)); } catch (_) {}
-  try { localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(cultosManuaisCache || [])); } catch (_) {}
-  try { localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(temasPorCulto || {})); } catch (_) {}
+  try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists)); } catch (_) {
+    // intencional — erro ignorado
+  }
+  try { localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(cultosManuaisCache || [])); } catch (_) {
+    // intencional — erro ignorado
+  }
+  try { localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(temasPorCulto || {})); } catch (_) {
+    // intencional — erro ignorado
+  }
   try {
     localStorage.setItem(LS_PLAYLIST_ABERTURA_REMOVIDA, JSON.stringify(aberturaRemovidaPorCulto || {}));
-  } catch (_) {}
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 
   initCultoSelect();
   renderSeletorTemasPlaylist();
