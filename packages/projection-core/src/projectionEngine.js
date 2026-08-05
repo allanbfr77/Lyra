@@ -768,6 +768,62 @@ function createProjectionEngine(paths, deps) {
     }
   }
 
+  /**
+   * A janela desta entrada está mesmo em cima do monitor que lhe foi atribuído?
+   *
+   * O `entry.index` é o índice registado no momento em que a janela foi criada e não se
+   * actualiza sozinho. Quando um monitor é desligado, o Windows não destrói as janelas
+   * que estavam nele: move-as para outro ecrã — na prática, quase sempre o principal.
+   * O motor continuava a ver `entry.index === 1` e a concluir que a rota estava cumprida,
+   * enquanto a letra do hino já estava, fullscreen e always-on-top, por cima do painel do
+   * operador. Comparar com a posição real é a única forma de detectar essa mudança.
+   *
+   * @param {object} entry entrada do registo de janelas
+   * @param {number} displayIndex índice desejado
+   * @param {Array} displays lista ordenada actual
+   */
+  function janelaCobreODisplay(entry, displayIndex, displays) {
+    const d = displays[displayIndex];
+    if (!d) return false;
+    const win = entry?.win;
+    if (!win || win.isDestroyed()) return false;
+    /* Janela escondida de propósito (relógio à mostra) não tem posição a defender: quando
+       voltar a aparecer passa pelo caminho que a reposiciona. */
+    if (!win.isVisible()) return true;
+    return boundsIguais(win, d.bounds);
+  }
+
+  /**
+   * Traz uma janela visível de volta para cima do monitor a que pertence.
+   *
+   * Sair do fullscreen antes de `setBounds` é obrigatório no Windows: uma janela em
+   * fullscreen ignora o reposicionamento e fica onde está. A sequência pisca por um
+   * instante — é o preço de a tirar de cima do painel do operador.
+   *
+   * @param {object} entry
+   * @param {number} displayIndex
+   */
+  function reposicionarJanelaNoMonitor(entry, displayIndex) {
+    const displays = obterDisplaysOrdenados();
+    const d = displays[displayIndex];
+    const win = entry?.win;
+    if (!d || !win || win.isDestroyed()) return;
+    try {
+      if (win.isFullScreen()) win.setFullScreen(false);
+      win.setBounds({
+        x: d.bounds.x,
+        y: d.bounds.y,
+        width: d.bounds.width,
+        height: d.bounds.height,
+      });
+      win.setFullScreen(true);
+      aplicarTopoAbsolutoProjecao(win);
+      entry.index = displayIndex;
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
+
   function sincronizarJanelasRelogio() {
     const desejados = new Set(indicesMonitoresRelogioDesejados());
     const displays = obterDisplaysOrdenados();
@@ -1145,6 +1201,11 @@ function createProjectionEngine(paths, deps) {
         }
       } else if (principal.index !== displayIndex) {
         substituirJanelaNoMonitor(principal, displayIndex, abrirFn, labelFn);
+      } else if (!janelaCobreODisplay(principal, displayIndex, obterDisplaysOrdenados())) {
+        /* Índice certo, sítio errado: é o que sobra depois de um monitor ser desligado e
+           o Windows arrastar a janela órfã para outro ecrã. Recolocar é suficiente —
+           recriar a janela custaria um piscar e perderia o conteúdo já renderizado. */
+        reposicionarJanelaNoMonitor(principal, displayIndex);
       }
       if (typeof next === 'function') next();
       return;
@@ -1171,6 +1232,13 @@ function createProjectionEngine(paths, deps) {
             try { entry.win.hide(); } catch (_) {
   // intencional — erro ignorado
 }
+          } else if (
+            entry.win.isVisible() &&
+            !janelaCobreODisplay(entry, entry.index, obterDisplaysOrdenados())
+          ) {
+            /* Escudo arrastado pelo Windows depois de um monitor sair. Um rectângulo preto
+               fullscreen por cima do painel é tão incapacitante como a letra do hino. */
+            reposicionarJanelaNoMonitor(entry, entry.index);
           } else if (!entry.win.isVisible()) {
             // Escudo estava oculto — reposicionar e mostrar no mesmo monitor
             // Sequência: sair do fullscreen (oculto = sem flash) → setBounds → show → fullscreen
@@ -1347,21 +1415,36 @@ function createProjectionEngine(paths, deps) {
       return pubWins.length === 0 && minWins.length === 0;
     }
 
+    /* O índice registado não chega: ver `janelaCobreODisplay`. Sem a verificação de
+       posição, desligar um monitor deixava a janela órfã onde o Windows a atirou — e o
+       motor dava a rota por cumprida em vez de a corrigir. */
+    const displaysAgora = obterDisplaysOrdenados();
+
     if (pub < 0) {
       if (pubWins.length !== 0) return false;
-    } else if (pubWins.length !== 1 || pubWins[0].index !== pub) {
+    } else if (
+      pubWins.length !== 1 ||
+      pubWins[0].index !== pub ||
+      !janelaCobreODisplay(pubWins[0], pub, displaysAgora)
+    ) {
       return false;
     }
     if (min < 0) {
       if (minWins.length !== 0) return false;
-    } else if (minWins.length !== 1 || minWins[0].index !== min) {
+    } else if (
+      minWins.length !== 1 ||
+      minWins[0].index !== min ||
+      !janelaCobreODisplay(minWins[0], min, displaysAgora)
+    ) {
       return false;
     }
 
     const escudoIndices = indicesMonitoresEscudoPreto(routingDual);
     const escudoWins = registro.todas().filter((e) => e?.role === 'escudo' && cumpreRota(e));
     for (const idx of escudoIndices) {
-      if (escudoWins.filter((e) => e.index === idx).length !== 1) return false;
+      const noIndice = escudoWins.filter((e) => e.index === idx);
+      if (noIndice.length !== 1) return false;
+      if (!janelaCobreODisplay(noIndice[0], idx, displaysAgora)) return false;
     }
     for (const entry of escudoWins) {
       if (!escudoIndices.includes(entry.index)) return false;

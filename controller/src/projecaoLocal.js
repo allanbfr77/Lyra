@@ -86,13 +86,21 @@ function criarProjecaoLocal(deps) {
    */
   function registarListenersDeMonitores() {
     removerListenersDeMonitores();
-    const aoMudar = () => {
+    const garantir = (etapa) => {
       if (!activa || !engine) return;
       try {
         engine.garantirTelasAbertasParaProjecao();
       } catch (e) {
-        registarErro('projecao-local-display-change-garantir-telas', e);
+        registarErro(`projecao-local-display-change-garantir-telas-${etapa}`, e);
       }
+    };
+    const aoMudar = () => {
+      garantir('imediato');
+      /* `display-removed` chega antes de o Windows acabar de arrumar as janelas órfãs:
+         na primeira passagem elas ainda parecem no sítio, e é só depois que o SO as
+         arrasta para o ecrã do operador — sem emitir mais nenhum evento. A guarda do
+         `activa` na segunda passagem cobre o desligar do modo local entretanto. */
+      setTimeout(() => garantir('revalidacao'), 1200);
     };
     for (const evento of ['display-added', 'display-removed', 'display-metrics-changed']) {
       try {

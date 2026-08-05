@@ -110,13 +110,29 @@ function broadcastMonitoresParaJanelaControle() {
 }
 }
 
+/**
+ * Segunda passagem, atrasada, a seguir a uma mudança de monitores.
+ *
+ * `display-removed` chega antes de o Windows acabar de arrumar as janelas que estavam no
+ * monitor que saiu. Na primeira passagem elas ainda parecem estar no sítio certo; só a
+ * seguir é que o SO as arrasta para o ecrã principal — o do operador — e mais nenhum
+ * evento é emitido. Sem esta repetição, a janela ficava lá para sempre.
+ *
+ * A verificação é idempotente: com tudo no sítio não toca em janela nenhuma.
+ */
+const ATRASO_REVALIDAR_MONITORES_MS = 1200;
+
 function aoMudarDisplaysDoSistema() {
   broadcastMonitoresParaJanelaControle();
-  try {
-    windowsApi.garantirTelasAbertasParaProjecao();
-  } catch (e) {
-    logError('display-change-garantir-telas', e);
-  }
+  const garantir = (etapa) => {
+    try {
+      windowsApi.garantirTelasAbertasParaProjecao();
+    } catch (e) {
+      logError(`display-change-garantir-telas-${etapa}`, e);
+    }
+  };
+  garantir('imediato');
+  setTimeout(() => garantir('revalidacao'), ATRASO_REVALIDAR_MONITORES_MS);
 }
 
 function agendarReinicioServidorElectron() {

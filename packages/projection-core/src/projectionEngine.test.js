@@ -324,7 +324,7 @@ test('slide preto final: ministrante fica activo (tela preta) e não revela o re
  * recurso, ou o próprio Windows a renumerar os ecrãs entre arranques. Estes testes
  * fixam a guarda no motor, que é o último sítio antes de a janela existir.
  */
-function montarComTresEcrans(routing, indices) {
+function montarComTresEcrans(routing, indices, opts = {}) {
   const fs = require('fs');
   const os = require('os');
   const path = require('path');
@@ -348,7 +348,7 @@ function montarComTresEcrans(routing, indices) {
       BrowserWindow: function (opts) { return janelaFalsa(opts); },
       state,
       onProjecaoEncerrada: () => {},
-      haOperadorConectado: () => true,
+      haOperadorConectado: () => opts.operadorConectado !== false,
       resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
       caminhoIconeApp: () => '/core/icone.ico',
     }
@@ -450,5 +450,94 @@ test('com um único monitor não se abre janela nenhuma por cima do painel', () 
     engine.janelasDeProjecao(),
     [],
     'sem segundo ecrã não há onde projetar sem tapar o painel do operador'
+  );
+});
+
+/**
+ * Monitor desligado a meio do culto.
+ *
+ * O Windows não destrói as janelas que estavam no monitor que saiu — arrasta-as para
+ * outro ecrã, quase sempre o principal. O motor, que só comparava o `index` registado no
+ * momento em que criou a janela, dava a rota por cumprida e deixava a letra do hino
+ * fullscreen e always-on-top por cima do painel do operador.
+ */
+test('janela arrastada para o ecrã do operador é trazida de volta', () => {
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+
+  const publico = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(publico, 'precisa da janela de público para o cenário');
+
+  // O SO move a janela órfã para o principal — o motor não é notificado disto.
+  publico.win.setBounds({ ...DISPLAYS_TRES[0].bounds });
+  assert.strictEqual(cobreOEcraDoOperador(engine), true, 'pré-condição do teste');
+
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.strictEqual(
+    cobreOEcraDoOperador(engine),
+    false,
+    'o painel do operador tem de voltar a estar à vista'
+  );
+  assert.deepStrictEqual(
+    publico.win.getBounds(),
+    DISPLAYS_TRES[1].bounds,
+    'a janela devia ter voltado para o monitor que a rota indica'
+  );
+});
+
+test('escudo preto arrastado para o ecrã do operador também é recolocado', () => {
+  /* Sem operador ligado não se abre janela de ministrante, o que deixa o monitor 1 para
+     o escudo — é assim que se isola o caso do escudo à deriva. */
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 2, ministranteIndex: -1 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2],
+    { operadorConectado: false }
+  );
+  engine.abrirTelasConfiguradas();
+
+  const escudo = engine.janelasDeProjecao().find((e) => e.role === 'escudo');
+  assert.ok(escudo, 'precisa do escudo preto para o cenário');
+
+  escudo.win.setBounds({ ...DISPLAYS_TRES[0].bounds });
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.strictEqual(cobreOEcraDoOperador(engine), false);
+});
+
+test('sem deriva nenhuma o motor não mexe nas janelas', () => {
+  /* A verificação de posição roda a cada `garantirTelasAbertasParaProjecao` — ou seja, a
+     cada versículo em modo Bíblia. Se disparasse um resync sem motivo, o monitor piscava
+     a cada avanço de slide. */
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  const publico = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  const antes = { ...publico.win.getBounds(), fullscreen: publico.win.isFullScreen() };
+
+  engine.garantirTelasAbertasParaProjecao();
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.deepStrictEqual(
+    { ...publico.win.getBounds(), fullscreen: publico.win.isFullScreen() },
+    antes,
+    'janela no sítio certo não devia ser tocada'
   );
 });
