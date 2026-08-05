@@ -482,6 +482,20 @@ function hayProjecaoMidiaApresentacaoAtiva() {
   if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
+  /*
+   * `projecaoMinistranteApresentacao` diz apenas «há override no canal ministrante», e
+   * não «há mídia no ar». A Bíblia projetada só no público também levanta essa marca: o
+   * aplicador põe um override de tela limpa no ministrante para ele não continuar a
+   * mostrar o que lá estava. Sem esta exclusão, o modo Bíblia dava-se a si próprio como
+   * «mídia activa» e adoptava a rota antiga da Apresentação, descartando a escolha que o
+   * operador acabara de fazer no seletor.
+   *
+   * Só `biblia` é excluída, e não `musica`: com slides no público é legítimo haver mídia
+   * no canal do ministrante, e essa combinação tem de continuar a contar como activa. Com
+   * a Bíblia não há ambiguidade — `exibir_versiculo` escreve sempre o override do
+   * ministrante, portanto nenhuma mídia pode estar viva lá nesse momento.
+   */
+  if (e.tipo === 'biblia') return false;
   if (e.projecaoMinistranteApresentacao) return true;
   return false;
 }
@@ -707,6 +721,19 @@ function desfazerConflitoSlidesComRotaApresentacao(rotaApresentacao) {
   rotasPorModo.slides = s;
 }
 
+/**
+ * Último conteúdo enviado a projetar nos modos de seletor unificado.
+ *
+ * O `alvoProjecao` (público / ministrante / ambos) viaja DENTRO do payload e é lido pelo
+ * servidor no momento em que a projeção é feita. Mudar o seletor depois disso só altera a
+ * rota de janelas — o conteúdo já enviado continua a apontar ao canal antigo, e o monitor
+ * que acabou de entrar fica com o ecrã ocioso. Guardar o payload é o que permite reenviá-lo
+ * com o alvo novo em vez de obrigar o operador a encerrar e projetar outra vez.
+ *
+ * @type {{tipo: 'apresentacao'|'biblia', payload: object}|null}
+ */
+let ultimoConteudoProjetadoModoUnificado = null;
+
 function emitirApresentacao(payload) {
   const pl = payload && typeof payload === 'object' ? payload : {};
   const ip = getServidorProjeccaoIp();
@@ -742,6 +769,7 @@ function emitirApresentacao(payload) {
       } catch (_) {
   // intencional — erro ignorado
 }
+      ultimoConteudoProjetadoModoUnificado = { tipo: 'apresentacao', payload: pl };
       return true;
     })
     .catch((e) => {
@@ -787,6 +815,55 @@ function obterAlvoProjecaoModoApresentacao() {
 
 function obterAlvoProjecaoModoBiblia() {
   return obterAlvoProjecaoDeRota(rotasPorModo.biblia);
+}
+
+/**
+ * Reenvia o conteúdo que já está no ar depois de o operador mudar o seletor de monitores.
+ *
+ * Nos modos de seletor unificado (Bíblia e Mídias) o alvo é decidido no acto de projetar e
+ * fica gravado no payload. Trocar de «Telão» para «Ambos» com a projeção a correr mudava
+ * as janelas mas não o conteúdo: o monitor novo abria em ocioso e o operador tinha de
+ * encerrar e projetar outra vez. Aqui o payload é reenviado tal e qual, só com o alvo
+ * actualizado.
+ *
+ * Silencioso por natureza: nada a projetar, rota desativada ou modo errado não é erro —
+ * é o caso normal de quem só está a preparar a próxima peça.
+ */
+const ATRASO_REENVIO_APOS_ROTA_MS = 320;
+
+async function reemitirConteudoAposMudancaDeRotaUnificada() {
+  const guardado = ultimoConteudoProjetadoModoUnificado;
+  if (!guardado || !guardado.payload) return;
+
+  const modo = modoRoteamentoAtual();
+  if (modo !== 'apresentacao' && modo !== 'biblia') return;
+
+  const alvo = obterAlvoProjecaoDeRota(rotasPorModo[modo]);
+  if (alvo === 'desativado') return;
+  /* Em «Live — OBS» não há janelas de monitor a alimentar. */
+  if (alvo === 'live') return;
+  if (alvo === guardado.payload.alvoProjecao) return;
+
+  /* O PUT já respondeu, mas a janela do monitor novo ainda está a carregar a página: o
+     motor só lhe entrega conteúdo depois de a ter visível. Conteúdo enviado antes disso
+     perde-se em silêncio — é a mesma razão do `reforcarMinistrante` no motor. */
+  await new Promise((r) => setTimeout(r, ATRASO_REENVIO_APOS_ROTA_MS));
+
+  if (guardado.tipo === 'apresentacao') {
+    if (!apresentacaoMidiaProjetadaId) return;
+    await emitirApresentacao({ ...guardado.payload, alvoProjecao: alvo });
+    return;
+  }
+
+  if (guardado.tipo === 'biblia') {
+    if (bibliaVersiculoProjetado == null) return;
+    /* `somenteTexto: false` de propósito: o monitor que acabou de entrar não recebeu a
+       referência nem a configuração de exibição, e um reenvio abreviado deixá-lo-ia com
+       o versículo sem cabeçalho. */
+    const payload = { ...guardado.payload, alvoProjecao: alvo, somenteTexto: false };
+    projecao.enfileirar('exibir_versiculo', payload);
+    ultimoConteudoProjetadoModoUnificado = { tipo: 'biblia', payload };
+  }
 }
 
 function monitoresRotaCobremAlvo(rota, alvo) {
@@ -3569,6 +3646,7 @@ function encerrarProjecaoMidiaApresentacaoNoControlador() {
     pararAudioServidorPlayback();
   }
   apresentacaoMidiaProjetadaId = null;
+  ultimoConteudoProjetadoModoUnificado = null;
   try {
     localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
   } catch (_) {
@@ -5076,7 +5154,13 @@ function renderRoteamentoTelas(monitores, routing) {
         });
         fecharMenusRoteamentoTelas();
         atualizarEstiloRotasDesativadas();
-        salvarRoteamentoTelasNoServidor();
+        /* O reenvio tem de esperar pelo PUT: as janelas do canal novo só existem depois de
+           o servidor sincronizar a rota, e conteúdo enviado antes disso cai no vazio. */
+        salvarRoteamentoTelasNoServidor()
+          .then(() => reemitirConteudoAposMudancaDeRotaUnificada())
+          .catch(() => {
+            // intencional — falha de rede já é reportada por quem faz o PUT
+          });
         atualizarIndicadorProjecaoLiveUi();
       });
       li.appendChild(b);
@@ -11654,6 +11738,16 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
         desfazerConflitoSlidesComRotaApresentacao(a);
       }
     } else if (modo === 'biblia') {
+      /*
+       * Atenção ao ler: este ramo só corre com `usarValoresDaUi === true`, ou seja, o
+       * operador acabou de escolher um monitor. Adoptar a rota da mídia descarta essa
+       * escolha — deliberado, porque Bíblia e Mídias partilham o canal `apresentacao` no
+       * servidor e mover a rota fecharia as janelas da mídia que ainda está no ar.
+       *
+       * O que era bug: `hayProjecaoMidiaApresentacaoAtiva()` dava `true` para uma Bíblia
+       * projetada só no público, sem mídia nenhuma — e então toda e qualquer troca de
+       * monitor em modo Bíblia caía aqui e era descartada em silêncio.
+       */
       if (hayProjecaoMidiaApresentacaoAtiva()) {
         /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
         rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
@@ -13994,6 +14088,9 @@ function encerrarProjecaoDoControlador(opts = {}) {
   projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
     bibliaVersiculoProjetado = null;
+    if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
+      ultimoConteudoProjetadoModoUnificado = null;
+    }
     bibliaVersiculoSelecionadoIdx = null;
     document.querySelectorAll('.biblia-v-card').forEach((c) => {
       c.classList.remove('projetado', 'selecionado');
@@ -14740,6 +14837,9 @@ function bibliaPrefetchCapitulosVizinhos() {
 
 function bibliaLimparEstadoOperador() {
   bibliaVersiculoProjetado = null;
+  if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
+    ultimoConteudoProjetadoModoUnificado = null;
+  }
   bibliaVersiculoSelecionadoIdx = null;
   bibliaVersiculosCapitulo = [];
   bibliaPrefetchCapJob++;
@@ -14965,7 +15065,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('projetado'));
   if (cardEl && cardEl.classList) cardEl.classList.add('projetado');
   bibliaVersiculoProjetado = v.versiculo;
-  projecao.enfileirar('exibir_versiculo', {
+  const payloadVersiculo = {
     livro: livroRef,
     capitulo: capituloRef,
     versiculo: versiculoRef,
@@ -14973,7 +15073,9 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
     traducao: bibliaTraducaoAtual,
     alvoProjecao: alvo,
     somenteTexto: navegacaoRapida,
-  });
+  };
+  projecao.enfileirar('exibir_versiculo', payloadVersiculo);
+  ultimoConteudoProjetadoModoUnificado = { tipo: 'biblia', payload: payloadVersiculo };
   bibliaPrefetchCapitulosVizinhos();
 }
 
