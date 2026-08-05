@@ -99,6 +99,12 @@ import {
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
 import {
+  LIMITE_DIVISAO_PADRAO,
+  normalizarLimiteDivisao,
+  dividirVersiculos,
+  indicePrimeiraParteDoVersiculo,
+} from './modules/dividirVersiculos.js';
+import {
   identidadesDaRota,
   guardarIdentidadesRota,
   restaurarRotaPorIdentidade,
@@ -503,7 +509,7 @@ function hayProjecaoMidiaApresentacaoAtiva() {
 /** Projeção de Bíblia ou apresentação ainda no ar — ao mudar de tela, manter rota de monitores. */
 function hayProjecaoAtivaModoBibliaOuApresentacao() {
   if (hayProjecaoMidiaApresentacaoAtiva()) return true;
-  if (bibliaVersiculoProjetado != null) return true;
+  if (bibliaParteProjetadaChave != null) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
@@ -856,7 +862,7 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
   }
 
   if (guardado.tipo === 'biblia') {
-    if (bibliaVersiculoProjetado == null) return;
+    if (bibliaParteProjetadaChave == null) return;
     /* `somenteTexto: false` de propósito: o monitor que acabou de entrar não recebeu a
        referência nem a configuração de exibição, e um reenvio abreviado deixá-lo-ia com
        o versículo sem cabeçalho. */
@@ -14055,6 +14061,7 @@ exporCallbacksParaAtributosHtml({
   onClockVerseFontSizeCtrlInput,
   onAvisoCard6CfgChange,
   setPosAvisoCard6Ctrl,
+  onBibliaDivisaoCfgChange,
 });
 
 function navegarEstrofePorSeta(tecla) {
@@ -14174,7 +14181,7 @@ function encerrarProjecaoDoControlador(opts = {}) {
   /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
   projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
-    bibliaVersiculoProjetado = null;
+    bibliaParteProjetadaChave = null;
     if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
       ultimoConteudoProjetadoModoUnificado = null;
     }
@@ -14297,23 +14304,26 @@ async function bibliaNavegarEProjetarPorReferencia(livroNome, capitulo, versicul
     const { total: totalCaps } = await resCap.json();
     if (capitulo < 1 || capitulo > totalCaps) return false;
 
+    /* Este fetch só confirma que a referência existe. O que se projeta vem sempre de
+       `bibliaVersiculosCapitulo` — que já está dividido em partes; projetar o resultado
+       deste fetch mandaria o versículo inteiro enquanto o seletor mostra as partes. */
     const resVer = await fetch(
       `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroDbRef)}/${capitulo}`
     );
     if (!resVer.ok) return false;
     const versiculos = await resVer.json();
-    const v = versiculos.find((item) => item.versiculo === versiculo);
-    if (!v) return false;
+    if (!versiculos.some((item) => item.versiculo === versiculo)) return false;
 
     await bibliaEscolherLivro(livro);
     const capBtn = document.querySelector(`.biblia-cap-btn[data-cap="${capitulo}"]`);
     if (!capBtn) return false;
     await bibliaEscolherCap(capitulo, capBtn);
-    const card = [...document.querySelectorAll('.biblia-v-card')].find(
-      (c) => parseInt(c.dataset.versiculo, 10) === versiculo
-    );
-    if (!card) return false;
-    card.scrollIntoView({ block: 'center' });
+    /* Voz e referência levam sempre à primeira parte do versículo. */
+    const idx = indicePrimeiraParteDoVersiculo(bibliaVersiculosCapitulo, versiculo);
+    const v = idx >= 0 ? bibliaVersiculosCapitulo[idx] : null;
+    if (!v) return false;
+    const card = bibliaMarcarVersiculoNaUi(v, idx);
+    if (card) card.scrollIntoView({ block: 'center' });
     await bibliaProjetarVersiculo(v, card);
     return true;
   } catch (_) {
@@ -14332,7 +14342,15 @@ let bibliaSelecionadoLivro = null;
 let bibliaSelecionadoLivroDb = null;
 let bibliaSelecionadoCap = null;
 let bibliaTraducaoAtual = null;
-let bibliaVersiculoProjetado = null;
+/**
+ * `chave` da parte que está no ar (ver `modules/dividirVersiculos.js`), ou `null`.
+ *
+ * Guarda a chave da **parte**, não o número do versículo: com a divisão ligada, duas
+ * partes do mesmo versículo têm o mesmo número, e comparar números faria o controlador
+ * julgar que nada mudou ao passar da parte 1 para a parte 2 — reenviando a configuração
+ * de exibição inteira (com `bgImage` em base64) a cada parte.
+ */
+let bibliaParteProjetadaChave = null;
 let bibliaVersiculoSelecionadoIdx = null;
 let bnpEtapa = 'livro';
 let bnpLivroSelecionado = null;
@@ -14343,8 +14361,16 @@ let bnpTotalCaps = 0;
 let bnpTotalVers = 0;
 /** Evita PUT /api/display-routing (reabria janelas) em cada versículo projetado. */
 let bibliaRotaSyncServidorChave = null;
-/** Versículos do capítulo actual (memória — navegação por setas sem novo fetch). */
+/**
+ * **Partes** do capítulo actual (memória — navegação por setas sem novo fetch).
+ *
+ * Fonte única do seletor E da projeção. Já vem dividido por
+ * `bibliaRederivarPartesCapitulo()`; com a opção de divisão desligada há exactamente uma
+ * parte por versículo. Nem o render nem `bibliaProjetarVersiculo` dividem seja o que for.
+ */
 let bibliaVersiculosCapitulo = [];
+/** Versículos inteiros do capítulo actual, como vieram da API — origem da re-derivação. */
+let bibliaVersiculosBrutosCapitulo = [];
 /** Cache de capítulos adjacentes pré-carregados: `${trad}|${livro}|${cap}` → versículos[]. */
 const bibliaCapituloCache = new Map();
 let bibliaPrefetchCapJob = 0;
@@ -14431,6 +14457,20 @@ const BIBLIA_CFG_MINISTRANTE_PADRAO = {
 
 let bibliaCfgMinistrante = { ...BIBLIA_CFG_MINISTRANTE_PADRAO };
 
+/**
+ * Leitura — opções que não são de um canal, mas do modo Bíblia inteiro.
+ *
+ * A divisão de versículos longos afeta o telão, o ministrante e o seletor do operador ao
+ * mesmo tempo; por isso não cabe em `exibicao` nem em `ministrante`. Nasce desligada: JSON
+ * antigo sem `leitura` cai nos padrões e nenhuma instalação muda de comportamento.
+ */
+const BIBLIA_CFG_LEITURA_PADRAO = {
+  dividirVersiculosLongos: false,
+  limiteCaracteres: LIMITE_DIVISAO_PADRAO,
+};
+
+let bibliaCfgLeitura = { ...BIBLIA_CFG_LEITURA_PADRAO };
+
 function bibliaMesclarCfgSalva(salva) {
   if (!salva || typeof salva !== 'object') return;
   if (salva.exibicao && typeof salva.exibicao === 'object') {
@@ -14439,6 +14479,11 @@ function bibliaMesclarCfgSalva(salva) {
   if (salva.ministrante && typeof salva.ministrante === 'object') {
     bibliaCfgMinistrante = { ...BIBLIA_CFG_MINISTRANTE_PADRAO, ...salva.ministrante };
   }
+  if (salva.leitura && typeof salva.leitura === 'object') {
+    bibliaCfgLeitura = { ...BIBLIA_CFG_LEITURA_PADRAO, ...salva.leitura };
+  }
+  bibliaCfgLeitura.dividirVersiculosLongos = bibliaCfgLeitura.dividirVersiculosLongos === true;
+  bibliaCfgLeitura.limiteCaracteres = normalizarLimiteDivisao(bibliaCfgLeitura.limiteCaracteres);
 }
 
 function carregarBibliaCfgDoStorage() {
@@ -14460,6 +14505,7 @@ function salvarBibliaCfgNoStorage() {
       JSON.stringify({
         exibicao: bibliaCfgExibicao,
         ministrante: bibliaCfgMinistrante,
+        leitura: bibliaCfgLeitura,
       })
     );
   } catch (_) {
@@ -14614,9 +14660,41 @@ function onBibliaMinistranteCfgChange() {
   bibliaAplicarCfgExibicao();
 }
 
+/**
+ * Divisão de versículos longos — a única opção do modo Bíblia que não é de um canal.
+ *
+ * Re-deriva as partes e redesenha o seletor, mas **não reprojeta**: mexer nas
+ * configurações durante o culto não deve trocar o que está no telão. O realce
+ * `.projetado` some (os índices mudaram) e volta na próxima projeção.
+ */
+function onBibliaDivisaoCfgChange() {
+  bibliaCfgLeitura.dividirVersiculosLongos =
+    !!document.getElementById('cfg-biblia-divisao-ativa-ctrl')?.checked;
+  bibliaCfgLeitura.limiteCaracteres = normalizarLimiteDivisao(
+    document.getElementById('cfg-biblia-divisao-limite-ctrl')?.value
+  );
+  salvarBibliaCfgNoStorage();
+  bibliaPopularFormularioCfgLeitura();
+  bibliaRederivarPartesCapitulo();
+  bibliaVersiculoSelecionadoIdx = null;
+  bibliaRenderizarSeletorVersiculos();
+}
+
+function bibliaPopularFormularioCfgLeitura() {
+  const ativo = bibliaCfgLeitura.dividirVersiculosLongos === true;
+  setChkVal('cfg-biblia-divisao-ativa-ctrl', ativo);
+  setSelVal(
+    'cfg-biblia-divisao-limite-ctrl',
+    String(normalizarLimiteDivisao(bibliaCfgLeitura.limiteCaracteres))
+  );
+  const sel = document.getElementById('cfg-biblia-divisao-limite-ctrl');
+  if (sel) sel.disabled = !ativo;
+}
+
 function bibliaPopularFormularioCfg() {
   const pub = bibliaCfgExibicao;
   const mon = bibliaCfgMinistrante;
+  bibliaPopularFormularioCfgLeitura();
   bibliaMesclarGradienteSalvo(pub, BIBLIA_CFG_EXIBICAO_PADRAO);
   bibliaMesclarGradienteSalvo(mon, BIBLIA_CFG_MINISTRANTE_PADRAO);
 
@@ -14733,6 +14811,7 @@ const CFG_ABAS_CTRL = [
   'ministrante',
   'biblia-telao',
   'biblia-ministrante',
+  'biblia-leitura',
   'relogio',
   'avisos',
 ];
@@ -14887,11 +14966,33 @@ function bibliaCacheChaveCapitulo(traducao, livro, cap) {
   return `${traducao}|${livro}|${cap}`;
 }
 
+/**
+ * **O ponto único de aplicação da divisão** (ver
+ * `docs/architecture/divisao-automatica-versiculos.md`, §6).
+ *
+ * Deriva `bibliaVersiculosCapitulo` (partes) a partir de `bibliaVersiculosBrutosCapitulo`
+ * (versículos inteiros). É a única função do painel que lê `bibliaCfgLeitura` — todos os
+ * consumidores a jusante (seletor, setas, projeção, prefetch) veem sempre a mesma
+ * estrutura, com a divisão ligada ou desligada.
+ */
+function bibliaRederivarPartesCapitulo() {
+  bibliaVersiculosCapitulo = dividirVersiculos(bibliaVersiculosBrutosCapitulo, {
+    ativo: bibliaCfgLeitura.dividirVersiculosLongos === true,
+    limite: bibliaCfgLeitura.limiteCaracteres,
+  });
+}
+
 function bibliaGuardarVersiculosCapitulo(versiculos, traducao, livro, cap) {
-  bibliaVersiculosCapitulo = bibliaAnexarReferenciaVersiculos(versiculos, livro, cap);
+  bibliaVersiculosBrutosCapitulo = bibliaAnexarReferenciaVersiculos(versiculos, livro, cap);
   if (traducao && livro && cap) {
-    bibliaCapituloCache.set(bibliaCacheChaveCapitulo(traducao, livro, cap), bibliaVersiculosCapitulo);
+    /* O cache guarda o BRUTO, não as partes: assim mudar o limite nas configurações é só
+       re-derivar, sem invalidar os capítulos vizinhos já pré-carregados. */
+    bibliaCapituloCache.set(
+      bibliaCacheChaveCapitulo(traducao, livro, cap),
+      bibliaVersiculosBrutosCapitulo
+    );
   }
+  bibliaRederivarPartesCapitulo();
   bibliaPrefetchCapitulosVizinhos();
 }
 
@@ -14923,12 +15024,13 @@ function bibliaPrefetchCapitulosVizinhos() {
 }
 
 function bibliaLimparEstadoOperador() {
-  bibliaVersiculoProjetado = null;
+  bibliaParteProjetadaChave = null;
   if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
     ultimoConteudoProjetadoModoUnificado = null;
   }
   bibliaVersiculoSelecionadoIdx = null;
   bibliaVersiculosCapitulo = [];
+  bibliaVersiculosBrutosCapitulo = [];
   bibliaPrefetchCapJob++;
   bibliaCapsRequestSeq++;
   bibliaVersiculosRequestSeq++;
@@ -15063,7 +15165,7 @@ async function bibliaCarregarCaps(livro) {
 function bibliaEscolherCap(cap, btnEl) {
   bibliaSelecionadoCap = cap;
   bibliaVersiculoSelecionadoIdx = null;
-  bibliaVersiculoProjetado = null;
+  bibliaParteProjetadaChave = null;
   document.querySelectorAll('.biblia-cap-btn').forEach((b) => b.classList.remove('selecionado'));
   btnEl.classList.add('selecionado');
   return bibliaCarregarVersiculos();
@@ -15080,7 +15182,7 @@ async function bibliaCarregarVersiculos() {
   if (!col || !traducao || !livroDbRef) return;
   const requestSeq = ++bibliaVersiculosRequestSeq;
   bibliaVersiculoSelecionadoIdx = null;
-  bibliaVersiculoProjetado = null;
+  bibliaParteProjetadaChave = null;
   col.innerHTML = '<div class="biblia-placeholder">Carregando…</div>';
   try {
     const res = await fetch(
@@ -15089,22 +15191,43 @@ async function bibliaCarregarVersiculos() {
     const versiculos = await res.json();
     if (requestSeq !== bibliaVersiculosRequestSeq) return;
     bibliaGuardarVersiculosCapitulo(versiculos, traducao, livroRef, capRef);
-    col.innerHTML = '';
-    bibliaVersiculosCapitulo.forEach((v, index) => {
-      const card = document.createElement('div');
-      card.className = 'biblia-v-card';
-      card.dataset.versiculo = v.versiculo;
-      card.innerHTML = `
-        <div class="biblia-v-num">${v.versiculo}</div>
-        <div class="biblia-v-texto">${escapeHtml(v.texto)}</div>
-      `;
-      card.onclick = () => bibliaClicarVersiculo(v, card, index);
-      col.appendChild(card);
-    });
+    bibliaRenderizarSeletorVersiculos();
   } catch (_) {
     if (requestSeq !== bibliaVersiculosRequestSeq) return;
     col.innerHTML = '<div class="biblia-placeholder">Erro ao carregar versículos</div>';
   }
+}
+
+/**
+ * Redesenha a coluna de versículos a partir de `bibliaVersiculosCapitulo`.
+ *
+ * Um card por **parte**: com a divisão ligada, o versículo 12 pode aparecer em dois cards,
+ * ambos numerados «12». Por isso `data-versiculo` deixou de ser único e a seleção passou a
+ * usar `data-indice`.
+ *
+ * Dois chamadores — o carregamento do capítulo e a mudança da opção de divisão — e uma só
+ * cópia do render.
+ */
+function bibliaRenderizarSeletorVersiculos() {
+  const col = document.getElementById('biblia-col-versiculos');
+  if (!col) return;
+  col.innerHTML = '';
+  bibliaVersiculosCapitulo.forEach((v, index) => {
+    const card = document.createElement('div');
+    card.className = 'biblia-v-card' + (v.parteTotal > 1 ? ' biblia-v-parte' : '');
+    card.dataset.versiculo = v.versiculo;
+    card.dataset.indice = index;
+    card.dataset.parte = v.parteIndice ?? 0;
+    if (v.parteTotal > 1) {
+      card.title = `${v.livro} ${v.capitulo}:${v.versiculo} — parte ${(v.parteIndice ?? 0) + 1} de ${v.parteTotal}`;
+    }
+    card.innerHTML = `
+      <div class="biblia-v-num">${v.versiculo}</div>
+      <div class="biblia-v-texto">${escapeHtml(v.texto)}</div>
+    `;
+    card.onclick = () => bibliaClicarVersiculo(v, card, index);
+    col.appendChild(card);
+  });
 }
 
 function bibliaClicarVersiculo(v, cardEl, index) {
@@ -15112,7 +15235,7 @@ function bibliaClicarVersiculo(v, cardEl, index) {
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
   cardEl.classList.add('selecionado');
   bibliaVersiculoSelecionadoIdx = index;
-  if (jaSelecionado || bibliaVersiculoProjetado !== null) {
+  if (jaSelecionado || bibliaParteProjetadaChave !== null) {
     bibliaProjetarVersiculo(v, cardEl);
   }
 }
@@ -15138,9 +15261,12 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   const capituloRef =
     bibliaNormalizarCampoReferencia(v?.capitulo) || bibliaNormalizarCampoReferencia(bibliaSelecionadoCap);
   const versiculoRef = bibliaNormalizarCampoReferencia(v?.versiculo);
+  /* Chave da parte, não o número: duas partes do mesmo versículo têm o mesmo número e
+     seriam tomadas por «o mesmo conteúdo», forçando o reenvio da config a cada parte. */
+  const chaveParte = v?.chave ?? `${livroRef}|${capituloRef}|${versiculoRef}|0`;
   const navegacaoRapida =
     opts.navegacaoRapida === true ||
-    (bibliaVersiculoProjetado != null && bibliaVersiculoProjetado !== v.versiculo);
+    (bibliaParteProjetadaChave != null && bibliaParteProjetadaChave !== chaveParte);
   if (!navegacaoRapida) {
     /* Sincroniza rota só na primeira projeção — evita PUT /api/display-routing a cada versículo. */
     await bibliaSincronizarRotaComServidorSeMudou();
@@ -15151,7 +15277,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   }
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('projetado'));
   if (cardEl && cardEl.classList) cardEl.classList.add('projetado');
-  bibliaVersiculoProjetado = v.versiculo;
+  bibliaParteProjetadaChave = chaveParte;
   const payloadVersiculo = {
     livro: livroRef,
     capitulo: capituloRef,
@@ -15417,16 +15543,15 @@ async function bnpConfirmarVer(val) {
   const capBtn = document.querySelector(`.biblia-cap-btn[data-cap="${bnpCapSelecionado}"]`);
   if (capBtn) bibliaEscolherCap(bnpCapSelecionado, capBtn);
   await new Promise((r) => setTimeout(r, 300));
-  const cards = document.querySelectorAll('.biblia-v-card');
-  const card = [...cards].find((c) => parseInt(c.dataset.versiculo, 10) === num);
-  if (card) {
-    card.scrollIntoView({ block: 'center' });
-    const v = {
-      versiculo: num,
-      texto: card.querySelector('.biblia-v-texto')?.textContent || '',
-    };
-    bibliaProjetarVersiculo(v, card);
-  }
+  /* Uma referência aponta sempre para o início do versículo — nunca para o meio. */
+  const idx = indicePrimeiraParteDoVersiculo(bibliaVersiculosCapitulo, num);
+  const v = idx >= 0 ? bibliaVersiculosCapitulo[idx] : null;
+  if (!v) return;
+  /* O objeto projetado sai da lista, não do DOM: ler o texto do card traria as reticências
+     decorativas para dentro da projeção e perderia `livro`/`capitulo` (referência vazia). */
+  const card = bibliaMarcarVersiculoNaUi(v, idx);
+  if (card) card.scrollIntoView({ block: 'center' });
+  await bibliaProjetarVersiculo(v, card);
 }
 
 function bibliaBuscaRapidaTecla(e) {
@@ -15487,10 +15612,14 @@ function bibliaIndicePorTeclaNavegacao(key, idxAtual, total) {
   return idx;
 }
 
+/**
+ * Marca a parte de índice `idx` como selecionada.
+ *
+ * Procura por `data-indice` e não por `data-versiculo`: com a divisão ligada o número do
+ * versículo repete-se entre partes e a consulta antiga acertaria sempre na primeira.
+ */
 function bibliaMarcarVersiculoNaUi(v, idx) {
-  const esc =
-    typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(String(v.versiculo)) : String(v.versiculo);
-  const card = document.querySelector(`.biblia-v-card[data-versiculo="${esc}"]`);
+  const card = document.querySelector(`.biblia-v-card[data-indice="${idx}"]`);
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
   if (card) {
     card.classList.add('selecionado');
@@ -15508,7 +15637,7 @@ function bibliaNavegarVersiculosComSeta(key) {
     if (!cards.length) return;
     let idx = bibliaVersiculoSelecionadoIdx ?? -1;
     idx = bibliaIndicePorTeclaNavegacao(key, idx, cards.length);
-    if (idx === bibliaVersiculoSelecionadoIdx && bibliaVersiculoProjetado != null) return;
+    if (idx === bibliaVersiculoSelecionadoIdx && bibliaParteProjetadaChave != null) return;
     bibliaVersiculoSelecionadoIdx = idx;
     cards[idx].scrollIntoView({ block: 'nearest' });
     cards[idx].click();
@@ -15516,11 +15645,11 @@ function bibliaNavegarVersiculosComSeta(key) {
   }
   let idx = bibliaVersiculoSelecionadoIdx ?? -1;
   const prox = bibliaIndicePorTeclaNavegacao(key, idx, total);
-  if (prox === idx && bibliaVersiculoProjetado != null) return;
+  if (prox === idx && bibliaParteProjetadaChave != null) return;
   const v = bibliaVersiculosCapitulo[prox];
   if (!v) return;
   const card = bibliaMarcarVersiculoNaUi(v, prox);
-  if (bibliaVersiculoProjetado != null) {
+  if (bibliaParteProjetadaChave != null) {
     void bibliaProjetarVersiculo(v, card, { navegacaoRapida: true });
   }
 }
@@ -15671,7 +15800,7 @@ document.addEventListener('keydown', (e) => {
         bibliaNavPopupFechar();
         return;
       }
-      if (bibliaVersiculoProjetado != null) {
+      if (bibliaParteProjetadaChave != null) {
         e.preventDefault();
         encerrarProjecaoModoBiblia();
         return;

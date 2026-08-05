@@ -4692,6 +4692,9 @@
       font-size: 18px;
       line-height: 1.45;
     }
+    /* Versículo dividido: o número repete-se entre as partes, então esmaece-se para o
+       operador distinguir «12» de «12 (continuação)» sem poluir a lista. */
+    .biblia-v-parte .biblia-v-num { opacity: 0.55; }
 
     .biblia-nav-popup {
       position: absolute;
@@ -8113,6 +8116,7 @@
       <button class="cfg-tab cfg-tab-slide" id="cfg-tab-ctrl-ministrante" onclick="mudarAbaCfg('ministrante')">SLIDE — Ministrante (M3)</button>
       <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-telao" onclick="mudarAbaCfg('biblia-telao')">BÍBLIA — Público (M2)</button>
       <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-ministrante" onclick="mudarAbaCfg('biblia-ministrante')">BÍBLIA — Ministrante (M3)</button>
+      <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-leitura" onclick="mudarAbaCfg('biblia-leitura')">BÍBLIA — Leitura</button>
       <button class="cfg-tab" id="cfg-tab-ctrl-relogio" onclick="mudarAbaCfg('relogio')">Relógio</button>
       <button class="cfg-tab" id="cfg-tab-ctrl-avisos" onclick="mudarAbaCfg('avisos')">Avisos — Card 6</button>
     </div>
@@ -8471,6 +8475,35 @@
     <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('ministrante','posY','center')">■ Meio</button>
     <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setBibliaPosCtrl('ministrante','posY','bottom')">▼ Rodapé</button>
   </div>
+
+</div>
+
+<!-- ═══ ABA BÍBLIA — LEITURA ═══
+     Opções do modo Bíblia que não pertencem a um canal: valem para o telão, para o
+     ministrante e para o seletor de versículos do operador ao mesmo tempo. -->
+<div class="cfg-panel-body" id="cfg-panel-ctrl-biblia-leitura">
+
+  <div class="cfg-section-title">Versículos longos</div>
+  <div class="cfg-form-group">
+    <label class="cfg-form-label">
+      <input type="checkbox" id="cfg-biblia-divisao-ativa-ctrl" onchange="onBibliaDivisaoCfgChange()">
+      Dividir versículos longos automaticamente
+    </label>
+  </div>
+  <div class="cfg-form-group">
+    <label class="cfg-form-label">Limite por parte</label>
+    <select class="cfg-form-select" id="cfg-biblia-divisao-limite-ctrl" disabled onchange="onBibliaDivisaoCfgChange()">
+      <option value="100">100 caracteres</option>
+      <option value="150" selected>150 caracteres</option>
+      <option value="200">200 caracteres</option>
+      <option value="250">250 caracteres</option>
+    </select>
+  </div>
+  <p class="cfg-hint" style="margin:0;font-size:12px;color:var(--text-dim)">
+    Versículos acima do limite passam a ocupar mais de um card no seletor, todos com o mesmo
+    número e ligados por reticências. A referência projetada não muda — as duas metades de
+    Gênesis 1:12 continuam a ser <b>Gênesis 1:12</b> no telão.
+  </p>
 
 </div>
 

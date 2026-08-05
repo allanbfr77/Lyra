@@ -283,3 +283,45 @@ novo na primeira ligação (TOFU). Comandos de gestão iguais aos do §3, mas co
 - [ ] Primeira ligação do celular: inscreve-se e comanda.
 - [ ] Depois de travar: aparelho novo não comanda; o já inscrito continua.
 - [ ] OBS continua a **ver** sem credencial nenhuma.
+
+---
+
+## 5. Divisão automática de versículos longos
+
+Ver `docs/architecture/divisao-automatica-versiculos.md`. A funcionalidade nasce **desligada**;
+o primeiro item confirma isso.
+
+### Estado inicial e ativação
+
+- [ ] Numa instalação que nunca viu a opção: modo Bíblia abre com **um card por versículo**
+      (a aba `BÍBLIA — Leitura` mostra a caixa desmarcada e o limite bloqueado).
+- [ ] Ferramentas → Configurações → **BÍBLIA — Leitura** → ativar. O `<select>` de limite
+      desbloqueia. Escolher **100**.
+- [ ] Fechar e reabrir o Controlador: a opção e o limite continuam como foram deixados.
+
+### O seletor
+
+- [ ] Gênesis 1 em ARC: o versículo **12** passa a ocupar **dois cards**, ambos numerados «12»,
+      com `…` na emenda (o número da continuação aparece esmaecido).
+- [ ] Versículos curtos (ex.: 1:5) continuam num único card, sem reticências.
+- [ ] Setas ↓/↑ percorrem parte 1 → parte 2 → versículo 13, sem pular nem repetir.
+
+### A projeção
+
+- [ ] Projetar a parte 2 → o telão mostra o texto começado por `…` e a referência
+      **`Gênesis 1:12`** (não «12b», não vazia).
+- [ ] Passar da parte 1 para a parte 2 com a projeção ligada **não** pisca nem escurece o fundo
+      (a config de exibição não é reenviada — o caso que o `bibliaParteProjetadaChave` protege).
+- [ ] Ministrante (M3) e overlay do OBS mostram a mesma parte e a mesma referência.
+
+### Voltar atrás e ir direto
+
+- [ ] Popup de ir-para (`Gn 1:12`) leva à **primeira** parte, não à última.
+- [ ] Navegação por voz («Gênesis um doze») idem — e projeta a parte 1, não o versículo inteiro.
+
+### Mudar a configuração durante o culto
+
+- [ ] Com um versículo projetado, trocar o limite para 250: a **lista** muda; o **telão não**.
+- [ ] Desativar a opção: a lista volta a um card por versículo; o telão continua igual.
+- [ ] Ester 8:9 com limite 100 → várias partes; nenhuma frase perdida ou repetida ao percorrê-las
+      da primeira à última.
