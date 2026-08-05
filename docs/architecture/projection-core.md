@@ -224,7 +224,8 @@ e biblioteca de conteúdo.
 - ✓ Bíblia, cifras, letras — `cifraLetras.js`, `letrasMusBr.js`
 - ✓ Identidade do dispositivo (deviceId+secret) — `deviceIdentidade.js`
 - ✓ Ditado por voz / vosk — `vozSlidesModeloMain.js`
-- ✓ Cliente que fala com o Server (modo remoto) — `serverLink.js`
+- ✓ Cliente Socket.IO do renderer (modo remoto) — `controllerAppCore.js`
+- ✓ URL local da projeção (5510) — `lib/projectionServerUrl.js`
 - ✓ API HTTP de mídia na 3001 — `httpControllerServer.js`
 
 ---
@@ -604,13 +605,15 @@ Registadas porque o objetivo era paridade, e estas são as excepções conscient
 
 ### 12.8 O que ficou por fazer
 
-- A derivação público × ministrante continua no Core; movê-la para o Controller permanece adiado.
+- A derivação público × ministrante continua no Core; movê-la para o Controller permanece adiado
+  (migração de fronteira, fora do escopo da limpeza pós-modo-local).
 - O modo local não implementa bastão, heartbeat nem sincronização de banco — são serviços do
   Servidor e não têm equivalente com um só operador presente.
-- **Limpeza pendente do `serverLink.js`.** O processo principal já não se liga ao arranque (era o
-  laço registado aqui antes: ligava-se ao seu próprio servidor no modo local), mas o módulo
-  sobreviveu e com ele um ramo morto — `abrirConsoleProjecaoServidor` ainda tenta a via socket, que
-  nunca está de pé, antes de cair no HTTP que resolve. Falta remover esse ramo, mover `SERVER_URL`
-  para um módulo de constantes e apagar `serverLink.js`. Ficou de fora da inversão do padrão de
-  propósito: misturar as duas coisas arriscava regressão no console de diagnóstico do telão, que é
-  ferramenta de depuração e não tem teste automatizado.
+
+### 12.9 Limpeza do `serverLink.js` (feita)
+
+O processo principal tinha um cliente Socket.IO fixo a `localhost:5510` que já não se ligava no
+arranque. Sobrou um ramo morto: `abrirConsoleProjecaoServidor` tentava a via socket (nunca de pé)
+antes de cair no HTTP. Removido o módulo; `SERVER_URL` vive em `lib/projectionServerUrl.js`; os
+consoles de diagnóstico falam só por HTTP. O socket do **renderer** continua a ser o único cliente
+remoto.

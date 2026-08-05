@@ -33,7 +33,7 @@ const {
   saveSharedSyncMeta,
   touchSharedSyncMeta,
 } = require('./lib/sharedSyncMetaStore');
-const { SERVER_URL } = require('./serverLink');
+const { SERVER_URL } = require('./lib/projectionServerUrl');
 const cifra = require('./lib/cifraLetras');
 const letrasMus = require('./lib/letrasMusBr');
 const indiceBusca = require('./lib/indiceMusicasBusca');

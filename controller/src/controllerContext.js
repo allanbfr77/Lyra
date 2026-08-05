@@ -1,12 +1,11 @@
 'use strict';
 
 /**
- * Estado mutável compartilhado (janela, socket para o servidor, flags de updater e recarga).
+ * Estado mutável compartilhado (janela, API HTTP do controlador, flags de updater e recarga).
+ * A ligação ao Servidor remoto vive no renderer (`controllerAppCore.js`), não no main.
  */
 module.exports = {
   windowMain: null,
-  serverSocket: null,
-  serverConnected: false,
   controllerServer: null,
 
   updateReady: false,

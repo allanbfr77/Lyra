@@ -8,7 +8,7 @@ const { URL } = require('url');
 
 const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
-const { SERVER_URL } = require('./serverLink');
+const { SERVER_URL } = require('./lib/projectionServerUrl');
 const { caminhoIconeApp } = require('./lib/iconPath');
 const SERVER_LOCAL_BASE_URL = 'http://127.0.0.1:5510/';
 const ZOOM_BASE_LARGURA = 1920;
@@ -277,36 +277,32 @@ async function reiniciarServidorLocal(ctx) {
   }
 }
 
+/**
+ * Abre DevTools das janelas de projeção no host da 5510 (Servidor remoto nesta
+ * máquina, ou motor local do Controlador). Só HTTP — o cliente Socket.IO do
+ * processo principal foi removido (ver projection-core.md §12.8).
+ */
 async function abrirConsoleProjecaoServidor(
   ctx,
   {
-    socketEvent = 'open_display_devtools',
     httpPath = 'api/open-display-devtools',
     titulo = 'Console do telão',
   } = {}
 ) {
   const w = getJanelaPrincipal(ctx);
   let janelas = null;
-  let via = 'http';
-
-  const link = ctx.serverLink;
-  if (link && link.enviarParaServer(socketEvent)) {
-    via = 'socket';
-  }
 
   try {
     const body = await postOpenDisplayDevtoolsHttp(httpPath);
     janelas = typeof body.janelas === 'number' ? body.janelas : null;
   } catch (e) {
-    if (via === 'socket') {
-      return { ok: true, via };
-    }
     await dialog.showMessageBox(w || undefined, {
       type: 'warning',
       title: titulo,
       message: 'Não foi possível contactar o servidor de projeção.',
       detail:
-        'Certifique-se de que o Lyra — Servidor está em execução (porta 5510).\n\n' +
+        'Certifique-se de que a projeção está activa nesta máquina ' +
+        '(modo local ou app Servidor na porta 5510).\n\n' +
         (e?.message || String(e)),
       buttons: ['OK'],
     });
@@ -322,19 +318,15 @@ async function abrirConsoleProjecaoServidor(
         'Configure os monitores em Configurações e abra a projeção (slide ou bíblia) antes de abrir o console.',
       buttons: ['OK'],
     });
-    return { ok: true, janelas: 0 };
+    return { ok: true, janelas: 0, via: 'http' };
   }
 
-  return { ok: true, via, janelas };
+  return { ok: true, via: 'http', janelas };
 }
 
-/**
- * Abre DevTools das janelas de projeção no processo do servidor (5510).
- * Usa socket do main; se falhar, tenta HTTP em localhost.
- */
+/** Abre DevTools das janelas de projeção no host da 5510 (HTTP em localhost). */
 async function abrirConsoleTelaoServidor(ctx) {
   return abrirConsoleProjecaoServidor(ctx, {
-    socketEvent: 'open_display_devtools',
     httpPath: 'api/open-display-devtools',
     titulo: 'Console do telão',
   });
@@ -342,7 +334,6 @@ async function abrirConsoleTelaoServidor(ctx) {
 
 async function abrirConsolePublicoServidor(ctx) {
   return abrirConsoleProjecaoServidor(ctx, {
-    socketEvent: 'open_public_devtools',
     httpPath: 'api/open-public-devtools',
     titulo: 'Console do público (M2)',
   });
@@ -350,7 +341,6 @@ async function abrirConsolePublicoServidor(ctx) {
 
 async function abrirConsoleMinistranteServidor(ctx) {
   return abrirConsoleProjecaoServidor(ctx, {
-    socketEvent: 'open_ministrante_devtools',
     httpPath: 'api/open-ministrante-devtools',
     titulo: 'Console do ministrante (M3)',
   });

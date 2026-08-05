@@ -44,14 +44,16 @@ Isso é o "pull no connect" — mantenha. O que causa a sobrescrita é o **contr
 
 **No controlador (renderer / `mainWindow`):** ao conectar, **não** dispare `set_display_config` com o estado local. Em vez disso, trate `display_config` e `estado` recebidos do servidor como a verdade e **hidrate a UI a partir deles**. Só envie `set_display_config` quando o usuário mudar algo de propósito (clicar em trocar fundo, layout, etc.).
 
-Concretamente, no `serverLink.js`, os handlers de `estado` e `display_config` já repassam ao renderer:
+Concretamente, no socket do **renderer** (`controllerAppCore.js`), os handlers de `estado` e
+`display_config` aplicam a verdade do host:
 
 ```js
-ctx.serverSocket.on('display_config', (config) => { /* -> renderer: aplica como verdade */ });
-ctx.serverSocket.on('estado',        (estado) => { /* -> renderer: aplica como verdade */ });
+socket.on('display_config', (config) => { /* aplica como verdade no painel */ });
+socket.on('estado',        (estado) => { /* aplica como verdade no painel */ });
 ```
 
-Garanta no renderer que esses eventos **substituem** o estado local (não fazem merge que reintroduz valores antigos), e que nada dispara um `set_display_config` automático no boot / no `connect`.
+> Nota histórica: trechos antigos deste doc apontavam para `serverLink.js` (cliente Socket.IO do
+> main). Esse módulo foi removido — ver nota no fim do documento e `projection-core.md` §12.9.
 
 ### Persistência (para sobreviver a restart do servidor)
 
@@ -107,14 +109,14 @@ O `agendarGravacao` é **debounced**: trocar 10 slides rápido faz 1 gravação,
 deviceIdentidadePath: () => path.join(userDataRoot, 'lyra-device.json'),
 ```
 
-Em `serverLink.js`, no topo de `conectarServer()`:
+No **renderer** (`controllerAppCore.js`), no handshake do Socket.IO:
 
 ```js
-const os = require('os');
+const os = require('os'); // ou identidade já carregada via preload/IPC
 const { carregarOuCriarIdentidade } = require('./lib/deviceIdentidade');
-const identidade = carregarOuCriarIdentidade(ctx.paths.deviceIdentidadePath, os.hostname());
+const identidade = carregarOuCriarIdentidade(paths.deviceIdentidadePath, os.hostname());
 
-ctx.serverSocket = SocketIOClient(SERVER_URL, {
+socket = io(urlServidor, {
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 2000,
@@ -123,6 +125,8 @@ ctx.serverSocket = SocketIOClient(SERVER_URL, {
 });
 ```
 
+> A identidade no produto real é gerida no main e injectada no renderer; o snippet acima é o
+> contrato do handshake. Não voltar a criar um segundo cliente no main (`serverLink.js` — removido).
 **No servidor**, em `paths.js`:
 
 ```js
@@ -263,17 +267,15 @@ O backend é o esqueleto; a parte visível precisa de:
 
 ---
 
-## Nota de arquitetura: dois sockets no controlador
+## Nota de arquitetura: um socket no controlador (renderer)
 
-O controlador abre **duas** conexões Socket.io ao servidor:
+O controlador fala com o Servidor **só no renderer** (`controller/public/js/controllerAppCore.js`,
+`socket = io(...)`): é quem emite `registrar_controlador` e os comandos de projeção, recebe
+`ping_app` / `pong_app` e os handlers `papel_controlador` / `controle_status` / `comando_recusado`.
 
-- **Renderer** (`controller/public/js/controllerAppCore.js`, `socket = io(...)`) — é quem emite
-  `registrar_controlador` e todos os comandos de projeção. **Este é o socket registrado no
-  write-lock**, portanto é ele que recebe `ping_app` e deve responder `pong_app`, e é onde vivem
-  os handlers `papel_controlador` / `controle_status` / `comando_recusado`.
-- **Main process** (`controller/src/serverLink.js`) — segunda conexão que apenas escuta `estado`/
-  `display_config` e repassa por IPC. **Não** se registra como controlador, **não** recebe ping do
-  heartbeat e **não** participa do bastão. Não colocar os handlers de write-lock aqui.
+Houve um segundo cliente no main process (`serverLink.js`) que só escutava `estado` /
+`display_config` e repassava por IPC — sem registo no write-lock. Foi removido: não tinha listeners
+no painel e os consoles de diagnóstico passaram a usar só HTTP (`lib/projectionServerUrl.js`).
 
 Pull-by-role (Problema 1) implementado no renderer: `enviarPreviewDisplayConfig` vira no-op quando
 somente-leitura; o handler `display_config` reflete a config do servidor no painel; e um controlador
