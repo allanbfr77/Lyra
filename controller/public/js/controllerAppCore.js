@@ -97,7 +97,6 @@ import {
   criarTransporteLocal,
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
-import { decidirModoDeArranque } from './modules/modoArranque.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -10943,28 +10942,26 @@ function atualizarUiConexao(conectado) {
 // --- SECÇÃO F — Ligação ao servidor (IP), pedidos HTTP ao controlador :3001, filas e debounces ---
 async function conectar() {
   /*
-   * Esta é a acção que declara o modo remoto, e por isso é aqui — e só aqui — que a
-   * preferência se grava.
+   * A preferência de modo remoto só se grava quando a ligação TEM SUCESSO — ver o
+   * `socket.on('connect')`. Aqui não se escreve nada.
    *
-   * Fora do `if` abaixo de propósito: o modo local pode já estar em baixo (arranque que
-   * caiu no fallback por porta ocupada, ou item de menu desmarcado antes) e a intenção de
-   * quem carrega em «Conectar» é a mesma nos dois casos. Prendê-la ao `if` faria a
-   * escolha perder-se justamente em quem está a montar o cenário de dois PCs.
+   * Gravar logo na tentativa deixava o operador preso: um clique que falhava (Servidor
+   * desligado, IP errado) registava `'0'`, e a cada arranque seguinte o painel tentava o
+   * Servidor de novo e caía em «servidor não encontrado», sem forma óbvia de voltar ao
+   * padrão local. Persistir só no sucesso mantém o reinício a voltar a ocioso.
    */
-  try {
-    localStorage.setItem(LS_PROJETAR_LOCAL, '0');
-  } catch (_) {
-    // intencional — sem `localStorage` a sessão liga na mesma; só não se lembra na próxima
-  }
 
-  /* Pedir para ligar a um Servidor é dizer, sem ambiguidade, que não se quer projetar
-     nesta máquina. Sem isto o painel ligava o socket e continuava a resolver monitores e
-     config contra `127.0.0.1` — meio ligado a cada um dos dois. */
-  if (projecaoLocalActiva) await desligarProjecaoNestaMaquina();
+  /* Sem um Servidor remoto real a que ligar (campo vazio ou o endereço desta própria
+     máquina): nada acontece. O local fica intacto e o badge permanece em REMOTO. Ligar a
+     `localhost` ligava o socket ao motor local e derrubava a projeção e as telas — é
+     precisamente isto que este guard impede. */
+  const ip = ipRemotoAlvo();
+  if (!ip || ehEnderecoDestaMaquina(ip)) return;
 
-  const ip = document.getElementById('ip-input').value.trim() || 'localhost';
-  setStatus('conectando', 'CONECTANDO...');
-
+  /* A projeção local NÃO se derruba aqui. Enquanto a ligação ao Servidor não confirmar, o
+     local continua a projetar — uma tentativa que falha não faz perder a projeção. A troca
+     para o Servidor acontece só no `socket.on('connect')`, quando há de facto ligação. O
+     badge também não muda na tentativa: só passa a SERVIDOR (verde) quando a ligação vinga. */
   if (typeof io !== 'undefined') {
     iniciarSocket(ip);
     return;
@@ -10976,8 +10973,7 @@ async function conectar() {
   script.onload = () => { socketScriptLoading = false; iniciarSocket(ip); };
   script.onerror = () => {
     socketScriptLoading = false;
-    atualizarUiConexao(false);
-    setStatus('erro', 'SERVIDOR NÃO ENCONTRADO');
+    tratarFalhaLigacaoServidor();
   };
   document.head.appendChild(script);
 }
@@ -11003,7 +10999,9 @@ async function conectar() {
  * Ausente e `'1'` levam ao mesmo arranque; distingui-los serve para saber se houve
  * escolha, o que uma migração futura pode querer consultar.
  *
- * Quem grava `'0'` é só `conectar()`. Desmarcar «Projetar nesta máquina» no menu derruba o
+ * Quem grava `'0'` é o `socket.on('connect')` — só uma ligação com SUCESSO declara o modo
+ * remoto. Uma tentativa falhada limpa a chave (`tratarFalhaLigacaoServidor`), para o
+ * reinício voltar ao padrão local. Desmarcar «Projetar nesta máquina» no menu derruba o
  * motor na sessão e não escreve nada: parar de projetar agora não é o mesmo que declarar
  * que este PC opera contra um Servidor da rede.
  */
@@ -11056,34 +11054,6 @@ function ponteProjecaoLocal() {
 }
 
 /**
- * Valor cru da preferência de modo, ou `null` se não houver — ou não se puder ler.
- *
- * Devolver `null` no `catch` não é o mesmo que devolver o padrão: é dizer «não sei», e é
- * `decidirModoDeArranque` quem resolve o que fazer com isso. A leitura fica com uma
- * responsabilidade só, que é o que torna a decisão testável sem `localStorage`.
- */
-function preferenciaModoProjecao() {
-  try {
-    return localStorage.getItem(LS_PROJETAR_LOCAL);
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
- * Em que modo arrancar — a decisão vive em `modules/modoArranque.js`, e aqui só se
- * recolhem os dois factos de que ela precisa.
- *
- * @returns {'local'|'remoto'}
- */
-function modoDeArranqueDoPainel() {
-  return decidirModoDeArranque({
-    preferencia: preferenciaModoProjecao(),
-    temPonte: !!ponteProjecaoLocal(),
-  });
-}
-
-/**
  * Liga o modo local e aponta a porta de projeção ao motor deste processo.
  *
  * @returns {Promise<{ ok: boolean, erro?: string }>}
@@ -11092,7 +11062,7 @@ async function ligarProjecaoNestaMaquina() {
   const ponte = ponteProjecaoLocal();
   if (!ponte) return { ok: false, erro: 'modo local indisponível fora do aplicativo' };
 
-  setStatus('conectando', 'INICIANDO PROJEÇÃO LOCAL...');
+  setStatusServidorRemoto('ocioso');
   /* `projecaoLocalEmCurso` bloqueia o auto-reconectar enquanto isto decorre: abrir as
      janelas de projeção rouba o foco, o foco dispara `tentarAutoConectarSeDesconectado`,
      e o painel ia atrás de um Servidor no meio do arranque do modo local. */
@@ -11107,7 +11077,7 @@ async function ligarProjecaoNestaMaquina() {
   }
   if (!r?.ok) {
     projecaoLocalActiva = false;
-    setStatus('erro', 'PORTA OCUPADA');
+    setStatusServidorRemoto('ocioso');
     atualizarUiConexao(false);
     return r || { ok: false, erro: 'falha desconhecida' };
   }
@@ -11129,7 +11099,7 @@ async function ligarProjecaoNestaMaquina() {
     // intencional
   }
   papelControladorLocal = { primario: true, podeEscrever: true, donoAtual: null };
-  setStatus('conectado', 'PROJETANDO NESTA MÁQUINA');
+  setStatusServidorRemoto('ocioso');
   atualizarUiConexao(true);
   if (r.lanIp) {
     servidorLanIpObs = String(r.lanIp).trim();
@@ -11170,10 +11140,9 @@ async function desligarProjecaoNestaMaquina() {
   if (ponte) await ponte.desligar();
   projecao.usarTransporte(null);
   atualizarUiConexao(false);
-  /* «DESCONECTADO» descrevia um Servidor que caiu, e aqui não caiu nada: o operador
-     desligou a projeção de propósito. Com o modo local por padrão este passou a ser um
-     estado que se alcança de propósito, e o badge tem de o dizer sem soar a avaria. */
-  setStatus('desconectado', 'PROJEÇÃO DESLIGADA');
+  /* O badge único descreve a ligação ao Servidor remoto; ao desligar a projeção local
+     não há Servidor em jogo, então volta ao estado ocioso (cinza), sem soar a avaria. */
+  setStatusServidorRemoto('ocioso');
 }
 
 /** Alterna o modo, para ligar a um botão ou item de menu. */
@@ -12043,9 +12012,9 @@ function iniciarSocket(ip) {
   let _conectandoEmAndamento = false;
   // auth no handshake: credencial de dispositivo para a allowlist do servidor (etapa 3).
   socket = io(`http://${ip}:5510`, { auth: obterIdentidadeDispositivoLocal() });
-  /* Modo remoto: quem projeta é o Servidor, do outro lado deste socket. O transporte
-     prende-se a ESTA instância — daí ser recriado a cada ligação. */
-  projecao.usarTransporte(criarTransporteSocket(socket));
+  /* O transporte do socket NÃO se adota já: enquanto a ligação não vinga, quem projeta
+     continua a ser o transporte em vigor (local, se estava a projetar aqui). A adoção
+     acontece no `connect`, abaixo. */
 
 socket.on('connect', async () => {
   if (_conectandoEmAndamento) {
@@ -12053,6 +12022,12 @@ socket.on('connect', async () => {
   }
   _conectandoEmAndamento = true;
   try {
+    /* Ligação confirmada: só agora se abandona a projeção local e se adota o transporte do
+       Servidor. Feito por esta ordem, a projeção nunca fica sem transporte no meio. */
+    if (projecaoLocalActiva) await desligarProjecaoNestaMaquina();
+    /* Modo remoto: quem projeta é o Servidor, do outro lado deste socket. O transporte
+       prende-se a ESTA instância — daí ser adotado a cada ligação. */
+    projecao.usarTransporte(criarTransporteSocket(socket));
     // Papel desconhecido a cada (re)conexão até o servidor reenviar 'papel_controlador'.
     // Enquanto desconhecido, o boot pode empurrar preview (compat com servidor antigo);
     // se formos somente-leitura, o servidor rejeita e o papel_controlador corrige o painel.
@@ -12063,7 +12038,14 @@ socket.on('connect', async () => {
     temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
     aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
     if (typeof fecharOverlaysPainelCtrl === 'function') fecharOverlaysPainelCtrl();
-    setStatus('conectado', 'CONECTADO');
+    setStatusServidorRemoto('conectado');
+    /* Ligação confirmada: só agora se declara e se lembra o modo remoto. Uma tentativa
+       falhada nunca chega aqui, então o reinício volta ao padrão local (ocioso). */
+    try {
+      localStorage.setItem(LS_PROJETAR_LOCAL, '0');
+    } catch (_) {
+      // intencional — sem `localStorage` liga na mesma; só não se lembra na próxima
+    }
     atualizarUiConexao(true);
     document.getElementById('info-ip').textContent = ip;
     atualizarUrlsObs();
@@ -12162,7 +12144,7 @@ socket.on('connect', async () => {
 
   socket.on('disconnect', (motivo) => {
     atualizarUiConexao(false);
-    setStatus('desconectado', 'DESCONECTADO');
+    setStatusServidorRemoto('ocioso');
     /**
      * Só reposicionar «AO VIVO» quando o próprio cliente desliga o socket ou encerra sessão —
      * quedas rápidas (ex.: erro de transporte) reconectam e o servidor pode continuar a projetar.
@@ -12187,8 +12169,9 @@ socket.on('connect', async () => {
 }
   });
   socket.on('connect_error', () => {
-    atualizarUiConexao(false);
-    setStatus('erro', 'ERRO DE CONEXÃO');
+    /* Não achou Servidor: nada de destrutivo. Volta a REMOTO e o local segue intacto.
+       Não se mexe em `atualizarUiConexao` — o corpo continua no estado do modo local. */
+    tratarFalhaLigacaoServidor();
   });
 }
 
@@ -12223,18 +12206,86 @@ function configurarAutoConectarAoAlternarJanelas() {
 }
 
 /**
- * Estado da ligação ao servidor. A classe é aplicada à pílula e à bolinha:
- * o CSS resolve fundo, borda e ponto a partir do mesmo token (--status-cor),
- * evitando que as duas partes indiquem estados diferentes.
+ * Badge único do canto superior direito — o estado da ligação ao Servidor remoto.
+ *
+ * Só dois estados, propositadamente simples:
+ *   - `ocioso`    → cinza,  texto «REMOTO»   — a projetar nesta máquina, sem Servidor;
+ *   - `conectado` → verde,  texto «SERVIDOR» — ligado a um Servidor remoto.
+ *
+ * Não há estado «a ligar» nem «erro» no badge: uma tentativa que não acha Servidor não
+ * altera nada — fica em REMOTO e o Controlador segue intacto. Qualquer valor que não seja
+ * `conectado` cai em `ocioso`, por segurança.
  */
-function setStatus(classe, texto) {
+function setStatusServidorRemoto(estado) {
   const badge = document.getElementById('status-conn-badge');
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-txt');
-  const sufixo = classe ? ' ' + classe : '';
-  if (badge) badge.className = 'status-conn' + sufixo;
-  if (dot) dot.className = 'status-dot' + sufixo;
-  if (txt) txt.textContent = texto;
+  const cls = estado === 'conectado' ? 'conectado' : 'ocioso';
+  const rotulo = cls === 'conectado' ? 'SERVIDOR' : 'REMOTO';
+  if (badge) badge.className = 'status-conn ' + cls;
+  if (dot) dot.className = 'status-dot ' + cls;
+  if (txt) txt.textContent = rotulo;
+  if (badge) {
+    badge.title = cls === 'conectado'
+      ? 'Ligado ao Servidor remoto — clique para gerir a ligação em Ajustes › Conexão'
+      : 'Clique para ligar a um Servidor remoto';
+  }
+}
+
+/** IP alvo da ligação remota: o que está no campo de Ajustes, ou o último gravado. */
+function ipRemotoAlvo() {
+  const doCampo = (document.getElementById('ip-input')?.value || '').trim();
+  if (doCampo) return doCampo;
+  try { return (readLsMigrate(LS_IP_KEY, LS_IP_LEGACY) || '').trim(); } catch (_) { return ''; }
+}
+
+/**
+ * O endereço aponta para esta própria máquina? Ligar a si mesmo não é «remoto» — e pior,
+ * o socket ligar-se-ia ao motor local desta máquina, derrubando a projeção e as telas. Este
+ * guard é o que garante que clicar sem um Servidor remoto real não mexe em nada.
+ */
+function ehEnderecoDestaMaquina(ip) {
+  const h = String(ip || '').trim().toLowerCase();
+  return !h || h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0';
+}
+
+/**
+ * Atalho do badge REMOTO. Caminho não-destrutivo:
+ *
+ * - já ligado ao Servidor → abre Ajustes › Conexão para gerir/trocar;
+ * - sem IP configurado → abre Ajustes › Conexão (único sítio com campo de IP);
+ * - IP é o desta máquina → não é Servidor remoto: nada acontece, fica intacto;
+ * - IP remoto válido → tenta ligar (só troca para o Servidor se a ligação vingar).
+ */
+function cliqueBadgeServidorRemoto() {
+  if (socket && socket.connected) {
+    abrirCfgModal('conexao');
+    return;
+  }
+  const ip = ipRemotoAlvo();
+  if (!ip) {
+    abrirCfgModal('conexao');
+    setTimeout(() => document.getElementById('ip-input')?.focus(), 0);
+    return;
+  }
+  if (ehEnderecoDestaMaquina(ip)) return;
+  const ipInput = document.getElementById('ip-input');
+  if (ipInput) ipInput.value = ip;
+  conectar();
+}
+
+/**
+ * Não achou Servidor. Nada de destrutivo e — importante — nada de reabrir o motor local.
+ *
+ * O badge volta a REMOTO (ocioso). A projeção local, se estava de pé, continua: o clique
+ * nunca a derruba (só o `connect` com sucesso a derruba). Reabrir o local aqui causava um
+ * pisca-pisca das telas: uma vez ligado ao Servidor (local já derrubado), qualquer
+ * `connect_error` das retentativas do socket reabria o local — que ganhava o M2 e a porta —
+ * e a reconexão seguinte derrubava-o outra vez, em ciclo. O local só se (re)liga por
+ * arranque ou por acção explícita do operador, nunca como efeito de uma falha remota.
+ */
+function tratarFalhaLigacaoServidor() {
+  setStatusServidorRemoto('ocioso');
 }
 
 async function carregarMusicas() {
@@ -13384,6 +13435,7 @@ const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
 exporCallbacksParaAtributosHtml({
   recarregarPainelControlador,
   conectar,
+  cliqueBadgeServidorRemoto,
   alternarProjecaoNestaMaquina,
   ligarProjecaoNestaMaquina,
   desligarProjecaoNestaMaquina,
@@ -15371,25 +15423,32 @@ document.getElementById('ip-input').addEventListener('change', (e) => {
 
 setTimeout(() => {
   /*
-   * Projetar nesta máquina é o padrão de arranque.
+   * Projetar nesta máquina é SEMPRE o arranque: há projeção desde o início e o painel nunca
+   * fica preso num «conectando» sem nada projetável.
    *
-   * O caso comum é um PC só — o que tem os monitores — e nele procurar um Servidor da rede
-   * ao abrir era pedir uma máquina que não existe. Ir ao Servidor passou a ser a excepção,
-   * declarada em Ajustes › Conexão e lembrada em `LS_PROJETAR_LOCAL`.
+   * Se a preferência declarada é o Servidor remoto (cenário de dois PCs), tenta-se ligar POR
+   * CIMA do local — enquanto a ligação não vinga, o local continua a projetar; quem troca de
+   * transporte é o `socket.on('connect')`, só quando a ligação se estabelece de facto.
    *
    * Sem ponte não há modo local (o painel está num browser, fora do aplicativo), e aí só
    * resta o caminho remoto.
    */
-  if (modoDeArranqueDoPainel() === 'local') {
-    /* Se não der para subir o motor local — porta ocupada, tipicamente porque o Servidor
-       está aberto nesta mesma máquina — o painel não pode ficar sem nada. Cai para o
-       caminho remoto, que é exactamente o que o operador faria à mão. */
-    void ligarProjecaoNestaMaquina().then((r) => {
-      if (!r?.ok) tentarAutoConectarSeDesconectado();
-    });
+  const ponte = ponteProjecaoLocal();
+  if (!ponte) {
+    /* Painel num browser: sem motor local, só resta o Servidor. */
+    tentarAutoConectarSeDesconectado();
     return;
   }
-  tentarAutoConectarSeDesconectado();
+  /* O arranque é sempre local — o painel abre já a projetar, nunca preso num «conectando».
+     Ligar ao Servidor é uma acção manual (badge / Ajustes), e a preferência `'0'` não força
+     mais um arranque remoto: quando muito, é o clique do operador que o declara. */
+  void ligarProjecaoNestaMaquina().then((r) => {
+    if (!r?.ok) {
+      /* Local não subiu — porta ocupada, tipicamente porque o Servidor está nesta mesma
+         máquina. Só aí resta o caminho remoto. */
+      tentarAutoConectarSeDesconectado();
+    }
+  });
 }, 200);
 
 // ════════════════════════════════════════════════════════════

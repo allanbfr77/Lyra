@@ -24,9 +24,10 @@
  * Ausente e `'1'` levam ao mesmo sítio. Distingui-los não é supérfluo: é o que permite a
  * uma migração futura saber se houve escolha ou se o valor é apenas o padrão a passar.
  *
- * Quem grava `'0'` é só `conectar()`. Desmarcar «Projetar nesta máquina» no menu derruba o
- * motor na sessão e não escreve nada — parar de projetar agora não é o mesmo que declarar
- * que este PC opera contra um Servidor da rede.
+ * Quem grava `'0'` é a ligação remota com SUCESSO (não a mera tentativa): uma ligação
+ * falhada limpa a chave, para o reinício voltar ao padrão local. Desmarcar «Projetar nesta
+ * máquina» no menu derruba o motor na sessão e não escreve nada — parar de projetar agora
+ * não é o mesmo que declarar que este PC opera contra um Servidor da rede.
  */
 
 /** Valor que marca a escolha deliberada pelo Servidor remoto. */
