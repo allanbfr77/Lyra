@@ -7770,6 +7770,30 @@ function playlistItemMesmaVersaoQueAtiva(it) {
   return va === vb && itBf === curBf;
 }
 
+/** Índice da próxima música real na playlist (salta marcadores de tema). -1 se não houver. */
+function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
+  const lista = Array.isArray(pl) ? pl : [];
+  let j = Number(idxAtual) + 1;
+  if (!Number.isFinite(j) || j < 1) j = 0;
+  while (j < lista.length && ehMarcadorTemaPlaylist(lista[j])) j++;
+  return j < lista.length ? j : -1;
+}
+
+/** Há música seguinte após a actualmente activa (para o botão «Próxima música»). */
+function haProximaMusicaNaPlaylistAtiva() {
+  if (!musicaAtiva) return false;
+  const pl = getPlaylist(cultoId);
+  const ix = pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it));
+  if (ix < 0) return false;
+  return indiceProximaMusicaNaPlaylist(pl, ix) >= 0;
+}
+
+function atualizarEstadoBtnProximaMusicaPlaylist() {
+  const btnNx = document.getElementById('btn-proxima-musica-playlist');
+  if (!btnNx) return;
+  btnNx.disabled = !projecao.pronta() || !haProximaMusicaNaPlaylistAtiva();
+}
+
 /**
  * `musicaAtiva` sobrevive à saída do modo slides (a Home mantém a música no editor),
  * mas a faixa de slides é rearmada do zero ao reentrar. Sem esta distinção, a linha
@@ -9540,13 +9564,7 @@ function renderSlidesStrip() {
       'slides-rail-aberto',
       ehModoSlidesOperador() && !!musicaAtiva && !slidesRailUserRecolhido
     );
-    const btnNxFast = document.getElementById('btn-proxima-musica-playlist');
-    if (btnNxFast) {
-      const pl = getPlaylist(cultoId);
-      const ix = musicaAtiva ? pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it)) : -1;
-      btnNxFast.disabled =
-        !projecao.pronta() || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
-    }
+    atualizarEstadoBtnProximaMusicaPlaylist();
     atualizarSlidesInstrucoes();
     return;
   }
@@ -9623,9 +9641,7 @@ function renderSlidesStrip() {
 
   const btnNx = document.getElementById('btn-proxima-musica-playlist');
   if (btnNx) {
-    const pl = getPlaylist(cultoId);
-    const ix = musicaAtiva ? pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it)) : -1;
-    btnNx.disabled = !projecao.pronta() || !musicaAtiva || ix < 0 || ix >= pl.length - 1;
+    atualizarEstadoBtnProximaMusicaPlaylist();
   }
 
   atualizarSlidesInstrucoes();
@@ -13223,13 +13239,15 @@ async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
   const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
   try {
-    if (
-      !(await confirmarProsseguirDescartandoEdicaoPendente(
-        'Há alterações não gravadas nesta sessão. Descartar e carregar outra música?',
-        'Alterações não gravadas'
-      ))
-    ) {
-      return;
+    if (!(opts && opts.pularConfirmacaoDescarte)) {
+      if (
+        !(await confirmarProsseguirDescartandoEdicaoPendente(
+          'Há alterações não gravadas nesta sessão. Descartar e carregar outra música?',
+          'Alterações não gravadas'
+        ))
+      ) {
+        return false;
+      }
     }
     if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
     /* Modo controlador: se já existe projeção ativa, manter a faixa visível ao engatilhar próxima música. */
@@ -13276,6 +13294,7 @@ async function selecionarMusicaDoBanco(id, opts) {
     renderEstrofesEditor();
     renderSlidesStrip();
     atualizarPreviewOperador();
+    return true;
   } catch (e) {
     musicaAtiva = null;
     musicaVersaoLocalId = null;
@@ -13289,6 +13308,7 @@ async function selecionarMusicaDoBanco(id, opts) {
     renderSlidesStrip();
     atualizarPreviewOperador();
     alert(e?.message || 'Não foi possível carregar a música para edição/projeção.');
+    return false;
   }
 }
 
@@ -13303,9 +13323,8 @@ async function projecaoProximaMusicaPlaylist() {
   const pl = getPlaylist(cultoId);
   const idx = pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it));
   if (idx < 0) return alert('A música atual não está nesta playlist.');
-  let j = idx + 1;
-  while (j < pl.length && ehMarcadorTemaPlaylist(pl[j])) j++;
-  if (j >= pl.length) return alert('Não há próxima música nesta playlist.');
+  const j = indiceProximaMusicaNaPlaylist(pl, idx);
+  if (j < 0) return alert('Não há próxima música nesta playlist.');
   if (
     !(await confirmarProsseguirDescartandoEdicaoPendente(
       'Há alterações não gravadas nesta sessão. Descartar e ir para a próxima música?',
@@ -13315,28 +13334,23 @@ async function projecaoProximaMusicaPlaylist() {
     return;
   }
   const next = pl[j];
-  const nextBf = next.bancoFonte === 'catalog' ? 'catalog' : 'user';
-  const qsNext = nextBf === 'catalog' ? '?fonte=catalog' : '';
+  const ok = await selecionarMusicaDoBanco(Number(next.id), {
+    habilitarFaixaModoSlides: true,
+    versaoLocalId: next.versaoLocalId || undefined,
+    fonte: next.bancoFonte === 'catalog' ? 'catalog' : 'user',
+    pularConfirmacaoDescarte: true,
+  });
+  if (!ok || !musicaAtiva) return;
+  /* Garante destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
+  faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+  estrofeAtiva = 0;
   slidesDockVisivel = ehModoSlidesOperador();
-  projecaoMusicaEmitidaNoServidor = false;
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${next.id}${qsNext}`);
-    if (!res.ok) throw new Error('Erro ao carregar a próxima música.');
-    const base = await res.json();
-    musicaBancoFonte = nextBf;
-    aplicarBaseMusicaSelecionada(base, next.id, next.versaoLocalId || null);
-    estrofeAtiva = 0;
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-    refreshListaBanco();
-    renderPlaylist();
-    renderEstrofesEditor();
-    renderSlidesStrip();
-    emitirEstrofeAoServidor(0);
-    atualizarPreviewOperador();
-    marcacaoEstrofeEditor();
-  } catch (e) {
-    alert(e.message || 'Erro ao mudar de música.');
-  }
+  emitirEstrofeAoServidor(0);
+  renderPlaylist();
+  renderSlidesStrip();
+  atualizarPreviewOperador();
+  marcacaoEstrofeEditor();
+  atualizarEstadoBtnProximaMusicaPlaylist();
 }
 
 function montarPayloadExibirMusica(estrofeIndex) {
