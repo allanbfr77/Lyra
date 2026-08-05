@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lyra Controlador · Mockup Fluent (Windows 11)</title>
+<style>
+:root{
+  --font-ui:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"Cascadia Code",ui-monospace,Consolas,monospace;
+  --accent:#005FB8; --accent-hover:#1A6DC4; --accent-fg:#fff; --brand:#A67C2D;
+  --bg-mica:#F3F3F3; --bg-layer:#FBFBFB; --card:#FFFFFF; --card-2:#F6F6F6;
+  --stroke:#E5E5E5; --stroke-strong:#D1D1D1; --divider:rgba(0,0,0,.06);
+  --hover:rgba(0,0,0,.037); --pressed:rgba(0,0,0,.024); --selected:rgba(0,95,184,.10);
+  --text:#1A1A1A; --text-2:#5C5C5C; --text-3:#8A8A8A; --text-disabled:#A0A0A0;
+  --success:#0F7B0F; --warning:#9D5D00; --danger:#C42B1C;
+  --shadow-card:0 1px 2px rgba(0,0,0,.06),0 1px 4px rgba(0,0,0,.04);
+  --shadow-flyout:0 8px 16px rgba(0,0,0,.14);
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;
+  --r-sm:4px;--r-md:7px;--r-lg:8px;--r-xl:12px;
+  --dur:167ms; --ease:cubic-bezier(.33,0,.67,1);
+}
+[data-theme="dark"]{
+  --accent:#60CDFF; --accent-hover:#4CC2FF; --accent-fg:#003354; --brand:#E0B356;
+  --bg-mica:#202020; --bg-layer:#272727; --card:#2B2B2B; --card-2:#323232;
+  --stroke:#1D1D1D; --stroke-strong:#3A3A3A; --divider:rgba(255,255,255,.08);
+  --hover:rgba(255,255,255,.06); --pressed:rgba(255,255,255,.04); --selected:rgba(96,205,255,.14);
+  --text:#fff; --text-2:#C7C7C7; --text-3:#969696; --text-disabled:#6E6E6E;
+  --success:#6CCB5F; --warning:#FCE100; --danger:#FF99A4;
+  --shadow-card:0 2px 4px rgba(0,0,0,.3); --shadow-flyout:0 8px 16px rgba(0,0,0,.4);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-ui);font-size:14px;line-height:20px;color:var(--text);background:#c9c9c9;-webkit-font-smoothing:antialiased;padding:24px;transition:background var(--dur)}
+[data-theme="dark"] body{background:#111}
+svg{display:block}
+
+/* Toolbar do mockup (fora da janela) */
+.mock-bar{max-width:1240px;margin:0 auto 16px;display:flex;align-items:center;gap:12px;color:var(--text-2)}
+[data-theme="dark"] .mock-bar{color:#bbb}
+.mock-bar .t{font-weight:600;color:var(--text);font-size:13px}
+[data-theme="dark"] .mock-bar .t{color:#fff}
+.mock-bar button{margin-left:auto;font-family:var(--font-ui);font-size:13px;border:1px solid var(--stroke-strong);background:var(--card);color:var(--text);border-radius:var(--r-sm);padding:6px 14px;cursor:pointer}
+
+/* Janela */
+.win{max-width:1240px;margin:0 auto;background:var(--bg-mica);border:1px solid var(--stroke-strong);border-radius:var(--r-xl);overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.35);height:760px;display:flex;flex-direction:column}
+
+/* Title bar */
+.titlebar{height:40px;display:flex;align-items:center;gap:10px;padding:0 8px 0 14px;background:var(--bg-mica);border-bottom:1px solid var(--divider);flex:0 0 auto}
+.titlebar .logo{width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--accent),var(--brand));display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px}
+.titlebar .app{font-size:12px;color:var(--text-2);font-weight:600}
+.win-ctrls{margin-left:auto;display:flex}
+.win-ctrls span{width:44px;height:40px;display:grid;place-items:center;color:var(--text-2)}
+.win-ctrls span:hover{background:var(--hover)}
+.win-ctrls .close:hover{background:#c42b1c;color:#fff}
+
+/* CommandBar */
+.cmdbar{height:48px;display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--bg-layer);border-bottom:1px solid var(--stroke);flex:0 0 auto}
+.route{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.route .pill{display:flex;align-items:center;gap:6px;border:1px solid var(--stroke-strong);border-radius:var(--r-sm);padding:4px 10px;background:var(--card);color:var(--text);font-size:12px;cursor:pointer}
+.route .pill svg{width:12px;height:12px}
+.sep{width:1px;height:22px;background:var(--divider);margin:0 4px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#fff;background:var(--danger);padding:3px 9px;border-radius:999px}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.35}}
+.spacer{flex:1}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--success);background:color-mix(in srgb,var(--success) 15%,transparent);padding:4px 10px;border-radius:999px}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.iconbtn{width:32px;height:32px;border-radius:var(--r-sm);border:none;background:transparent;color:var(--text-2);display:grid;place-items:center;cursor:pointer;transition:background var(--dur)}
+.iconbtn:hover{background:var(--hover);color:var(--text)}
+.iconbtn svg{width:18px;height:18px}
+
+/* Corpo: rail + área */
+.body{flex:1;display:flex;min-height:0}
+.rail{width:200px;flex:0 0 auto;background:var(--bg-mica);border-right:1px solid var(--stroke);padding:8px;display:flex;flex-direction:column;gap:2px}
+.rail .hamb{width:36px;height:36px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--text-2);margin-bottom:6px;cursor:pointer}
+.rail .hamb:hover{background:var(--hover)}
+.navitem{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:var(--r-sm);color:var(--text-2);cursor:pointer;position:relative;transition:background var(--dur),color var(--dur);font-size:14px}
+.navitem svg{width:20px;height:20px;flex:0 0 auto}
+.navitem:hover{background:var(--hover);color:var(--text)}
+.navitem.active{background:var(--card);color:var(--text);font-weight:600;box-shadow:var(--shadow-card)}
+.navitem.active::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--accent)}
+.rail .grow{flex:1}
+.rail .navitem.brand.active::before{background:var(--brand)}
+
+.area{flex:1;min-width:0;overflow:auto;padding:20px 24px}
+.view{display:none;animation:fade var(--dur) var(--ease)}
+.view.show{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.h-title{font-size:28px;line-height:36px;font-weight:600;margin-bottom:4px}
+.h-sub{color:var(--text-2);margin-bottom:20px}
+
+/* Card generic */
+.card{background:var(--card);border:1px solid var(--stroke);border-radius:var(--r-lg);box-shadow:var(--shadow-card)}
+.pad{padding:16px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* Music view layout */
+.music-grid{display:grid;grid-template-columns:300px 1fr 300px;gap:14px;height:100%}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+.panel-title{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--stroke-strong);border-radius:var(--r-sm);padding:6px 10px;background:var(--card)}
+.search svg{width:15px;height:15px;color:var(--text-3)}
+.search input{border:none;background:none;outline:none;color:var(--text);font-family:var(--font-ui);font-size:14px;width:100%}
+.seg{display:flex;background:var(--card-2);border-radius:var(--r-sm);padding:2px;gap:2px;margin-bottom:10px}
+.seg button{flex:1;border:none;background:none;font-family:var(--font-ui);font-size:12px;color:var(--text-2);padding:5px;border-radius:5px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--text);font-weight:600;box-shadow:var(--shadow-card)}
+.list{overflow:auto;display:flex;flex-direction:column;gap:1px;flex:1}
+.li{display:flex;flex-direction:column;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;transition:background var(--dur)}
+.li:hover{background:var(--hover)}
+.li.sel{background:var(--selected)}
+.li.sel::before{content:"";position:absolute}
+.li .m{font-size:14px;color:var(--text);font-weight:500}
+.li.sel .m{font-weight:600}
+.li .s{font-size:12px;color:var(--text-3)}
+.li-wrap{position:relative}
+.li.sel{position:relative}
+.li.sel::after{content:"";position:absolute;left:2px;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--accent)}
+
+/* center editor */
+.editor{display:flex;flex-direction:column;gap:12px;height:100%}
+.titlefields{display:flex;flex-direction:column;gap:6px}
+.tf{border:1px solid var(--stroke-strong);border-bottom:2px solid var(--text-3);border-radius:var(--r-sm);padding:8px 12px;background:var(--card);font-family:var(--font-ui)}
+.tf.big{font-size:20px;font-weight:600}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{font-family:var(--font-ui);font-size:14px;border-radius:var(--r-sm);padding:6px 14px;border:1px solid var(--stroke-strong);background:var(--card);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background var(--dur)}
+.btn svg{width:16px;height:16px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary:hover{background:var(--accent-hover)}
+.btn.subtle{border-color:transparent;background:transparent}
+.btn.subtle:hover{background:var(--hover)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--stroke))}
+.tb-sep{width:1px;height:22px;background:var(--divider)}
+.previews{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
+.prev{display:flex;flex-direction:column;gap:6px}
+.prev .lbl{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
+.screen{flex:1;background:#0b0b0d;border:1px solid var(--stroke-strong);border-radius:var(--r-md);display:grid;place-items:center;text-align:center;padding:14px;overflow:hidden;position:relative;min-height:120px}
+.screen .txt{color:#fff;font-family:'Segoe UI',sans-serif;font-weight:600;font-size:20px;line-height:1.35;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.screen.op{background:#101014}
+.screen .next{position:absolute;bottom:8px;left:10px;font-size:10px;color:#7a7a85;text-transform:uppercase;letter-spacing:.06em}
+
+/* right playlist */
+.pl-item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--r-sm);cursor:pointer}
+.pl-item:hover{background:var(--hover)}
+.pl-item .n{width:22px;height:22px;border-radius:5px;background:var(--card-2);display:grid;place-items:center;font-size:11px;color:var(--text-3);font-weight:600}
+.pl-item.now .n{background:var(--accent);color:var(--accent-fg)}
+.pl-item .t{font-size:13px}
+.mini-screen{aspect-ratio:16/9;background:#0b0b0d;border-radius:var(--r-md);display:grid;place-items:center;color:#fff;font-weight:600;font-size:15px;text-align:center;padding:8px}
+
+/* slide dock */
+.dock{flex:0 0 auto;border-top:1px solid var(--stroke);background:var(--bg-layer);padding:8px 12px}
+.dock-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.dock-bar .marca{font-size:12px;font-weight:600;color:var(--text-2)}
+.zoom{display:flex;align-items:center;gap:4px;margin-left:auto}
+.zoom button{width:26px;height:26px;border:1px solid var(--stroke-strong);background:var(--card);border-radius:var(--r-sm);cursor:pointer;color:var(--text)}
+.slidestrip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.slide{flex:0 0 148px;height:84px;border-radius:var(--r-md);border:1px solid var(--stroke-strong);background:var(--card);padding:8px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;transition:border var(--dur),box-shadow var(--dur)}
+.slide:hover{box-shadow:var(--shadow-card)}
+.slide.live{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.slide .num{font-size:10px;color:var(--text-3);font-weight:600}
+.slide .sn{font-size:12px;color:var(--text);line-height:1.3;overflow:hidden}
+.slide.black{background:#0b0b0d;border-color:#000}
+.slide.black .sn,.slide.black .num{color:#8a8a8a}
+
+/* Bible view */
+.bible-grid{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:14px;height:calc(100% - 96px)}
+.colcard{display:flex;flex-direction:column;min-height:0}
+.colcard .hd{font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;padding:12px 14px 8px}
+.colcard .lst{overflow:auto;padding:0 8px 8px}
+.bi{padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;font-size:14px}
+.bi:hover{background:var(--hover)}
+.bi.sel{background:var(--selected);font-weight:600}
+.vcard{padding:10px 12px;border-radius:var(--r-md);cursor:pointer;display:flex;gap:10px}
+.vcard:hover{background:var(--hover)}
+.vcard.sel{background:var(--selected);outline:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.vcard .vn{font-weight:700;color:var(--accent);font-size:13px;min-width:22px}
+.vcard .vt{font-size:14px;color:var(--text)}
+
+/* Media grid */
+.media-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.media{border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--stroke);cursor:pointer;background:var(--card);box-shadow:var(--shadow-card);transition:transform var(--dur)}
+.media:hover{transform:translateY(-2px)}
+.media .thumb{aspect-ratio:16/9;display:grid;place-items:center;color:#fff;font-weight:600}
+.media .cap{padding:8px 10px;font-size:13px;font-weight:500}
+.media .sub{font-size:11px;color:var(--text-3)}
+
+/* Settings */
+.setrow{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.setrow+.setrow{border-top:1px solid var(--divider)}
+.setrow .ic{width:36px;height:36px;border-radius:var(--r-md);background:var(--card-2);display:grid;place-items:center;color:var(--accent)}
+.setrow .ic svg{width:20px;height:20px}
+.setrow .txt{flex:1}
+.setrow .txt .t{font-weight:600;font-size:14px}
+.setrow .txt .d{font-size:12px;color:var(--text-2)}
+.toggle{width:40px;height:22px;border-radius:999px;background:var(--accent);position:relative;cursor:pointer;flex:0 0 auto;border:none}
+.toggle::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:4px;left:22px;transition:left var(--dur)}
+.toggle.off{background:transparent;border:1px solid var(--text-3)}
+.toggle.off::after{background:var(--text-2);left:4px}
+.selbox{border:1px solid var(--stroke-strong);border-radius:var(--r-sm);padding:6px 12px;background:var(--card);color:var(--text);font-family:var(--font-ui);font-size:13px}
+.infobar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-md);background:color-mix(in srgb,var(--accent) 8%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 25%,var(--stroke));color:var(--text-2);font-size:13px;margin-bottom:16px}
+.infobar svg{width:18px;height:18px;color:var(--accent);flex:0 0 auto}
+
+/* Toast */
+.toast{position:absolute;right:20px;bottom:20px;background:var(--card);border:1px solid var(--stroke);border-radius:var(--r-md);box-shadow:var(--shadow-flyout);padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:13px;max-width:300px}
+.toast svg{width:18px;height:18px;color:var(--success);flex:0 0 auto}
+
+.gold{color:var(--brand)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--text) 22%,transparent);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--text) 40%,transparent);background-clip:content-box}
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <span class="t">Lyra Controlador — Mockup Fluent (Windows 11)</span>
+  <span>· use o rail à esquerda para navegar</span>
+  <button onclick="tt()">◐ Alternar tema claro / escuro</button>
+</div>
+
+<div class="win">
+  <!-- TITLE BAR -->
+  <div class="titlebar">
+    <div class="logo">L</div>
+    <span class="app">Lyra Controlador</span>
+    <div class="win-ctrls">
+      <span>—</span><span>▢</span><span class="close">✕</span>
+    </div>
+  </div>
+
+  <!-- COMMAND BAR -->
+  <div class="cmdbar">
+    <div class="route">Público
+      <button class="pill">Telão 1 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+    <div class="route">Ministrante
+      <button class="pill">TV / Retorno <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+    <div class="sep"></div>
+    <span class="live">LIVE → OBS</span>
+    <div class="spacer"></div>
+    <span class="status">Local</span>
+    <button class="iconbtn" title="Comandos de voz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+    <button class="iconbtn" id="themebtn" title="Tema" onclick="tt()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button class="iconbtn" title="Recarregar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg></button>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+    <!-- NAV RAIL -->
+    <nav class="rail">
+      <div class="hamb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+      <div class="navitem active" data-v="music" onclick="nav(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Música
+      </div>
+      <div class="navitem brand" data-v="bible" onclick="nav(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h13a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H19"/></svg> Bíblia
+      </div>
+      <div class="navitem" data-v="media" onclick="nav(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg> Mídias
+      </div>
+      <div class="navitem" data-v="slides" onclick="nav(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg> Slides
+      </div>
+      <div class="grow"></div>
+      <div class="navitem" data-v="settings" onclick="nav(this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 7 2.6h.1A1.6 1.6 0 0 0 8.9 1 2 2 0 1 1 13 1v.1A1.6 1.6 0 0 0 15 2.6a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.2a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.4 1.1z"/></svg> Ajustes
+      </div>
+    </nav>
+
+    <!-- AREA -->
+    <div class="area">
+
+      <!-- ===== MÚSICA ===== -->
+      <div class="view show" id="v-music">
+        <div class="music-grid">
+          <!-- Left: biblioteca -->
+          <div class="col">
+            <div class="card pad" style="flex:1;display:flex;flex-direction:column;min-height:0">
+              <div class="seg"><button class="on">CifraClub</button><button>Banco local</button></div>
+              <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Filtrar o banco local…"></div>
+              <div style="font-size:11px;color:var(--text-3);margin:8px 2px">128 músicas · toque para abrir</div>
+              <div class="list">
+                <div class="li sel"><span class="m">Bondade de Deus</span><span class="s">Isaías Saad</span></div>
+                <div class="li"><span class="m">Teu Santo Nome</span><span class="s">Gabriela Rocha</span></div>
+                <div class="li"><span class="m">Nada Além do Sangue</span><span class="s">Fernandinho</span></div>
+                <div class="li"><span class="m">Oceanos</span><span class="s">Ana Nóbrega</span></div>
+                <div class="li"><span class="m">Grande é o Senhor</span><span class="s">Adhemar de Campos</span></div>
+                <div class="li"><span class="m">Lugar Secreto</span><span class="s">Gabriela Rocha</span></div>
+                <div class="li"><span class="m">Ousado Amor</span><span class="s">Isaías Saad</span></div>
+                <div class="li"><span class="m">Teu Amor Não Falha</span><span class="s">Nívea Soares</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: editor + previews -->
+          <div class="col">
+            <div class="editor">
+              <div class="titlefields">
+                <input class="tf big" value="Bondade de Deus">
+                <input class="tf" value="Isaías Saad">
+              </div>
+              <div class="toolbar">
+                <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg> Projetar</button>
+                <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg> Editar letra</button>
+                <button class="btn subtle">Nova versão</button>
+                <div class="tb-sep"></div>
+                <button class="iconbtn" title="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+                <button class="iconbtn" title="Próxima"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+                <div style="flex:1"></div>
+                <button class="iconbtn" title="Mais ações"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+              </div>
+              <div class="previews">
+                <div class="prev"><div class="lbl">Telão · Público</div>
+                  <div class="screen"><div class="txt">O que eu era<br>Tu me tiraste<br>O que sou<br>Tu me tornaste</div></div>
+                </div>
+                <div class="prev"><div class="lbl">TV · Ministrante</div>
+                  <div class="screen op"><div class="txt" style="font-size:16px">O que eu era, Tu me tiraste</div>
+                    <div class="next">Próximo: “E foi por amor…”</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: playlist + prévia -->
+          <div class="col">
+            <div class="card pad">
+              <div class="panel-title">Prévia do slide</div>
+              <div class="mini-screen">Porque Ele é bom<br>a Sua bondade dura pra sempre</div>
+            </div>
+            <div class="card pad" style="flex:1;min-height:0;display:flex;flex-direction:column">
+              <div class="panel-title">Playlist · Culto 04/08</div>
+              <div class="pl-item now"><span class="n">1</span><span class="t">Bondade de Deus</span></div>
+              <div class="pl-item"><span class="n">2</span><span class="t">Oceanos</span></div>
+              <div class="pl-item"><span class="n">3</span><span class="t">Ousado Amor</span></div>
+              <div class="pl-item"><span class="n">4</span><span class="t">Teu Santo Nome</span></div>
+              <div class="pl-item" style="color:var(--text-3)"><span class="n">+</span><span class="t">Adicionar música</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== BÍBLIA ===== -->
+      <div class="view" id="v-bible">
+        <div class="h-title">Bíblia</div>
+        <div class="toolbar" style="margin-bottom:16px">
+          <div class="search" style="width:260px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder='Busca rápida — ex.: "jo 3 16"'></div>
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h13a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z"/></svg> ARA <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div style="flex:1"></div>
+          <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg> Projetar versículo</button>
+        </div>
+        <div class="bible-grid">
+          <div class="card colcard"><div class="hd">Livros</div><div class="lst">
+            <div class="bi">Mateus</div><div class="bi">Marcos</div><div class="bi">Lucas</div>
+            <div class="bi sel">João</div><div class="bi">Atos</div><div class="bi">Romanos</div>
+            <div class="bi">1 Coríntios</div><div class="bi">Gálatas</div><div class="bi">Efésios</div>
+            <div class="bi">Filipenses</div>
+          </div></div>
+          <div class="card colcard"><div class="hd">Capítulos</div><div class="lst" style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px">
+            <div class="bi">1</div><div class="bi">2</div><div class="bi sel">3</div><div class="bi">4</div>
+            <div class="bi">5</div><div class="bi">6</div><div class="bi">7</div><div class="bi">8</div>
+            <div class="bi">9</div><div class="bi">10</div><div class="bi">11</div><div class="bi">12</div>
+          </div></div>
+          <div class="card colcard"><div class="hd">João 3 · Versículos</div><div class="lst">
+            <div class="vcard"><span class="vn">14</span><span class="vt">E, como Moisés levantou a serpente no deserto…</span></div>
+            <div class="vcard"><span class="vn">15</span><span class="vt">Para que todo aquele que nele crê não pereça…</span></div>
+            <div class="vcard sel"><span class="vn">16</span><span class="vt">Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.</span></div>
+            <div class="vcard"><span class="vn">17</span><span class="vt">Porque Deus enviou o seu Filho ao mundo não para que condenasse o mundo…</span></div>
+          </div></div>
+        </div>
+      </div>
+
+      <!-- ===== MÍDIAS ===== -->
+      <div class="view" id="v-media">
+        <div class="h-title">Mídias</div>
+        <div class="h-sub">Imagens, vídeos, planos de fundo e áudio para projetar.</div>
+        <div class="toolbar" style="margin-bottom:18px">
+          <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Adicionar mídia</button>
+          <button class="btn subtle">Imagens</button><button class="btn subtle">Vídeos</button><button class="btn subtle">Áudio</button>
+        </div>
+        <div class="media-grid">
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#6a4fb0,#a06fe0)">Louvor</div><div class="cap">Abertura<div class="sub">Vídeo · 00:32</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#1f6f5c,#3ba88a)">Aviso</div><div class="cap">Boas-vindas<div class="sub">Imagem</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#b5851f,#e0b356)">Ceia</div><div class="cap">Santa Ceia<div class="sub">Imagem</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#334a6e,#5b7c99)">Fundo</div><div class="cap">Plano azul<div class="sub">Imagem</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#7a2f4a,#c05a80)">Oferta</div><div class="cap">Dízimos<div class="sub">Vídeo · 00:18</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#2d5a2d,#4a8a4a)">Versículo</div><div class="cap">Salmo 23<div class="sub">Imagem</div></div></div>
+          <div class="media"><div class="thumb" style="background:linear-gradient(135deg,#444,#666)">Áudio</div><div class="cap">Fundo instrumental<div class="sub">Áudio · 04:20</div></div></div>
+          <div class="media" style="border-style:dashed;box-shadow:none"><div class="thumb" style="background:var(--card-2);color:var(--text-3)">＋</div><div class="cap" style="color:var(--text-3)">Adicionar<div class="sub">arraste aqui</div></div></div>
+        </div>
+      </div>
+
+      <!-- ===== SLIDES ===== -->
+      <div class="view" id="v-slides">
+        <div class="h-title">Slides</div>
+        <div class="h-sub">Faixa de slides da música ativa — clique para projetar.</div>
+        <div class="infobar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg> Setas ← → navegam · Espaço projeta · B alterna tela preta.</div>
+        <div class="slidestrip" style="flex-wrap:wrap;display:flex;gap:12px">
+          <div class="slide live"><span class="num">01 · Verso</span><span class="sn">O que eu era, Tu me tiraste</span></div>
+          <div class="slide"><span class="num">02 · Verso</span><span class="sn">O que sou, Tu me tornaste</span></div>
+          <div class="slide"><span class="num">03 · Refrão</span><span class="sn">A Tua bondade dura pra sempre</span></div>
+          <div class="slide"><span class="num">04 · Ponte</span><span class="sn">E de manhã eu vou lembrar</span></div>
+          <div class="slide"><span class="num">05 · Refrão</span><span class="sn">Porque Ele é bom, Ele é bom</span></div>
+          <div class="slide black"><span class="num">06 · Preto</span><span class="sn">Tela preta</span></div>
+        </div>
+      </div>
+
+      <!-- ===== AJUSTES ===== -->
+      <div class="view" id="v-settings">
+        <div class="h-title">Ajustes</div>
+        <div class="h-sub">Conexão, telas, relógio e comandos de voz.</div>
+        <div class="stack" style="max-width:720px">
+          <div class="card">
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div><div class="txt"><div class="t">Modo de operação</div><div class="d">Projetar nesta máquina (Local) ou conectar a um servidor remoto.</div></div><select class="selbox"><option>Local (padrão)</option><option>Servidor remoto…</option></select></div>
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M2 9h20"/></svg></div><div class="txt"><div class="t">Telão / Público</div><div class="d">Monitor de saída para a congregação.</div></div><select class="selbox"><option>Telão 1 (HDMI)</option><option>Desativado</option></select></div>
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="14" rx="2"/></svg></div><div class="txt"><div class="t">TV / Ministrante</div><div class="d">Monitor de retorno com prévia do próximo slide.</div></div><select class="selbox"><option>TV / Retorno</option><option>Desativado</option></select></div>
+          </div>
+          <div class="card">
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="txt"><div class="t">Relógio na tela do ministrante</div><div class="d">Exibe a hora atual no retorno.</div></div><button class="toggle" onclick="this.classList.toggle('off')"></button></div>
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></div><div class="txt"><div class="t">Comandos de voz</div><div class="d">Avançar slides por reconhecimento de voz (offline).</div></div><button class="toggle off" onclick="this.classList.toggle('off')"></button></div>
+            <div class="setrow"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></div><div class="txt"><div class="t">Tema escuro</div><div class="d">Alterna a aparência de todo o app.</div></div><button class="toggle off" id="settoggle" onclick="tt()"></button></div>
+          </div>
+        </div>
+        <div class="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Ajustes salvos automaticamente</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SLIDE DOCK (só na tela de música) -->
+  <div class="dock" id="dock">
+    <div class="dock-bar">
+      <span class="marca">Slides</span><span style="color:var(--text-3);font-size:12px">· Bondade de Deus</span>
+      <div class="zoom"><button>−</button><span style="font-size:12px;color:var(--text-2);min-width:38px;text-align:center">100%</span><button>+</button>
+        <button class="btn primary" style="margin-left:8px;padding:5px 12px">Próxima música ›</button>
+      </div>
+    </div>
+    <div class="slidestrip">
+      <div class="slide live"><span class="num">01 · Verso</span><span class="sn">O que eu era, Tu me tiraste</span></div>
+      <div class="slide"><span class="num">02 · Verso</span><span class="sn">O que sou, Tu me tornaste</span></div>
+      <div class="slide"><span class="num">03 · Refrão</span><span class="sn">A Tua bondade dura pra sempre</span></div>
+      <div class="slide"><span class="num">04 · Ponte</span><span class="sn">E de manhã eu vou lembrar</span></div>
+      <div class="slide"><span class="num">05 · Refrão</span><span class="sn">Porque Ele é bom, Ele é bom</span></div>
+      <div class="slide black"><span class="num">06 · Preto</span><span class="sn">Tela preta</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function tt(){
+  const h=document.documentElement;
+  h.dataset.theme = h.dataset.theme==='dark'?'light':'dark';
+  const on = h.dataset.theme==='dark';
+  const st=document.getElementById('settoggle'); if(st) st.classList.toggle('off', !on);
+}
+function nav(el){
+  document.querySelectorAll('.rail .navitem').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  const v=el.dataset.v;
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('show'));
+  document.getElementById('v-'+v).classList.add('show');
+  // dock só aparece nas telas de música/slides
+  document.getElementById('dock').style.display = (v==='music'||v==='slides')?'block':'none';
+}
+// interações leves de demonstração
+document.querySelectorAll('.li').forEach(li=>li.addEventListener('click',()=>{
+  document.querySelectorAll('.li').forEach(x=>x.classList.remove('sel')); li.classList.add('sel');
+}));
+document.querySelectorAll('.slide').forEach(s=>s.addEventListener('click',()=>{
+  document.querySelectorAll('.slidestrip .slide').forEach(x=>x.classList.remove('live')); s.classList.add('live');
+}));
+document.querySelectorAll('.vcard').forEach(v=>v.addEventListener('click',()=>{
+  document.querySelectorAll('.vcard').forEach(x=>x.classList.remove('sel')); v.classList.add('sel');
+}));
+document.querySelectorAll('.bi').forEach(b=>b.addEventListener('click',()=>{
+  const sib=b.parentNode.querySelectorAll('.bi'); sib.forEach(x=>x.classList.remove('sel')); b.classList.add('sel');
+}));
+</script>
+</body>
+</html>

@@ -391,28 +391,41 @@ function rotaLiveSelecionadaNaUi() {
   return !!(hidPub && hidPub.dataset && hidPub.dataset.live === '1');
 }
 
+/**
+ * Imagem/vídeo/PDF/aviso do modo Mídias ainda no telão.
+ * Trocar de modo NÃO pode encerrar esta projeção nem desativar a rota partilhada.
+ */
+function hayProjecaoMidiaApresentacaoAtiva() {
+  if (apresentacaoMidiaProjetadaId) return true;
+  if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.projecaoMinistranteApresentacao) return true;
+  return false;
+}
+
 /** Projeção de Bíblia ou apresentação ainda no ar — ao mudar de tela, manter rota de monitores. */
 function hayProjecaoAtivaModoBibliaOuApresentacao() {
-  if (apresentacaoMidiaProjetadaId) return true;
+  if (hayProjecaoMidiaApresentacaoAtiva()) return true;
   if (bibliaVersiculoProjetado != null) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
   if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
-  if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) {
-    return true;
-  }
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) return true;
-  if (e.projecaoMinistranteApresentacao) return true;
   return false;
 }
 
 async function desativarRotasModosTransitorios(opts = {}) {
   if (opts.forcar !== true && hayProjecaoAtivaModoBibliaOuApresentacao()) return;
   const sync = opts.sincronizarServidor !== false;
-  rotasPorModo.apresentacao = rotaDesativada();
+  const midiaAtiva = hayProjecaoMidiaApresentacaoAtiva();
+  /* Mídia no ar: Bíblia e Mídias partilham o canal `apresentacao` no dual-routing —
+     desativar essa rota fecharia as janelas e encerraria a projeção. */
+  if (!midiaAtiva) {
+    rotasPorModo.apresentacao = rotaDesativada();
+  }
   rotasPorModo.biblia = rotaDesativada();
-  marcarRotaLiveNoDom(false);
+  marcarRotaLiveNoDom(midiaAtiva ? !!normalizarRota(rotasPorModo.apresentacao).live : false);
   const modo = modoRoteamentoAtual();
   if (modo === 'apresentacao' || modo === 'biblia') {
     renderRoteamentoTelas(monitoresServidorCache, rotasPorModo[modo]);
@@ -3357,7 +3370,10 @@ async function alternarModoBiblia() {
         atualizarPreviewOperador();
       }
       carregarBibliaCfgDoStorage();
-      if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
+      if (hayProjecaoMidiaApresentacaoAtiva()) {
+        /* Canal partilhado: adopta monitores da mídia ainda no ar — não os desativa. */
+        rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
+      } else if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
         rotasPorModo.biblia = rotaDesativada();
         marcarRotaLiveNoDom(false);
       }
@@ -3372,12 +3388,9 @@ async function alternarModoBiblia() {
       bibliaSairModo();
       atualizarVisibilidadeAbasCfgPorModo();
       liberarBloqueioUiModos();
-      if (hayProjecaoAtivaModoBibliaOuApresentacao()) {
-        aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
-      } else {
-        void desativarRotasModosTransitorios({ sincronizarServidor: true });
-        aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-      }
+      /* Sair do modo Bíblia encerra a projeção — rotas transitórias voltam a Desativado. */
+      void desativarRotasModosTransitorios({ sincronizarServidor: true, forcar: true });
+      aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
     }
     atualizarBtnModoBiblia();
     atualizarBtnToggleModoSlides();
@@ -3435,7 +3448,7 @@ async function carregarTraducoes() {
 
 function fecharMenuModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
-  const preservarProjecao = hayProjecaoAtivaModoBibliaOuApresentacao();
+  const preservarProjecao = hayProjecaoMidiaApresentacaoAtiva();
   executarComTransicaoUi(() => {
     document.body.classList.remove('app-mod-apresentacao');
     document.title = 'Lyra — Controlador';
@@ -3578,15 +3591,17 @@ function encerrarProjecaoAoSairDoModoSlides() {
 async function alternarModoSlidesOperador(opts = {}) {
   const permitirDesativar = opts.permitirDesativar === true;
   if (ehModoSlidesOperador() && !permitirDesativar) return;
-  const salvarRotasBibliaPendente =
-    ehModoBibliaOperador() && !hayProjecaoAtivaModoBibliaOuApresentacao();
-  if (salvarRotasBibliaPendente) {
+  if (ehModoBibliaOperador()) {
     rotasPorModo.biblia = rotaDesativada();
     marcarRotaLiveNoDom(false);
   }
   executarComTransicaoUi(() => {
     if (ehModoApresentacaoOperador()) {
+      /* Sair de Mídias para Slides: nunca encerrar imagem/vídeo no telão. */
       document.body.classList.remove('app-mod-apresentacao');
+      clearTimeout(apresentacaoCardUiClickTimer);
+      apresentacaoCardUiClickTimer = null;
+      apresentacaoCardSelecionadoIdx = null;
     }
     if (ehModoBibliaOperador()) {
       reconhecimentoVozBiblia.aoSairModoBiblia();
@@ -7870,24 +7885,40 @@ function sufixoRotuloVersaoPlaylist(item) {
   return r ? ` · ${escapeHtml(r)}` : '';
 }
 
+/* Última linha ativa já rolada para a vista — evita brigar com o scroll manual do operador. */
+let ultimaLinhaAtivaRoladaNaPlaylist = null;
+
+/**
+ * Garante que a música ativa não fique cortada nas bordas da lista.
+ * Só rola quando a linha ativa muda (troca de música), nunca a cada render.
+ */
+function garantirMusicaAtivaVisivelNaPlaylist() {
+  const el = document.getElementById('playlist-list');
+  const row = el ? el.querySelector('.playlist-row.ativo') : null;
+  if (!row) {
+    ultimaLinhaAtivaRoladaNaPlaylist = null;
+    return;
+  }
+  const chave = row.dataset.plIdx || '';
+  if (chave === ultimaLinhaAtivaRoladaNaPlaylist) return;
+  ultimaLinhaAtivaRoladaNaPlaylist = chave;
+  requestAnimationFrame(() => {
+    if (!row.isConnected) return;
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
 /** Ordem da playlist respeitando marcadores de tema (cabeçalhos mesmo sem música). */
 function renderPlaylistItensComMarcadores(el, pl) {
   let i = 0;
   let songNum = 0;
   let songAppendParent = el;
-  const idxMusicaNaPlaylist = musicaAtiva
-    ? pl.findIndex((it) => !ehMarcadorTemaPlaylist(it) && playlistItemSelecionadoNaUi(it))
-    : -1;
 
   const appendSongRow = (item, idxPl) => {
     songNum++;
     const row = document.createElement('div');
     row.dataset.plIdx = String(idxPl);
-    const compacto = idxMusicaNaPlaylist !== -1 && idxPl !== idxMusicaNaPlaylist;
-    row.className =
-      'playlist-row' +
-      (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
-      (compacto ? ' playlist-row--compacto' : '');
+    row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.innerHTML = `
       <div class="playlist-row-top">
@@ -8054,12 +8085,9 @@ function renderPlaylist() {
 
   if (playlistPossuiMarcadoresTema(pl)) {
     renderPlaylistItensComMarcadores(el, pl);
+    garantirMusicaAtivaVisivelNaPlaylist();
     return;
   }
-
-  const idxMusicaNaPlaylist = musicaAtiva
-    ? pl.findIndex((it) => playlistItemSelecionadoNaUi(it))
-    : -1;
 
   /* Ordem linear = ordem real do array (subir/descer reflecte-se na lista).
      Secções por tema consecutivo, com seta para recolher/expandir. */
@@ -8079,12 +8107,8 @@ function renderPlaylist() {
     }
     const row = document.createElement('div');
     row.dataset.plIdx = String(idx);
-    const compacto = idxMusicaNaPlaylist !== -1 && idx !== idxMusicaNaPlaylist;
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.className =
-      'playlist-row' +
-      (playlistItemSelecionadoNaUi(item) ? ' ativo' : '') +
-      (compacto ? ' playlist-row--compacto' : '');
+    row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
     row.innerHTML = `
       <div class="playlist-row-top">
         <div class="tit">${nLista}. ${escapeHtml(item.titulo)}${rotuloVersao}</div>
@@ -8136,6 +8160,7 @@ function renderPlaylist() {
     });
     songAppendParent.appendChild(row);
   }
+  garantirMusicaAtivaVisivelNaPlaylist();
 }
 
 function movePlItem(idx, dir) {
@@ -11333,15 +11358,20 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
         desfazerConflitoSlidesComRotaApresentacao(a);
       }
     } else if (modo === 'biblia') {
-      const b = normalizarRota(rotasPorModo.biblia);
-      rotasPorModo.apresentacao = { ...b };
-      let s = normalizarRota(rotasPorModo.slides);
-      if (b.live || b.publicoIndex >= 0) s = { ...s, publicoIndex: -1 };
-      if (b.live || b.ministranteIndex >= 0) s = { ...s, ministranteIndex: -1 };
-      /* Evita que o merge no servidor reabra o telão via índice antigo em slides. */
-      if (b.live || b.publicoIndex < 0) s = { ...s, publicoIndex: -1 };
-      if (b.live || b.ministranteIndex < 0) s = { ...s, ministranteIndex: -1 };
-      rotasPorModo.slides = s;
+      if (hayProjecaoMidiaApresentacaoAtiva()) {
+        /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
+        rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
+      } else {
+        const b = normalizarRota(rotasPorModo.biblia);
+        rotasPorModo.apresentacao = { ...b };
+        let s = normalizarRota(rotasPorModo.slides);
+        if (b.live || b.publicoIndex >= 0) s = { ...s, publicoIndex: -1 };
+        if (b.live || b.ministranteIndex >= 0) s = { ...s, ministranteIndex: -1 };
+        /* Evita que o merge no servidor reabra o telão via índice antigo em slides. */
+        if (b.live || b.publicoIndex < 0) s = { ...s, publicoIndex: -1 };
+        if (b.live || b.ministranteIndex < 0) s = { ...s, ministranteIndex: -1 };
+        rotasPorModo.slides = s;
+      }
     }
 
     if (modo !== 'biblia' && modo !== 'apresentacao') {
@@ -12179,7 +12209,8 @@ socket.on('connect', async () => {
      */
     const m = String(motivo || '');
     const descarteCliente = m === 'io client disconnect' || m.includes('forced close');
-    if (descarteCliente || !ehModoApresentacaoOperador()) {
+    /* Não limpar o id só por ter saído do modo Mídias — a mídia pode continuar no telão. */
+    if (descarteCliente) {
       apresentacaoMidiaProjetadaId = null;
     }
     renderSlidesStrip();
@@ -14425,18 +14456,43 @@ function bibliaLimparEstadoOperador() {
   bibliaNavPopupFechar();
 }
 
+/** Limpa estado local e manda encerrar a camada Bíblia no servidor. */
+function encerrarCamadaBibliaNoControlador() {
+  bibliaLimparEstadoOperador();
+  if (estadoServidor && estadoServidor.tipo === 'biblia') {
+    estadoServidor = {
+      tipo: null,
+      titulo: '',
+      linhas: [],
+      estrofeIndex: 0,
+      totalEstrofes: 0,
+      telaLimpa: true,
+      blackout: false,
+      slidePretoFinal: false,
+    };
+  }
+  projecao.enviar('encerrar_projecao_biblia');
+}
+
 /** Encerra apenas a projeção da Bíblia (botão «Encerrar projeção» no modo Bíblia). */
 function encerrarProjecaoModoBiblia() {
   if (!ehModoBibliaOperador()) return;
-  bibliaLimparEstadoOperador();
-  projecao.enviar('encerrar_projecao_biblia');
+  encerrarCamadaBibliaNoControlador();
   atualizarPreviewOperador();
 }
 
-/** Ao sair do modo Bíblia: limpa estado local e repõe config de Slides nos monitores. */
+/**
+ * Ao sair do modo Bíblia: encerra projeção no telão (se houver), limpa estado local
+ * e repõe config de Slides nos monitores.
+ */
 function bibliaSairModo() {
-  bibliaLimparEstadoOperador();
+  encerrarCamadaBibliaNoControlador();
   slidesAplicarCfgArmazenada();
+  try {
+    atualizarPreviewOperador();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 }
 
 function popularLegendaBiblia() {

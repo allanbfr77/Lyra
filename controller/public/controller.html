@@ -1540,23 +1540,48 @@
       overflow-y: auto;
       padding: 8px;
       min-height: 0;
+      /* Folga para a música ativa nunca encostar (ou ser cortada) nas bordas ao rolar. */
+      scroll-padding-block: 12px;
     }
 
     .playlist-list::-webkit-scrollbar { width: 4px; }
     .playlist-list::-webkit-scrollbar-thumb { background: var(--border); }
 
     .playlist-row {
+      position: relative;
       padding: 8px 10px;
       margin-bottom: 6px;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 6px;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, background 0.15s;
     }
 
     .playlist-row:hover { border-color: var(--accent2); }
-    .playlist-row.ativo { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(166,124,45,0.28); }
+
+    /*
+      Destaque da música seleccionada: barra lateral + fundo tingido de accent.
+      Sem alterar tamanho/peso de fonte — todas as linhas mantêm a mesma tipografia.
+    */
+    .playlist-row.ativo {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(166,124,45,0.28);
+      background: color-mix(in srgb, var(--surface2) 84%, var(--accent) 16%);
+      padding-left: 14px;
+      scroll-margin-block: 12px;
+    }
+
+    .playlist-row.ativo::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      border-radius: 6px 0 0 6px;
+      background: var(--accent);
+    }
 
     .playlist-row-top {
       display: flex;
@@ -1636,33 +1661,6 @@
       margin-top: 6px;
     }
 
-    /** Outras músicas da lista ficam mais discretas para ganhar espaço; a atual permanece em destaque. */
-    .playlist-row.playlist-row--compacto {
-      opacity: 0.76;
-      padding: 5px 8px;
-      margin-bottom: 4px;
-    }
-
-    .playlist-row.playlist-row--compacto:hover {
-      opacity: 0.92;
-    }
-
-    .playlist-row.playlist-row--compacto .playlist-row-top .tit {
-      font-size: 11px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .playlist-row.playlist-row--compacto .mini {
-      display: none;
-    }
-
-    .playlist-row.playlist-row--compacto .playlist-btns button {
-      padding: 2px 6px;
-      font-size: 11px;
-    }
     .playlist-tema-head {
       margin: 10px 2px 6px;
       padding: 5px 8px;
@@ -6872,8 +6870,6 @@
     #status-txt,
     .tab,
     .playlist-row .mini,
-    .playlist-row.playlist-row--compacto .playlist-row-top .tit,
-    .playlist-row.playlist-row--compacto .playlist-btns button,
     .slides-zoom-val,
     .banco-filtros-checks,
     .culto-dd-caret,
