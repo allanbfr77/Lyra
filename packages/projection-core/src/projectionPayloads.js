@@ -83,7 +83,13 @@ function estadoMinistranteFromEstadoAtual(ex) {
     let proximo = '';
     if (ex.proximoSlidePreto) proximo = '';
     else if (Array.isArray(ex.linhasProximo)) proximo = ex.linhasProximo.join('\n');
-    return { titulo, atual, proximo, telaLimpa: false };
+    return {
+      titulo,
+      atual,
+      proximo,
+      telaLimpa: false,
+      slidePretoFinal: !!ex.slidePretoFinal,
+    };
   }
   return { titulo: '', atual: '', proximo: '', telaLimpa: true };
 }
@@ -95,7 +101,13 @@ function payloadMinistranteMusicaFromEstrofes(estrofes, idxEstrofe, tituloMusica
     return { titulo: '', atual: '', proximo: '', telaLimpa: true };
   }
   if (idx === n) {
-    return { titulo: tituloMusica || '', atual: '', proximo: '', telaLimpa: false };
+    return {
+      titulo: tituloMusica || '',
+      atual: '',
+      proximo: '',
+      telaLimpa: false,
+      slidePretoFinal: true,
+    };
   }
   const atualStr = estrofes[idx] != null ? String(estrofes[idx]) : '';
   let proximoStr = '';

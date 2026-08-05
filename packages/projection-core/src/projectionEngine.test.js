@@ -216,3 +216,86 @@ test('dois motores no mesmo processo não partilham estado', () => {
   assert.ok(a.engine.janelasDeProjecao().length > 0);
   assert.strictEqual(b.engine.janelasDeProjecao().length, 0);
 });
+
+test('slide preto final: ministrante fica activo (tela preta) e não revela o relógio', () => {
+  /* Regressão: sem letra no M3 o motor tratava como ocioso e escondia a janela de
+     projeção, revelando o relógio enquanto o M2 ficava preto. */
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-slide-preto-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(
+    routingPath,
+    JSON.stringify({
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 0 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    })
+  );
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [0, 1] }));
+
+  const state = armazemDeProjecao();
+  state.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  const engine = createProjectionEngine(
+    {
+      displayRoutingPath: () => routingPath,
+      displaySettingsPath: () => settingsPath,
+    },
+    {
+      logError: () => {},
+      screen: { getAllDisplays: () => DISPLAYS, getPrimaryDisplay: () => DISPLAYS[0], on: () => {} },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+
+  engine.sincronizarJanelasRelogio();
+  engine.abrirTelasConfiguradas();
+
+  const estrofes = ['A', 'B', 'C'];
+  limparSends(engine);
+  engine.render({
+    estado: {
+      tipo: 'musica',
+      titulo: '',
+      linhas: [],
+      linhasProximo: [],
+      estrofeIndex: estrofes.length,
+      totalEstrofes: estrofes.length + 1,
+      telaLimpa: false,
+      blackout: false,
+      slidePretoFinal: true,
+      estrofes,
+    },
+  });
+
+  const snap = engine.snapshotMinistranteAtual();
+  assert.strictEqual(snap.slidePretoFinal, true);
+  assert.strictEqual(String(snap.atual || ''), '');
+  assert.strictEqual(String(snap.proximo || ''), '');
+
+  const ministrantes = engine.janelasDeProjecao().filter((e) => e.role === 'ministrante');
+  assert.ok(ministrantes.length > 0, 'precisa de janela ministrante');
+  ministrantes.forEach((e) => {
+    assert.notStrictEqual(
+      e.ocultoParaRelogio,
+      true,
+      'slide preto não pode esconder o ministrante para revelar o relógio'
+    );
+    assert.ok(e.win.isVisible(), 'janela ministrante permanece visível (tela preta)');
+  });
+
+  const enviosMin = sends(engine).filter((s) => s.canal === 'atualizar_ministrante');
+  assert.ok(enviosMin.length > 0, 'ministrante recebeu actualização');
+  const ultimo = enviosMin[enviosMin.length - 1].payload;
+  assert.strictEqual(ultimo.slidePretoFinal, true);
+  assert.strictEqual(ultimo.projecaoAtiva, true);
+  assert.strictEqual(String(ultimo.atual || ''), '');
+  assert.strictEqual(String(ultimo.proximo || ''), '');
+});

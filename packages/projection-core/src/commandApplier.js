@@ -505,6 +505,10 @@ function criarAplicadorDeComandos(deps) {
             proximo: pl.proximo != null ? String(pl.proximo) : snapshot.proximo || '',
             projecaoAtiva: typeof pl.projecaoAtiva === 'boolean' ? pl.projecaoAtiva : undefined,
             telaLimpa: typeof pl.telaLimpa === 'boolean' ? pl.telaLimpa : !!snapshot.telaLimpa,
+            slidePretoFinal:
+              typeof pl.slidePretoFinal === 'boolean'
+                ? pl.slidePretoFinal
+                : !!snapshot.slidePretoFinal,
           }
         : snapshot;
       engine.atualizarDisplayMinistrante(state.estadoMinistrante);

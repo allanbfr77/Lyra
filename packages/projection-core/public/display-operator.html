@@ -32,6 +32,18 @@
       padding: 3vw 4vw;
       cursor: none;
     }
+    body.slide-preto-final {
+      background: #000000 !important;
+      padding: 0;
+    }
+    body.slide-preto-final .wrap {
+      background: transparent !important;
+    }
+    body.slide-preto-final .slide,
+    body.slide-preto-final .ref-biblica-op {
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
     .wrap {
       width: 100%;
       height: 100%;
@@ -323,6 +335,8 @@
 
     function payloadMinistranteTemConteudoAtivo(payload) {
       if (!payload || payload.telaLimpa) return false;
+      /* Slide preto / blackout: projeção activa sem letra — não cair no modo ocioso/relógio. */
+      if (payload.slidePretoFinal || payload.blackout) return true;
       if (typeof payload.projecaoAtiva === 'boolean') return payload.projecaoAtiva;
       const modo = String(payload.modo || 'texto');
       if (modo === 'apresentacao') {
@@ -621,10 +635,27 @@
 
     function aplicar(payload) {
       ultimoPayloadMinistrante = payload || null;
-      const mon = displayConfig.ministrante || {};
-      const wrapLinhas = mon.wrapLongLines !== false;
-      const vazio = !payloadMinistranteTemConteudoAtivo(payload);
       const modo = String(payload?.modo || 'texto');
+      const slidePreto = !!(payload && (payload.slidePretoFinal || payload.blackout));
+
+      /* Slide preto (= slide sem letra) ou blackout: fundo preto puro nos dois monitores. */
+      if (slidePreto) {
+        limparCapasApresentacaoOuAviso();
+        if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
+        elAtual.textContent = '';
+        elProximo.textContent = '';
+        aplicarReferenciaBiblicaMinistrante('', 'texto');
+        elAtual.classList.add('vazio');
+        elProximo.classList.add('vazio');
+        const wrapPreto = document.querySelector('.wrap');
+        if (wrapPreto) wrapPreto.style.background = 'transparent';
+        document.body.classList.add('slide-preto-final');
+        document.body.style.background = '#000000';
+        return;
+      }
+      document.body.classList.remove('slide-preto-final');
+
+      const vazio = !payloadMinistranteTemConteudoAtivo(payload);
 
       if (vazio) {
         limparCapasApresentacaoOuAviso();

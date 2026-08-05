@@ -9445,13 +9445,15 @@ function emitirEstadoMinistranteAoServidor() {
   const proximo = textoPlanoDeElementoPreviewMinistrante(opP);
   /** Se ainda há saída ativa (inclui blackout/slide preto), não abrir relógio no ministrante. */
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
+  const slidePretoFinal = !!(estadoServidor && estadoServidor.slidePretoFinal);
   const telaLimpa = !atual && !proximo && !projecaoAtiva;
   projecao.enviar('exibir_ministrante', {
     titulo: musicaAtiva?.titulo || '',
-    atual,
-    proximo,
+    atual: slidePretoFinal ? '' : atual,
+    proximo: slidePretoFinal ? '' : proximo,
     projecaoAtiva,
     telaLimpa,
+    slidePretoFinal,
   });
 }
 

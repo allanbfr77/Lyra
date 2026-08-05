@@ -304,13 +304,19 @@ function createProjectionEngine(paths, deps) {
       let modoMin = 'texto';
       if (tipoAtual === 'biblia') modoMin = 'biblia';
       else if (tipoAtual === 'musica') modoMin = 'musica';
+      const slidePreto =
+        !!(payload.slidePretoFinal) || !!(state.estadoAtual && state.estadoAtual.slidePretoFinal);
+      const blackoutAtivo =
+        !!(payload.blackout) || !!(state.estadoAtual && state.estadoAtual.blackout);
       payload = {
         modo: modoMin,
         titulo: payload.titulo || '',
-        atual: payload.atual || '',
-        proximo: payload.proximo || '',
+        atual: slidePreto || blackoutAtivo ? '' : payload.atual || '',
+        proximo: slidePreto || blackoutAtivo ? '' : payload.proximo || '',
         projecaoAtiva: hayProjecaoAtivaMinistrante(),
         telaLimpa: !!payload.telaLimpa,
+        slidePretoFinal: slidePreto,
+        blackout: blackoutAtivo,
       };
     }
 
@@ -370,6 +376,11 @@ function createProjectionEngine(paths, deps) {
 
   function hayProjecaoAtivaMinistrante() {
     if (state.projecaoLiveAtiva) return false;
+    /* Slide preto / blackout: projeção activa (tela preta vazia) — não revelar o relógio. */
+    const stPub = state.estadoAtual;
+    if (stPub && typeof stPub === 'object' && (stPub.blackout || stPub.slidePretoFinal)) {
+      return true;
+    }
     if (state.ministranteApresentacaoOverride) {
       const ov = state.ministranteApresentacaoOverride;
       if (ov && typeof ov === 'object') {
@@ -385,6 +396,7 @@ function createProjectionEngine(paths, deps) {
     }
     const snap = snapshotMinistranteAtual();
     if (!snap || typeof snap !== 'object') return false;
+    if (snap.slidePretoFinal || snap.blackout) return true;
     if (snap.telaLimpa) return false;
     return !!(String(snap.atual || '').trim() || String(snap.proximo || '').trim());
   }
