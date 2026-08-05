@@ -10962,11 +10962,19 @@ async function conectar() {
    */
 
   /* Sem um Servidor remoto real a que ligar (campo vazio ou o endereço desta própria
-     máquina): nada acontece. O local fica intacto e o badge permanece em REMOTO. Ligar a
-     `localhost` ligava o socket ao motor local e derrubava a projeção e as telas — é
-     precisamente isto que este guard impede. */
+     máquina): nada acontece. O local fica intacto e o badge permanece em LOCAL. Ligar ao
+     IP da LAN deste PC — com o modo local a servir a 5510 — fingia sucesso e o badge
+     passava a SERVIDOR sem nenhum app Servidor aberto. */
+  await refrescarIpsDestaMaquina();
   const ip = ipRemotoAlvo();
-  if (!ip || ehEnderecoDestaMaquina(ip)) return;
+  if (!ip) return;
+  if (ehEnderecoDestaMaquina(ip)) {
+    alert(
+      'Esse IP é deste computador.\n\n' +
+      'No modo remoto, informe o IP do outro PC — o que está a correr o app Servidor.'
+    );
+    return;
+  }
 
   /* A projeção local NÃO se derruba aqui. Enquanto a ligação ao Servidor não confirmar, o
      local continua a projetar — uma tentativa que falha não faz perder a projeção. A troca
@@ -11115,6 +11123,7 @@ async function ligarProjecaoNestaMaquina() {
     servidorLanIpObs = String(r.lanIp).trim();
     atualizarUrlsObs();
   }
+  recordarIpsDestaMaquina(r.lanIps, r.lanIp);
 
   /* O mesmo que o handler de `connect` do socket faz no modo remoto. Sem isto o painel
      ficava com os seletores de tela vazios: a carga do arranque corre antes de a 5510
@@ -12030,6 +12039,15 @@ socket.on('connect', async () => {
   if (_conectandoEmAndamento) {
     return;
   }
+  /* Rede de segurança: ligar ao motor local deste PC (IP da LAN / localhost) enquanto a
+     5510 está a ser servida pelo próprio Controlador NÃO é modo remoto. Sem isto o badge
+     passava a SERVIDOR sem o app Servidor existir. */
+  await refrescarIpsDestaMaquina();
+  if (ehEnderecoDestaMaquina(ip)) {
+    try { socket.disconnect(); } catch (_) { /* intencional */ }
+    tratarFalhaLigacaoServidor();
+    return;
+  }
   _conectandoEmAndamento = true;
   try {
     /* Ligação confirmada: só agora se abandona a projeção local e se adota o transporte do
@@ -12179,7 +12197,7 @@ socket.on('connect', async () => {
 }
   });
   socket.on('connect_error', () => {
-    /* Não achou Servidor: nada de destrutivo. Volta a REMOTO e o local segue intacto.
+    /* Não achou Servidor: nada de destrutivo. Volta a LOCAL e o local segue intacto.
        Não se mexe em `atualizarUiConexao` — o corpo continua no estado do modo local. */
     tratarFalhaLigacaoServidor();
   });
@@ -12216,29 +12234,51 @@ function configurarAutoConectarAoAlternarJanelas() {
 }
 
 /**
- * Badge único do canto superior direito — o estado da ligação ao Servidor remoto.
+ * Badge do canto superior direito — só status, sem clique.
  *
- * Só dois estados, propositadamente simples:
- *   - `ocioso`    → cinza,  texto «REMOTO»   — a projetar nesta máquina, sem Servidor;
+ * Dois estados:
+ *   - `ocioso`    → cinza,  texto «LOCAL»    — a projetar nesta máquina;
  *   - `conectado` → verde,  texto «SERVIDOR» — ligado a um Servidor remoto.
  *
- * Não há estado «a ligar» nem «erro» no badge: uma tentativa que não acha Servidor não
- * altera nada — fica em REMOTO e o Controlador segue intacto. Qualquer valor que não seja
- * `conectado` cai em `ocioso`, por segurança.
+ * Tentativa falhada não altera o badge: fica em LOCAL. Qualquer valor que não seja
+ * `conectado` cai em `ocioso`.
  */
 function setStatusServidorRemoto(estado) {
   const badge = document.getElementById('status-conn-badge');
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-txt');
   const cls = estado === 'conectado' ? 'conectado' : 'ocioso';
-  const rotulo = cls === 'conectado' ? 'SERVIDOR' : 'REMOTO';
+  const rotulo = cls === 'conectado' ? 'SERVIDOR' : 'LOCAL';
   if (badge) badge.className = 'status-conn ' + cls;
   if (dot) dot.className = 'status-dot ' + cls;
   if (txt) txt.textContent = rotulo;
   if (badge) {
     badge.title = cls === 'conectado'
-      ? 'Ligado ao Servidor remoto — clique para gerir a ligação em Ajustes › Conexão'
-      : 'Clique para ligar a um Servidor remoto';
+      ? 'Ligado ao Servidor remoto'
+      : 'A projetar nesta máquina';
+  }
+}
+
+/** IPs desta máquina (LAN + loopback lógico). Evita tratar o motor local como Servidor remoto. */
+const ipsDestaMaquina = new Set();
+
+function recordarIpsDestaMaquina(lista, preferido) {
+  if (preferido) ipsDestaMaquina.add(String(preferido).trim().toLowerCase());
+  for (const ip of lista || []) {
+    const n = String(ip || '').trim().toLowerCase();
+    if (n) ipsDestaMaquina.add(n);
+  }
+  if (servidorLanIpObs) ipsDestaMaquina.add(String(servidorLanIpObs).trim().toLowerCase());
+}
+
+async function refrescarIpsDestaMaquina() {
+  const ponte = ponteProjecaoLocal();
+  if (!ponte?.estado) return;
+  try {
+    const st = await ponte.estado();
+    recordarIpsDestaMaquina(st?.lanIps, st?.lanIp);
+  } catch (_) {
+    // intencional — sem lista completa, o guard ainda cobre localhost e o IP já conhecido
   }
 }
 
@@ -12250,44 +12290,22 @@ function ipRemotoAlvo() {
 }
 
 /**
- * O endereço aponta para esta própria máquina? Ligar a si mesmo não é «remoto» — e pior,
- * o socket ligar-se-ia ao motor local desta máquina, derrubando a projeção e as telas. Este
- * guard é o que garante que clicar sem um Servidor remoto real não mexe em nada.
+ * O endereço aponta para esta própria máquina? Ligar a si mesmo não é «remoto» — com o
+ * modo local a servir a 5510, o socket «ligava» ao próprio motor e o badge ia a SERVIDOR
+ * sem o app Servidor existir.
  */
 function ehEnderecoDestaMaquina(ip) {
   const h = String(ip || '').trim().toLowerCase();
-  return !h || h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0';
-}
-
-/**
- * Atalho do badge REMOTO. Caminho não-destrutivo:
- *
- * - já ligado ao Servidor → abre Ajustes › Conexão para gerir/trocar;
- * - sem IP configurado → abre Ajustes › Conexão (único sítio com campo de IP);
- * - IP é o desta máquina → não é Servidor remoto: nada acontece, fica intacto;
- * - IP remoto válido → tenta ligar (só troca para o Servidor se a ligação vingar).
- */
-function cliqueBadgeServidorRemoto() {
-  if (socket && socket.connected) {
-    abrirCfgModal('conexao');
-    return;
-  }
-  const ip = ipRemotoAlvo();
-  if (!ip) {
-    abrirCfgModal('conexao');
-    setTimeout(() => document.getElementById('ip-input')?.focus(), 0);
-    return;
-  }
-  if (ehEnderecoDestaMaquina(ip)) return;
-  const ipInput = document.getElementById('ip-input');
-  if (ipInput) ipInput.value = ip;
-  conectar();
+  if (!h) return true;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') return true;
+  if (servidorLanIpObs && h === String(servidorLanIpObs).trim().toLowerCase()) return true;
+  return ipsDestaMaquina.has(h);
 }
 
 /**
  * Não achou Servidor. Nada de destrutivo e — importante — nada de reabrir o motor local.
  *
- * O badge volta a REMOTO (ocioso). A projeção local, se estava de pé, continua: o clique
+ * O badge volta a LOCAL. A projeção local, se estava de pé, continua: a tentativa
  * nunca a derruba (só o `connect` com sucesso a derruba). Reabrir o local aqui causava um
  * pisca-pisca das telas: uma vez ligado ao Servidor (local já derrubado), qualquer
  * `connect_error` das retentativas do socket reabria o local — que ganhava o M2 e a porta —
@@ -13445,7 +13463,6 @@ const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
 exporCallbacksParaAtributosHtml({
   recarregarPainelControlador,
   conectar,
-  cliqueBadgeServidorRemoto,
   alternarProjecaoNestaMaquina,
   ligarProjecaoNestaMaquina,
   desligarProjecaoNestaMaquina,

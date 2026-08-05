@@ -851,11 +851,16 @@ function registarIpcProjecaoLocal(ctx) {
     return r;
   });
 
-  ipcMain.handle('projecao-local-estado', () => ({
-    disponivel: !!ctx.projecaoLocal,
-    activa: !!ctx.projecaoLocal?.estaActiva(),
-    inicial: ctx.projecaoLocal?.estadoParaClienteNovo?.() || null,
-  }));
+  ipcMain.handle('projecao-local-estado', () => {
+    const { getPreferredLocalIPv4, listLocalIPv4 } = require('@lyra/projection-core').localIp;
+    return {
+      disponivel: !!ctx.projecaoLocal,
+      activa: !!ctx.projecaoLocal?.estaActiva(),
+      inicial: ctx.projecaoLocal?.estadoParaClienteNovo?.() || null,
+      lanIp: getPreferredLocalIPv4(),
+      lanIps: listLocalIPv4(),
+    };
+  });
 
   ipcMain.handle('projecao-local-comando', async (_ev, payload) => {
     if (!ctx.projecaoLocal) return { ok: false, erro: 'projeção local indisponível' };

@@ -701,16 +701,26 @@
 
     .cfg-conexao-row {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       margin-top: 8px;
     }
     .cfg-conexao-row .conn-input {
-      flex: 1 1 200px;
-      min-width: 160px;
+      flex: 1 1 auto;
+      min-width: 0;
       width: auto;
       max-width: 100%;
+    }
+    /* IP curto: barra menor + botão Conectar ao lado, no mesmo padrão do OBS + Copiar. */
+    .cfg-conexao-row #ip-input {
+      flex: 0 1 180px;
+      max-width: 180px;
+      min-width: 120px;
+    }
+    .cfg-conexao-row #btn-conectar {
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
 
     .conn-label {
@@ -737,10 +747,6 @@
     .conn-input:focus {
       border-bottom-color: var(--accent);
       background: color-mix(in srgb, var(--surface2) 72%, var(--surface));
-    }
-
-    body.socket-conectado #btn-conectar {
-      display: none;
     }
 
     #info-ip {
@@ -840,20 +846,8 @@
     .status-conn.conectando { --status-cor: var(--yellow); }
     .status-conn.erro,
     .status-conn.desconectado { --status-cor: var(--red); }
-    /* Ocioso: modo local activo, nenhuma ligação remota em curso. */
+    /* Local: a projetar nesta máquina, sem ligação a Servidor remoto. */
     .status-conn.ocioso { --status-cor: var(--text-dim); }
-
-    /* O badge é também o atalho de ligação ao Servidor remoto — é um <button>. */
-    button.status-conn {
-      cursor: pointer;
-      font-family: inherit;
-      color: inherit;
-      line-height: 1;
-    }
-    button.status-conn:hover {
-      border-color: color-mix(in srgb, var(--border) 40%, var(--status-cor) 60%);
-    }
-    button.status-conn:active { transform: scale(0.97); }
 
     .status-dot {
       width: 8px; height: 8px;
@@ -7047,10 +7041,10 @@
   </nav>
   <div class="app-header-right">
     <div class="status-conn-wrap">
-      <button type="button" class="status-conn ocioso" id="status-conn-badge" onclick="cliqueBadgeServidorRemoto()" title="Clique para ligar a um Servidor remoto">
+      <div class="status-conn ocioso" id="status-conn-badge" title="A projetar nesta máquina">
         <div class="status-dot ocioso" id="status-dot"></div>
-        <span id="status-txt">REMOTO</span>
-      </button>
+        <span id="status-txt">LOCAL</span>
+      </div>
       <button type="button" class="btn-reload-ctrl btn-reload-ctrl--inline" id="btn-recarregar-painel" onclick="recarregarPainelControlador()" title="Recarregar este painel (HTML/CSS/JS). Alterações no servidor Electron (main.js) exigem reiniciar o app.">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>

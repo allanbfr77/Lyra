@@ -3,6 +3,27 @@
 const { networkInterfaces } = require('os');
 
 /**
+ * Todos os IPv4 não-internos desta máquina (todas as interfaces).
+ * @returns {string[]}
+ */
+function listLocalIPv4() {
+  const nets = networkInterfaces();
+  const out = [];
+  const seen = new Set();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      const isV4 = net.family === 'IPv4' || net.family === 4;
+      if (!isV4 || net.internal) continue;
+      const addr = String(net.address || '').trim();
+      if (!addr || seen.has(addr)) continue;
+      seen.add(addr);
+      out.push(addr);
+    }
+  }
+  return out;
+}
+
+/**
  * IPv4 “principal” para exibir ao usuário (LAN), penalizando interfaces virtuais.
  * @returns {string}
  */
@@ -46,4 +67,4 @@ function getPreferredLocalIPv4() {
   return candidates[0].address;
 }
 
-module.exports = { getPreferredLocalIPv4 };
+module.exports = { getPreferredLocalIPv4, listLocalIPv4 };

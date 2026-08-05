@@ -21,7 +21,7 @@ const {
 const { buildMonitorsList } = monitorsList;
 const { caminhoIconeApp } = require('./lib/iconPath');
 
-const { getPreferredLocalIPv4 } = localIp;
+const { getPreferredLocalIPv4, listLocalIPv4 } = localIp;
 
 /** A mesma porta do Servidor — e é isso que faz dela a guarda do invariante. */
 const PORTA_PROJECAO = 5510;
@@ -482,10 +482,12 @@ function criarProjecaoLocal(deps) {
   /**
    * Liga a projeção nesta máquina.
    *
-   * @returns {Promise<{ ok: boolean, erro?: string, lanIp?: string }>}
+   * @returns {Promise<{ ok: boolean, erro?: string, lanIp?: string, lanIps?: string[] }>}
    */
   async function ligar() {
-    if (activa) return { ok: true, lanIp: getPreferredLocalIPv4() };
+    if (activa) {
+      return { ok: true, lanIp: getPreferredLocalIPv4(), lanIps: listLocalIPv4() };
+    }
     try {
       return await ligarInterno();
     } catch (e) {
@@ -647,7 +649,7 @@ function criarProjecaoLocal(deps) {
 
     registarListenersDeMonitores();
 
-    return { ok: true, lanIp: getPreferredLocalIPv4() };
+    return { ok: true, lanIp: getPreferredLocalIPv4(), lanIps: listLocalIPv4() };
   }
 
   /** Desliga a projeção local e larga as portas. */
