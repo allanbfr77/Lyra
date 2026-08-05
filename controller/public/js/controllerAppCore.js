@@ -98,6 +98,11 @@ import {
   criarTransporteLocal,
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
+import {
+  identidadesDaRota,
+  guardarIdentidadesRota,
+  restaurarRotaPorIdentidade,
+} from './modules/identidadeMonitores.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -330,6 +335,65 @@ function carregarRotasPorModoDoStorage() {
 }
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
+}
+
+/**
+ * Chave de agrupamento da configuração de monitores.
+ * Projetar nesta máquina e comandar um PC servidor são setups de hardware distintos:
+ * partilhar configuração entre eles restauraria monitores que não existem do outro lado.
+ * @returns {string}
+ */
+function hostChaveMonitores() {
+  if (emModoProjecaoLocal()) return 'local';
+  return getServidorIp() || 'local';
+}
+
+/**
+ * Grava quais monitores (por identidade) estão em uso, para o próximo arranque.
+ *
+ * Complementa — não substitui — `salvarRotasPorModoNoStorage`: os índices continuam a
+ * ser a moeda de runtime, mas é daqui que sai a verdade quando o Windows renumera os
+ * ecrãs entre sessões.
+ */
+function persistirIdentidadesDosModos() {
+  const host = hostChaveMonitores();
+  const lista = monitoresServidorCache;
+  if (!Array.isArray(lista) || !lista.length) return;
+  /* Só `completo` e `slides`: são as escolhas duradouras de infraestrutura («o telão é a
+     LG TV»). `apresentacao` e `biblia` são rotas de sessão, deliberadamente repostas a
+     «Desativado» em cada arranque — persistir a sua identidade fá-las-ia ressuscitar. */
+  ['completo', 'slides'].forEach((modo) => {
+    const r = normalizarRota(rotasPorModo[modo]);
+    /* Rota «Live — OBS» não usa monitor nenhum; gravar identidades aqui apagaria a
+       escolha física do utilizador só por ele ter ido para o OBS por um momento. */
+    if (r.live) return;
+    guardarIdentidadesRota(host, modo, identidadesDaRota(r, lista));
+  });
+}
+
+/**
+ * Reescreve uma rota vinda do servidor com os monitores que o utilizador escolheu de facto.
+ *
+ * Regras:
+ * - sem configuração guardada → devolve a rota do servidor intacta (primeira execução);
+ * - configuração guardada e monitores presentes → aplica-a, mesmo que os índices do
+ *   servidor apontem para outro lado (é exactamente o caso da renumeração do Windows);
+ * - configuração guardada mas monitor ausente → devolve o canal desativado, para a UI
+ *   pedir nova seleção em vez de projetar no ecrã errado.
+ *
+ * @param {string} modo
+ * @param {object} rotaServidor
+ * @returns {{rota: object, faltou: string[]}}
+ */
+function rotaRestauradaPorIdentidade(modo, rotaServidor) {
+  const lista = monitoresServidorCache;
+  const base = normalizarRota(rotaServidor);
+  if (base.live) return { rota: base, faltou: [] };
+  if (!Array.isArray(lista) || !lista.length) return { rota: base, faltou: [] };
+
+  const { rota, houveSalvo, faltou } = restaurarRotaPorIdentidade(hostChaveMonitores(), modo, lista);
+  if (!houveSalvo) return { rota: base, faltou: [] };
+  return { rota: sanitizarRotaProjecao(rota, lista), faltou };
 }
 
 function rotaDesativada() {
@@ -4767,9 +4831,51 @@ async function enviarComandoAudioProjeccao(evento, payload = {}) {
   }
 }
 
+/**
+ * Rótulo do monitor no seletor.
+ *
+ * Prefere o nome que o sistema dá ao painel («LG TV», «EPSON PJ») em vez de `Monitor 2`:
+ * o operador reconhece o equipamento, não a numeração do Windows — que aliás muda.
+ * Quando o driver não expõe nome, cai para a numeração, que é melhor que nada.
+ */
 function montarLabelMonitor(m) {
   const base = m && m.label ? String(m.label) : `Monitor ${Number(m?.index || 0) + 1}`;
   return m && m.primary ? `${base} (principal — sem projeção)` : base;
+}
+
+/** Tooltip com a posição e a resolução — desempata dois painéis com o mesmo nome. */
+function montarTitleMonitor(m) {
+  if (!m) return '';
+  const partes = [];
+  if (m.nome && m.rotuloPosicional) partes.push(m.rotuloPosicional);
+  const w = Number(m?.size?.width || m?.bounds?.width || 0);
+  const h = Number(m?.size?.height || m?.bounds?.height || 0);
+  if (w && h) partes.push(`${w}×${h}`);
+  return partes.join(' · ');
+}
+
+/**
+ * Aviso persistente no cabeçalho quando um monitor guardado deixou de existir.
+ *
+ * Não usa `alert()`: isto pode disparar durante um culto, e um modal a bloquear o painel
+ * é pior que o problema que anuncia. O canal afetado já ficou em «Desativado» — o aviso
+ * só explica porquê e o operador refaz a escolha quando puder.
+ *
+ * @param {string[]} nomes
+ */
+function avisarMonitoresConfiguradosEmFalta(nomes) {
+  const el = document.getElementById('hdr-monitores-aviso');
+  if (!el) return;
+  const unicos = [...new Set((Array.isArray(nomes) ? nomes : []).filter(Boolean))];
+  if (!unicos.length) {
+    el.classList.add('oculto');
+    el.textContent = '';
+    el.removeAttribute('title');
+    return;
+  }
+  el.classList.remove('oculto');
+  el.textContent = '⚠ Monitor não encontrado';
+  el.title = `Estes monitores estavam configurados e não foram encontrados: ${unicos.join(', ')}.\nEscolha novamente onde projetar.`;
 }
 
 function fecharMenusRoteamentoTelas() {
@@ -4853,13 +4959,13 @@ function renderRoteamentoTelas(monitores, routing) {
   const lista = Array.isArray(monitores) ? monitores : [];
   lista.forEach((m) => {
     if (m && m.primary) return;
-    items.push({ value: String(m.index), label: montarLabelMonitor(m) });
+    items.push({ value: String(m.index), label: montarLabelMonitor(m), title: montarTitleMonitor(m) });
   });
 
   function preencherMenu(menuEl, hidEl, dispEl, valorSelecionado) {
     menuEl.innerHTML = '';
     const vSel = String(valorSelecionado);
-    items.forEach(({ value, label }) => {
+    items.forEach(({ value, label, title }) => {
       const li = document.createElement('li');
       li.setAttribute('role', 'presentation');
       const b = document.createElement('button');
@@ -4867,6 +4973,7 @@ function renderRoteamentoTelas(monitores, routing) {
       b.className = 'route-dd-item';
       b.dataset.value = value;
       b.textContent = label;
+      if (title) b.title = title;
       b.setAttribute('aria-selected', String(value) === vSel ? 'true' : 'false');
       b.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -5045,18 +5152,32 @@ function atualizarEstiloRotasDesativadas() {
     }
   }
   if (wrapMin && hidMin) {
+    /* Com um só monitor de projeção não há segunda saída para dar ao ministrante: o
+       seletor fica desativado em vez de oferecer uma escolha que colidiria com o telão. */
+    const semSegundaSaida = !modoUnificado && contarMonitoresDeProjecao() <= 1;
+    if (semSegundaSaida && hidMin.value !== '-1') hidMin.value = '-1';
     const des = hidMin.value === '-1';
-    wrapMin.classList.toggle('route-dd--rota-desativada', des);
+    wrapMin.classList.toggle('route-dd--rota-desativada', des && !semSegundaSaida);
+    wrapMin.classList.toggle('route-dd--sem-monitor', semSegundaSaida);
     wrapMin.classList.toggle('route-dd--bloqueado-apresentacao', bloqMinAp);
+    const dispMin = document.getElementById('route-ministrante-display');
+    if (semSegundaSaida && dispMin) dispMin.textContent = 'Nenhum';
     if (btnMin) {
-      btnMin.disabled = bloqMinAp;
-      btnMin.title = bloqMinAp
-        ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
-        : des
-          ? 'Desativado: sem envio a monitor externo — só pré-visualização neste painel.'
-          : 'Escolher monitor do ministrante / retorno';
+      btnMin.disabled = bloqMinAp || semSegundaSaida;
+      btnMin.title = semSegundaSaida
+        ? 'Só há um monitor de projeção disponível — ele está reservado ao telão. Ligue um segundo monitor para usar o retorno do ministrante.'
+        : bloqMinAp
+          ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
+          : des
+            ? 'Desativado: sem envio a monitor externo — só pré-visualização neste painel.'
+            : 'Escolher monitor do ministrante / retorno';
     }
   }
+}
+
+/** Quantos monitores restam para projeção depois de reservar o principal ao operador. */
+function contarMonitoresDeProjecao() {
+  return listaMonitoresParaProjecao(monitoresServidorCache).length;
 }
 
 function rotaSelecionadaNaUi() {
@@ -11443,6 +11564,16 @@ async function carregarRoteamentoTelasDoServidor() {
       slidesSrv = leg;
       apSrv = { publicoIndex: -1, ministranteIndex: -1, live: false };
     }
+
+    /* A identidade manda sobre os índices: tanto os do servidor como os de
+       `LS_ROTAS_POR_MODO` referem-se ao arranjo de monitores da sessão anterior, que é
+       exactamente o que a renumeração do Windows corrompe. Ver `identidadeMonitores.js`.
+       `apresentacao` fica de fora por ser rota de sessão, reposta a cada arranque. */
+    const restSlides = rotaRestauradaPorIdentidade('slides', slidesSrv);
+    const restCompleto = rotaRestauradaPorIdentidade('completo', rotasPorModo.completo);
+    slidesSrv = restSlides.rota;
+    rotasPorModo.completo = restCompleto.rota;
+    avisarMonitoresConfiguradosEmFalta([...restSlides.faltou, ...restCompleto.faltou]);
     rotasPorModo.slides = { ...slidesSrv };
     rotasPorModo.apresentacao = { ...apSrv };
     const mergedSrv = apSrv.live
@@ -11549,6 +11680,10 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   if (modo === 'biblia') {
     rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
   }
+
+  /* Guardar QUAIS monitores ficaram em uso, não em que posição estavam — é isto que
+     permite restaurar a configuração depois de o Windows renumerar os ecrãs. */
+  persistirIdentidadesDosModos();
 
   const payloadDual = {
     version: 2,

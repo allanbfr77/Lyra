@@ -11,6 +11,13 @@ export const LS_PREVIEW_PAINEL_OCULTO = 'lyra_preview_paineis_ocultos';
 export const LS_PLAYLIST_PREVIEW_SLIDE_OCULTO = 'lyra_playlist_preview_slide_oculto';
 export const LS_MODO_APRESENTACAO_ATIVO = 'lyra_modo_apresentacao_ativo';
 export const LS_ROTAS_POR_MODO = 'lyra_rotas_por_modo_v1';
+/**
+ * Monitores escolhidos por IDENTIDADE (nome + resolução + escala), não por índice.
+ * Complementa `LS_ROTAS_POR_MODO`: os índices continuam a ser o que a UI e o servidor
+ * usam em runtime, mas quem manda no arranque é este mapa — é o que sobrevive à
+ * renumeração de monitores do Windows. Ver `modules/identidadeMonitores.js`.
+ */
+export const LS_IDENTIDADE_MONITORES = 'lyra_identidade_monitores_v1';
 export const LS_APRESENTACAO_STATE = 'lyra_apresentacao_state_v1';
 /** Configuração de exibição exclusiva do modo Bíblia (fundo, referência, etc.). */
 export const LS_BIBLIA_CFG = 'lyra_biblia_cfg_v1';

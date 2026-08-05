@@ -192,6 +192,54 @@ function createProjectionEngine(paths, deps) {
     return getOrderedDisplays(screen);
   }
 
+  /**
+   * Índice, na ordem do desktop, do monitor principal do Windows.
+   * @param {Array} displays
+   * @returns {number} -1 quando não é possível determinar
+   */
+  function indiceMonitorPrincipal(displays) {
+    try {
+      const primaryId = screen.getPrimaryDisplay().id;
+      return displays.findIndex((d) => d && d.id === primaryId);
+    } catch (_) {
+      // intencional — sem informação de principal, nenhuma guarda é aplicada
+      return -1;
+    }
+  }
+
+  /**
+   * O monitor principal é o do operador: é lá que vive o painel de controlo.
+   * Abrir projeção lá cobre o painel a meio do culto, e o operador fica cego.
+   *
+   * Os índices vindos do roteamento já são filtrados no controlador, mas os FALLBACKS
+   * deste motor (`displays.length > 1 ? 1 : 0`, `loadDisplayIndices()`) são cegos à
+   * identidade do monitor e podem cair no principal quando o arranjo de ecrãs muda.
+   * Esta guarda é a última linha de defesa.
+   *
+   * Com um único monitor não há alternativa e o índice passa: é o cenário de teste
+   * num portátil, onde projetar no próprio ecrã é o comportamento esperado.
+   *
+   * @param {number} idx
+   * @param {Array} displays
+   * @returns {number} `idx`, ou -1 se apontar ao monitor do operador
+   */
+  function indiceProjecaoSeguro(idx, displays) {
+    if (!Number.isFinite(idx) || idx < 0) return -1;
+    if (displays.length <= 1) return idx;
+    const principal = indiceMonitorPrincipal(displays);
+    if (principal >= 0 && idx === principal) return -1;
+    return idx;
+  }
+
+  /** Primeiro monitor que não é o do operador — base dos fallbacks. */
+  function primeiroIndiceDeProjecao(displays) {
+    if (!displays.length) return -1;
+    if (displays.length === 1) return 0;
+    const principal = indiceMonitorPrincipal(displays);
+    const i = displays.findIndex((_d, k) => k !== principal);
+    return i >= 0 ? i : -1;
+  }
+
   /** Evita sincronizações concorrentes de monitores (janelas duplicadas / órfãs). */
   let syncTelasEmAndamento = false;
   let syncTelasReagendar = false;
@@ -650,8 +698,11 @@ function createProjectionEngine(paths, deps) {
     if (ck.showClock === false) return [];
     const alvo = String(ck.monitorRelogio || 'ministrante').toLowerCase();
     const displays = obterDisplaysOrdenados();
-    const fixos = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
-    const publicoIndex = fixos[0] != null ? fixos[0] : displays.length > 1 ? 1 : 0;
+    const fixos = loadDisplayIndices()
+      .filter((i) => i >= 0 && i < displays.length)
+      .map((i) => indiceProjecaoSeguro(i, displays))
+      .filter((i) => i >= 0);
+    const publicoIndex = fixos[0] != null ? fixos[0] : primeiroIndiceDeProjecao(displays);
     const ministranteIndex = fixos[1] != null ? fixos[1] : publicoIndex;
     const desejados = new Set();
     if ((alvo === 'publico' || alvo === 'ambos') && publicoIndex >= 0) desejados.add(publicoIndex);
@@ -881,15 +932,23 @@ function createProjectionEngine(paths, deps) {
     const merged = indicesJanelasProjecaoDeRoteamentoDual(routingDual);
     let publicoIndex = merged.publicoIndex;
     let ministranteIndex = merged.ministranteIndex;
-    const fallback = loadDisplayIndices().filter((i) => i < displays.length);
+    const fallback = loadDisplayIndices()
+      .filter((i) => i < displays.length)
+      .map((i) => indiceProjecaoSeguro(i, displays))
+      .filter((i) => i >= 0);
 
     if (publicoIndex !== -1 && !(publicoIndex < displays.length)) {
-      publicoIndex = fallback[0] != null ? fallback[0] : displays.length > 1 ? 1 : 0;
+      publicoIndex = fallback[0] != null ? fallback[0] : primeiroIndiceDeProjecao(displays);
     }
     if (ministranteIndex !== -1 && !(ministranteIndex < displays.length)) {
       const fallback2 = fallback[1] != null ? fallback[1] : publicoIndex;
       ministranteIndex = fallback2;
     }
+
+    /* Guarda final: qualquer caminho acima — roteamento gravado, ficheiro de índices ou
+       fallback — pode apontar ao monitor do operador depois de o arranjo de ecrãs mudar. */
+    publicoIndex = indiceProjecaoSeguro(publicoIndex, displays);
+    ministranteIndex = indiceProjecaoSeguro(ministranteIndex, displays);
 
     return { publicoIndex, ministranteIndex, displays };
   }
@@ -899,7 +958,7 @@ function createProjectionEngine(paths, deps) {
     if (ministranteIndex >= 0) return ministranteIndex;
     if (!controladorAtivo()) return -1;
     const fixos = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
-    return fixos[1] != null ? fixos[1] : -1;
+    return fixos[1] != null ? indiceProjecaoSeguro(fixos[1], displays) : -1;
   }
 
   /**
@@ -915,7 +974,12 @@ function createProjectionEngine(paths, deps) {
     indicesMonitoresRelogioDesejados().forEach((idx) => {
       if (idx >= 0 && idx < displays.length) emUso.add(idx);
     });
-    const paineis = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
+    /* O escudo preto também é uma janela fullscreen: aplicar aqui a mesma guarda evita
+       que um índice antigo tape o painel do operador com um rectângulo preto. */
+    const paineis = loadDisplayIndices()
+      .filter((i) => i >= 0 && i < displays.length)
+      .map((i) => indiceProjecaoSeguro(i, displays))
+      .filter((i) => i >= 0);
     return paineis.filter((i) => !emUso.has(i));
   }
 

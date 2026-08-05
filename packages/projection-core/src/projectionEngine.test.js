@@ -22,6 +22,12 @@ const DISPLAYS = [
   { id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 } },
 ];
 
+/** Setup real de igreja: ecrã do operador (principal) + telão + retorno do ministrante. */
+const DISPLAYS_TRES = [
+  ...DISPLAYS,
+  { id: 3, bounds: { x: 3840, y: 0, width: 1280, height: 720 }, size: { width: 1280, height: 720 } },
+];
+
 function janelaFalsa(opts = {}) {
   const win = {
     destruida: false,
@@ -226,15 +232,17 @@ test('slide preto final: ministrante fica activo (tela preta) e não revela o re
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-slide-preto-'));
   const routingPath = path.join(dir, 'routing.json');
   const settingsPath = path.join(dir, 'settings.json');
+  /* Três ecrãs: o índice 0 é o principal (operador) e está fora de qualquer rota —
+     telão e ministrante vivem nos monitores 1 e 2. */
   fs.writeFileSync(
     routingPath,
     JSON.stringify({
       version: 2,
-      slides: { publicoIndex: 1, ministranteIndex: 0 },
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
       apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
     })
   );
-  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [0, 1] }));
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [1, 2] }));
 
   const state = armazemDeProjecao();
   state.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
@@ -245,7 +253,11 @@ test('slide preto final: ministrante fica activo (tela preta) e não revela o re
     },
     {
       logError: () => {},
-      screen: { getAllDisplays: () => DISPLAYS, getPrimaryDisplay: () => DISPLAYS[0], on: () => {} },
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
       BrowserWindow: function (opts) { return janelaFalsa(opts); },
       state,
       onProjecaoEncerrada: () => {},
@@ -298,4 +310,145 @@ test('slide preto final: ministrante fica activo (tela preta) e não revela o re
   assert.strictEqual(ultimo.projecaoAtiva, true);
   assert.strictEqual(String(ultimo.atual || ''), '');
   assert.strictEqual(String(ultimo.proximo || ''), '');
+});
+
+/**
+ * Guarda do monitor do operador.
+ *
+ * O painel de controlo vive no monitor principal. Uma janela de projeção fullscreen e
+ * always-on-top aberta lá deixa o operador sem interface a meio do culto — e sem forma
+ * óbvia de a fechar, porque a janela está por cima de tudo.
+ *
+ * O controlador já filtra o principal dos seletores, mas os índices podem chegar ao motor
+ * por outros caminhos: ficheiro de roteamento de uma sessão antiga, `displayIndices` de
+ * recurso, ou o próprio Windows a renumerar os ecrãs entre arranques. Estes testes
+ * fixam a guarda no motor, que é o último sítio antes de a janela existir.
+ */
+function montarComTresEcrans(routing, indices) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-guarda-principal-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(routingPath, JSON.stringify(routing));
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices }));
+
+  const state = armazemDeProjecao();
+  state.displayConfig.clock = { showClock: false, monitorRelogio: 'ministrante' };
+  const engine = createProjectionEngine(
+    { displayRoutingPath: () => routingPath, displaySettingsPath: () => settingsPath },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+  return engine;
+}
+
+/** Alguma janela de projeção ficou por cima do ecrã do operador? */
+function cobreOEcraDoOperador(engine) {
+  const principal = DISPLAYS_TRES[0].bounds;
+  return engine.janelasDeProjecao().some((e) => {
+    const b = e?.win?.getBounds?.();
+    return !!b && b.x === principal.x && b.y === principal.y;
+  });
+}
+
+test('roteamento antigo a apontar ao monitor principal não abre janela lá', () => {
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 0, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  assert.strictEqual(cobreOEcraDoOperador(engine), false, 'o painel do operador ficaria coberto');
+});
+
+test('índices de recurso fora de alcance não caem no monitor do operador', () => {
+  /* `publicoIndex: 9` já não existe (a TV foi desligada); o motor vai ao fallback. Antes
+     da guarda, o fallback podia devolver o índice 0 — o ecrã do operador. */
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 9, ministranteIndex: -1 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [0, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  assert.strictEqual(cobreOEcraDoOperador(engine), false);
+});
+
+test('escudo preto também respeita o monitor do operador', () => {
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: -1 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [0, 1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  assert.strictEqual(
+    cobreOEcraDoOperador(engine),
+    false,
+    'um rectângulo preto por cima do painel é tão mau como a letra do hino'
+  );
+});
+
+test('com um único monitor não se abre janela nenhuma por cima do painel', () => {
+  /* Portátil sem segundo ecrã. O motor já recusava abrir janelas secundárias neste caso
+     (`podeAbrirJanelaSecundaria`); o que este teste fixa é que a guarda do principal não
+     mudou esse contrato — nem para menos, nem para mais. O operador continua a ver o
+     painel e a projeção acontece só nas pré-visualizações. */
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-um-ecra-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(
+    routingPath,
+    JSON.stringify({
+      version: 2,
+      slides: { publicoIndex: 0, ministranteIndex: -1 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    })
+  );
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [0] }));
+
+  const umEcra = [DISPLAYS_TRES[0]];
+  const engine = createProjectionEngine(
+    { displayRoutingPath: () => routingPath, displaySettingsPath: () => settingsPath },
+    {
+      logError: () => {},
+      screen: { getAllDisplays: () => umEcra, getPrimaryDisplay: () => umEcra[0], on: () => {} },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state: armazemDeProjecao(),
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+  engine.abrirTelasConfiguradas();
+  assert.deepStrictEqual(
+    engine.janelasDeProjecao(),
+    [],
+    'sem segundo ecrã não há onde projetar sem tapar o painel do operador'
+  );
 });

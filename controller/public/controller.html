@@ -7113,6 +7113,29 @@
       opacity: 0.42;
     }
 
+    /* Só um monitor de projeção: o retorno do ministrante não tem para onde ir.
+       Cinzento neutro, e não vermelho de «Desativado» — não é um erro de configuração,
+       é o limite do hardware ligado. */
+    .route-dd.route-dd--sem-monitor .route-dd-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      border-style: dashed;
+      color: var(--text-dim);
+    }
+
+    /* Aviso de monitor guardado que desapareceu — informa sem bloquear o painel. */
+    .hdr-monitores-aviso.oculto { display: none; }
+    .hdr-monitores-aviso {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffb347;
+      padding: 2px 8px;
+      border: 1px solid color-mix(in srgb, #ffb347 45%, transparent);
+      border-radius: 999px;
+      white-space: nowrap;
+      cursor: help;
+    }
+
     .route-dd.route-dd--rota-live .route-dd-btn {
       border-color: color-mix(in srgb, #e85d04 55%, var(--border));
       background: color-mix(in srgb, var(--surface2) 82%, #e85d04 18%);
@@ -7355,6 +7378,12 @@
       <span class="logo-texto">Controlador</span>
     </div>
     <div class="hdr-slot hdr-slot--routes-dual" id="hdr-slot-routes-dual">
+      <!--
+        Só dois seletores. O monitor principal é reservado ao operador em silêncio: não
+        aparece nas listas e o motor recusa-se a abrir projeção lá. O aviso abaixo é a
+        única coisa que o cabeçalho tem a dizer sobre monitores, e só quando algo falha.
+      -->
+      <span class="hdr-monitores-aviso oculto" id="hdr-monitores-aviso" role="status"></span>
       <span class="conn-label" id="route-publico-label">Público</span>
       <div class="route-dd" id="route-publico-dd">
         <button type="button" class="route-dd-btn" id="route-publico-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="route-publico-menu">
