@@ -3465,22 +3465,30 @@
 
     .slide-chip--preto:hover { border-color: var(--accent2); }
 
+    /* Seleção (clique / preview): só anel dourado — fundo igual aos outros chips. */
     .slide-chip--preto.ativo {
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(166,124,45,0.35);
-      background: #1f1a14;
     }
 
     .slide-chip:hover { border-color: var(--accent2); }
     .slide-chip.ativo {
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(166,124,45,0.28);
+    }
+
+    /* Projeção real (duplo clique / setas após emitir): aí sim muda o fundo. */
+    #slides-grid[data-strip-projecao="1"] .slide-chip.ativo:not(.slide-chip--preto) {
       background: rgba(166,124,45,0.1);
+    }
+    #slides-grid[data-strip-projecao="1"] .slide-chip--preto.ativo {
+      background: #1f1a14;
     }
 
     /**
-     * O slide selecionado é comunicado por `.ativo` (destaque dourado) — nunca pelo foco
-     * do DOM: as setas são tratadas num `keydown` global e não movem o foco.
+     * O slide selecionado é comunicado por `.ativo` (anel dourado). O fundo tintado
+     * só entra com `[data-strip-projecao="1"]` (projeção real). Nunca pelo foco do DOM:
+     * as setas são tratadas num `keydown` global e não movem o foco.
      *
      * Sem isto, o anel branco do agente de utilizador somava-se ao dourado assim que se
      * tocava numa tecla: o chip clicado antes continuava focado e a primeira tecla vira a
