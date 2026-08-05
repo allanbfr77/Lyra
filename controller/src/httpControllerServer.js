@@ -283,8 +283,20 @@ function proxyJsonToProjection(method, pathname, jsonBody) {
   });
 }
 
+/**
+ * Normaliza texto para a busca offline (banco local + catálogo).
+ *
+ * Além de acentos/caixa, remove pontuação (ex.: vírgula em «Ah, Jesus»),
+ * para que «ah jesus» encontre o título cadastrado. Os modos online já
+ * toleram isso via casamento por palavra no índice; aqui o match é
+ * `includes` no texto inteiro, então a pontuação precisa sumir.
+ */
 function fold(s) {
-  return cifra.foldAccents(String(s || ''));
+  return cifra
+    .foldAccents(String(s || ''))
+    .replace(/[.,;:!?¡¿"'’‘“”`´^~(){}[\]<>/\\|@#$%&*+=_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const LIVROS_BIBLIA_ALIASES = new Map([

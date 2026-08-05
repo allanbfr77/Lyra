@@ -28,8 +28,9 @@ const LOTE_VARREDURA = 800;
 let dbPromise = null;
 
 /**
- * Remove acentos e caixa para comparar texto como o usuário espera
- * («coracao» encontra «Coração»). Mesma ideia do `fold()` do controlador.
+ * Remove acentos, caixa e pontuação para comparar texto como o usuário espera
+ * («coracao» encontra «Coração»; «ah jesus» encontra «Ah, Jesus»).
+ * Mesma ideia do `fold()` do controlador (busca offline).
  *
  * @param {string} s
  * @returns {string}
@@ -39,6 +40,8 @@ export function dobrarTexto(s) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/[.,;:!?¡¿"'’‘“”`´^~(){}[\]<>/\\|@#$%&*+=_-]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
