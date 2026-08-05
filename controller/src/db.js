@@ -171,7 +171,7 @@ function initControllerDatabase(paths, Database) {
   initApresentacoesDB();
 }
 
-const ROTULO_COPIA_MODIFICADA = 'Cópia/Modificada';
+const ROTULO_COPIA_MODIFICADA = 'CÓPIA';
 const ROTULO_COPIA_IMPORTADA = 'CÓPIA/IMPORTADA';
 const ROTULO_COPIA_MANUAL = 'CÓPIA/MANUAL';
 

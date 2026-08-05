@@ -6156,7 +6156,7 @@ async function conteudoMusicaParaShare(it) {
         titulo: c.titulo || it.titulo || '',
         artista: c.artista || it.artista || '',
         estrofes: Array.isArray(c.estrofes) ? c.estrofes.map((s) => String(s)) : [],
-        // Rótulo de origem da versão escolhida (ex.: 'Cópia/Modificada'). Só procedência
+        // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
         // p/ exibição no destino; não recria fork/lineage entre bancos.
         rotulo: String(c.rotulo || it.versaoRotulo || '').trim(),
       };
@@ -6173,7 +6173,7 @@ async function conteudoMusicaParaShare(it) {
     titulo: m.titulo || it.titulo || '',
     artista: m.artista || it.artista || '',
     estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
-    // Rótulo de origem da versão escolhida (ex.: 'Cópia/Modificada'). Só procedência
+    // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
     // p/ exibição no destino; não recria fork/lineage entre bancos.
     rotulo: String(m.rotulo || it.versaoRotulo || '').trim(),
   };
@@ -6496,7 +6496,7 @@ function abrirJanelaConfirmarImport(ctx) {
     const nome = document.createElement('div');
     nome.className = 'confirmar-import-item-nome';
     nome.textContent = String(m.titulo || '').trim() || 'Sem título';
-    // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'Cópia/Modificada').
+    // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'CÓPIA').
     const rotulo = String(m.rotulo || '').trim();
     if (rotulo) {
       const tag = document.createElement('span');
@@ -6908,7 +6908,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
 
       if (!res2.ok) continue;
       const rootId = nova.copyImportada ? Number(nova.rootId) : Number(nova.id);
-      // Rótulo de origem enviado no payload (ex.: 'Cópia/Modificada'). Compat.: se o app
+      // Rótulo de origem enviado no payload (ex.: 'CÓPIA'). Compat.: se o app
       // de origem não enviou, fica vazio e o item segue sem tag como hoje.
       const rotuloOrigem = String(m.rotulo || '').trim();
       addMusicaNaPlaylistParaCulto(cultoDestino, {
@@ -7890,17 +7890,21 @@ function onCultoChange() {
 
 /**
  * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
- * em controller/src/db.js). Como quase toda a entrada da playlist acaba por ser uma cópia,
- * repeti-lo em cada linha é ruído — só nomes dados pelo operador dizem algo.
- * Comparação insensível a maiúsculas e normalizada, para tolerar variações de acentuação.
+ * em controller/src/db.js → «CÓPIA»). Como quase toda a entrada da playlist acaba por ser
+ * uma cópia, repeti-lo em cada linha é ruído — só nomes dados pelo operador dizem algo.
+ * Comparação insensível a maiúsculas e normalizada; aceita também o rótulo legado
+ * «cópia/modificada» já gravado em bases antigas.
  */
-const ROTULO_VERSAO_AUTOMATICO = 'cópia/modificada'.normalize('NFC');
+const ROTULOS_VERSAO_AUTOMATICOS = new Set([
+  'cópia'.normalize('NFC'),
+  'cópia/modificada'.normalize('NFC'),
+]);
 
 /** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
 function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
   const r = String(rotulo || '').trim();
   if (!r) return '';
-  return r.normalize('NFC').toLowerCase() === ROTULO_VERSAO_AUTOMATICO ? '' : r;
+  return ROTULOS_VERSAO_AUTOMATICOS.has(r.normalize('NFC').toLowerCase()) ? '' : r;
 }
 
 /** Sufixo « · NOME» da linha da playlist, já escapado (vazio se não houver nome próprio). */
