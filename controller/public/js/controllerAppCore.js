@@ -4966,6 +4966,40 @@ function fecharMenusRoteamentoTelas() {
   });
 }
 
+/**
+ * Duplo clique projeta — não seleciona a palavra debaixo do cursor.
+ *
+ * O duplo clique é o gesto de projetar em quase todo o painel: versículo na Bíblia, chip
+ * na faixa, cartão de estrofe, linha da playlist e do banco, cartão de mídia. Mas o
+ * navegador também trata duplo clique como «selecionar palavra», e as duas coisas
+ * aconteciam ao mesmo tempo: o operador projetava e ficava com um pedaço de texto
+ * realçado a azul por cima do conteúdo, à vista durante o culto.
+ *
+ * A correção vai no `mousedown` e não no `dblclick`: quando o segundo clique chega, a
+ * seleção já foi feita: limpá-la depois é um pisca visível. `preventDefault()` no clique
+ * que a iniciaria impede-a de existir — e não cancela o evento `dblclick`, que continua a
+ * disparar normalmente.
+ *
+ * Um listener só, em vez de remendar cada `dblclick`: os sítios com este gesto são muitos
+ * e crescem, e um esquecido é um bug que só aparece em palco.
+ *
+ * Campos de texto ficam de fora: lá o duplo clique é mesmo para selecionar. Arrastar para
+ * selecionar continua a funcionar em todo o lado — só o duplo clique deixa de o fazer.
+ */
+function impedirSelecaoDeTextoNoDuploClique() {
+  const CAMPOS_DE_TEXTO = 'input, textarea, select, [contenteditable=""], [contenteditable="true"]';
+  document.addEventListener(
+    'mousedown',
+    (ev) => {
+      /* `detail` conta os cliques da sequência: 1 é clique simples e não selecciona nada. */
+      if (ev.detail < 2 || ev.button !== 0) return;
+      if (ev.target?.closest?.(CAMPOS_DE_TEXTO)) return;
+      ev.preventDefault();
+    },
+    true
+  );
+}
+
 function setupMenusRoteamentoTelas() {
   document.querySelectorAll('.route-dd').forEach((wrap) => {
     const btn = wrap.querySelector('.route-dd-btn');
@@ -15827,6 +15861,7 @@ configurarAutoConectarAoAlternarJanelas();
 initSlidesRailHeightFromStorage();
 initAlturaPreviewModFromStorage();
 setupMenusRoteamentoTelas();
+impedirSelecaoDeTextoNoDuploClique();
 setupSlidesRailResize();
 initSlidesChipZoomFromStorage();
 setupSlidesChipZoomButtons();
