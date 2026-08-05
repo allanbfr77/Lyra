@@ -9007,16 +9007,30 @@ function aplicarPreviewTelaoNoDom(estado) {
 }
 
 /**
+ * Letra nos cartões TELÃO/TV: exclusivos do modo slide.
+ * Home (modo completo) usa só `#playlist-preview-card`. Badges de mídia (ex. «imagem no telão»)
+ * ficam de fora — tratados nos early-returns de `atualizarPreviewOperador` / telão.
+ * Exige faixa armada pela playlist ou projeção já emitida (não basta `musicaAtiva` da Home).
+ */
+function podeEspelharLetraNosPreviewsModoSlide() {
+  if (!ehModoSlidesOperador()) return false;
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) {
+    return false;
+  }
+  if (estrofeAtiva < 0) return false;
+  return !!(projecaoMusicaEmitidaNoServidor || faixaSlidesHabilitadaPorPlaylistNoModoSlides);
+}
+
+/**
  * Estado local (sem socket) do que o modo slide mostraria no telão, a partir do slide
  * selecionado no painel. Usado para o preview continuar a refletir o slide clicado mesmo
  * sem conexão — não altera a projeção real (isso depende da emissão ao servidor).
  */
 function estadoPreviewTelaoLocalModoSlides() {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) {
+  if (!podeEspelharLetraNosPreviewsModoSlide()) {
     return { semProjecao: true };
   }
   const idxPreto = musicaAtiva.estrofes.length;
-  if (estrofeAtiva < 0) return { semProjecao: true };
   if (estrofeAtiva === idxPreto) return { tipo: 'musica', slidePretoFinal: true };
   const cur = String(musicaAtiva.estrofes[estrofeAtiva] ?? '');
   return { tipo: 'musica', titulo: musicaAtiva.titulo || '', telaLimpa: false, linhas: cur.split('\n') };
@@ -9274,11 +9288,10 @@ function atualizarPreviewOperador() {
     }
 
     // No modo slide, quando não há projeção ativa no servidor (ex.: desconectado), os cartões
-    // ministrante/TV refletem o slide selecionado localmente. Mantém a emissão ao servidor
-    // inalterada — só o preview local muda. Sem slide selecionado (estrofeAtiva < 0) os cartões
-    // ficam vazios, igual ao telão, para não «abrir» no slide 1 sem o operador ter escolhido.
+    // ministrante/TV refletem o slide selecionado localmente — só se a faixa veio da playlist
+    // (ou já houve emit). Música aberta só na Home não vaza para estes cartões.
     if (ehModoSlidesOperador() && !hayProjecaoAtivaNoServidor()) {
-      if (musicaAtiva && estrofeAtiva >= 0) {
+      if (podeEspelharLetraNosPreviewsModoSlide()) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
         opA.textContent = '';
@@ -9379,9 +9392,10 @@ function atualizarPreviewOperador() {
       hayProjecaoAtivaNoServidorParaPreviews();
 
     if (!servidorMusicaAlinhado) {
+      /* Home: nunca preencher TELÃO/TV com letra — só a prévia da playlist (`pl-pv-*`).
+         Modo slide: letra local só com faixa/playlist ou projeção já emitida. */
       const mostrarPreviewOpLocal =
-        projecaoMusicaEmitidaNoServidor ||
-        (!ehModoSlidesOperador() && slidesDockVisivel && !!musicaAtiva);
+        projecaoMusicaEmitidaNoServidor || podeEspelharLetraNosPreviewsModoSlide();
       if (mostrarPreviewOpLocal) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
