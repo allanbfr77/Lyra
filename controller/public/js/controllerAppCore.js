@@ -9867,6 +9867,38 @@ function atualizarSlidesInstrucoes() {
   }
 }
 
+/**
+ * Zoom da faixa: à vista, mas inerte enquanto não há slides para dimensionar.
+ *
+ * Esconder os botões seria mais limpo e pior: o operador deixaria de saber que o controlo
+ * existe. Desativado diz «existe, ainda não serve para nada» — que é a verdade do estado
+ * ocioso. Fica ao lado do «Avançar música», que já seguia esta regra.
+ *
+ * @param {boolean} inertes
+ */
+function definirControlosZoomFaixaSlidesInertes(inertes) {
+  ['slides-zoom-menos', 'slides-zoom-mais'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !!inertes;
+  });
+  const grupo = document.querySelector('.slides-dock-zoom-group');
+  if (grupo) grupo.classList.toggle('slides-dock-zoom-group--inerte', !!inertes);
+}
+
+/**
+ * Mensagem no vão da faixa quando ainda não há slides.
+ *
+ * Sem ela, o modo slides abre com uma área grande e vazia que parece falha de
+ * carregamento. Diz só «playlist» de propósito: no modo slides, carregar do banco à
+ * esquerda não arma a faixa — mandá-lo lá seria mandá-lo a lado nenhum.
+ *
+ * @param {boolean} mostrar
+ */
+function definirVazioDaFaixaSlidesVisivel(mostrar) {
+  const el = document.getElementById('slides-grid-vazio');
+  if (el) el.hidden = !mostrar;
+}
+
 function renderSlidesStrip() {
   const dock = document.getElementById('slides-dock');
   const grid = document.getElementById('slides-grid');
@@ -9879,7 +9911,17 @@ function renderSlidesStrip() {
     return;
   }
 
-  if ((ehModoBibliaOperador() && !ehModoSlidesOperador()) || !musicaAtiva || !musicaAtiva.estrofes) {
+  const semMusicaCarregada = !musicaAtiva || !musicaAtiva.estrofes;
+
+  /*
+   * Esconder a faixa inteira só se vale para fora do modo slides.
+   *
+   * Antes, `!musicaAtiva` bastava para esconder — e como este ramo corre primeiro, ao
+   * abrir o modo slides o painel aparecia sem barra nenhuma: duas prévias pretas a
+   * flutuar no meio do ecrã, sem nada a dizer que falta escolher uma música. O ramo
+   * seguinte, que mostra a barra vazia, nunca era alcançado.
+   */
+  if ((ehModoBibliaOperador() || semMusicaCarregada) && !ehModoSlidesOperador()) {
     dock.classList.add('oculto');
     grid.innerHTML = '';
     grid.style.zoom = '';
@@ -9892,8 +9934,14 @@ function renderSlidesStrip() {
     return;
   }
 
-  /** Música vinda só do banco (modo completo) não preenche a faixa ao alternar para modo slides. */
-  if (ehModoSlidesOperador() && !faixaSlidesHabilitadaPorPlaylistNoModoSlides) {
+  /**
+   * Modo slides ocioso: barra à vista, grelha vazia.
+   *
+   * Dois caminhos chegam aqui — abrir o modo sem música nenhuma carregada, e música
+   * vinda só do banco (modo completo), que não preenche a faixa ao alternar de modo.
+   * Assim que a playlist arma uma música, o comportamento volta a ser o de sempre.
+   */
+  if (ehModoSlidesOperador() && (semMusicaCarregada || !faixaSlidesHabilitadaPorPlaylistNoModoSlides)) {
     dock.classList.toggle('oculto', false);
     if (nomeEl) nomeEl.textContent = '';
     grid.innerHTML = '';
@@ -9905,10 +9953,15 @@ function renderSlidesStrip() {
     document.body.classList.remove('slides-rail-aberto');
     const btnNx = document.getElementById('btn-proxima-musica-playlist');
     if (btnNx) btnNx.disabled = true;
+    definirControlosZoomFaixaSlidesInertes(true);
+    definirVazioDaFaixaSlidesVisivel(true);
     atualizarSlidesInstrucoes();
     queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
     return;
   }
+
+  definirControlosZoomFaixaSlidesInertes(false);
+  definirVazioDaFaixaSlidesVisivel(false);
 
   if (podeAtualizarSomenteAtivoFaixaSlides()) {
     if (nomeEl) nomeEl.textContent = musicaAtiva.titulo || '';
