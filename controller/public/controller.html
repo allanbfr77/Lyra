@@ -4508,6 +4508,20 @@
       padding-left: 6px;
     }
 
+    /* Itens do menu: a data ocupa só o seu conteúdo (02/08) em vez de uma coluna fixa —
+       o espaço que sobrava vai para o nome, que assim cabe na mesma linha. Fonte um pouco
+       menor pela mesma razão; o `wrap` do estilo base fica como rede de segurança. */
+    body.app-mod-slides .panel-playlist .culto-dd-item {
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      padding: 7px 9px;
+      font-size: 12px;
+      align-items: center;
+    }
+    body.app-mod-slides .panel-playlist .culto-dd-item .desc {
+      padding-left: 8px;
+    }
+
     /* Scroll próprio, independente da grelha de slides. */
     body.app-mod-slides .panel-playlist .playlist-list {
       flex: 1 1 auto;
