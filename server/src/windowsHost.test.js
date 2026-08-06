@@ -27,21 +27,69 @@ Module._load = function (pedido, pai, isMain) {
 
 const { createWindowsApi } = require('./windows');
 
+/**
+ * Duplo de `BrowserWindow`.
+ *
+ * Respeita `show: false` e dispara `ready-to-show` / `did-finish-load` no `loadFile`, como
+ * o Electron. Antes reportava-se sempre visível, e por isso os testes eram cegos ao
+ * `show()` prematuro: `finalizarJanelaProjecaoNativa` mostrava a janela **antes** do
+ * `loadFile`, e nenhum teste o via porque `isVisible()` já devolvia `true`.
+ *
+ * Os handlers registados depois do `loadFile` disparam na hora — é o que mantém a cadeia
+ * de sincronização a correr de forma síncrona no teste, sem um pump manual.
+ */
+/**
+ * Predicado sobre o título: quando devolve `true`, `loadFile` NÃO dispara os eventos de
+ * carregamento e o teste chama `win.__concluirCarregamento()` quando quiser.
+ *
+ * É um predicado, e não um interruptor global, de propósito: adiar TUDO trava a cadeia de
+ * sincronização no escudo e o motor nunca é reentrado — o cenário a testar deixa de
+ * acontecer e o teste passa por vacuidade. Adiando só o telão, a cadeia completa-se com a
+ * troca de monitor ainda pendente, que é a janela de tempo real onde as órfãs nasciam.
+ */
+let DIFERIR_CARREGAMENTO = () => false;
+
 function fakeWin(opts = {}) {
+  const handlersWin = new Map();
+  const handlersWc = new Map();
+  let carregou = false;
+
+  const registar = (mapa) => (ev, fn) => {
+    if (carregou && (ev === 'ready-to-show' || ev === 'did-finish-load')) {
+      fn();
+      return;
+    }
+    if (!mapa.has(ev)) mapa.set(ev, []);
+    mapa.get(ev).push(fn);
+  };
+  const disparar = (mapa, ev) => {
+    const fns = mapa.get(ev) || [];
+    mapa.set(ev, []);
+    fns.forEach((fn) => fn());
+  };
+
   const win = {
     destruida: false,
-    visivel: true,
+    visivel: opts.show !== false,
     fullscreen: !!opts.fullscreen,
     bounds: { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 1920, height: opts.height ?? 1080 },
     sends: [],
     /** Chamadas que mexem na janela nativa — é o churn que pisca a barra de tarefas. */
     nativas: [],
-    webContents: { send: (canal, payload) => win.sends.push({ canal, payload }), on: () => {}, once: () => {} },
+    titulo: opts.title,
+    /** `show` do construtor: tem de ser `false` em toda a janela de projeção. */
+    criadaVisivel: opts.show !== false,
+    webContents: {
+      send: (canal, payload) => win.sends.push({ canal, payload }),
+      on: registar(handlersWc),
+      once: registar(handlersWc),
+    },
     isDestroyed: () => win.destruida,
     isVisible: () => win.visivel,
     isFullScreen: () => win.fullscreen,
     getBounds: () => ({ ...win.bounds }),
-    on: () => {}, once: () => {},
+    on: registar(handlersWin),
+    once: registar(handlersWin),
     close: () => { win.destruida = true; },
     setBackgroundColor: () => {},
     setFullScreen: (b) => { win.fullscreen = !!b; win.nativas.push(`setFullScreen(${!!b})`); },
@@ -54,7 +102,25 @@ function fakeWin(opts = {}) {
     show: () => { win.visivel = true; win.nativas.push('show'); },
     hide: () => { win.visivel = false; win.nativas.push('hide'); },
     setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {},
-    setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {}, loadFile: () => {}, loadURL: () => {},
+    setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {},
+    loadFile: () => {
+      win.nativas.push('loadFile');
+      if (DIFERIR_CARREGAMENTO(String(opts.title || ''))) return;
+      win.__concluirCarregamento();
+    },
+    /* Mesmo contrato do `loadFile`: a janela de fundo carrega uma data-URL, e sem isto os
+       testes viam-na como uma janela que nunca carregou nada. */
+    loadURL: () => {
+      win.nativas.push('loadFile');
+      if (DIFERIR_CARREGAMENTO(String(opts.title || ''))) return;
+      win.__concluirCarregamento();
+    },
+    __concluirCarregamento: () => {
+      if (carregou) return;
+      carregou = true;
+      disparar(handlersWin, 'ready-to-show');
+      disparar(handlersWc, 'did-finish-load');
+    },
   };
   return win;
 }
@@ -62,6 +128,12 @@ function fakeWin(opts = {}) {
 const DISPLAYS = [
   { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 } },
   { id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 } },
+];
+
+/** Setup real de igreja: ecrã do operador (principal) + telão + retorno do ministrante. */
+const DISPLAYS_TRES = [
+  ...DISPLAYS,
+  { id: 3, bounds: { x: 3840, y: 0, width: 1280, height: 720 }, size: { width: 1280, height: 720 } },
 ];
 
 const paths = {
@@ -87,7 +159,19 @@ function pathsComRota(slides) {
     'utf8'
   );
   test.after(() => { try { fs.unlinkSync(ficheiro); } catch (_) { /* já removido */ } });
-  return { ...paths, displayRoutingPath: () => ficheiro };
+  const p = { ...paths, displayRoutingPath: () => ficheiro };
+  /** Reescreve a rota — permite testar a transição «papel desactivado → reactivado». */
+  p.escreverRota = (novos) => fs.writeFileSync(
+    ficheiro,
+    JSON.stringify({ version: 2, slides: novos, apresentacao: { publicoIndex: -1, ministranteIndex: -1 } }),
+    'utf8'
+  );
+  return p;
+}
+
+/** Índice da primeira chamada nativa que casa com o prefixo; -1 se não houver. */
+function primeiroIndice(nativas, prefixo) {
+  return nativas.findIndex((n) => String(n).startsWith(prefixo));
 }
 
 function montar(over = {}) {
@@ -104,10 +188,12 @@ function montar(over = {}) {
     ministranteApresentacaoOverride: null,
   };
   const eventos = [];
+  /** Toda a janela criada, inclusive as que o motor deixe de registar — é aí que se vêem órfãs. */
+  const criadas = [];
   const deps = {
     logError: () => {},
     screen: { getAllDisplays: () => DISPLAYS, getPrimaryDisplay: () => DISPLAYS[0], on: () => {} },
-    BrowserWindow: function (opts) { return fakeWin(opts); },
+    BrowserWindow: function (opts) { const w = fakeWin(opts); criadas.push(w); return w; },
     app: fakeApp,
     WINDOW_TITLE: 'Lyra — Test',
     onProjecaoEncerrada: (ev) => eventos.push(ev),
@@ -117,7 +203,7 @@ function montar(over = {}) {
     ...over,
   };
   delete deps.paths;
-  return { ctx, eventos, api: createWindowsApi(ctx, over.paths || paths, deps) };
+  return { ctx, eventos, criadas, api: createWindowsApi(ctx, over.paths || paths, deps) };
 }
 
 test('deps obrigatórios: falha alto em vez de degradar em silêncio', () => {
@@ -236,6 +322,284 @@ test('a config do telão NÃO chega ao relógio nem ao escudo', () => {
       `janela de papel «${e.role}» não devia receber a config do telão`
     );
   });
+});
+
+test('nenhuma janela de projeção nasce visível', () => {
+  /*
+   * Regressão: `abrirJanelaTela`/`abrirJanelaMinistrante` passavam `show: false`, mas a
+   * linha seguinte chamava `finalizarJanelaProjecaoNativa`, que fazia `show()` ANTES do
+   * `loadFile` — o `show: false` não valia nada. O escudo nem sequer o pedia (`show: true`).
+   * Resultado: rectângulo preto vazio no monitor até o conteúdo pintar.
+   */
+  const { ctx, api } = montar({ paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }) });
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.garantirTelasAbertasParaProjecao();
+
+  const abertas = api.janelasDeProjecao();
+  assert.ok(abertas.length > 0, 'cenário precisa de janelas abertas');
+  verificarNasceramOcultas(abertas);
+});
+
+test('nenhuma janela de projeção nasce visível — com escudo (3 monitores)', () => {
+  /* O escudo é o caso que faltava: `opcoesBrowserWindowProjecao` dava-lhe `show: true` e o
+     telão/ministrante mascaravam-no porque sobrepõem `show: false` no seu próprio spread.
+     Com três ecrãs, o M3 fica sem canal e ganha escudo. */
+  const { ctx, api } = montar({
+    paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }),
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
+  ctx.displayConfig.clock = { showClock: false };
+  api.garantirTelasAbertasParaProjecao();
+
+  const abertas = api.janelasDeProjecao();
+  assert.ok(
+    abertas.some((e) => e.role === 'escudo'),
+    `cenário precisa de escudo; papéis abertos: ${abertas.map((e) => e.role)}`
+  );
+  verificarNasceramOcultas(abertas);
+});
+
+/** Invariante partilhado: nasce oculta e só se mostra depois de carregar a página. */
+function verificarNasceramOcultas(abertas) {
+  abertas.forEach((e) => {
+    assert.strictEqual(
+      e.win.criadaVisivel, false,
+      `janela de papel «${e.role}» nasceu visível`
+    );
+    const iLoad = primeiroIndice(e.win.nativas, 'loadFile');
+    const iShow = primeiroIndice(e.win.nativas, 'show');
+    assert.ok(iLoad >= 0, `janela de papel «${e.role}» devia ter carregado uma página`);
+    assert.ok(
+      iShow === -1 || iShow > iLoad,
+      `janela de papel «${e.role}» foi mostrada antes de carregar a página: ${e.win.nativas}`
+    );
+  });
+}
+
+test('reexibir janela oculta: sem sair do fullscreen e com show() por último', () => {
+  /*
+   * A sequência antiga era `setFullScreen(false)` → `setBounds` → `show()` →
+   * `setFullScreen(true)`: a janela aparecia um instante como janela normal antes de entrar
+   * em fullscreen, e essa transição de modo tem frames próprios no Windows — o «lampejo
+   * branco». Com os bounds já certos não deve haver `setFullScreen(false)` nenhum, e o
+   * `show()` tem de ser o último passo.
+   */
+  const rota = pathsComRota({ publicoIndex: 1, ministranteIndex: 1 });
+  const { ctx, api } = montar({ paths: rota });
+  ctx.displayConfig.clock = { showClock: false };
+  api.garantirTelasAbertasParaProjecao();
+
+  const pub = api.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(pub, 'cenário precisa da janela do público');
+
+  // Desactiva o público: a janela é ocultada, não fechada.
+  rota.escreverRota({ publicoIndex: -1, ministranteIndex: 1 });
+  api.garantirTelasAbertasParaProjecao();
+  assert.strictEqual(pub.win.isVisible(), false, 'devia ter sido ocultada');
+
+  pub.win.nativas.length = 0;
+
+  // Reactiva no MESMO monitor: os bounds já estão certos.
+  rota.escreverRota({ publicoIndex: 1, ministranteIndex: 1 });
+  api.garantirTelasAbertasParaProjecao();
+
+  assert.ok(pub.win.isVisible(), 'devia ter voltado a aparecer');
+  assert.strictEqual(
+    primeiroIndice(pub.win.nativas, 'setFullScreen(false)'), -1,
+    `não devia sair do fullscreen com os bounds já certos: ${pub.win.nativas}`
+  );
+  const iShow = primeiroIndice(pub.win.nativas, 'show');
+  assert.ok(iShow >= 0, `devia ter chamado show(): ${pub.win.nativas}`);
+  /* Depois do `show()` só podem vir reafirmações de topo (`setAlwaysOnTop`/`moveTop`), que
+     são o reclaim e não mexem em geometria. Um `setBounds` ou `setFullScreen` a seguir
+     significa que a janela mudou de forma **já visível** — é isso que pisca. */
+  const geometriaDepoisDoShow = pub.win.nativas
+    .slice(iShow + 1)
+    .filter((n) => String(n).startsWith('setBounds') || String(n).startsWith('setFullScreen'));
+  assert.deepStrictEqual(
+    geometriaDepoisDoShow, [],
+    `nada de geometria depois do show(): ${pub.win.nativas}`
+  );
+});
+
+test('todo monitor gerido tem chão preto, em qualquer transição de rota', () => {
+  /*
+   * O invariante da camada de fundo (etapa 4).
+   *
+   * A cadeia de sincronização é sequencial: a etapa que descobre um monitor — esconder o
+   * telão, fechar o relógio, mover uma janela — corre antes da que o volta a cobrir, com um
+   * carregamento de página inteiro no meio. Sem chão, esse intervalo é área de trabalho do
+   * Windows à vista, e foi o que o operador relatou ao desactivar o Público.
+   *
+   * O que se afirma aqui é o chão, não a ausência de buracos por cima dele: em qualquer
+   * ponto de qualquer transição, todo o monitor gerido tem uma janela de fundo viva e
+   * visível. O que estiver a acontecer nas camadas de cima passa a ser preto sobre preto.
+   */
+  const rota = pathsComRota({ publicoIndex: 1, ministranteIndex: 2 });
+  const { ctx, api } = montar({
+    paths: rota,
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+
+  const conferirChao = (etiqueta) => {
+    const fundos = api.janelasDeProjecao().filter(
+      (e) => e.role === 'fundo' && e.win && !e.win.isDestroyed() && e.win.isVisible()
+    );
+    const cobertos = new Set(fundos.map((e) => e.index));
+    // Monitor 1 (índice 0) é o do operador: não é gerido e não leva chão.
+    [1, 2].forEach((idx) => {
+      assert.ok(
+        cobertos.has(idx),
+        `${etiqueta}: monitor ${idx} sem chão preto (cobertos: ${[...cobertos]})`
+      );
+    });
+    fundos.forEach((e) => {
+      assert.strictEqual(
+        e.win.isFullScreen(), true,
+        `${etiqueta}: chão do monitor ${e.index} não está em tela cheia`
+      );
+    });
+  };
+
+  const transicoes = [
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: -1, ministranteIndex: 2 },   // desactivar o Público
+    { publicoIndex: 2, ministranteIndex: -1 },   // trocar de monitor e desactivar o outro
+    { publicoIndex: 1, ministranteIndex: -1 },
+    { publicoIndex: -1, ministranteIndex: -1 },  // tudo desactivado
+    { publicoIndex: 1, ministranteIndex: 2 },    // voltar ao início
+  ];
+
+  transicoes.forEach((slides) => {
+    rota.escreverRota(slides);
+    api.garantirTelasAbertasParaProjecao();
+    conferirChao(`rota ${JSON.stringify(slides)}`);
+  });
+});
+
+test('o chão nunca recebe estado nem configuração', () => {
+  /* É chão: uma janela preta sem página de projeção. Se receber `display_config` pinta o
+     fundo do telão; se receber `atualizar` pinta conteúdo. Nem um nem outro. */
+  const { ctx, api } = montar({
+    paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 2 }),
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
+  ctx.displayConfig.clock = { showClock: false };
+  api.garantirTelasAbertasParaProjecao();
+  api.aplicarDisplayConfigNasJanelas({ forcarModo: 'slides' });
+  api.render({ estado: { tipo: 'musica', titulo: 'Hino', linhas: ['uma linha'], telaLimpa: false } });
+
+  const fundos = api.janelasDeProjecao().filter((e) => e.role === 'fundo');
+  assert.ok(fundos.length > 0, 'cenário precisa de janelas de fundo');
+  fundos.forEach((e) => {
+    assert.deepStrictEqual(e.win.sends, [], `chão do monitor ${e.index} recebeu mensagens`);
+  });
+});
+
+test('nunca duas janelas de topo absoluto no mesmo monitor', () => {
+  /*
+   * O bug das «duas telas a brigar», relatado com Público em M3 e Ministrante desactivado.
+   *
+   * Com o ministrante desactivado o motor mantém na mesma uma janela preta persistente, no
+   * índice de recurso de `loadDisplayIndices()` — que é cego à rota. Movido o público para
+   * esse mesmo monitor, ficavam lá DUAS janelas fullscreen always-on-top, ambas em papéis
+   * de topo absoluto e ambas a levar `moveTop()` a cada ciclo do reclaim: cada uma tapava a
+   * outra, e o monitor piscava a cada troca de slide.
+   *
+   * O invariante é mais geral que o caso: seja qual for a rota, dois papéis de topo
+   * absoluto nunca podem ocupar o mesmo ecrã.
+   */
+  const rotas = [
+    { publicoIndex: 2, ministranteIndex: -1 },
+    { publicoIndex: 1, ministranteIndex: -1 },
+    { publicoIndex: 2, ministranteIndex: 1 },
+    { publicoIndex: -1, ministranteIndex: 2 },
+    { publicoIndex: 1, ministranteIndex: 2 },
+  ];
+  const TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
+
+  rotas.forEach((slides) => {
+    const { ctx, api } = montar({
+      paths: pathsComRota(slides),
+      screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+    });
+    ctx.displayConfig.clock = { showClock: false };
+    api.garantirTelasAbertasParaProjecao();
+
+    const porMonitor = new Map();
+    api.janelasDeProjecao()
+      .filter((e) => TOPO_ABSOLUTO.has(e.role) && e.win && !e.win.isDestroyed() && e.win.isVisible())
+      .forEach((e) => {
+        if (!porMonitor.has(e.index)) porMonitor.set(e.index, []);
+        porMonitor.get(e.index).push(e.role);
+      });
+
+    porMonitor.forEach((papeis, idx) => {
+      assert.strictEqual(
+        papeis.length, 1,
+        `rota ${JSON.stringify(slides)}: monitor ${idx} com ${papeis.length} janelas de topo (${papeis})`
+      );
+    });
+  });
+});
+
+test('troca de monitor pendente não gera janelas órfãs', () => {
+  /*
+   * O bug das «duas telas a brigar».
+   *
+   * `substituirJanelaNoMonitor` cria a janela no monitor novo e só troca — e fecha a antiga
+   * — quando a nova fica visível. Até lá, `entrada.index` continua a apontar ao monitor
+   * antigo, por isso `telasAbertasCorrespondemRota` dá a rota por incumprida. Como
+   * `sincronizarJanelaRole` chamava `next()` sem esperar, `syncTelasEmAndamento` já estava
+   * em `false` e a chamada seguinte de `garantirTelasAbertasParaProjecao` — uma por
+   * estrofe — abria OUTRA janela no destino.
+   *
+   * A primeira ficava viva, visível, fullscreen e always-on-top, mas fora do registo: nunca
+   * mais recebia conteúdo nem era fechada. Duas janelas topmost no mesmo monitor, ambas a
+   * fazer `moveTop()` no reclaim — o monitor a piscar entre o slide actual e um slide velho.
+   */
+  const rota = pathsComRota({ publicoIndex: 1, ministranteIndex: -1 });
+  const { ctx, api, criadas } = montar({
+    paths: rota,
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
+  ctx.displayConfig.clock = { showClock: false };
+  api.garantirTelasAbertasParaProjecao();
+
+  /* Só o telão: a janela persistente do ministrante também nasce no monitor de recurso e é
+     legítima — o que não pode haver é mais do que um telão. */
+  const teloesNoDestino = () => criadas.filter(
+    (w) => !w.isDestroyed()
+      && w.getBounds().x === DISPLAYS_TRES[2].bounds.x
+      && String(w.titulo || '').startsWith('Telão')
+  );
+
+  DIFERIR_CARREGAMENTO = (titulo) => titulo.startsWith('Telão');
+  try {
+    // Operador move o público de M2 para M3; a janela nova ainda está a carregar.
+    rota.escreverRota({ publicoIndex: 2, ministranteIndex: -1 });
+    api.garantirTelasAbertasParaProjecao();
+
+    // Trocar de slide algumas vezes enquanto a troca está pendente.
+    api.garantirTelasAbertasParaProjecao();
+    api.garantirTelasAbertasParaProjecao();
+    api.garantirTelasAbertasParaProjecao();
+
+    assert.strictEqual(
+      teloesNoDestino().length, 1,
+      `só devia existir UM telão no monitor de destino; existem ${teloesNoDestino().length}`
+    );
+  } finally {
+    DIFERIR_CARREGAMENTO = () => false;
+  }
+
+  // Concluído o carregamento, continua a haver exactamente uma — e é a registada.
+  criadas.forEach((w) => w.__concluirCarregamento());
+  assert.strictEqual(teloesNoDestino().length, 1, 'nenhum telão órfão pode sobreviver à troca');
+  const pub = api.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(pub && !pub.win.isDestroyed(), 'a janela registada tem de estar viva');
+  assert.strictEqual(pub.index, 2, 'o registo tem de apontar ao monitor novo');
 });
 
 test('relógio não recebe display_config repetida quando a config não mudou', () => {

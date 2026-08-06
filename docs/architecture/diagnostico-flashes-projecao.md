@@ -1,6 +1,7 @@
 # Diagnóstico — piscadas, flashes e desktop visível na projeção
 
-> Status: **investigação concluída, nenhuma correção aplicada.**
+> Status: **investigação concluída; etapas 1 a 6 implementadas.** Ver §10 para o que ficou
+> de fora e porquê, e para os dois bugs que só apareceram durante os testes manuais.
 > Escopo: `packages/projection-core/` (motor + páginas), `server/src/`, `controller/src/projecaoLocal.js`,
 > `controller/public/js/controllerAppCore.js` (seletor de monitores).
 > Data: 2026-08-06.
@@ -525,3 +526,59 @@ mexer no ciclo de vida das outras janelas deixa de ser arriscado visualmente.
 `npm test` acusa 3 falhas em `server/src/windowsHost.test.js` com
 `Cannot find module '@lyra/projection-core'`. É o *symlink* de workspace do npm por resolver
 no ambiente de análise, **não** uma regressão do código. Os restantes 229 testes passam.
+
+## 10. Estado da implementação
+
+### Feito
+
+| Etapa | Conteúdo | Onde |
+|---|---|---|
+| 1 | `setAlwaysOnTop` só na transição (`definirNivelTopo`) | `projectionEngine.js` |
+| 2 | Fonte única de `display_config` para o relógio + dedupe; config na criação da janela | `projectionEngine.js`, `display-clock.html` |
+| 3 | Janelas nascem ocultas; ordem `setBounds → fullscreen → topo → show` | `projectionEngine.js` |
+| 4 | **Camada de fundo permanente** (`ROLE_FUNDO`) | `projectionEngine.js` |
+| 5 | Revelar relógio só com relógio vivo (S10); cadeia espera a troca (S11) | `projectionEngine.js` |
+| 6 | Reclaim de 800 ms → 2 s (S8) | `projectionEngine.js` |
+
+### Dois bugs que o diagnóstico não previu
+
+Apareceram nos testes manuais da etapa 3 e não estavam na lista original:
+
+1. **Duas janelas de topo absoluto no mesmo monitor.** Com o Ministrante desactivado, o
+   motor abre na mesma uma janela persistente no índice de recurso de `loadDisplayIndices()`
+   — que é cego à rota. Com o Público movido para esse mesmo monitor, ficavam lá duas
+   janelas fullscreen always-on-top, ambas a levar `moveTop()` no reclaim, cada uma a tapar
+   a outra. Corrigido em `resolverIndiceJanelaPersistenteMinistrante`.
+
+2. **Janelas órfãs na troca de monitor.** `substituirJanelaNoMonitor` não tinha guarda
+   contra ser reentrada: enquanto a troca estava pendente, `entrada.index` apontava ao
+   monitor antigo, a rota parecia incumprida e cada estrofe projetada abria mais uma janela
+   no destino — quatro, no cenário do teste. Ficavam vivas, visíveis, fullscreen e topmost,
+   mas fora do registo: nunca mais recebiam conteúdo nem eram fechadas. Corrigido com troca
+   idempotente por destino.
+
+### Deliberadamente não feito
+
+- **S2 (pool de janelas persistentes para o relógio).** O seu valor era tapar o intervalo
+  entre fechar e reabrir a janela do relógio. Com a camada de fundo (S1), esse intervalo
+  passou a ser preto em vez de desktop, e com S6 a janela nova já nasce com a config certa.
+  O que sobrava não justificava reescrever o ciclo de vida do relógio.
+- **S9 (debounce de `garantirTelasAbertasParaProjecao`).** A função é chamada de forma
+  síncrona antes de renderizar, e quem a chama conta com as janelas já existirem a seguir.
+  Adiá-la quebraria esse contrato. A parte segura — não reiniciar uma cadeia por cima de
+  outra — foi feita via `trocaEmCursoPara` em `telasAbertasCorrespondemRota`.
+- **`reposicionarJanelaNoMonitor` e o reposicionamento do relógio** continuam a mexer em
+  janelas **visíveis**. Corrigi-los exige escondê-las durante a operação; com a camada de
+  fundo isso passou a ser seguro, mas só corre quando um monitor muda de posição ou
+  resolução — raro, e sempre acompanhado de disrupção do SO. Fica como melhoria futura.
+- **S11 não é distinguido por nenhum teste.** A cadeia passou a esperar a conclusão da
+  troca antes de seguir, o que restaura o contrato sequencial pretendido e tem rede de
+  segurança por timeout, mas nos cenários cobertos o resultado observável é o mesmo com e
+  sem ele. Está lá por correcção, não por evidência.
+
+### Trade-off assumido
+
+O reclaim de topo passou de 800 ms para 2 s. Um programa concorrente que suba ao topo
+**sem** tirar o foco a ninguém pode ficar visível até ~2 s em vez de ~0,8 s. Em troca, a
+máquina deixa de fazer `SetWindowPos` em todas as janelas de projeção mais de uma vez por
+segundo, para sempre. O `blur` continua a disparar reclaim imediato, que é o caso comum.

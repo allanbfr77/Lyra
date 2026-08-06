@@ -25,20 +25,56 @@ const NIVEL_TOPO_PROJECAO = 'screen-saver';
 const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
 
 /**
+ * **Camada de fundo permanente.**
+ *
+ * Uma janela preta por monitor gerido, aberta uma vez e nunca fechada enquanto o motor
+ * vive. Não tem conteúdo, não recebe estado, não recebe `display_config`, não entra na
+ * rota. A sua única função é garantir que, por baixo de tudo o que o motor faz, o que
+ * existe é preto — e nunca a área de trabalho do Windows.
+ *
+ * Existe porque a cadeia de sincronização é sequencial: a etapa que descobre um monitor
+ * (esconder o telão, fechar o relógio, mover uma janela) corre antes da etapa que o volta a
+ * cobrir, e entre as duas há um carregamento de página inteiro. Sem chão, esse intervalo é
+ * desktop à vista. Nenhuma correção pontual das etapas resolve isso — só ter chão.
+ *
+ * Fica na banda normal (`alwaysOnTop(false)`), abaixo do relógio e muito abaixo das janelas
+ * de projeção, que são topmost. É isso que evita que ganhe disputas de z-order com elas.
+ */
+const ROLE_FUNDO = 'fundo';
+
+/** Página do fundo: preto, sem script, sem integração. Não há nada a carregar mal. */
+const PAGINA_FUNDO = 'data:text/html;charset=utf-8,%3Cbody%20style%3D%22margin%3A0%3Bbackground%3A%23000%22%3E%3C%2Fbody%3E';
+
+/**
  * Roles que renderizam conteúdo e por isso recebem `display_config` do telão.
  * O escudo é preto por definição; o relógio tem a sua própria fonte de config.
  * Ver `aplicarDisplayConfigNasJanelas`.
  */
 const ROLES_COM_CONTEUDO = new Set(['publico', 'ministrante']);
 
-/** Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3. */
-const INTERVALO_RECLAIM_TOPO_MS = 800;
+/**
+ * Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3.
+ *
+ * Era 800 ms. O `blur` já dispara reclaim imediato; este ciclo é a rede para o caso de
+ * alguém subir sem tirar o foco a ninguém. A 800 ms era `SetWindowPos` em todas as janelas
+ * de projeção mais de uma vez por segundo, para sempre — churn de z-order permanente em
+ * superfícies fullscreen. Aos 2 s o pior caso passa a ~2 s para recuperar o topo, contra
+ * uma máquina que deixa de mexer nas janelas o tempo todo.
+ */
+const INTERVALO_RECLAIM_TOPO_MS = 2000;
 
 /** Prefixo do argumento que leva a config do relógio ao renderer. Ver `bootstrapArgvRelogio`. */
 const PREFIXO_ARGV_RELOGIO = '--lyra-clock-cfg=';
 
 /** Tecto conservador para o argumento; a linha de comando do Windows ronda os 32 KB. */
 const LIMITE_ARGV_RELOGIO = 8192;
+
+/**
+ * Quanto tempo uma troca de monitor pode ficar pendente antes de ser largada.
+ * Ver `substituirJanelaNoMonitor` — sem este tecto, uma janela que nunca fique visível
+ * prendia o papel à janela antiga para sempre.
+ */
+const TIMEOUT_TROCA_JANELA_MS = 5000;
 
 /**
  * Marca (ou desmarca) uma janela como **ocultada de propósito** para revelar o relógio.
@@ -167,7 +203,9 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
     width: d.bounds.width,
     height: d.bounds.height,
     icon,
-    show: true,
+    /* Nasce oculta: só se mostra depois de `ready-to-show`, já em fullscreen. Era `true`,
+       e o escudo aparecia como janela vazia antes de ter carregado a página. */
+    show: false,
     fullscreen: true,
     frame: false,
     alwaysOnTop: true,
@@ -522,14 +560,39 @@ function createProjectionEngine(paths, deps) {
     return false;
   }
 
+  /**
+   * Existe mesmo uma janela de relógio viva a cobrir este monitor?
+   *
+   * A decisão de esconder a projeção para «revelar o relógio» vinha só da configuração,
+   * nunca do registo. Com `showClock` ligado mas sem janela de relógio — porque a criação
+   * falhou, ou porque a etapa que as cria ainda não correu — o `hide()` não revelava
+   * relógio nenhum: revelava o que estivesse por baixo.
+   */
+  function haRelogioVivoNoMonitor(displayIndex) {
+    return registro.todas().some(
+      (e) => e?.role === 'relogio'
+        && e.index === displayIndex
+        && e.win
+        && !e.win.isDestroyed()
+    );
+  }
+
   function ajustarVisibilidadeProjecaoParaRelogio(role, ocioso) {
-    const revelar = !!ocioso && deveRevelarRelogioNoRole(role);
+    const revelarPelaConfig = !!ocioso && deveRevelarRelogioNoRole(role);
     registro.todas()
       .filter((entry) => entry?.role === role)
       .forEach((entry) => {
         const win = entry?.win;
         if (!win || win.isDestroyed()) return;
+        const revelar = revelarPelaConfig && haRelogioVivoNoMonitor(entry.index);
         if (revelar) {
+          /* O relógio partilha a banda normal com o chão preto. Sem o trazer à frente ao
+             ser revelado, podia ficar por baixo dele e o monitor mostrava só preto. */
+          registro.todas()
+            .filter((e) => e?.role === 'relogio' && e.index === entry.index)
+            .forEach((e) => { try { e.win.moveTop(); } catch (_) {
+  // intencional — erro ignorado
+} });
           if (win.isVisible()) {
             try {
               win.hide();
@@ -611,7 +674,14 @@ function createProjectionEngine(paths, deps) {
     onProjecaoEncerrada({ canal: canal ?? null, estadoPublico: estadoPublicoParaSocketsOuApi() });
   }
 
-  /** Garante fullscreen, topo absoluto e fundo nativo assim que a janela existe. */
+  /**
+   * Garante fullscreen, topo absoluto e fundo nativo assim que a janela existe.
+   *
+   * **Não mostra a janela.** Mostrava, e era uma linha antes do `loadFile`: o `show: false`
+   * do construtor não valia nada e o monitor de destino ganhava um rectângulo preto vazio
+   * até o conteúdo pintar. Quem mostra é o `ready-to-show` abaixo — depois do fullscreen
+   * estar aplicado, que é a ordem que não pisca.
+   */
   function finalizarJanelaProjecaoNativa(win, opts = {}) {
     if (!win || win.isDestroyed()) return;
     const backgroundColor = opts.backgroundColor || PRETO_NATIVO_PROJECAO;
@@ -620,10 +690,6 @@ function createProjectionEngine(paths, deps) {
 }
     aplicarTopoAbsolutoProjecao(win);
     try { win.setFullScreen(true); } catch (_) {
-  // intencional — erro ignorado
-}
-    /* Não mostrar o que foi escondido de propósito — ver `ocultoParaRelogio`. */
-    try { if (!win.isVisible() && !ocultoParaRelogio(win)) win.show(); } catch (_) {
   // intencional — erro ignorado
 }
     // Outro software topmost pode cobrir só um monitor; reclaim global (M2+M3).
@@ -663,9 +729,8 @@ function createProjectionEngine(paths, deps) {
     try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
-    try { if (!win.isVisible()) win.show(); } catch (_) {
-  // intencional — erro ignorado
-}
+    /* Sem `show()` aqui de propósito — a janela ainda não carregou nada. Ver
+       `finalizarJanelaProjecaoNativa`. Quem mostra é o `ready-to-show`. */
     win.once('ready-to-show', () => {
       if (win.isDestroyed()) return;
       try { win.setFullScreen(true); } catch (_) {
@@ -888,6 +953,121 @@ function createProjectionEngine(paths, deps) {
     return win;
   }
 
+  /** Janela preta permanente de um monitor — ver `ROLE_FUNDO`. */
+  function abrirJanelaFundo(displayIndex) {
+    const displays = obterDisplaysOrdenados();
+    if (!podeAbrirJanelaSecundaria()) return null;
+    const d = displays[displayIndex];
+    if (!d) return null;
+    const win = new BrowserWindow({
+      x: d.bounds.x,
+      y: d.bounds.y,
+      width: d.bounds.width,
+      height: d.bounds.height,
+      show: false,
+      fullscreen: true,
+      frame: false,
+      alwaysOnTop: false,
+      skipTaskbar: true,
+      /* Nunca recebe foco: é chão, não é interface. Sem isto podia roubar o teclado ao
+         painel do operador ao ser criada. */
+      focusable: false,
+      title: `Fundo (Monitor ${displayIndex + 1})`,
+      backgroundColor: PRETO_NATIVO_PROJECAO,
+      webPreferences: { backgroundThrottling: false },
+    });
+    definirNivelTopo(win, false);
+    win.once('ready-to-show', () => {
+      if (win.isDestroyed()) return;
+      try { win.setFullScreen(true); } catch (_) {
+  // intencional — erro ignorado
+}
+      try { win.show(); } catch (_) {
+  // intencional — erro ignorado
+}
+    });
+    win.loadURL(PAGINA_FUNDO);
+    try { win.setMenuBarVisibility(false); } catch (_) {
+  // intencional — erro ignorado
+}
+    return win;
+  }
+
+  /**
+   * Monitores que o motor gere — a união de tudo onde ele alguma vez põe uma janela.
+   *
+   * É a fronteira da promessa «nunca mostrar o desktop»: só aqui é que o motor põe chão.
+   * Um monitor fora desta lista é do utilizador e fica intocado.
+   */
+  function indicesMonitoresGeridos(routingDual) {
+    const displays = obterDisplaysOrdenados();
+    const set = new Set();
+    const juntar = (i) => {
+      if (!Number.isInteger(i) || i < 0 || i >= displays.length) return;
+      if (indiceProjecaoSeguro(i, displays) < 0) return;
+      set.add(i);
+    };
+    juntar(resolverIndicesEfetivosProjecao(routingDual).publicoIndex);
+    juntar(resolverIndiceJanelaPersistenteMinistrante(routingDual));
+    indicesMonitoresRelogioDesejados().forEach(juntar);
+    loadDisplayIndices().forEach(juntar);
+    return Array.from(set).sort((a, b) => a - b);
+  }
+
+  /**
+   * Garante o chão preto nos monitores geridos.
+   *
+   * Barata quando nada mudou: sem monitores novos e com os bounds certos, não faz uma única
+   * chamada nativa. Por isso pode correr no início de cada sincronização.
+   */
+  function sincronizarJanelasFundo(routingDual) {
+    const desejados = new Set(indicesMonitoresGeridos(routingDual));
+    const displays = obterDisplaysOrdenados();
+    const restantes = [];
+
+    registro.todas().forEach((entry) => {
+      if (entry?.role !== ROLE_FUNDO) {
+        restantes.push(entry);
+        return;
+      }
+      const win = entry?.win;
+      if (!win || win.isDestroyed()) return;
+      if (!desejados.has(entry.index) || !displays[entry.index]) {
+        try { win.close(); } catch (_) {
+  // intencional — erro ignorado
+}
+        return;
+      }
+      const d = displays[entry.index];
+      /* Só quando o monitor mudou mesmo de sítio/resolução. O fundo é a última coisa que
+         se quer a mexer: ele é que está a tapar o buraco. */
+      if (!boundsIguais(win, d.bounds)) {
+        try {
+          if (win.isFullScreen()) win.setFullScreen(false);
+          win.setBounds({
+            x: d.bounds.x,
+            y: d.bounds.y,
+            width: d.bounds.width,
+            height: d.bounds.height,
+          });
+          win.setFullScreen(true);
+        } catch (_) {
+  // intencional — erro ignorado
+}
+      }
+      restantes.push(entry);
+      desejados.delete(entry.index);
+    });
+
+    registro.substituirPor(restantes);
+
+    desejados.forEach((displayIndex) => {
+      const win = abrirJanelaFundo(displayIndex);
+      if (!win) return;
+      registro.adicionar({ role: ROLE_FUNDO, index: displayIndex, win });
+    });
+  }
+
   /**
    * A janela já cobre exactamente este monitor?
    *
@@ -932,6 +1112,44 @@ function createProjectionEngine(paths, deps) {
        voltar a aparecer passa pelo caminho que a reposiciona. */
     if (!win.isVisible()) return true;
     return boundsIguais(win, d.bounds);
+  }
+
+  /**
+   * Assenta uma janela **oculta** em cima de um monitor, pronta a ser mostrada.
+   *
+   * Ordem canónica: `setBounds` → `setFullScreen(true)` → topo. O `show()` fica de fora
+   * de propósito — é sempre o último passo, e é de quem chama.
+   *
+   * A ordem antiga era `setFullScreen(false)` → `setBounds` → `show()` → `setFullScreen(true)`:
+   * a janela chegava a aparecer como janela normal antes de entrar em fullscreen, e essa
+   * transição de modo tem frames próprios no Windows. Era o «lampejo branco» descrito em
+   * `telasAbertasCorrespondemRota`.
+   *
+   * Sem mudança de bounds não há chamada nativa nenhuma — esta função roda em caminhos que
+   * disparam a cada estrofe e a cada versículo.
+   *
+   * @param {import('electron').BrowserWindow} win janela OCULTA
+   * @param {object} d entrada de `getOrderedDisplays`
+   */
+  function assentarJanelaOcultaNoDisplay(win, d) {
+    if (!win || win.isDestroyed() || !d) return;
+    try {
+      if (!boundsIguais(win, d.bounds)) {
+        /* Uma janela em fullscreen ignora `setBounds`; sair é obrigatório. Estando oculta,
+           sair não custa nenhum frame visível. */
+        if (win.isFullScreen()) win.setFullScreen(false);
+        win.setBounds({
+          x: d.bounds.x,
+          y: d.bounds.y,
+          width: d.bounds.width,
+          height: d.bounds.height,
+        });
+      }
+      if (!win.isFullScreen()) win.setFullScreen(true);
+      aplicarTopoAbsolutoProjecao(win);
+    } catch (_) {
+      // intencional — erro ignorado
+    }
   }
 
   /**
@@ -1152,12 +1370,27 @@ function createProjectionEngine(paths, deps) {
     return { publicoIndex, ministranteIndex, displays };
   }
 
+  /**
+   * Monitor da janela do ministrante, incluindo a **persistente**.
+   *
+   * Com o ministrante desactivado na rota, o motor mantém na mesma uma janela preta no
+   * monitor de recurso, para que activá-lo mais tarde não custe uma janela nova a nascer à
+   * vista. O índice de recurso vem de `loadDisplayIndices()`, que é cego à rota.
+   *
+   * E era cego a mais do que devia: com o público movido para esse mesmo monitor, o motor
+   * abria **duas** janelas fullscreen always-on-top no mesmo ecrã — o telão e a persistente
+   * do ministrante. Ambas nos papéis de topo absoluto, ambas a levar `moveTop()` a cada
+   * ciclo do reclaim, cada uma a tapar a outra: o monitor a piscar sem parar. Se o monitor
+   * já é do público, não há janela de recurso a abrir.
+   */
   function resolverIndiceJanelaPersistenteMinistrante(routingDual) {
-    const { ministranteIndex, displays } = resolverIndicesEfetivosProjecao(routingDual);
+    const { publicoIndex, ministranteIndex, displays } = resolverIndicesEfetivosProjecao(routingDual);
     if (ministranteIndex >= 0) return ministranteIndex;
     if (!controladorAtivo()) return -1;
     const fixos = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
-    return fixos[1] != null ? indiceProjecaoSeguro(fixos[1], displays) : -1;
+    const recurso = fixos[1] != null ? indiceProjecaoSeguro(fixos[1], displays) : -1;
+    if (recurso >= 0 && recurso === publicoIndex) return -1;
+    return recurso;
   }
 
   /**
@@ -1183,19 +1416,87 @@ function createProjectionEngine(paths, deps) {
   }
 
   /**
-   * Troca de monitor: mantém a janela antiga até a nova estar visível no destino.
+   * Desiste de uma troca em curso e fecha a janela que estava a ser preparada.
+   *
+   * Corre sempre o `aoConcluir` da troca abandonada: é ele que destranca a cadeia de
+   * sincronização. Deixá-lo por chamar deixaria as etapas seguintes — escudo e relógio —
+   * à espera para sempre.
    */
-  function substituirJanelaNoMonitor(entrada, displayIndex, criarFn, labelFn) {
-    if (!entrada?.win || entrada.win.isDestroyed()) return null;
+  function cancelarTrocaPendente(entrada) {
+    const pendente = entrada?.__trocaPendente;
+    if (!pendente) return;
+    entrada.__trocaPendente = null;
+    if (pendente.temporizador) clearTimeout(pendente.temporizador);
+    if (pendente.win && !pendente.win.isDestroyed()) {
+      try { pendente.win.close(); } catch (_) {
+  // intencional — erro ignorado
+}
+    }
+    if (typeof pendente.aoConcluir === 'function') {
+      try { pendente.aoConcluir(); } catch (_) {
+  // intencional — erro ignorado
+}
+    }
+  }
+
+  /**
+   * Troca de monitor: mantém a janela antiga até a nova estar visível no destino.
+   *
+   * **Idempotente por destino.** Chamar duas vezes com o mesmo `displayIndex` enquanto a
+   * primeira troca ainda não concluiu devolve a janela já em preparação, em vez de abrir
+   * outra.
+   *
+   * Sem esta guarda, o motor abria uma janela por chamada. Até a nova ficar visível,
+   * `entrada.index` continua a apontar ao monitor antigo e `telasAbertasCorrespondemRota`
+   * dá a rota por incumprida — por isso cada estrofe projetada reentrava aqui. As janelas
+   * anteriores ficavam vivas, visíveis, fullscreen e always-on-top, mas fora do registo:
+   * nunca mais recebiam conteúdo nem eram fechadas. Duas ou mais janelas topmost no mesmo
+   * monitor, todas a fazer `moveTop()` no reclaim — o monitor a piscar entre o slide actual
+   * e um slide velho, e a continuar a projetar num monitor de onde a rota já tinha saído.
+   */
+  function substituirJanelaNoMonitor(entrada, displayIndex, criarFn, labelFn, aoConcluir) {
+    const concluir = () => {
+      if (typeof aoConcluir === 'function') {
+        try { aoConcluir(); } catch (_) {
+  // intencional — erro ignorado
+}
+      }
+    };
+    if (!entrada?.win || entrada.win.isDestroyed()) {
+      concluir();
+      return null;
+    }
+
+    const pendente = entrada.__trocaPendente;
+    if (pendente && pendente.win && !pendente.win.isDestroyed()) {
+      if (pendente.alvo === displayIndex) {
+        /* Já há uma troca a caminho deste destino. Não abrir outra — e não deixar este
+           chamador pendurado: a cadeia dele segue já, a troca conclui-se sozinha. */
+        concluir();
+        return pendente.win;
+      }
+      /* Destino mudou a meio: a janela em preparação já não serve. */
+      cancelarTrocaPendente(entrada);
+    } else if (pendente) {
+      cancelarTrocaPendente(entrada);
+    }
+
     const antiga = entrada.win;
     const novoWin = criarFn(displayIndex, labelFn(displayIndex));
-    if (!novoWin) return null;
+    if (!novoWin) {
+      concluir();
+      return null;
+    }
 
     let trocou = false;
     const aplicarTroca = () => {
       if (trocou || novoWin.isDestroyed()) return;
       if (!novoWin.isVisible()) return;
       trocou = true;
+      if (entrada.__trocaPendente?.win === novoWin) {
+        if (entrada.__trocaPendente.temporizador) clearTimeout(entrada.__trocaPendente.temporizador);
+        entrada.__trocaPendente = null;
+      }
       entrada.index = displayIndex;
       entrada.win = novoWin;
       if (antiga && !antiga.isDestroyed()) {
@@ -1203,13 +1504,31 @@ function createProjectionEngine(paths, deps) {
   // intencional — erro ignorado
 }
       }
+      concluir();
     };
+
+    /* Rede de segurança: se a janela nunca ficar visível (falha ao carregar, monitor que
+       desaparece), a pendência é largada para que uma sincronização posterior possa tentar
+       de novo. Sem isto, o papel ficaria preso à janela antiga para sempre. */
+    let temporizador = null;
+    try {
+      temporizador = setTimeout(() => {
+        if (trocou) return;
+        cancelarTrocaPendente(entrada);
+      }, TIMEOUT_TROCA_JANELA_MS);
+      if (typeof temporizador.unref === 'function') temporizador.unref();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+    entrada.__trocaPendente = { alvo: displayIndex, win: novoWin, temporizador, aoConcluir: concluir };
 
     novoWin.once('ready-to-show', aplicarTroca);
     novoWin.webContents.once('did-finish-load', () => {
       try {
-        if (!novoWin.isVisible()) novoWin.show();
+        /* Fullscreen e topo ANTES do `show()`: mostrar primeiro e entrar em fullscreen
+           depois faz a janela aparecer um instante como janela normal. */
         finalizarJanelaProjecaoNativa(novoWin);
+        if (!novoWin.isVisible()) novoWin.show();
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1262,11 +1581,12 @@ function createProjectionEngine(paths, deps) {
     win.once('ready-to-show', finalizar);
     win.webContents.once('did-finish-load', () => {
       try {
-        /* O `show()` que desfazia o `hide()` do relógio. Na primeira passagem a marca está
-           limpa e nada muda; é no disparo tardio, já depois de a cadeia ter escondido a
-           janela, que ela evita a regressão. */
-        if (!win.isVisible() && !ocultoParaRelogio(win)) win.show();
+        /* Fullscreen e topo primeiro, `show()` depois — ver `assentarJanelaOcultaNoDisplay`.
+           E o `show()` respeita quem escondeu a janela de propósito: na primeira passagem a
+           marca está limpa e nada muda; é no disparo tardio, já depois de a cadeia ter
+           escondido a janela, que ela evita a regressão. */
         finalizarJanelaProjecaoNativa(win);
+        if (!win.isVisible() && !ocultoParaRelogio(win)) win.show();
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1327,23 +1647,20 @@ function createProjectionEngine(paths, deps) {
                um `finalizarJanelaProjecaoNativa` posterior recusar-se a mostrá-la. */
             principal.ocultoParaRelogio = false;
             marcarOcultoParaRelogio(principal.win, false);
-            if (principal.win.isFullScreen()) principal.win.setFullScreen(false);
-            principal.win.setBounds({
-              x: d.bounds.x,
-              y: d.bounds.y,
-              width: d.bounds.width,
-              height: d.bounds.height,
-            });
+            assentarJanelaOcultaNoDisplay(principal.win, d);
             principal.win.show();
-            principal.win.setFullScreen(true);
-            aplicarTopoAbsolutoProjecao(principal.win);
             principal.index = displayIndex;
           } catch (_) {
   // intencional — erro ignorado
 }
         }
       } else if (principal.index !== displayIndex) {
-        substituirJanelaNoMonitor(principal, displayIndex, abrirFn, labelFn);
+        /* Esperar pela troca antes de seguir: as etapas seguintes decidem escudo e relógio
+           a partir de quem ocupa o quê, e corriam com o registo ainda a apontar ao monitor
+           antigo. `substituirJanelaNoMonitor` garante que o callback corre sempre — na
+           troca, na desistência e no timeout. */
+        substituirJanelaNoMonitor(principal, displayIndex, abrirFn, labelFn, next);
+        return;
       } else if (!janelaCobreODisplay(principal, displayIndex, obterDisplaysOrdenados())) {
         /* Índice certo, sítio errado: é o que sobra depois de um monitor ser desligado e
            o Windows arrastar a janela órfã para outro ecrã. Recolocar é suficiente —
@@ -1392,18 +1709,8 @@ function createProjectionEngine(paths, deps) {
                  ocultação anterior, e as duas marcas têm de acompanhar. */
               entry.ocultoParaRelogio = false;
               marcarOcultoParaRelogio(entry.win, false);
-              if (entry.win.isFullScreen()) entry.win.setFullScreen(false);
-              if (d) {
-                entry.win.setBounds({
-                  x: d.bounds.x,
-                  y: d.bounds.y,
-                  width: d.bounds.width,
-                  height: d.bounds.height,
-                });
-              }
+              assentarJanelaOcultaNoDisplay(entry.win, d);
               entry.win.show();
-              entry.win.setFullScreen(true);
-              aplicarTopoAbsolutoProjecao(entry.win);
             } catch (_) {
   // intencional — erro ignorado
 }
@@ -1481,6 +1788,11 @@ function createProjectionEngine(paths, deps) {
     }
 
     syncTelasEmAndamento = true;
+
+    /* PRIMEIRO passo, sempre: o chão tem de existir antes de qualquer etapa que possa
+       descobrir um monitor — esconder o telão, fechar o relógio, mover uma janela. */
+    sincronizarJanelasFundo(routingDual);
+
     const { publicoIndex } = resolverIndicesEfetivosProjecao(routingDual);
     const ministranteIndex = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     const escudos = indicesMonitoresEscudoPreto(routingDual);
@@ -1488,6 +1800,7 @@ function createProjectionEngine(paths, deps) {
     if (publicoIndex < 0 && ministranteIndex < 0 && escudos.length === 0) {
       fecharJanelasPorRole('relogio');
       if (controladorAtivo()) {
+        /* O chão fica: há operador, e o que ele vê nos monitores tem de continuar preto. */
         aplicarPretoInativoNasJanelasAbertas();
       } else {
         fecharTodasJanelasProjecao();
@@ -1548,6 +1861,14 @@ function createProjectionEngine(paths, deps) {
      */
     const cumpreRota = (e) =>
       e?.win && !e.win.isDestroyed() && (e.win.isVisible() || ocultoParaRelogio(e.win));
+
+    /*
+     * Uma troca de monitor em curso já vai dar no índice pedido — reiniciar a cadeia por
+     * cima dela é o que abria janelas a mais. Ver `substituirJanelaNoMonitor`.
+     */
+    const noIndicePedido = (e, idx) =>
+      e?.index === idx || e?.__trocaPendente?.alvo === idx;
+    const trocaEmCursoPara = (e, idx) => e?.__trocaPendente?.alvo === idx;
     const pubWins = registro.todas().filter((e) => e?.role === 'publico' && cumpreRota(e));
     const minWins = registro.todas().filter((e) => e?.role === 'ministrante' && cumpreRota(e));
 
@@ -1567,8 +1888,8 @@ function createProjectionEngine(paths, deps) {
       if (pubWins.length !== 0) return false;
     } else if (
       pubWins.length !== 1 ||
-      pubWins[0].index !== pub ||
-      !janelaCobreODisplay(pubWins[0], pub, displaysAgora)
+      !noIndicePedido(pubWins[0], pub) ||
+      (!trocaEmCursoPara(pubWins[0], pub) && !janelaCobreODisplay(pubWins[0], pub, displaysAgora))
     ) {
       return false;
     }
@@ -1576,8 +1897,8 @@ function createProjectionEngine(paths, deps) {
       if (minWins.length !== 0) return false;
     } else if (
       minWins.length !== 1 ||
-      minWins[0].index !== min ||
-      !janelaCobreODisplay(minWins[0], min, displaysAgora)
+      !noIndicePedido(minWins[0], min) ||
+      (!trocaEmCursoPara(minWins[0], min) && !janelaCobreODisplay(minWins[0], min, displaysAgora))
     ) {
       return false;
     }
@@ -1656,6 +1977,16 @@ function createProjectionEngine(paths, deps) {
 
   function garantirTelasAbertasParaProjecao() {
     const routingDual = loadDisplayRouting();
+
+    /* Antes de decidir o que quer que seja: garantir o chão. É barato quando nada mudou
+       (nenhuma chamada nativa) e é o que sustenta a promessa de nunca revelar o desktop,
+       inclusive nos caminhos abaixo que devolvem cedo sem tocar em janela nenhuma. */
+    try {
+      sincronizarJanelasFundo(routingDual);
+    } catch (e) {
+      logError('sincronizar-janelas-fundo', e);
+    }
+
     const { publicoIndex: pub } = resolverIndicesEfetivosProjecao(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
 
