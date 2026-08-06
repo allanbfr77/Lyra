@@ -10374,16 +10374,13 @@ function atualizarToolbarModoEdicao() {
   const ed = modoEdicaoEstrofes;
   const full = modoLetraCompletaCentral;
   const emModoEdicaoVisual = ed || full;
-  const btnNova = document.getElementById('btn-criar-nova-versao');
+  /* «Criar nova versão» deixou de ser um botão desta barra — passou a ser o chip
+     «Nova versão» na barra de versões (renderMusicaVersoesBar). */
   const btnSalvar = document.getElementById('btn-salvar-musica');
   const fromCatalog = m && musicaBancoFonte === 'catalog';
   const metadadosEditaveis = metadadosMusicaEditaveisNaHome();
   const tituloEditavel = tituloMusicaEditavelNaHome();
   const metadadosSujos = metadadosMusicaSujosNaHome();
-  if (btnNova) {
-    btnNova.disabled = !m || ed || full || fromCatalog;
-    btnNova.style.display = m && !ed && !full && !fromCatalog ? '' : 'none';
-  }
   document.getElementById('btn-editar-letra').disabled = !m || ed || full;
   document.getElementById('btn-editar-letra').style.display = (m && !ed && !full) ? '' : 'none';
   document.getElementById('btn-encerrar-edicao').style.display = (m && ed) ? '' : 'none';
@@ -10424,9 +10421,7 @@ function atualizarToolbarModoEdicao() {
   if (btnEditarNome) btnEditarNome.style.display = mostrarAcoesCopia ? '' : 'none';
   if (btnApagarCopia) btnApagarCopia.style.display = mostrarAcoesCopia ? '' : 'none';
   const sep1 = document.getElementById('toolbar-sep-1');
-  const sep2 = document.getElementById('toolbar-sep-2');
   if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
-  if (sep2) sep2.style.display = mostrarNavegacaoProjecao ? '' : 'none';
 
   /* Sem música a linha fica sem nenhum botão: esconder remove também a
      divisória que ela desenha por baixo dos campos de título/artista. */
@@ -13565,6 +13560,25 @@ function apagarCopiaVersaoSelecionada() {
   else void confirmarRemoverVersaoServidor(c.rootId, c.id);
 }
 
+/* Ícones (SVG contorno) da barra de versões. currentColor acompanha o estado do chip. */
+const SVG_VERSAO = {
+  ramo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
+  original: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1L12 2z"/></svg>',
+  modificada: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  importada: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
+  local: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M7 20h10M9 16v4M15 16v4"/></svg>',
+  copia: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  nova: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+};
+
+/** Ícone da cópia a partir do rótulo (rótulos automáticos conhecidos; nome próprio = cópia genérica). */
+function iconeVersaoServidorPorRotulo(labelUpper) {
+  const s = String(labelUpper || '');
+  if (s.includes('IMPORTAD')) return SVG_VERSAO.importada;
+  if (s.includes('MODIFICAD') || s === 'CÓPIA' || s === 'COPIA') return SVG_VERSAO.modificada;
+  return SVG_VERSAO.copia;
+}
+
 function renderMusicaVersoesBar() {
   const bar = document.getElementById('musica-versoes-bar');
   if (!bar) return;
@@ -13578,6 +13592,7 @@ function renderMusicaVersoesBar() {
     bar.hidden = true;
     return;
   }
+  /* Catálogo é só-leitura: não há versões nem criação. */
   if (musicaBancoFonte === 'catalog') {
     bar.hidden = true;
     bar.innerHTML = '';
@@ -13589,40 +13604,53 @@ function renderMusicaVersoesBar() {
       ? versoesMusicaServidorCache.versoes || []
       : [];
   const copiasLocais = getCopiasParaMusica(rootId);
-  const temAlgo = versoesSrv.some((v) => v.parent_id != null) || copiasLocais.length > 0;
-  if (!temAlgo && musicaAtivaEhOriginalServidor()) {
-    bar.hidden = true;
-    bar.innerHTML = '';
-    return;
-  }
 
+  /* Sempre visível (com música editável carregada): mesmo sem cópias, o chip «Nova versão»
+     é o único ponto de criação — antes isto ficava no botão da barra de baixo, agora saiu. */
   bar.hidden = false;
   bar.innerHTML = '';
-  const mkBtn = (label, copiaId, ativo) => {
+
+  const mkChip = (label, copiaId, ativo, svg) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'btn sm' + (ativo ? ' versao-musica-ativa' : '');
-    b.textContent = label;
+    b.className = 'btn sm versao-chip' + (ativo ? ' versao-musica-ativa' : '');
+    b.innerHTML = (svg || '') + '<span class="versao-chip-txt"></span>';
+    b.querySelector('.versao-chip-txt').textContent = label;
     b.onclick = () => void trocarVersaoMusicaCentral(copiaId);
     return b;
   };
 
+  const lbl = document.createElement('span');
+  lbl.className = 'versao-bar-label';
+  lbl.innerHTML = SVG_VERSAO.ramo + '<span>Versões</span>';
+  bar.appendChild(lbl);
+
   const originalAtivo = musicaAtivaEhOriginalServidor() && !musicaVersaoLocalId;
-  bar.appendChild(mkBtn('ORIGINAL', null, originalAtivo));
+  bar.appendChild(mkChip('Original', null, originalAtivo, SVG_VERSAO.original));
 
   for (const v of versoesSrv) {
     if (v.parent_id == null && Number(v.id) === rootId) continue;
     if (v.parent_id == null) continue;
     const vid = String(v.id);
     const ativo = !musicaVersaoLocalId && Number(musicaAtiva.id) === Number(v.id);
+    const rotulo = rotuloExibicaoVersaoServidor(v);
     /* Só o nome/badge — editar e apagar ficam no menu inferior contextual. */
-    bar.appendChild(mkBtn(rotuloExibicaoVersaoServidor(v), vid, ativo));
+    bar.appendChild(mkChip(rotulo, vid, ativo, iconeVersaoServidorPorRotulo(rotulo)));
   }
 
   copiasLocais.forEach((c) => {
     const rotuloVis = `${String(c.rotulo || 'Cópia').toLocaleUpperCase('pt-BR')} (LOCAL)`;
-    bar.appendChild(mkBtn(rotuloVis, c.id, musicaVersaoLocalId === c.id));
+    bar.appendChild(mkChip(rotuloVis, c.id, musicaVersaoLocalId === c.id, SVG_VERSAO.local));
   });
+
+  /* Chip de criação: mesmo destino do antigo botão «Criar nova versão». */
+  const nova = document.createElement('button');
+  nova.type = 'button';
+  nova.className = 'btn sm versao-nova-chip';
+  nova.title = 'Cria uma cópia editável a partir do texto gravado no servidor';
+  nova.innerHTML = SVG_VERSAO.nova + '<span class="versao-chip-txt">Nova versão</span>';
+  nova.onclick = () => void iniciarCriarNovaVersao();
+  bar.appendChild(nova);
 }
 
 async function iniciarRenomearVersaoServidor(rootId, versaoId, rotuloAtual) {
@@ -14072,8 +14100,8 @@ exporCallbacksParaAtributosHtml({
   novaEstrofe,
   navegarEstrofe,
   limparTela,
-  // SAIR na barra de letra: mesma rotina do ESC, mas sem desassociar a música do painel.
-  encerrarProjecaoDoControlador: () => encerrarProjecaoDoControlador(),
+  // SAIR na barra: encerra a prévia E limpa a seleção (música + slides), voltando ao estado inicial.
+  encerrarProjecaoDoControlador: () => encerrarProjecaoDoControlador({ limparMusica: true }),
   alternarOcultacaoPreviewPainel,
   bibliaBuscaRapida,
   bibliaBuscaRapidaTecla,

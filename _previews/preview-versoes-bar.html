@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prévia — Barra de versões (aplicado)</title>
+<style>
+  :root{
+    --surface:#232328; --surface2:#2e2e35; --border:#3f3f48;
+    --accent:#c49a3a; --text:#e7e4dc; --text-dim:#9a9690; --green:#3aad65;
+    --font-ui:'Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#17171b;color:var(--text);font-family:var(--font-ui);padding:28px}
+  h1{font-size:18px;font-weight:600;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--text-dim);margin:0 0 20px;max-width:720px}
+  .cap{font-size:12px;color:var(--text-dim);margin:22px 0 8px;text-transform:uppercase;letter-spacing:.06em}
+  .bar{background:#1e1e22;border:1px solid #35353d;border-radius:10px;padding:11px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .lbl{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}
+  .lbl svg{width:13px;height:13px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:#d7d5cd;background:var(--surface2);border:1px solid #43434c;border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap;transition:all .15s}
+  .chip svg{width:14px;height:14px;flex-shrink:0}
+  .chip:hover{border-color:#5a5a64}
+  .chip.on{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 1px rgba(196,154,58,.35)}
+  .chip.new{border-style:dashed;color:var(--text-dim)}
+  .chip.new:hover{border-color:var(--green);color:var(--green);background:rgba(58,173,101,.12)}
+</style>
+</head>
+<body>
+  <h1>Barra de versões — aplicado (Opção B)</h1>
+  <p class="sub">Ícone por tipo, chip "Nova versão" no fim (cria direto daqui — o botão da barra de baixo foi removido), e a barra agora aparece mesmo quando só existe o Original, para você ainda poder criar a 1ª versão. Mantive os rótulos das versões como vêm do servidor.</p>
+
+  <div class="cap">Música com cópias</div>
+  <div class="bar">
+    <span class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Versões</span>
+    <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1L12 2z"/></svg>Original</span>
+    <span class="chip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Cópia/Modificada</span>
+    <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Cópia/Importada</span>
+    <span class="chip new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nova versão</span>
+  </div>
+
+  <div class="cap">Música só com o Original (barra agora aparece para permitir criar)</div>
+  <div class="bar">
+    <span class="lbl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Versões</span>
+    <span class="chip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1L12 2z"/></svg>Original</span>
+    <span class="chip new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nova versão</span>
+  </div>
+</body>
+</html>

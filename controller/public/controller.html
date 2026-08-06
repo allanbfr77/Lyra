@@ -1841,15 +1841,44 @@
     }
 
     .musica-versoes-bar .btn.sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 6px;
+      padding: 4px 11px;
+      border-radius: 999px;
     }
+    .musica-versoes-bar .btn.sm svg { width: 14px; height: 14px; flex-shrink: 0; }
 
     .musica-versoes-bar .btn.sm.versao-musica-ativa {
       border-color: var(--accent);
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
       color: var(--accent);
+    }
+
+    /* Rótulo à esquerda — dá contexto ao alternador. */
+    .musica-versoes-bar .versao-bar-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-right: 2px;
+    }
+    .musica-versoes-bar .versao-bar-label svg { width: 13px; height: 13px; }
+
+    /* Chip de criação: tracejado e neutro, fica verde no hover (ação construtiva). */
+    .musica-versoes-bar .versao-nova-chip {
+      border-style: dashed;
+      color: var(--text-dim);
+    }
+    .musica-versoes-bar .versao-nova-chip:hover:not(:disabled),
+    .musica-versoes-bar .versao-nova-chip:focus-visible {
+      border-color: var(--green);
+      color: var(--green);
+      background: color-mix(in srgb, var(--green) 12%, transparent);
     }
 
 
@@ -1943,9 +1972,24 @@
     }
 
     .centro-toolbar-acoes {
-      justify-content: flex-end;
+      justify-content: flex-start;
       padding-top: 6px;
       border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    }
+
+    /* Grupo fixo à direita: navegação (setas) + Sair. O resto da barra fica à
+       esquerda; o `margin-left:auto` empurra este grupo para a borda direita. */
+    .centro-toolbar-acoes .centro-toolbar-direita {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    /* As duas setas mantêm o espaço normal entre si; o grupo é que fica perto do Sair. */
+    .centro-toolbar-acoes .nav-setas {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     /**
@@ -1977,7 +2021,6 @@
 
     /* Hierarquia da barra: só a acção primária (EDITAR LETRA / SALVAR) tem
        preenchimento sólido. Todo o resto é neutro — outline monocromático. */
-    .centro-toolbar-acoes .btn-toolbar-nova-versao,
     .centro-toolbar-acoes .btn-toolbar-letra-completa {
       font-weight: 600;
       border-style: solid;
@@ -1986,7 +2029,6 @@
       background: var(--surface2);
     }
 
-    .centro-toolbar-acoes .btn-toolbar-nova-versao:hover:not(:disabled),
     .centro-toolbar-acoes .btn-toolbar-letra-completa:hover:not(:disabled) {
       border-color: color-mix(in srgb, var(--text) 42%, var(--border));
       color: var(--text);
@@ -3186,19 +3228,19 @@
       min-width: 34px;
       padding: 0;
       border-radius: 50%;
-      font-size: 20px;
-      font-weight: 300;
+      font-size: 21px;
+      font-weight: 700;
       line-height: 1;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: var(--surface);
+      color: #14100a;
       background: linear-gradient(145deg, rgba(166, 124, 45, 0.95), rgba(120, 85, 28, 0.98));
       border: 1px solid rgba(200, 169, 110, 0.35);
       box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.28),
         inset 0 1px 0 rgba(255, 255, 255, 0.12);
-      opacity: 0.72;
+      opacity: 0.95;
       transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
     }
 
@@ -7736,16 +7778,18 @@
             <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Apagar cópia</button>
             <span class="toolbar-sep" id="toolbar-sep-1" aria-hidden="true" style="display:none"></span>
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar letra</button>
-            <button type="button" class="btn btn-toolbar-nova-versao" onclick="iniciarCriarNovaVersao()" id="btn-criar-nova-versao" disabled style="display:none" title="Pede o nome e cria uma cópia local a partir do texto do servidor para editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Criar nova versão</button>
             <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto"><span class="btn-ico" id="ico-modo-letra-completa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg></span><span class="btn-txt" id="txt-modo-letra-completa">Modo letra completa</span></button>
             <button type="button" class="btn" onclick="cancelarModoLetraCompletaCentral()" id="btn-cancelar-letra-completa" style="display:none" title="Descarta as alterações desta sessão e volta aos slides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancelar</button>
             <button type="button" class="btn" onclick="novaEstrofe()" id="btn-nova-estrofe" disabled style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>Novo slide</button>
             <button type="button" class="btn primary" onclick="salvarMusicaServidor()" id="btn-salvar-musica" disabled style="display:none" title="Grava na versão seleccionada (original no servidor ou cópia local) e sai do modo edição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Salvar alterações</button>
             <button type="button" class="btn" onclick="sairModoEdicao()" id="btn-encerrar-edicao" style="display:none" title="Descarta todas as alterações desta sessão e sai do modo edição (não grava no servidor)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Encerrar edição</button>
-            <span class="toolbar-sep" id="toolbar-sep-2" aria-hidden="true"></span>
-            <button type="button" class="btn btn-nav-seta" id="btn-seta-anterior" onclick="navegarEstrofe(-1)" title="Anterior (←)" aria-label="Slide anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
-            <button type="button" class="btn btn-nav-seta" id="btn-seta-proxima" onclick="navegarEstrofe(1)" title="Próxima (→)" aria-label="Próximo slide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
-            <button type="button" class="btn danger" id="btn-sair-projecao" onclick="encerrarProjecaoDoControlador()" title="Limpa as telas de projeção (mantém a música aberta no painel)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Sair</button>
+            <div class="centro-toolbar-direita">
+              <div class="nav-setas">
+                <button type="button" class="btn btn-nav-seta" id="btn-seta-anterior" onclick="navegarEstrofe(-1)" title="Anterior (←)" aria-label="Slide anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+                <button type="button" class="btn btn-nav-seta" id="btn-seta-proxima" onclick="navegarEstrofe(1)" title="Próxima (→)" aria-label="Próximo slide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+              </div>
+              <button type="button" class="btn danger" id="btn-sair-projecao" onclick="encerrarProjecaoDoControlador()" title="Encerra a prévia e limpa a música/slides carregados — volta ao estado inicial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Sair</button>
+            </div>
           </div>
         </div>
         <div id="centro-letra-completa-wrap" class="centro-letra-completa-wrap" hidden>
