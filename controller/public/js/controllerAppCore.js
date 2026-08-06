@@ -4653,7 +4653,14 @@ function applySlidesChipZoomLevel(z) {
 /** Zoom extra só no modo slides (Electron/Chromium): constante `SLIDES_GRID_AUTO_ZOOM_MIN` em `modules/chavesArmazenamentoLocal.js`. */
 /** Tamanho base (px) do texto do chip, alinhado ao CSS `--slide-chip-snippet-px` × zoom. */
 function slideChipSnippetBaseFontPx() {
-  return 12 * slidesChipZoomLevel;
+  const dock = document.getElementById('slides-dock');
+  let base = 14;
+  if (dock) {
+    const raw = getComputedStyle(dock).getPropertyValue('--slide-chip-snippet-px').trim();
+    const n = parseFloat(raw, 10);
+    if (Number.isFinite(n) && n > 0) base = n;
+  }
+  return base * slidesChipZoomLevel;
 }
 
 // --- SECÇÃO D — Faixa de slides (dock), zoom, chips, edição de estrofes, grelha modo slides ---
@@ -4702,6 +4709,10 @@ function atualizarSomenteAtivoFaixaSlides() {
 /**
  * Cada linha lógica do slide fica em `nowrap`; reduz font-size para caber na largura e na altura
  * útil do cartão (evita cortar a última linha e linhas «coladas»).
+ *
+ * Largura útil = `clientWidth` (sem borda) − padding − margem de segurança: o cálculo
+ * antigo usava `getBoundingClientRect` (com borda) e quase zero folga, o que em
+ * algumas resoluções cortava a última letra com `overflow-x: hidden`.
  */
 function ajustarFonteSnippetsNosSlideChips() {
   if (!ehModoSlidesOperador()) return;
@@ -4714,6 +4725,9 @@ function ajustarFonteSnippetsNosSlideChips() {
   const minPx = 5.5;
   const z = slidesChipZoomLevel;
   const gapNumSnippet = 10 * z;
+  /** Folga horizontal (px) + factor — letter-spacing e subpixels não cortam o glifo. */
+  const SAFE_X = Math.max(4, 3 * z);
+  const SAFE_FACTOR = 0.97;
   const meas = document.createElement('span');
   meas.setAttribute('aria-hidden', 'true');
   meas.style.cssText =
@@ -4730,7 +4744,9 @@ function ajustarFonteSnippetsNosSlideChips() {
     const cChip = getComputedStyle(chip);
     const padX = parseFloat(cChip.paddingLeft) + parseFloat(cChip.paddingRight);
     const padY = parseFloat(cChip.paddingTop) + parseFloat(cChip.paddingBottom);
-    const availW = Math.max(8, chip.getBoundingClientRect().width - padX);
+    const snPadX =
+      parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) || 0;
+    const availW = Math.max(8, chip.clientWidth - padX - snPadX - SAFE_X);
 
     const numEl = chip.querySelector('.slide-num');
     const numH = numEl ? numEl.getBoundingClientRect().height : 0;
@@ -4751,7 +4767,7 @@ function ajustarFonteSnippetsNosSlideChips() {
       maxW = Math.max(maxW, meas.getBoundingClientRect().width);
     });
 
-    let fx = maxW < 1 ? basePx : Math.max(minPx, basePx * Math.min(1, availW / maxW));
+    let fx = maxW < 1 ? basePx : Math.max(minPx, basePx * Math.min(1, (availW / maxW) * SAFE_FACTOR));
     snippet.style.fontSize = `${fx}px`;
 
     for (let iter = 0; iter < 8; iter++) {
@@ -4772,8 +4788,8 @@ function ajustarFonteSnippetsNosSlideChips() {
       meas.style.fontSize = `${fx}px`;
       maxW2 = Math.max(maxW2, meas.getBoundingClientRect().width);
     });
-    if (maxW2 > availW + 0.5) {
-      fx = Math.max(minPx, fx * (availW / maxW2));
+    if (maxW2 > availW) {
+      fx = Math.max(minPx, fx * (availW / maxW2) * SAFE_FACTOR);
       snippet.style.fontSize = `${fx}px`;
       for (let iter = 0; iter < 6; iter++) {
         const sh = snippet.scrollHeight;

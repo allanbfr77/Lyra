@@ -3538,7 +3538,7 @@
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px 10px;
+      padding: 12px 12px;
       cursor: pointer;
       text-align: center;
       transition: border-color 0.15s, box-shadow 0.15s;
@@ -3548,6 +3548,7 @@
       align-items: center;
       justify-content: flex-start;
       gap: calc(10px * var(--slide-chip-zoom, 1));
+      overflow: hidden;
     }
 
     .slide-chip--preto {
@@ -3626,6 +3627,7 @@
       flex: 0 1 auto;
       width: 100%;
       min-width: 0;
+      padding: 0 2px;
       overflow-x: hidden;
       overflow-y: visible;
       box-sizing: border-box;
@@ -3637,10 +3639,12 @@
       white-space: nowrap;
       text-align: center;
       max-width: 100%;
-      overflow: visible;
+      overflow: hidden;
+      text-overflow: clip;
       font-size: inherit;
       line-height: inherit;
       letter-spacing: inherit;
+      box-sizing: border-box;
     }
 
     .slide-snippet-line--empty {
