@@ -967,7 +967,7 @@
     #playlist-head-actions {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 8px;
       margin-left: auto;
       flex-wrap: wrap;
     }
@@ -1277,12 +1277,24 @@
       border-radius: 0;
       padding: 0;
     }
+    /* Mesmo modelo do «+ Nova música manual»: ação secundária com contorno
+       tracejado, fundo transparente e tipografia esmaecida. */
     .culto-adicionar-btn {
       width: 100%;
       margin-top: 8px;
       letter-spacing: 0.06em;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 600;
+      border-radius: 6px;
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .culto-adicionar-btn:hover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
+      color: var(--text);
     }
     body.app-mod-slides .culto-adicionar-btn {
       display: none !important;
@@ -2930,19 +2942,31 @@
       padding: 0 12px 0 16px;
     }
 
-    /* Cabeçalho fixo: mantém a altura natural, nunca é comprimido nem rola. */
+    /* Cabeçalho fixo: mantém a altura natural, nunca é comprimido nem rola.
+       Gap maior redistribui o «espaço morto» que ficava acima do botão manual. */
     .banco-secao-internet {
       flex: 0 0 auto;
       padding-top: 12px;
       padding-bottom: 4px;
+      gap: 14px;
+    }
+
+    /* Sem resultados: some da coluna para não criar faixa vazia entre a busca
+       e a divisória do «+ Nova música manual». */
+    .banco-secao-internet .lista-internet:empty {
+      display: none;
+      margin: 0;
+      padding: 0;
+      max-height: 0;
     }
 
     /* Ação de fallback (cadastro manual) separada visualmente da lista de
-       resultados por uma divisória sutil e mais espaçamento. */
+       resultados por uma divisória sutil — margem menor: o gap da secção já
+       dá o respiro. */
     .banco-secao-internet .banco-nova-manual-wrap {
       border-top: 1px solid var(--border);
       padding-top: 12px;
-      margin-top: 10px;
+      margin-top: 2px;
     }
 
     .banco-secao-internet .busca-letras-panel {
@@ -7024,6 +7048,19 @@
       display: block;
     }
     .cfg-form-group { margin-bottom: 14px; }
+    /* Prévia de fundo em Ajustes: quadrado compacto (não faixa larga) */
+    .cfg-bg-preview {
+      margin-top: 8px;
+      width: 120px;
+      height: 120px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background-size: cover;
+      background-position: center;
+      background-color: var(--surface2);
+      background-repeat: no-repeat;
+      flex-shrink: 0;
+    }
     .cfg-form-input, .cfg-form-select {
       width: 100%;
       background: var(--surface2);
@@ -7811,7 +7848,7 @@
         <ul class="culto-dd-menu" id="culto-dd-menu" role="listbox" hidden></ul>
         <input type="hidden" id="culto-sel" value="" autocomplete="off" />
       </div>
-      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">ADICIONAR CULTO</button>
+      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
     </div>
     <div class="playlist-tema-wrap">
       <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
@@ -8159,7 +8196,11 @@
       <!-- ═══ ABA CONEXÃO ═══ -->
       <div class="cfg-panel-body" id="cfg-panel-ctrl-conexao">
         <div class="cfg-section-title">Servidor de projeção remoto</div>
-        <p class="cfg-hint" style="margin:0 0 10px;font-size:12px;color:var(--text-dim)">Por padrão o Lyra projeta <b>nesta máquina</b>, sem servidor nenhum — é o caso de quem opera no mesmo PC que tem os monitores, e nada precisa de ser configurado aqui.<br>Esta secção serve ao cenário de <b>dois PCs</b>: um com os monitores a correr o app <b>Servidor</b>, outro com o Controlador a enviar os comandos. Informe abaixo o IP do PC que tem os monitores.<br>Ao conectar, este Controlador deixa de projetar nesta máquina e passa a comandar o Servidor — e lembra-se dessa escolha nas próximas aberturas. Para voltar ao padrão, use <b>Ferramentas › Projetar nesta máquina</b>. O estado da ligação aparece no badge no canto superior direito do painel.</p>
+        <div class="cfg-hint-stack" style="margin:0 0 14px;font-size:12px;color:var(--text-dim);line-height:1.55">
+          <p class="cfg-hint" style="margin:0 0 10px">Por padrão o Lyra projeta <b>nesta máquina</b>, sem servidor nenhum — é o caso de quem opera no mesmo PC que tem os monitores, e nada precisa de ser configurado aqui.</p>
+          <p class="cfg-hint" style="margin:0 0 10px">Esta secção serve ao cenário de <b>dois PCs</b>: um com os monitores a correr o app <b>Servidor</b>, outro com o Controlador a enviar os comandos. Informe abaixo o IP do PC que tem os monitores.</p>
+          <p class="cfg-hint" style="margin:0">Ao conectar, este Controlador deixa de projetar nesta máquina e passa a comandar o Servidor — e lembra-se dessa escolha nas próximas aberturas. Para voltar ao padrão, use <b>Ferramentas › Projetar nesta máquina</b>. O estado da ligação aparece no badge no canto superior direito do painel.</p>
+        </div>
         <label class="cfg-label" for="ip-input">IP do servidor</label>
         <div class="cfg-conexao-row">
           <input type="text" class="conn-input" id="ip-input" placeholder="192.168.1.10" value="" autocomplete="off">
@@ -8365,7 +8406,7 @@
   <div class="cfg-form-group" id="cfg-biblia-pub-bg-image-wrap-ctrl" style="display:none">
     <label class="cfg-form-label">Imagem</label>
     <input type="file" accept="image/*" id="cfg-biblia-pub-bg-image-ctrl" onchange="bibliaEscolherFundo(this)">
-    <div id="cfg-biblia-pub-bg-preview-ctrl" class="cfg-bg-preview" style="margin-top:8px;min-height:48px;border:1px solid var(--border);border-radius:4px;background-size:cover;background-position:center"></div>
+    <div id="cfg-biblia-pub-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia da imagem de fundo"></div>
   </div>
 
   <div class="cfg-section-title">Fonte — Versículo</div>
@@ -8451,7 +8492,7 @@
   <div class="cfg-form-group" id="cfg-biblia-min-bg-image-wrap-ctrl" style="display:none">
     <label class="cfg-form-label">Imagem</label>
     <input type="file" accept="image/*" id="cfg-biblia-min-bg-image-ctrl" onchange="bibliaEscolherFundo(this)">
-    <div id="cfg-biblia-min-bg-preview-ctrl" class="cfg-bg-preview" style="margin-top:8px;min-height:48px;border:1px solid var(--border);border-radius:4px;background-size:cover;background-position:center"></div>
+    <div id="cfg-biblia-min-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia da imagem de fundo"></div>
   </div>
 
   <div class="cfg-section-title">Fonte — Versículo</div>
