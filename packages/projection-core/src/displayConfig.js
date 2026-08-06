@@ -45,20 +45,20 @@ const DEFAULT_DISPLAY_CONFIG = {
     format: 'HH:MM',
     fontSize: 13,
     dateFontSize: 2.4,
-    churchFontSize: 2.4,
     verseFontSize: 2.4,
     showDate: true,
     showClock: true,
     monitorRelogio: 'ministrante',
-    showChurchName: false,
-    churchName: '',
     showVerse: false,
     verse: '',
     bgType: 'solid',
     bgColor: '#f5f2ea',
     bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
     bgImage: '',
+    /** Cor do relógio (digital/analógico). Mantém `textColor` por compatibilidade. */
     textColor: '#1c1816',
+    dateColor: '#1c1816',
+    verseColor: '#1c1816',
   },
 };
 

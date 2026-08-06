@@ -214,16 +214,6 @@
       display: none !important;
     }
 
-    /* Nome da Igreja (markup existe; overlay está oculto no telão.) */
-    .clock-church {
-      font-family: var(--slide-font);
-      font-size: 1.8vw;
-      font-weight: 700;
-      color: rgba(122, 90, 31, 0.9);
-      letter-spacing: 6px;
-      text-transform: uppercase;
-    }
-
     /* Relógio Digital */
     .clock-digital {
       font-family: var(--slide-font);
@@ -277,7 +267,6 @@
 
   <!-- Overlay do relógio: oculto no telão por CSS e por lógica (relógio só no ministrante). -->
   <div class="clock-overlay" id="clock-overlay">
-    <div class="clock-church" id="clock-church" style="display:none"></div>
     <div class="clock-digital" id="clock-digital" style="display:none"></div>
     <div class="clock-analog-wrap" id="clock-analog-wrap" style="display:none">
       <canvas id="clock-canvas" width="340" height="340"></canvas>
@@ -310,7 +299,6 @@ const elLetras       = document.getElementById('letras');
 const elRefBiblica   = document.getElementById('ref-biblica');
 const elApresentacaoMedia = document.getElementById('apresentacao-media');
 const elClockOverlay = document.getElementById('clock-overlay');
-const elClockChurch  = document.getElementById('clock-church');
 const elClockDigital = document.getElementById('clock-digital');
 const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
 const elClockCanvas  = document.getElementById('clock-canvas');
@@ -345,8 +333,6 @@ let displayConfig = {
     showClock: true,
     monitorRelogio: 'ministrante',
     showDate: true,
-    showChurchName: false,
-    churchName: '',
     showVerse: false,
     verse: '',
     bgType: 'solid',
@@ -354,6 +340,8 @@ let displayConfig = {
     bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
     bgImage: '',
     textColor: '#1c1816',
+    dateColor: '#1c1816',
+    verseColor: '#1c1816',
   },
 };
 
@@ -455,7 +443,6 @@ window.elLetras = elLetras;
 window.elRefBiblica = elRefBiblica;
 window.elApresentacaoMedia = elApresentacaoMedia;
 window.elClockOverlay = elClockOverlay;
-window.elClockChurch = elClockChurch;
 window.elClockDigital = elClockDigital;
 window.elClockAnalogWrap = elClockAnalogWrap;
 window.elClockDate = elClockDate;

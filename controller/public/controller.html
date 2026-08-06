@@ -8699,6 +8699,13 @@
       <label class="cfg-form-label">Tamanho do Relógio: <span id="cfg-clock-fontsize-val-ctrl">13</span> vh</label>
       <input class="cfg-form-input" type="number" id="cfg-clock-fontsize-ctrl" min="1" step="1" value="13" oninput="onClockFontSizeCtrlInput()">
     </div>
+    <div class="cfg-form-group">
+      <label class="cfg-form-label">Cor do Relógio</label>
+      <div class="cfg-color-row">
+        <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+        <span class="cfg-color-val" id="cfg-clock-text-color-val-ctrl">#1c1816</span>
+      </div>
+    </div>
   </div>
 
   <div class="cfg-relogio-section">
@@ -8710,20 +8717,12 @@
       <label class="cfg-form-label">Tamanho da Data: <span id="cfg-clock-date-fontsize-val-ctrl">2.4</span> vh</label>
       <input class="cfg-form-input" type="number" id="cfg-clock-date-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockDateFontSizeCtrlInput()">
     </div>
-  </div>
-
-  <div class="cfg-relogio-section">
-    <div class="cfg-section-title">Igreja</div>
     <div class="cfg-form-group">
-      <label class="cfg-form-label"><input type="checkbox" id="cfg-clock-church-ctrl" onchange="aplicarCfgRelogio()"> Mostrar nome da igreja</label>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Tamanho do Nome da Igreja: <span id="cfg-clock-church-fontsize-val-ctrl">2.4</span> vh</label>
-      <input class="cfg-form-input" type="number" id="cfg-clock-church-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockChurchFontSizeCtrlInput()">
-    </div>
-    <div class="cfg-form-group" id="cfg-church-name-group-ctrl">
-      <label class="cfg-form-label">Nome da Igreja</label>
-      <input class="cfg-form-input" type="text" id="cfg-church-name-ctrl" placeholder="Ex.: Igreja Batista" oninput="aplicarCfgRelogio()">
+      <label class="cfg-form-label">Cor da Data</label>
+      <div class="cfg-color-row">
+        <input type="color" id="cfg-clock-date-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+        <span class="cfg-color-val" id="cfg-clock-date-color-val-ctrl">#1c1816</span>
+      </div>
     </div>
   </div>
 
@@ -8736,20 +8735,19 @@
       <label class="cfg-form-label">Tamanho do Versículo: <span id="cfg-clock-verse-fontsize-val-ctrl">2.4</span> vh</label>
       <input class="cfg-form-input" type="number" id="cfg-clock-verse-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockVerseFontSizeCtrlInput()">
     </div>
+    <div class="cfg-form-group">
+      <label class="cfg-form-label">Cor do Versículo</label>
+      <div class="cfg-color-row">
+        <input type="color" id="cfg-clock-verse-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+        <span class="cfg-color-val" id="cfg-clock-verse-color-val-ctrl">#1c1816</span>
+      </div>
+    </div>
     <div class="cfg-form-group" id="cfg-verse-group-ctrl">
       <label class="cfg-form-label">Versículo</label>
       <input class="cfg-form-input" type="text" id="cfg-verse-ctrl" placeholder="Ex.: João 3:16" oninput="aplicarCfgRelogio()">
     </div>
   </div>
 
-  <div class="cfg-section-title">Cores do Relógio</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor do Texto</label>
-    <div class="cfg-color-row">
-      <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
-      <span class="cfg-color-val" id="cfg-clock-text-color-val-ctrl">#1c1816</span>
-    </div>
-  </div>
   <div class="cfg-section-title">Fundo do Relógio</div>
   <div class="cfg-form-group">
     <label class="cfg-form-label">Tipo de Fundo</label>

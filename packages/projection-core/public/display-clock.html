@@ -63,7 +63,6 @@
       <canvas id="clock-canvas" width="320" height="320"></canvas>
     </div>
     <div id="clock-date" class="meta"></div>
-    <div id="clock-church" class="meta"></div>
     <div id="clock-verse" class="meta"></div>
   </div>
   <script>
@@ -73,7 +72,6 @@
     const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
     const elClockCanvas = document.getElementById('clock-canvas');
     const elClockDate = document.getElementById('clock-date');
-    const elClockChurch = document.getElementById('clock-church');
     const elClockVerse = document.getElementById('clock-verse');
 
     let timer = null;
@@ -82,11 +80,8 @@
         format: 'HH:MM',
         fontSize: 13,
         dateFontSize: 2.4,
-        churchFontSize: 2.4,
         verseFontSize: 2.4,
         showDate: true,
-        showChurchName: false,
-        churchName: '',
         showVerse: false,
         verse: '',
         bgType: 'solid',
@@ -97,6 +92,8 @@
         bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
         bgImage: '',
         textColor: '#ffffff',
+        dateColor: '#ffffff',
+        verseColor: '#ffffff',
       },
     };
 
@@ -117,6 +114,18 @@
       } catch (_) {
         return null;
       }
+    }
+
+    function corRelogio(clk) {
+      return clk.textColor || '#1c1816';
+    }
+
+    function corData(clk) {
+      return clk.dateColor || clk.textColor || '#1c1816';
+    }
+
+    function corVersiculo(clk) {
+      return clk.verseColor || clk.textColor || '#1c1816';
     }
 
     function aplicarFundoRelogio(clk) {
@@ -198,16 +207,13 @@
         clock: { ...(displayConfig.clock || {}), ...(cfg.clock || {}) },
       };
       const clk = displayConfig.clock || {};
-      const color = clk.textColor || '#1c1816';
 
-      elClockDigital.style.color = color;
-      elClockDate.style.color = color;
-      elClockChurch.style.color = color;
-      elClockVerse.style.color = color;
+      elClockDigital.style.color = corRelogio(clk);
+      elClockDate.style.color = corData(clk);
+      elClockVerse.style.color = corVersiculo(clk);
 
       elClockDigital.style.fontSize = `${Math.max(7, Number(clk.fontSize || 13))}vh`;
       elClockDate.style.fontSize = `${Math.max(1, Number(clk.dateFontSize || 2.4))}vh`;
-      elClockChurch.style.fontSize = `${Math.max(1, Number(clk.churchFontSize || 2.4))}vh`;
       elClockVerse.style.fontSize = `${Math.max(1, Number(clk.verseFontSize || 2.4))}vh`;
 
       aplicarFundoRelogio(clk);
@@ -220,7 +226,7 @@
       const clk = displayConfig.clock || {};
       const fmt = String(clk.format || 'HH:MM');
       const lowerFmt = fmt.toLowerCase();
-      const color = clk.textColor || '#1c1816';
+      const color = corRelogio(clk);
 
       const h = String(now.getHours()).padStart(2, '0');
       const m = String(now.getMinutes()).padStart(2, '0');
@@ -250,14 +256,6 @@
       } else {
         elClockDate.textContent = '';
         elClockDate.style.display = 'none';
-      }
-
-      if (clk.showChurchName && clk.churchName) {
-        elClockChurch.textContent = String(clk.churchName);
-        elClockChurch.style.display = '';
-      } else {
-        elClockChurch.textContent = '';
-        elClockChurch.style.display = 'none';
       }
 
       if (clk.showVerse && clk.verse) {

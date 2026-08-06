@@ -14153,7 +14153,6 @@ exporCallbacksParaAtributosHtml({
   onClockBgImageCtrlChange,
   onClockFontSizeCtrlInput,
   onClockDateFontSizeCtrlInput,
-  onClockChurchFontSizeCtrlInput,
   onClockVerseFontSizeCtrlInput,
   onAvisoCard6CfgChange,
   setPosAvisoCard6Ctrl,
@@ -15000,6 +14999,11 @@ function sanitizarCfgSlidesLocal(cfg) {
     delete layer.refMostrar;
     delete layer.refFontSize;
     delete layer.refColor;
+  }
+  if (c.clock && typeof c.clock === 'object') {
+    delete c.clock.showChurchName;
+    delete c.clock.churchName;
+    delete c.clock.churchFontSize;
   }
   return c;
 }
@@ -17355,10 +17359,10 @@ let currentCfgCtrl = {
     autoFitLongLines: false,
   },
   clock: {
-    format: 'HH:MM', fontSize: 13, dateFontSize: 2.4, churchFontSize: 2.4, verseFontSize: 2.4, showClock: true, monitorRelogio: 'ministrante', showDate: true, showChurchName: false, churchName: '',
+    format: 'HH:MM', fontSize: 13, dateFontSize: 2.4, verseFontSize: 2.4, showClock: true, monitorRelogio: 'ministrante', showDate: true,
     showVerse: false, verse: '', bgType: 'solid', bgColor: '#f5f2ea',
     bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
-    bgImage: '', textColor: '#1c1816'
+    bgImage: '', textColor: '#1c1816', dateColor: '#1c1816', verseColor: '#1c1816'
   }
 };
 let cfgAbaAtualCtrl = 'telao';
@@ -17528,17 +17532,20 @@ function popularFormCfg(cfg) {
   setSpanText('cfg-clock-fontsize-val-ctrl', String(ck.fontSize || 13));
   setInputVal('cfg-clock-date-fontsize-ctrl', ck.dateFontSize || 2.4);
   setSpanText('cfg-clock-date-fontsize-val-ctrl', String(ck.dateFontSize || 2.4));
-  setInputVal('cfg-clock-church-fontsize-ctrl', ck.churchFontSize || 2.4);
-  setSpanText('cfg-clock-church-fontsize-val-ctrl', String(ck.churchFontSize || 2.4));
   setInputVal('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize || 2.4);
   setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(ck.verseFontSize || 2.4));
   setChkVal('cfg-clock-date-ctrl', ck.showDate !== false);
-  setChkVal('cfg-clock-church-ctrl', !!ck.showChurchName);
-  setInputVal('cfg-church-name-ctrl', ck.churchName || '');
   setChkVal('cfg-clock-verse-ctrl', !!ck.showVerse);
   setInputVal('cfg-verse-ctrl', ck.verse || '');
-  setInputVal('cfg-clock-text-color-ctrl', ck.textColor || '#1c1816');
-  setSpanText('cfg-clock-text-color-val-ctrl', ck.textColor || '#1c1816');
+  const clockTextColor = ck.textColor || '#1c1816';
+  const clockDateColor = ck.dateColor || clockTextColor;
+  const clockVerseColor = ck.verseColor || clockTextColor;
+  setInputVal('cfg-clock-text-color-ctrl', clockTextColor);
+  setSpanText('cfg-clock-text-color-val-ctrl', clockTextColor);
+  setInputVal('cfg-clock-date-color-ctrl', clockDateColor);
+  setSpanText('cfg-clock-date-color-val-ctrl', clockDateColor);
+  setInputVal('cfg-clock-verse-color-ctrl', clockVerseColor);
+  setSpanText('cfg-clock-verse-color-val-ctrl', clockVerseColor);
   setSelVal('cfg-clock-bg-type-ctrl', ck.bgType || 'solid');
   setInputVal('cfg-clock-bg-color-ctrl', ck.bgColor || '#f5f2ea');
   setSpanText('cfg-clock-bg-color-val-ctrl', ck.bgColor || '#f5f2ea');
@@ -17631,22 +17638,25 @@ function aplicarCfgRelogio() {
   ck.monitorRelogio = document.getElementById('cfg-clock-monitor-ctrl')?.value || 'ministrante';
   ck.fontSize     = lerNumeroInput('cfg-clock-fontsize-ctrl', ck.fontSize ?? 13);
   ck.dateFontSize = lerNumeroInput('cfg-clock-date-fontsize-ctrl', ck.dateFontSize ?? 2.4);
-  ck.churchFontSize = lerNumeroInput('cfg-clock-church-fontsize-ctrl', ck.churchFontSize ?? 2.4);
   ck.verseFontSize = lerNumeroInput('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize ?? 2.4);
   ck.showDate     = document.getElementById('cfg-clock-date-ctrl')?.checked ?? true;
-  ck.showChurchName = document.getElementById('cfg-clock-church-ctrl')?.checked ?? false;
-  ck.churchName   = document.getElementById('cfg-church-name-ctrl')?.value || '';
   ck.showVerse    = document.getElementById('cfg-clock-verse-ctrl')?.checked ?? false;
   ck.verse        = document.getElementById('cfg-verse-ctrl')?.value || '';
   const tcEl = document.getElementById('cfg-clock-text-color-ctrl');
   if (tcEl) { ck.textColor = tcEl.value; setSpanText('cfg-clock-text-color-val-ctrl', tcEl.value); }
+  const dcEl = document.getElementById('cfg-clock-date-color-ctrl');
+  if (dcEl) { ck.dateColor = dcEl.value; setSpanText('cfg-clock-date-color-val-ctrl', dcEl.value); }
+  const vcEl = document.getElementById('cfg-clock-verse-color-ctrl');
+  if (vcEl) { ck.verseColor = vcEl.value; setSpanText('cfg-clock-verse-color-val-ctrl', vcEl.value); }
   const bgColEl = document.getElementById('cfg-clock-bg-color-ctrl');
   if (bgColEl) { ck.bgColor = bgColEl.value; setSpanText('cfg-clock-bg-color-val-ctrl', bgColEl.value); }
   ck.bgGradient   = document.getElementById('cfg-clock-gradient-ctrl')?.value || '';
+  delete ck.showChurchName;
+  delete ck.churchName;
+  delete ck.churchFontSize;
   currentCfgCtrl.clock = ck;
   setSpanText('cfg-clock-fontsize-val-ctrl', String(ck.fontSize));
   setSpanText('cfg-clock-date-fontsize-val-ctrl', String(ck.dateFontSize));
-  setSpanText('cfg-clock-church-fontsize-val-ctrl', String(ck.churchFontSize));
   setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(ck.verseFontSize));
   atualizarVisibilidadeCamposRelogio();
   debounceSalvarCfg();
@@ -17665,14 +17675,6 @@ function onClockDateFontSizeCtrlInput() {
   if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
   currentCfgCtrl.clock.dateFontSize = val;
   setSpanText('cfg-clock-date-fontsize-val-ctrl', String(val));
-  debounceSalvarCfg();
-}
-
-function onClockChurchFontSizeCtrlInput() {
-  const val = lerNumeroInput('cfg-clock-church-fontsize-ctrl', currentCfgCtrl.clock?.churchFontSize ?? 2.4);
-  if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
-  currentCfgCtrl.clock.churchFontSize = val;
-  setSpanText('cfg-clock-church-fontsize-val-ctrl', String(val));
   debounceSalvarCfg();
 }
 
@@ -17800,11 +17802,8 @@ function onMinistranteBgImageCtrlChange() {
 }
 
 function atualizarVisibilidadeCamposRelogio() {
-  const showChurch = document.getElementById('cfg-clock-church-ctrl')?.checked;
   const showVerse  = document.getElementById('cfg-clock-verse-ctrl')?.checked;
-  const cng = document.getElementById('cfg-church-name-group-ctrl');
   const vg  = document.getElementById('cfg-verse-group-ctrl');
-  if (cng) cng.style.display = showChurch ? '' : 'none';
   if (vg)  vg.style.display  = showVerse  ? '' : 'none';
 }
 
