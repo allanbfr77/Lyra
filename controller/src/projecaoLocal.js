@@ -572,8 +572,21 @@ function criarProjecaoLocal(deps) {
      * É por este campo que `enviarComandoAudioParaControle` entrega `audio_play` e
      * companhia. Deixá-lo a `null` — como estava — fazia os comandos de áudio chegarem ao
      * motor e morrerem lá, sem erro: o som não saía e nada apontava porquê.
+     *
+     * Janela VIVA, não uma foto: o painel pode ser recriado (reload do controlador →
+     * nova `BrowserWindow`) enquanto a projeção local continua activa. `ligar()` faz
+     * curto-circuito quando já está activa e nunca voltava aqui, então uma referência
+     * capturada uma vez ficava a apontar para a janela destruída — e daí em diante
+     * `enviarComandoAudioParaControle` saía em silêncio no `isDestroyed()`: dar play não
+     * fazia som nenhum. Resolver sempre a janela actual através do getter elimina isso, e
+     * de quebra conserta os outros envios que dependem do mesmo campo (`estado_atualizado`,
+     * ESC das telas).
      */
-    store.windowControl = typeof obterJanelaPainel === 'function' ? obterJanelaPainel() : null;
+    Object.defineProperty(store, 'windowControl', {
+      configurable: true,
+      enumerable: true,
+      get: () => (typeof obterJanelaPainel === 'function' ? obterJanelaPainel() : null),
+    });
     engine = createProjectionEngine(paths, {
       logError: registarErro,
       screen,
