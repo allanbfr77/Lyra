@@ -4408,6 +4408,7 @@ function setupApAudioDropdown() {
     e.stopPropagation();
     const abrir = menu.hidden;
     if (abrir) {
+      fecharApFilesDropdown();
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
@@ -4432,6 +4433,7 @@ function setupApFilesDropdown() {
     e.stopPropagation();
     const abrir = menu.hidden;
     if (abrir) {
+      fecharApAudioDropdown();
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
