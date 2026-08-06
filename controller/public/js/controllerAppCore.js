@@ -3519,7 +3519,8 @@ async function perguntarTraducaoBibliaSeNecessario() {
       label: `${t.traducao} — ${t.nome}`,
       value: t.traducao,
     })),
-    'Escolha a tradução para projetar nesta sessão do controlador.\nAo fechar e abrir o app de novo, será perguntado outra vez.'
+    'Escolha a tradução para projetar nesta sessão do controlador.\nAo fechar e abrir o app de novo, será perguntado outra vez.',
+    { itensEmLista: true }
   );
   if (!escolha) return null;
   return definirBibliaTraducaoSessao(escolha);
@@ -16498,7 +16499,10 @@ function appPrompt(msg, opts = {}) {
 }
 
 /** Várias opções com botões; resolve o `value` escolhido ou `null` (cancelar / overlay).
- *  `textoDetalhe` (opcional): parágrafo acima dos botões (use \\n para quebras). */
+ *  `textoDetalhe` (opcional): parágrafo acima dos botões (use \\n para quebras).
+ *  `opts.itensEmLista` (opcional): alinha o texto dos botões à esquerda, para quando as
+ *  opções formam uma lista de rótulos de comprimentos diferentes. Sem ele, o diálogo
+ *  mantém-se exactamente como estava — botões de acção continuam centrados. */
 function appEscolherOpcao(titulo, opcoes, textoDetalhe, opts = {}) {
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
@@ -16538,7 +16542,7 @@ function appEscolherOpcao(titulo, opcoes, textoDetalhe, opts = {}) {
     opcoes.forEach((op) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn primary';
+      b.className = opts.itensEmLista ? 'btn primary app-dialog-opcao--lista' : 'btn primary';
       b.style.width = '100%';
       b.textContent = op.label;
       b.onclick = () => finish(op.value);

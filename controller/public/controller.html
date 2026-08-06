@@ -6237,6 +6237,21 @@
       background: var(--surface);
     }
 
+    /*
+     * Opções em lista (ex.: «Versão da Bíblia»): conteúdo à esquerda em vez de centrado.
+     * Com nomes de comprimentos diferentes, o centramento faz cada linha começar num ponto
+     * distinto. Alinhados à esquerda, todos os códigos (ACF, ARA, NTLH…) partem da mesma
+     * posição e as descrições ficam a prumo.
+     *
+     * Só alinhamento: tamanho, tipografia, cores e estados de hover/selecção continuam a
+     * vir de `.btn` / `.btn.primary`. O recuo lateral é o padding do próprio `.btn`, igual
+     * dos dois lados, por isso é uniforme para todos os itens.
+     */
+    .app-dialog-opcao--lista {
+      text-align: left;
+      justify-content: flex-start;
+    }
+
     /* ── Confirmação da importação por código (lista recebida + destino) ──
        Abre por cima do modal de importação (app-dialog-overlay, z-index 9200)
        e abaixo da janela de conflito (9900), que só entra depois do «Sim». */
