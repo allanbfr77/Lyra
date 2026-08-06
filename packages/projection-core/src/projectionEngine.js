@@ -24,8 +24,21 @@ const NIVEL_TOPO_PROJECAO = 'screen-saver';
 /** Roles que devem cobrir o outro software de projeção (relógio fica atrás de propósito). */
 const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
 
+/**
+ * Roles que renderizam conteúdo e por isso recebem `display_config` do telão.
+ * O escudo é preto por definição; o relógio tem a sua própria fonte de config.
+ * Ver `aplicarDisplayConfigNasJanelas`.
+ */
+const ROLES_COM_CONTEUDO = new Set(['publico', 'ministrante']);
+
 /** Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3. */
 const INTERVALO_RECLAIM_TOPO_MS = 800;
+
+/** Prefixo do argumento que leva a config do relógio ao renderer. Ver `bootstrapArgvRelogio`. */
+const PREFIXO_ARGV_RELOGIO = '--lyra-clock-cfg=';
+
+/** Tecto conservador para o argumento; a linha de comando do Windows ronda os 32 KB. */
+const LIMITE_ARGV_RELOGIO = 8192;
 
 /**
  * Marca (ou desmarca) uma janela como **ocultada de propósito** para revelar o relógio.
@@ -68,22 +81,64 @@ function ocultoParaRelogio(win) {
 }
 
 /**
- * Mantém a janela de projeção acima de qualquer outro app topmost.
- * O construtor só aceita `alwaysOnTop: true` (nível padrão); o nível alto
- * precisa de `setAlwaysOnTop(true, 'screen-saver')` + `moveTop()`.
+ * Aplica o nível de topo de uma janela **só quando ele muda**.
+ *
+ * No Windows, `setAlwaysOnTop` é um `SetWindowPos(HWND_TOPMOST|HWND_NOTOPMOST, …)` real:
+ * reinsere a janela na z-order e força recomposição do DWM. Numa janela fullscreen isso é
+ * visível como um flicker. O caso que doía era o relógio: `sincronizarJanelasRelogio` roda
+ * a cada `preview_display_config` — ou seja, a cada tick do arrasto de um slider — e
+ * chamava `setAlwaysOnTop(false)` sempre, mesmo estando já em `false` desde a criação.
+ *
+ * O nível efectivo fica anotado no `win` (e não numa entrada do registo) porque quem
+ * precisa dele são funções que recebem o `win`, não a entrada.
+ *
  * @param {import('electron').BrowserWindow} win
+ * @param {string|false} nivel `false` desliga; string é o nível do Electron.
+ * @param {{ forcar?: boolean }} [opts] `forcar` reemite mesmo sem mudança — é o que o
+ *   *reclaim* precisa quando outro app topmost sobe por cima (ver `INTERVALO_RECLAIM_TOPO_MS`).
+ * @returns {boolean} houve chamada nativa
  */
-function aplicarTopoAbsolutoProjecao(win) {
-  if (!win || win.isDestroyed()) return;
+function definirNivelTopo(win, nivel, opts = {}) {
+  if (!win || win.isDestroyed()) return false;
+  let anterior;
   try {
-    win.setAlwaysOnTop(true, NIVEL_TOPO_PROJECAO);
+    anterior = win.__lyraNivelTopo;
+  } catch (_) {
+    anterior = undefined;
+  }
+  if (!opts.forcar && anterior === nivel) return false;
+  try {
+    if (nivel === false) win.setAlwaysOnTop(false);
+    else win.setAlwaysOnTop(true, nivel);
   } catch (_) {
     try {
-      win.setAlwaysOnTop(true);
+      win.setAlwaysOnTop(nivel !== false);
     } catch (__) {
       // intencional — erro ignorado
     }
   }
+  try {
+    win.__lyraNivelTopo = nivel;
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+  return true;
+}
+
+/**
+ * Mantém a janela de projeção acima de qualquer outro app topmost.
+ * O construtor só aceita `alwaysOnTop: true` (nível padrão); o nível alto
+ * precisa de `setAlwaysOnTop(true, 'screen-saver')` + `moveTop()`.
+ *
+ * `moveTop()` fica fora da guarda de propósito: é ele que reclama o topo dentro da banda
+ * topmost, e ao contrário do `setAlwaysOnTop` não muda o ex-style da janela.
+ *
+ * @param {import('electron').BrowserWindow} win
+ * @param {{ forcar?: boolean }} [opts] ver `definirNivelTopo`
+ */
+function aplicarTopoAbsolutoProjecao(win, opts = {}) {
+  if (!win || win.isDestroyed()) return;
+  definirNivelTopo(win, NIVEL_TOPO_PROJECAO, opts);
   try {
     win.moveTop();
   } catch (_) {
@@ -257,7 +312,9 @@ function createProjectionEngine(paths, deps) {
       if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) continue;
       const win = entry?.win;
       if (!win || win.isDestroyed() || !win.isVisible()) continue;
-      aplicarTopoAbsolutoProjecao(win);
+      /* Reclaim: reemitir mesmo sem mudança de nível é o ponto — um concorrente topmost
+         pode ter subido por cima sem que nada no nosso lado tenha mudado. */
+      aplicarTopoAbsolutoProjecao(win, { forcar: true });
     }
   }
 
@@ -600,9 +657,9 @@ function createProjectionEngine(paths, deps) {
     try { win.setBackgroundColor(PRETO_NATIVO_PROJECAO); } catch (_) {
   // intencional — erro ignorado
 }
-    try { win.setAlwaysOnTop(false); } catch (_) {
-  // intencional — erro ignorado
-}
+    /* Relógio fica ATRÁS da projeção de propósito. Passa pela guarda para o nível ficar
+       anotado — assim as resincronizações seguintes não reemitem o `SetWindowPos`. */
+    definirNivelTopo(win, false);
     try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
@@ -664,13 +721,27 @@ function createProjectionEngine(paths, deps) {
    * registo a caminho de ser interno ao motor (3b), esse caminho passaria a não encontrar
    * janela nenhuma e falharia em SILÊNCIO (um `forEach` sobre lista vazia não dá erro).
    *
+   * **Só escreve nas janelas que renderizam conteúdo** — `publico` e `ministrante`.
+   *
+   * O relógio e o escudo ficavam de fora por acidente e recebiam esta config porque o
+   * registo era passado inteiro. Consequências, ambas visíveis:
+   *
+   * - **Relógio**: esta config carrega uma chave `clock:` própria (em modo Bíblia vem de
+   *   `displayConfigBiblia.clock`), e logo a seguir todos os chamadores rodam
+   *   `sincronizarJanelasRelogio()`, que envia a config de relógio *persistida* — outra.
+   *   Duas configs diferentes na mesma janela, em frames consecutivos: o relógio piscava.
+   *   Agora `enviarDisplayConfigParaJanelasRelogio` é o único escritor do relógio.
+   * - **Escudo**: é uma tela preta sem canal de projeção; só ficava preta porque o payload
+   *   ocioso lhe dava a classe `idle-sem-projecao`. Recebendo `display_config` ele podia
+   *   pintar o fundo do telão (imagem/gradiente) por um frame.
+   *
    * @param {{ forcarModo?: 'slides'|'biblia' }} [opts]
    * @returns {object} a config efectivamente enviada
    */
   function aplicarDisplayConfigNasJanelas(opts = {}) {
     return displayConfigModo.enviarDisplayConfigParaJanelas(state, {
       ...opts,
-      janelas: registro.todas(),
+      janelas: registro.todas().filter((entry) => ROLES_COM_CONTEUDO.has(entry?.role)),
     });
   }
 
@@ -679,15 +750,47 @@ function createProjectionEngine(paths, deps) {
     return registro.todas();
   }
 
+  /**
+   * Serializa a config do relógio para comparação. `null` quando não é serializável —
+   * nesse caso não há como deduplicar e o envio segue sempre.
+   * @param {object} cfg
+   */
+  function assinaturaConfigRelogio(cfg) {
+    try {
+      return JSON.stringify(cfg);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Envia `display_config` ao relógio — **só quando a config mudou**.
+   *
+   * Esta função roda a cada `preview_display_config`, ou seja a cada tick do arrasto de um
+   * slider no painel, e ainda a cada estrofe/versículo via `garantirTelasAbertasParaProjecao`.
+   * O renderer do relógio reage a cada envio reescrevendo cor, quatro `fontSize`, o fundo do
+   * `body` e chamando `tick()` (ver `display-clock.html`). Reenviar bytes idênticos era
+   * repintar por nada — e é metade do «relógio a piscar».
+   *
+   * A assinatura vive no `win` porque é dela que depende o próximo envio àquela janela;
+   * uma janela nova nasce sem assinatura e recebe sempre a primeira config.
+   *
+   * @param {object} [targetWin] janela específica; omitido, todas as de papel `relogio`
+   */
   function enviarDisplayConfigParaJanelasRelogio(targetWin = null) {
     const cfg = { clock: resolverClockConfigPersistida() };
+    const assinatura = assinaturaConfigRelogio(cfg);
     const entradas = targetWin
       ? [{ win: targetWin }]
       : registro.todas().filter((entry) => entry?.role === 'relogio');
     entradas.forEach((entry) => {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
-      try { win.webContents.send('display_config', cfg); } catch (_) {
+      if (assinatura !== null && win.__lyraClockCfgHash === assinatura) return;
+      try {
+        win.webContents.send('display_config', cfg);
+        win.__lyraClockCfgHash = assinatura;
+      } catch (_) {
   // intencional — erro ignorado
 }
     });
@@ -714,11 +817,44 @@ function createProjectionEngine(paths, deps) {
     return obterDisplaysOrdenados().length > 1;
   }
 
+  /**
+   * Config do relógio entregue na **linha de comando** da janela, para o renderer pintar
+   * já com o fundo e a cor certos.
+   *
+   * Sem isto, `display-clock.html` aplicava a sua config embutida no parse do script e só
+   * recebia a verdadeira no `did-finish-load` — a janela nascia com o tema padrão e
+   * corrigia-se um ou dois frames depois. Invisível enquanto a janela vive; um flash a cada
+   * recriação, que acontece sempre que o monitor do relógio muda.
+   *
+   * `bgImage` em base64 fica de fora quando o argumento passa de `LIMITE_ARGV_RELOGIO`: a
+   * linha de comando do Windows tem tecto (~32 KB) e um fundo de imagem estoiraria-o. Nesse
+   * caso vai só o essencial para o primeiro paint e a imagem chega por IPC como antes.
+   */
+  function bootstrapArgvRelogio() {
+    try {
+      const clock = resolverClockConfigPersistida();
+      const assinatura = assinaturaConfigRelogio({ clock });
+      const montar = (c) => `${PREFIXO_ARGV_RELOGIO}${encodeURIComponent(JSON.stringify({ clock: c }))}`;
+      const completo = montar(clock);
+      if (completo.length <= LIMITE_ARGV_RELOGIO) {
+        return { arg: completo, assinatura, completo: true };
+      }
+      const semImagem = montar({ ...clock, bgImage: '' });
+      if (semImagem.length <= LIMITE_ARGV_RELOGIO) {
+        return { arg: semImagem, assinatura, completo: false };
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function abrirJanelaRelogio(displayIndex, label) {
     const displays = obterDisplaysOrdenados();
     if (!podeAbrirJanelaSecundaria()) return null;
     if (!displays[displayIndex]) return null;
     const d = displays[displayIndex];
+    const bootstrap = bootstrapArgvRelogio();
     const win = new BrowserWindow({
       x: d.bounds.x,
       y: d.bounds.y,
@@ -736,9 +872,14 @@ function createProjectionEngine(paths, deps) {
         contextIsolation: false,
         backgroundThrottling: false,
         zoomFactor: d.scaleFactor || 1,
+        ...(bootstrap ? { additionalArguments: [bootstrap.arg] } : {}),
       },
     });
     finalizarJanelaRelogioNativa(win);
+    /* Config completa entregue antes do primeiro paint: o `did-finish-load` abaixo vai
+       deduplicar e não reenviar. Incompleta (bgImage cortada), fica sem assinatura para
+       o envio por IPC acontecer. */
+    if (bootstrap?.completo) win.__lyraClockCfgHash = bootstrap.assinatura;
     win.loadFile(resolverPaginaProjecao('display-clock.html'));
     win.setMenuBarVisibility(false);
     win.webContents.on('did-finish-load', () => {
@@ -861,7 +1002,9 @@ function createProjectionEngine(paths, deps) {
           });
           win.setFullScreen(true);
         }
-        win.setAlwaysOnTop(false);
+        /* Guardado: sem isto era um `SetWindowPos(HWND_NOTOPMOST)` por tick de slider,
+           numa janela que já está em `false` desde `finalizarJanelaRelogioNativa`. */
+        definirNivelTopo(win, false);
         if (!win.isVisible()) win.show();
       } catch (_) {
   // intencional — erro ignorado

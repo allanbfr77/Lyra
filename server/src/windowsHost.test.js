@@ -13,6 +13,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const Module = require('module');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const fakeApp = { quit: () => {}, isPackaged: false, getVersion: () => '0.0.0-test' };
 
@@ -43,8 +46,13 @@ function fakeWin(opts = {}) {
     setBackgroundColor: () => {},
     setFullScreen: (b) => { win.fullscreen = !!b; win.nativas.push(`setFullScreen(${!!b})`); },
     setBounds: (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); },
-    setAlwaysOnTop: () => {},
-    moveTop: () => {}, show: () => {}, hide: () => { win.visivel = false; },
+    /* Registadas desde a etapa 1 do plano anti-flash. Antes eram no-ops silenciosas, e o
+       teste «não mexe na janela nativa» (abaixo) passava às cegas por cima de um
+       `setAlwaysOnTop(false)` incondicional que corria a cada tick de slider. */
+    setAlwaysOnTop: (...args) => { win.nativas.push(`setAlwaysOnTop(${args.join(',')})`); },
+    moveTop: () => { win.nativas.push('moveTop'); },
+    show: () => { win.visivel = true; win.nativas.push('show'); },
+    hide: () => { win.visivel = false; win.nativas.push('hide'); },
     setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {},
     setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {}, loadFile: () => {}, loadURL: () => {},
   };
@@ -62,6 +70,25 @@ const paths = {
   displayConfigPath: () => '/tmp/lyra-test-nao-existe-config.json',
   errorLogPath: () => '/tmp/lyra-test-erros.log',
 };
+
+/**
+ * Paths com um ficheiro de roteamento REAL — sem ele o motor resolve tudo para -1 e não
+ * abre janela de conteúdo nenhuma, o que torna impossível testar quem recebe `display_config`.
+ * @param {{ publicoIndex: number, ministranteIndex: number }} slides
+ */
+function pathsComRota(slides) {
+  const ficheiro = path.join(
+    os.tmpdir(),
+    `lyra-test-routing-${process.pid}-${Math.random().toString(36).slice(2)}.json`
+  );
+  fs.writeFileSync(
+    ficheiro,
+    JSON.stringify({ version: 2, slides, apresentacao: { publicoIndex: -1, ministranteIndex: -1 } }),
+    'utf8'
+  );
+  test.after(() => { try { fs.unlinkSync(ficheiro); } catch (_) { /* já removido */ } });
+  return { ...paths, displayRoutingPath: () => ficheiro };
+}
 
 function montar(over = {}) {
   const ctx = {
@@ -89,7 +116,8 @@ function montar(over = {}) {
     caminhoIconeApp: () => '/fake/icone.ico',
     ...over,
   };
-  return { ctx, eventos, api: createWindowsApi(ctx, paths, deps) };
+  delete deps.paths;
+  return { ctx, eventos, api: createWindowsApi(ctx, over.paths || paths, deps) };
 }
 
 test('deps obrigatórios: falha alto em vez de degradar em silêncio', () => {
@@ -162,24 +190,87 @@ test('o motor pergunta ao host se há operador ligado', () => {
   assert.ok(chamadas > 0, 'haOperadorConectado devia ter sido consultado');
 });
 
-test('aplicarDisplayConfigNasJanelas escreve nas janelas de projeção e na de controle', () => {
-  const { ctx, api } = montar();
+test('aplicarDisplayConfigNasJanelas escreve nas janelas de conteúdo e na de controle', () => {
+  const { ctx, api } = montar({ paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }) });
   const ctrl = fakeWin();
   ctx.windowControl = ctrl;
   // As janelas vêm do registo interno do motor — abre-se pelo motor, não injetando no ctx.
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
-  api.sincronizarJanelasRelogio();
+  api.garantirTelasAbertasParaProjecao();
   const abertas = api.janelasDeProjecao();
-  assert.ok(abertas.length > 0, 'cenário precisa de pelo menos uma janela no registo');
+  const conteudo = abertas.filter((e) => e.role === 'publico' || e.role === 'ministrante');
+  assert.ok(conteudo.length > 0, 'cenário precisa de pelo menos uma janela de conteúdo');
 
   const cfg = api.aplicarDisplayConfigNasJanelas({ forcarModo: 'slides' });
 
   assert.ok(cfg && typeof cfg === 'object', 'devolve a config enviada');
   assert.ok(
-    abertas.every((e) => e.win.sends.some((s) => s.canal === 'display_config')),
-    'todas as janelas do registo receberam'
+    conteudo.every((e) => e.win.sends.some((s) => s.canal === 'display_config')),
+    'todas as janelas de conteúdo receberam'
   );
   assert.ok(ctrl.sends.some((s) => s.canal === 'display_config'), 'janela de controle recebeu');
+});
+
+test('a config do telão NÃO chega ao relógio nem ao escudo', () => {
+  /*
+   * Regressão do «relógio a piscar»: o registo era passado inteiro a
+   * `enviarDisplayConfigParaJanelas`, por isso o relógio recebia a config do telão (com a
+   * sua própria chave `clock`, vinda do modo Bíblia) e, no frame seguinte, a config de
+   * relógio persistida que `sincronizarJanelasRelogio` envia. Duas configs diferentes na
+   * mesma janela = repintura visível. O escudo é tela preta e não deve pintar fundo nenhum.
+   */
+  const { ctx, api } = montar({ paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }) });
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.garantirTelasAbertasParaProjecao();
+
+  const outras = api.janelasDeProjecao().filter((e) => e.role === 'relogio' || e.role === 'escudo');
+  assert.ok(outras.length > 0, 'cenário precisa de pelo menos um relógio ou escudo');
+  outras.forEach((e) => { e.win.sends.length = 0; });
+
+  api.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
+
+  outras.forEach((e) => {
+    assert.deepStrictEqual(
+      e.win.sends.filter((s) => s.canal === 'display_config'),
+      [],
+      `janela de papel «${e.role}» não devia receber a config do telão`
+    );
+  });
+});
+
+test('relógio não recebe display_config repetida quando a config não mudou', () => {
+  /*
+   * `sincronizarJanelasRelogio` roda a cada tick de arrasto de slider e a cada
+   * estrofe/versículo. Reenviar bytes idênticos faz o renderer reescrever cor, quatro
+   * `fontSize` e o fundo do `body`, e chamar `tick()` — repintura por nada.
+   */
+  const { ctx, api } = montar();
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.sincronizarJanelasRelogio();
+
+  const relogios = api.janelasDeProjecao().filter((e) => e.role === 'relogio');
+  assert.ok(relogios.length > 0, 'cenário precisa de janela de relógio');
+  relogios.forEach((e) => { e.win.sends.length = 0; });
+
+  api.sincronizarJanelasRelogio();
+  api.sincronizarJanelasRelogio();
+  relogios.forEach((e) => {
+    assert.deepStrictEqual(
+      e.win.sends.filter((s) => s.canal === 'display_config'),
+      [],
+      'config igual não devia ser reenviada'
+    );
+  });
+
+  // O contrapeso: mudar a config de verdade tem de voltar a enviar.
+  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante', fontSize: 21 };
+  api.sincronizarJanelasRelogio();
+  relogios.forEach((e) => {
+    assert.ok(
+      e.win.sends.some((s) => s.canal === 'display_config'),
+      'config nova tem de chegar'
+    );
+  });
 });
 
 test('resincronizar o relógio com a janela já no lugar não mexe na janela nativa', () => {

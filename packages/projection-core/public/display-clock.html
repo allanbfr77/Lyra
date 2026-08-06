@@ -90,12 +90,34 @@
         showVerse: false,
         verse: '',
         bgType: 'solid',
-        bgColor: '#f5f2ea',
+        /* Preto/branco de propósito, e NÃO o padrão creme do `DEFAULT_DISPLAY_CONFIG`:
+           isto é só a rede de segurança para o caso de o bootstrap abaixo falhar. Casar
+           com o `backgroundColor` nativo da janela faz esse caminho não piscar. */
+        bgColor: '#000000',
         bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
         bgImage: '',
-        textColor: '#1c1816',
+        textColor: '#ffffff',
       },
     };
+
+    /**
+     * Config real entregue na linha de comando pelo motor (`bootstrapArgvRelogio`).
+     *
+     * Corre ANTES do primeiro `aplicarConfig`, para a janela pintar já com o fundo e a cor
+     * do utilizador. Antes disto a página abria com o seu próprio tema e corrigia-se quando
+     * o `display_config` chegava por IPC — um flash a cada recriação da janela do relógio.
+     */
+    function lerConfigDoArranque() {
+      try {
+        const prefixo = '--lyra-clock-cfg=';
+        const arg = (process.argv || []).find((a) => String(a).startsWith(prefixo));
+        if (!arg) return null;
+        const bruto = JSON.parse(decodeURIComponent(arg.slice(prefixo.length)));
+        return bruto && typeof bruto === 'object' ? bruto : null;
+      } catch (_) {
+        return null;
+      }
+    }
 
     function aplicarFundoRelogio(clk) {
       if (clk.bgType === 'gradient') {
@@ -248,7 +270,7 @@
     }
 
     ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));
-    aplicarConfig(displayConfig);
+    aplicarConfig(lerConfigDoArranque() || displayConfig);
   </script>
 </body>
 </html>
