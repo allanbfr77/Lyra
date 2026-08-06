@@ -1202,7 +1202,7 @@
       color: var(--text);
       display: grid;
       grid-template-columns: minmax(64px, 74px) 1fr;
-      align-items: center;
+      align-items: start;
       text-align: left;
       padding: 8px 10px;
       gap: 10px;
@@ -1227,9 +1227,11 @@
       border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
       padding-left: 10px;
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      /* No menu aberto o rótulo completo importa: "DOMINGO | MANHÃ" vs "DOMINGO | NOITE".
+         Deixa quebrar linha em vez de cortar com reticências. */
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
     }
     .culto-dd-item-row {
       display: flex;

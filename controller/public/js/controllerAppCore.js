@@ -1030,7 +1030,10 @@ function indicesPadraoPublicoMinistranteApresentacao(lista) {
     return { iPub: 1, iMin: 2 };
   }
   const iPub = sec[0].index;
-  let iMin = n >= 2 ? sec[1].index : sec[0].index;
+  /* Um único monitor de projeção: só o telão público abre nele. Partilhar o mesmo ecrã
+     com o ministrante faria a janela do operador (atual + próximo) cobrir o público —
+     era exactamente o sintoma reportado (público seleccionado, mas projeta atual+próximo). */
+  let iMin = n >= 2 ? sec[1].index : -1;
   if (iMin === iPub && n >= 2) {
     const outro = sec.find((m) => m.index !== iPub);
     if (outro) iMin = outro.index;
