@@ -6,6 +6,9 @@
 export function limparEstiloPreviewSlide(el) {
   if (!el) return;
   delete el.dataset.previewFonteTexto;
+  /* Texto cru da prévia ministrante (com `//`) — cai junto, senão o M3 continuaria a
+     receber o slide anterior depois de a prévia ser limpa. */
+  delete el.dataset.previewMinistranteRaw;
   el.style.removeProperty('font-size');
   el.classList.remove('lines-1', 'lines-2', 'lines-3', 'lines-4', 'lines-many');
 }

@@ -2636,12 +2636,18 @@
     .op-slide-text .preview-linha {
       display: block;
     }
-    .op-slide-text .preview-linha--ministrante-comentario {
-      font-style: italic;
-      color: var(--ministrante-comment-color, #00c8ff);
-    }
+    /*
+     * Sem `var()`, de propósito — mesma razão de `display-operator.html`: uma custom
+     * property com valor que não seja um <color> válido não activa o fallback; a
+     * declaração fica inválida no tempo de computação e a cor passa a ser a HERDADA, isto
+     * é, a do contentor (branco em #op-atual, amarelo em #op-proximo). A cor do utilizador
+     * chega por `style` inline no render, que tem prioridade.
+     */
+    .op-slide-text .preview-linha--ministrante-comentario,
+    #op-atual .preview-linha--ministrante-comentario,
     #op-proximo:not(.vazio) .preview-linha--ministrante-comentario {
-      color: var(--ministrante-comment-color, #00c8ff);
+      font-style: italic;
+      color: #00c8ff;
     }
 
     .pv-live-titulo {

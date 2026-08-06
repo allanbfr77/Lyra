@@ -37,7 +37,8 @@ function escapeHtmlBasico(s) {
 }
 
 /** HTML para tela ministrante (cada linha em bloco; comentários com classe própria). */
-function htmlMinistranteComComentarios(texto, maiusculo = (s) => s) {
+function htmlMinistranteComComentarios(texto, maiusculo = (s) => s, commentColor = '#00c8ff') {
+  const cor = String(commentColor || '').trim() || '#00c8ff';
   const lines = String(texto ?? '').split(/\r\n|\r|\n/);
   return lines
     .map((line) => {
@@ -46,7 +47,7 @@ function htmlMinistranteComComentarios(texto, maiusculo = (s) => s) {
       }
       if (isLinhaComentarioMinistrante(line)) {
         const inner = maiusculo(textoExibicaoComentarioMinistrante(line));
-        return `<span class="linha-ministrante linha-ministrante-comentario">${escapeHtmlBasico(inner)}</span>`;
+        return `<span class="linha-ministrante linha-ministrante-comentario" style="color:${escapeHtmlBasico(cor)}">${escapeHtmlBasico(inner)}</span>`;
       }
       const inner = maiusculo(line);
       return `<span class="linha-ministrante">${escapeHtmlBasico(inner)}</span>`;

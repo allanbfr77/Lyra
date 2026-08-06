@@ -80,12 +80,26 @@
     .linha-ministrante {
       display: block;
     }
-    .linha-ministrante-comentario {
-      font-style: italic;
-      color: var(--ministrante-comment-color, #00c8ff);
-    }
+    /*
+     * Cor do comentário — SEM `var()`, de propósito.
+     *
+     * `color: var(--x, #00c8ff)` não faz o que parece. O fallback do `var()` só entra quando
+     * a custom property NUNCA foi definida. Se ela existir com um valor que não seja um
+     * <color> válido (um número, um hex sem `#`, uma string vazia que passou por um `||`),
+     * a declaração fica «inválida no tempo de computação» e a regra CSS diz que a
+     * propriedade assume o valor HERDADO — ou seja, a cor do contentor: branco em `#atual`,
+     * dourado em `#proximo`. É exactamente a piscada relatada: o comentário aparece com a
+     * cor do slide e só depois assume a cor configurada.
+     *
+     * Aqui fica o literal de fábrica e nada mais. A cor do utilizador chega por `style`
+     * inline no render (`htmlTextoMinistranteComComentarios`), que tem prioridade e não
+     * depende de nenhuma variável poder estar corrompida.
+     */
+    .linha-ministrante-comentario,
+    #atual .linha-ministrante-comentario,
     #proximo .linha-ministrante-comentario {
-      color: var(--ministrante-comment-color, #00c8ff);
+      font-style: italic;
+      color: #00c8ff;
     }
     .ref-biblica-op {
       width: 100%;
@@ -351,6 +365,24 @@
       return !!(String(payload.atual || '').trim() || String(payload.proximo || '').trim());
     }
 
+    /**
+     * Assinatura da config aplicada. Reenviar bytes idênticos é repintar por nada — e o
+     * `atualizar` de CADA estrofe manda `display_config` antes do conteúdo (ver
+     * `commandApplier.atualizar`). Sem esta guarda, cada troca de slide reconstruía o HTML
+     * do slide ANTERIOR (com nova passagem de auto-fit) num frame e o do novo slide no
+     * frame seguinte: dois `innerHTML` completos, dois repaints — a piscada do comentário.
+     * Mesma técnica já usada no relógio (`enviarDisplayConfigParaJanelasRelogio`).
+     */
+    let assinaturaConfigMinistranteAplicada = null;
+
+    function assinaturaConfigMinistrante(cfg) {
+      try {
+        return JSON.stringify(cfg);
+      } catch (_) {
+        return null;
+      }
+    }
+
     function aplicarConfig(cfg) {
       if (!cfg) return;
       displayConfig = {
@@ -367,12 +399,22 @@
         clock: { ...displayConfig.clock, ...(cfg.clock || {}) },
       };
       const mon = displayConfig.ministrante || {};
+      /* Fallback = cor já aplicada, nunca o default: uma config sem `commentColor` (ou com
+         valor inválido) não pode rebaixar a escolha do utilizador para o azul de fábrica. */
+      const corComentario = normalizarCorComentarioMinistrante(
+        mon.commentColor,
+        corComentarioMinistranteAplicada
+      );
+      mon.commentColor = corComentario;
+      displayConfig.ministrante = mon;
+      /* Só a camada `ministrante` — é a única que esta função lê. Assinar a config inteira
+         arrastaria o base64 do fundo do telão a cada estrofe, sem nada a decidir com ele. */
+      const assinatura = assinaturaConfigMinistrante(mon);
+      if (assinatura !== null && assinatura === assinaturaConfigMinistranteAplicada) return;
+      assinaturaConfigMinistranteAplicada = assinatura;
+      definirCorComentarioMinistrante(corComentario);
       elAtual.style.color = mon.textColorAtual || '#ffffff';
       elProximo.style.color = mon.textColorProximo || '#f3c15a';
-      document.documentElement.style.setProperty(
-        '--ministrante-comment-color',
-        mon.commentColor || '#00c8ff'
-      );
       const baseAtualVh = Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));
       const baseProximoVh = Math.max(2.2, Number(mon.fontSizeProximo ?? mon.fontSize ?? 4.1));
       elAtual.style.fontSize = `${baseAtualVh}vh`;
@@ -406,6 +448,9 @@
       }
       aplicarPosicaoConteudoMinistrante(mon, ehBibliaCfg);
       ajustarAutoFitSlidesMinistrante();
+      /* A config mudou algo visível: invalida a assinatura para o re-render a seguir não ser
+         apanhado pela dedup de payload — é o mesmo payload, mas com estilo novo. */
+      assinaturaRenderMinistranteAplicada = null;
       if (ultimoPayloadMinistrante) aplicar(ultimoPayloadMinistrante);
     }
 
@@ -602,8 +647,50 @@
         .replace(/"/g, '&quot;');
     }
 
+    const COR_COMENTARIO_MIN_PADRAO = '#00c8ff';
+
+    /**
+     * Hex seguro para comentários.
+     *
+     * Uma custom property com valor inválido não activa o fallback do `var()`: a declaração
+     * `color` fica inválida no tempo de computação e a linha HERDA a cor do pai — o branco
+     * de `#atual`. Era assim que o comentário «virava branco sozinho». Só sai daqui hex
+     * válido, e um valor ausente/inválido devolve `fallback` (a cor já aplicada), nunca o
+     * padrão de fábrica.
+     */
+    function normalizarCorComentarioMinistrante(cor, fallback = COR_COMENTARIO_MIN_PADRAO) {
+      const c = String(cor ?? '').trim();
+      if (/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(c)) return c;
+      if (/^#[0-9a-fA-F]{4}$/.test(c) || /^#[0-9a-fA-F]{8}$/.test(c)) return c;
+      const fb = String(fallback ?? '').trim();
+      if (/^#[0-9a-fA-F]{3,8}$/.test(fb)) return fb;
+      return COR_COMENTARIO_MIN_PADRAO;
+    }
+
+    /**
+     * Fonte ÚNICA da cor do comentário: entra no `style` inline de cada linha `//`.
+     *
+     * Não há custom property CSS a duplicar isto — ver a nota na folha de estilo. Uma
+     * segunda fonte que possa divergir (ou ficar inválida) é precisamente o que produzia o
+     * frame com a cor do contentor.
+     */
+    let corComentarioMinistranteAplicada = COR_COMENTARIO_MIN_PADRAO;
+
+    function definirCorComentarioMinistrante(cor) {
+      corComentarioMinistranteAplicada = normalizarCorComentarioMinistrante(
+        cor,
+        corComentarioMinistranteAplicada
+      );
+      return corComentarioMinistranteAplicada;
+    }
+
+    function corComentarioMinistranteAtual() {
+      return corComentarioMinistranteAplicada;
+    }
+
     function htmlTextoMinistranteComComentarios(texto, maiusculo) {
       const mai = maiusculo || ((s) => s);
+      const corComentario = corComentarioMinistranteAtual();
       const lines = String(texto ?? '').split(/\r\n|\r|\n/);
       return lines
         .map((line) => {
@@ -612,7 +699,9 @@
           }
           if (isLinhaComentarioMinistrante(line)) {
             const inner = mai(textoExibicaoComentarioMinistrante(line));
-            return `<span class="linha-ministrante linha-ministrante-comentario">${escapeHtmlMinistrante(inner)}</span>`;
+            /* `!important` inline: nenhuma regra de folha de estilo, presente ou futura,
+               pode passar à frente da cor escolhida pelo utilizador. */
+            return `<span class="linha-ministrante linha-ministrante-comentario" style="color:${corComentario} !important">${escapeHtmlMinistrante(inner)}</span>`;
           }
           const inner = mai(line);
           return `<span class="linha-ministrante">${escapeHtmlMinistrante(inner)}</span>`;
@@ -630,27 +719,74 @@
         .join('\n');
     }
 
+    /**
+     * Escreve o HTML só quando ele MUDOU. Reescrever `innerHTML` idêntico destrói e recria
+     * os `<span>` — um frame sem os nós, logo um repaint. Como o comentário é o único
+     * elemento com cor própria, era ele que aparecia a piscar.
+     */
     function aplicarHtmlMinistrante(el, texto, maiusculo) {
       if (!el) return;
       const raw = String(texto ?? '');
-      if (!raw.trim()) {
-        el.innerHTML = '';
-        return;
+      const html = raw.trim() ? htmlTextoMinistranteComComentarios(raw, maiusculo) : '';
+      if (el.__lyraHtmlMinistrante === html && (html === '' || el.childElementCount > 0)) return;
+      el.__lyraHtmlMinistrante = html;
+      el.innerHTML = html;
+    }
+
+    /** Limpeza que mantém o cache de `aplicarHtmlMinistrante` coerente com o DOM. */
+    function limparHtmlMinistrante(el) {
+      if (!el) return;
+      el.__lyraHtmlMinistrante = '';
+      el.textContent = '';
+    }
+
+    /**
+     * Assinatura do último payload REALMENTE desenhado.
+     *
+     * `render({ reforcarMinistrante: true })` — o caminho de toda troca de estrofe — envia o
+     * MESMO payload três vezes: imediato, `setImmediate` e `setTimeout(160)`. É um
+     * *workaround* de timing (a janela perdia a primeira atualização em alguns casos) e
+     * continua intacto: o reenvio acontece na mesma. O que muda é o lado de cá — quando o
+     * payload é idêntico ao que já está no ecrã, não se redesenha.
+     *
+     * Sem esta guarda cada estrofe fazia três reconstruções completas do `innerHTML` e três
+     * passagens de `ajustarAutoFitSlidesMinistrante` (que repõe a fonte na base e volta a
+     * encolher por medição) em frames separados — a terceira 160 ms depois. O comentário,
+     * único elemento com cor e itálico próprios, era destruído e recriado a cada uma: é
+     * exactamente a piscada vista no M3.
+     *
+     * A dedup é local ao renderer, logo só pode saltar o que ELE já desenhou — se a
+     * primeira mensagem se perder, a assinatura guardada continua a ser a antiga e o
+     * reforço desenha normalmente. O workaround mantém-se funcional.
+     */
+    let assinaturaRenderMinistranteAplicada = null;
+
+    function assinaturaRenderMinistrante(payload) {
+      try {
+        return JSON.stringify(payload ?? null);
+      } catch (_) {
+        return null;
       }
-      el.innerHTML = htmlTextoMinistranteComComentarios(raw, maiusculo);
     }
 
     function aplicar(payload) {
-      ultimoPayloadMinistrante = payload || null;
       const modo = String(payload?.modo || 'texto');
+      /* Apresentação e aviso ficam de fora: recriam `<video>`/`<iframe>` e o seu ciclo de
+         vida não é assunto desta correcção. Só o caminho de letra/Bíblia é deduplicado. */
+      const podeDeduplicar = modo !== 'apresentacao' && modo !== 'aviso';
+      const assinatura = podeDeduplicar ? assinaturaRenderMinistrante(payload) : null;
+      const repetido = assinatura !== null && assinatura === assinaturaRenderMinistranteAplicada;
+      ultimoPayloadMinistrante = payload || null;
+      if (repetido) return;
+      assinaturaRenderMinistranteAplicada = assinatura;
       const slidePreto = !!(payload && (payload.slidePretoFinal || payload.blackout));
 
       /* Slide preto (= slide sem letra) ou blackout: fundo preto puro nos dois monitores. */
       if (slidePreto) {
         limparCapasApresentacaoOuAviso();
         if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
-        elAtual.textContent = '';
-        elProximo.textContent = '';
+        limparHtmlMinistrante(elAtual);
+        limparHtmlMinistrante(elProximo);
         aplicarReferenciaBiblicaMinistrante('', 'texto');
         elAtual.classList.add('vazio');
         elProximo.classList.add('vazio');
@@ -667,8 +803,8 @@
       if (vazio) {
         limparCapasApresentacaoOuAviso();
         if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
-        elAtual.textContent = '';
-        elProximo.textContent = '';
+        limparHtmlMinistrante(elAtual);
+        limparHtmlMinistrante(elProximo);
         aplicarReferenciaBiblicaMinistrante('', 'texto');
         elAtual.classList.add('vazio');
         elProximo.classList.add('vazio');

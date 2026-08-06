@@ -82,7 +82,9 @@ import {
 import {
   filtrarLinhasParaPublico,
   aplicarPreviewMinistranteNoElemento,
-  textoPlanoDeElementoPreviewMinistrante,
+  textoMinistranteDeElementoPreview,
+  normalizarCorComentarioMinistrante,
+  COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 
 migrarChavesLegadoLocalStorage();
@@ -9139,11 +9141,30 @@ function textoSlideMaiusculo(texto) {
   return (texto || '').toUpperCase();
 }
 
+/**
+ * Cor efectiva dos comentários na prévia do painel — fonte única para o `style` inline do
+ * render E para a var CSS de reforço. Nunca é rebaixada para o padrão: uma config parcial
+ * (sem `commentColor`) mantém a cor já aplicada em vez de piscar para o azul de fábrica.
+ *
+ * Declarada aqui, e não junto de `aplicarCorComentarioMinistranteNoPainel`, porque
+ * `carregarSlideCfgInicialDoStorage()` corre no topo do módulo e já aplica a cor.
+ */
+let corComentarioMinistrantePainel = COR_COMENTARIO_MINISTRANTE_PADRAO;
+
 const previewMinistranteHelpers = {
   escapeHtml,
   maiusculo: textoSlideMaiusculo,
   aplicarClasseLinhas,
   limparEstiloPreviewSlide,
+  /* Lida a cada render da prévia. Cai na última cor aplicada (não no padrão) para que uma
+     config ainda por chegar nunca produza um frame com a cor errada. */
+  get commentColor() {
+    try {
+      return aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl?.ministrante?.commentColor);
+    } catch (_) {
+      return corComentarioMinistrantePainel;
+    }
+  },
 };
 
 /**
@@ -9843,8 +9864,8 @@ function emitirEstadoMinistranteAoServidor() {
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (!opA || !opP) return;
-  const atual = textoPlanoDeElementoPreviewMinistrante(opA);
-  const proximo = textoPlanoDeElementoPreviewMinistrante(opP);
+  const atual = textoMinistranteDeElementoPreview(opA);
+  const proximo = textoMinistranteDeElementoPreview(opP);
   /** Se ainda há saída ativa (inclui blackout/slide preto), não abrir relógio no ministrante. */
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
   const slidePretoFinal = !!(estadoServidor && estadoServidor.slidePretoFinal);
@@ -14964,7 +14985,7 @@ function mesclarSlideCfgNoEstado(salva) {
   currentCfgCtrl = base;
   if (typeof window.setCurrentCfgCtrl === 'function') window.setCurrentCfgCtrl(currentCfgCtrl);
   aplicarCorComentarioMinistranteNoPainel(
-    (currentCfgCtrl.ministrante && currentCfgCtrl.ministrante.commentColor) || '#00c8ff'
+    currentCfgCtrl.ministrante && currentCfgCtrl.ministrante.commentColor
   );
 }
 
@@ -17513,8 +17534,14 @@ function popularFormCfg(cfg) {
   setInputVal('cfg-ministrante-bg-gradient-ctrl', mb.bgGradient || '');
   setInputVal('cfg-ministrante-text-color-atual-ctrl', mb.textColorAtual || '#ffffff');
   setInputVal('cfg-ministrante-text-color-proximo-ctrl', mb.textColorProximo || '#f3c15a');
-  setInputVal('cfg-ministrante-comment-color-ctrl', mb.commentColor || '#00c8ff');
-  aplicarCorComentarioMinistranteNoPainel(mb.commentColor || '#00c8ff');
+  const corComentarioForm = normalizarCorComentarioMinistrante(
+    mb.commentColor,
+    corComentarioMinistrantePainel
+  );
+  setInputVal('cfg-ministrante-comment-color-ctrl', corComentarioForm);
+  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
+  currentCfgCtrl.ministrante.commentColor = corComentarioForm;
+  aplicarCorComentarioMinistranteNoPainel(corComentarioForm);
   const mbFontAtual = mb.fontSizeAtual ?? mb.fontSize ?? 4.1;
   const mbFontProximo = mb.fontSizeProximo ?? mb.fontSize ?? 4.1;
   setInputVal('cfg-ministrante-fontsize-atual-ctrl', mbFontAtual);
@@ -17751,13 +17778,16 @@ function onPublicoBgImageCtrlChange() {
 }
 
 
+/**
+ * Regista a cor efectiva dos comentários. Não escreve custom property nenhuma: a cor entra
+ * por `style` inline no render da prévia (ver nota na folha de estilo do `controller.html`).
+ */
 function aplicarCorComentarioMinistranteNoPainel(cor) {
-  const c = String(cor || '').trim() || '#00c8ff';
-  try {
-    document.documentElement.style.setProperty('--ministrante-comment-color', c);
-  } catch (_) {
-    // intencional — erro ignorado
-  }
+  corComentarioMinistrantePainel = normalizarCorComentarioMinistrante(
+    cor,
+    corComentarioMinistrantePainel
+  );
+  return corComentarioMinistrantePainel;
 }
 
 function onMinistranteSlideCfgChange() {
@@ -17766,8 +17796,10 @@ function onMinistranteSlideCfgChange() {
     document.getElementById('cfg-ministrante-text-color-atual-ctrl')?.value || '#ffffff';
   currentCfgCtrl.ministrante.textColorProximo =
     document.getElementById('cfg-ministrante-text-color-proximo-ctrl')?.value || '#f3c15a';
-  currentCfgCtrl.ministrante.commentColor =
-    document.getElementById('cfg-ministrante-comment-color-ctrl')?.value || '#00c8ff';
+  currentCfgCtrl.ministrante.commentColor = normalizarCorComentarioMinistrante(
+    document.getElementById('cfg-ministrante-comment-color-ctrl')?.value,
+    corComentarioMinistrantePainel
+  );
   currentCfgCtrl.ministrante.fontSizeAtual = lerNumeroInput(
     'cfg-ministrante-fontsize-atual-ctrl',
     currentCfgCtrl.ministrante.fontSizeAtual ?? currentCfgCtrl.ministrante.fontSize ?? 4.1

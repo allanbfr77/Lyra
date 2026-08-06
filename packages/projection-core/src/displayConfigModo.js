@@ -42,6 +42,12 @@ function resolverConfigBibliaParaJanelas(ctx) {
     ...def.ministrante,
     ...(bib.ministrante || {}),
   });
+  /* `commentColor` é exclusivo dos Slides (linhas `//`) — o overlay Bíblia não o configura.
+     Herdar o default aqui reescrevia a cor escolhida pelo utilizador na janela ministrante
+     assim que qualquer config de Bíblia era enviada, e o comentário voltava ao azul de
+     fábrica até à próxima config de Slides. Mantém-se a cor da camada de Slides. */
+  const corComentarioSlides = (slide.ministrante || {}).commentColor;
+  if (corComentarioSlides != null) ministrante.commentColor = corComentarioSlides;
 
   return clonarCfg({
     posX: bib.publico?.posX ?? def.posX,
