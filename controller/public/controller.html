@@ -2638,10 +2638,10 @@
     }
     .op-slide-text .preview-linha--ministrante-comentario {
       font-style: italic;
-      color: #00c8ff;
+      color: var(--ministrante-comment-color, #00c8ff);
     }
     #op-proximo:not(.vazio) .preview-linha--ministrante-comentario {
-      color: #00c8ff;
+      color: var(--ministrante-comment-color, #00c8ff);
     }
 
     .pv-live-titulo {
@@ -8445,6 +8445,10 @@
   <div class="cfg-form-group">
     <label class="cfg-form-label">Cor da Letra (Próximo)</label>
     <input type="color" id="cfg-ministrante-text-color-proximo-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()">
+  </div>
+  <div class="cfg-form-group">
+    <label class="cfg-form-label">Cor do Comentário</label>
+    <input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" oninput="onMinistranteSlideCfgChange()">
   </div>
   <div class="cfg-form-group">
     <label class="cfg-form-label">Tamanho (Atual): <span id="cfg-ministrante-fontsize-atual-val-ctrl">4.1</span> vh</label>

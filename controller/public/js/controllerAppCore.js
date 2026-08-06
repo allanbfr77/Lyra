@@ -14964,6 +14964,9 @@ function mesclarSlideCfgNoEstado(salva) {
   }
   currentCfgCtrl = base;
   if (typeof window.setCurrentCfgCtrl === 'function') window.setCurrentCfgCtrl(currentCfgCtrl);
+  aplicarCorComentarioMinistranteNoPainel(
+    (currentCfgCtrl.ministrante && currentCfgCtrl.ministrante.commentColor) || '#00c8ff'
+  );
 }
 
 /** Ao abrir o app: repõe `currentCfgCtrl` a partir do localStorage (antes de conectar ao servidor). */
@@ -17345,6 +17348,7 @@ let currentCfgCtrl = {
     bgImage: '',
     textColorAtual: '#ffffff',
     textColorProximo: '#f3c15a',
+    commentColor: '#00c8ff',
     fontSize: 4.1,
     lineSpacing: 1.35,
     wrapLongLines: true,
@@ -17505,6 +17509,8 @@ function popularFormCfg(cfg) {
   setInputVal('cfg-ministrante-bg-gradient-ctrl', mb.bgGradient || '');
   setInputVal('cfg-ministrante-text-color-atual-ctrl', mb.textColorAtual || '#ffffff');
   setInputVal('cfg-ministrante-text-color-proximo-ctrl', mb.textColorProximo || '#f3c15a');
+  setInputVal('cfg-ministrante-comment-color-ctrl', mb.commentColor || '#00c8ff');
+  aplicarCorComentarioMinistranteNoPainel(mb.commentColor || '#00c8ff');
   const mbFontAtual = mb.fontSizeAtual ?? mb.fontSize ?? 4.1;
   const mbFontProximo = mb.fontSizeProximo ?? mb.fontSize ?? 4.1;
   setInputVal('cfg-ministrante-fontsize-atual-ctrl', mbFontAtual);
@@ -17743,12 +17749,23 @@ function onPublicoBgImageCtrlChange() {
 }
 
 
+function aplicarCorComentarioMinistranteNoPainel(cor) {
+  const c = String(cor || '').trim() || '#00c8ff';
+  try {
+    document.documentElement.style.setProperty('--ministrante-comment-color', c);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
 function onMinistranteSlideCfgChange() {
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
   currentCfgCtrl.ministrante.textColorAtual =
     document.getElementById('cfg-ministrante-text-color-atual-ctrl')?.value || '#ffffff';
   currentCfgCtrl.ministrante.textColorProximo =
     document.getElementById('cfg-ministrante-text-color-proximo-ctrl')?.value || '#f3c15a';
+  currentCfgCtrl.ministrante.commentColor =
+    document.getElementById('cfg-ministrante-comment-color-ctrl')?.value || '#00c8ff';
   currentCfgCtrl.ministrante.fontSizeAtual = lerNumeroInput(
     'cfg-ministrante-fontsize-atual-ctrl',
     currentCfgCtrl.ministrante.fontSizeAtual ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
@@ -17766,6 +17783,7 @@ function onMinistranteSlideCfgChange() {
   setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeAtual));
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
+  aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl.ministrante.commentColor);
   debounceSalvarCfg();
 }
 

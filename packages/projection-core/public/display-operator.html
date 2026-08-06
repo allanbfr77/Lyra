@@ -82,10 +82,10 @@
     }
     .linha-ministrante-comentario {
       font-style: italic;
-      color: #00c8ff;
+      color: var(--ministrante-comment-color, #00c8ff);
     }
     #proximo .linha-ministrante-comentario {
-      color: #00c8ff;
+      color: var(--ministrante-comment-color, #00c8ff);
     }
     .ref-biblica-op {
       width: 100%;
@@ -184,6 +184,7 @@
         bgImage: '',
         textColorAtual: '#ffffff',
         textColorProximo: '#f3c15a',
+        commentColor: '#00c8ff',
         fontSize: 4.1,
         fontSizeAtual: 4.1,
         fontSizeProximo: 4.1,
@@ -366,6 +367,10 @@
       const mon = displayConfig.ministrante || {};
       elAtual.style.color = mon.textColorAtual || '#ffffff';
       elProximo.style.color = mon.textColorProximo || '#f3c15a';
+      document.documentElement.style.setProperty(
+        '--ministrante-comment-color',
+        mon.commentColor || '#00c8ff'
+      );
       const baseAtualVh = Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));
       const baseProximoVh = Math.max(2.2, Number(mon.fontSizeProximo ?? mon.fontSize ?? 4.1));
       elAtual.style.fontSize = `${baseAtualVh}vh`;
