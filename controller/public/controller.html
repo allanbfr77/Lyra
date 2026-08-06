@@ -5947,6 +5947,16 @@
       line-height: 1;
       font-family: var(--font-ui);
     }
+    .ap-ctrl-mute svg {
+      width: 18px;
+      height: 18px;
+    }
+    /* Mudo activo: vermelho suave, distinto do accent (usado no repetir). */
+    .ap-ctrl-mute.ap-ctrl-mute--on {
+      color: #e5484d;
+      border-color: color-mix(in srgb, #e5484d 55%, var(--border));
+      background: color-mix(in srgb, #e5484d 15%, var(--surface));
+    }
     .ap-player-transport {
       display: flex;
       align-items: center;
@@ -7914,6 +7924,9 @@
           <div class="ap-audio-player">
             <div id="ap-audio-now" class="ap-player-now">Nenhuma mídia no player</div>
             <div class="ap-vol-row" aria-label="Volume">
+              <button type="button" class="ap-ctrl ap-ctrl-vol ap-ctrl-mute" id="ap-audio-mute" title="Mudo" aria-label="Silenciar" aria-pressed="false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a4 4 0 0 1 0 7M18 6a7 7 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
               <button type="button" class="ap-ctrl ap-ctrl-vol" id="ap-audio-vol-down" title="Diminuir volume">−</button>
               <div class="ap-vol-meter-wrap">
                 <div class="ap-vol-meter" aria-hidden="true"><span class="ap-vol-meter-fill" id="ap-audio-vol-fill"></span></div>

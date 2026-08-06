@@ -2065,6 +2065,37 @@ function definirVolumeAudioServidor(volume) {
   atualizarUiPlayerAudioRemoto();
 }
 
+/**
+ * Botão único de mudo/desmudo do player.
+ *
+ * «Mudo» é volume 0 — mesmo canal que os botões −/+, então funciona para áudio e vídeo
+ * sem caminho novo. Ao mutar, guarda o volume actual para o restaurar; se o volume já
+ * estava a 0 (arrastado pelos −), desmutar volta a um nível audível.
+ */
+function alternarMudoAudioApresentacao() {
+  const volAtual = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 0));
+  if (volAtual > 0) {
+    audioVolAntesDeMutar = volAtual;
+    definirVolumeAudioServidor(0);
+  } else {
+    const restaurar = audioVolAntesDeMutar > 0 ? audioVolAntesDeMutar : 1;
+    definirVolumeAudioServidor(restaurar);
+  }
+}
+
+function atualizarBotaoMudoPlayerAudio() {
+  const btn = document.getElementById('ap-audio-mute');
+  if (!btn) return;
+  const mudo = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 0)) === 0;
+  btn.classList.toggle('ap-ctrl-mute--on', mudo);
+  btn.setAttribute('aria-pressed', mudo ? 'true' : 'false');
+  btn.title = mudo ? 'Reativar som' : 'Mudo';
+  btn.setAttribute('aria-label', mudo ? 'Reativar som' : 'Silenciar');
+  btn.innerHTML = mudo
+    ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="m16 9 5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a4 4 0 0 1 0 7M18 6a7 7 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+}
+
 function seekAudioServidor(time) {
   if (audioStateRemoto.mediaKind === 'video') {
     seekAudioLocalApresentacao(time);
@@ -2147,6 +2178,7 @@ function atualizarUiPlayerAudioRemoto() {
   if (volFill) volFill.style.width = `${vPct}%`;
   renderPlayPauseIcon();
   atualizarBotaoLoopPlayerAudio();
+  atualizarBotaoMudoPlayerAudio();
   atualizarPlaylistUiAoVivoSeMudou();
   if (_previewAlvoAtual) posicionarOverlayPreview();
 }
@@ -5461,6 +5493,8 @@ let audioStateRemoto = {
 };
 let audioLoopAtivo = false;
 let audioLoopReinicioPendente = false;
+/** Volume guardado antes de mutar, para o botão de mudo restaurar ao desmutar. */
+let audioVolAntesDeMutar = 1;
 /** ─── Playlist de vídeos (modo Mídias) — camada sobre o motor de vídeo único ─── */
 let apresentacaoVideoPlaylist = [];
 /** Índice do item atualmente carregado/reproduzido na playlist (-1 = nenhum). */
@@ -16113,6 +16147,7 @@ document.getElementById('ap-audio-loop')?.addEventListener('click', () => {
   alternarLoopPlayerApresentacao();
 });
 document.getElementById('ap-audio-stop')?.addEventListener('click', () => pararAudioServidor());
+document.getElementById('ap-audio-mute')?.addEventListener('click', () => alternarMudoAudioApresentacao());
 document.getElementById('ap-audio-vol-up')?.addEventListener('click', () => {
   const nextVol = Math.min(1, Math.round((Number(audioStateRemoto.volume) + 0.1) * 10) / 10);
   definirVolumeAudioServidor(nextVol);
