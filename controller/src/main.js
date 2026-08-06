@@ -30,12 +30,22 @@ function configurarPermissoesMicrofone() {
   }
 }
 
-/** Windows: com dois apps Electron (servidor + controlador), a oclusão nativa pode marcar a janela como oculta e o conteúdo deixa de pintar (ecrã preto). */
+/**
+ * Windows: com dois apps Electron (servidor + controlador), a oclusão nativa pode
+ * marcar a janela como oculta e o conteúdo deixa de pintar (ecrã preto).
+ * Em modo local as janelas de projeção são deste processo — DirectComposition /
+ * decode acelerado deixam o vídeo preto no monitor físico (mesmo fix do Servidor).
+ */
 if (process.platform === 'win32') {
   try {
-    app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+    app.commandLine.appendSwitch(
+      'disable-features',
+      'CalculateNativeWinOcclusion,DirectCompositionVideoOverlays'
+    );
     app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
     app.commandLine.appendSwitch('disable-renderer-backgrounding');
+    app.commandLine.appendSwitch('disable-direct-composition-video-overlays');
+    app.commandLine.appendSwitch('disable-accelerated-video-decode');
   } catch (_) {
   // intencional — erro ignorado
 }

@@ -1276,12 +1276,15 @@ function urlVideoApresentacaoHttpPorId(id) {
 }
 
 /**
- * Telões correm no PC do servidor — `127.0.0.1:3001` aponta para a máquina errada.
- * Reescreve para o proxy `:5510` do servidor (que encaminha ao controlador).
+ * Telões no PC do servidor remoto não alcançam `127.0.0.1:3001` do controlador —
+ * reescreve para o proxy `:5510` do servidor (que encaminha ao controlador).
+ * No modo local os telões são desta máquina: `:3001` já serve o vídeo e `:5510`
+ * não tem proxy — manter a URL original.
  */
 function reescreverUrlVideoParaTelas(url) {
   const u = String(url || '').trim();
   if (!u) return u;
+  if (typeof emModoProjecaoLocal === 'function' && emModoProjecaoLocal()) return u;
   const ip =
     (typeof getServidorProjeccaoIp === 'function'
       ? String(getServidorProjeccaoIp() || '').trim()
