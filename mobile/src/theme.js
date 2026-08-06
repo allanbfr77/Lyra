@@ -3,6 +3,8 @@
  *
  * Tema claro — idêntico ao controlador web (`controller.html` / `control.html`).
  * Manter sincronizado ao alterar qualquer uma das interfaces visuais do projeto.
+ *
+ * Tipografia da UI apenas. Fontes de projeção / telão não passam por estes tokens.
  */
 
 /**
@@ -41,18 +43,32 @@ export const COLORS = {
 };
 
 /**
- * Tokens de tipografia.
+ * Tokens de tipografia da UI.
  *
+ * No desktop o controlador usa Segoe UI Variable; no mobile carregamos
+ * DM Sans (já no projeto) como face clean/moderna equivalente — mesma hierarquia.
  * Nomes coincidem com @expo-google-fonts/dm-sans (carregar em `_layout.jsx`).
- * Tipografia alinhada ao controlador: DM Sans.
  */
 export const FONTS = {
-  /** DM Sans 400 — texto corrido, labels secundários */
+  /** Texto corrido, labels secundários */
   regular: 'DMSans_400Regular',
-  /** DM Sans 500 — texto com leve ênfase */
+  /** Texto com leve ênfase */
   medium: 'DMSans_500Medium',
-  /** DM Sans 600 — labels, botões, títulos de seção */
+  /** Labels, botões, títulos de seção */
   semibold: 'DMSans_600SemiBold',
-  /** DM Sans 700 — títulos principais, valores de destaque */
+  /** Títulos principais, valores de destaque */
   bold: 'DMSans_700Bold',
+};
+
+/**
+ * Escala tipográfica da UI — alinhada ao controlador (--fs-*).
+ * Não se aplica a conteúdo projetado em monitores físicos.
+ */
+export const TYPE = {
+  title: 20,
+  subtitle: 16,
+  body: 14,
+  label: 12,
+  caption: 12,
+  section: 13,
 };

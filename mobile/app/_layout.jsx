@@ -19,7 +19,7 @@ import {
   DMSans_600SemiBold,
   DMSans_700Bold,
 } from '@expo-google-fonts/dm-sans';
-import { COLORS, FONTS } from '../src/theme';
+import { COLORS, FONTS, TYPE } from '../src/theme';
 import { SocketProvider } from '../src/SocketProvider';
 import HeaderHomeButton from '../src/HeaderHomeButton';
 
@@ -34,7 +34,7 @@ const headerComBotaoInicio = (title) => ({
  * evitando o flash de texto sem estilo (FOUT).
  */
 export default function Layout() {
-  // Carrega as variantes necessárias da DM Sans
+  // Carrega as variantes necessárias da DM Sans (UI mobile; alinhada ao controlador)
   const [loaded] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -67,8 +67,8 @@ export default function Layout() {
             headerTintColor: COLORS.accent,
             headerTitleStyle: {
               fontFamily: FONTS.semibold,
-              fontSize: 16,
-              letterSpacing: 2,
+              fontSize: TYPE.subtitle,
+              letterSpacing: 0.3,
             },
             contentStyle: { backgroundColor: COLORS.bg },
             headerShadowVisible: false,

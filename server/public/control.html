@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>Lyra — Servidor</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
       /* Variáveis para Modo Escuro (Padrão) */
@@ -15,7 +14,17 @@
       --text-main: #eeeeee;
       --text-dim: #888888;
       --success: #28a745;
-      --font-ui: 'DM Sans', system-ui, sans-serif;
+      /* Tipografia da UI do servidor — alinhada ao controlador (não afecta projeção). */
+      --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+      --fs-title: 20px;
+      --fs-subtitle: 16px;
+      --fs-body: 14px;
+      --fs-label: 12px;
+      --fs-caption: 11px;
+      --fw-regular: 400;
+      --fw-semibold: 600;
+      --fw-bold: 700;
     }
 
     /* Variáveis para Modo Claro */
@@ -30,8 +39,19 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    button,
+    input,
+    select,
+    textarea {
+      font-family: var(--font-ui);
+    }
+
     body {
       font-family: var(--font-ui);
+      font-size: var(--fs-body);
+      font-weight: var(--fw-regular);
+      line-height: 1.4286;
+      -webkit-font-smoothing: antialiased;
       background-color: var(--bg-body);
       color: var(--text-main);
       display: flex;
@@ -74,7 +94,13 @@
       object-fit: contain;
       border-radius: 8px;
     }
-    .logo-sub { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+    .logo-sub {
+      font-size: var(--fs-caption);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
 
     .card-content { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
 
@@ -89,8 +115,20 @@
       transition: background-color 0.3s ease;
     }
 
-    .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 700; }
-    .value { font-family: monospace; font-size: 14px; color: var(--accent); font-weight: 600; }
+    .label {
+      font-size: var(--fs-label);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.04em;
+    }
+    .value {
+      font-family: var(--font-mono);
+      font-size: var(--fs-body);
+      color: var(--accent);
+      font-weight: var(--fw-semibold);
+      font-variant-numeric: tabular-nums;
+    }
 
     button {
       padding: 12px;
@@ -98,8 +136,10 @@
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--text-main);
-      font-size: 11px;
-      font-weight: 700;
+      font-family: var(--font-ui);
+      font-size: var(--fs-label);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0;
       cursor: pointer;
       display: flex;
       align-items: center;
