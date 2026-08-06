@@ -12825,18 +12825,12 @@ function configurarAutoConectarAoAlternarJanelas() {
  */
 function setStatusServidorRemoto(estado) {
   const badge = document.getElementById('status-conn-badge');
-  const dot = document.getElementById('status-dot');
-  const txt = document.getElementById('status-txt');
-  const cls = estado === 'conectado' ? 'conectado' : 'ocioso';
-  const rotulo = cls === 'conectado' ? 'SERVIDOR' : 'LOCAL';
-  if (badge) badge.className = 'status-conn ' + cls;
-  if (dot) dot.className = 'status-dot ' + cls;
-  if (txt) txt.textContent = rotulo;
-  if (badge) {
-    badge.title = cls === 'conectado'
-      ? 'Ligado ao Servidor remoto'
-      : 'A projetar nesta máquina';
-  }
+  if (!badge) return;
+  const remoto = estado === 'conectado';
+  badge.className = 'status-seg ' + (remoto ? 'status-seg--remoto' : 'status-seg--local');
+  badge.title = remoto
+    ? 'Ligado ao Servidor remoto'
+    : 'A projetar nesta máquina';
 }
 
 /** IPs desta máquina (LAN + loopback lógico). Evita tratar o motor local como Servidor remoto. */
