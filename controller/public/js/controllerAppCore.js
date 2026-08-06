@@ -10833,7 +10833,16 @@ function atualizarToolbarModoLetraCompleta() {
   const mostrar = m && !modoEdicaoEstrofes;
   btn.style.display = mostrar ? '' : 'none';
   btn.disabled = !mostrar;
-  btn.textContent = modoLetraCompletaCentral ? 'SALVAR ALTERAÇÕES' : 'MODO LETRA COMPLETA';
+  /* Só o rótulo e o ícone mudam — não sobrescrever o botão inteiro (`textContent`
+     apagaria o SVG). O ícone acompanha o significado: documento no modo, disquete ao salvar. */
+  const txtModo = document.getElementById('txt-modo-letra-completa');
+  const icoModo = document.getElementById('ico-modo-letra-completa');
+  if (txtModo) txtModo.textContent = modoLetraCompletaCentral ? 'Salvar alterações' : 'Modo letra completa';
+  if (icoModo) {
+    icoModo.innerHTML = modoLetraCompletaCentral
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>';
+  }
   // Toggle explícito: inativo = outline neutro, ativo = preenchido.
   btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
   btn.classList.toggle('ativo', !!modoLetraCompletaCentral);
