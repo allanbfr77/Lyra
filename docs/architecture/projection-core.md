@@ -415,13 +415,14 @@ distribuição).
    o motor por IPC em vez de rede. As páginas `obs*.html` mudaram-se para o Core pela mesma razão que
    as `display*.html`: pertencem a quem projeta, não ao pacote do Servidor.
 2. **Escolha explícita, com o estado visível.** Menu Ferramentas › «Projetar nesta máquina», caixa de
-   seleção cuja marca vem do facto (o motor está de pé?) e não da preferência gravada. Detecção
+   seleção cuja marca vem do facto (o motor está de pé?) e não da intenção declarada. Detecção
    automática foi descartada: o operador tem de poder decidir, e sobretudo tem de **ver** o que está
    a acontecer. A primeira versão era um item sem estado visível e isso, sozinho, produziu dois
    diagnósticos errados durante os testes — não havia como saber se o modo estava ligado.
 
    > **O sujeito desta decisão mudou; o argumento não.** Quando o padrão inverteu (§10.3), a escolha
-   > explícita passou a ser **conectar ao Servidor remoto**, não ligar o modo local. A recusa da
+   > explícita passou a ser **conectar ao Servidor remoto**, não ligar o modo local — e explícita a
+   > cada abertura, já que o modo não se guarda. A recusa da
    > detecção automática continua a valer com a mesma força, e pela mesma razão: uma varredura da
    > rede a decidir sozinha reintroduziria exactamente a ambiguidade de estado que custou aqueles
    > dois diagnósticos. O que se pede ao operador é uma decisão, não uma adivinhação do programa.
@@ -434,26 +435,48 @@ inexistente antes de desistir, e quem quisesse o que já tinha à frente precisa
 existia um item de menu. O padrão servia a excepção.
 
 Hoje o arranque não pergunta nada: sobe o motor local. Ir ao Servidor é um acto declarado em
-Ajustes › Conexão, com atalho em Ferramentas › «Conectar a servidor remoto…», e fica lembrado — quem
-opera com dois PCs declara-o uma vez.
+Ajustes › Conexão, com atalho em Ferramentas › «Conectar a servidor remoto…».
 
-**A preferência tem três estados** (`lyra_projetar_nesta_maquina`), e a distinção não é decorativa:
+#### O modo não se persiste — e isso é a decisão, não uma lacuna
 
-| valor   | significa                              | arranque |
-|---------|----------------------------------------|----------|
-| ausente | nunca decidiu                          | local    |
-| `'1'`   | escolheu o modo local                  | local    |
-| `'0'`   | escolheu o Servidor remoto             | remoto   |
+**Não há preferência de modo.** Nem em `localStorage`, nem em ficheiro de configuração, nem em base
+de dados. O arranque é sempre local; ligar ao Servidor vale para a sessão e acaba com ela.
 
-Ausente e `'1'` levam ao mesmo sítio; separá-los é o que permite a uma migração futura saber se houve
-escolha ou se o valor é o padrão a passar. A decisão em si é uma função pura,
-`controller/public/js/modules/modoArranque.js`, precisamente para deixar de ser verificável só a olho.
+O caminho até aqui teve uma fase intermédia que convém não repetir. Ligar com sucesso gravava
+`lyra_projetar_nesta_maquina = '0'`, e o arranque seguinte tentava o Servidor por causa disso. A ideia
+era poupar um passo a quem opera com dois PCs. O custo era desproporcionado ao ganho:
 
-**Só `conectar()` grava `'0'`.** Desmarcar o item de menu derruba o motor na sessão e não escreve
-nada. A tentação era gravar nos dois sítios, e ela custa caro: com o padrão local, desmarcar para
-parar de projetar por um instante tirava o PC do padrão para sempre, e no arranque seguinte ele não
-projetava nada — sem IP gravado, o caminho remoto é um no-op silencioso. Parar de projetar agora não
-é o mesmo que declarar que este PC opera contra um Servidor da rede.
+- **Uma sessão contaminava todas as seguintes.** Bastava ligar uma vez a um Servidor — mesmo por
+  engano, mesmo para um teste de cinco segundos — para o PC deixar de arrancar no seu padrão. Um
+  efeito permanente a partir de um acto que, para quem o fez, era pontual.
+- **O desfazer não era descobrível.** Para voltar ao padrão era preciso saber que existia um item de
+  menu com esse poder. Quem não sabia via um Controlador que abria «errado» e não tinha como o
+  associar ao que fizera dias antes.
+- **A falha do lado remoto é silenciosa e o utilizador fica sem nada.** Servidor desligado, IP mudado,
+  PC noutra rede: o painel abria a apontar para uma máquina ausente, e nesse estado não projeta.
+  O padrão local, por contraste, funciona sempre — é a definição de padrão.
+
+O ganho que se perde é um clique por sessão para quem opera com dois PCs, e esse clique é
+recuperável: o IP continua guardado (`lyra_ip`), portanto conectar é clicar em **Conectar**, não
+redigitar um endereço. Guardar o endereço não é guardar o modo — um poupa digitação, o outro decide
+sozinho por onde o programa arranca.
+
+A chave `lyra_projetar_nesta_maquina` é apagada no arranque (`CHAVES_OBSOLETAS`, em
+`controller/public/js/modules/migrarChavesArmazenamentoLocal.js`), para não deixar em instalações
+antigas um valor inerte que sugira que o modo ainda se persiste algures.
+
+**Consequência para quem mexer aqui:** se um pedido futuro for «lembrar o último modo», este bloco é
+a resposta que já foi dada. Reabri-lo exige argumentos novos — em particular, uma saída descobrível
+para o caso em que o Servidor lembrado não responde.
+
+**Nada escreve o modo em lado nenhum, e isso vale para os dois sentidos.** Nem `socket.on('connect')`
+ao ligar-se, nem o item de menu ao ser desmarcado. Desmarcar derruba o motor na sessão e mais nada:
+parar de projetar agora nunca foi o mesmo que declarar que este PC opera contra um Servidor da rede.
+
+**O único auto-conectar que sobra é um recurso de último caso.** Se o motor local não subir — a 5510
+está ocupada, tipicamente porque o app Servidor corre nesta mesma máquina — o arranque tenta o IP
+guardado, porque nesse cenário o modo local é impossível e a alternativa seria um painel sem
+projeção nenhuma. Não é memória do modo: é o que fazer quando o padrão não está disponível.
 
 **As telas secundárias em preto no arranque são intencionais.** Subir o motor abre as janelas de
 projeção em estado ocioso e, se o relógio estiver ligado, a janela de relógio. Isso **não** é efeito

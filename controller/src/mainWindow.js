@@ -417,7 +417,7 @@ function criarMenuAplicativo(ctx, updaterApi) {
            * Continua a ser uma caixa de seleção agora que este é o modo *padrão*, e por uma
            * razão que não mudou: o que ela mostra é o facto (o motor está de pé?), e o facto
            * pode divergir da intenção — o arranque cai no caminho remoto quando a 5510 está
-           * ocupada. Uma marca que viesse da preferência mentiria exactamente aí.
+           * ocupada. Uma marca que viesse da intenção declarada mentiria exactamente aí.
            *
            * O comando vai ao renderer, e não directamente ao `ctx.projecaoLocal`, porque
            * ligar o modo local não é só subir o motor: é também trocar o transporte da

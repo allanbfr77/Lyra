@@ -47,8 +47,8 @@ Servidor não entra na história.
    Mobile (Android) · OBS
 ```
 
-**Dois PCs** — escolha declarada em `Ferramentas → Conectar a servidor remoto…`, lembrada nas
-próximas aberturas.
+**Dois PCs** — escolha declarada em `Ferramentas → Conectar a servidor remoto…`, válida só para a
+sessão atual (o arranque volta sempre a projetar nesta máquina).
 
 ```
 ┌─────────────────────┐     Wi-Fi / LAN      ┌─────────────────────┐
@@ -175,8 +175,10 @@ ligado em Ajustes. A área de trabalho do operador nunca aparece no telão.
 3. Use as abas Músicas, Playlists, Bíblia e Configurações
 4. Clique em uma estrofe ou versículo para exibir nas telas
 
-O Controlador lembra dessa escolha e volta a conectar-se nas próximas aberturas. Para regressar ao
-modo de um PC só, use **Ferramentas → Projetar nesta máquina**.
+A conexão vale **apenas para a sessão atual** — nada é gravado. Ao fechar e reabrir, o Controlador
+volta sempre ao padrão de projetar nesta máquina, e conectar ao Servidor é de novo um passo
+explícito. O IP digitado continua guardado, para poupar redigitação, mas por si só não liga nada.
+Para regressar ao modo de um PC só sem reiniciar, use **Ferramentas → Projetar nesta máquina**.
 
 ### No celular
 

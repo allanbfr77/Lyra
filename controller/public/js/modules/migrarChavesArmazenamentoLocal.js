@@ -1,7 +1,19 @@
 /**
- * Migra chaves `localStorage` de branding legado (invblyrics / churchdisplay) para Lyra.
+ * Migra chaves `localStorage` de branding legado (invblyrics / churchdisplay) para Lyra,
+ * e apaga as que deixaram de existir.
  * Executar uma vez no arranque do painel, antes de qualquer leitura de preferências.
  */
+
+/**
+ * Chaves que nenhuma parte do painel lê hoje — apagadas, não renomeadas.
+ *
+ * `lyra_projetar_nesta_maquina` guardava o modo de operação (local ou Servidor remoto)
+ * entre aberturas. Deixou de o fazer: a ligação ao Servidor vale só para a sessão, e o
+ * arranque é sempre «projetar nesta máquina». Sem esta limpeza a chave ficava para sempre
+ * no armazenamento de quem já usou uma versão anterior — inerte, mas a sugerir a quem
+ * inspecionasse que o modo ainda se persiste algures.
+ */
+const CHAVES_OBSOLETAS = ['lyra_projetar_nesta_maquina'];
 
 const PARES_CHAVES = [
   ['invblyrics_ui_modo_slides_v2', 'lyra_ui_modo_slides_v2'],
@@ -29,7 +41,7 @@ const PARES_CHAVES = [
 ];
 
 /**
- * @returns {boolean} `true` se alguma chave foi migrada
+ * @returns {boolean} `true` se alguma chave foi migrada ou apagada
  */
 export function migrarChavesLegadoLocalStorage() {
   let alterou = false;
@@ -42,6 +54,12 @@ export function migrarChavesLegadoLocalStorage() {
         alterou = true;
       }
       localStorage.removeItem(antiga);
+      alterou = true;
+    }
+    for (const obsoleta of CHAVES_OBSOLETAS) {
+      /* `=== null` e não `== null`: `getItem` devolve `string | null`, nunca `undefined`. */
+      if (localStorage.getItem(obsoleta) === null) continue;
+      localStorage.removeItem(obsoleta);
       alterou = true;
     }
   } catch (_) {

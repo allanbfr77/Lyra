@@ -173,20 +173,20 @@ abaixo é sobretudo a **saída** do padrão e o regresso a ele.
 **Onde ver o estado:** menu Ferramentas › «Projetar nesta máquina» é uma **caixa de seleção** — a
 marca diz se o modo está ligado. Confirme-a antes de cada cenário; sem isso, um teste pode partir de
 um estado diferente do que se julga (foi o que aconteceu na primeira ronda destes testes, e
-produziu dois diagnósticos errados). A marca vem do **facto** — o motor está de pé? — e não da
-preferência gravada, por isso divergir dela é informação, não defeito: é o que se vê quando o
-arranque tentou o local e caiu no remoto.
+produziu dois diagnósticos errados). A marca vem do **facto** — o motor está de pé? — e não de uma
+intenção declarada, por isso divergir do que se esperava é informação, não defeito: é o que se vê
+quando o arranque tentou o local e caiu no remoto.
 
 ### Arranque — o padrão e as suas excepções
 
-O caso «sem preferência gravada» é o de qualquer instalação nova, e é o mais comum de todos. Para o
-reproduzir, apague a chave `lyra_projetar_nesta_maquina` no `localStorage` do painel (DevTools ›
-Application) e reabra o app.
+**Não há preferência de modo para preparar.** O modo não se guarda em lado nenhum, portanto todo
+arranque é o «arranque de instalação nova» — não é preciso apagar chave nenhuma para reproduzir os
+casos abaixo.
 
-- [ ] **Sem preferência, num PC com 2+ monitores:** abre já a projetar nesta máquina. O badge diz
-      «PROJETANDO NESTA MÁQUINA» e o item do menu aparece marcado.
-- [ ] **Sem preferência, num PC de monitor único:** o motor sobe na mesma, sem abrir janela nenhuma
-      e sem erro no painel. (As janelas secundárias exigem 2+ monitores.)
+- [ ] **Num PC com 2+ monitores:** abre já a projetar nesta máquina. O badge diz «PROJETANDO NESTA
+      MÁQUINA» e o item do menu aparece marcado.
+- [ ] **Num PC de monitor único:** o motor sobe na mesma, sem abrir janela nenhuma e sem erro no
+      painel. (As janelas secundárias exigem 2+ monitores.)
 - [ ] **Monitores secundários em repouso:** ficam **pretos**, nunca a mostrar a área de trabalho do
       operador, com o relógio sobreposto se estiver ligado em Ajustes. Isto é intencional, no
       arranque e em repouso — ver `docs/architecture/projection-core.md` §10.3.
@@ -221,8 +221,8 @@ sistema, ao contrário do Servidor.
       janelas acompanham.
 - [ ] Desligar o modo local e ligar de novo várias vezes não deve degradar nada — os listeners são
       desmontados a cada desligar, e ficarem acumulados faria o motor ser chamado depois de cair.
-- [ ] **Com `'0'` gravado** (feche o app depois de usar «Conectar»): abre no caminho remoto e **não**
-      sobe o motor local.
+- [ ] **Depois de usar «Conectar»**, feche e reabra o app: abre a **projetar nesta máquina**, não no
+      caminho remoto. A ligação da sessão anterior não sobrevive ao fecho.
 - [ ] **Com o Servidor já aberto nesta mesma máquina:** o arranque tenta o local, apanha a porta
       ocupada e cai no remoto sozinho. O painel não pode ficar sem nada.
 - [ ] **Menu Ferramentas › «Reiniciar servidor»:** invisível enquanto o modo local está ligado;
@@ -253,18 +253,27 @@ Feche o Servidor. Ligue «Projetar nesta máquina» e confirme a marca no menu.
       funciona, e o celular vê as playlists. (Estes três dependiam do campo de IP e falhavam em
       silêncio numa instalação que nunca se ligou a um Servidor.)
 
-### A preferência lembra-se — e o que não a escreve
+### O modo não se persiste — confirmar que nada sobrevive ao fecho
 
-Com o padrão invertido, importa distinguir «parei de projetar agora» de «este PC opera contra um
-Servidor da rede». Só a segunda se grava.
+Nenhum acto do operador — conectar ao Servidor, desmarcar o modo local — deve alterar o arranque
+seguinte. Este bloco é o que protege essa garantia.
 
 - [ ] **Desmarcar** «Projetar nesta máquina», fechar e reabrir → volta a **projetar nesta máquina**.
-      Desmarcar é um acto de sessão e não tira o PC do padrão.
 - [ ] Ao desmarcar, o badge diz «PROJEÇÃO DESLIGADA» — e não «DESCONECTADO», que descreveria um
       Servidor que caiu.
-- [ ] **Conectar** a um Servidor, fechar e reabrir → abre no caminho remoto, sem subir o motor.
-- [ ] A partir daí, «Projetar nesta máquina» no menu devolve o padrão na sessão; para o devolver
-      também nas próximas aberturas, apague a chave ou volte a marcar e reabra.
+- [ ] **Conectar** a um Servidor, fechar e reabrir → abre a **projetar nesta máquina**, com o badge
+      em «PROJETANDO NESTA MÁQUINA» e o item do menu marcado. Não há ligação automática.
+- [ ] Depois desse reabrir, o **IP continua preenchido** no campo de Ajustes › Conexão — poupa-se a
+      redigitação, mas basta isso: nada se liga sozinho, é preciso clicar em «Conectar».
+- [ ] **Conectar, e reabrir com o Servidor desligado** → o Controlador projeta nesta máquina na
+      mesma, sem erro nem espera. (Era este o cenário mau da versão que persistia o modo: abria a
+      apontar para uma máquina ausente e não projetava nada.)
+- [ ] Em DevTools › Application › Local Storage, **depois** de conectar e desconectar várias vezes:
+      não existe chave `lyra_projetar_nesta_maquina` nem equivalente. Se existir numa instalação
+      antiga, é apagada no primeiro arranque desta versão.
+- [ ] Durante a sessão, a ligação comporta-se como sempre: conectar, projetar, desconectar e voltar a
+      conectar sem fechar o app tem de continuar a funcionar. A alteração é só sobre o que sobrevive
+      ao fecho.
 
 ### Um só dono das telas
 

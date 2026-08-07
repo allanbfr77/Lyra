@@ -11527,13 +11527,12 @@ function atualizarUiConexao(conectado) {
 // --- SECÇÃO F — Ligação ao servidor (IP), pedidos HTTP ao controlador :3001, filas e debounces ---
 async function conectar() {
   /*
-   * A preferência de modo remoto só se grava quando a ligação TEM SUCESSO — ver o
-   * `socket.on('connect')`. Aqui não se escreve nada.
+   * O modo de operação NÃO se grava — nem aqui, nem no `socket.on('connect')`. Ligar ao
+   * Servidor vale para esta sessão; o arranque seguinte volta a projetar nesta máquina.
+   * Ver o bloco sobre persistência junto a `projecaoLocalEmCurso`.
    *
-   * Gravar logo na tentativa deixava o operador preso: um clique que falhava (Servidor
-   * desligado, IP errado) registava `'0'`, e a cada arranque seguinte o painel tentava o
-   * Servidor de novo e caía em «servidor não encontrado», sem forma óbvia de voltar ao
-   * padrão local. Persistir só no sucesso mantém o reinício a voltar a ocioso.
+   * O IP, esse, continua guardado (`LS_IP_KEY`) — poupa redigitação e não liga nada
+   * sozinho.
    */
 
   /* Sem um Servidor remoto real a que ligar (campo vazio ou o endereço desta própria
@@ -11583,22 +11582,24 @@ async function conectar() {
  */
 
 /**
- * Preferência de modo, com três estados — e os três importam desde que o padrão inverteu.
+ * O modo de operação NÃO se guarda. Vive na sessão e morre com ela.
  *
- * - ausente: o operador nunca decidiu → **projetar nesta máquina**, que é o padrão;
- * - `'0'`: escolheu o Servidor remoto, deliberadamente, em Ajustes › Conexão;
- * - `'1'`: escolheu o modo local, deliberadamente.
+ * Ligar ao Servidor é uma decisão sobre *este arranque*, não uma declaração permanente
+ * sobre o PC. Quem opera duas máquinas hoje pode estar sozinho com uma amanhã, e um
+ * Controlador que abrisse a apontar para um Servidor ausente ficava preso num
+ * «conectando» sem nada projetável — para desfazer isso era preciso saber que existia um
+ * menu que o desfazia. O padrão é o que funciona sempre: projeta-se nesta máquina.
  *
- * Ausente e `'1'` levam ao mesmo arranque; distingui-los serve para saber se houve
- * escolha, o que uma migração futura pode querer consultar.
+ * Por isso não há chave de preferência, nem em `localStorage`, nem em ficheiro de
+ * configuração, nem em base de dados. A ligação ao Servidor é sempre um acto explícito do
+ * operador — no badge ou em Ajustes › Conexão — repetido a cada abertura.
  *
- * Quem grava `'0'` é o `socket.on('connect')` — só uma ligação com SUCESSO declara o modo
- * remoto. Uma tentativa falhada limpa a chave (`tratarFalhaLigacaoServidor`), para o
- * reinício voltar ao padrão local. Desmarcar «Projetar nesta máquina» no menu derruba o
- * motor na sessão e não escreve nada: parar de projetar agora não é o mesmo que declarar
- * que este PC opera contra um Servidor da rede.
+ * Nota sobre `LS_IP_KEY`: o *endereço* continua guardado, e isso não contradiz o acima.
+ * Guardar o IP poupa redigitação; não liga nada sozinho. Quem decide ligar é o clique.
+ *
+ * A chave `lyra_projetar_nesta_maquina`, de versões que persistiam a escolha, é apagada no
+ * arranque por `migrarChavesLegadoLocalStorage` — ver `CHAVES_OBSOLETAS` nesse módulo.
  */
-const LS_PROJETAR_LOCAL = 'lyra_projetar_nesta_maquina';
 
 /** Verdadeiro entre o clique no menu e a resposta do processo principal. */
 let projecaoLocalEmCurso = false;
@@ -11606,12 +11607,11 @@ let projecaoLocalEmCurso = false;
 /**
  * Verdadeiro enquanto o motor local está mesmo de pé.
  *
- * Distinto da preferência gravada, e a distinção não é académica: a preferência é a
- * *intenção* do operador, este é o *facto*. Enquanto o modo local se derivava só da
- * preferência, uma tentativa falhada — porta ocupada porque o Servidor está aberto —
- * deixava o painel a acreditar que projetava localmente. E aí recusava-se a ligar ao
- * Servidor, porque «está em modo local», e não projetava, porque não está. Ficava preso
- * entre os dois.
+ * Distinto da *intenção* de estar em modo local, e a distinção não é académica: enquanto o
+ * modo local se derivava da intenção declarada, uma tentativa falhada — porta ocupada
+ * porque o Servidor está aberto — deixava o painel a acreditar que projetava localmente.
+ * E aí recusava-se a ligar ao Servidor, porque «está em modo local», e não projetava,
+ * porque não está. Ficava preso entre os dois.
  */
 let projecaoLocalActiva = false;
 
@@ -11686,11 +11686,8 @@ async function ligarProjecaoNestaMaquina() {
 
   projecao.usarTransporte(criarTransporteLocal(ponte));
   garantirMotorAudioLocal()?.ligar();
-  try {
-    localStorage.setItem(LS_PROJETAR_LOCAL, '1');
-  } catch (_) {
-    // intencional
-  }
+  /* Nada se grava aqui: o modo local é o padrão de todo arranque, e um padrão não precisa
+     de ser lembrado. */
   papelControladorLocal = { primario: true, podeEscrever: true, donoAtual: null };
   setStatusServidorRemoto('ocioso');
   atualizarUiConexao(true);
@@ -11717,15 +11714,11 @@ async function ligarProjecaoNestaMaquina() {
 }
 
 /**
- * Desliga o modo local — só nesta sessão.
+ * Desliga o modo local — só nesta sessão, como tudo o que diz respeito ao modo.
  *
- * Não escreve a preferência de propósito. Desde que projetar nesta máquina passou a ser o
- * padrão, gravar `'0'` aqui fazia com que desmarcar o item de menu para parar de projetar
- * por um instante tirasse o PC do padrão para sempre — e no arranque seguinte ele não
- * projetava nada, porque sem IP gravado o caminho remoto é um no-op silencioso.
- *
- * Quem declara «este PC opera contra um Servidor da rede» é `conectar()`, que é a acção
- * onde essa intenção existe de facto.
+ * Não escreve nada, e nenhum outro caminho escreve: o arranque seguinte volta sempre a
+ * projetar nesta máquina, tenha ou não o operador desmarcado o item de menu antes de
+ * fechar. Ver o bloco sobre persistência junto a `projecaoLocalEmCurso`.
  */
 async function desligarProjecaoNestaMaquina() {
   const ponte = ponteProjecaoLocal();
@@ -12671,13 +12664,9 @@ socket.on('connect', async () => {
     aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
     if (typeof fecharOverlaysPainelCtrl === 'function') fecharOverlaysPainelCtrl();
     setStatusServidorRemoto('conectado');
-    /* Ligação confirmada: só agora se declara e se lembra o modo remoto. Uma tentativa
-       falhada nunca chega aqui, então o reinício volta ao padrão local (ocioso). */
-    try {
-      localStorage.setItem(LS_PROJETAR_LOCAL, '0');
-    } catch (_) {
-      // intencional — sem `localStorage` liga na mesma; só não se lembra na próxima
-    }
+    /* Ligação confirmada — e é só isso que acontece. O modo remoto NÃO se grava: vale para
+       esta sessão e acaba com ela. No próximo arranque o Controlador volta a projetar
+       nesta máquina, e ligar ao Servidor exige de novo o acto explícito do operador. */
     atualizarUiConexao(true);
     document.getElementById('info-ip').textContent = ip;
     atualizarUrlsObs();
@@ -16483,12 +16472,12 @@ document.getElementById('ip-input').addEventListener('change', (e) => {
 
 setTimeout(() => {
   /*
-   * Projetar nesta máquina é SEMPRE o arranque: há projeção desde o início e o painel nunca
-   * fica preso num «conectando» sem nada projetável.
+   * Projetar nesta máquina é SEMPRE o arranque, sem excepção e sem consultar nada: não há
+   * preferência de modo gravada para consultar. Há projeção desde o início, e o painel
+   * nunca fica preso num «conectando» sem nada projetável.
    *
-   * Se a preferência declarada é o Servidor remoto (cenário de dois PCs), tenta-se ligar POR
-   * CIMA do local — enquanto a ligação não vinga, o local continua a projetar; quem troca de
-   * transporte é o `socket.on('connect')`, só quando a ligação se estabelece de facto.
+   * A sessão anterior não influencia esta. Ter ligado ao Servidor ontem — ou há cinco
+   * minutos, antes de fechar — não muda este caminho.
    *
    * Sem ponte não há modo local (o painel está num browser, fora do aplicativo), e aí só
    * resta o caminho remoto.
@@ -16499,13 +16488,13 @@ setTimeout(() => {
     tentarAutoConectarSeDesconectado();
     return;
   }
-  /* O arranque é sempre local — o painel abre já a projetar, nunca preso num «conectando».
-     Ligar ao Servidor é uma acção manual (badge / Ajustes), e a preferência `'0'` não força
-     mais um arranque remoto: quando muito, é o clique do operador que o declara. */
+  /* Ligar ao Servidor é sempre uma acção manual do operador (badge / Ajustes), repetida a
+     cada abertura. Nada aqui a antecipa. */
   void ligarProjecaoNestaMaquina().then((r) => {
     if (!r?.ok) {
       /* Local não subiu — porta ocupada, tipicamente porque o Servidor está nesta mesma
-         máquina. Só aí resta o caminho remoto. */
+         máquina. Só aí resta o caminho remoto, e só por isso: é o último recurso quando o
+         padrão não está disponível, não memória de uma sessão anterior. */
       tentarAutoConectarSeDesconectado();
     }
   });
@@ -16812,8 +16801,9 @@ const LYRA_MANUAL_SECTIONS = [
       '<strong>Por padrão, o Lyra projeta nesta máquina.</strong> Ao abrir, ele já assume os monitores deste PC — nada precisa ser configurado, e nenhum servidor precisa estar rodando. É o caso de quem opera no mesmo computador que tem os projetores.',
       'Os monitores secundários ficam <strong>pretos</strong> quando não há nada projetado, com o relógio por cima se você o tiver ligado em Ajustes. Isso é proposital: a área de trabalho do operador nunca aparece no telão.',
       'O menu <strong>Ferramentas → Projetar nesta máquina</strong> mostra e controla esse modo. A marca indica se ele está mesmo de pé.',
-      '<strong>Dois PCs:</strong> se os monitores estiverem em outro computador, abra o app <strong>Servidor</strong> nele e, aqui, use <strong>Ferramentas → Conectar a servidor remoto…</strong> (ou Ajustes → Conexão), informe o IP daquele PC e clique em <strong>Conectar</strong>. O Lyra lembra dessa escolha nas próximas aberturas.',
-      'Para voltar ao padrão, use <strong>Ferramentas → Projetar nesta máquina</strong>.',
+      '<strong>Dois PCs:</strong> se os monitores estiverem em outro computador, abra o app <strong>Servidor</strong> nele e, aqui, use <strong>Ferramentas → Conectar a servidor remoto…</strong> (ou Ajustes → Conexão), informe o IP daquele PC e clique em <strong>Conectar</strong>.',
+      '<strong>A conexão vale só para a sessão atual.</strong> O Lyra não guarda essa escolha: ao fechar e reabrir, ele volta sempre a projetar nesta máquina, e você conecta de novo se quiser. O IP digitado continua salvo, para não ser preciso redigitá-lo — mas nada se conecta sozinho.',
+      'Para voltar ao padrão sem reiniciar, use <strong>Ferramentas → Projetar nesta máquina</strong>.',
       'O Servidor publica a API principal na porta 5510 e exibe o IP local. Se a conexão cair, revise IP, firewall e rede local — o Lyra foi pensado para uso em LAN confiável, com Servidor e Controlador na mesma rede.',
       'O item <strong>Ferramentas → Reiniciar servidor</strong> só aparece quando você está conectado a um Servidor remoto; ele reinicia esse servidor e aguarda até ele responder novamente.',
       'Os dois modos não podem coexistir na mesma máquina: quem chegar primeiro à porta 5510 fica com ela, e o outro avisa em vez de disputar as telas.',
@@ -17330,8 +17320,8 @@ async function tratarComandoMenuLyra(payload) {
     if (r && r.ok === false && r.erro) alert(r.erro);
     return;
   }
-  /* Leva ao sítio onde o IP se escreve; quem liga é o botão «Conectar» de lá, que é também
-     quem grava a preferência do modo remoto. O menu é só o atalho descobrível. */
+  /* Leva ao sítio onde o IP se escreve; quem liga é o botão «Conectar» de lá. O menu é só
+     o atalho descobrível — e a ligação vale para a sessão, nada se grava. */
   if (command === 'tools-conectar-servidor-remoto') {
     abrirCfgModal('conexao');
     document.getElementById('ip-input')?.focus();
