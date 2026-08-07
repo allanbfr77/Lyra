@@ -27,15 +27,15 @@ function attachPublicDisplayConfig(ctx) {
   }
 
   /**
-   * Converte `fontSize` guardado para o novo intervalo em vh (2.2–9), igual ministrante.
-   * Arruma JSON antigo onde o slider era 2–40 (vh proporcional maior).
+   * Converte `fontSize` guardado para o intervalo em vh (0–9, passo 1).
+   * Arruma JSON antigo onde o slider era 2–40 ou 2.2–9 com casas decimais.
    */
   function normalizarFontSizeVhPublicoParaForm(valor) {
     const v = Number(valor);
-    if (!Number.isFinite(v)) return 5.5;
-    if (v >= 2.2 && v <= 9) return v;
-    if (v >= 2 && v <= 40) return 2.2 + ((v - 2) * (9 - 2.2)) / (40 - 2);
-    return Math.min(9, Math.max(2.2, v));
+    if (!Number.isFinite(v)) return 6;
+    if (v >= 0 && v <= 9) return Math.round(v);
+    if (v >= 2 && v <= 40) return Math.round(2 + ((v - 2) * (9 - 2)) / (40 - 2));
+    return Math.min(9, Math.max(0, Math.round(v)));
   }
 
   /**
@@ -50,6 +50,16 @@ function attachPublicDisplayConfig(ctx) {
     return Math.min(2.4, Math.max(1, v));
   }
 
+  function lerChk(id) {
+    if (typeof ctx.getChkVal === 'function') return !!ctx.getChkVal(id);
+    const el = ctx.document.getElementById(id);
+    if (!el) return false;
+    if (el.classList?.contains('cfg-switch') || el.getAttribute('role') === 'switch') {
+      return el.getAttribute('aria-checked') === 'true';
+    }
+    return !!el.checked;
+  }
+
   function onPublicoSlideCfgChange() {
     const root = getCfgRoot();
     if (!root.publico) root.publico = {};
@@ -57,14 +67,14 @@ function attachPublicDisplayConfig(ctx) {
     root.publico.textColor = lerSelect('cfg-publico-text-color-ctrl', '#ffffff');
     root.publico.fontFamily = lerSelect('cfg-publico-fontfamily-ctrl', 'CMG Sans, sans-serif');
     root.publico.fontSize = ctx.lerNumeroInput('cfg-publico-fontsize-ctrl', root.publico.fontSize ?? 5.5);
-    root.publico.negrito = !!ctx.document.getElementById('cfg-publico-negrito-ctrl')?.checked;
-    root.publico.italico = !!ctx.document.getElementById('cfg-publico-italico-ctrl')?.checked;
-    root.publico.maiusculo = !!ctx.document.getElementById('cfg-publico-maiusculo-ctrl')?.checked;
+    root.publico.negrito = lerChk('cfg-publico-negrito-ctrl');
+    root.publico.italico = lerChk('cfg-publico-italico-ctrl');
+    root.publico.maiusculo = lerChk('cfg-publico-maiusculo-ctrl');
     root.publico.lineSpacing = ctx.lerNumeroInput('cfg-publico-linespacing-ctrl', root.publico.lineSpacing ?? 1.35);
     root.publico.letterSpacing = parseFloat(lerSelect('cfg-publico-letterspacing-ctrl', '0'));
     root.publico.textAlign = lerSelect('cfg-publico-textalign-ctrl', 'center');
-    root.publico.wrapLongLines = !!ctx.document.getElementById('cfg-publico-wrap-ctrl')?.checked;
-    root.publico.autoFitLongLines = !!ctx.document.getElementById('cfg-publico-autofit-ctrl')?.checked;
+    root.publico.wrapLongLines = lerChk('cfg-publico-wrap-ctrl');
+    root.publico.autoFitLongLines = lerChk('cfg-publico-autofit-ctrl');
 
     ctx.setSpanText('cfg-publico-fontsize-val-ctrl', String(root.publico.fontSize));
     ctx.setSpanText('cfg-publico-linespacing-val-ctrl', String(root.publico.lineSpacing));

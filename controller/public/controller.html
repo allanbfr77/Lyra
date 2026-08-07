@@ -7074,63 +7074,403 @@
       flex-direction: column;
       box-shadow: 0 8px 32px rgba(0,0,0,0.25);
       overflow: hidden;
+      flex-shrink: 0;
     }
     .cfg-modal-header {
-      padding: 16px 20px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
+      background: var(--surface2);
       font-family: var(--font-ui);
       font-size: 14px;
-      color: var(--accent);
+      font-weight: var(--fw-semibold);
+      color: var(--text);
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
-    .cfg-tabs {
+    /* Shell: sidebar + conteúdo (tamanho fixo — não colapsa ao trocar aba) */
+    .cfg-modal-main {
       display: flex;
-      flex-wrap: nowrap;
-      align-items: stretch;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-      padding: 0 10px;
-      background: var(--surface);
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
     }
-    .cfg-tab {
+    /* ── Coluna de navegação: busca fixa no topo, lista rolável em baixo ── */
+    .cfg-tabs {
+      width: 232px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: var(--bg);
+      overflow: hidden;
+    }
+    .cfg-busca-wrap { padding: 10px 10px 8px; flex-shrink: 0; position: relative; }
+    .cfg-busca {
+      width: 100%;
       font-family: var(--font-ui);
-      font-size: 11px;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-      padding: 12px 8px;
+      font-size: 13px;
+      padding: 7px 26px 7px 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      box-sizing: border-box;
+    }
+    .cfg-busca:focus { border-color: var(--accent); }
+    .cfg-busca::-webkit-search-cancel-button { display: none; }
+    .cfg-busca-icone {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      stroke: var(--text-dim);
+      fill: none;
+      stroke-width: 2;
+      pointer-events: none;
+    }
+    .cfg-busca-limpar {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
       border: none;
       background: none;
       cursor: pointer;
       color: var(--text-dim);
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      transition: all 0.2s;
-      white-space: nowrap;
-      min-height: 44px;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .cfg-busca-limpar[hidden] { display: none !important; }
+    .cfg-tabs-lista {
+      flex: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 4px 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .cfg-nav-group {
       display: flex;
       align-items: center;
-      justify-content: center;
-      flex: 0 0 auto;
-      line-height: 1.1;
+      gap: 6px;
+      padding: 18px 8px 7px;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--text) 45%, transparent);
+      user-select: none;
     }
-    .cfg-tab.ativo { color: var(--accent); border-bottom-color: var(--accent); }
-    .cfg-tab:hover:not(.ativo) { color: var(--text); }
+    .cfg-nav-group:first-child { padding-top: 6px; }
+    .cfg-tab {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: var(--fw-regular);
+      letter-spacing: 0;
+      text-transform: none;
+      padding: 11px 10px 11px 11px;
+      border: none;
+      border-left: 3px solid transparent;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+      color: var(--text);
+      margin: 0;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      line-height: 1.25;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: left;
+    }
+    .cfg-tab > svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.7;
+    }
+    .cfg-tab-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .cfg-tab.ativo {
+      color: var(--accent2);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border-left-color: var(--accent);
+      border-bottom-color: transparent;
+      font-weight: var(--fw-semibold);
+    }
+    .cfg-tab.ativo > svg { opacity: 1; }
+    .cfg-tab:hover:not(.ativo) {
+      color: var(--text);
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+    }
+    .cfg-tab-conta {
+      font-size: 11px;
+      font-weight: var(--fw-semibold);
+      color: var(--accent2);
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+      border-radius: 99px;
+      padding: 1px 7px;
+      flex-shrink: 0;
+    }
+    .cfg-tab-conta[hidden] { display: none !important; }
+    .cfg-tab.sem-resultado { opacity: 0.32; }
     .cfg-modal-body {
-      padding: 20px;
+      padding: 0 20px 20px;
       overflow: auto;
       flex: 1;
+      min-width: 0;
       min-height: 0;
+      background: var(--surface);
+    }
+    /* ── Cabeçalho do painel: migalha + título + seletor de destino ── */
+    .cfg-painel-topo {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--surface);
+      padding: 16px 0 14px;
+      margin-bottom: 2px;
+    }
+    .cfg-painel-titulo {
+      font-family: var(--font-ui);
+      font-size: 19px;
+      font-weight: var(--fw-semibold);
+      color: var(--text);
+      margin: 0;
+    }
+    .cfg-painel-hint {
+      font-family: var(--font-ui);
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin: 5px 0 0;
+    }
+    /* Seletor de destino — substitui a duplicação de Telão/Ministrante no menu. */
+    .cfg-destinos {
+      display: inline-flex;
+      gap: 2px;
+      margin-top: 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .cfg-destino {
+      font-family: var(--font-ui);
+      font-size: 13.5px;
+      font-weight: var(--fw-medium);
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .cfg-destino svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .cfg-destino:hover:not(.ativo) { color: var(--text); }
+    .cfg-destino.ativo {
+      background: var(--surface);
+      color: var(--text);
+      font-weight: var(--fw-semibold);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+    }
+    .cfg-destino-painel { display: none; }
+    .cfg-destino-painel.ativo { display: block; }
+    .cfg-destino-rotulo { display: none; }
+    /* ── Cartão de secção ── */
+    .cfg-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .cfg-card-head {
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .cfg-card-titulo {
+      font-family: var(--font-ui);
+      font-size: 13.5px;
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent2);
+    }
+    .cfg-card-corpo { padding: 2px 14px; }
+    /* ── Linha de ajuste: rótulo à esquerda, controlo à direita ── */
+    .cfg-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
+      align-items: center;
+      column-gap: 16px;
+      padding: 11px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+    .cfg-card-corpo > .cfg-row:last-child,
+    .cfg-card-corpo > div:last-child > .cfg-row:last-child { border-bottom: none; }
+    .cfg-row-copy { min-width: 0; }
+    .cfg-row-label {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: var(--fw-semibold);
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .cfg-row-hint {
+      font-family: var(--font-ui);
+      font-size: 12.5px;
+      color: var(--text-dim);
+      line-height: 1.45;
+      margin-top: 2px;
+    }
+    .cfg-row-val { font-weight: var(--fw-regular); color: var(--text-dim); }
+    .cfg-row-controlo {
+      justify-self: end;
+      width: 100%;
+      max-width: 210px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      min-width: 0;
+    }
+    .cfg-row-controlo > * { max-width: 100%; }
+    /* Linha larga: rótulo em cima, controlo por baixo — ambos alinhados à esquerda. */
+    .cfg-row--largo { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+    .cfg-row--largo > .cfg-row-controlo {
+      justify-self: stretch;
+      max-width: none;
+      justify-content: flex-start;
+    }
+    .cfg-row--largo > .cfg-row-controlo > .cfg-form-input,
+    .cfg-row--largo > .cfg-row-controlo > .conn-input { max-width: 420px; }
+    .cfg-row-controlo.cfg-conexao-row { margin-top: 0; }
+    .cfg-row-controlo.cfg-conexao-row .conn-input { flex: 0 1 420px; }
+    .cfg-row-controlo .cfg-form-select,
+    .cfg-row-controlo .cfg-form-input,
+    .cfg-row-controlo .cfg-slider,
+    .cfg-row-controlo .cfg-size-wrap,
+    .cfg-row-controlo .cfg-color-row,
+    .cfg-row-controlo input[type=file] { width: 100%; }
+    /* Seletor de imagem: o input nativo não consegue mostrar uma imagem que
+       veio gravada na config, por isso o estado real vem do JS. */
+    .cfg-arquivo {
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+    .cfg-arquivo input[type=file] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .cfg-arquivo-btn {
+      font-family: var(--font-ui);
+      font-size: 13px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .cfg-arquivo-btn:hover { border-color: var(--accent2); }
+    .cfg-arquivo input[type=file]:focus-visible + .cfg-arquivo-btn {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .cfg-nota {
+      font-family: var(--font-ui);
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.55;
+      padding: 12px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+    .cfg-card-corpo > .cfg-nota:last-child { border-bottom: none; }
+    .cfg-nota b { color: var(--text); }
+    .cfg-vazio {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-dim);
+      font-family: var(--font-ui);
+      font-size: 14px;
+    }
+    .cfg-vazio[hidden], .cfg-busca-cabecalho[hidden] { display: none !important; }
+    .cfg-busca-cabecalho { padding: 16px 0 14px; }
+    /* ── Modo busca: mostra todos os painéis de uma vez, cada um rotulado ── */
+    .cfg-modal-body.buscando .cfg-panel-body { display: block; }
+    .cfg-modal-body.buscando .cfg-painel-topo { display: none; }
+    .cfg-modal-body.buscando .cfg-destino-painel { display: block; }
+    .cfg-modal-body.buscando .cfg-destino-rotulo {
+      display: block;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      color: var(--text-dim);
+      letter-spacing: 0.3px;
+      margin: 4px 0 8px;
+    }
+    .cfg-row[hidden], .cfg-card[hidden],
+    .cfg-destino-painel[hidden], .cfg-panel-body[hidden] { display: none !important; }
+    .cfg-modal-body.buscando .cfg-nota { display: none !important; }
+    .cfg-modal-body.buscando mark {
+      background: color-mix(in srgb, var(--accent) 35%, transparent);
+      color: inherit;
+      border-radius: 2px;
+      padding: 0 1px;
     }
     .cfg-modal-footer {
-      padding: 14px 20px;
+      padding: 12px 16px;
       border-top: 1px solid var(--border);
+      background: var(--surface2);
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      flex-shrink: 0;
     }
     .cfg-form-label {
       font-size: var(--fs-label-base);
@@ -7142,12 +7482,11 @@
       margin-bottom: 6px;
       display: block;
     }
-    .cfg-form-group { margin-bottom: 14px; }
-    /* Prévia de fundo em Ajustes: quadrado compacto (não faixa larga) */
+    /* Prévia de fundo em Ajustes: sob o seletor, cobre imagem / sólido / gradiente */
     .cfg-bg-preview {
       margin-top: 8px;
-      width: 120px;
-      height: 120px;
+      width: 56px;
+      height: 56px;
       border: 1px solid var(--border);
       border-radius: 4px;
       background-size: cover;
@@ -7156,6 +7495,7 @@
       background-repeat: no-repeat;
       flex-shrink: 0;
     }
+    .cfg-bg-preview[hidden] { display: none !important; }
     .cfg-form-input, .cfg-form-select {
       width: 100%;
       background: var(--surface2);
@@ -7168,6 +7508,7 @@
       border-radius: 4px;
       outline: none;
       transition: border-color 0.2s;
+      box-sizing: border-box;
     }
     .cfg-form-input:focus, .cfg-form-select:focus { border-color: var(--accent); }
     .cfg-section-title {
@@ -7182,43 +7523,156 @@
       border-bottom: 1px solid var(--border);
     }
     .cfg-section-title:first-child { margin-top: 0; }
-    .cfg-relogio-section { margin-bottom: 12px; }
-    .cfg-relogio-section .cfg-section-title { margin-top: 20px; }
-    .cfg-relogio-section:first-child .cfg-section-title { margin-top: 0; }
-    .cfg-btn-group { display: flex; gap: 6px; }
-    .cfg-btn-pos {
-      flex: 1;
-      padding: 9px 6px;
+    /* Controlo segmentado: botões colados, cantos arredondados só nas pontas. */
+    .cfg-btn-group {
+      display: inline-flex;
       border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
       background: var(--surface2);
+    }
+    /* Dentro de uma linha de ajuste todos os grupos têm a mesma largura e
+       segmentos iguais, para que Horizontal e Vertical fiquem alinhados. */
+    .cfg-row-controlo .cfg-btn-group { display: flex; width: 100%; }
+    .cfg-row-controlo .cfg-btn-pos { flex: 1 1 0; min-width: 0; padding: 7px 4px; }
+    .cfg-btn-pos {
+      flex: 0 0 auto;
+      padding: 6px 14px;
+      border: none;
+      border-left: 1px solid var(--border);
+      background: none;
       color: var(--text-dim);
-      border-radius: 4px;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 13px;
       font-family: var(--font-ui);
-      transition: all 0.15s;
+      line-height: 1.4;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
       text-align: center;
     }
-    .cfg-btn-pos.ativo { border-color: var(--accent); color: var(--accent); background: var(--surface); font-weight: 600; }
-    .cfg-btn-pos:hover:not(.ativo) { border-color: var(--accent2); color: var(--text); }
+    .cfg-btn-pos:first-child { border-left: none; }
+    .cfg-btn-pos.ativo {
+      color: var(--text);
+      background: var(--surface);
+      font-weight: var(--fw-semibold);
+    }
+    .cfg-btn-pos:hover:not(.ativo) { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+    .cfg-btn-pos:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .cfg-slider {
       width: 100%;
       accent-color: var(--accent);
       cursor: pointer;
       margin-top: 4px;
     }
-    .cfg-color-row { display: flex; gap: 10px; align-items: center; }
+    /* Slider de tamanho vh: linha + pontinhos 0…9 */
+    .cfg-size-wrap {
+      width: 100%;
+      max-width: 200px;
+    }
+    .cfg-size-wrap .cfg-slider {
+      margin-top: 0;
+      height: 18px;
+    }
+    .cfg-size-ticks {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 2px;
+      padding: 0 1px;
+      min-height: 16px;
+    }
+    .cfg-size-tick {
+      width: 3px;
+      height: 3px;
+      border-radius: 99px;
+      background: var(--border);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .cfg-size-tick.ativo {
+      width: 5px;
+      height: 5px;
+      background: var(--accent2);
+    }
+    .cfg-size-tick[data-label]::after {
+      content: attr(data-label);
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-family: var(--font-ui);
+      color: color-mix(in srgb, var(--text) 38%, transparent);
+      line-height: 1;
+    }
+    .cfg-size-tick.ativo[data-label]::after {
+      color: var(--accent2);
+      font-weight: var(--fw-semibold);
+    }
+    .cfg-color-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      width: 100%;
+    }
     .cfg-color-row input[type=color] {
-      width: 42px; height: 32px;
+      width: 28px;
+      height: 28px;
       border: 1px solid var(--border);
-      border-radius: 4px; padding: 2px;
-      cursor: pointer; background: none;
+      border-radius: 4px;
+      padding: 1px;
+      cursor: pointer;
+      background: none;
+      flex-shrink: 0;
     }
     .cfg-color-val {
-      font-size: 12px;
+      font-size: 13px;
       font-family: var(--font-ui);
       color: var(--text-dim);
-      width: 80px;
+      min-width: 64px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    /* Interruptor (toggle) — não checkbox nativo */
+    .cfg-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+    .cfg-switch-thumb {
+      position: absolute;
+      top: 50%;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-sizing: border-box;
+      transform: translateY(-50%);
+      transition: left 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+      pointer-events: none;
+    }
+    .cfg-switch.cfg-switch--on {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .cfg-switch.cfg-switch--on .cfg-switch-thumb {
+      left: 20px;
+      background: var(--on-accent);
+      border-color: transparent;
+    }
+    .cfg-switch:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     .cfg-status {
       font-size: 12px;
@@ -7664,7 +8118,7 @@
     </div>
     <div class="nav-grupo nav-grupo--app" role="group" aria-label="Preferências">
       <div class="hdr-action hdr-action--cfg">
-        <button type="button" class="hdr-btn-round" id="btn-cfg-geral" onclick="abrirCfgModal()" title="AJUSTES (CONEXÃO, TELÃO, MINISTRANTE, RELÓGIO)" aria-label="Ajustes">
+        <button type="button" class="hdr-btn-round" id="btn-cfg-geral" onclick="abrirCfgModal()" title="Ajustes — conexão, telão, ministrante, bíblia, relógio e avisos" aria-label="Ajustes">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -8279,573 +8733,957 @@
 <script src="./js/publicDisplayConfig.js"></script>
 <script type="module" src="./js/controllerApp.js"></script>
 
-<!-- ═══════════════ Modal Configurações (controlador) ═══════════════ -->
+<!-- ═══════════════ Modal Ajustes (controlador) ═══════════════
+     Organização: o menu lateral é FIXO (6 itens, nunca escondidos por modo).
+     Dentro de «Slides» e «Bíblia» um seletor de destino troca Telão/Ministrante,
+     em vez de duplicar esses nomes no menu. Ver `mudarAbaCfg` / `mudarDestinoCfg`. -->
 <div class="cfg-modal-overlay" id="cfg-modal-overlay-ctrl">
   <div class="cfg-modal">
     <div class="cfg-modal-header">
-      <span>⚙ Configurações</span>
-      <button class="btn sm" onclick="fecharCfgModal()">✕</button>
+      <span>Ajustes — Lyra</span>
+      <button class="btn sm" onclick="fecharCfgModal()" aria-label="Fechar">✕</button>
     </div>
-    <div class="cfg-tabs">
-      <button class="cfg-tab" id="cfg-tab-ctrl-conexao" onclick="mudarAbaCfg('conexao')">Conexão</button>
-      <button class="cfg-tab ativo cfg-tab-slide" id="cfg-tab-ctrl-telao" onclick="mudarAbaCfg('telao')">SLIDE — Público (M2)</button>
-      <button class="cfg-tab cfg-tab-slide" id="cfg-tab-ctrl-ministrante" onclick="mudarAbaCfg('ministrante')">SLIDE — Ministrante (M3)</button>
-      <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-telao" onclick="mudarAbaCfg('biblia-telao')">BÍBLIA — Público (M2)</button>
-      <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-ministrante" onclick="mudarAbaCfg('biblia-ministrante')">BÍBLIA — Ministrante (M3)</button>
-      <button class="cfg-tab cfg-tab-biblia" id="cfg-tab-ctrl-biblia-leitura" onclick="mudarAbaCfg('biblia-leitura')">BÍBLIA — Leitura</button>
-      <button class="cfg-tab" id="cfg-tab-ctrl-relogio" onclick="mudarAbaCfg('relogio')">Relógio</button>
-      <button class="cfg-tab" id="cfg-tab-ctrl-avisos" onclick="mudarAbaCfg('avisos')">Avisos — Card 6</button>
-    </div>
-    <div class="cfg-modal-body">
+    <div class="cfg-modal-main">
 
-      <!-- ═══ ABA CONEXÃO ═══ -->
+    <nav class="cfg-tabs" aria-label="Categorias de ajustes">
+      <div class="cfg-busca-wrap">
+        <svg class="cfg-busca-icone" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="cfg-busca" id="cfg-busca-ctrl" type="search" placeholder="Buscar ajuste…" autocomplete="off" aria-label="Buscar ajuste" oninput="onCfgBuscaInput()">
+        <button type="button" class="cfg-busca-limpar" id="cfg-busca-limpar-ctrl" onclick="limparCfgBusca()" aria-label="Limpar busca" hidden>✕</button>
+      </div>
+
+      <div class="cfg-tabs-lista">
+        <div class="cfg-nav-group">Sistema</div>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-geral" onclick="mudarAbaCfg('geral')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="cfg-tab-nome">Geral</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-conexao" onclick="mudarAbaCfg('conexao')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+          <span class="cfg-tab-nome">Conexão</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+
+        <div class="cfg-nav-group">Conteúdo</div>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-slides" onclick="mudarAbaCfg('slides')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9h10M7 13h6"/></svg>
+          <span class="cfg-tab-nome">Slides</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-biblia" onclick="mudarAbaCfg('biblia')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2V5z"/><path d="M6 3v16M10 8h6M10 12h5"/></svg>
+          <span class="cfg-tab-nome">Bíblia</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+
+        <div class="cfg-nav-group">Sempre no ar</div>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-relogio" onclick="mudarAbaCfg('relogio')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span class="cfg-tab-nome">Relógio</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-avisos" onclick="mudarAbaCfg('avisos')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+          <span class="cfg-tab-nome">Avisos</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="cfg-modal-body" id="cfg-modal-body-ctrl">
+
+      <!-- Cabeçalho da busca: substitui os painéis enquanto há termo digitado. -->
+      <div class="cfg-busca-cabecalho" id="cfg-busca-cabecalho-ctrl" hidden>
+        <h2 class="cfg-painel-titulo" id="cfg-busca-titulo-ctrl">Resultados</h2>
+        <p class="cfg-painel-hint">Ajuste aqui mesmo — o caminho de cada item aparece acima dele.</p>
+      </div>
+      <div class="cfg-vazio" id="cfg-busca-vazio-ctrl" hidden>
+        Nada encontrado. Tente “fonte”, “cor”, “fundo”, “posição” ou “versículo”.
+      </div>
+
+      <!-- ═══════════════ GERAL ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-geral">
+        <div class="cfg-destino-rotulo">Sistema › Geral</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Geral</h2>
+        </header>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Preferências do operador</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="tema escuro claro aparencia geral">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Tema escuro</div>
+                <div class="cfg-row-hint">Alterna claro / escuro em todo o controlador.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-geral-tema-ctrl" role="switch" aria-checked="false" aria-label="Tema escuro" onclick="onCfgGeralTemaChange(this.getAttribute('aria-checked') !== 'true')">
+                  <span class="cfg-switch-thumb" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="comandos de voz reconhecimento offline geral">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Comandos de voz</div>
+                <div class="cfg-row-hint">Reconhecimento offline para avançar slides.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-geral-voz-ctrl" role="switch" aria-checked="false" aria-label="Comandos de voz" onclick="onCfgGeralVozChange(this.getAttribute('aria-checked') !== 'true')">
+                  <span class="cfg-switch-thumb" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ═══════════════ CONEXÃO ═══════════════ -->
       <div class="cfg-panel-body" id="cfg-panel-ctrl-conexao">
-        <div class="cfg-section-title">Servidor de projeção remoto</div>
-        <div class="cfg-hint-stack" style="margin:0 0 14px;font-size:12px;color:var(--text-dim);line-height:1.55">
-          <p class="cfg-hint" style="margin:0 0 10px">Por padrão o Lyra projeta <b>nesta máquina</b>, sem servidor nenhum — é o caso de quem opera no mesmo PC que tem os monitores, e nada precisa de ser configurado aqui.</p>
-          <p class="cfg-hint" style="margin:0 0 10px">Esta secção serve ao cenário de <b>dois PCs</b>: um com os monitores a correr o app <b>Servidor</b>, outro com o Controlador a enviar os comandos. Informe abaixo o IP do PC que tem os monitores.</p>
-          <p class="cfg-hint" style="margin:0">Ao conectar, este Controlador deixa de projetar nesta máquina e passa a comandar o Servidor — e lembra-se dessa escolha nas próximas aberturas. Para voltar ao padrão, use <b>Ferramentas › Projetar nesta máquina</b>. O estado da ligação aparece no badge no canto superior direito do painel.</p>
-        </div>
-        <label class="cfg-label" for="ip-input">IP do servidor</label>
-        <div class="cfg-conexao-row">
-          <input type="text" class="conn-input" id="ip-input" placeholder="192.168.1.10" value="" autocomplete="off">
-          <button type="button" class="btn success" id="btn-conectar" onclick="conectar()">Conectar</button>
+        <div class="cfg-destino-rotulo">Sistema › Conexão</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Conexão</h2>
+          <p class="cfg-painel-hint">Por padrão o Lyra projeta <b>nesta máquina</b>, sem servidor nenhum. Esta aba só é necessária no cenário de dois PCs.</p>
+        </header>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Servidor de projeção remoto</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-nota">
+              Um PC com os monitores corre o app <b>Servidor</b>; o outro corre o Controlador e envia os comandos. Ao conectar, este Controlador deixa de projetar aqui e passa a comandar o Servidor — e lembra-se dessa escolha nas próximas aberturas. Para voltar ao padrão use <b>Ferramentas › Projetar nesta máquina</b>. O estado da ligação aparece no badge no canto superior direito do painel.
+            </div>
+            <div class="cfg-row cfg-row--largo" data-busca="ip do servidor conectar conexao rede">
+              <div class="cfg-row-copy"><div class="cfg-row-label">IP do servidor</div></div>
+              <div class="cfg-row-controlo cfg-conexao-row">
+                <input type="text" class="conn-input" id="ip-input" placeholder="192.168.1.10" value="" autocomplete="off">
+                <button type="button" class="btn success" id="btn-conectar" onclick="conectar()">Conectar</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Browser Source (OBS)</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-nota">Funciona no mesmo PC ou em outro na rede local — use o endereço mostrado, não <code>localhost</code>.</div>
+            <div class="cfg-row cfg-row--largo" data-busca="obs browser source modo biblia endereco url">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Modo Bíblia</div></div>
+              <div class="cfg-row-controlo cfg-conexao-row">
+                <input type="text" class="conn-input" id="obs-url-biblia" value="" placeholder="Conecte ao servidor para gerar o endereço" readonly onclick="this.select()">
+                <button type="button" class="btn" id="btn-copiar-obs-biblia" onclick="copiarUrlObs('obs-url-biblia', this)">Copiar</button>
+              </div>
+            </div>
+            <div class="cfg-row cfg-row--largo" data-busca="obs browser source modo slide endereco url">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Modo Slide</div></div>
+              <div class="cfg-row-controlo cfg-conexao-row">
+                <input type="text" class="conn-input" id="obs-url-slides" value="" placeholder="Conecte ao servidor para gerar o endereço" readonly onclick="this.select()">
+                <button type="button" class="btn" id="btn-copiar-obs-slides" onclick="copiarUrlObs('obs-url-slides', this)">Copiar</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ═══════════════ SLIDES ═══════════════ -->
+      <div class="cfg-panel-body ativo" id="cfg-panel-ctrl-slides">
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Slides</h2>
+          <p class="cfg-painel-hint">Aparência das letras de música. Escolha abaixo qual tela está a configurar.</p>
+          <div class="cfg-destinos" role="tablist" aria-label="Destino dos slides">
+            <button type="button" class="cfg-destino ativo" role="tab" aria-selected="true" data-destino="telao" onclick="mudarDestinoCfg('slides','telao')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Telão (público)
+            </button>
+            <button type="button" class="cfg-destino" role="tab" aria-selected="false" data-destino="ministrante" onclick="mudarDestinoCfg('slides','ministrante')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M12 16v4"/></svg>Ministrante
+            </button>
+          </div>
+        </header>
+
+        <!-- ─── Slides › Telão ─── -->
+        <div class="cfg-destino-painel ativo" id="cfg-destino-telao">
+          <div class="cfg-destino-rotulo">Slides › Telão (público)</div>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-publico-bg-type-ctrl" onchange="onPublicoBgTypeCtrlChange()">
+                    <option value="solid">Cor sólida</option>
+                    <option value="gradient">Gradiente CSS</option>
+                    <option value="image">Imagem</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="previa do fundo telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Prévia</div></div>
+                <div class="cfg-row-controlo"><div id="cfg-publico-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia do fundo"></div></div>
+              </div>
+              <div class="cfg-row" id="cfg-publico-bg-solid-ctrl" data-busca="cor de fundo telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-bg-color-ctrl" value="#000000" oninput="onPublicoBgColorCtrlInput()"></div>
+              </div>
+              <div class="cfg-row cfg-row--largo" id="cfg-publico-bg-gradient-wrap-ctrl" style="display:none" data-busca="gradiente css fundo telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
+                <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-publico-bg-gradient-ctrl" oninput="onPublicoBgGradientCtrlInput()"></div>
+              </div>
+              <div class="cfg-row" id="cfg-publico-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Imagem</div></div>
+                <div class="cfg-row-controlo"><div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-publico-bg-image-ctrl" onchange="onPublicoBgImageCtrlChange()"><label class="cfg-arquivo-btn" for="cfg-publico-bg-image-ctrl">Escolher imagem…</label></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Tipografia</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="familia da fonte tipografia telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Família da fonte</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-publico-fontfamily-ctrl" onchange="onPublicoSlideCfgChange()">
+                    <option value="CMG Sans, sans-serif">CMG Sans</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da fonte letra telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-publico-fontsize-val-ctrl">6</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-publico-fontsize-ctrl" min="0" max="9" step="1" value="6" oninput="onPublicoSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da letra texto telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-text-color-ctrl" value="#ffffff" oninput="onPublicoSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="negrito telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-publico-negrito-ctrl" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="italico telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Itálico</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-publico-italico-ctrl" role="switch" aria-checked="false" aria-label="Itálico" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="maiusculas caixa alta telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-publico-maiusculo-ctrl" role="switch" aria-checked="true" aria-label="Maiúsculas" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="espacamento entre linhas telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre linhas <span class="cfg-row-val" id="cfg-publico-linespacing-val-ctrl">1.35</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-publico-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onPublicoSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="espacamento entre caracteres letras telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre caracteres <span class="cfg-row-val" id="cfg-publico-letterspacing-val-ctrl">0</span></div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-publico-letterspacing-ctrl" onchange="onPublicoSlideCfgChange()">
+                    <option value="-10">-10</option><option value="-5">-5</option><option value="0" selected>0</option>
+                    <option value="5">5</option><option value="10">10</option><option value="15">15</option>
+                    <option value="20">20</option><option value="25">25</option><option value="30">30</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="alinhamento do texto esquerda centro direita telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Alinhamento do texto</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-publico-textalign-ctrl" onchange="onPublicoSlideCfgChange()">
+                    <option value="left">Esq</option>
+                    <option value="center" selected>Centro</option>
+                    <option value="right">Dir</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Comportamento do texto</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="quebra de linha automatica telao slides">
+                <div class="cfg-row-copy">
+                  <div class="cfg-row-label">Quebra de linha automática</div>
+                  <div class="cfg-row-hint">Deixa o texto passar para a linha seguinte.</div>
+                </div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-publico-wrap-ctrl" role="switch" aria-checked="false" aria-label="Quebra de linha automática" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="autoajuste de fonte para caber linha telao slides">
+                <div class="cfg-row-copy">
+                  <div class="cfg-row-label">Autoajuste de fonte</div>
+                  <div class="cfg-row-hint">Encolhe a letra para a linha caber inteira.</div>
+                </div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-publico-autofit-ctrl" role="switch" aria-checked="false" aria-label="Autoajuste de fonte" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Posição na tela</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="posicao horizontal esquerda centro direita telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Horizontal</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-posx-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="left" onclick="setPosCtrl('posX','left')">Esq</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setPosCtrl('posX','center')">Centro</button>
+                    <button type="button" class="cfg-btn-pos" data-val="right" onclick="setPosCtrl('posX','right')">Dir</button>
+                  </div>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="posicao vertical topo meio rodape telao slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Vertical</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-posy-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="top" onclick="setPosCtrl('posY','top')">Topo</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setPosCtrl('posY','center')">Meio</button>
+                    <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setPosCtrl('posY','bottom')">Rodapé</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div class="cfg-section-title" style="margin-top:22px">Browser Source (OBS)</div>
-        <p class="cfg-hint" style="margin:0 0 10px;font-size:12px;color:var(--text-dim)">Cole estes endereços como <b>Browser Source</b> no OBS. Funciona no mesmo PC ou em outro na rede local (use o endereço mostrado, não <code>localhost</code>).</p>
+        <!-- ─── Slides › Ministrante ─── -->
+        <div class="cfg-destino-painel" id="cfg-destino-ministrante">
+          <div class="cfg-destino-rotulo">Slides › Ministrante</div>
 
-        <label class="cfg-label" for="obs-url-biblia">Modo Bíblia</label>
-        <div class="cfg-conexao-row">
-          <input type="text" class="conn-input" id="obs-url-biblia" value="" placeholder="Conecte ao servidor para gerar o endereço" readonly onclick="this.select()">
-          <button type="button" class="btn" id="btn-copiar-obs-biblia" onclick="copiarUrlObs('obs-url-biblia', this)">Copiar</button>
-        </div>
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-ministrante-bg-type-ctrl" onchange="onMinistranteBgTypeCtrlChange()">
+                    <option value="solid">Cor sólida</option>
+                    <option value="gradient">Gradiente CSS</option>
+                    <option value="image">Imagem</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="previa do fundo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Prévia</div></div>
+                <div class="cfg-row-controlo"><div id="cfg-ministrante-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia do fundo"></div></div>
+              </div>
+              <div class="cfg-row" id="cfg-ministrante-bg-solid-ctrl" data-busca="cor de fundo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-bg-color-ctrl" value="#000000" oninput="onMinistranteBgColorCtrlInput()"></div>
+              </div>
+              <div class="cfg-row cfg-row--largo" id="cfg-ministrante-bg-gradient-wrap-ctrl" style="display:none" data-busca="gradiente css fundo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
+                <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-ministrante-bg-gradient-ctrl" oninput="onMinistranteBgGradientCtrlInput()"></div>
+              </div>
+              <div class="cfg-row" id="cfg-ministrante-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Imagem</div></div>
+                <div class="cfg-row-controlo"><div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-ministrante-bg-image-ctrl" onchange="onMinistranteBgImageCtrlChange()"><label class="cfg-arquivo-btn" for="cfg-ministrante-bg-image-ctrl">Escolher imagem…</label></div></div>
+              </div>
+            </div>
+          </section>
 
-        <label class="cfg-label" for="obs-url-slides" style="display:inline-block;margin-top:12px">Modo Slide</label>
-        <div class="cfg-conexao-row">
-          <input type="text" class="conn-input" id="obs-url-slides" value="" placeholder="Conecte ao servidor para gerar o endereço" readonly onclick="this.select()">
-          <button type="button" class="btn" id="btn-copiar-obs-slides" onclick="copiarUrlObs('obs-url-slides', this)">Copiar</button>
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Cores do texto</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="cor da letra atual ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra (atual)</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-atual-ctrl" value="#ffffff" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da letra proximo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra (próximo)</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-proximo-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor do comentario ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor do comentário</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Tamanhos</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tamanho da fonte atual ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (atual) <span class="cfg-row-val"><span id="cfg-ministrante-fontsize-atual-val-ctrl">4.1</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-fontsize-atual-ctrl" min="0" max="9" step="1" value="4" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da fonte proximo ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (próximo) <span class="cfg-row-val"><span id="cfg-ministrante-fontsize-proximo-val-ctrl">4.1</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-fontsize-proximo-ctrl" min="0" max="9" step="1" value="4" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="espacamento entre linhas ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre linhas <span class="cfg-row-val" id="cfg-ministrante-linespacing-val-ctrl">1.35</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-ministrante-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Comportamento do texto</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="quebra de linha automatica ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Quebra de linha automática</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-ministrante-wrap-ctrl" role="switch" aria-checked="false" aria-label="Quebra de linha automática" onclick="toggleCfgSwitch(this); onMinistranteSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="autoajuste de fonte para caber linha ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Autoajuste de fonte</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-ministrante-autofit-ctrl" role="switch" aria-checked="false" aria-label="Autoajuste de fonte" onclick="toggleCfgSwitch(this); onMinistranteSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
-      <!-- ═══ ABA TELÃO ═══ -->
-      <div class="cfg-panel-body ativo" id="cfg-panel-ctrl-telao">
+      <!-- ═══════════════ BÍBLIA ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-biblia">
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Bíblia</h2>
+          <p class="cfg-painel-hint">Aparência dos versículos. Escolha abaixo qual tela está a configurar.</p>
+          <div class="cfg-destinos" role="tablist" aria-label="Destino da bíblia">
+            <button type="button" class="cfg-destino ativo" role="tab" aria-selected="true" data-destino="biblia-telao" onclick="mudarDestinoCfg('biblia','biblia-telao')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Telão (público)
+            </button>
+            <button type="button" class="cfg-destino" role="tab" aria-selected="false" data-destino="biblia-ministrante" onclick="mudarDestinoCfg('biblia','biblia-ministrante')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M12 16v4"/></svg>Ministrante
+            </button>
+            <button type="button" class="cfg-destino" role="tab" aria-selected="false" data-destino="biblia-leitura" onclick="mudarDestinoCfg('biblia','biblia-leitura')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h8a3 3 0 0 1 3 3v11a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 5h-8a3 3 0 0 0-3 3v11a2.5 2.5 0 0 1 2.5-2H22z"/></svg>Leitura
+            </button>
+          </div>
+        </header>
 
-        <div class="cfg-section-title">Posição Horizontal</div>
-        <div class="cfg-btn-group" id="cfg-posx-ctrl-group">
-          <button class="cfg-btn-pos" data-val="left"   onclick="setPosCtrl('posX','left')">◀ Esquerda</button>
-          <button class="cfg-btn-pos ativo" data-val="center" onclick="setPosCtrl('posX','center')">■ Centro</button>
-          <button class="cfg-btn-pos" data-val="right"  onclick="setPosCtrl('posX','right')">▶ Direita</button>
+        <!-- ─── Bíblia › Telão ─── -->
+        <div class="cfg-destino-painel ativo" id="cfg-destino-biblia-telao">
+          <div class="cfg-destino-rotulo">Bíblia › Telão (público)</div>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-biblia-pub-bg-type-ctrl" onchange="onBibliaPublicoBgTypeCtrlChange()">
+                    <option value="solid">Cor sólida</option>
+                    <option value="gradient">Gradiente</option>
+                    <option value="image">Imagem</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="previa do fundo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Prévia</div></div>
+                <div class="cfg-row-controlo"><div id="cfg-biblia-pub-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia do fundo"></div></div>
+              </div>
+              <div class="cfg-row" id="cfg-biblia-pub-bg-solid-ctrl" data-busca="cor de fundo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-color-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()"></div>
+              </div>
+              <div id="cfg-biblia-pub-bg-gradient-wrap-ctrl" style="display:none">
+                <div class="cfg-row" data-busca="cor inicial do gradiente fundo biblia telao">
+                  <div class="cfg-row-copy"><div class="cfg-row-label">Cor inicial do gradiente</div></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()"></div>
+                </div>
+                <div class="cfg-row" data-busca="cor final do gradiente fundo biblia telao">
+                  <div class="cfg-row-copy"><div class="cfg-row-label">Cor final do gradiente</div></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaPublicoCfgChange()"></div>
+                </div>
+              </div>
+              <div class="cfg-row" id="cfg-biblia-pub-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Imagem</div></div>
+                <div class="cfg-row-controlo"><div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-biblia-pub-bg-image-ctrl" onchange="bibliaEscolherFundo(this)"><label class="cfg-arquivo-btn" for="cfg-biblia-pub-bg-image-ctrl">Escolher imagem…</label></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Versículo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="familia da fonte versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Família da fonte</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-biblia-pub-fontfamily-ctrl" onchange="onBibliaPublicoCfgChange()">
+                    <option value="CMG Sans, sans-serif">CMG Sans</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da fonte versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-pub-fontsize-val-ctrl">5.5</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-pub-fontsize-ctrl" min="0" max="9" step="1" value="6" oninput="onBibliaPublicoCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da letra versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-text-color-ctrl" value="#ffffff" oninput="onBibliaPublicoCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="maiusculas caixa alta versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-biblia-pub-maiusculo-ctrl" role="switch" aria-checked="false" aria-label="Maiúsculas" onclick="toggleCfgSwitch(this); onBibliaPublicoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="negrito versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-pub-negrito-ctrl" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onBibliaPublicoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="quebra automatica de linha versiculo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Quebra de linha automática</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-pub-wrap-ctrl" role="switch" aria-checked="true" aria-label="Quebra de linha automática" onclick="toggleCfgSwitch(this); onBibliaPublicoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Referência</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="mostrar referencia livro capitulo biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Mostrar referência</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-pub-ref-mostrar-ctrl" role="switch" aria-checked="true" aria-label="Mostrar referência" onclick="toggleCfgSwitch(this); onBibliaPublicoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da referencia biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-pub-ref-size-val-ctrl">1.8</span> vw</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-pub-ref-size-ctrl" min="0" max="9" step="1" value="2" oninput="onBibliaPublicoCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da referencia biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-ref-color-ctrl" value="#fbf904" oninput="onBibliaPublicoCfgChange()"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Posição na tela</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="posicao horizontal esquerda centro direita biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Horizontal</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-biblia-pub-posx-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="left" onclick="setBibliaPosCtrl('publico','posX','left')">Esq</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('publico','posX','center')">Centro</button>
+                    <button type="button" class="cfg-btn-pos" data-val="right" onclick="setBibliaPosCtrl('publico','posX','right')">Dir</button>
+                  </div>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="posicao vertical topo meio rodape biblia telao">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Vertical</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-biblia-pub-posy-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="top" onclick="setBibliaPosCtrl('publico','posY','top')">Topo</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('publico','posY','center')">Meio</button>
+                    <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setBibliaPosCtrl('publico','posY','bottom')">Rodapé</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div class="cfg-section-title">Posição Vertical</div>
-        <div class="cfg-btn-group" id="cfg-posy-ctrl-group">
-          <button class="cfg-btn-pos" data-val="top"    onclick="setPosCtrl('posY','top')">▲ Topo</button>
-          <button class="cfg-btn-pos ativo" data-val="center" onclick="setPosCtrl('posY','center')">■ Meio</button>
-          <button class="cfg-btn-pos" data-val="bottom" onclick="setPosCtrl('posY','bottom')">▼ Rodapé</button>
+        <!-- ─── Bíblia › Ministrante ─── -->
+        <div class="cfg-destino-painel" id="cfg-destino-biblia-ministrante">
+          <div class="cfg-destino-rotulo">Bíblia › Ministrante</div>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-biblia-min-bg-type-ctrl" onchange="onBibliaMinistranteBgTypeCtrlChange()">
+                    <option value="solid">Cor sólida</option>
+                    <option value="gradient">Gradiente</option>
+                    <option value="image">Imagem</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="previa do fundo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Prévia</div></div>
+                <div class="cfg-row-controlo"><div id="cfg-biblia-min-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia do fundo"></div></div>
+              </div>
+              <div class="cfg-row" id="cfg-biblia-min-bg-solid-ctrl" data-busca="cor de fundo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-color-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()"></div>
+              </div>
+              <div id="cfg-biblia-min-bg-gradient-wrap-ctrl" style="display:none">
+                <div class="cfg-row" data-busca="cor inicial do gradiente fundo biblia ministrante">
+                  <div class="cfg-row-copy"><div class="cfg-row-label">Cor inicial do gradiente</div></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()"></div>
+                </div>
+                <div class="cfg-row" data-busca="cor final do gradiente fundo biblia ministrante">
+                  <div class="cfg-row-copy"><div class="cfg-row-label">Cor final do gradiente</div></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaMinistranteCfgChange()"></div>
+                </div>
+              </div>
+              <div class="cfg-row" id="cfg-biblia-min-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Imagem</div></div>
+                <div class="cfg-row-controlo"><div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-biblia-min-bg-image-ctrl" onchange="bibliaEscolherFundo(this)"><label class="cfg-arquivo-btn" for="cfg-biblia-min-bg-image-ctrl">Escolher imagem…</label></div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Versículo</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="familia da fonte versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Família da fonte</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-biblia-min-fontfamily-ctrl" onchange="onBibliaMinistranteCfgChange()">
+                    <option value="CMG Sans, sans-serif">CMG Sans</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da fonte versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-min-fontsize-val-ctrl">4.1</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-min-fontsize-ctrl" min="0" max="9" step="1" value="4" oninput="onBibliaMinistranteCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da letra versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-text-color-ctrl" value="#ffffff" oninput="onBibliaMinistranteCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="maiusculas caixa alta versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-biblia-min-maiusculo-ctrl" role="switch" aria-checked="false" aria-label="Maiúsculas" onclick="toggleCfgSwitch(this); onBibliaMinistranteCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="negrito versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-min-negrito-ctrl" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onBibliaMinistranteCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="quebra automatica de linha versiculo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Quebra de linha automática</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-min-wrap-ctrl" role="switch" aria-checked="true" aria-label="Quebra de linha automática" onclick="toggleCfgSwitch(this); onBibliaMinistranteCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Referência</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="mostrar referencia livro capitulo biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Mostrar referência</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-min-ref-mostrar-ctrl" role="switch" aria-checked="true" aria-label="Mostrar referência" onclick="toggleCfgSwitch(this); onBibliaMinistranteCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="tamanho da referencia biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-min-ref-size-val-ctrl">1.7</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-min-ref-size-ctrl" min="0" max="9" step="1" value="2" oninput="onBibliaMinistranteCfgChange()"></div>
+              </div>
+              <div class="cfg-row" data-busca="cor da referencia biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-ref-color-ctrl" value="#fbf904" oninput="onBibliaMinistranteCfgChange()"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Posição na tela</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="posicao horizontal esquerda centro direita biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Horizontal</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-biblia-min-posx-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="left" onclick="setBibliaPosCtrl('ministrante','posX','left')">Esq</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('ministrante','posX','center')">Centro</button>
+                    <button type="button" class="cfg-btn-pos" data-val="right" onclick="setBibliaPosCtrl('ministrante','posX','right')">Dir</button>
+                  </div>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="posicao vertical topo meio rodape biblia ministrante">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Vertical</div></div>
+                <div class="cfg-row-controlo">
+                  <div class="cfg-btn-group" id="cfg-biblia-min-posy-ctrl-group">
+                    <button type="button" class="cfg-btn-pos" data-val="top" onclick="setBibliaPosCtrl('ministrante','posY','top')">Topo</button>
+                    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('ministrante','posY','center')">Meio</button>
+                    <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setBibliaPosCtrl('ministrante','posY','bottom')">Rodapé</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div class="cfg-section-title">Fundo — Telão / Público</div>
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Tipo de Fundo</label>
-          <select class="cfg-form-select" id="cfg-publico-bg-type-ctrl" onchange="onPublicoBgTypeCtrlChange()">
-            <option value="solid">Cor Sólida</option>
-            <option value="gradient">Gradiente CSS</option>
-            <option value="image">Imagem</option>
-          </select>
-        </div>
-        <div class="cfg-form-group" id="cfg-publico-bg-solid-ctrl">
-          <label class="cfg-form-label">Cor de Fundo</label>
-          <input type="color" id="cfg-publico-bg-color-ctrl" value="#000000" oninput="onPublicoBgColorCtrlInput()">
-        </div>
-        <div class="cfg-form-group" id="cfg-publico-bg-gradient-wrap-ctrl" style="display:none">
-          <label class="cfg-form-label">Gradiente CSS</label>
-          <input class="cfg-form-input" type="text" id="cfg-publico-bg-gradient-ctrl" oninput="onPublicoBgGradientCtrlInput()">
-        </div>
-        <div class="cfg-form-group" id="cfg-publico-bg-image-wrap-ctrl" style="display:none">
-          <label class="cfg-form-label">Imagem</label>
-          <input type="file" accept="image/*" id="cfg-publico-bg-image-ctrl" onchange="onPublicoBgImageCtrlChange()">
-        </div>
+        <!-- ─── Bíblia › Leitura ───
+             Opções que não pertencem a um canal: valem para o telão, para o
+             ministrante e para o seletor de versículos do operador ao mesmo tempo. -->
+        <div class="cfg-destino-painel" id="cfg-destino-biblia-leitura">
+          <div class="cfg-destino-rotulo">Bíblia › Leitura</div>
 
-        <div class="cfg-section-title">Slides — Telão / Público</div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Família da Fonte</label>
-          <select class="cfg-form-select" id="cfg-publico-fontfamily-ctrl" onchange="onPublicoSlideCfgChange()">
-            <option value="CMG Sans, sans-serif">CMG Sans</option>
-            <option value="Arial, sans-serif">Arial</option>
-            <option value="'Times New Roman', serif">Times New Roman</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="Verdana, sans-serif">Verdana</option>
-          </select>
+          <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Versículos longos</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="dividir versiculos longos automaticamente biblia leitura">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Dividir versículos longos automaticamente</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-biblia-divisao-ativa-ctrl" role="switch" aria-checked="false" aria-label="Dividir versículos longos automaticamente" onclick="toggleCfgSwitch(this); onBibliaDivisaoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="limite por parte caracteres biblia leitura">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Limite por parte</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-biblia-divisao-limite-ctrl" disabled onchange="onBibliaDivisaoCfgChange()">
+                    <option value="100">100 caracteres</option>
+                    <option value="150" selected>150 caracteres</option>
+                    <option value="200">200 caracteres</option>
+                    <option value="250">250 caracteres</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-nota">
+                Versículos acima do limite passam a ocupar mais de um card no seletor, todos com o mesmo número e ligados por reticências. A referência projetada não muda — as duas metades de Gênesis 1:12 continuam a ser <b>Gênesis 1:12</b> no telão.
+              </div>
+            </div>
+          </section>
         </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Tamanho: <span id="cfg-publico-fontsize-val-ctrl">5.5</span> vh</label>
-          <input type="range" class="cfg-slider" id="cfg-publico-fontsize-ctrl" min="2.2" max="9" step="0.1" value="5.5" oninput="onPublicoSlideCfgChange()" style="margin-top:8px">
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Cor da Letra</label>
-          <input type="color" id="cfg-publico-text-color-ctrl" value="#ffffff" oninput="onPublicoSlideCfgChange()">
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label"><input type="checkbox" id="cfg-publico-negrito-ctrl" checked onchange="onPublicoSlideCfgChange()"> Negrito</label>
-          <label class="cfg-form-label"><input type="checkbox" id="cfg-publico-italico-ctrl" onchange="onPublicoSlideCfgChange()"> Itálico</label>
-          <label class="cfg-form-label"><input type="checkbox" id="cfg-publico-maiusculo-ctrl" checked onchange="onPublicoSlideCfgChange()"> Maiúsculas</label>
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Espaçamento: <span id="cfg-publico-linespacing-val-ctrl">1.35</span></label>
-          <input type="range" class="cfg-slider" id="cfg-publico-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onPublicoSlideCfgChange()" style="margin-top:8px">
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Espaçamento entre caracteres: <span id="cfg-publico-letterspacing-val-ctrl">0</span></label>
-          <select class="cfg-form-select" id="cfg-publico-letterspacing-ctrl" onchange="onPublicoSlideCfgChange()">
-            <option value="-10">-10</option>
-            <option value="-5">-5</option>
-            <option value="0" selected>0</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="15">15</option>
-            <option value="20">20</option>
-            <option value="25">25</option>
-            <option value="30">30</option>
-          </select>
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label">Alinhamento do Texto</label>
-          <select class="cfg-form-select" id="cfg-publico-textalign-ctrl" onchange="onPublicoSlideCfgChange()">
-            <option value="left">◀ Esquerda</option>
-            <option value="center" selected>■ Centro</option>
-            <option value="right">▶ Direita</option>
-          </select>
-        </div>
-
-        <div class="cfg-form-group">
-          <label class="cfg-form-label"><input type="checkbox" id="cfg-publico-wrap-ctrl" onchange="onPublicoSlideCfgChange()"> Quebra de linha automática</label>
-          <label class="cfg-form-label"><input type="checkbox" id="cfg-publico-autofit-ctrl" onchange="onPublicoSlideCfgChange()"> Autoajuste de fonte para caber linha</label>
-        </div>
-
       </div>
 
-<!-- ═══ ABA MINISTRANTE ═══ -->
-<div class="cfg-panel-body" id="cfg-panel-ctrl-ministrante">
+      <!-- ═══════════════ RELÓGIO ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-relogio">
+        <div class="cfg-destino-rotulo">Sempre no ar › Relógio</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Relógio</h2>
+          <p class="cfg-painel-hint">A tela de espera, mostrada quando nada está a ser projetado.</p>
+        </header>
 
-  <div class="cfg-section-title">Fundo — TV / Ministrante</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tipo de Fundo</label>
-    <select class="cfg-form-select" id="cfg-ministrante-bg-type-ctrl" onchange="onMinistranteBgTypeCtrlChange()">
-      <option value="solid">Cor Sólida</option>
-      <option value="gradient">Gradiente CSS</option>
-      <option value="image">Imagem</option>
-    </select>
-  </div>
-  <div class="cfg-form-group" id="cfg-ministrante-bg-solid-ctrl">
-    <label class="cfg-form-label">Cor de Fundo</label>
-    <input type="color" id="cfg-ministrante-bg-color-ctrl" value="#000000" oninput="onMinistranteBgColorCtrlInput()">
-  </div>
-  <div class="cfg-form-group" id="cfg-ministrante-bg-gradient-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Gradiente CSS</label>
-    <input class="cfg-form-input" type="text" id="cfg-ministrante-bg-gradient-ctrl" oninput="onMinistranteBgGradientCtrlInput()">
-  </div>
-  <div class="cfg-form-group" id="cfg-ministrante-bg-image-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Imagem</label>
-    <input type="file" accept="image/*" id="cfg-ministrante-bg-image-ctrl" onchange="onMinistranteBgImageCtrlChange()">
-  </div>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Relógio</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="exibir relogio mostrar">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Exibir relógio</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch cfg-switch--on" id="cfg-clock-show-ctrl" role="switch" aria-checked="true" aria-label="Exibir relógio" onclick="toggleCfgSwitch(this); aplicarCfgRelogio();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="monitor do relogio ministrante publico ambos">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Em qual monitor</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-clock-monitor-ctrl" onchange="aplicarCfgRelogio()">
+                  <option value="ministrante">Apenas ministrante</option>
+                  <option value="publico">Apenas público</option>
+                  <option value="ambos">Ambos</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="estilo do relogio digital analogico formato">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Estilo</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-clock-format-ctrl" onchange="aplicarCfgRelogio()">
+                  <option value="HH:MM">Digital — HH:MM</option>
+                  <option value="HH:MM:SS">Digital com segundos — HH:MM:SS</option>
+                  <option value="analog">Analógico</option>
+                  <option value="none">Não exibir</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="tamanho do relogio fonte">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-clock-fontsize-val-ctrl">13</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-fontsize-ctrl" min="1" step="1" value="13" oninput="onClockFontSizeCtrlInput()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor do relogio texto">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-color-row">
+                  <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <span class="cfg-color-val" id="cfg-clock-text-color-val-ctrl">#1c1816</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-  <div class="cfg-section-title">Slides — TV / Ministrante</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Letra (Atual)</label>
-    <input type="color" id="cfg-ministrante-text-color-atual-ctrl" value="#ffffff" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Letra (Próximo)</label>
-    <input type="color" id="cfg-ministrante-text-color-proximo-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor do Comentário</label>
-    <input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho (Atual): <span id="cfg-ministrante-fontsize-atual-val-ctrl">4.1</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-ministrante-fontsize-atual-ctrl" min="2.2" max="9" step="0.1" value="4.1" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho (Próximo): <span id="cfg-ministrante-fontsize-proximo-val-ctrl">4.1</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-ministrante-fontsize-proximo-ctrl" min="2.2" max="9" step="0.1" value="4.1" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Espaçamento: <span id="cfg-ministrante-linespacing-val-ctrl">1.35</span></label>
-    <input type="range" class="cfg-slider" id="cfg-ministrante-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onMinistranteSlideCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-ministrante-wrap-ctrl" onchange="onMinistranteSlideCfgChange()"> Quebra de linha automática</label>
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-ministrante-autofit-ctrl" onchange="onMinistranteSlideCfgChange()"> Autoajuste de fonte para caber linha</label>
-  </div>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Data</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="mostrar data relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Mostrar data</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-clock-date-ctrl" role="switch" aria-checked="false" aria-label="Mostrar data" onclick="toggleCfgSwitch(this); aplicarCfgRelogio();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="tamanho da data relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho da data <span class="cfg-row-val"><span id="cfg-clock-date-fontsize-val-ctrl">2.4</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-date-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockDateFontSizeCtrlInput()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor da data relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor da data</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-color-row">
+                  <input type="color" id="cfg-clock-date-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <span class="cfg-color-val" id="cfg-clock-date-color-val-ctrl">#1c1816</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-</div><!-- ✅ fecha cfg-panel-ctrl-ministrante -->
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Versículo fixo</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="mostrar versiculo fixo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Mostrar versículo fixo</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-clock-verse-ctrl" role="switch" aria-checked="false" aria-label="Mostrar versículo fixo" onclick="toggleCfgSwitch(this); aplicarCfgRelogio();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row cfg-row--largo" id="cfg-verse-group-ctrl" data-busca="versiculo texto relogio joao 3:16">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Versículo</div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-verse-ctrl" placeholder="Ex.: João 3:16" oninput="aplicarCfgRelogio()"></div>
+            </div>
+            <div class="cfg-row" data-busca="tamanho do versiculo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho do versículo <span class="cfg-row-val"><span id="cfg-clock-verse-fontsize-val-ctrl">2.4</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-verse-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockVerseFontSizeCtrlInput()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor do versiculo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor do versículo</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-color-row">
+                  <input type="color" id="cfg-clock-verse-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <span class="cfg-color-val" id="cfg-clock-verse-color-val-ctrl">#1c1816</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-<!-- ═══ ABA BÍBLIA — TELÃO ═══ -->
-<div class="cfg-panel-body" id="cfg-panel-ctrl-biblia-telao">
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-clock-bg-type-ctrl" onchange="onClockBgTypeCtrlChange()">
+                  <option value="solid">Cor sólida</option>
+                  <option value="gradient">Gradiente CSS</option>
+                  <option value="image">Imagem</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="previa do fundo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Prévia</div></div>
+              <div class="cfg-row-controlo"><div id="cfg-clock-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia do fundo"></div></div>
+            </div>
+            <div class="cfg-row" id="cfg-bg-solid-ctrl" data-busca="cor de fundo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-color-row">
+                  <input type="color" id="cfg-clock-bg-color-ctrl" value="#f5f2ea" oninput="aplicarCfgRelogio()">
+                  <span class="cfg-color-val" id="cfg-clock-bg-color-val-ctrl">#f5f2ea</span>
+                </div>
+              </div>
+            </div>
+            <div class="cfg-row cfg-row--largo" id="cfg-bg-gradient-ctrl" style="display:none" data-busca="gradiente css fundo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-clock-gradient-ctrl" placeholder="linear-gradient(135deg, #1a1816 0%, #2c2420 100%)" oninput="aplicarCfgRelogio()"></div>
+            </div>
+            <div class="cfg-row" id="cfg-bg-image-ctrl" style="display:none" data-busca="imagem de fundo relogio">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Imagem de fundo</div></div>
+              <div class="cfg-row-controlo"><div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-clock-image-ctrl" onchange="onClockBgImageCtrlChange()"><label class="cfg-arquivo-btn" for="cfg-clock-image-ctrl">Escolher imagem…</label></div></div>
+            </div>
+          </div>
+        </section>
+      </div>
 
-  <div class="cfg-section-title">Fundo — Bíblia / Telão</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tipo de Fundo</label>
-    <select class="cfg-form-select" id="cfg-biblia-pub-bg-type-ctrl" onchange="onBibliaPublicoBgTypeCtrlChange()">
-      <option value="solid">Cor Sólida</option>
-      <option value="gradient">Gradiente</option>
-      <option value="image">Imagem</option>
-    </select>
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-pub-bg-solid-ctrl">
-    <label class="cfg-form-label">Cor de Fundo</label>
-    <input type="color" id="cfg-biblia-pub-bg-color-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()">
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-pub-bg-gradient-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Cor inicial do gradiente</label>
-    <input type="color" id="cfg-biblia-pub-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()">
-    <label class="cfg-form-label" style="margin-top:8px">Cor final do gradiente</label>
-    <input type="color" id="cfg-biblia-pub-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaPublicoCfgChange()">
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-pub-bg-image-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Imagem</label>
-    <input type="file" accept="image/*" id="cfg-biblia-pub-bg-image-ctrl" onchange="bibliaEscolherFundo(this)">
-    <div id="cfg-biblia-pub-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia da imagem de fundo"></div>
-  </div>
+      <!-- ═══════════════ AVISOS ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-avisos">
+        <div class="cfg-destino-rotulo">Sempre no ar › Avisos</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Avisos</h2>
+          <p class="cfg-painel-hint">Globais para o card 6 — afetam o Monitor 2 e o Monitor 3 ao mesmo tempo. Se o aviso já estiver ao vivo, as mudanças são aplicadas imediatamente.</p>
+        </header>
 
-  <div class="cfg-section-title">Fonte — Versículo</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Família da Fonte</label>
-    <select class="cfg-form-select" id="cfg-biblia-pub-fontfamily-ctrl" onchange="onBibliaPublicoCfgChange()">
-      <option value="CMG Sans, sans-serif">CMG Sans</option>
-      <option value="Arial, sans-serif">Arial</option>
-      <option value="'Times New Roman', serif">Times New Roman</option>
-      <option value="Georgia, serif">Georgia</option>
-      <option value="Verdana, sans-serif">Verdana</option>
-    </select>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho: <span id="cfg-biblia-pub-fontsize-val-ctrl">5.5</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-biblia-pub-fontsize-ctrl" min="2.2" max="9" step="0.1" value="5.5" oninput="onBibliaPublicoCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Letra</label>
-    <input type="color" id="cfg-biblia-pub-text-color-ctrl" value="#ffffff" oninput="onBibliaPublicoCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-pub-maiusculo-ctrl" onchange="onBibliaPublicoCfgChange()"> Maiúsculas</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-pub-negrito-ctrl" checked onchange="onBibliaPublicoCfgChange()"> Negrito</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-pub-wrap-ctrl" checked onchange="onBibliaPublicoCfgChange()"> Quebra automática de linha</label>
-  </div>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Aparência</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="tamanho da fonte aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho da fonte <span class="cfg-row-val"><span id="cfg-card6-fontsize-val-ctrl">5.5</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-card6-fontsize-ctrl" min="0" max="9" step="1" value="6" oninput="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor do texto aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor do texto</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-card6-text-color-ctrl" value="#ffffff" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor do fundo aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor do fundo</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-card6-bg-color-ctrl" value="#000000" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"></div>
+            </div>
+            <div class="cfg-row" data-busca="fundo transparente aviso card 6">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Fundo transparente</div>
+                <div class="cfg-row-hint">Deixa o aviso por cima do que já está no ar.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-card6-bg-transparent-ctrl" role="switch" aria-checked="false" aria-label="Fundo transparente" data-ap-card6-cfg-field="1" onclick="toggleCfgSwitch(this); onAvisoCard6CfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="italico aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Itálico</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-card6-italic-ctrl" role="switch" aria-checked="false" aria-label="Itálico" data-ap-card6-cfg-field="1" onclick="toggleCfgSwitch(this); onAvisoCard6CfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="quebra de linha automatica aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Quebra de linha automática</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch" id="cfg-card6-wrap-ctrl" role="switch" aria-checked="false" aria-label="Quebra de linha automática" data-ap-card6-cfg-field="1" onclick="toggleCfgSwitch(this); onAvisoCard6CfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-  <div class="cfg-section-title">Referência (livro + capítulo/versículo)</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-pub-ref-mostrar-ctrl" checked onchange="onBibliaPublicoCfgChange()"> Mostrar referência</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho: <span id="cfg-biblia-pub-ref-size-val-ctrl">1.8</span> vw</label>
-    <input type="range" class="cfg-slider" id="cfg-biblia-pub-ref-size-ctrl" min="1" max="9" step="0.1" value="1.8" oninput="onBibliaPublicoCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Referência</label>
-    <input type="color" id="cfg-biblia-pub-ref-color-ctrl" value="#fbf904" oninput="onBibliaPublicoCfgChange()">
-  </div>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Posição na tela</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="posicao vertical topo meio rodape aviso card 6">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Vertical</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-btn-group" id="cfg-card6-posy-ctrl-group">
+                  <button type="button" class="cfg-btn-pos" data-val="top" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('top')">Topo</button>
+                  <button type="button" class="cfg-btn-pos ativo" data-val="center" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('center')">Meio</button>
+                  <button type="button" class="cfg-btn-pos" data-val="bottom" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('bottom')">Rodapé</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
 
-  <div class="cfg-section-title">Posição</div>
-  <div class="cfg-section-title" style="font-size:12px;font-weight:600;margin-top:0">Horizontal</div>
-  <div class="cfg-btn-group" id="cfg-biblia-pub-posx-ctrl-group">
-    <button type="button" class="cfg-btn-pos" data-val="left" onclick="setBibliaPosCtrl('publico','posX','left')">◀ Esquerda</button>
-    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('publico','posX','center')">■ Centro</button>
-    <button type="button" class="cfg-btn-pos" data-val="right" onclick="setBibliaPosCtrl('publico','posX','right')">▶ Direita</button>
-  </div>
-  <div class="cfg-section-title" style="font-size:12px;font-weight:600">Vertical</div>
-  <div class="cfg-btn-group" id="cfg-biblia-pub-posy-ctrl-group">
-    <button type="button" class="cfg-btn-pos" data-val="top" onclick="setBibliaPosCtrl('publico','posY','top')">▲ Topo</button>
-    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('publico','posY','center')">■ Meio</button>
-    <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setBibliaPosCtrl('publico','posY','bottom')">▼ Rodapé</button>
-  </div>
-
-</div>
-
-<!-- ═══ ABA BÍBLIA — MINISTRANTE ═══ -->
-<div class="cfg-panel-body" id="cfg-panel-ctrl-biblia-ministrante">
-
-  <div class="cfg-section-title">Fundo — Bíblia / Ministrante</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tipo de Fundo</label>
-    <select class="cfg-form-select" id="cfg-biblia-min-bg-type-ctrl" onchange="onBibliaMinistranteBgTypeCtrlChange()">
-      <option value="solid">Cor Sólida</option>
-      <option value="gradient">Gradiente</option>
-      <option value="image">Imagem</option>
-    </select>
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-min-bg-solid-ctrl">
-    <label class="cfg-form-label">Cor de Fundo</label>
-    <input type="color" id="cfg-biblia-min-bg-color-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-min-bg-gradient-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Cor inicial do gradiente</label>
-    <input type="color" id="cfg-biblia-min-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()">
-    <label class="cfg-form-label" style="margin-top:8px">Cor final do gradiente</label>
-    <input type="color" id="cfg-biblia-min-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-  <div class="cfg-form-group" id="cfg-biblia-min-bg-image-wrap-ctrl" style="display:none">
-    <label class="cfg-form-label">Imagem</label>
-    <input type="file" accept="image/*" id="cfg-biblia-min-bg-image-ctrl" onchange="bibliaEscolherFundo(this)">
-    <div id="cfg-biblia-min-bg-preview-ctrl" class="cfg-bg-preview" role="img" aria-label="Prévia da imagem de fundo"></div>
-  </div>
-
-  <div class="cfg-section-title">Fonte — Versículo</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Família da Fonte</label>
-    <select class="cfg-form-select" id="cfg-biblia-min-fontfamily-ctrl" onchange="onBibliaMinistranteCfgChange()">
-      <option value="CMG Sans, sans-serif">CMG Sans</option>
-      <option value="Arial, sans-serif">Arial</option>
-      <option value="'Times New Roman', serif">Times New Roman</option>
-      <option value="Georgia, serif">Georgia</option>
-      <option value="Verdana, sans-serif">Verdana</option>
-    </select>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho: <span id="cfg-biblia-min-fontsize-val-ctrl">4.1</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-biblia-min-fontsize-ctrl" min="2.2" max="9" step="0.1" value="4.1" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Letra</label>
-    <input type="color" id="cfg-biblia-min-text-color-ctrl" value="#ffffff" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-min-maiusculo-ctrl" onchange="onBibliaMinistranteCfgChange()"> Maiúsculas</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-min-negrito-ctrl" checked onchange="onBibliaMinistranteCfgChange()"> Negrito</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-min-wrap-ctrl" checked onchange="onBibliaMinistranteCfgChange()"> Quebra automática de linha</label>
-  </div>
-
-  <div class="cfg-section-title">Referência (livro + capítulo/versículo)</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-biblia-min-ref-mostrar-ctrl" checked onchange="onBibliaMinistranteCfgChange()"> Mostrar referência</label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho: <span id="cfg-biblia-min-ref-size-val-ctrl">1.7</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-biblia-min-ref-size-ctrl" min="1" max="9" step="0.1" value="1.7" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor da Referência</label>
-    <input type="color" id="cfg-biblia-min-ref-color-ctrl" value="#fbf904" oninput="onBibliaMinistranteCfgChange()">
-  </div>
-
-  <div class="cfg-section-title">Posição</div>
-  <div class="cfg-section-title" style="font-size:12px;font-weight:600;margin-top:0">Horizontal</div>
-  <div class="cfg-btn-group" id="cfg-biblia-min-posx-ctrl-group">
-    <button type="button" class="cfg-btn-pos" data-val="left" onclick="setBibliaPosCtrl('ministrante','posX','left')">◀ Esquerda</button>
-    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('ministrante','posX','center')">■ Centro</button>
-    <button type="button" class="cfg-btn-pos" data-val="right" onclick="setBibliaPosCtrl('ministrante','posX','right')">▶ Direita</button>
-  </div>
-  <div class="cfg-section-title" style="font-size:12px;font-weight:600">Vertical</div>
-  <div class="cfg-btn-group" id="cfg-biblia-min-posy-ctrl-group">
-    <button type="button" class="cfg-btn-pos" data-val="top" onclick="setBibliaPosCtrl('ministrante','posY','top')">▲ Topo</button>
-    <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setBibliaPosCtrl('ministrante','posY','center')">■ Meio</button>
-    <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setBibliaPosCtrl('ministrante','posY','bottom')">▼ Rodapé</button>
-  </div>
-
-</div>
-
-<!-- ═══ ABA BÍBLIA — LEITURA ═══
-     Opções do modo Bíblia que não pertencem a um canal: valem para o telão, para o
-     ministrante e para o seletor de versículos do operador ao mesmo tempo. -->
-<div class="cfg-panel-body" id="cfg-panel-ctrl-biblia-leitura">
-
-  <div class="cfg-section-title">Versículos longos</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">
-      <input type="checkbox" id="cfg-biblia-divisao-ativa-ctrl" onchange="onBibliaDivisaoCfgChange()">
-      Dividir versículos longos automaticamente
-    </label>
-  </div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Limite por parte</label>
-    <select class="cfg-form-select" id="cfg-biblia-divisao-limite-ctrl" disabled onchange="onBibliaDivisaoCfgChange()">
-      <option value="100">100 caracteres</option>
-      <option value="150" selected>150 caracteres</option>
-      <option value="200">200 caracteres</option>
-      <option value="250">250 caracteres</option>
-    </select>
-  </div>
-  <p class="cfg-hint" style="margin:0;font-size:12px;color:var(--text-dim)">
-    Versículos acima do limite passam a ocupar mais de um card no seletor, todos com o mesmo
-    número e ligados por reticências. A referência projetada não muda — as duas metades de
-    Gênesis 1:12 continuam a ser <b>Gênesis 1:12</b> no telão.
-  </p>
-
-</div>
-
-<!-- ═══ ABA RELÓGIO ═══ -->
-<div class="cfg-panel-body" id="cfg-panel-ctrl-relogio">
-
-  <div class="cfg-relogio-section">
-    <div class="cfg-section-title">Relógio</div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label"><input type="checkbox" id="cfg-clock-show-ctrl" checked onchange="aplicarCfgRelogio()"> Exibir relógio</label>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Monitor do Relógio</label>
-      <select class="cfg-form-select" id="cfg-clock-monitor-ctrl" onchange="aplicarCfgRelogio()">
-        <option value="ministrante">Apenas ministrante</option>
-        <option value="publico">Apenas público</option>
-        <option value="ambos">Ambos</option>
-      </select>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Estilo do Relógio</label>
-      <select class="cfg-form-select" id="cfg-clock-format-ctrl" onchange="aplicarCfgRelogio()">
-        <option value="HH:MM">Digital — HH:MM</option>
-        <option value="HH:MM:SS">Digital com segundos — HH:MM:SS</option>
-        <option value="analog">Analógico</option>
-        <option value="none">Não exibir</option>
-      </select>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Tamanho do Relógio: <span id="cfg-clock-fontsize-val-ctrl">13</span> vh</label>
-      <input class="cfg-form-input" type="number" id="cfg-clock-fontsize-ctrl" min="1" step="1" value="13" oninput="onClockFontSizeCtrlInput()">
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Cor do Relógio</label>
-      <div class="cfg-color-row">
-        <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
-        <span class="cfg-color-val" id="cfg-clock-text-color-val-ctrl">#1c1816</span>
+    </div><!-- fecha cfg-modal-body -->
+    </div><!-- fecha cfg-modal-main -->
+    <div class="cfg-modal-footer">
+      <span class="cfg-status" id="cfg-status-ctrl"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="fecharCfgModal()">Fechar</button>
+        <button class="btn success" onclick="salvarCfgNoServidor()">Aplicar</button>
       </div>
     </div>
   </div>
-
-  <div class="cfg-relogio-section">
-    <div class="cfg-section-title">Data</div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label"><input type="checkbox" id="cfg-clock-date-ctrl" onchange="aplicarCfgRelogio()"> Mostrar data</label>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Tamanho da Data: <span id="cfg-clock-date-fontsize-val-ctrl">2.4</span> vh</label>
-      <input class="cfg-form-input" type="number" id="cfg-clock-date-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockDateFontSizeCtrlInput()">
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Cor da Data</label>
-      <div class="cfg-color-row">
-        <input type="color" id="cfg-clock-date-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
-        <span class="cfg-color-val" id="cfg-clock-date-color-val-ctrl">#1c1816</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="cfg-relogio-section">
-    <div class="cfg-section-title">Versículo</div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label"><input type="checkbox" id="cfg-clock-verse-ctrl" onchange="aplicarCfgRelogio()"> Mostrar versículo fixo</label>
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Tamanho do Versículo: <span id="cfg-clock-verse-fontsize-val-ctrl">2.4</span> vh</label>
-      <input class="cfg-form-input" type="number" id="cfg-clock-verse-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockVerseFontSizeCtrlInput()">
-    </div>
-    <div class="cfg-form-group">
-      <label class="cfg-form-label">Cor do Versículo</label>
-      <div class="cfg-color-row">
-        <input type="color" id="cfg-clock-verse-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
-        <span class="cfg-color-val" id="cfg-clock-verse-color-val-ctrl">#1c1816</span>
-      </div>
-    </div>
-    <div class="cfg-form-group" id="cfg-verse-group-ctrl">
-      <label class="cfg-form-label">Versículo</label>
-      <input class="cfg-form-input" type="text" id="cfg-verse-ctrl" placeholder="Ex.: João 3:16" oninput="aplicarCfgRelogio()">
-    </div>
-  </div>
-
-  <div class="cfg-section-title">Fundo do Relógio</div>
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tipo de Fundo</label>
-    <select class="cfg-form-select" id="cfg-clock-bg-type-ctrl" onchange="onClockBgTypeCtrlChange()">
-      <option value="solid">Cor Sólida</option>
-      <option value="gradient">Gradiente CSS</option>
-      <option value="image">Imagem</option>
-    </select>
-  </div>
-  <div id="cfg-bg-solid-ctrl" class="cfg-form-group">
-    <label class="cfg-form-label">Cor de Fundo</label>
-    <div class="cfg-color-row">
-      <input type="color" id="cfg-clock-bg-color-ctrl" value="#f5f2ea" oninput="aplicarCfgRelogio()">
-      <span class="cfg-color-val" id="cfg-clock-bg-color-val-ctrl">#f5f2ea</span>
-    </div>
-  </div>
-  <div id="cfg-bg-gradient-ctrl" class="cfg-form-group" style="display:none">
-    <label class="cfg-form-label">Gradiente CSS</label>
-    <input class="cfg-form-input" type="text" id="cfg-clock-gradient-ctrl" placeholder="linear-gradient(135deg, #1a1816 0%, #2c2420 100%)" oninput="aplicarCfgRelogio()">
-  </div>
-  <div id="cfg-bg-image-ctrl" class="cfg-form-group" style="display:none">
-    <label class="cfg-form-label">Imagem de Fundo</label>
-    <input type="file" accept="image/*" id="cfg-clock-image-ctrl" onchange="onClockBgImageCtrlChange()">
-  </div>
-</div><!-- ✅ fecha cfg-panel-ctrl-relogio -->
-
-<div class="cfg-panel-body" id="cfg-panel-ctrl-avisos">
-  <div class="cfg-section-title">Configurações Gerais</div>
-  <p class="cfg-hint" style="margin:0 0 14px;font-size:12px;color:var(--text-dim)">
-    Essas configurações são globais para o card 6 e afetam o Monitor 2 e o Monitor 3 ao mesmo tempo.
-    Se o aviso já estiver ao vivo, as mudanças abaixo são aplicadas imediatamente.
-  </p>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Tamanho da fonte: <span id="cfg-card6-fontsize-val-ctrl">5.5</span> vh</label>
-    <input type="range" class="cfg-slider" id="cfg-card6-fontsize-ctrl" min="2.2" max="9" step="0.1" value="5.5" oninput="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1">
-  </div>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor do texto</label>
-    <input type="color" id="cfg-card6-text-color-ctrl" value="#ffffff" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1">
-  </div>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label">Cor do fundo</label>
-    <input type="color" id="cfg-card6-bg-color-ctrl" value="#000000" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1">
-  </div>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-card6-bg-transparent-ctrl" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"> Fundo transparente</label>
-  </div>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-card6-wrap-ctrl" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"> Quebra de linha automática</label>
-  </div>
-
-  <div class="cfg-form-group">
-    <label class="cfg-form-label"><input type="checkbox" id="cfg-card6-italic-ctrl" onchange="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"> Itálico</label>
-  </div>
-
-  <div class="cfg-section-title">Posição Vertical</div>
-  <div class="cfg-btn-group" id="cfg-card6-posy-ctrl-group">
-    <button type="button" class="cfg-btn-pos" data-val="top" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('top')">▲ Topo</button>
-    <button type="button" class="cfg-btn-pos ativo" data-val="center" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('center')">■ Meio</button>
-    <button type="button" class="cfg-btn-pos" data-val="bottom" data-ap-card6-cfg-field="1" onclick="setPosAvisoCard6Ctrl('bottom')">▼ Rodapé</button>
-  </div>
-</div><!-- ✅ fecha cfg-panel-ctrl-avisos -->
-
-</div><!-- fecha cfg-modal-body -->
-<div class="cfg-modal-footer">
-<span class="cfg-status" id="cfg-status-ctrl"></span>
-<div style="display:flex;gap:8px">
-  <button class="btn" onclick="fecharCfgModal()">Fechar</button>
-  <button class="btn success" onclick="salvarCfgNoServidor()">Aplicar</button>
-</div>
-</div>
-</div>
 </div>
 
 <div class="app-dialog-overlay" id="app-dialog-overlay" hidden>

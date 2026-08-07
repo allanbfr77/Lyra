@@ -3587,12 +3587,10 @@ async function alternarModoBiblia() {
       bibliaRotaSyncServidorChave = null;
       aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
       bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
-      atualizarVisibilidadeAbasCfgPorModo();
     } else {
       document.body.classList.remove('app-mod-biblia');
       document.title = 'Lyra — Controlador';
       bibliaSairModo();
-      atualizarVisibilidadeAbasCfgPorModo();
       liberarBloqueioUiModos();
       /* Sair do modo Bíblia encerra a projeção — rotas transitórias voltam a Desativado. */
       void desativarRotasModosTransitorios({ sincronizarServidor: true, forcar: true });
@@ -3842,10 +3840,8 @@ async function alternarModoSlidesOperador(opts = {}) {
         salvarRotasPorModoNoStorage();
       }
       slidesAplicarCfgArmazenada();
-      atualizarVisibilidadeAbasCfgPorModo();
       syncRoteamentoTelasModoSlidesNaUi();
     } else {
-      atualizarVisibilidadeAbasCfgPorModo();
       encerrarProjecaoAoSairDoModoSlides();
     }
     atualizarBtnToggleModoSlides();
@@ -14108,10 +14104,18 @@ exporCallbacksParaAtributosHtml({
   alternarVozSlides: () => {
     if (ehModoBibliaOperador()) reconhecimentoVozBiblia.alternarAtivo();
     else reconhecimentoVozSlides.alternarAtivo();
+    setTimeout(() => {
+      if (typeof sincronizarFormCfgGeral === 'function') sincronizarFormCfgGeral();
+    }, 0);
   },
   abrirMenuModoApresentacao,
   abrirCfgModal,
   toggleDarkCtrl,
+  onCfgGeralTemaChange,
+  onCfgGeralVozChange,
+  sincronizarFormCfgGeral,
+  toggleCfgSwitch,
+  getChkVal,
   abrirModalNovaMusicaManual,
   buscarLetrasExterno,
   editarNomeVersaoSelecionada,
@@ -14146,6 +14150,9 @@ exporCallbacksParaAtributosHtml({
   projecaoProximaMusicaPlaylist,
   fecharCfgModal,
   mudarAbaCfg,
+  mudarDestinoCfg,
+  onCfgBuscaInput,
+  limparCfgBusca,
   setPosCtrl,
   salvarCfgNoServidor,
   onBancoFonteChange,
@@ -14671,6 +14678,26 @@ function bibliaFundoParaPayload(camada) {
   return fundo;
 }
 
+function bibliaAtualizarPreviewFundo(alvo) {
+  const prefix = alvo === 'ministrante' ? 'cfg-biblia-min' : 'cfg-biblia-pub';
+  const cfg = alvo === 'ministrante' ? bibliaCfgMinistrante : bibliaCfgExibicao;
+  const prev = document.getElementById(`${prefix}-bg-preview-ctrl`);
+  if (!prev) return;
+  const tipo = cfg.bgType || 'solid';
+  prev.style.backgroundImage = '';
+  prev.style.backgroundColor = '';
+  if (tipo === 'image' && cfg.bgImage) {
+    prev.style.backgroundImage = `url(${cfg.bgImage})`;
+    prev.style.backgroundColor = 'var(--surface2)';
+  } else if (tipo === 'gradient') {
+    const from = cfg.bgGradientFrom || '#000000';
+    const to = cfg.bgGradientTo || '#161616';
+    prev.style.backgroundImage = `linear-gradient(135deg, ${from}, ${to})`;
+  } else {
+    prev.style.backgroundColor = cfg.bgColor || '#000000';
+  }
+}
+
 function bibliaAtualizarVisibilidadeFundo(alvo) {
   const prefix = alvo === 'ministrante' ? 'cfg-biblia-min' : 'cfg-biblia-pub';
   const cfg = alvo === 'ministrante' ? bibliaCfgMinistrante : bibliaCfgExibicao;
@@ -14681,6 +14708,7 @@ function bibliaAtualizarVisibilidadeFundo(alvo) {
   if (solid) solid.style.display = val === 'solid' ? '' : 'none';
   if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
   if (img) img.style.display = val === 'image' ? '' : 'none';
+  bibliaAtualizarPreviewFundo(alvo);
 }
 
 function setBibliaPosCtrlBtn(alvo, axis, val) {
@@ -14727,10 +14755,10 @@ function lerBibliaCfgDoFormularioPublico() {
   pub.fontFamily = document.getElementById('cfg-biblia-pub-fontfamily-ctrl')?.value || pub.fontFamily;
   pub.fontSize = parseFloat(document.getElementById('cfg-biblia-pub-fontsize-ctrl')?.value) || pub.fontSize;
   pub.textColor = document.getElementById('cfg-biblia-pub-text-color-ctrl')?.value || pub.textColor;
-  pub.maiusculo = !!document.getElementById('cfg-biblia-pub-maiusculo-ctrl')?.checked;
-  pub.negrito = !!document.getElementById('cfg-biblia-pub-negrito-ctrl')?.checked;
-  pub.wrapLongLines = !!document.getElementById('cfg-biblia-pub-wrap-ctrl')?.checked;
-  pub.refMostrar = !!document.getElementById('cfg-biblia-pub-ref-mostrar-ctrl')?.checked;
+  pub.maiusculo = getChkVal('cfg-biblia-pub-maiusculo-ctrl');
+  pub.negrito = getChkVal('cfg-biblia-pub-negrito-ctrl');
+  pub.wrapLongLines = getChkVal('cfg-biblia-pub-wrap-ctrl');
+  pub.refMostrar = getChkVal('cfg-biblia-pub-ref-mostrar-ctrl');
   pub.refFontSize =
     parseFloat(document.getElementById('cfg-biblia-pub-ref-size-ctrl')?.value) ||
     BIBLIA_CFG_EXIBICAO_PADRAO.refFontSize;
@@ -14751,10 +14779,10 @@ function lerBibliaCfgDoFormularioMinistrante() {
   mon.fontSize = parseFloat(document.getElementById('cfg-biblia-min-fontsize-ctrl')?.value) || mon.fontSize;
   mon.textColorAtual =
     document.getElementById('cfg-biblia-min-text-color-ctrl')?.value || mon.textColorAtual;
-  mon.maiusculo = !!document.getElementById('cfg-biblia-min-maiusculo-ctrl')?.checked;
-  mon.negrito = !!document.getElementById('cfg-biblia-min-negrito-ctrl')?.checked;
-  mon.wrapLongLines = !!document.getElementById('cfg-biblia-min-wrap-ctrl')?.checked;
-  mon.refMostrar = !!document.getElementById('cfg-biblia-min-ref-mostrar-ctrl')?.checked;
+  mon.maiusculo = getChkVal('cfg-biblia-min-maiusculo-ctrl');
+  mon.negrito = getChkVal('cfg-biblia-min-negrito-ctrl');
+  mon.wrapLongLines = getChkVal('cfg-biblia-min-wrap-ctrl');
+  mon.refMostrar = getChkVal('cfg-biblia-min-ref-mostrar-ctrl');
   mon.refFontSize =
     parseFloat(document.getElementById('cfg-biblia-min-ref-size-ctrl')?.value) ||
     BIBLIA_CFG_MINISTRANTE_PADRAO.refFontSize;
@@ -14767,6 +14795,7 @@ function onBibliaPublicoCfgChange() {
   lerBibliaCfgDoFormularioPublico();
   setSpanText('cfg-biblia-pub-fontsize-val-ctrl', String(bibliaCfgExibicao.fontSize));
   setSpanText('cfg-biblia-pub-ref-size-val-ctrl', String(bibliaCfgExibicao.refFontSize));
+  bibliaAtualizarPreviewFundo('publico');
   bibliaAplicarCfgExibicao();
 }
 
@@ -14774,6 +14803,7 @@ function onBibliaMinistranteCfgChange() {
   lerBibliaCfgDoFormularioMinistrante();
   setSpanText('cfg-biblia-min-fontsize-val-ctrl', String(bibliaCfgMinistrante.fontSize));
   setSpanText('cfg-biblia-min-ref-size-val-ctrl', String(bibliaCfgMinistrante.refFontSize));
+  bibliaAtualizarPreviewFundo('ministrante');
   bibliaAplicarCfgExibicao();
 }
 
@@ -14786,7 +14816,7 @@ function onBibliaMinistranteCfgChange() {
  */
 function onBibliaDivisaoCfgChange() {
   bibliaCfgLeitura.dividirVersiculosLongos =
-    !!document.getElementById('cfg-biblia-divisao-ativa-ctrl')?.checked;
+    getChkVal('cfg-biblia-divisao-ativa-ctrl');
   bibliaCfgLeitura.limiteCaracteres = normalizarLimiteDivisao(
     document.getElementById('cfg-biblia-divisao-limite-ctrl')?.value
   );
@@ -14833,11 +14863,6 @@ function bibliaPopularFormularioCfg() {
   setBibliaPosCtrlBtn('publico', 'posX', pub.posX || 'center');
   setBibliaPosCtrlBtn('publico', 'posY', pub.posY || 'center');
   bibliaAtualizarVisibilidadeFundo('publico');
-  const prevPub = document.getElementById('cfg-biblia-pub-bg-preview-ctrl');
-  if (prevPub) {
-    prevPub.style.backgroundImage =
-      pub.bgType === 'image' && pub.bgImage ? `url(${pub.bgImage})` : '';
-  }
 
   setSelVal('cfg-biblia-min-bg-type-ctrl', mon.bgType || 'solid');
   setInputVal('cfg-biblia-min-bg-color-ctrl', mon.bgColor || '#000000');
@@ -14857,11 +14882,6 @@ function bibliaPopularFormularioCfg() {
   setBibliaPosCtrlBtn('ministrante', 'posX', mon.posX || 'center');
   setBibliaPosCtrlBtn('ministrante', 'posY', mon.posY || 'center');
   bibliaAtualizarVisibilidadeFundo('ministrante');
-  const prevMin = document.getElementById('cfg-biblia-min-bg-preview-ctrl');
-  if (prevMin) {
-    prevMin.style.backgroundImage =
-      mon.bgType === 'image' && mon.bgImage ? `url(${mon.bgImage})` : '';
-  }
 }
 
 function setPosAvisoCard6CtrlBtn(val) {
@@ -14900,9 +14920,9 @@ function lerCfgAvisoCard6DoFormulario() {
     fontSize: lerNumeroInput('cfg-card6-fontsize-ctrl', apresentacaoCard6AvisoCfg?.fontSize ?? 5.5),
     textColor: document.getElementById('cfg-card6-text-color-ctrl')?.value,
     backgroundColor: document.getElementById('cfg-card6-bg-color-ctrl')?.value,
-    transparentBackground: !!document.getElementById('cfg-card6-bg-transparent-ctrl')?.checked,
-    wrapLongLines: !!document.getElementById('cfg-card6-wrap-ctrl')?.checked,
-    italic: !!document.getElementById('cfg-card6-italic-ctrl')?.checked,
+    transparentBackground: getChkVal('cfg-card6-bg-transparent-ctrl'),
+    wrapLongLines: getChkVal('cfg-card6-wrap-ctrl'),
+    italic: getChkVal('cfg-card6-italic-ctrl'),
     verticalPosition: (document.querySelector('#cfg-card6-posy-ctrl-group .cfg-btn-pos.ativo')?.dataset.val || 'center'),
   });
 }
@@ -14922,25 +14942,243 @@ function setPosAvisoCard6Ctrl(val) {
   persistirCfgAvisoCard6();
 }
 
-const CFG_ABAS_CTRL = [
-  'conexao',
-  'telao',
-  'ministrante',
-  'biblia-telao',
-  'biblia-ministrante',
-  'biblia-leitura',
-  'relogio',
-  'avisos',
-];
+/* O menu lateral é fixo: seis entradas, nenhuma escondida por modo.
+   Telão/Ministrante deixaram de ser abas e passaram a ser destinos dentro
+   de «Slides» e «Bíblia» — ver `mudarDestinoCfg`. */
+const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos'];
 
-function atualizarVisibilidadeAbasCfgPorModo() {
-  const emBiblia = ehModoBibliaOperador();
-  document.querySelectorAll('.cfg-tab-slide').forEach((el) => {
-    el.style.display = emBiblia ? 'none' : '';
+const CFG_DESTINOS_CTRL = {
+  slides: ['telao', 'ministrante'],
+  biblia: ['biblia-telao', 'biblia-ministrante', 'biblia-leitura'],
+};
+
+/* Os nomes antigos de aba continuam válidos como atalho para aba + destino,
+   para que chamadas como `abrirCfgModal('biblia-telao')` não quebrem. */
+const CFG_ALIAS_ABA_CTRL = {
+  telao: ['slides', 'telao'],
+  ministrante: ['slides', 'ministrante'],
+  'biblia-telao': ['biblia', 'biblia-telao'],
+  'biblia-ministrante': ['biblia', 'biblia-ministrante'],
+  'biblia-leitura': ['biblia', 'biblia-leitura'],
+};
+
+const cfgDestinoAtualCtrl = { slides: 'telao', biblia: 'biblia-telao' };
+
+function resolverAbaCfgCtrl(aba) {
+  if (CFG_ALIAS_ABA_CTRL[aba]) return CFG_ALIAS_ABA_CTRL[aba].slice();
+  return [aba, null];
+}
+
+function abaCfgPadraoDoModo() {
+  return ehModoBibliaOperador() ? 'biblia' : 'slides';
+}
+
+
+/* ── Busca de ajustes ──────────────────────────────────────────────
+   Filtra as linhas onde elas já estão (nada é reconstruído, por isso
+   nenhum id fica duplicado) e mostra todos os painéis ao mesmo tempo,
+   cada um rotulado com o seu caminho. */
+function normalizarTermoCfg(txt) {
+  return String(txt || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function realcarTermoCfg(el, termos) {
+  const original = el.dataset.textoOriginal ?? el.textContent;
+  el.dataset.textoOriginal = original;
+  const plano = normalizarTermoCfg(original);
+  const faixas = [];
+  termos.forEach((t) => {
+    let i = plano.indexOf(t);
+    while (i !== -1) {
+      faixas.push([i, i + t.length]);
+      i = plano.indexOf(t, i + t.length);
+    }
   });
-  document.querySelectorAll('.cfg-tab-biblia').forEach((el) => {
-    el.style.display = emBiblia ? '' : 'none';
+  if (!faixas.length) {
+    el.textContent = original;
+    return;
+  }
+  faixas.sort((a, b) => a[0] - b[0]);
+  el.textContent = '';
+  let fim = 0;
+  faixas.forEach(([a, b]) => {
+    if (a < fim) return;
+    if (a > fim) el.appendChild(document.createTextNode(original.slice(fim, a)));
+    const marca = document.createElement('mark');
+    marca.textContent = original.slice(a, b);
+    el.appendChild(marca);
+    fim = b;
   });
+  if (fim < original.length) el.appendChild(document.createTextNode(original.slice(fim)));
+}
+
+function limparRealcesCfg() {
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row-label[data-texto-original]').forEach((el) => {
+    el.textContent = el.dataset.textoOriginal;
+    delete el.dataset.textoOriginal;
+  });
+}
+
+function onCfgBuscaInput() {
+  const input = document.getElementById('cfg-busca-ctrl');
+  const corpo = document.getElementById('cfg-modal-body-ctrl');
+  if (!input || !corpo) return;
+  const bruto = input.value.trim();
+  const limpar = document.getElementById('cfg-busca-limpar-ctrl');
+  if (limpar) limpar.hidden = !bruto;
+  if (!bruto) {
+    limparCfgBusca({ manterAba: true });
+    return;
+  }
+
+  const termos = normalizarTermoCfg(bruto).split(/\s+/).filter(Boolean);
+  corpo.classList.add('buscando');
+  limparRealcesCfg();
+
+  let total = 0;
+  const porAba = {};
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row[data-busca]').forEach((row) => {
+    const rotulo = row.querySelector('.cfg-row-label');
+    const alvo = normalizarTermoCfg(`${row.dataset.busca} ${rotulo ? rotulo.textContent : ''}`);
+    const bate = termos.every((t) => alvo.includes(t));
+    row.hidden = !bate;
+    if (!bate) return;
+    total += 1;
+    if (rotulo) realcarTermoCfg(rotulo, termos);
+    const painel = row.closest('.cfg-panel-body');
+    if (painel) {
+      const id = painel.id.replace('cfg-panel-ctrl-', '');
+      porAba[id] = (porAba[id] || 0) + 1;
+    }
+  });
+
+  /* Cartões e blocos de destino sem nenhuma linha visível saem do caminho. */
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-card').forEach((card) => {
+    card.hidden = !card.querySelector('.cfg-row[data-busca]:not([hidden])');
+  });
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-destino-painel').forEach((p) => {
+    p.hidden = !p.querySelector('.cfg-card:not([hidden])');
+  });
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-panel-body').forEach((p) => {
+    p.hidden = !p.querySelector('.cfg-card:not([hidden])');
+  });
+
+  CFG_ABAS_CTRL.forEach((a) => {
+    const tab = document.getElementById(`cfg-tab-ctrl-${a}`);
+    if (!tab) return;
+    const n = porAba[a] || 0;
+    const conta = tab.querySelector('.cfg-tab-conta');
+    if (conta) {
+      conta.textContent = String(n);
+      conta.hidden = !n;
+    }
+    tab.classList.toggle('sem-resultado', !n);
+    tab.classList.remove('ativo');
+  });
+
+  const cabecalho = document.getElementById('cfg-busca-cabecalho-ctrl');
+  const titulo = document.getElementById('cfg-busca-titulo-ctrl');
+  const vazio = document.getElementById('cfg-busca-vazio-ctrl');
+  if (titulo) {
+    titulo.textContent = `${total} resultado${total === 1 ? '' : 's'} para “${bruto}”`;
+  }
+  if (cabecalho) cabecalho.hidden = false;
+  if (vazio) vazio.hidden = total > 0;
+  corpo.scrollTop = 0;
+}
+
+function limparCfgBusca(opts) {
+  const corpo = document.getElementById('cfg-modal-body-ctrl');
+  const input = document.getElementById('cfg-busca-ctrl');
+  if (!corpo) return;
+  const estavaBuscando = corpo.classList.contains('buscando');
+  if (input && input.value) input.value = '';
+  const limpar = document.getElementById('cfg-busca-limpar-ctrl');
+  if (limpar) limpar.hidden = true;
+  const cabecalho = document.getElementById('cfg-busca-cabecalho-ctrl');
+  if (cabecalho) cabecalho.hidden = true;
+  const vazio = document.getElementById('cfg-busca-vazio-ctrl');
+  if (vazio) vazio.hidden = true;
+  if (!estavaBuscando) return;
+  corpo.classList.remove('buscando');
+  limparRealcesCfg();
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row[data-busca]').forEach((r) => { r.hidden = false; });
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-card').forEach((c) => { c.hidden = false; });
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-destino-painel').forEach((p) => { p.hidden = false; });
+  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-panel-body').forEach((p) => { p.hidden = false; });
+  CFG_ABAS_CTRL.forEach((a) => {
+    const tab = document.getElementById(`cfg-tab-ctrl-${a}`);
+    if (!tab) return;
+    const conta = tab.querySelector('.cfg-tab-conta');
+    if (conta) conta.hidden = true;
+    tab.classList.remove('sem-resultado');
+    tab.classList.toggle('ativo', a === cfgAbaAtualCtrl);
+  });
+  if (!opts || !opts.manterAba) mudarAbaCfg(cfgAbaAtualCtrl);
+  if (input) input.focus();
+}
+
+function mudarDestinoCfg(aba, destino) {
+  const lista = CFG_DESTINOS_CTRL[aba];
+  if (!lista) return;
+  const alvo = lista.includes(destino) ? destino : lista[0];
+  cfgDestinoAtualCtrl[aba] = alvo;
+  const painel = document.getElementById(`cfg-panel-ctrl-${aba}`);
+  if (painel) {
+    painel.querySelectorAll('.cfg-destino').forEach((b) => {
+      const on = b.dataset.destino === alvo;
+      b.classList.toggle('ativo', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+  lista.forEach((d) => {
+    const p = document.getElementById(`cfg-destino-${d}`);
+    if (p) p.classList.toggle('ativo', d === alvo);
+  });
+}
+
+function setCfgSwitchState(el, ligado) {
+  if (!el) return;
+  const on = !!ligado;
+  el.classList.toggle('cfg-switch--on', on);
+  el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+function sincronizarFormCfgGeral() {
+  const temaEl = document.getElementById('cfg-geral-tema-ctrl');
+  setCfgSwitchState(temaEl, document.documentElement.classList.contains('dark'));
+  const vozDock = document.getElementById('btn-voz-slides-toggle');
+  const vozEl = document.getElementById('cfg-geral-voz-ctrl');
+  if (vozEl && vozDock) {
+    const ativo =
+      vozDock.getAttribute('aria-pressed') === 'true' ||
+      vozDock.classList.contains('voz-mic--on') ||
+      vozDock.classList.contains('voz-mic--ouvindo');
+    setCfgSwitchState(vozEl, ativo);
+  }
+}
+
+function onCfgGeralTemaChange(ligado) {
+  const isDark = document.documentElement.classList.contains('dark');
+  if (ligado !== isDark) toggleDarkCtrl();
+  sincronizarFormCfgGeral();
+}
+
+function onCfgGeralVozChange(ligado) {
+  const vozDock = document.getElementById('btn-voz-slides-toggle');
+  const ativo =
+    !!vozDock &&
+    (vozDock.getAttribute('aria-pressed') === 'true' ||
+      vozDock.classList.contains('voz-mic--on') ||
+      vozDock.classList.contains('voz-mic--ouvindo'));
+  if (ligado !== ativo && typeof window.alternarVozSlides === 'function') {
+    window.alternarVozSlides();
+  }
+  // Estado visual do dock pode atualizar de forma assíncrona
+  setTimeout(sincronizarFormCfgGeral, 0);
 }
 
 function salvarSlideCfgNoStorage() {
@@ -15847,15 +16085,11 @@ async function bibliaEscolherFundo(input) {
     if (alvo === 'ministrante') {
       bibliaCfgMinistrante.bgType = 'image';
       bibliaCfgMinistrante.bgImage = dataUrl;
-      const prev = document.getElementById('cfg-biblia-min-bg-preview-ctrl');
-      if (prev) prev.style.backgroundImage = `url(${dataUrl})`;
       setSelVal('cfg-biblia-min-bg-type-ctrl', 'image');
       bibliaAtualizarVisibilidadeFundo('ministrante');
     } else {
       bibliaCfgExibicao.bgType = 'image';
       bibliaCfgExibicao.bgImage = dataUrl;
-      const prev = document.getElementById('cfg-biblia-pub-bg-preview-ctrl');
-      if (prev) prev.style.backgroundImage = `url(${dataUrl})`;
       setSelVal('cfg-biblia-pub-bg-type-ctrl', 'image');
       bibliaAtualizarVisibilidadeFundo('publico');
     }
@@ -16015,7 +16249,6 @@ try {
   const avisoCard6CfgSalva = carregarAvisoCard6CfgDoStorage();
   if (avisoCard6CfgSalva) apresentacaoCard6AvisoCfg = avisoCard6CfgSalva;
   carregarBibliaCfgDoStorage();
-  atualizarVisibilidadeAbasCfgPorModo();
   setupCultoDropdown();
   setupAdicionarCultoManual();
   configurarNotasSlideControlador({
@@ -17390,7 +17623,7 @@ let currentCfgCtrl = {
     bgImage: '', textColor: '#1c1816', dateColor: '#1c1816', verseColor: '#1c1816'
   }
 };
-let cfgAbaAtualCtrl = 'telao';
+let cfgAbaAtualCtrl = 'slides';
 let cfgSaveTimerCtrl = null;
 let cfgDirtyCtrl = false;
 let cfgSnapshotSalvoCtrl = '';
@@ -17422,6 +17655,7 @@ function toggleDarkCtrl() {
 }
   syncColorSchemeCtrl();
   atualizarIconeTemaCabecalho();
+  sincronizarFormCfgGeral();
 }
 
 // --- SECÇÃO H — Tema escuro, modal de configuração de exibição, atalhos (ex.: Escape) ---
@@ -17443,17 +17677,19 @@ function loadDarkCtrl() {
 function abrirCfgModal(aba) {
   const statusEl = document.getElementById('cfg-status-ctrl');
   if (statusEl) statusEl.textContent = '';
-  atualizarVisibilidadeAbasCfgPorModo();
   carregarBibliaCfgDoStorage();
   bibliaPopularFormularioCfg();
   popularFormCfgAvisoCard6();
+  sincronizarFormCfgGeral();
+  aprimorarControlesVisuaisCfg();
   void carregarEstadoModoApresentacaoDoServidor().then(() => {
     if (!algumCampoAvisoCard6EmEdicao()) popularFormCfgAvisoCard6();
   });
-  const abaEfetiva =
-    aba || (ehModoBibliaOperador() ? 'biblia-telao' : cfgAbaAtualCtrl || 'telao');
+  const abaEfetiva = aba || cfgAbaAtualCtrl || abaCfgPadraoDoModo();
   mudarAbaCfg(abaEfetiva);
-  if (abaEfetiva !== 'conexao' && !ehModoBibliaOperador()) carregarCfgDoServidor();
+  if (cfgAbaAtualCtrl !== 'conexao' && cfgAbaAtualCtrl !== 'geral' && !ehModoBibliaOperador()) {
+    carregarCfgDoServidor();
+  }
   atualizarUrlsObs();
   document.getElementById('cfg-modal-overlay-ctrl').classList.add('aberto');
 }
@@ -17475,14 +17711,22 @@ async function fecharCfgModal() {
 }
 
 function mudarAbaCfg(aba) {
-  cfgAbaAtualCtrl = aba;
-  atualizarVisibilidadeAbasCfgPorModo();
+  const [pedida, destino] = resolverAbaCfgCtrl(aba);
+  const alvo = CFG_ABAS_CTRL.includes(pedida) ? pedida : abaCfgPadraoDoModo();
+  cfgAbaAtualCtrl = alvo;
+  limparCfgBusca({ manterAba: true });
+  if (alvo === 'geral') sincronizarFormCfgGeral();
   CFG_ABAS_CTRL.forEach((a) => {
     const tab = document.getElementById('cfg-tab-ctrl-' + a);
     const panel = document.getElementById('cfg-panel-ctrl-' + a);
-    if (tab) tab.classList.toggle('ativo', a === aba);
-    if (panel) panel.classList.toggle('ativo', a === aba);
+    if (tab) tab.classList.toggle('ativo', a === alvo);
+    if (panel) panel.classList.toggle('ativo', a === alvo);
   });
+  if (CFG_DESTINOS_CTRL[alvo]) {
+    mudarDestinoCfg(alvo, destino || cfgDestinoAtualCtrl[alvo]);
+  }
+  const corpo = document.getElementById('cfg-modal-body-ctrl');
+  if (corpo) corpo.scrollTop = 0;
 }
 
 async function carregarCfgDoServidor() {
@@ -17588,11 +17832,35 @@ function popularFormCfg(cfg) {
   atualizarDependenciaAutoFitPublico();
   } finally {
     preenchendoForm = false;
+    aprimorarControlesVisuaisCfg();
   }
 }
 
 function setSelVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
-function setChkVal(id, v) { const el = document.getElementById(id); if (el) el.checked = v; }
+function isCfgSwitchEl(el) {
+  return !!(el && (el.classList.contains('cfg-switch') || el.getAttribute('role') === 'switch'));
+}
+function getChkVal(id) {
+  const el = document.getElementById(id);
+  if (!el) return false;
+  if (isCfgSwitchEl(el)) return el.getAttribute('aria-checked') === 'true';
+  return !!el.checked;
+}
+function setChkVal(id, v) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (isCfgSwitchEl(el)) {
+    setCfgSwitchState(el, !!v);
+    return;
+  }
+  el.checked = !!v;
+}
+function toggleCfgSwitch(el) {
+  if (!el) return false;
+  const next = el.getAttribute('aria-checked') !== 'true';
+  setCfgSwitchState(el, next);
+  return next;
+}
 function setInputVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
 function setSpanText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 function lerNumeroInput(id, fallback) {
@@ -17616,6 +17884,8 @@ window.setSpanText = setSpanText;
 window.setSelVal = setSelVal;
 window.setInputVal = setInputVal;
 window.setChkVal = setChkVal;
+window.getChkVal = getChkVal;
+window.toggleCfgSwitch = toggleCfgSwitch;
 window.lerNumeroInput = lerNumeroInput;
 window.debounceSalvarCfg = debounceSalvarCfg;
 window.aplicarWrapImediato = aplicarWrapImediato;
@@ -17637,9 +17907,21 @@ function atualizarDependenciaAutoFitPublico() {
   const wrap = document.getElementById('cfg-publico-wrap-ctrl');
   const auto = document.getElementById('cfg-publico-autofit-ctrl');
   if (!wrap || !auto) return;
+  const wrapOn = isCfgSwitchEl(wrap)
+    ? wrap.getAttribute('aria-checked') === 'true'
+    : !!wrap.checked;
   /** Igual ao telão físico (`publicProjectionUtils`): sem wrap o autoajuste está sempre ligado — reflete só com wrap opcional na UI */
-  auto.disabled = !wrap.checked;
-  auto.title = wrap.checked ? '' : 'Sem quebra automática da linha longa o telão sempre reduz a fonte até caber na horizontal.';
+  if (isCfgSwitchEl(auto)) {
+    auto.disabled = !wrapOn;
+    auto.setAttribute('aria-disabled', wrapOn ? 'false' : 'true');
+    auto.style.opacity = wrapOn ? '' : '0.45';
+    auto.style.pointerEvents = wrapOn ? '' : 'none';
+  } else {
+    auto.disabled = !wrapOn;
+  }
+  auto.title = wrapOn
+    ? ''
+    : 'Sem quebra automática da linha longa o telão sempre reduz a fonte até caber na horizontal.';
 }
 
 try {
@@ -17665,13 +17947,13 @@ function setPosCtrlBtn(axis, val) {
 function aplicarCfgRelogio() {
   const ck = currentCfgCtrl.clock || {};
   ck.format       = document.getElementById('cfg-clock-format-ctrl')?.value || 'HH:MM';
-  ck.showClock    = document.getElementById('cfg-clock-show-ctrl')?.checked ?? true;
+  ck.showClock    = (document.getElementById('cfg-clock-show-ctrl') ? getChkVal('cfg-clock-show-ctrl') : true);
   ck.monitorRelogio = document.getElementById('cfg-clock-monitor-ctrl')?.value || 'ministrante';
   ck.fontSize     = lerNumeroInput('cfg-clock-fontsize-ctrl', ck.fontSize ?? 13);
   ck.dateFontSize = lerNumeroInput('cfg-clock-date-fontsize-ctrl', ck.dateFontSize ?? 2.4);
   ck.verseFontSize = lerNumeroInput('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize ?? 2.4);
-  ck.showDate     = document.getElementById('cfg-clock-date-ctrl')?.checked ?? true;
-  ck.showVerse    = document.getElementById('cfg-clock-verse-ctrl')?.checked ?? false;
+  ck.showDate     = (document.getElementById('cfg-clock-date-ctrl') ? getChkVal('cfg-clock-date-ctrl') : true);
+  ck.showVerse    = (document.getElementById('cfg-clock-verse-ctrl') ? getChkVal('cfg-clock-verse-ctrl') : false);
   ck.verse        = document.getElementById('cfg-verse-ctrl')?.value || '';
   const tcEl = document.getElementById('cfg-clock-text-color-ctrl');
   if (tcEl) { ck.textColor = tcEl.value; setSpanText('cfg-clock-text-color-val-ctrl', tcEl.value); }
@@ -17690,6 +17972,7 @@ function aplicarCfgRelogio() {
   setSpanText('cfg-clock-date-fontsize-val-ctrl', String(ck.dateFontSize));
   setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(ck.verseFontSize));
   atualizarVisibilidadeCamposRelogio();
+  atualizarPreviewFundoRelogioCtrl();
   debounceSalvarCfg();
 }
 
@@ -17717,6 +18000,51 @@ function onClockVerseFontSizeCtrlInput() {
   debounceSalvarCfg();
 }
 
+function pintarCfgBgPreview(elId, { bgType, bgColor, bgGradient, bgImage }) {
+  const prev = document.getElementById(elId);
+  if (!prev) return;
+  const tipo = bgType || 'solid';
+  prev.style.backgroundImage = '';
+  prev.style.backgroundColor = '';
+  if (tipo === 'image' && bgImage) {
+    prev.style.backgroundImage = `url(${bgImage})`;
+    prev.style.backgroundColor = 'var(--surface2)';
+  } else if (tipo === 'gradient' && bgGradient) {
+    prev.style.backgroundImage = bgGradient;
+  } else {
+    prev.style.backgroundColor = bgColor || '#000000';
+  }
+}
+
+function atualizarPreviewFundoPublicoCtrl() {
+  const p = currentCfgCtrl?.publico || {};
+  pintarCfgBgPreview('cfg-publico-bg-preview-ctrl', {
+    bgType: p.bgType,
+    bgColor: p.bgColor,
+    bgGradient: p.bgGradient,
+    bgImage: p.bgImage,
+  });
+}
+
+function atualizarPreviewFundoMinistranteCtrl() {
+  const m = currentCfgCtrl?.ministrante || {};
+  pintarCfgBgPreview('cfg-ministrante-bg-preview-ctrl', {
+    bgType: m.bgType,
+    bgColor: m.bgColor,
+    bgGradient: m.bgGradient,
+    bgImage: m.bgImage,
+  });
+}
+
+function atualizarPreviewFundoRelogioCtrl() {
+  pintarCfgBgPreview('cfg-clock-bg-preview-ctrl', {
+    bgType: document.getElementById('cfg-clock-bg-type-ctrl')?.value,
+    bgColor: document.getElementById('cfg-clock-bg-color-ctrl')?.value,
+    bgGradient: document.getElementById('cfg-clock-gradient-ctrl')?.value,
+    bgImage: currentCfgCtrl?.clock?.bgImage || '',
+  });
+}
+
 function onPublicoBgTypeCtrlChange() {
   if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
   const val = document.getElementById('cfg-publico-bg-type-ctrl')?.value || 'solid';
@@ -17728,6 +18056,7 @@ function onPublicoBgTypeCtrlChange() {
   if (solid) solid.style.display = val === 'solid' ? '' : 'none';
   if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
   if (img) img.style.display = val === 'image' ? '' : 'none';
+  atualizarPreviewFundoPublicoCtrl();
   debounceSalvarCfg();
 }
 
@@ -17742,30 +18071,35 @@ function onMinistranteBgTypeCtrlChange() {
   if (solid) solid.style.display = val === 'solid' ? '' : 'none';
   if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
   if (img) img.style.display = val === 'image' ? '' : 'none';
+  atualizarPreviewFundoMinistranteCtrl();
   debounceSalvarCfg();
 }
 
 function onPublicoBgColorCtrlInput() {
   if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
   currentCfgCtrl.publico.bgColor = document.getElementById('cfg-publico-bg-color-ctrl')?.value || '#f5f2ea';
+  atualizarPreviewFundoPublicoCtrl();
   debounceSalvarCfg();
 }
 
 function onPublicoBgGradientCtrlInput() {
   if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
   currentCfgCtrl.publico.bgGradient = document.getElementById('cfg-publico-bg-gradient-ctrl')?.value || '';
+  atualizarPreviewFundoPublicoCtrl();
   debounceSalvarCfg();
 }
 
 function onMinistranteBgColorCtrlInput() {
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
   currentCfgCtrl.ministrante.bgColor = document.getElementById('cfg-ministrante-bg-color-ctrl')?.value || '#000000';
+  atualizarPreviewFundoMinistranteCtrl();
   debounceSalvarCfg();
 }
 
 function onMinistranteBgGradientCtrlInput() {
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
   currentCfgCtrl.ministrante.bgGradient = document.getElementById('cfg-ministrante-bg-gradient-ctrl')?.value || '';
+  atualizarPreviewFundoMinistranteCtrl();
   debounceSalvarCfg();
 }
 
@@ -17776,6 +18110,7 @@ function onPublicoBgImageCtrlChange() {
   reader.onload = (e) => {
     if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
     currentCfgCtrl.publico.bgImage = e.target.result;
+    atualizarPreviewFundoPublicoCtrl();
     debounceSalvarCfg();
   };
   reader.readAsDataURL(file);
@@ -17816,8 +18151,8 @@ function onMinistranteSlideCfgChange() {
     'cfg-ministrante-linespacing-ctrl',
     currentCfgCtrl.ministrante.lineSpacing ?? 1.35
   );
-  currentCfgCtrl.ministrante.wrapLongLines = !!document.getElementById('cfg-ministrante-wrap-ctrl')?.checked;
-  currentCfgCtrl.ministrante.autoFitLongLines = !!document.getElementById('cfg-ministrante-autofit-ctrl')?.checked;
+  currentCfgCtrl.ministrante.wrapLongLines = getChkVal('cfg-ministrante-wrap-ctrl');
+  currentCfgCtrl.ministrante.autoFitLongLines = getChkVal('cfg-ministrante-autofit-ctrl');
   setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeAtual));
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
@@ -17832,13 +18167,14 @@ function onMinistranteBgImageCtrlChange() {
   reader.onload = (e) => {
     if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
     currentCfgCtrl.ministrante.bgImage = e.target.result;
+    atualizarPreviewFundoMinistranteCtrl();
     debounceSalvarCfg();
   };
   reader.readAsDataURL(file);
 }
 
 function atualizarVisibilidadeCamposRelogio() {
-  const showVerse  = document.getElementById('cfg-clock-verse-ctrl')?.checked;
+  const showVerse  = getChkVal('cfg-clock-verse-ctrl');
   const vg  = document.getElementById('cfg-verse-group-ctrl');
   if (vg)  vg.style.display  = showVerse  ? '' : 'none';
 }
@@ -17854,6 +18190,7 @@ function onClockBgTypeCtrlChange() {
   if (solid)    solid.style.display    = val === 'solid'    ? '' : 'none';
   if (gradient) gradient.style.display = val === 'gradient' ? '' : 'none';
   if (image)    image.style.display    = val === 'image'    ? '' : 'none';
+  atualizarPreviewFundoRelogioCtrl();
   debounceSalvarCfg();
 }
 
@@ -17863,6 +18200,7 @@ function onClockBgImageCtrlChange() {
   const reader = new FileReader();
   reader.onload = (e) => {
     if (currentCfgCtrl.clock) currentCfgCtrl.clock.bgImage = e.target.result;
+    atualizarPreviewFundoRelogioCtrl();
     debounceSalvarCfg();
   };
   reader.readAsDataURL(file);
@@ -17994,6 +18332,72 @@ function bootOverlaysEAppDialogCtrl() {
   });
   document.getElementById('app-dialog-overlay')?.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'app-dialog-overlay') fecharAppDialog(false);
+  });
+  aprimorarControlesVisuaisCfg();
+}
+
+/** Slider vh com pontinhos 0…9 + cores com código hex à direita. */
+function aprimorarControlesVisuaisCfg() {
+  document.querySelectorAll('.cfg-modal .cfg-slider--vh').forEach((input) => {
+    if (input.dataset.cfgTicks === '1') {
+      sincronizarTicksSliderVh(input);
+      return;
+    }
+    input.min = '0';
+    input.max = '9';
+    input.step = '1';
+    const rounded = Math.max(0, Math.min(9, Math.round(Number(input.value) || 0)));
+    input.value = String(rounded);
+    input.dataset.cfgTicks = '1';
+    const wrap = document.createElement('div');
+    wrap.className = 'cfg-size-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const ticks = document.createElement('div');
+    ticks.className = 'cfg-size-ticks';
+    ticks.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i <= 9; i += 1) {
+      const d = document.createElement('span');
+      d.className = 'cfg-size-tick';
+      d.dataset.n = String(i);
+      if (i === 0 || i === 9) d.setAttribute('data-label', String(i));
+      ticks.appendChild(d);
+    }
+    wrap.appendChild(ticks);
+    input.addEventListener('input', () => sincronizarTicksSliderVh(input));
+    sincronizarTicksSliderVh(input);
+  });
+
+  document.querySelectorAll('.cfg-modal input[type=color]').forEach((input) => {
+    if (input.closest('.cfg-color-row')) {
+      const existing = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
+      if (existing) existing.textContent = String(input.value || '#000000').toUpperCase();
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'cfg-color-row';
+    const val = document.createElement('span');
+    val.className = 'cfg-color-val';
+    val.textContent = String(input.value || '#000000').toUpperCase();
+    input.parentNode.insertBefore(row, input);
+    row.appendChild(input);
+    row.appendChild(val);
+    input.addEventListener('input', () => {
+      val.textContent = String(input.value || '#000000').toUpperCase();
+    });
+  });
+}
+
+function sincronizarTicksSliderVh(input) {
+  const wrap = input.closest('.cfg-size-wrap');
+  if (!wrap) return;
+  const v = Math.max(0, Math.min(9, Math.round(Number(input.value) || 0)));
+  if (String(input.value) !== String(v)) input.value = String(v);
+  wrap.querySelectorAll('.cfg-size-tick').forEach((t) => {
+    const n = Number(t.dataset.n);
+    t.classList.toggle('ativo', n === v);
+    if (n === v || n === 0 || n === 9) t.setAttribute('data-label', String(n));
+    else t.removeAttribute('data-label');
   });
 }
 function bootVozSlidesModo() {

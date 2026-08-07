@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Preview — Ajustes (reorganização)</title>
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --surface2: #ebe8e2;
+    --border: #d8d3c9;
+    --accent: #a67c2d;
+    --accent2: #7a5a1f;
+    --text: #1c1816;
+    --text-dim: #6b645c;
+    --green: #2f7d4e;
+    --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --fs-label-base: 12px;
+    --fs-text-base: 14px;
+    --fs-section-base: 13px;
+    --fw-regular: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+  }
+  html.dark {
+    --bg: #18181b;
+    --surface: #232328;
+    --surface2: #2e2e35;
+    --border: #3f3f48;
+    --accent: #c49a3a;
+    --accent2: #a67c2d;
+    --text: #e8e5e0;
+    --text-dim: #9a9690;
+    --green: #3aad65;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-ui);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 24px 16px 60px;
+    min-height: 100vh;
+  }
+
+  /* ── Barra do preview (não faz parte do produto) ── */
+  .pv-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-dim);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; max-width: 960px;
+  }
+  .pv-bar strong { color: var(--text); font-weight: var(--fw-semibold); }
+  .pv-bar button {
+    font: inherit; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+  }
+
+  /* ═══════════ Modal ═══════════ */
+  .cfg-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 960px; height: 780px;
+    max-width: 98vw; max-height: 88vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    overflow: hidden;
+  }
+  .cfg-modal-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    font-size: 14px; font-weight: var(--fw-semibold);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0;
+  }
+  .cfg-modal-header .x {
+    border: none; background: none; cursor: pointer; color: var(--text-dim);
+    font-size: 15px; line-height: 1; padding: 4px 6px; border-radius: 4px;
+  }
+  .cfg-modal-header .x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+  .cfg-modal-main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .cfg-tabs {
+    width: 216px; flex-shrink: 0;
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .cfg-busca-wrap { padding: 10px 10px 8px; flex-shrink: 0; position: relative; }
+  .cfg-busca {
+    width: 100%; font: inherit; font-size: 13px;
+    padding: 7px 26px 7px 30px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); outline: none;
+  }
+  .cfg-busca:focus { border-color: var(--accent); }
+  .cfg-busca-icone {
+    position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; stroke: var(--text-dim); fill: none;
+    stroke-width: 2; pointer-events: none;
+  }
+  .cfg-busca-limpar {
+    position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+    border: none; background: none; cursor: pointer; color: var(--text-dim);
+    font-size: 14px; line-height: 1; padding: 2px 4px; display: none;
+  }
+  .cfg-busca-limpar.visivel { display: block; }
+
+  .cfg-tabs-lista { flex: 1; overflow-y: auto; padding: 0 6px 10px; }
+  .cfg-nav-group {
+    display: flex; align-items: center; gap: 6px;
+    padding: 12px 8px 5px;
+    font-size: 10px; font-weight: var(--fw-semibold);
+    letter-spacing: 0.5px; text-transform: uppercase;
+    color: color-mix(in srgb, var(--text) 42%, transparent);
+    user-select: none;
+  }
+  .cfg-tab {
+    font: inherit; font-size: 13px; font-weight: var(--fw-regular);
+    padding: 8px 8px 8px 10px;
+    border: none; border-left: 3px solid transparent; border-radius: 4px;
+    background: none; cursor: pointer; color: var(--text);
+    width: 100%; text-align: left;
+    display: flex; align-items: center; gap: 8px;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .cfg-tab svg { width: 15px; height: 15px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
+  .cfg-tab-nome { flex: 1; min-width: 0; }
+  .cfg-tab.ativo {
+    color: var(--accent2);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-left-color: var(--accent);
+    font-weight: var(--fw-semibold);
+  }
+  .cfg-tab.ativo svg { opacity: 1; }
+  .cfg-tab:hover:not(.ativo) { background: color-mix(in srgb, var(--text) 6%, transparent); }
+  /* Badge "em uso": marca o que o modo atual está a projetar — sem esconder o resto */
+  .cfg-tab-badge {
+    font-size: 9px; letter-spacing: .4px; text-transform: uppercase;
+    font-weight: var(--fw-semibold);
+    color: var(--green);
+    border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
+    background: color-mix(in srgb, var(--green) 12%, transparent);
+    border-radius: 99px; padding: 1px 6px; flex-shrink: 0;
+  }
+  .cfg-tab-conta {
+    font-size: 11px; font-weight: var(--fw-semibold);
+    color: var(--accent2);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-radius: 99px; padding: 1px 7px; flex-shrink: 0;
+  }
+  .cfg-tab.sem-resultado { opacity: .32; }
+
+  /* ── Conteúdo ── */
+  .cfg-conteudo { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface); }
+  .cfg-painel-topo {
+    padding: 14px 20px 0; flex-shrink: 0;
+  }
+  .cfg-migalha {
+    font-size: 11px; color: var(--text-dim);
+    letter-spacing: .3px; margin-bottom: 4px;
+  }
+  .cfg-painel-titulo {
+    font-size: 18px; font-weight: var(--fw-semibold); margin: 0 0 2px;
+  }
+  .cfg-painel-hint {
+    font-size: 12px; color: var(--text-dim); line-height: 1.5; margin: 4px 0 0;
+  }
+  /* Seletor de destino — o coração da reorganização */
+  .cfg-destinos {
+    display: inline-flex; gap: 2px; margin: 14px 0 0;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .cfg-destino {
+    font: inherit; font-size: 12.5px; font-weight: var(--fw-medium);
+    padding: 6px 14px; border: none; border-radius: 6px;
+    background: none; color: var(--text-dim); cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: background .15s, color .15s;
+  }
+  .cfg-destino svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .cfg-destino:hover:not(.ativo) { color: var(--text); }
+  .cfg-destino.ativo {
+    background: var(--surface); color: var(--text);
+    font-weight: var(--fw-semibold);
+    box-shadow: 0 1px 2px rgb(0 0 0 / .08);
+  }
+  .cfg-modal-body { padding: 16px 20px 20px; overflow: auto; flex: 1; min-height: 0; }
+
+  /* ── Cartão de secção ── */
+  .cfg-card {
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); margin-bottom: 14px; overflow: hidden;
+  }
+  .cfg-card-head {
+    padding: 10px 14px; background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .cfg-card-titulo {
+    font-size: var(--fs-section-base); font-weight: var(--fw-semibold);
+    letter-spacing: .04em; text-transform: uppercase; color: var(--accent2);
+  }
+  .cfg-card-hint { font-size: 11.5px; color: var(--text-dim); }
+  .cfg-card-corpo { padding: 2px 14px; }
+
+  /* ── Linha de ajuste ── */
+  .cfg-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
+    align-items: center; column-gap: 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .cfg-card-corpo > .cfg-row:last-child { border-bottom: none; }
+  .cfg-row-copy { min-width: 0; }
+  .cfg-row-label { font-size: 13px; font-weight: var(--fw-semibold); line-height: 1.3; }
+  .cfg-row-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; margin-top: 2px; }
+  .cfg-row-val { font-weight: var(--fw-regular); color: var(--text-dim); }
+  .cfg-row-controlo { justify-self: end; width: 100%; max-width: 210px; display: flex; justify-content: flex-end; }
+  .cfg-row--largo { grid-template-columns: 1fr; row-gap: 10px; }
+  .cfg-row--largo .cfg-row-controlo { justify-self: stretch; max-width: none; }
+
+  select, input[type=text], input[type=number] {
+    width: 100%; font: inherit; font-size: var(--fs-text-base);
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: 5px; outline: none;
+  }
+  select:focus, input[type=text]:focus, input[type=number]:focus { border-color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  .cfg-color-row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; width: 100%; }
+  .cfg-color-row input[type=color] {
+    width: 30px; height: 30px; border: 1px solid var(--border);
+    border-radius: 5px; padding: 1px; cursor: pointer; background: none; flex-shrink: 0;
+  }
+  .cfg-color-val { font-size: 12px; color: var(--text-dim); min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; }
+  .cfg-file { font-size: 12px; }
+  .cfg-bg-preview {
+    width: 54px; height: 54px; border: 1px solid var(--border);
+    border-radius: 5px; background-size: cover; background-position: center;
+    background-color: var(--surface2); flex-shrink: 0;
+  }
+
+  /* Switch uniforme — substitui todos os checkbox crus */
+  .cfg-switch {
+    width: 40px; height: 22px; border-radius: 99px; flex-shrink: 0;
+    border: 1px solid var(--border); background: var(--surface2);
+    cursor: pointer; padding: 0; position: relative;
+    transition: background .18s, border-color .18s;
+  }
+  .cfg-switch-thumb {
+    position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 99px;
+    background: var(--text-dim); transition: transform .18s, background .18s;
+  }
+  .cfg-switch.on { background: var(--accent); border-color: var(--accent); }
+  .cfg-switch.on .cfg-switch-thumb { transform: translateX(18px); background: #fff; }
+  .cfg-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Grupo de posição */
+  .cfg-btn-group { display: flex; gap: 6px; width: 100%; }
+  .cfg-btn-pos {
+    flex: 1; padding: 8px 6px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-dim);
+    border-radius: 5px; cursor: pointer; font: inherit; font-size: 12px;
+    transition: all .15s;
+  }
+  .cfg-btn-pos.ativo { border-color: var(--accent); color: var(--accent2); background: var(--surface); font-weight: var(--fw-semibold); }
+  .cfg-btn-pos:hover:not(.ativo) { border-color: var(--accent2); color: var(--text); }
+
+  /* Mapa de posição 3×3 — alternativa compacta aos dois grupos */
+  .cfg-pos-mapa {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    width: 132px; margin-left: auto;
+  }
+  .cfg-pos-cel {
+    aspect-ratio: 16/10; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--surface2); cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cfg-pos-cel span { width: 12px; height: 3px; border-radius: 2px; background: var(--text-dim); opacity: .55; }
+  .cfg-pos-cel:hover { border-color: var(--accent2); }
+  .cfg-pos-cel.ativo { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .cfg-pos-cel.ativo span { background: var(--accent2); opacity: 1; }
+
+  /* Caixa de aviso / texto explicativo dentro do cartão */
+  .cfg-nota {
+    font-size: 12px; color: var(--text-dim); line-height: 1.55;
+    padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .cfg-card-corpo > .cfg-nota:last-child { border-bottom: none; }
+  .cfg-nota b { color: var(--text); }
+
+  /* ── Resultados da busca ── */
+  .cfg-resultado-origem {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 3px; letter-spacing: .2px;
+  }
+  .cfg-vazio { text-align: center; padding: 48px 20px; color: var(--text-dim); font-size: 13px; }
+  mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+  .cfg-modal-footer {
+    padding: 12px 16px; border-top: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    flex-shrink: 0;
+  }
+  .cfg-status { font-size: 12px; color: var(--text-dim); }
+  .btn {
+    font: inherit; font-size: 13px; padding: 7px 16px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent2); }
+  .btn.success { background: var(--green); border-color: var(--green); color: #fff; font-weight: var(--fw-semibold); }
+</style>
+</head>
+<body>
+
+<div class="pv-bar">
+  <strong>Preview — Ajustes reorganizado.</strong>
+  <span>Menu fixo de 7 itens · seletor de destino · busca global · secções em cartões.</span>
+  <button onclick="document.documentElement.classList.toggle('dark')">Alternar tema</button>
+  <button onclick="alternarModo()">Simular modo: <b id="pv-modo">Slide</b></button>
+</div>
+
+<div class="cfg-modal">
+  <div class="cfg-modal-header">
+    <span>Ajustes — Lyra</span>
+    <button class="x" aria-label="Fechar">✕</button>
+  </div>
+
+  <div class="cfg-modal-main">
+    <nav class="cfg-tabs" aria-label="Categorias de ajustes">
+      <div class="cfg-busca-wrap">
+        <svg class="cfg-busca-icone" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input class="cfg-busca" id="cfg-busca" type="search" placeholder="Buscar ajuste…" autocomplete="off" aria-label="Buscar ajuste">
+        <button class="cfg-busca-limpar" id="cfg-busca-limpar" aria-label="Limpar busca">✕</button>
+      </div>
+      <div class="cfg-tabs-lista" id="cfg-tabs-lista"></div>
+    </nav>
+
+    <div class="cfg-conteudo">
+      <div class="cfg-painel-topo" id="cfg-painel-topo"></div>
+      <div class="cfg-modal-body" id="cfg-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="cfg-modal-footer">
+    <span class="cfg-status" id="cfg-status"></span>
+    <div style="display:flex;gap:8px">
+      <button class="btn">Fechar</button>
+      <button class="btn success">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Esquema declarativo dos ajustes.
+   Os `id` são os MESMOS do controller.html — ao portar, o
+   controllerAppCore.js continua a encontrar tudo por getElementById.
+   ══════════════════════════════════════════════════════════════════ */
+
+const ICO = {
+  geral:    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  conexao:  '<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/>',
+  slides:   '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3M7 9h10M7 13h6"/>',
+  biblia:   '<path d="M4 5a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2V5z"/><path d="M6 3v16M10 8h6M10 12h5"/>',
+  relogio:  '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  avisos:   '<path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  telao:    '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  monitor:  '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M12 16v4"/>',
+  leitura:  '<path d="M2 5h8a3 3 0 0 1 3 3v11a2.5 2.5 0 0 0-2.5-2H2z"/><path d="M22 5h-8a3 3 0 0 0-3 3v11a2.5 2.5 0 0 1 2.5-2H22z"/>'
+};
+
+const FONTES = [
+  ['CMG Sans, sans-serif','CMG Sans'], ['Arial, sans-serif','Arial'],
+  ["'Times New Roman', serif",'Times New Roman'], ["'Trebuchet MS', sans-serif",'Trebuchet MS'],
+  ['Georgia, serif','Georgia'], ['Verdana, sans-serif','Verdana']
+];
+const FONTES_BIBLIA = [
+  ['CMG Sans, sans-serif','CMG Sans'], ['Arial, sans-serif','Arial'],
+  ["'Times New Roman', serif",'Times New Roman'], ['Georgia, serif','Georgia'],
+  ['Verdana, sans-serif','Verdana']
+];
+
+/* Blocos repetidos viram funções — mata a duplicação de 5× fundo / 4× fonte */
+function cardFundo(pfx, opts = {}) {
+  /* O relógio herdou nomes sem o "-bg-" — mantidos para não quebrar o controllerAppCore.js */
+  const idGrad = opts.idGradiente || `${pfx}-bg-gradient-ctrl`;
+  const idImg = opts.idImagem || `${pfx}-bg-image-ctrl`;
+  const linhas = [
+    { tipo:'select', id:`${pfx}-bg-type-ctrl`, label:'Tipo de fundo', valor:'solid',
+      opcoes:[['solid','Cor sólida'], ['gradient', opts.gradienteDuplo ? 'Gradiente' : 'Gradiente CSS'], ['image','Imagem']] },
+    { tipo:'preview', id:`${pfx}-bg-preview-ctrl`, label:'Prévia', semBusca:true },
+    { tipo:'color', id:`${pfx}-bg-color-ctrl`, label:'Cor de fundo', valor: opts.corPadrao || '#000000', quando:'solid', hex: !!opts.hex }
+  ];
+  if (opts.gradienteDuplo) {
+    linhas.push({ tipo:'color', id:`${pfx}-bg-gradient-from-ctrl`, label:'Cor inicial do gradiente', valor:'#000000', quando:'gradient' });
+    linhas.push({ tipo:'color', id:`${pfx}-bg-gradient-to-ctrl`, label:'Cor final do gradiente', valor:'#161616', quando:'gradient' });
+  } else {
+    linhas.push({ tipo:'text', id:idGrad, label:'Gradiente CSS',
+      placeholder:'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)', quando:'gradient', largo:true });
+  }
+  linhas.push({ tipo:'file', id:idImg, label:'Imagem', quando:'image' });
+  return { titulo:'Fundo', hint: opts.hint || 'O que fica atrás do texto nesta tela.', linhas, controlaPor:`${pfx}-bg-type-ctrl` };
+}
+
+const AJUSTES = [
+  /* ─────────── SISTEMA ─────────── */
+  { grupo:'Sistema', id:'geral', nome:'Geral', icone:ICO.geral,
+    titulo:'Geral',
+    hint:'Preferências do operador. Tema e voz também estão no dock — os atalhos de lá não são removidos.',
+    cards:[
+      { titulo:'Preferências do operador', linhas:[
+        { tipo:'switch', id:'cfg-geral-tema-ctrl', label:'Tema escuro', hint:'Alterna claro / escuro em todo o controlador.' },
+        { tipo:'switch', id:'cfg-geral-voz-ctrl', label:'Comandos de voz', hint:'Reconhecimento offline para avançar slides.' }
+      ]}
+    ]},
+
+  { grupo:'Sistema', id:'conexao', nome:'Conexão', icone:ICO.conexao,
+    titulo:'Conexão',
+    hint:'Por padrão o Lyra projeta nesta máquina, sem servidor nenhum. Esta aba só é necessária no cenário de dois PCs.',
+    cards:[
+      { titulo:'Servidor de projeção remoto', hint:'Cenário de dois PCs', linhas:[
+        { tipo:'nota', texto:'Um PC com os monitores corre o app <b>Servidor</b>; o outro corre o Controlador e envia os comandos. Ao conectar, este Controlador deixa de projetar aqui e passa a comandar o Servidor — e lembra-se disso nas próximas aberturas. Para voltar ao padrão use <b>Ferramentas › Projetar nesta máquina</b>.' },
+        { tipo:'texto-botao', id:'ip-input', label:'IP do servidor', placeholder:'192.168.1.10', botao:'Conectar', largo:true }
+      ]},
+      { titulo:'Browser Source (OBS)', hint:'Endereços para colar no OBS', linhas:[
+        { tipo:'nota', texto:'Funciona no mesmo PC ou em outro na rede local — use o endereço mostrado, não <b>localhost</b>.' },
+        { tipo:'texto-botao', id:'obs-url-biblia', label:'Modo Bíblia', placeholder:'Conecte ao servidor para gerar o endereço', botao:'Copiar', largo:true, readonly:true },
+        { tipo:'texto-botao', id:'obs-url-slides', label:'Modo Slide', placeholder:'Conecte ao servidor para gerar o endereço', botao:'Copiar', largo:true, readonly:true }
+      ]}
+    ]},
+
+  /* ─────────── CONTEÚDO ─────────── */
+  { grupo:'Conteúdo', id:'slides', nome:'Slides', icone:ICO.slides, modo:'slide',
+    titulo:'Slides',
+    hint:'Aparência das letras de música. Escolha acima qual tela está a configurar.',
+    destinos:[
+      { id:'telao', nome:'Telão (público)', icone:ICO.telao, cards:[
+        cardFundo('cfg-publico', { hint:'O que fica atrás do texto no telão.' }),
+        { titulo:'Tipografia', hint:'Como o texto do slide é desenhado', linhas:[
+          { tipo:'select', id:'cfg-publico-fontfamily-ctrl', label:'Família da fonte', opcoes:FONTES },
+          { tipo:'range', id:'cfg-publico-fontsize-ctrl', label:'Tamanho', min:0, max:9, step:1, valor:6, sufixo:'vh', mostra:'6' },
+          { tipo:'color', id:'cfg-publico-text-color-ctrl', label:'Cor da letra', valor:'#ffffff' },
+          { tipo:'switch', id:'cfg-publico-negrito-ctrl', label:'Negrito', on:true },
+          { tipo:'switch', id:'cfg-publico-italico-ctrl', label:'Itálico' },
+          { tipo:'switch', id:'cfg-publico-maiusculo-ctrl', label:'Maiúsculas', on:true },
+          { tipo:'range', id:'cfg-publico-linespacing-ctrl', label:'Espaçamento entre linhas', min:1, max:2.4, step:0.05, valor:1.35, mostra:'1.35' },
+          { tipo:'select', id:'cfg-publico-letterspacing-ctrl', label:'Espaçamento entre caracteres', valor:'0', mostra:'0',
+            opcoes:[['-10','-10'],['-5','-5'],['0','0'],['5','5'],['10','10'],['15','15'],['20','20'],['25','25'],['30','30']] },
+          { tipo:'select', id:'cfg-publico-textalign-ctrl', label:'Alinhamento do texto', valor:'center',
+            opcoes:[['left','◀ Esquerda'],['center','■ Centro'],['right','▶ Direita']] }
+        ]},
+        { titulo:'Comportamento do texto', hint:'O que acontece quando a linha não cabe', linhas:[
+          { tipo:'switch', id:'cfg-publico-wrap-ctrl', label:'Quebra de linha automática', hint:'Deixa o texto passar para a linha seguinte.' },
+          { tipo:'switch', id:'cfg-publico-autofit-ctrl', label:'Autoajuste de fonte', hint:'Encolhe a letra para a linha caber inteira.' }
+        ]},
+        { titulo:'Posição na tela', hint:'Onde o bloco de texto se encosta', linhas:[
+          { tipo:'mapa', id:'cfg-pos-ctrl', label:'Posição', hint:'Horizontal e vertical de uma vez.' }
+        ]}
+      ]},
+      { id:'ministrante', nome:'Ministrante', icone:ICO.monitor, cards:[
+        cardFundo('cfg-ministrante', { hint:'O que fica atrás do texto no monitor do ministrante.' }),
+        { titulo:'Cores do texto', hint:'Cada papel tem a sua cor', linhas:[
+          { tipo:'color', id:'cfg-ministrante-text-color-atual-ctrl', label:'Cor da letra (atual)', valor:'#ffffff' },
+          { tipo:'color', id:'cfg-ministrante-text-color-proximo-ctrl', label:'Cor da letra (próximo)', valor:'#f3c15a' },
+          { tipo:'color', id:'cfg-ministrante-comment-color-ctrl', label:'Cor do comentário', valor:'#00c8ff' }
+        ]},
+        { titulo:'Tamanhos', linhas:[
+          { tipo:'range', id:'cfg-ministrante-fontsize-atual-ctrl', label:'Tamanho (atual)', min:0, max:9, step:1, valor:4, sufixo:'vh', mostra:'4.1' },
+          { tipo:'range', id:'cfg-ministrante-fontsize-proximo-ctrl', label:'Tamanho (próximo)', min:0, max:9, step:1, valor:4, sufixo:'vh', mostra:'4.1' },
+          { tipo:'range', id:'cfg-ministrante-linespacing-ctrl', label:'Espaçamento entre linhas', min:1, max:2.4, step:0.05, valor:1.35, mostra:'1.35' }
+        ]},
+        { titulo:'Comportamento do texto', linhas:[
+          { tipo:'switch', id:'cfg-ministrante-wrap-ctrl', label:'Quebra de linha automática' },
+          { tipo:'switch', id:'cfg-ministrante-autofit-ctrl', label:'Autoajuste de fonte' }
+        ]}
+      ]}
+    ]},
+
+  { grupo:'Conteúdo', id:'biblia', nome:'Bíblia', icone:ICO.biblia, modo:'biblia',
+    titulo:'Bíblia',
+    hint:'Aparência dos versículos. Escolha acima qual tela está a configurar.',
+    destinos:[
+      { id:'biblia-telao', nome:'Telão (público)', icone:ICO.telao, cards:[
+        cardFundo('cfg-biblia-pub', { gradienteDuplo:true, hint:'O que fica atrás do versículo no telão.' }),
+        { titulo:'Versículo', hint:'O texto principal', linhas:[
+          { tipo:'select', id:'cfg-biblia-pub-fontfamily-ctrl', label:'Família da fonte', opcoes:FONTES_BIBLIA },
+          { tipo:'range', id:'cfg-biblia-pub-fontsize-ctrl', label:'Tamanho', min:0, max:9, step:1, valor:6, sufixo:'vh', mostra:'5.5' },
+          { tipo:'color', id:'cfg-biblia-pub-text-color-ctrl', label:'Cor da letra', valor:'#ffffff' },
+          { tipo:'switch', id:'cfg-biblia-pub-maiusculo-ctrl', label:'Maiúsculas' },
+          { tipo:'switch', id:'cfg-biblia-pub-negrito-ctrl', label:'Negrito', on:true },
+          { tipo:'switch', id:'cfg-biblia-pub-wrap-ctrl', label:'Quebra de linha automática', on:true }
+        ]},
+        { titulo:'Referência', hint:'Livro + capítulo/versículo', linhas:[
+          { tipo:'switch', id:'cfg-biblia-pub-ref-mostrar-ctrl', label:'Mostrar referência', on:true },
+          { tipo:'range', id:'cfg-biblia-pub-ref-size-ctrl', label:'Tamanho', min:0, max:9, step:1, valor:2, sufixo:'vw', mostra:'1.8' },
+          { tipo:'color', id:'cfg-biblia-pub-ref-color-ctrl', label:'Cor da referência', valor:'#fbf904' }
+        ]},
+        { titulo:'Posição na tela', linhas:[
+          { tipo:'mapa', id:'cfg-biblia-pub-pos-ctrl', label:'Posição' }
+        ]}
+      ]},
+      { id:'biblia-ministrante', nome:'Ministrante', icone:ICO.monitor, cards:[
+        cardFundo('cfg-biblia-min', { gradienteDuplo:true, hint:'O que fica atrás do versículo no monitor do ministrante.' }),
+        { titulo:'Versículo', linhas:[
+          { tipo:'select', id:'cfg-biblia-min-fontfamily-ctrl', label:'Família da fonte', opcoes:FONTES_BIBLIA },
+          { tipo:'range', id:'cfg-biblia-min-fontsize-ctrl', label:'Tamanho', min:0, max:9, step:1, valor:4, sufixo:'vh', mostra:'4.1' },
+          { tipo:'color', id:'cfg-biblia-min-text-color-ctrl', label:'Cor da letra', valor:'#ffffff' },
+          { tipo:'switch', id:'cfg-biblia-min-maiusculo-ctrl', label:'Maiúsculas' },
+          { tipo:'switch', id:'cfg-biblia-min-negrito-ctrl', label:'Negrito', on:true },
+          { tipo:'switch', id:'cfg-biblia-min-wrap-ctrl', label:'Quebra de linha automática', on:true }
+        ]},
+        { titulo:'Referência', hint:'Livro + capítulo/versículo', linhas:[
+          { tipo:'switch', id:'cfg-biblia-min-ref-mostrar-ctrl', label:'Mostrar referência', on:true },
+          { tipo:'range', id:'cfg-biblia-min-ref-size-ctrl', label:'Tamanho', min:0, max:9, step:1, valor:2, sufixo:'vh', mostra:'1.7' },
+          { tipo:'color', id:'cfg-biblia-min-ref-color-ctrl', label:'Cor da referência', valor:'#fbf904' }
+        ]},
+        { titulo:'Posição na tela', linhas:[
+          { tipo:'mapa', id:'cfg-biblia-min-pos-ctrl', label:'Posição' }
+        ]}
+      ]},
+      { id:'biblia-leitura', nome:'Leitura', icone:ICO.leitura, nota:'Vale para as duas telas e para o seletor do operador.', cards:[
+        { titulo:'Versículos longos', hint:'Vale para ambas as telas', linhas:[
+          { tipo:'switch', id:'cfg-biblia-divisao-ativa-ctrl', label:'Dividir versículos longos automaticamente' },
+          { tipo:'select', id:'cfg-biblia-divisao-limite-ctrl', label:'Limite por parte', valor:'150',
+            opcoes:[['100','100 caracteres'],['150','150 caracteres'],['200','200 caracteres'],['250','250 caracteres']] },
+          { tipo:'nota', texto:'Versículos acima do limite passam a ocupar mais de um card no seletor, todos com o mesmo número e ligados por reticências. A referência projetada não muda — as duas metades de Gênesis 1:12 continuam a ser <b>Gênesis 1:12</b> no telão.' }
+        ]}
+      ]}
+    ]},
+
+  /* ─────────── SEMPRE NO AR ─────────── */
+  { grupo:'Sempre no ar', id:'relogio', nome:'Relógio', icone:ICO.relogio,
+    titulo:'Relógio',
+    hint:'A tela de espera, mostrada quando nada está a ser projetado.',
+    cards:[
+      { titulo:'Relógio', linhas:[
+        { tipo:'switch', id:'cfg-clock-show-ctrl', label:'Exibir relógio', on:true },
+        { tipo:'select', id:'cfg-clock-monitor-ctrl', label:'Em qual monitor',
+          opcoes:[['ministrante','Apenas ministrante'],['publico','Apenas público'],['ambos','Ambos']] },
+        { tipo:'select', id:'cfg-clock-format-ctrl', label:'Estilo',
+          opcoes:[['HH:MM','Digital — HH:MM'],['HH:MM:SS','Digital com segundos'],['analog','Analógico'],['none','Não exibir']] },
+        { tipo:'numero', id:'cfg-clock-fontsize-ctrl', label:'Tamanho', valor:13, min:1, step:1, sufixo:'vh' },
+        { tipo:'color', id:'cfg-clock-text-color-ctrl', label:'Cor', valor:'#1c1816', hex:true }
+      ]},
+      { titulo:'Data', linhas:[
+        { tipo:'switch', id:'cfg-clock-date-ctrl', label:'Mostrar data' },
+        { tipo:'numero', id:'cfg-clock-date-fontsize-ctrl', label:'Tamanho da data', valor:2.4, min:0.8, step:0.1, sufixo:'vh' },
+        { tipo:'color', id:'cfg-clock-date-color-ctrl', label:'Cor da data', valor:'#1c1816', hex:true }
+      ]},
+      { titulo:'Versículo fixo', linhas:[
+        { tipo:'switch', id:'cfg-clock-verse-ctrl', label:'Mostrar versículo fixo' },
+        { tipo:'text', id:'cfg-verse-ctrl', label:'Versículo', placeholder:'Ex.: João 3:16', largo:true },
+        { tipo:'numero', id:'cfg-clock-verse-fontsize-ctrl', label:'Tamanho do versículo', valor:2.4, min:0.8, step:0.1, sufixo:'vh' },
+        { tipo:'color', id:'cfg-clock-verse-color-ctrl', label:'Cor do versículo', valor:'#1c1816', hex:true }
+      ]},
+      cardFundo('cfg-clock', { corPadrao:'#f5f2ea', hex:true, hint:'O que fica atrás do relógio.',
+        idGradiente:'cfg-clock-gradient-ctrl', idImagem:'cfg-clock-image-ctrl' })
+    ]},
+
+  { grupo:'Sempre no ar', id:'avisos', nome:'Avisos', icone:ICO.avisos,
+    titulo:'Avisos',
+    hint:'Globais para o card 6 — afetam o monitor do ministrante e o do público ao mesmo tempo. Se o aviso já estiver no ar, muda na hora.',
+    cards:[
+      { titulo:'Aparência', linhas:[
+        { tipo:'range', id:'cfg-card6-fontsize-ctrl', label:'Tamanho da fonte', min:0, max:9, step:1, valor:6, sufixo:'vh', mostra:'5.5' },
+        { tipo:'color', id:'cfg-card6-text-color-ctrl', label:'Cor do texto', valor:'#ffffff' },
+        { tipo:'color', id:'cfg-card6-bg-color-ctrl', label:'Cor do fundo', valor:'#000000' },
+        { tipo:'switch', id:'cfg-card6-bg-transparent-ctrl', label:'Fundo transparente', hint:'Deixa o aviso por cima do que já está no ar.' },
+        { tipo:'switch', id:'cfg-card6-italic-ctrl', label:'Itálico' },
+        { tipo:'switch', id:'cfg-card6-wrap-ctrl', label:'Quebra de linha automática' }
+      ]},
+      { titulo:'Posição na tela', linhas:[
+        { tipo:'pos3', id:'cfg-card6-posy-ctrl-group', label:'Posição vertical',
+          opcoes:[['top','▲ Topo'],['center','■ Meio'],['bottom','▼ Rodapé']], valor:'center' }
+      ]}
+    ]}
+];
+
+/* ══════════════════ Render ══════════════════ */
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* Busca insensível a acentos: o operador escreve "versiculo", "relogio", "posicao". */
+const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+let abaAtual = 'slides';
+const destinoAtual = {};   // abaId -> destinoId
+let modoSimulado = 'slide';
+
+function abaPorId(id) { return AJUSTES.find((a) => a.id === id); }
+function destinosDe(aba) { return aba.destinos || null; }
+function destinoDe(aba) {
+  const ds = destinosDe(aba);
+  if (!ds) return null;
+  return ds.find((d) => d.id === destinoAtual[aba.id]) || ds[0];
+}
+function cardsDe(aba) { const d = destinoDe(aba); return d ? d.cards : aba.cards; }
+
+function ctrlHtml(l, ctx = {}) {
+  /* Na vista de resultados os IDs são omitidos: o dono do ID continua a ser
+     a linha real do painel, para o controllerAppCore.js nunca ver duplicados. */
+  const id = (l.id && !ctx.semId) ? ` id="${l.id}"` : '';
+  const idVal = (l.id && !ctx.semId) ? ` id="${l.id.replace(/-ctrl$/, '-val-ctrl')}"` : '';
+  switch (l.tipo) {
+    case 'switch':
+      return `<button type="button" class="cfg-switch${l.on ? ' on' : ''}"${id} role="switch" aria-checked="${!!l.on}" aria-label="${esc(l.label)}"><span class="cfg-switch-thumb"></span></button>`;
+    case 'select':
+      return `<select${id}>${l.opcoes.map(([v, t]) => `<option value="${esc(v)}"${String(l.valor) === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+    case 'color':
+      return `<div class="cfg-color-row"><input type="color"${id} value="${l.valor}">${l.hex ? `<span class="cfg-color-val"${idVal}>${l.valor}</span>` : ''}</div>`;
+    case 'range':
+      return `<input type="range"${id} min="${l.min}" max="${l.max}" step="${l.step}" value="${l.valor}">`;
+    case 'numero':
+      return `<input type="number"${id} min="${l.min}" step="${l.step}" value="${l.valor}">`;
+    case 'text':
+      return `<input type="text"${id} placeholder="${esc(l.placeholder || '')}">`;
+    case 'file':
+      return `<input class="cfg-file" type="file" accept="image/*"${id}>`;
+    case 'preview':
+      return `<div class="cfg-bg-preview"${id} role="img" aria-label="Prévia do fundo"></div>`;
+    case 'texto-botao':
+      return `<div style="display:flex;gap:8px"><input type="text"${id} placeholder="${esc(l.placeholder || '')}"${l.readonly ? ' readonly' : ''}><button class="btn" style="flex-shrink:0">${esc(l.botao)}</button></div>`;
+    case 'pos3':
+      return `<div class="cfg-btn-group"${id}>${l.opcoes.map(([v, t]) => `<button type="button" class="cfg-btn-pos${l.valor === v ? ' ativo' : ''}" data-val="${v}">${esc(t)}</button>`).join('')}</div>`;
+    case 'mapa': {
+      const cels = [];
+      for (const y of ['top', 'center', 'bottom']) {
+        for (const x of ['left', 'center', 'right']) {
+          const ativo = (x === 'center' && y === 'center') ? ' ativo' : '';
+          cels.push(`<button type="button" class="cfg-pos-cel${ativo}" data-x="${x}" data-y="${y}" aria-label="${y} ${x}"><span></span></button>`);
+        }
+      }
+      return `<div class="cfg-pos-mapa"${id}>${cels.join('')}</div>`;
+    }
+    default: return '';
+  }
+}
+
+function linhaHtml(l, ctx) {
+  if (l.tipo === 'nota') return `<div class="cfg-nota">${l.texto}</div>`;
+  const largo = l.largo || l.tipo === 'texto-botao';
+  const busca = l.semBusca ? '' : ` data-busca="${esc((l.label + ' ' + (l.hint || '') + ' ' + ctx.card + ' ' + ctx.aba + ' ' + ctx.destino).toLowerCase())}"`;
+  const idVal = (l.id && !ctx.semId) ? ` id="${l.id.replace(/-ctrl$/, '-val-ctrl')}"` : '';
+  const val = l.mostra !== undefined
+    ? ` <span class="cfg-row-val"><span${idVal}>${l.mostra}</span>${l.sufixo ? ' ' + l.sufixo : ''}</span>`
+    : (l.sufixo && l.tipo === 'numero' ? ` <span class="cfg-row-val">${l.sufixo}</span>` : '');
+  const origem = ctx.comOrigem ? `<div class="cfg-resultado-origem">${esc(ctx.aba)}${ctx.destino ? ' › ' + esc(ctx.destino) : ''} › ${esc(ctx.card)}</div>` : '';
+  return `<div class="cfg-row${largo ? ' cfg-row--largo' : ''}"${busca} data-quando="${l.quando || ''}">
+    <div class="cfg-row-copy">${origem}<div class="cfg-row-label">${esc(l.label)}${val}</div>${l.hint ? `<div class="cfg-row-hint">${esc(l.hint)}</div>` : ''}</div>
+    <div class="cfg-row-controlo">${ctrlHtml(l, ctx)}</div>
+  </div>`;
+}
+
+function cardHtml(c, ctx) {
+  const linhas = c.linhas.map((l) => linhaHtml(l, { ...ctx, card: c.titulo })).join('');
+  return `<section class="cfg-card" data-controla-por="${c.controlaPor || ''}">
+    <div class="cfg-card-head"><span class="cfg-card-titulo">${esc(c.titulo)}</span>${c.hint ? `<span class="cfg-card-hint">${esc(c.hint)}</span>` : ''}</div>
+    <div class="cfg-card-corpo">${linhas}</div>
+  </section>`;
+}
+
+function renderNav() {
+  const busca = document.getElementById('cfg-busca').value.trim().toLowerCase();
+  let html = '';
+  let grupoAnterior = null;
+  for (const aba of AJUSTES) {
+    if (aba.grupo !== grupoAnterior) {
+      html += `<div class="cfg-nav-group">${esc(aba.grupo)}</div>`;
+      grupoAnterior = aba.grupo;
+    }
+    const n = busca ? contarNaAba(aba, busca) : 0;
+    const emUso = aba.modo && aba.modo === modoSimulado;
+    html += `<button type="button" class="cfg-tab${aba.id === abaAtual && !busca ? ' ativo' : ''}${busca && !n ? ' sem-resultado' : ''}" data-aba="${aba.id}">
+      <svg viewBox="0 0 24 24">${aba.icone}</svg>
+      <span class="cfg-tab-nome">${esc(aba.nome)}</span>
+      ${busca ? (n ? `<span class="cfg-tab-conta">${n}</span>` : '') : (emUso ? '<span class="cfg-tab-badge">no ar</span>' : '')}
+    </button>`;
+  }
+  document.getElementById('cfg-tabs-lista').innerHTML = html;
+  document.querySelectorAll('.cfg-tab').forEach((b) => b.addEventListener('click', () => {
+    abaAtual = b.dataset.aba;
+    const el = document.getElementById('cfg-busca');
+    if (el.value) { el.value = ''; document.getElementById('cfg-busca-limpar').classList.remove('visivel'); }
+    render();
+  }));
+}
+
+function todasAsLinhas() {
+  const out = [];
+  for (const aba of AJUSTES) {
+    const blocos = aba.destinos
+      ? aba.destinos.map((d) => ({ destino: d.nome, cards: d.cards }))
+      : [{ destino: '', cards: aba.cards }];
+    for (const b of blocos) {
+      for (const c of b.cards) {
+        for (const l of c.linhas) {
+          if (l.tipo === 'nota' || l.semBusca) continue;
+          out.push({ aba, destino: b.destino, card: c.titulo, linha: l });
+        }
+      }
+    }
+  }
+  return out;
+}
+function contarNaAba(aba, termo) {
+  return todasAsLinhas().filter((r) => r.aba.id === aba.id && casa(r, termo)).length;
+}
+function casa(r, termo) {
+  const alvo = norm(r.linha.label + ' ' + (r.linha.hint || '') + ' ' + r.card + ' ' + r.aba.nome + ' ' + r.destino);
+  return norm(termo).split(/\s+/).filter(Boolean).every((t) => alvo.includes(t));
+}
+
+function renderResultados(termo) {
+  const achados = todasAsLinhas().filter((r) => casa(r, termo));
+  document.getElementById('cfg-painel-topo').innerHTML =
+    `<div class="cfg-migalha">Busca</div>
+     <h2 class="cfg-painel-titulo">${achados.length} resultado${achados.length === 1 ? '' : 's'} para “${esc(termo)}”</h2>
+     <p class="cfg-painel-hint">Ajuste aqui mesmo, sem precisar descobrir em que aba estava.</p>`;
+  if (!achados.length) {
+    document.getElementById('cfg-modal-body').innerHTML =
+      `<div class="cfg-vazio">Nada encontrado. Tente “fonte”, “cor”, “fundo”, “posição” ou “versículo”.</div>`;
+    return;
+  }
+  const linhas = achados.map((r) => linhaHtml(r.linha, {
+    aba: r.aba.nome, destino: r.destino, card: r.card, comOrigem: true, semId: true
+  })).join('');
+  document.getElementById('cfg-modal-body').innerHTML =
+    `<section class="cfg-card"><div class="cfg-card-corpo">${linhas}</div></section>`;
+  realcar(termo);
+  ligarEventos();
+}
+
+function realcar(termo) {
+  const termos = norm(termo).split(/\s+/).filter(Boolean);
+  document.querySelectorAll('#cfg-modal-body .cfg-row-label').forEach((el) => {
+    const texto = el.childNodes[0];
+    if (!texto || texto.nodeType !== 3) return;
+    const cru = texto.nodeValue;
+    const plano = norm(cru);
+    const faixas = [];
+    for (const t of termos) {
+      let i = plano.indexOf(t);
+      while (i !== -1) { faixas.push([i, i + t.length]); i = plano.indexOf(t, i + t.length); }
+    }
+    if (!faixas.length) return;
+    faixas.sort((a, b) => a[0] - b[0]);
+    let out = '', fim = 0;
+    for (const [a, b] of faixas) {
+      if (a < fim) continue;
+      out += esc(cru.slice(fim, a)) + '<mark>' + esc(cru.slice(a, b)) + '</mark>';
+      fim = b;
+    }
+    out += esc(cru.slice(fim));
+    const span = document.createElement('span');
+    span.innerHTML = out;
+    el.replaceChild(span, texto);
+  });
+}
+
+function render() {
+  const termo = document.getElementById('cfg-busca').value.trim().toLowerCase();
+  renderNav();
+  if (termo) { renderResultados(termo); return; }
+
+  const aba = abaPorId(abaAtual);
+  const ds = destinosDe(aba);
+  const d = destinoDe(aba);
+
+  let topo = `<div class="cfg-migalha">${esc(aba.grupo)}</div>
+    <h2 class="cfg-painel-titulo">${esc(aba.titulo)}</h2>`;
+  if (aba.hint) topo += `<p class="cfg-painel-hint">${esc(aba.hint)}</p>`;
+  if (ds) {
+    topo += `<div class="cfg-destinos" role="tablist" aria-label="Destino">` + ds.map((x) =>
+      `<button type="button" class="cfg-destino${x.id === d.id ? ' ativo' : ''}" data-destino="${x.id}" role="tab" aria-selected="${x.id === d.id}"><svg viewBox="0 0 24 24">${x.icone}</svg>${esc(x.nome)}</button>`
+    ).join('') + `</div>`;
+    if (d.nota) topo += `<p class="cfg-painel-hint" style="margin-top:8px">${esc(d.nota)}</p>`;
+  }
+  topo += `<div style="height:14px"></div>`;
+  document.getElementById('cfg-painel-topo').innerHTML = topo;
+
+  const ctx = { aba: aba.nome, destino: d ? d.nome : '' };
+  document.getElementById('cfg-modal-body').innerHTML = cardsDe(aba).map((c) => cardHtml(c, ctx)).join('');
+
+  document.querySelectorAll('.cfg-destino').forEach((b) => b.addEventListener('click', () => {
+    destinoAtual[aba.id] = b.dataset.destino;
+    render();
+  }));
+  ligarEventos();
+  aplicarCondicionais();
+  document.getElementById('cfg-modal-body').scrollTop = 0;
+}
+
+/* Comportamento local do preview */
+function ligarEventos() {
+  document.querySelectorAll('.cfg-switch').forEach((b) => b.addEventListener('click', () => {
+    const on = !b.classList.contains('on');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  }));
+  document.querySelectorAll('.cfg-btn-pos').forEach((b) => b.addEventListener('click', () => {
+    b.parentElement.querySelectorAll('.cfg-btn-pos').forEach((o) => o.classList.remove('ativo'));
+    b.classList.add('ativo');
+  }));
+  document.querySelectorAll('.cfg-pos-cel').forEach((b) => b.addEventListener('click', () => {
+    b.parentElement.querySelectorAll('.cfg-pos-cel').forEach((o) => o.classList.remove('ativo'));
+    b.classList.add('ativo');
+  }));
+  document.querySelectorAll('.cfg-color-row input[type=color]').forEach((i) => i.addEventListener('input', () => {
+    const v = i.parentElement.querySelector('.cfg-color-val');
+    if (v) v.textContent = i.value;
+  }));
+  document.querySelectorAll('input[type=range], input[type=number]').forEach((i) => i.addEventListener('input', () => {
+    const v = i.closest('.cfg-row').querySelector('.cfg-row-val > span');
+    if (v) v.textContent = i.value;
+  }));
+  document.querySelectorAll('.cfg-card[data-controla-por]').forEach((card) => {
+    const sel = card.dataset.controlaPor && document.getElementById(card.dataset.controlaPor);
+    if (sel) sel.addEventListener('change', aplicarCondicionais);
+  });
+}
+/* Mostra só os campos do tipo de fundo escolhido — em vez de empilhar todos */
+function aplicarCondicionais() {
+  document.querySelectorAll('.cfg-card[data-controla-por]').forEach((card) => {
+    const sel = card.dataset.controlaPor && document.getElementById(card.dataset.controlaPor);
+    if (!sel) return;
+    card.querySelectorAll('.cfg-row[data-quando]').forEach((r) => {
+      const q = r.dataset.quando;
+      r.style.display = (!q || q === sel.value) ? '' : 'none';
+    });
+  });
+}
+
+function alternarModo() {
+  modoSimulado = modoSimulado === 'slide' ? 'biblia' : 'slide';
+  document.getElementById('pv-modo').textContent = modoSimulado === 'slide' ? 'Slide' : 'Bíblia';
+  renderNav();
+}
+
+const inpBusca = document.getElementById('cfg-busca');
+const btnLimpar = document.getElementById('cfg-busca-limpar');
+inpBusca.addEventListener('input', () => {
+  btnLimpar.classList.toggle('visivel', !!inpBusca.value);
+  render();
+});
+btnLimpar.addEventListener('click', () => {
+  inpBusca.value = ''; btnLimpar.classList.remove('visivel'); render(); inpBusca.focus();
+});
+
+render();
+</script>
+</body>
+</html>
