@@ -284,6 +284,12 @@ function criarProjecaoLocal(deps) {
   function montarRotasApi(apiApp) {
     apiApp.use(express.json({ limit: '200mb' }));
 
+    /* Identidade do host na 5510 — sem autenticação nem allowlist. Um Controlador
+       remoto consulta isto ao ligar para não confundir este modo local com um Servidor. */
+    apiApp.get('/api/identity', (_req, res) => {
+      res.json({ role: 'controller-local' });
+    });
+
     apiApp.get('/api/monitores', (_req, res) => res.json(buildMonitorsList(screen)));
 
     apiApp.get('/api/display-routing', (_req, res) => {

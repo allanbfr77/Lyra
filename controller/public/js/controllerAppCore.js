@@ -12645,6 +12645,25 @@ socket.on('connect', async () => {
     tratarFalhaLigacaoServidor();
     return;
   }
+  /* Mesmo problema, outro PC: a 5510 do destino pode ser um Controlador em modo local,
+     não o app Servidor. A rota /api/identity distingue os dois. Se a rota não existir
+     (servidor antigo) ou a rede falhar, papelRemoto fica null e a ligação segue —
+     compatibilidade com versões que ainda não expõem a rota. */
+  let papelRemoto = null;
+  try {
+    const rId = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store' });
+    if (rId.ok) papelRemoto = (await rId.json())?.role || null;
+  } catch (_) { /* rota ausente ou rede — ver regra de compatibilidade acima */ }
+
+  if (papelRemoto === 'controller-local') {
+    try { socket.disconnect(); } catch (_) { /* intencional */ }
+    tratarFalhaLigacaoServidor(
+      'O PC de destino está em modo «projetar nesta máquina», não é um Servidor.\n\n' +
+      'Nesse PC: desmarque Ferramentas › Projetar nesta máquina, ou abra o app ' +
+      'Servidor ANTES do Controlador.'
+    );
+    return;
+  }
   _conectandoEmAndamento = true;
   try {
     /* Ligação confirmada: só agora se abandona a projeção local e se adota o transporte do
@@ -12900,8 +12919,9 @@ function ehEnderecoDestaMaquina(ip) {
  * e a reconexão seguinte derrubava-o outra vez, em ciclo. O local só se (re)liga por
  * arranque ou por acção explícita do operador, nunca como efeito de uma falha remota.
  */
-function tratarFalhaLigacaoServidor() {
+function tratarFalhaLigacaoServidor(mensagem) {
   setStatusServidorRemoto('ocioso');
+  if (mensagem) alert(mensagem);
 }
 
 async function carregarMusicas() {

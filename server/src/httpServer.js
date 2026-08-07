@@ -280,6 +280,12 @@ function iniciarServidor(ctx, paths, deps) {
 
   expressApp.use(express.json({ limit: '200mb' }));
 
+  /* Identidade do host na 5510 — sem autenticação, usada pelo Controlador antes do
+     handshake para distinguir este Servidor de um Controlador em modo local. */
+  expressApp.get('/api/identity', (_req, res) => {
+    res.json({ role: 'server' });
+  });
+
   expressApp.get('/api/estado', (_req, res) => {
     res.json(estadoPublicoParaSocketsOuApi());
   });
