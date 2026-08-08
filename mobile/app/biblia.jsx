@@ -64,6 +64,9 @@ export default function BibliaScreen() {
   cfgRef.current = cfg;
   /** Cache do capítulo atual: evita rebuscar a cada card dos próximos. */
   const capituloCacheRef = useRef({ chave: '', rows: [] });
+  const scrollRef = useRef(null);
+  const previewCardRef = useRef(null);
+  const scrollYRef = useRef(0);
 
   useEffect(() => {
     carregarCfgExibicaoBiblia().then((c) => {
@@ -361,16 +364,48 @@ export default function BibliaScreen() {
     jaProjetouNestaSessaoRef.current = false;
   }
 
+  /**
+   * Mantém o card projetado numa faixa visível da lista (≈ 22% do topo da área rolável),
+   * para o operador não perder o versículo ativo ao avançar/voltar no capítulo.
+   */
+  function trazerCardAtivoParaVista() {
+    const card = previewCardRef.current;
+    const scroll = scrollRef.current;
+    if (!card || !scroll) return;
+
+    card.measureInWindow((_cx, cy, _cw, _ch) => {
+      scroll.measureInWindow((_sx, sy, _sw, sh) => {
+        if (!Number.isFinite(cy) || !Number.isFinite(sy) || sh <= 0) return;
+        const desejadoTopo = sy + sh * 0.22;
+        const delta = cy - desejadoTopo;
+        if (Math.abs(delta) < 20) return;
+        const proximoY = Math.max(0, scrollYRef.current + delta);
+        scroll.scrollTo({ y: proximoY, animated: true });
+      });
+    });
+  }
+
+  useEffect(() => {
+    if (!preview) return;
+    const t = setTimeout(trazerCardAtivoParaVista, 80);
+    return () => clearTimeout(t);
+  }, [preview?.livro, preview?.capitulo, preview?.versiculo, versiculosCapitulo.length]);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollArea}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          scrollYRef.current = e.nativeEvent.contentOffset.y;
+        }}
       >
         <View style={styles.headerRow}>
           <Text style={[styles.label, styles.labelHeader]}>MODO BÍBLIA</Text>
@@ -496,7 +531,15 @@ export default function BibliaScreen() {
                 );
               })}
 
-            <View style={styles.previewCard} accessibilityRole="summary">
+            <View
+              ref={previewCardRef}
+              style={styles.previewCard}
+              accessibilityRole="summary"
+              onLayout={() => {
+                // Reposiciona após o layout do novo card ativo (avanço/volta na lista).
+                trazerCardAtivoParaVista();
+              }}
+            >
               <Text style={styles.previewHead}>● PROJETADO · {preview.monitor}</Text>
               <Text style={styles.previewRef}>
                 {preview.ref} · {preview.traducao}
