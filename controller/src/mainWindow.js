@@ -381,7 +381,7 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
   // por isso removemos do template em vez de apenas escondê-lo.)
   const template = [
     {
-      label: 'Ferramentas',
+      label: 'Janelas',
       submenu: [
         {
           label: 'Abrir console do controlador',
@@ -407,7 +407,11 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
             abrirConsoleMinistranteServidor(ctx).catch(() => {});
           },
         },
-        { type: 'separator' },
+      ],
+    },
+    {
+      label: 'Conexão',
+      submenu: [
         {
           /*
            * Caixa de seleção, e não item simples: sem a marca visível não havia como saber
@@ -442,7 +446,11 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           label: 'Conectar a servidor remoto…',
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-conectar-servidor-remoto'),
         },
-        { type: 'separator' },
+      ],
+    },
+    {
+      label: 'Servidor',
+      submenu: [
         {
           label: 'Limpar cache',
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-clear-cache'),
@@ -465,6 +473,7 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           visible: !ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-restart-local-server'),
         },
+        { type: 'separator' },
         {
           /*
            * Só faz sentido com ligação Socket.IO ao app Servidor (cenário de dois PCs).
@@ -489,7 +498,6 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
             })();
           },
         },
-        { type: 'separator' },
         {
           label: 'Documentação / Manual do usuário',
           click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-manual'),
@@ -498,12 +506,12 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           label: 'Atalhos de teclado',
           click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-shortcuts'),
         },
+        { type: 'separator' },
+        {
+          label: 'Sobre',
+          click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-about'),
+        },
       ],
-    },
-    {
-      // Item solto na barra (fora do menu Ajuda).
-      label: 'Sobre',
-      click: () => enviarComandoMenuAoRenderer(ctx, 'help-open-about'),
     },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
