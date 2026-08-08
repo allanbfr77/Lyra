@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('lyraElectron', {
   limparCacheElectron: () => ipcRenderer.invoke('lyra-clear-cache'),
   reiniciarServidorLocal: () => ipcRenderer.invoke('lyra-restart-local-server'),
   obterVersaoApp: () => ipcRenderer.invoke('lyra-app-version'),
+  /** Informa o main se há ligação Socket.IO ao Servidor remoto (habilita menu Encerrar Server). */
+  informarEstadoRemoto: (ligado) => {
+    ipcRenderer.send('lyra-remoto-estado', { ligado: !!ligado });
+  },
 
   /**
    * Ponte para o motor de projeção que corre neste mesmo aplicativo.

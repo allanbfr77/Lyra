@@ -465,6 +465,16 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           visible: !ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-restart-local-server'),
         },
+        {
+          /*
+           * Só faz sentido com ligação Socket.IO ao app Servidor (cenário de dois PCs).
+           * O estado `ligadoAoServidorRemoto` vem do renderer via IPC — o main não tem o
+           * socket. Desligado/oculto no modo local e quando não há Servidor remoto.
+           */
+          label: 'Encerrar Server',
+          enabled: !!ctx.ligadoAoServidorRemoto,
+          click: () => enviarComandoMenuAoRenderer(ctx, 'tools-encerrar-servidor'),
+        },
       ],
     },
     {
@@ -815,6 +825,14 @@ function registerMainWindowIpc(ctx, updaterApi, companionApi) {
   ipcMain.handle('lyra-clear-cache', () => limparCacheElectron(ctx));
   ipcMain.handle('lyra-restart-local-server', () => reiniciarServidorLocal(ctx));
   ipcMain.handle('lyra-app-version', () => app.getVersion());
+
+  ipcMain.removeAllListeners('lyra-remoto-estado');
+  ipcMain.on('lyra-remoto-estado', (_ev, payload) => {
+    const ligado = !!payload?.ligado;
+    if (ctx.ligadoAoServidorRemoto === ligado) return;
+    ctx.ligadoAoServidorRemoto = ligado;
+    actualizarMenuAplicativo(ctx);
+  });
 
   registarIpcProjecaoLocal(ctx);
 }

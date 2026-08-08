@@ -617,6 +617,46 @@ function iniciarServidor(ctx, paths, deps) {
     // Sem PONG por N ciclos consecutivos, o controleAcesso libera o bastão automaticamente.
     socket.on('pong_app', () => ctx.acesso.registrarPong(socket.id));
 
+    /*
+     * Encerramento remoto do processo Servidor, pedido por um Controlador autorizado.
+     * Avisa todos os clientes e corta os sockets antes do quit — senão o disconnect só
+     * chega no timeout de ping e o badge do Controlador fica preso em «Servidor».
+     */
+    socket.on('encerrar_servidor', (_payload, ack) => {
+      if (!comandoAutorizado(socket, ack)) return;
+      try {
+        ctx.io.emit('servidor_a_encerrar', { motivo: 'comando-remoto' });
+      } catch (_) {
+        // intencional
+      }
+      if (typeof ack === 'function') {
+        try { ack({ ok: true }); } catch (_) { /* intencional */ }
+      }
+      setTimeout(() => {
+        try {
+          try {
+            for (const s of ctx.io.sockets.sockets.values()) {
+              try { s.disconnect(true); } catch (_) { /* intencional */ }
+            }
+          } catch (_) {
+            // intencional
+          }
+          try {
+            ctx.io.close();
+          } catch (_) {
+            // intencional
+          }
+          if (typeof encerrarParaAtualizacao === 'function') {
+            encerrarParaAtualizacao();
+          } else {
+            logError('encerrar-servidor-remoto', new Error('encerrarParaAtualizacao indisponível'));
+          }
+        } catch (e) {
+          logError('encerrar-servidor-remoto', e);
+        }
+      }, 150);
+    });
+
     // "Forçar assumir controle" (breaker manual). Idealmente atrás de confirmação humana
     // — no PC do servidor ou via fluxo aprovado. Não depende do heartbeat.
     socket.on('forcar_assumir_controle', () => {

@@ -12865,6 +12865,7 @@ function iniciarSocket(ip) {
     socket.off('solicitar_playlists_controlador');
     socket.off('musicas_sincronizadas');
     socket.off('pedido_sincronizacao_banco');
+    socket.off('servidor_a_encerrar');
     socket.disconnect();
   }
 
@@ -13017,6 +13018,13 @@ socket.on('connect', async () => {
     }
   });
 
+  /* Servidor a sair por comando remoto: cortar reconnect e fechar o socket já,
+     para o handler de disconnect reassumir o modo local sem esperar timeout de ping. */
+  socket.on('servidor_a_encerrar', () => {
+    interromperReconexaoSocket();
+    try { socket.disconnect(); } catch (_) { /* intencional */ }
+  });
+
   /**
    * Papel deste controlador no write-lock. Ao saber que é somente-leitura, faz o pull
    * imediato da última config do servidor (o display_config normalmente já chegou antes).
@@ -13157,6 +13165,11 @@ function setStatusServidorRemoto(estado) {
   }
   badge.className = 'status-seg ' + classe;
   badge.title = titulo;
+  try {
+    window.lyraElectron?.informarEstadoRemoto?.(estado === 'conectado');
+  } catch (_) {
+    // intencional — fora do Electron ou preload antigo
+  }
 }
 
 /** IPs desta máquina (LAN + loopback lógico). Evita tratar o motor local como Servidor remoto. */
@@ -14615,6 +14628,7 @@ exporCallbacksParaAtributosHtml({
   alternarProjecaoNestaMaquina,
   ligarProjecaoNestaMaquina,
   desligarProjecaoNestaMaquina,
+  encerrarServidorRemotoViaMenu,
   copiarUrlObs,
   irParaTelaInicial,
   alternarModoSlidesOperador,
@@ -17867,6 +17881,61 @@ async function reiniciarServidorLocalViaMenu() {
   }
 }
 
+/**
+ * Pede ao Servidor remoto que encerre o processo (cenário de dois PCs).
+ * Corta reconnect já no emit; o disconnect existente reassume o modo local.
+ */
+async function encerrarServidorRemotoViaMenu() {
+  if (emModoProjecaoLocal() || !socket || !socket.connected) {
+    await appAlert(
+      'Conecte ao Servidor remoto (Ajustes › Conexão) para poder encerrá-lo.',
+      'Encerrar Server'
+    );
+    return;
+  }
+  const ok = await appConfirm(
+    'Encerrar o Servidor no PC de projeção?\n\n' +
+      'As telas desse PC fecham e este Controlador volta a projetar nesta máquina.',
+    'Encerrar Server'
+  );
+  if (!ok) return;
+  /* Antes do emit: se o Servidor cair a seguir, o cliente não tenta ligar outra vez. */
+  interromperReconexaoSocket();
+  try {
+    await new Promise((resolve) => {
+      let feito = false;
+      const acabar = () => {
+        if (feito) return;
+        feito = true;
+        resolve();
+      };
+      const t = setTimeout(acabar, 2000);
+      try {
+        socket.emit('encerrar_servidor', {}, (ack) => {
+          clearTimeout(t);
+          if (ack && ack.ok === false) {
+            void appAlert(
+              ack.erro === 'somente-leitura'
+                ? 'Só o Controlador primário pode encerrar o Servidor.'
+                : (ack.erro || 'O Servidor recusou o encerramento.'),
+              'Encerrar Server'
+            );
+          }
+          acabar();
+        });
+      } catch (_) {
+        clearTimeout(t);
+        acabar();
+      }
+    });
+  } catch (err) {
+    await appAlert(
+      String(err?.message || err || 'Não foi possível enviar o comando ao Servidor.'),
+      'Encerrar Server'
+    );
+  }
+}
+
 async function tratarComandoMenuLyra(payload) {
   const command = String(payload?.command || '');
   if (!command) return;
@@ -17877,6 +17946,10 @@ async function tratarComandoMenuLyra(payload) {
   }
   if (command === 'tools-restart-local-server') {
     await reiniciarServidorLocalViaMenu();
+    return;
+  }
+  if (command === 'tools-encerrar-servidor') {
+    await encerrarServidorRemotoViaMenu();
     return;
   }
   if (command === 'tools-projetar-nesta-maquina') {

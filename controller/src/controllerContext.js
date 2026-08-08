@@ -25,4 +25,7 @@ module.exports = {
   suprimirQuitWindowAllClosedRecarregar: false,
   substituirJanelaAposFecharPorRecarregar: false,
   snapshotRecarregarJanelaBounds: null,
+
+  /** Renderer reporta se o socket remoto ao Servidor está ligado (menu «Encerrar Server»). */
+  ligadoAoServidorRemoto: false,
 };
