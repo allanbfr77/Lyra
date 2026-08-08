@@ -131,6 +131,30 @@ contextBridge.exposeInMainWorld('lyraElectron', {
     return () => ipcRenderer.removeListener('shared-banco-aplicado', handler);
   },
 
+  /**
+   * Outro Controlador da rede quer sincronizar o banco com este PC.
+   *
+   * O snapshot NÃO vem por aqui — fica guardado no processo principal até a pessoa
+   * responder. O que chega é só o suficiente para perguntar: quem, quando, de quando é.
+   *
+   * @param {Function} cb - (payload: { origem: string, recebidoEm: string, updatedAt: string }) => void
+   * @returns {Function} cleanup
+   */
+  onPedidoSyncBanco: (cb) => {
+    const handler = (_ev, payload) => cb(payload);
+    ipcRenderer.on('shared-banco-pedido', handler);
+    return () => ipcRenderer.removeListener('shared-banco-pedido', handler);
+  },
+
+  /** Nome desta máquina, para o outro PC saber quem está a pedir a sincronização. */
+  nomeDestePc: () => {
+    try {
+      return require('os').hostname();
+    } catch (_) {
+      return '';
+    }
+  },
+
   /** Reconhecimento de voz offline (Vosk WASM) — URL do modelo pt-BR. */
   vozSlides: {
     obterUrlModelo: () => ipcRenderer.invoke('voz-slides-url-modelo'),

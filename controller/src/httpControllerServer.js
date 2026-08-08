@@ -411,6 +411,55 @@ async function iniciarServidorController(ctx, paths) {
     }
   }
 
+  /**
+   * Pedido de sincronização vindo de outro Controlador da rede, à espera de resposta.
+   *
+   * Em memória, e um só. Guardar uma fila obrigaria a uma UI de fila para um caso que não
+   * acontece — dois PCs a pedir ao mesmo tempo. O pedido novo substitui o anterior: quem
+   * chegou depois é quem está à espera do outro lado.
+   *
+   * @type {{ origem: string, recebidoEm: string, snapshot: object } | null}
+   */
+  let pedidoSyncBancoPendente = null;
+
+  /**
+   * Toca a campainha no painel. Devolve se havia painel para atender — é isso que diz a
+   * quem enviou se há alguém em frente ao ecrã do outro lado, ou se o banco vai ficar à
+   * espera de ninguém.
+   */
+  function notificarPedidoSyncBanco(pedido) {
+    try {
+      if (!ctx.windowMain || ctx.windowMain.isDestroyed()) return false;
+      ctx.windowMain.webContents.send('shared-banco-pedido', {
+        origem: pedido.origem,
+        recebidoEm: pedido.recebidoEm,
+        updatedAt: pedido.snapshot?.updatedAt || '',
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Aceitar um pedido escreve no banco desta máquina; quem decide é quem está sentado à
+   * frente dela. Da rede vem o pedido, nunca a decisão.
+   */
+  function soDestaMaquina(req, res, next) {
+    const addr = String(req?.socket?.remoteAddress || '');
+    const local = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+    if (!local) return res.status(403).json({ ok: false, erro: 'apenas da própria máquina' });
+    next();
+  }
+
+  /** Etiqueta de quem enviou: o nome do PC, e o endereço quando ele não se apresentou. */
+  function rotuloOrigemPedido(corpo, req) {
+    const nome = String(corpo?.origem || '').trim();
+    if (nome) return nome;
+    const addr = String(req?.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+    return addr || 'outro PC';
+  }
+
   expressApp.get('/api/apresentacao/state', (_req, res) => {
     try {
       const out = apresentacaoStateMem && typeof apresentacaoStateMem === 'object' ? apresentacaoStateMem : {};
@@ -545,33 +594,116 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
+  /**
+   * Escreve um snapshot recebido no banco desta máquina.
+   *
+   * Extraído da rota `/api/sync/banco/local` para o pedido directo o poder reaproveitar:
+   * são dois caminhos de entrada — um empurra, o outro pede licença — mas a escrita é uma
+   * só, e duas cópias dela divergiriam.
+   *
+   * Snapshot mais antigo do que o daqui não escreve nada. É o que impede uma
+   * sincronização atrasada de apagar trabalho recente do outro lado.
+   */
+  function aplicarSnapshotCompartilhado(corpo) {
+    const atual = montarSnapshotCompartilhadoLocal(paths);
+    const incoming = normalizarSnapshotCompartilhado(corpo || {}, paths);
+    if (compareUpdatedAt(incoming.updatedAt, atual.updatedAt) < 0) {
+      return { saved: false, snapshot: atual };
+    }
+
+    substituirMusicasUsuarioParaSync(incoming.musicas);
+    savePlaylistsJson(paths.playlistsJsonPath, incoming.playlists);
+    saveSharedSyncMeta(
+      paths.sharedSyncMetaPath,
+      {
+        updatedAt: incoming.updatedAt || new Date().toISOString(),
+        cultosManuais: incoming.cultosManuais,
+        temasPorCulto: incoming.temasPorCulto,
+        aberturaRemovidaPorCulto: incoming.aberturaRemovidaPorCulto,
+      },
+      { fallbackUpdatedAt: new Date().toISOString() }
+    );
+
+    const snapshot = montarSnapshotCompartilhadoLocal(paths);
+    notificarBancoCompartilhadoAplicado(snapshot);
+    return { saved: true, snapshot };
+  }
+
   expressApp.post('/api/sync/banco/local', (req, res) => {
     try {
-      const atual = montarSnapshotCompartilhadoLocal(paths);
-      const incoming = normalizarSnapshotCompartilhado(req.body || {}, paths);
-      if (compareUpdatedAt(incoming.updatedAt, atual.updatedAt) < 0) {
-        return res.json({ ok: true, saved: false, snapshot: atual });
-      }
-
-      substituirMusicasUsuarioParaSync(incoming.musicas);
-      savePlaylistsJson(paths.playlistsJsonPath, incoming.playlists);
-      saveSharedSyncMeta(
-        paths.sharedSyncMetaPath,
-        {
-          updatedAt: incoming.updatedAt || new Date().toISOString(),
-          cultosManuais: incoming.cultosManuais,
-          temasPorCulto: incoming.temasPorCulto,
-          aberturaRemovidaPorCulto: incoming.aberturaRemovidaPorCulto,
-        },
-        { fallbackUpdatedAt: new Date().toISOString() }
-      );
-
-      const snapshot = montarSnapshotCompartilhadoLocal(paths);
-      notificarBancoCompartilhadoAplicado(snapshot);
-      res.json({ ok: true, saved: true, snapshot });
+      const r = aplicarSnapshotCompartilhado(req.body || {});
+      res.json({ ok: true, saved: r.saved, snapshot: r.snapshot });
     } catch (e) {
       res.status(500).json({ ok: false, erro: e.message || String(e) });
     }
+  });
+
+  /*
+   * ─── Sincronização directa entre Controladores ───────────────────────────────
+   *
+   * O Servidor sempre foi o intermediário do banco: depósito do snapshot e carteiro a
+   * avisar os outros controladores. Nenhuma das duas funções precisa dele. Cada
+   * Controlador já tem esta API na 3001, aberta à LAN, e já sabe montar e aplicar um
+   * snapshot — faltava só o toque à campainha.
+   *
+   * Isto importa para além da conveniência: com o Servidor no meio, dois PCs em que um
+   * hospeda o Servidor não conseguiam sincronizar de todo, porque nesse PC o Controlador
+   * não tinha como registar-se no Servidor da própria máquina.
+   */
+
+  /**
+   * A campainha. Recebe o banco do outro PC e guarda-o à espera — não escreve nada.
+   *
+   * Aberta à LAN de propósito: é o outro PC que chama. O que a torna segura não é a
+   * origem, é não decidir nada sozinha.
+   */
+  expressApp.post('/api/sync/banco/pedido', (req, res) => {
+    try {
+      const corpo = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+      const snapshot =
+        corpo.snapshot && typeof corpo.snapshot === 'object' && !Array.isArray(corpo.snapshot)
+          ? corpo.snapshot
+          : null;
+      if (!snapshot) return res.status(400).json({ ok: false, erro: 'snapshot ausente' });
+      pedidoSyncBancoPendente = {
+        origem: rotuloOrigemPedido(corpo, req),
+        recebidoEm: new Date().toISOString(),
+        snapshot,
+      };
+      /* `avisado: false` significa banco entregue a um painel que não está lá para
+         responder. Quem enviou merece saber disso em vez de ver «enviado» e esperar. */
+      res.json({ ok: true, avisado: notificarPedidoSyncBanco(pedidoSyncBancoPendente) });
+    } catch (e) {
+      res.status(500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
+  /** O painel pergunta o que está à espera — usado quando ele reabre com um pedido em pé. */
+  expressApp.get('/api/sync/banco/pedido', soDestaMaquina, (_req, res) => {
+    if (!pedidoSyncBancoPendente) return res.json({ ok: true, pedido: null });
+    const { origem, recebidoEm, snapshot } = pedidoSyncBancoPendente;
+    res.json({ ok: true, pedido: { origem, recebidoEm, updatedAt: snapshot?.updatedAt || '' } });
+  });
+
+  expressApp.post('/api/sync/banco/pedido/aceitar', soDestaMaquina, (_req, res) => {
+    try {
+      if (!pedidoSyncBancoPendente) {
+        return res.status(409).json({ ok: false, erro: 'nenhum pedido pendente' });
+      }
+      /* Consumido antes de aplicar: se a escrita falhar a meio, o pedido não fica para
+         trás à espera de ser aceite outra vez sobre um banco já meio alterado. */
+      const { snapshot } = pedidoSyncBancoPendente;
+      pedidoSyncBancoPendente = null;
+      const r = aplicarSnapshotCompartilhado(snapshot);
+      res.json({ ok: true, saved: r.saved, snapshot: r.snapshot });
+    } catch (e) {
+      res.status(500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.post('/api/sync/banco/pedido/recusar', soDestaMaquina, (_req, res) => {
+    pedidoSyncBancoPendente = null;
+    res.json({ ok: true });
   });
 
   expressApp.get('/api/musicas', (_req, res) => {

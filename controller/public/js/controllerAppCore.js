@@ -7587,18 +7587,6 @@ async function obterSnapshotCompartilhadoServidor(ipAtual = getServidorProjeccao
   return res.json();
 }
 
-async function enviarSnapshotCompartilhadoParaServidor(snapshot, ipAtual = getServidorProjeccaoIp()) {
-  const ip = String(ipAtual || '').trim();
-  if (!ip) return null;
-  const res = await fetch(`http://${ip}:5510/api/sync/banco`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(snapshot || {}),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
 async function aplicarSnapshotCompartilhadoNoControladorLocal(snapshot) {
   const res = await fetch(`${getControllerApiBase()}/api/sync/banco/local`, {
     method: 'POST',
@@ -7764,8 +7752,11 @@ function modalSincronizarAviso(wrap, msg) {
   }
 }
 
-/** Estado de erro (vermelho) — falha ao enviar o banco. */
-function modalSincronizarErro(wrap, msg) {
+/** Estado de erro (vermelho) — falha ao enviar o banco.
+ *  `acao` (opcional): `{ label, onClick }` no botão de confirmação. Falhar a falar com o
+ *  outro PC é quase sempre endereço errado, e a correção tem de estar à mão de quem está
+ *  a olhar para o erro — não escondida atrás de um menu. */
+function modalSincronizarErro(wrap, msg, acao) {
   if (!appSincronizarResolver) return;
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
@@ -7774,10 +7765,21 @@ function modalSincronizarErro(wrap, msg) {
     wrap.innerHTML = '';
     const err = document.createElement('div');
     err.className = 'share-modal-erro';
-    err.textContent = String(msg || 'Não foi possível enviar o banco ao servidor.');
+    err.textContent = String(msg || 'Não foi possível enviar o banco.');
     wrap.appendChild(err);
   }
-  if (ok) ok.style.display = 'none';
+  if (ok) {
+    if (acao && typeof acao.onClick === 'function') {
+      ok.style.display = '';
+      ok.textContent = String(acao.label || 'OK');
+      ok.onclick = () => {
+        fecharAppDialog(false);
+        acao.onClick();
+      };
+    } else {
+      ok.style.display = 'none';
+    }
+  }
   if (cancel) {
     cancel.style.display = '';
     cancel.textContent = 'Fechar';
@@ -7785,69 +7787,220 @@ function modalSincronizarErro(wrap, msg) {
   }
 }
 
-/** Emite o pedido de sincronização e resolve com o nº de controladores notificados.
- *  Usa ack do servidor (com timeout); clientes/servidores antigos resolvem 0. */
-function emitirSolicitacaoSincronizacaoBanco(payload) {
-  return new Promise((resolve) => {
-    if (!socket || !socket.connected) return resolve(0);
-    let resolvido = false;
-    const done = (n) => {
-      if (resolvido) return;
-      resolvido = true;
-      resolve(Number(n) || 0);
-    };
-    try {
-      socket.timeout(4000).emit('solicitar_sincronizacao_banco', payload, (err, resposta) => {
-        if (err) return done(0);
-        done(resposta && typeof resposta.notificados === 'number' ? resposta.notificados : 0);
-      });
-    } catch (_) {
-      done(0);
-    }
-  });
+/**
+ * Endereço do outro PC com quem este sincroniza o banco.
+ *
+ * Guardado à parte do IP do Servidor (`LS_IP_KEY`) porque é outra coisa: aquele é «quem
+ * projeta», este é «com quem partilho o repertório». Confundi-los faria a sincronização
+ * deixar de existir sempre que se projeta nesta máquina — que é o modo normal.
+ */
+const LS_SYNC_PC_PARCEIRO = 'lyra_sync_pc_parceiro_ip';
+
+function ipPcParceiroSync() {
+  try {
+    return String(localStorage.getItem(LS_SYNC_PC_PARCEIRO) || '').trim();
+  } catch (_) {
+    return '';
+  }
 }
 
+function guardarIpPcParceiroSync(ip) {
+  try {
+    localStorage.setItem(LS_SYNC_PC_PARCEIRO, String(ip || '').trim());
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/** Aceita IPv4 e nome de máquina; recusa o resto antes de gastar um pedido de rede. */
+function ehEnderecoDeRedePlausivel(valor) {
+  const v = String(valor || '').trim();
+  if (!v || v.length > 60) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) {
+    return v.split('.').every((o) => Number(o) >= 0 && Number(o) <= 255);
+  }
+  return /^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(v);
+}
+
+/**
+ * Endereços desta máquina, para os mostrar a quem vai configurar o outro lado.
+ *
+ * Sem isto, «qual é o IP deste PC?» manda a pessoa ao `ipconfig` — e o passo mais chato
+ * da configuração passa a ser o único que o app não ajuda a resolver.
+ */
+async function enderecosDestaMaquinaParaMostrar() {
+  const ponte = ponteProjecaoLocal();
+  if (!ponte?.estado) return [];
+  try {
+    const st = await ponte.estado();
+    const lista = Array.isArray(st?.lanIps) ? st.lanIps : [];
+    const preferido = String(st?.lanIp || '').trim();
+    const out = preferido ? [preferido] : [];
+    for (const ip of lista) {
+      const n = String(ip || '').trim();
+      if (n && !out.includes(n)) out.push(n);
+    }
+    return out;
+  } catch (_) {
+    return [];
+  }
+}
+
+/** Pergunta o endereço do outro PC (uma vez) e guarda-o. */
+async function pedirIpPcParceiroSync() {
+  const meus = await enderecosDestaMaquinaParaMostrar();
+  const sufixo = meus.length ? `\n\nO endereço deste PC é ${meus.join(' ou ')}.` : '';
+  const resposta = await appPrompt(
+    `Endereço do outro PC (o que vai receber o banco).${sufixo}`,
+    {
+      title: 'Sincronizar banco',
+      defaultValue: ipPcParceiroSync(),
+      emptyMsg: 'Digite um IP como 192.168.0.12, ou o nome do PC.',
+      normalizar: (v) => (ehEnderecoDeRedePlausivel(v) ? String(v).trim() : ''),
+    }
+  );
+  if (!resposta) return '';
+  guardarIpPcParceiroSync(resposta);
+  return resposta;
+}
+
+/**
+ * Entrega o banco ao outro PC e devolve o que ele disse.
+ *
+ * `avisado: false` quer dizer que o Controlador do outro lado recebeu o banco mas não
+ * tinha painel aberto para perguntar a ninguém — o pedido fica lá, sem resposta. Não é
+ * erro, mas também não é sucesso, e vale a pena dizê-lo.
+ */
+async function enviarBancoParaPcParceiro(ip, snapshot) {
+  const r = await fetch(`http://${ip}:3001/api/sync/banco/pedido`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      origem: (typeof window !== 'undefined' && window.lyraElectron?.nomeDestePc?.()) || '',
+      snapshot: snapshot || {},
+    }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data.ok === false) throw new Error(data.erro || `HTTP ${r.status}`);
+  return data;
+}
+
+/**
+ * Botão «S»: manda o banco desta máquina para o outro PC.
+ *
+ * Directo, sem Servidor no meio. O Servidor servia de depósito e de carteiro, e nenhuma
+ * das duas funções precisava dele: cada Controlador já expõe a sua API na 3001 e já sabe
+ * montar e aplicar um snapshot. Tirá-lo do caminho é o que faz isto funcionar também
+ * quando se projeta nesta máquina — que é o modo normal de arranque.
+ */
 async function solicitarSincronizacaoManualBanco() {
-  const wrap = abrirModalSincronizarBanco();
-  /* `getServidorIp` e não `hostProjecao`, de propósito: sincronizar o banco é serviço do
-     Servidor e não tem equivalente local (ver docs/architecture/projection-core.md §12.8).
-     Apontar para `127.0.0.1` no modo local mandaria o snapshot para o próprio Controlador. */
-  const ip = getServidorIp();
-  // Caso 1 — sem conexão: mostrado como aviso dentro do mesmo modal.
-  if (!ip || !socket || !socket.connected) {
-    modalSincronizarAviso(
-      wrap,
-      'A sincronização do banco acontece através do Servidor, e este Controlador não está ligado a nenhum. ' +
-        'Conecte-se a um servidor remoto em Ajustes › Conexão e tente de novo.'
-    );
-    return;
+  let ip = ipPcParceiroSync();
+  /* Perguntado ANTES de abrir o modal: os dois usam o mesmo `app-dialog`, e abri-los em
+     cima um do outro deixava o diálogo do IP a herdar os botões do modal de progresso. */
+  if (!ip) {
+    ip = await pedirIpPcParceiroSync();
+    if (!ip) return;
   }
 
+  const wrap = abrirModalSincronizarBanco();
   try {
     sharedBancoLocalUpdatedAt = new Date().toISOString();
     await persistirMetaCompartilhadaLocal({ incluirPlaylists: true, preservarUpdatedAt: false });
     const local = await obterSnapshotCompartilhadoLocal();
-    const resposta = await enviarSnapshotCompartilhadoParaServidor(local, ip);
-    if (resposta?.snapshot?.updatedAt) sharedBancoLocalUpdatedAt = String(resposta.snapshot.updatedAt);
-    const notificados = await emitirSolicitacaoSincronizacaoBanco({
-      updatedAt: resposta?.snapshot?.updatedAt || local?.updatedAt || '',
-    });
-    if (notificados > 0) {
-      // Caso 2 — sucesso real: havia outros controladores para receber.
-      modalSincronizarSucesso(
+    const resposta = await enviarBancoParaPcParceiro(ip, local);
+    if (resposta?.avisado === false) {
+      modalSincronizarAviso(
         wrap,
-        'Banco enviado. Os outros PCs foram notificados para aceitar a sincronização.'
+        `O Lyra do PC ${ip} recebeu o banco, mas não tem o painel aberto para aceitar. ` +
+          'Abra o Controlador nesse PC e envie de novo.'
       );
-    } else {
-      // Caso 3 — aviso: envio ao servidor sem destinatário, sem efeito prático.
-      modalSincronizarAviso(wrap, 'Nenhum controlador conectado para receber a sincronização agora.');
+      return;
     }
+    modalSincronizarSucesso(wrap, `Banco enviado ao PC ${ip}. Falta aceitar por lá.`);
   } catch (e) {
-    // Caso 4 — erro: mantém a mensagem de falha original, agora dentro do modal.
-    modalSincronizarErro(wrap, e?.message || 'Não foi possível enviar o banco ao servidor.');
+    modalSincronizarErro(
+      wrap,
+      `Não foi possível falar com o PC ${ip} na porta 3001.\n\n` +
+        'Confira se o Lyra está aberto nesse PC, se o endereço está certo e se o firewall ' +
+        'do Windows liberou o Lyra Controlador.\n\n' +
+        String(e?.message || e),
+      { label: 'Alterar endereço', onClick: () => void trocarPcParceiroSync() }
+    );
   }
 }
 
+/** Esquece o PC parceiro, para o próximo «S» voltar a perguntar. */
+async function trocarPcParceiroSync() {
+  guardarIpPcParceiroSync('');
+  await solicitarSincronizacaoManualBanco();
+}
+
+/**
+ * Chegou banco do outro PC: pergunta, e só depois escreve.
+ *
+ * O snapshot não passou por aqui — ficou no processo principal desde que chegou pela
+ * rede. O painel só diz sim ou não; quem aplica é a rota `/pedido/aceitar`, que é de
+ * loopback justamente para que esta decisão não possa vir de fora.
+ */
+async function tratarPedidoSyncBancoDirecto(payload) {
+  if (pedidoSyncBancoEmAberto) return;
+  pedidoSyncBancoEmAberto = true;
+  try {
+    const origem = String(payload?.origem || '').trim() || 'outro PC';
+    const escolha = await appEscolherOpcao(
+      'Sincronizar banco',
+      [{ label: 'Aceitar', value: 'aceitar' }],
+      `${origem} deseja enviar o banco de dados para este PC. Aceitar?`,
+      { cancelLabel: 'Recusar' }
+    );
+    if (escolha !== 'aceitar') {
+      await fetch(`${getControllerApiBase()}/api/sync/banco/pedido/recusar`, { method: 'POST' }).catch(
+        () => {}
+      );
+      return;
+    }
+    const r = await fetch(`${getControllerApiBase()}/api/sync/banco/pedido/aceitar`, { method: 'POST' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.ok === false) throw new Error(data.erro || `HTTP ${r.status}`);
+    if (data.saved === false) {
+      await appAlert(
+        'O banco recebido é mais antigo do que o deste PC — nada foi alterado.',
+        'Sincronizar banco'
+      );
+      return;
+    }
+    await aplicarSnapshotCompartilhadoNoRenderer(data.snapshot || null);
+    await appAlert('Banco sincronizado.', 'Sincronizar banco');
+  } catch (e) {
+    await appAlert(e?.message || 'Não foi possível aplicar o banco recebido.', 'Sincronizar banco');
+  } finally {
+    pedidoSyncBancoEmAberto = false;
+  }
+}
+
+/**
+ * Pedido que chegou com o painel fechado (ou a recarregar): ao abrir, pergunta-se por ele.
+ *
+ * Sem isto, quem enviou o banco enquanto o outro PC arrancava via «recebido» e nunca mais
+ * ninguém era perguntado — o pedido morria de pé no processo principal.
+ */
+async function recuperarPedidoSyncBancoPendente() {
+  try {
+    const r = await fetch(`${getControllerApiBase()}/api/sync/banco/pedido`);
+    if (!r.ok) return;
+    const data = await r.json().catch(() => ({}));
+    if (data?.pedido) await tratarPedidoSyncBancoDirecto(data.pedido);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/**
+ * Pedido vindo pelo Servidor, no arranjo antigo em que ele era o carteiro.
+ *
+ * Mantido para quem tem os dois Controladores ligados a um Servidor: nesse caso o snapshot
+ * está no Servidor, não aqui, e vai buscar-se lá.
+ */
 async function tratarPedidoSincronizacaoBanco(payload) {
   if (pedidoSyncBancoEmAberto) return;
   pedidoSyncBancoEmAberto = true;
@@ -11535,17 +11688,27 @@ async function conectar() {
    * sozinho.
    */
 
-  /* Sem um Servidor remoto real a que ligar (campo vazio ou o endereço desta própria
-     máquina): nada acontece. O local fica intacto e o badge permanece em LOCAL. Ligar ao
-     IP da LAN deste PC — com o modo local a servir a 5510 — fingia sucesso e o badge
-     passava a SERVIDOR sem nenhum app Servidor aberto. */
+  /* Sem Servidor a que ligar (campo vazio, ou a 5510 desta máquina servida pelo próprio
+     Controlador): nada acontece. O local fica intacto e o badge permanece em LOCAL. */
   await refrescarIpsDestaMaquina();
   const ip = ipRemotoAlvo();
   if (!ip) return;
-  if (ehEnderecoDestaMaquina(ip)) {
+  /*
+   * Endereço desta própria máquina não é, sozinho, motivo para recusar.
+   *
+   * Servidor e Controlador convivem no mesmo PC sem disputar porta nenhuma — o Servidor
+   * tem a 5510 e a 5001, o Controlador tem a 3001, e só o modo «projetar nesta máquina»
+   * quer a 5510. E esse arranjo não é exótico: é ele que permite sincronizar o banco
+   * entre dois PCs quando um deles é o que hospeda o Servidor, porque a sincronização
+   * exige os dois Controladores registados no MESMO Servidor.
+   *
+   * Quem decide é a identidade de quem atende a 5510, não o IP.
+   */
+  if (ehEnderecoDestaMaquina(ip) && (await consultarPapelHost5510(ip)) !== 'server') {
     alert(
-      'Esse IP é deste computador.\n\n' +
-      'No modo remoto, informe o IP do outro PC — o que está a correr o app Servidor.'
+      'Esse IP é deste computador, e não há nenhum app Servidor a atender a porta 5510 aqui.\n\n' +
+      'Informe o IP do PC que está a correr o Servidor — ou, se o Servidor for correr neste ' +
+      'mesmo PC, desmarque Ferramentas › Projetar nesta máquina, abra o app Servidor e tente de novo.'
     );
     return;
   }
@@ -12636,32 +12799,50 @@ socket.on('connect', async () => {
   if (_conectandoEmAndamento) {
     return;
   }
-  /* Rede de segurança: ligar ao motor local deste PC (IP da LAN / localhost) enquanto a
-     5510 está a ser servida pelo próprio Controlador NÃO é modo remoto. Sem isto o badge
-     passava a SERVIDOR sem o app Servidor existir. */
   await refrescarIpsDestaMaquina();
-  if (ehEnderecoDestaMaquina(ip)) {
-    try { socket.disconnect(); } catch (_) { /* intencional */ }
-    tratarFalhaLigacaoServidor();
-    return;
-  }
-  /* Mesmo problema, outro PC: a 5510 do destino pode ser um Controlador em modo local,
-     não o app Servidor. A rota /api/identity distingue os dois. Se a rota não existir
-     (servidor antigo) ou a rede falhar, papelRemoto fica null e a ligação segue —
-     compatibilidade com versões que ainda não expõem a rota. */
-  let papelRemoto = null;
-  try {
-    const rId = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store' });
-    if (rId.ok) papelRemoto = (await rId.json())?.role || null;
-  } catch (_) { /* rota ausente ou rede — ver regra de compatibilidade acima */ }
+  const ehLocal = ehEnderecoDestaMaquina(ip);
+
+  /* Quem atende a 5510 do outro lado: o app Servidor, ou um Controlador em modo local?
+     Consultado ANTES de se olhar para o endereço — é a identidade, e não o IP, que
+     responde à pergunta que interessa. */
+  const papelRemoto = await consultarPapelHost5510(ip);
 
   if (papelRemoto === 'controller-local') {
     try { socket.disconnect(); } catch (_) { /* intencional */ }
     tratarFalhaLigacaoServidor(
-      'O PC de destino está em modo «projetar nesta máquina», não é um Servidor.\n\n' +
-      'Nesse PC: desmarque Ferramentas › Projetar nesta máquina, ou abra o app ' +
-      'Servidor ANTES do Controlador.'
+      ehLocal
+        ? 'A porta 5510 deste PC está a ser servida pelo próprio Controlador, em modo ' +
+          '«projetar nesta máquina» — não pelo app Servidor.\n\n' +
+          'Para ligar ao Servidor deste mesmo PC: desmarque Ferramentas › Projetar nesta ' +
+          'máquina, abra o app Servidor e tente de novo.'
+        : 'O PC de destino está em modo «projetar nesta máquina», não é um Servidor.\n\n' +
+          'Nesse PC: desmarque Ferramentas › Projetar nesta máquina, ou abra o app ' +
+          'Servidor ANTES do Controlador.'
     );
+    return;
+  }
+
+  /*
+   * Endereço desta própria máquina só é recusado quando falta prova de que há um Servidor
+   * do outro lado.
+   *
+   * O guard anterior recusava qualquer endereço local sem olhar mais nada. Protegia do
+   * caso certo — o socket a «ligar-se» ao motor local e o badge a ir a SERVIDOR sem
+   * Servidor nenhum — mas de caminho proibia o arranjo legítimo de Servidor e Controlador
+   * no mesmo PC, que não disputa porta com ninguém: o Servidor tem a 5510 e a 5001, o
+   * Controlador tem a 3001, e só o modo «projetar nesta máquina» quer a 5510.
+   *
+   * O efeito colateral era grave e silencioso: nesse PC o Controlador nunca se registava
+   * no Servidor, e a sincronização de banco — que exige os dois lados registados no MESMO
+   * Servidor, um para depositar o snapshot e outro para ser avisado — não tinha como
+   * concluir. Quem carregava no botão via sempre «nenhum controlador conectado».
+   *
+   * `role: 'server'` é a prova, e a recusa mantém-se sem ela: aí o outro lado pode
+   * perfeitamente ser o motor local deste mesmo processo.
+   */
+  if (ehLocal && papelRemoto !== 'server') {
+    try { socket.disconnect(); } catch (_) { /* intencional */ }
+    tratarFalhaLigacaoServidor();
     return;
   }
   _conectandoEmAndamento = true;
@@ -12907,6 +13088,29 @@ function ehEnderecoDestaMaquina(ip) {
   if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') return true;
   if (servidorLanIpObs && h === String(servidorLanIpObs).trim().toLowerCase()) return true;
   return ipsDestaMaquina.has(h);
+}
+
+/**
+ * Quem atende a porta 5510 em `ip`: o app Servidor (`'server'`), um Controlador em modo
+ * local (`'controller-local'`), ou desconhecido (`null`).
+ *
+ * `null` cobre duas situações que daqui não se distinguem — Servidor antigo, sem a rota,
+ * e rede a falhar — e por isso nunca vale como prova de nada. Quem chama é que decide o
+ * que fazer com a ausência de prova: para um endereço remoto segue-se em frente, por
+ * compatibilidade; para um endereço desta própria máquina, não, porque o outro lado pode
+ * muito bem ser o motor local deste mesmo processo.
+ *
+ * @param {string} ip
+ * @returns {Promise<'server'|'controller-local'|null>}
+ */
+async function consultarPapelHost5510(ip) {
+  try {
+    const r = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    return (await r.json())?.role || null;
+  } catch (_) {
+    return null;
+  }
 }
 
 /**
@@ -16307,6 +16511,13 @@ try {
       aplicarSnapshotCompartilhadoNoRenderer(payload?.snapshot || null).catch(() => {});
     });
   }
+  if (typeof window !== 'undefined' && window.lyraElectron?.onPedidoSyncBanco) {
+    window.lyraElectron.onPedidoSyncBanco((payload) => {
+      tratarPedidoSyncBancoDirecto(payload).catch(() => {});
+    });
+    /* E o que chegou antes de o painel existir: ver `recuperarPedidoSyncBancoPendente`. */
+    recuperarPedidoSyncBancoPendente().catch(() => {});
+  }
 } catch (err) {
   console.error('[Lyra] falha no bootstrap do painel', err);
 }
@@ -16662,7 +16873,10 @@ function appConfirm(msg, title) {
   return abrirAppDialog(msg, { title: title || 'Lyra', confirm: true });
 }
 
-/** Diálogo com campo de texto; resolve string normalizada ou null (cancelar). */
+/** Diálogo com campo de texto; resolve string normalizada ou null (cancelar).
+ *  `opts.normalizar` (opcional): valida e normaliza o texto, devolvendo vazio quando não
+ *  serve. Por omissão trata o campo como nome de tema — o que este diálogo sempre pediu.
+ *  Endereços de rede precisam de outra regra, e não de outro diálogo. */
 function appPrompt(msg, opts = {}) {
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
@@ -16704,8 +16918,10 @@ function appPrompt(msg, opts = {}) {
   ov.classList.add('aberto');
   return new Promise((resolve) => {
     appPromptResolver = resolve;
+    const normalizar =
+      typeof opts.normalizar === 'function' ? opts.normalizar : normalizarTemaPlaylist;
     const fecharOk = () => {
-      const v = normalizarTemaPlaylist(input.value);
+      const v = normalizar(input.value);
       if (!v) {
         err.textContent = opts.emptyMsg || 'Digite um nome válido.';
         try {
