@@ -268,9 +268,9 @@ seguinte. Este bloco é o que protege essa garantia.
       clicar em «Conectar».
 - [ ] Com **Lembrar IP** desligado: conectar, fechar e reabrir → o campo de IP vem **vazio** (o
       endereço não sobrevive à sessão).
-- [ ] **Conectar, e reabrir com o Servidor desligado** → o Controlador projeta nesta máquina na
-      mesma, sem erro nem espera. (Era este o cenário mau da versão que persistia o modo: abria a
-      apontar para uma máquina ausente e não projetava nada.)
+- [ ] **Servidor aberto → Controlador conectado → fechar o Servidor:** o badge volta a «Este PC»
+      **e** o modo local fica mesmo activo — projetar de imediato funciona sem reiniciar e sem
+      voltar a Ferramentas › Projetar nesta máquina.
 - [ ] Em DevTools › Application › Local Storage, **depois** de conectar e desconectar várias vezes:
       não existe chave `lyra_projetar_nesta_maquina` nem equivalente. Se existir numa instalação
       antiga, é apagada no primeiro arranque desta versão.
