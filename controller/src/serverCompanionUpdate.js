@@ -34,8 +34,12 @@ const DEFAULT_QUIT_FORCE_AFTER_MS = 15000;
 /** Intervalo entre polls de processo/porta durante o encerramento. */
 const DEFAULT_QUIT_POLL_MS = 400;
 
-/** Argumentos NSIS para instalação silenciosa per-user. */
-const INSTALADOR_ARGS_PER_USER = Object.freeze(['/S', '/currentuser']);
+/**
+ * Argumentos NSIS per-user com janela padrão visível.
+ * Sem `/S`: o instalador one-click do electron-builder mostra progresso.
+ * Com `/S` + windowsHide a UI sumia após o handoff fechar Server/Controlador.
+ */
+const INSTALADOR_ARGS_PER_USER = Object.freeze(['/currentuser']);
 
 function parseServerLatestYml(text) {
   const out = {};
@@ -561,13 +565,17 @@ function iniciarServidorInstalado({
   return exe;
 }
 
+/**
+ * Corre o NSIS do Servidor (mesmo mecanismo / handoff de sempre).
+ * A janela padrão do instalador permanece visível (`windowsHide: false`, sem `/S`).
+ */
 function correrInstaladorSilencioso(setupPath, {
   spawnImpl = spawn,
   args = INSTALADOR_ARGS_PER_USER,
 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawnImpl(setupPath, args, {
-      windowsHide: true,
+      windowsHide: false,
       stdio: 'ignore',
     });
     child.on('error', reject);
@@ -933,7 +941,7 @@ function createServerCompanionUpdateApi(ctx, deps) {
           await correrInstaladorSilencioso(setupPath);
         }
       } catch (err) {
-        throw new Error(`Falha na instalação silenciosa do Servidor.\n\n${err?.message || err}`);
+        throw new Error(`Falha na instalação do Servidor.\n\n${err?.message || err}`);
       }
 
       /*

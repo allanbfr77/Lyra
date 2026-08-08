@@ -165,8 +165,9 @@ test('5) caminhoExeServidorInstalado usa lyra-server', () => {
   assert.equal(exe.includes('Programs\\Lyra Servidor\\'), false);
 });
 
-test('6) instalador usa /S /currentuser', () => {
-  assert.deepEqual([...INSTALADOR_ARGS_PER_USER], ['/S', '/currentuser']);
+test('6) instalador usa /currentuser com UI visível (sem /S)', () => {
+  assert.deepEqual([...INSTALADOR_ARGS_PER_USER], ['/currentuser']);
+  assert.equal(INSTALADOR_ARGS_PER_USER.includes('/S'), false);
 });
 
 test('1) Server encerrando normalmente (processo some + porta livre)', async () => {
@@ -283,8 +284,9 @@ test('garantirProcessoAntigoAusente', () => {
   assert.equal(falha.ok, false);
 });
 
-test('6) correrInstaladorSilencioso passa /S /currentuser', async () => {
+test('6) correrInstaladorSilencioso passa /currentuser e windowsHide=false', async () => {
   let seenArgs = null;
+  let seenOpts = null;
   const fakeChild = {
     on(ev, cb) {
       if (ev === 'exit') setImmediate(() => cb(0));
@@ -292,12 +294,14 @@ test('6) correrInstaladorSilencioso passa /S /currentuser', async () => {
     },
   };
   await correrInstaladorSilencioso('C:\\tmp\\setup.exe', {
-    spawnImpl: (_exe, args) => {
+    spawnImpl: (_exe, args, opts) => {
       seenArgs = args;
+      seenOpts = opts;
       return fakeChild;
     },
   });
-  assert.deepEqual(seenArgs, ['/S', '/currentuser']);
+  assert.deepEqual(seenArgs, ['/currentuser']);
+  assert.equal(seenOpts.windowsHide, false);
 });
 
 test('7) falha do instalador (exit != 0)', async () => {

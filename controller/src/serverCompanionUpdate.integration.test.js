@@ -193,7 +193,7 @@ test('7) falha do instalador propaga erro claro', async () => {
     })
   );
 
-  await assert.rejects(() => api.instalarCompanionLocal(), /código 2|instalação silenciosa/i);
+  await assert.rejects(() => api.instalarCompanionLocal(), /código 2|instalação/i);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -232,6 +232,8 @@ test('8-10) sucesso: inicia Server, confirma buildId, emite done (reconexão)', 
       aguardarEncerradoImpl: async () => ({ ok: true, processos: [] }),
       listarProcessosImpl: () => [],
       portaRespondeImpl: async () => false,
+      /* Evita falso «já no ar» se houver Server real na 5510 durante o teste. */
+      obterIdentityImpl: async () => null,
       correrInstaladorImpl: async (setupPath) => {
         assert.ok(fs.existsSync(setupPath));
         instaladorArgsOk = true;

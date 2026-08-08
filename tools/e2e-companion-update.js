@@ -2,7 +2,7 @@
 
 /**
  * E2E real do Companion Update (Windows):
- * Server antigo instalado → quit-for-update → NSIS /S /currentuser → novo Server → buildId → done.
+ * Server antigo instalado → quit-for-update → NSIS /currentuser (UI) → novo Server → buildId → done.
  *
  * Pré-requisitos:
  * - Server antigo já instalado em %LOCALAPPDATA%\Programs\lyra-server e a responder em :5510

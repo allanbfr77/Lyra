@@ -340,7 +340,7 @@ async function executarHandoff(handoff, deps = {}) {
   logStage('INSTALLER_FINISHED');
   logStage('INSTALLER_EXIT_CODE', String(exitCode ?? 0));
 
-  /* NSIS (runAfterFinish) pode arrancar o Servidor sozinho após /S — dar-lhe um instante
+  /* NSIS (runAfterFinish) pode arrancar o Servidor sozinho ao terminar — dar-lhe um instante
      antes de decidirmos spawnar nós (evita duas instâncias). */
   await esperar(1500);
 
