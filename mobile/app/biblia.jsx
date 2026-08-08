@@ -3,7 +3,7 @@
  * Configurações de exibição: menu completo (M2 / M3 / Leitura), espelho do PC.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +40,7 @@ import { dividirVersiculos } from '../src/dividirVersiculos';
 
 export default function BibliaScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { ip } = useLocalSearchParams();
   const host = Array.isArray(ip) ? String(ip[0] || '') : String(ip || '');
 
@@ -49,11 +52,14 @@ export default function BibliaScreen() {
   const [monitor, setMonitor] = useState('m2');
   const [carregando, setCarregando] = useState(false);
   const [preview, setPreview] = useState(null);
-  /** Demais versículos do capítulo (anteriores e seguintes), excluindo o projetado. */
+  /** true = versículo do preview está ao vivo nas telas; false = só pré-selecionado. */
+  const [estaProjetado, setEstaProjetado] = useState(false);
+  /** Demais versículos do capítulo (anteriores e seguintes), excluindo o foco atual. */
   const [versiculosCapitulo, setVersiculosCapitulo] = useState([]);
   const [livroResolvido, setLivroResolvido] = useState(null);
   const [cfg, setCfg] = useState(BIBLIA_CFG_PADRAO);
   const [modalCfgVisible, setModalCfgVisible] = useState(false);
+  const [dropdownVersaoAberto, setDropdownVersaoAberto] = useState(false);
 
   const socketRef = useRef(null);
   const rotaAplicadaRef = useRef(false);
@@ -67,6 +73,9 @@ export default function BibliaScreen() {
   const scrollRef = useRef(null);
   const previewCardRef = useRef(null);
   const scrollYRef = useRef(0);
+  const autoSelectSeqRef = useRef(0);
+  const previewRef = useRef(null);
+  previewRef.current = preview;
 
   useEffect(() => {
     carregarCfgExibicaoBiblia().then((c) => {
@@ -74,6 +83,22 @@ export default function BibliaScreen() {
       cfgAplicadaRef.current = JSON.stringify(c);
     });
   }, []);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => setModalCfgVisible(true)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={styles.btnCfgHeader}
+          accessibilityLabel="Configurações de exibição"
+          accessibilityRole="button"
+        >
+          <Ionicons name="settings-outline" size={22} color={COLORS.accent2} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   /** Traduções instaladas no controlador (`GET /api/biblia/traducoes`). */
   useEffect(() => {
@@ -208,11 +233,39 @@ export default function BibliaScreen() {
     return { hit, rows };
   }
 
-  /** Todos os versículos do capítulo, menos o atualmente projetado (ordem de leitura). */
+  /** Todos os versículos do capítulo, menos o foco atual (ordem de leitura). */
   function outrosDoCapitulo(rows, ver) {
     return (Array.isArray(rows) ? rows : [])
       .filter((r) => Number(r.versiculo) !== ver)
       .sort((a, b) => Number(a.versiculo) - Number(b.versiculo));
+  }
+
+  function montarDadosPreview(livro, cap, ver, hit) {
+    const { texto, partesTotal } = textoParaProjecao(hit, livro.nome, cap);
+    return {
+      ref: `${livro.nome} ${cap}:${ver}`,
+      traducao,
+      monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
+      texto,
+      partesTotal,
+      livro: livro.nome,
+      capitulo: cap,
+      versiculo: ver,
+    };
+  }
+
+  /**
+   * Abre/seleciona o versículo na lista local — sem emitir projeção.
+   * Espelha o 1.º toque das estrofes.
+   */
+  function selecionarVersiculoResolvido(livro, cap, ver, hit, rows) {
+    Vibration.vibrate(15);
+    // Só atualiza o formulário se o valor mudou (evita retrigger desnecessário do auto-select).
+    setVersiculo((atual) => (String(atual) === String(ver) ? atual : String(ver)));
+    setCapitulo((atual) => (String(atual) === String(cap) ? atual : String(cap)));
+    setPreview(montarDadosPreview(livro, cap, ver, hit));
+    setVersiculosCapitulo(outrosDoCapitulo(rows, ver));
+    setEstaProjetado(false);
   }
 
   /**
@@ -246,7 +299,8 @@ export default function BibliaScreen() {
    * Projeta um versículo já resolvido (formulário ou card dos próximos).
    */
   async function projetarVersiculoResolvido(livro, cap, ver, hit, rows) {
-    const { texto, partesTotal } = textoParaProjecao(hit, livro.nome, cap);
+    const dados = montarDadosPreview(livro, cap, ver, hit);
+    const { texto } = dados;
 
     const cfgAtual = cfgRef.current;
     const mudouMonitor = ultimaRotaMonitorRef.current !== monitor;
@@ -275,18 +329,48 @@ export default function BibliaScreen() {
 
     Vibration.vibrate(30);
     setVersiculo(String(ver));
-    setPreview({
-      ref: `${livro.nome} ${cap}:${ver}`,
-      traducao,
-      monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
-      texto,
-      partesTotal,
-      livro: livro.nome,
-      capitulo: cap,
-      versiculo: ver,
-    });
+    setCapitulo(String(cap));
+    setPreview(dados);
     setVersiculosCapitulo(outrosDoCapitulo(rows, ver));
+    setEstaProjetado(true);
   }
+
+  /**
+   * Com Livro + Capítulo + Versículo válidos, abre o versículo automaticamente
+   * (apenas seleção — não projeta).
+   */
+  useEffect(() => {
+    if (!host) return;
+    const livro = resolverLivroBiblia(livroInput);
+    const cap = parseInt(String(capitulo).trim(), 10);
+    const ver = parseInt(String(versiculo).trim(), 10);
+    if (!livro || !Number.isFinite(cap) || cap < 1 || !Number.isFinite(ver) || ver < 1) {
+      return;
+    }
+
+    const atual = previewRef.current;
+    if (
+      atual &&
+      atual.traducao === traducao &&
+      atual.livro === livro.nome &&
+      Number(atual.capitulo) === cap &&
+      Number(atual.versiculo) === ver
+    ) {
+      return;
+    }
+
+    const seq = ++autoSelectSeqRef.current;
+    const t = setTimeout(async () => {
+      try {
+        const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
+        if (seq !== autoSelectSeqRef.current) return;
+        selecionarVersiculoResolvido(livro, cap, ver, hit, rows);
+      } catch (_) {
+        // Silencioso: o operador pode ainda estar a completar a referência.
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [host, traducao, livroInput, capitulo, versiculo]);
 
   async function projetar() {
     if (!host) {
@@ -329,17 +413,46 @@ export default function BibliaScreen() {
     }
   }
 
-  /** Toque num card dos próximos: projeta na hora e atualiza a sequência. */
-  async function projetarProximo(item) {
+  /**
+   * Toque num card da lista — mesmo padrão das estrofes:
+   * - Sem projeção ao vivo: 1.º toque selecciona, 2.º no mesmo versículo projeta.
+   * - Com projeção ao vivo: um toque troca o versículo na hora.
+   */
+  async function tocarVersiculo(item) {
     if (carregando) return;
+    const livro =
+      resolverLivroBiblia(livroInput) || (preview?.livro ? { nome: preview.livro } : null);
+    const cap = preview?.capitulo ?? parseInt(String(capitulo).trim(), 10);
+    const ver = Number(item?.versiculo);
+    if (!livro?.nome || !Number.isFinite(cap) || !Number.isFinite(ver)) return;
+
+    const mesmoFoco =
+      !!preview &&
+      preview.livro === livro.nome &&
+      Number(preview.capitulo) === cap &&
+      Number(preview.versiculo) === ver;
+
+    if (!estaProjetado && !mesmoFoco) {
+      if (!host) {
+        Alert.alert('Atenção', 'Conecte-se na tela inicial (IP do controlador).');
+        return;
+      }
+      setCarregando(true);
+      try {
+        const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
+        selecionarVersiculoResolvido(livro, cap, ver, hit, rows);
+      } catch (e) {
+        Alert.alert('Erro', e.message || 'Não foi possível abrir o versículo.');
+      } finally {
+        setCarregando(false);
+      }
+      return;
+    }
+
     if (!host || !socketRef.current?.connected) {
       Alert.alert('Desconectado', 'Sem ligação à projeção.');
       return;
     }
-    const livro = resolverLivroBiblia(livroInput) || (preview?.livro ? { nome: preview.livro } : null);
-    const cap = preview?.capitulo ?? parseInt(String(capitulo).trim(), 10);
-    const ver = Number(item?.versiculo);
-    if (!livro?.nome || !Number.isFinite(cap) || !Number.isFinite(ver)) return;
 
     setCarregando(true);
     try {
@@ -352,6 +465,12 @@ export default function BibliaScreen() {
     }
   }
 
+  /** Segundo toque no card foco (pré-selecionado) → projeta. */
+  async function confirmarProjecaoDoFoco() {
+    if (!preview || estaProjetado || carregando) return;
+    await tocarVersiculo({ versiculo: preview.versiculo });
+  }
+
   function limparTela() {
     if (!socketRef.current?.connected) {
       Alert.alert('Desconectado', 'Sem ligação à projeção.');
@@ -361,6 +480,7 @@ export default function BibliaScreen() {
     socketRef.current.emit('encerrar_projecao_biblia');
     setPreview(null);
     setVersiculosCapitulo([]);
+    setEstaProjetado(false);
     jaProjetouNestaSessaoRef.current = false;
   }
 
@@ -407,99 +527,95 @@ export default function BibliaScreen() {
           scrollYRef.current = e.nativeEvent.contentOffset.y;
         }}
       >
-        <View style={styles.headerRow}>
-          <Text style={[styles.label, styles.labelHeader]}>MODO BÍBLIA</Text>
+        <View style={styles.grupo}>
+          <Text style={[styles.label, styles.labelGrupo]}>VERSÃO</Text>
           <TouchableOpacity
-            style={styles.btnCfg}
-            onPress={() => setModalCfgVisible(true)}
-            accessibilityLabel="Configurações de exibição"
+            style={styles.selectVersao}
+            onPress={() => setDropdownVersaoAberto(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Versão da Bíblia: ${traducao}`}
           >
-            <Ionicons name="settings-outline" size={22} color={COLORS.accent2} />
+            <Text style={styles.selectVersaoTxt}>{traducao}</Text>
+            <Ionicons name="chevron-down" size={18} color={COLORS.textDim} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>VERSÃO</Text>
-        <View style={styles.rowVersoes}>
-          {traducoes.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.chip, traducao === t && styles.chipAtivo]}
-              onPress={() => setTraducao(t)}
-            >
-              <Text style={[styles.chipTxt, traducao === t && styles.chipTxtAtivo]}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <View style={styles.separador} />
 
-        <Text style={styles.label}>LIVRO</Text>
-        <TextInput
-          style={styles.input}
-          value={livroInput}
-          onChangeText={setLivroInput}
-          placeholder="Ex.: João, sl, 1co…"
-          placeholderTextColor={COLORS.textDim}
-          autoCapitalize="words"
-          autoCorrect={false}
-        />
-        {livroInput.trim() ? (
-          livroResolvido ? (
-            <Text style={styles.hintOk}>→ {livroResolvido.nome}</Text>
-          ) : (
-            <Text style={styles.hintErro}>Livro não reconhecido</Text>
-          )
-        ) : null}
+        <View style={styles.grupo}>
+          <Text style={[styles.label, styles.labelGrupo]}>LIVRO</Text>
+          <TextInput
+            style={styles.input}
+            value={livroInput}
+            onChangeText={setLivroInput}
+            placeholder="Ex.: João, sl, 1co…"
+            placeholderTextColor={COLORS.textDim}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+          {livroInput.trim() ? (
+            livroResolvido ? (
+              <Text style={styles.hintOk}>→ {livroResolvido.nome}</Text>
+            ) : (
+              <Text style={styles.hintErro}>Livro não reconhecido</Text>
+            )
+          ) : null}
 
-        <View style={styles.rowNums}>
-          <View style={styles.colNum}>
-            <Text style={styles.label}>CAPÍTULO</Text>
-            <TextInput
-              style={styles.inputNum}
-              value={capitulo}
-              onChangeText={setCapitulo}
-              keyboardType="number-pad"
-              placeholder="1"
-              placeholderTextColor={COLORS.textDim}
-            />
-          </View>
-          <View style={styles.colNum}>
-            <Text style={styles.label}>VERSÍCULO</Text>
-            <TextInput
-              style={styles.inputNum}
-              value={versiculo}
-              onChangeText={setVersiculo}
-              keyboardType="number-pad"
-              placeholder="1"
-              placeholderTextColor={COLORS.textDim}
-            />
+          <View style={styles.rowNums}>
+            <View style={styles.colNum}>
+              <Text style={styles.label}>CAPÍTULO</Text>
+              <TextInput
+                style={styles.inputNum}
+                value={capitulo}
+                onChangeText={setCapitulo}
+                keyboardType="number-pad"
+                placeholderTextColor={COLORS.textDim}
+              />
+            </View>
+            <View style={styles.colNum}>
+              <Text style={styles.label}>VERSÍCULO</Text>
+              <TextInput
+                style={styles.inputNum}
+                value={versiculo}
+                onChangeText={setVersiculo}
+                keyboardType="number-pad"
+                placeholderTextColor={COLORS.textDim}
+              />
+            </View>
           </View>
         </View>
 
-        <Text style={styles.label}>PROJETAR EM</Text>
-        <View style={styles.rowMonitores}>
-          {[
-            { id: 'm2', titulo: 'M2', sub: 'Telão / Público' },
-            { id: 'm3', titulo: 'M3', sub: 'Ministrante' },
-          ].map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={[styles.chipMonitor, monitor === m.id && styles.chipMonitorAtivo]}
-              onPress={() => setMonitor(m.id)}
-            >
-              <Text
-                style={[
-                  styles.chipMonitorTitulo,
-                  monitor === m.id && styles.chipMonitorTituloAtivo,
-                ]}
+        <View style={styles.separador} />
+
+        <View style={styles.grupo}>
+          <Text style={[styles.label, styles.labelGrupo]}>PROJETAR EM</Text>
+          <View style={styles.rowMonitores}>
+            {[
+              { id: 'm2', titulo: 'M2', sub: 'Telão / Público' },
+              { id: 'm3', titulo: 'M3', sub: 'Ministrante' },
+            ].map((m) => (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.chipMonitor, monitor === m.id && styles.chipMonitorAtivo]}
+                onPress={() => setMonitor(m.id)}
               >
-                {m.titulo}
-              </Text>
-              <Text
-                style={[styles.chipMonitorSub, monitor === m.id && styles.chipMonitorSubAtivo]}
-              >
-                {m.sub}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.chipMonitorTitulo,
+                    monitor === m.id && styles.chipMonitorTituloAtivo,
+                  ]}
+                >
+                  {m.titulo}
+                </Text>
+                <Text
+                  style={[styles.chipMonitorSub, monitor === m.id && styles.chipMonitorSubAtivo]}
+                >
+                  {m.sub}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {preview ? (
@@ -515,11 +631,15 @@ export default function BibliaScreen() {
                   <TouchableOpacity
                     key={`ant-${n}`}
                     style={[styles.navCard, carregando && styles.btnDisabled]}
-                    onPress={() => projetarProximo(item)}
+                    onPress={() => tocarVersiculo(item)}
                     disabled={carregando}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel={`Projetar versículo ${n}`}
+                    accessibilityLabel={
+                      estaProjetado
+                        ? `Projetar versículo ${n}`
+                        : `Selecionar versículo ${n}`
+                    }
                   >
                     <Text style={styles.navRef}>
                       {preview.livro} {preview.capitulo}:{n}
@@ -533,19 +653,42 @@ export default function BibliaScreen() {
 
             <View
               ref={previewCardRef}
-              style={styles.previewCard}
-              accessibilityRole="summary"
               onLayout={() => {
                 // Reposiciona após o layout do novo card ativo (avanço/volta na lista).
                 trazerCardAtivoParaVista();
               }}
             >
-              <Text style={styles.previewHead}>● PROJETADO · {preview.monitor}</Text>
-              <Text style={styles.previewRef}>
-                {preview.ref} · {preview.traducao}
-                {preview.partesTotal > 1 ? ` · parte 1/${preview.partesTotal}` : ''}
-              </Text>
-              <Text style={styles.previewTexto}>{preview.texto}</Text>
+              <TouchableOpacity
+                style={[
+                  styles.previewCard,
+                  !estaProjetado && styles.previewCardSelecionado,
+                ]}
+                onPress={confirmarProjecaoDoFoco}
+                disabled={carregando || estaProjetado}
+                activeOpacity={estaProjetado ? 1 : 0.85}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  estaProjetado
+                    ? `Versículo ${preview.ref} projetado`
+                    : `Versículo ${preview.ref} selecionado, toque novamente para projetar`
+                }
+              >
+                {estaProjetado ? (
+                  <Text style={styles.previewHead}>● PROJETADO · {preview.monitor}</Text>
+                ) : (
+                  <View style={styles.previewHeadRow}>
+                    <Text style={styles.previewHeadSelecionado}>○ SELECIONADO</Text>
+                    <View style={styles.selecionadaBadge}>
+                      <Text style={styles.selecionadaTxt}>TOQUE P/ PROJETAR</Text>
+                    </View>
+                  </View>
+                )}
+                <Text style={styles.previewRef}>
+                  {preview.ref} · {preview.traducao}
+                  {preview.partesTotal > 1 ? ` · parte 1/${preview.partesTotal}` : ''}
+                </Text>
+                <Text style={styles.previewTexto}>{preview.texto}</Text>
+              </TouchableOpacity>
             </View>
 
             {versiculosCapitulo
@@ -557,11 +700,15 @@ export default function BibliaScreen() {
                   <TouchableOpacity
                     key={`prox-${n}`}
                     style={[styles.navCard, carregando && styles.btnDisabled]}
-                    onPress={() => projetarProximo(item)}
+                    onPress={() => tocarVersiculo(item)}
                     disabled={carregando}
                     activeOpacity={0.85}
                     accessibilityRole="button"
-                    accessibilityLabel={`Projetar versículo ${n}`}
+                    accessibilityLabel={
+                      estaProjetado
+                        ? `Projetar versículo ${n}`
+                        : `Selecionar versículo ${n}`
+                    }
                   >
                     <Text style={styles.navRef}>
                       {preview.livro} {preview.capitulo}:{n}
@@ -603,6 +750,44 @@ export default function BibliaScreen() {
         cfg={cfg}
         onChange={onCfgChange}
       />
+
+      <Modal
+        visible={dropdownVersaoAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDropdownVersaoAberto(false)}
+      >
+        <Pressable style={styles.dropdownBackdrop} onPress={() => setDropdownVersaoAberto(false)}>
+          <Pressable style={styles.dropdownCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dropdownTit}>Versão da Bíblia</Text>
+            <ScrollView style={styles.dropdownList} keyboardShouldPersistTaps="handled">
+              {traducoes.map((t, idx) => {
+                const ativo = t === traducao;
+                return (
+                  <View key={t}>
+                    {idx > 0 ? <View style={styles.dropdownLinha} /> : null}
+                    <TouchableOpacity
+                      style={[styles.dropdownOpt, ativo && styles.dropdownOptAtivo]}
+                      onPress={() => {
+                        setTraducao(t);
+                        setDropdownVersaoAberto(false);
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.dropdownOptTxt, ativo && styles.dropdownOptTxtAtivo]}>
+                        {t}
+                      </Text>
+                      {ativo ? (
+                        <Ionicons name="checkmark" size={20} color={COLORS.accent} />
+                      ) : null}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -611,22 +796,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   scrollArea: { flex: 1 },
   scroll: { padding: 20, paddingBottom: 24 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  btnCfg: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
+  btnCfgHeader: {
+    marginRight: 14,
+    padding: 4,
   },
   label: {
     fontFamily: FONTS.semibold,
@@ -636,22 +808,74 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 12,
   },
-  labelHeader: { marginTop: 0, marginBottom: 0 },
-  rowVersoes: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: {
-    minWidth: 56,
-    flexGrow: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+  labelGrupo: { marginTop: 0 },
+  grupo: { paddingVertical: 4 },
+  separador: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginVertical: 14,
+  },
+  selectVersao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
   },
-  chipAtivo: { borderColor: COLORS.accent, backgroundColor: COLORS.surface2 },
-  chipTxt: { fontFamily: FONTS.semibold, fontSize: 14, color: COLORS.textDim },
-  chipTxtAtivo: { color: COLORS.accent },
+  selectVersaoTxt: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+    letterSpacing: 1,
+  },
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  dropdownCard: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingTop: 16,
+    paddingBottom: 8,
+    maxHeight: '70%',
+  },
+  dropdownTit: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.text,
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  dropdownList: { maxHeight: 320 },
+  dropdownLinha: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 16,
+  },
+  dropdownOpt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  dropdownOptAtivo: { backgroundColor: COLORS.surface2 },
+  dropdownOptTxt: {
+    fontFamily: FONTS.semibold,
+    fontSize: 16,
+    color: COLORS.textDim,
+    letterSpacing: 1,
+  },
+  dropdownOptTxtAtivo: { color: COLORS.accent },
   input: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
@@ -782,12 +1006,48 @@ const styles = StyleSheet.create({
       android: { elevation: 6 },
     }),
   },
+  previewCardSelecionado: {
+    borderColor: COLORS.accent2,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    backgroundColor: COLORS.surface,
+    ...Platform.select({
+      ios: { shadowOpacity: 0 },
+      android: { elevation: 0 },
+    }),
+  },
   previewHead: {
     fontFamily: FONTS.bold,
     fontSize: 11,
     letterSpacing: 2,
     color: COLORS.accent,
     marginBottom: 8,
+  },
+  previewHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  previewHeadSelecionado: {
+    fontFamily: FONTS.bold,
+    fontSize: 11,
+    letterSpacing: 2,
+    color: COLORS.accent2,
+  },
+  selecionadaBadge: {
+    borderWidth: 1,
+    borderColor: COLORS.accent2,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  selecionadaTxt: {
+    fontSize: 9,
+    color: COLORS.accent2,
+    fontFamily: FONTS.bold,
+    letterSpacing: 1,
   },
   previewRef: {
     fontFamily: FONTS.bold,

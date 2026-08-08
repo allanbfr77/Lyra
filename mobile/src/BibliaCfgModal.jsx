@@ -146,16 +146,34 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
     );
   }
 
-  function renderSwitch(label, valor, onToggle) {
+  /** Grupo de switches numa única caixa, com linhas entre itens. */
+  function renderSwitchGroup(itens) {
     return (
-      <View style={styles.rowSwitch}>
-        <Text style={styles.switchLabel}>{label}</Text>
-        <Switch
-          value={!!valor}
-          onValueChange={onToggle}
-          trackColor={{ false: COLORS.border, true: COLORS.accent2 }}
-          thumbColor={valor ? COLORS.accent : COLORS.surface2}
-        />
+      <View style={styles.grupoOpcoes}>
+        {itens.map((item, idx) => (
+          <View key={item.label}>
+            {idx > 0 ? <View style={styles.linhaInterna} /> : null}
+            <View style={styles.rowSwitchGrupo}>
+              <Text style={styles.switchLabel}>{item.label}</Text>
+              <Switch
+                value={!!item.valor}
+                onValueChange={item.onToggle}
+                trackColor={{ false: COLORS.border, true: COLORS.accent2 }}
+                thumbColor={item.valor ? COLORS.accent : COLORS.surface2}
+              />
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  function renderSecaoTitulo(titulo) {
+    return (
+      <View style={styles.secaoHeader}>
+        <View style={styles.secaoLinha} />
+        <Text style={styles.secaoTitulo}>{titulo}</Text>
+        <View style={styles.secaoLinha} />
       </View>
     );
   }
@@ -221,132 +239,166 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
             : 'Ajustes do ministrante (M3). Independentes do M2.'}
         </Text>
 
-        <Text style={styles.secaoTitulo}>FUNDO</Text>
-        {renderChips('Tipo de fundo', BG_TIPOS, camada.bgType, (id) => patchCamada({ bgType: id }))}
-        <View style={[styles.previewFundo, previewFundo]}>
-          <Text style={styles.previewFundoTxt}>
-            {camada.bgType === 'image'
-              ? camada.bgImage
-                ? 'Imagem definida'
-                : 'Sem imagem'
-              : camada.bgType === 'gradient'
-                ? 'Gradiente'
-                : 'Cor sólida'}
-          </Text>
-        </View>
-        {camada.bgType === 'solid'
-          ? renderCor('Cor de fundo', camada.bgColor, (hex) => patchCamada({ bgColor: hex }))
-          : null}
-        {camada.bgType === 'gradient' ? (
-          <>
-            {renderCor('Cor inicial', camada.bgGradientFrom, (hex) =>
-              patchCamada({ bgGradientFrom: hex })
-            )}
-            {renderCor('Cor final', camada.bgGradientTo, (hex) => patchCamada({ bgGradientTo: hex }))}
-          </>
-        ) : null}
-        {camada.bgType === 'image' ? (
-          <TouchableOpacity
-            style={styles.btnSecundario}
-            onPress={escolherImagem}
-            disabled={escolhendoImagem}
-          >
-            {escolhendoImagem ? (
-              <ActivityIndicator color={COLORS.accent} />
-            ) : (
-              <Text style={styles.btnSecundarioTxt}>
-                {camada.bgImage ? 'TROCAR IMAGEM…' : 'ESCOLHER IMAGEM…'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        ) : null}
-
-        <Text style={styles.secaoTitulo}>VERSÍCULO</Text>
-        <Text style={styles.subLabel}>FAMÍLIA DA FONTE</Text>
-        <View style={styles.colFontes}>
-          {BIBLIA_FONTES.map((f) => (
+        {renderSecaoTitulo('FUNDO')}
+        <View style={styles.grupoOpcoes}>
+          {renderChips('Tipo de fundo', BG_TIPOS, camada.bgType, (id) => patchCamada({ bgType: id }))}
+          <View style={[styles.previewFundo, previewFundo, styles.previewFundoNoGrupo]}>
+            <Text style={styles.previewFundoTxt}>
+              {camada.bgType === 'image'
+                ? camada.bgImage
+                  ? 'Imagem definida'
+                  : 'Sem imagem'
+                : camada.bgType === 'gradient'
+                  ? 'Gradiente'
+                  : 'Cor sólida'}
+            </Text>
+          </View>
+          {camada.bgType === 'solid'
+            ? renderCor('Cor de fundo', camada.bgColor, (hex) => patchCamada({ bgColor: hex }))
+            : null}
+          {camada.bgType === 'gradient' ? (
+            <>
+              {renderCor('Cor inicial', camada.bgGradientFrom, (hex) =>
+                patchCamada({ bgGradientFrom: hex })
+              )}
+              {renderCor('Cor final', camada.bgGradientTo, (hex) =>
+                patchCamada({ bgGradientTo: hex })
+              )}
+            </>
+          ) : null}
+          {camada.bgType === 'image' ? (
             <TouchableOpacity
-              key={f.value}
-              style={[styles.chipFonte, camada.fontFamily === f.value && styles.chipPosAtivo]}
-              onPress={() => patchCamada({ fontFamily: f.value })}
+              style={[styles.btnSecundario, styles.btnSecundarioNoGrupo]}
+              onPress={escolherImagem}
+              disabled={escolhendoImagem}
             >
-              <Text
-                style={[
-                  styles.chipPosTxt,
-                  camada.fontFamily === f.value && styles.chipPosTxtAtivo,
-                ]}
-              >
-                {f.label}
-              </Text>
+              {escolhendoImagem ? (
+                <ActivityIndicator color={COLORS.accent} />
+              ) : (
+                <Text style={styles.btnSecundarioTxt}>
+                  {camada.bgImage ? 'TROCAR IMAGEM…' : 'ESCOLHER IMAGEM…'}
+                </Text>
+              )}
             </TouchableOpacity>
-          ))}
+          ) : null}
         </View>
-        {renderStepper(
-          'TAMANHO DA LETRA',
-          'fontSize',
-          camada.fontSize,
-          BIBLIA_FONTE_MIN,
-          BIBLIA_FONTE_MAX,
-          BIBLIA_FONTE_STEP,
-          'vh'
-        )}
-        {renderStepper(
-          'ESPAÇAMENTO ENTRE LINHAS',
-          'lineSpacing',
-          camada.lineSpacing,
-          BIBLIA_ESPACO_MIN,
-          BIBLIA_ESPACO_MAX,
-          BIBLIA_ESPACO_STEP,
-          ''
-        )}
-        {renderCor('Cor da letra', camada.textColor, (hex) => patchCamada({ textColor: hex }))}
-        {aba === 'm3'
-          ? renderCor('Cor do próximo (lista)', camada.textColorProximo, (hex) =>
-              patchCamada({ textColorProximo: hex })
-            )
-          : null}
-        {renderSwitch('Maiúsculas', camada.maiusculo, (v) => patchCamada({ maiusculo: v }))}
-        {renderSwitch('Negrito', camada.negrito, (v) => patchCamada({ negrito: v }))}
-        {renderSwitch('Quebra de linha automática', camada.wrapLongLines, (v) =>
-          patchCamada({ wrapLongLines: v })
-        )}
 
-        <Text style={styles.secaoTitulo}>REFERÊNCIA</Text>
-        {renderSwitch('Mostrar referência', camada.refMostrar, (v) =>
-          patchCamada({ refMostrar: v })
-        )}
-        {renderStepper(
-          'TAMANHO DA REFERÊNCIA',
-          'refFontSize',
-          camada.refFontSize,
-          BIBLIA_REF_FONTE_MIN,
-          BIBLIA_REF_FONTE_MAX,
-          BIBLIA_FONTE_STEP,
-          aba === 'm2' ? 'vw' : 'vh'
-        )}
-        {renderCor('Cor da referência', camada.refColor, (hex) => patchCamada({ refColor: hex }))}
+        {renderSecaoTitulo('VERSÍCULO')}
+        <View style={styles.grupoOpcoes}>
+          <Text style={styles.subLabel}>FAMÍLIA DA FONTE</Text>
+          <View style={styles.colFontes}>
+            {BIBLIA_FONTES.map((f) => (
+              <TouchableOpacity
+                key={f.value}
+                style={[styles.chipFonte, camada.fontFamily === f.value && styles.chipPosAtivo]}
+                onPress={() => patchCamada({ fontFamily: f.value })}
+              >
+                <Text
+                  style={[
+                    styles.chipPosTxt,
+                    camada.fontFamily === f.value && styles.chipPosTxtAtivo,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.linhaInterna} />
+          {renderStepper(
+            'TAMANHO DA LETRA',
+            'fontSize',
+            camada.fontSize,
+            BIBLIA_FONTE_MIN,
+            BIBLIA_FONTE_MAX,
+            BIBLIA_FONTE_STEP,
+            'vh'
+          )}
+          <View style={styles.linhaInterna} />
+          {renderStepper(
+            'ESPAÇAMENTO ENTRE LINHAS',
+            'lineSpacing',
+            camada.lineSpacing,
+            BIBLIA_ESPACO_MIN,
+            BIBLIA_ESPACO_MAX,
+            BIBLIA_ESPACO_STEP,
+            ''
+          )}
+          <View style={styles.linhaInterna} />
+          {renderCor('Cor da letra', camada.textColor, (hex) => patchCamada({ textColor: hex }))}
+          {aba === 'm3' ? (
+            <>
+              <View style={styles.linhaInterna} />
+              {renderCor('Cor do próximo (lista)', camada.textColorProximo, (hex) =>
+                patchCamada({ textColorProximo: hex })
+              )}
+            </>
+          ) : null}
+        </View>
+        {renderSwitchGroup([
+          {
+            label: 'Maiúsculas',
+            valor: camada.maiusculo,
+            onToggle: (v) => patchCamada({ maiusculo: v }),
+          },
+          {
+            label: 'Negrito',
+            valor: camada.negrito,
+            onToggle: (v) => patchCamada({ negrito: v }),
+          },
+          {
+            label: 'Quebra de linha automática',
+            valor: camada.wrapLongLines,
+            onToggle: (v) => patchCamada({ wrapLongLines: v }),
+          },
+        ])}
 
-        <Text style={styles.secaoTitulo}>POSIÇÃO NA TELA</Text>
-        {renderChips(
-          'Horizontal',
-          [
-            { id: 'left', label: 'Esq.' },
-            { id: 'center', label: 'Centro' },
-            { id: 'right', label: 'Dir.' },
-          ],
-          camada.posX,
-          (id) => patchCamada({ posX: id })
-        )}
-        {renderChips(
-          'Vertical',
-          [
-            { id: 'top', label: 'Topo' },
-            { id: 'center', label: 'Meio' },
-            { id: 'bottom', label: 'Rodapé' },
-          ],
-          camada.posY,
-          (id) => patchCamada({ posY: id })
-        )}
+        {renderSecaoTitulo('REFERÊNCIA')}
+        {renderSwitchGroup([
+          {
+            label: 'Mostrar referência',
+            valor: camada.refMostrar,
+            onToggle: (v) => patchCamada({ refMostrar: v }),
+          },
+        ])}
+        <View style={styles.grupoOpcoes}>
+          {renderStepper(
+            'TAMANHO DA REFERÊNCIA',
+            'refFontSize',
+            camada.refFontSize,
+            BIBLIA_REF_FONTE_MIN,
+            BIBLIA_REF_FONTE_MAX,
+            BIBLIA_FONTE_STEP,
+            aba === 'm2' ? 'vw' : 'vh'
+          )}
+          <View style={styles.linhaInterna} />
+          {renderCor('Cor da referência', camada.refColor, (hex) => patchCamada({ refColor: hex }))}
+        </View>
+
+        {renderSecaoTitulo('POSIÇÃO NA TELA')}
+        <View style={styles.grupoOpcoes}>
+          {renderChips(
+            'Horizontal',
+            [
+              { id: 'left', label: 'Esq.' },
+              { id: 'center', label: 'Centro' },
+              { id: 'right', label: 'Dir.' },
+            ],
+            camada.posX,
+            (id) => patchCamada({ posX: id })
+          )}
+          <View style={styles.linhaInterna} />
+          {renderChips(
+            'Vertical',
+            [
+              { id: 'top', label: 'Topo' },
+              { id: 'center', label: 'Meio' },
+              { id: 'bottom', label: 'Rodapé' },
+            ],
+            camada.posY,
+            (id) => patchCamada({ posY: id })
+          )}
+        </View>
       </>
     );
   }
@@ -359,36 +411,43 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
           Opções do modo Bíblia inteiro (não por monitor). No celular, versículos longos
           projetam a 1.ª parte quando a divisão está ativa.
         </Text>
-        {renderSwitch('Dividir versículos longos automaticamente', leitura.dividirVersiculosLongos, (v) =>
-          patchLeitura({ dividirVersiculosLongos: v })
-        )}
-        <Text style={styles.subLabel}>LIMITE POR PARTE</Text>
-        <View style={styles.rowPos}>
-          {LIMITES_DIVISAO_VERSICULO.map((n) => (
-            <TouchableOpacity
-              key={n}
-              style={[
-                styles.chipPos,
-                leitura.dividirVersiculosLongos &&
-                  leitura.limiteCaracteres === n &&
-                  styles.chipPosAtivo,
-                !leitura.dividirVersiculosLongos && styles.chipDesabilitado,
-              ]}
-              disabled={!leitura.dividirVersiculosLongos}
-              onPress={() => patchLeitura({ limiteCaracteres: n })}
-            >
-              <Text
+        {renderSecaoTitulo('DIVISÃO')}
+        {renderSwitchGroup([
+          {
+            label: 'Dividir versículos longos automaticamente',
+            valor: leitura.dividirVersiculosLongos,
+            onToggle: (v) => patchLeitura({ dividirVersiculosLongos: v }),
+          },
+        ])}
+        <View style={styles.grupoOpcoes}>
+          <Text style={styles.subLabel}>LIMITE POR PARTE</Text>
+          <View style={styles.rowPos}>
+            {LIMITES_DIVISAO_VERSICULO.map((n) => (
+              <TouchableOpacity
+                key={n}
                 style={[
-                  styles.chipPosTxt,
+                  styles.chipPos,
                   leitura.dividirVersiculosLongos &&
                     leitura.limiteCaracteres === n &&
-                    styles.chipPosTxtAtivo,
+                    styles.chipPosAtivo,
+                  !leitura.dividirVersiculosLongos && styles.chipDesabilitado,
                 ]}
+                disabled={!leitura.dividirVersiculosLongos}
+                onPress={() => patchLeitura({ limiteCaracteres: n })}
               >
-                {n}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.chipPosTxt,
+                    leitura.dividirVersiculosLongos &&
+                      leitura.limiteCaracteres === n &&
+                      styles.chipPosTxtAtivo,
+                  ]}
+                >
+                  {n}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </>
     );
@@ -480,13 +539,39 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     lineHeight: 16,
   },
+  secaoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  secaoLinha: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+  },
   secaoTitulo: {
     fontFamily: FONTS.bold,
     fontSize: 11,
     letterSpacing: 1.5,
     color: COLORS.accent2,
-    marginTop: 8,
-    marginBottom: 10,
+  },
+  grupoOpcoes: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+    marginBottom: 14,
+  },
+  linhaInterna: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginVertical: 8,
+    marginHorizontal: -4,
   },
   bloco: { marginBottom: 4 },
   subLabel: {
@@ -502,9 +587,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
-    marginBottom: 14,
+    marginBottom: 10,
     paddingVertical: 8,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surface2,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -513,7 +598,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: COLORS.surface2,
+    backgroundColor: COLORS.bg,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
@@ -527,17 +612,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
   },
-  rowSwitch: {
+  rowSwitchGrupo: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   switchLabel: {
     flex: 1,
@@ -546,29 +625,30 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     marginRight: 8,
   },
-  rowPos: { flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
+  rowPos: { flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
   chipPos: {
     flexGrow: 1,
+    flexBasis: 0,
     minWidth: 64,
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surface2,
     alignItems: 'center',
   },
-  chipPosAtivo: { borderColor: COLORS.accent, backgroundColor: COLORS.surface2 },
+  chipPosAtivo: { borderColor: COLORS.accent, backgroundColor: COLORS.bg },
   chipPosTxt: { fontFamily: FONTS.semibold, fontSize: 12, color: COLORS.textDim },
   chipPosTxtAtivo: { color: COLORS.accent },
   chipDesabilitado: { opacity: 0.45 },
-  colFontes: { gap: 8, marginBottom: 14 },
+  colFontes: { gap: 8, marginBottom: 6 },
   chipFonte: {
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surface2,
     alignItems: 'center',
   },
   rowCores: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
@@ -581,7 +661,7 @@ const styles = StyleSheet.create({
   },
   swatchAtivo: { borderColor: COLORS.accent, borderWidth: 2 },
   inputHex: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surface2,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 8,
@@ -590,7 +670,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: COLORS.text,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   previewFundo: {
     height: 56,
@@ -601,6 +681,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  previewFundoNoGrupo: { marginBottom: 8 },
   previewFundoTxt: {
     fontFamily: FONTS.semibold,
     fontSize: 12,
@@ -617,6 +698,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     backgroundColor: COLORS.surface,
+  },
+  btnSecundarioNoGrupo: {
+    marginBottom: 8,
+    backgroundColor: COLORS.surface2,
   },
   btnSecundarioTxt: {
     fontFamily: FONTS.semibold,
