@@ -117,6 +117,7 @@ import {
   rotaCobreAlvo,
   resolverEnvioBiblia,
 } from './modules/rotaEnvioBiblia.js';
+import { deveAbortarLigacaoIpLocalSemServidor } from './modules/ligarServidorGuard.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -11713,13 +11714,14 @@ async function conectar() {
    * exige os dois Controladores registados no MESMO Servidor.
    *
    * Quem decide é a identidade de quem atende a 5510, não o IP.
+   *
+   * Se não há Servidor (`role !== 'server'`), a tentativa aborta em silêncio — sem alert
+   * nem Socket.IO — para o auto-reconectar (foco/visibilidade) não interromper o operador.
    */
-  if (ehEnderecoDestaMaquina(ip) && (await consultarPapelHost5510(ip)) !== 'server') {
-    alert(
-      'Esse IP é deste computador, e não há nenhum app Servidor a atender a porta 5510 aqui.\n\n' +
-      'Informe o IP do PC que está a correr o Servidor — ou, se o Servidor for correr neste ' +
-      'mesmo PC, desmarque Ferramentas › Projetar nesta máquina, abra o app Servidor e tente de novo.'
-    );
+  if (deveAbortarLigacaoIpLocalSemServidor(
+    ehEnderecoDestaMaquina(ip),
+    await consultarPapelHost5510(ip),
+  )) {
     return;
   }
 
@@ -12853,7 +12855,7 @@ socket.on('connect', async () => {
    * `role: 'server'` é a prova, e a recusa mantém-se sem ela: aí o outro lado pode
    * perfeitamente ser o motor local deste mesmo processo.
    */
-  if (ehLocal && papelRemoto !== 'server') {
+  if (deveAbortarLigacaoIpLocalSemServidor(ehLocal, papelRemoto)) {
     try { socket.disconnect(); } catch (_) { /* intencional */ }
     tratarFalhaLigacaoServidor();
     return;
