@@ -315,10 +315,10 @@ test('9) buildId errado após install → erro (não finge sucesso)', async () =
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('18) Controlador package.json está em 1.2.1', () => {
+test('18) Controlador package.json está em 1.2.3', () => {
   const pkg = JSON.parse(
     fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')
   );
-  assert.equal(pkg.version, '1.2.1');
+  assert.equal(pkg.version, '1.2.3');
   assert.ok(pkg.dependencies['electron-updater']);
 });

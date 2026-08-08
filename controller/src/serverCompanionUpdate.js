@@ -56,7 +56,16 @@ function parseServerLatestYml(text) {
 
 function sha512Base64Arquivo(ficheiro) {
   const hash = crypto.createHash('sha512');
-  hash.update(fs.readFileSync(ficheiro));
+  const fd = fs.openSync(ficheiro, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    let lido;
+    while ((lido = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      hash.update(lido === buf.length ? buf : buf.subarray(0, lido));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
   return hash.digest('base64');
 }
 
@@ -102,6 +111,12 @@ function urlReleaseAsset(owner, repo, assetName) {
   return `${releasesBaseUrl(owner, repo)}/${assetName}`;
 }
 
+/** Headers mínimos — GitHub CDN trata mal clientes sem User-Agent. */
+const DOWNLOAD_HEADERS = Object.freeze({
+  'User-Agent': 'Lyra-Controller-Companion',
+  Accept: '*/*',
+});
+
 function fetchTexto(url, { timeoutMs = 20000, fetchImpl } = {}) {
   if (typeof fetchImpl === 'function') {
     return Promise.resolve(fetchImpl(url, { timeoutMs })).then(async (r) => {
@@ -116,7 +131,7 @@ function fetchTexto(url, { timeoutMs = 20000, fetchImpl } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const lib = u.protocol === 'http:' ? http : https;
-    const req = lib.get(url, { timeout: timeoutMs }, (res) => {
+    const req = lib.get(url, { timeout: timeoutMs, headers: DOWNLOAD_HEADERS }, (res) => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         fetchTexto(res.headers.location, { timeoutMs }).then(resolve, reject);
@@ -139,6 +154,10 @@ function fetchTexto(url, { timeoutMs = 20000, fetchImpl } = {}) {
   });
 }
 
+/**
+ * Descarrega para disco. O progresso só dispara quando o % inteiro muda (ou no fim),
+ * para não saturar o main process com IPC/setTitle a cada chunk TCP.
+ */
 function downloadArquivo(url, destino, { timeoutMs = 600000, onProgress, fetchImpl } = {}) {
   if (typeof fetchImpl === 'function') {
     return fetchImpl(url, destino, { timeoutMs, onProgress });
@@ -146,7 +165,7 @@ function downloadArquivo(url, destino, { timeoutMs = 600000, onProgress, fetchIm
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const lib = u.protocol === 'http:' ? http : https;
-    const req = lib.get(url, { timeout: timeoutMs }, (res) => {
+    const req = lib.get(url, { timeout: timeoutMs, headers: DOWNLOAD_HEADERS }, (res) => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         downloadArquivo(res.headers.location, destino, { timeoutMs, onProgress })
@@ -160,21 +179,30 @@ function downloadArquivo(url, destino, { timeoutMs = 600000, onProgress, fetchIm
       }
       const total = Number(res.headers['content-length'] || 0);
       let transferred = 0;
+      let lastPercent = -1;
       fs.mkdirSync(path.dirname(destino), { recursive: true });
       const out = fs.createWriteStream(destino);
+      const reportar = (force) => {
+        if (typeof onProgress !== 'function') return;
+        const percent = total > 0
+          ? Math.max(0, Math.min(100, Math.round((transferred / total) * 100)))
+          : 0;
+        if (!force && total > 0 && percent === lastPercent) return;
+        if (!force && total <= 0) return;
+        lastPercent = percent;
+        onProgress({ percent, transferred, total });
+      };
       res.on('data', (chunk) => {
         transferred += chunk.length;
-        if (typeof onProgress === 'function' && total > 0) {
-          onProgress({
-            percent: Math.max(0, Math.min(100, Math.round((transferred / total) * 100))),
-            transferred,
-            total,
-          });
-        }
+        reportar(false);
       });
       res.pipe(out);
-      out.on('finish', () => out.close(() => resolve(destino)));
+      out.on('finish', () => {
+        reportar(true);
+        out.close(() => resolve(destino));
+      });
       out.on('error', reject);
+      res.on('error', reject);
     });
     req.on('error', reject);
     req.on('timeout', () => {
@@ -702,12 +730,13 @@ function createServerCompanionUpdateApi(ctx, deps) {
         await downloadArquivo(urlExe, setupPath, {
           fetchImpl: downloadArquivoImpl,
           onProgress: (p) => {
+            const pct = Math.max(0, Math.min(100, Math.round(Number(p.percent) || 0)));
             emitir('companion-update-progress', {
               stage: 'download',
               message: 'A descarregar componentes do Lyra…',
-              percent: p.percent,
+              percent: pct,
             });
-            setUpdateStatusTitle(`A descarregar componentes… ${p.percent}%`);
+            setUpdateStatusTitle(`A descarregar componentes… ${pct}%`);
           },
         });
       } catch (err) {

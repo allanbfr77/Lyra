@@ -18254,6 +18254,7 @@ function mostrarBannerCompanionDisponivel(_payload) {
 
 function mostrarBannerCompanionProgresso(payload) {
   const stage = String(payload?.stage || '');
+  const pct = Math.max(0, Math.min(100, Math.round(Number(payload?.percent || 0))));
   const msg = String(
     payload?.message ||
       'A atualizar componentes do Lyra. O Servidor será reiniciado e a projeção poderá ficar indisponível por alguns segundos.'
@@ -18262,6 +18263,19 @@ function mostrarBannerCompanionProgresso(payload) {
     stage === 'install' || stage === 'quit' || stage === 'waiting'
       ? 'A instalar componentes'
       : 'A descarregar componentes';
+
+  /* Em download, só atualiza a barra — reconstruir botões a cada % engasgava o UI. */
+  if (stage === 'download') {
+    const els = obterBannerAtualizacaoElementos();
+    if (els.host && !els.host.hidden && els.progressWrap && !els.progressWrap.hidden) {
+      if (els.titulo) els.titulo.textContent = titulo;
+      if (els.detalhe) els.detalhe.textContent = msg;
+      if (els.progress) els.progress.value = pct;
+      if (els.progressLabel) els.progressLabel.textContent = `Download em andamento: ${pct}%`;
+      return;
+    }
+  }
+
   configurarBannerAtualizacao({
     titulo,
     mensagem: msg,
@@ -18273,7 +18287,7 @@ function mostrarBannerCompanionProgresso(payload) {
       },
     ],
     mostrarProgresso: stage === 'download',
-    progresso: Number(payload?.percent || 0),
+    progresso: pct,
   });
 }
 
