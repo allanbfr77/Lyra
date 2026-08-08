@@ -14,6 +14,7 @@ import {
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useSocketContext } from '../src/SocketProvider';
 import { COLORS, FONTS } from '../src/theme';
@@ -22,6 +23,12 @@ import { playlistTemMusicas } from '../src/playlistItens';
 import NetworkWarning from '../src/NetworkWarning';
 import ConfigAvancadasModal from '../src/ConfigAvancadasModal';
 import KeyboardScreen from '../src/KeyboardScreen';
+
+/** Versão do app (app.json) — evita hardcoded desatualizado na UI. */
+const APP_VERSION =
+  Constants.expoConfig?.version ||
+  Constants.nativeAppVersion ||
+  '1.2.1';
 
 // --- Estado global do IP (socket em SocketProvider) ---
 
@@ -139,7 +146,7 @@ export default function HomeScreen() {
             accessibilityLabel="Lyra"
             resizeMode="contain"
           />
-          <Text style={styles.logoVersao}>v1.0 · App mobile</Text>
+          <Text style={styles.logoVersao}>v{APP_VERSION} · App mobile</Text>
         </View>
 
         {/* CARD PRIMÁRIO — biblioteca local (sempre acessível, sem precisar de servidor) */}
