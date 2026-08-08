@@ -154,11 +154,6 @@ export default function HomeScreen() {
           >
             <Text style={styles.btnPrimaryTxt}>ABRIR BIBLIOTECA</Text>
           </TouchableOpacity>
-
-          <View style={styles.chipRow}>
-            <Text style={styles.chip}>Importar via código</Text>
-            <Text style={styles.chipNota}>disponível na tela logada</Text>
-          </View>
         </View>
 
         {/* CARD SECUNDÁRIO — controlador (opcional) */}
@@ -280,18 +275,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     marginBottom: 16,
   },
-  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2 },
-  chip: {
-    backgroundColor: COLORS.surface2,
-    color: COLORS.accent2,
-    fontFamily: 'monospace',
-    fontSize: 11,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  chipNota: { fontSize: 12, color: COLORS.textDim, fontFamily: FONTS.regular },
 
   logoVersao: { fontSize: 12, color: COLORS.textDim, marginTop: 8, letterSpacing: 1, fontFamily: FONTS.regular },
 

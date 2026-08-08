@@ -1,37 +1,20 @@
 /**
  * Tela logada (hub) — após conexão com o controlador.
- * Sincronização de músicas apenas via Compartilhar com PC + Importar via Código.
+ * Hub de navegação: Músicas, Cultos & Playlist, Bíblia.
+ * Importar via código é exclusivo do PC (Controlador).
  */
 
-import { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { useSocketContext } from '../src/SocketProvider';
 import { getGlobalIp, limparGlobalIp } from './index';
 import {
-  removerMusicasLocaisPorCorrespondencia,
-  inferirCultoDasMusicasNaBibliotecaLocal,
-} from '../src/localMusicStore';
-import { resolverCultoDoPayloadNuvem } from '../src/cultosMes';
-import { obterPlaylistDaNuvem, filtrarMusicasComLetra } from '../src/lyraShare';
-import { importarCodigoNoControlador } from '../src/importarCodigoControlador';
-import CultoSelectModal from '../src/CultoSelectModal';
-import CodigoShareModal from '../src/CodigoShareModal';
-import {
   getPlaylistsDoControladorSnapshot,
   solicitarPlaylistsDoControlador,
 } from '../src/playlistsControladorStore';
 import { limparBibliotecaLocalJaNoControlador } from '../src/localLimpezaControlador';
-import { IconMusicas, IconCultos, IconBiblia, IconImportarCodigo } from '../src/HubIcons';
+import { IconMusicas, IconCultos, IconBiblia } from '../src/HubIcons';
 import { IconChevron } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 
@@ -44,11 +27,6 @@ const CARDS = [
 export default function HomeLogadaScreen() {
   const { conectado, conectando, desconectar, atualizarCatalogoRemoto } = useSocketContext();
   const ip = getGlobalIp() || '';
-  const [importCodigoModal, setImportCodigoModal] = useState(false);
-  const [importandoCodigo, setImportandoCodigo] = useState(false);
-  const [cultoModalImport, setCultoModalImport] = useState(false);
-  const [codigoPendenteImport, setCodigoPendenteImport] = useState('');
-  const [musicasPendenteImport, setMusicasPendenteImport] = useState([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -71,91 +49,6 @@ export default function HomeLogadaScreen() {
     router.replace('/');
   }
 
-  async function executarImportacaoComCulto(codigo, musicasDoCodigo, culto) {
-    setImportandoCodigo(true);
-    try {
-      const { importadas, copiasImportadas, falhas, cancelado, musicasProcessadas } =
-        await importarCodigoNoControlador(ip.trim(), codigo, culto);
-      // Remove da biblioteca local pelo código importado (títulos da nuvem = biblioteca em casa)
-      const listaParaRemoverLocal = cancelado ? musicasProcessadas : musicasDoCodigo;
-      const removidasLocal = await removerMusicasLocaisPorCorrespondencia(listaParaRemoverLocal);
-      atualizarCatalogoRemoto();
-      solicitarPlaylistsDoControlador();
-      if (!cancelado) {
-        const msgBase =
-          importadas > 0
-            ? `${importadas} música(s) em «${culto.label}» no controlador.`
-            : `Playlist de «${culto.label}» atualizada no controlador.`;
-        const msgCopias =
-          copiasImportadas > 0
-            ? ` ${copiasImportadas} já existia(m) no banco e foi(foram) salva(s) como «CÓPIA/IMPORTADA» (original preservado).`
-            : '';
-        const msgFalhas =
-          falhas > 0 ? ` ${falhas} música(s) falharam ao importar.` : '';
-        const msgLocal =
-          removidasLocal > 0
-            ? ` ${removidasLocal} removida(s) da biblioteca local deste celular.`
-            : '';
-        Alert.alert('Importar via Código', msgBase + msgCopias + msgFalhas + msgLocal);
-      }
-    } catch (e) {
-      Alert.alert('Importar via Código', e?.message || 'Falha ao importar no controlador.');
-    } finally {
-      setImportandoCodigo(false);
-    }
-  }
-
-  async function confirmarCodigoImportacao(codigo) {
-    const c = String(codigo || '').trim();
-    if (!c) {
-      Alert.alert('Importar via Código', 'Digite o código (ex: XKJA-29BM).');
-      return;
-    }
-
-    setImportandoCodigo(true);
-    try {
-      const data = await obterPlaylistDaNuvem(c);
-      const musicas = filtrarMusicasComLetra(data.musicas);
-      if (!musicas.length) {
-        Alert.alert('Importar via Código', 'Código inválido — sem músicas.');
-        return;
-      }
-
-      const culto =
-        resolverCultoDoPayloadNuvem(data, getPlaylistsDoControladorSnapshot()) ||
-        (await inferirCultoDasMusicasNaBibliotecaLocal(musicas));
-
-      setImportCodigoModal(false);
-
-      if (culto) {
-        await executarImportacaoComCulto(c, musicas, culto);
-        return;
-      }
-
-      setCodigoPendenteImport(c);
-      setMusicasPendenteImport(musicas);
-      setCultoModalImport(true);
-    } catch (e) {
-      if (e?.code === 'NOT_FOUND') {
-        Alert.alert('Importar via Código', 'Código não encontrado ou expirado.');
-      } else {
-        Alert.alert('Importar via Código', e?.message || 'Falha ao buscar a playlist.');
-      }
-    } finally {
-      setImportandoCodigo(false);
-    }
-  }
-
-  async function onCultoEscolhidoParaImportacao(item) {
-    setCultoModalImport(false);
-    const codigo = codigoPendenteImport;
-    const musicasDoCodigo = musicasPendenteImport;
-    setCodigoPendenteImport('');
-    setMusicasPendenteImport([]);
-    if (!codigo) return;
-    await executarImportacaoComCulto(codigo, musicasDoCodigo, item);
-  }
-
   function abrirCard(card) {
     if (card.onBeforeNavigate === 'catalogo') {
       atualizarCatalogoRemoto();
@@ -165,7 +58,6 @@ export default function HomeLogadaScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Status da conexão + desconectar (que já devolve para a tela inicial) */}
       {ip ? (
         <View style={styles.statusCard}>
           <View style={styles.statusLeft}>
@@ -206,57 +98,13 @@ export default function HomeLogadaScreen() {
             </TouchableOpacity>
           );
         })}
-
-        {/* Divisor: separa a navegação do dia a dia da ação de uso raro */}
-        <View style={styles.divisorWrap}>
-          <View style={styles.divisorLinha} />
-          <Text style={styles.divisorLabel}>OCASIONAL</Text>
-          <View style={styles.divisorLinha} />
-        </View>
-
-        {/* Importar via código — mesmo card dos demais; o fluxo abre no CodigoShareModal */}
-        <TouchableOpacity
-          style={[styles.card, (importandoCodigo || !ip.trim()) && styles.btnDisabled]}
-          onPress={() => setImportCodigoModal(true)}
-          disabled={importandoCodigo || !ip.trim()}
-          activeOpacity={0.85}
-        >
-          <View style={styles.cardIconWrap}>
-            {importandoCodigo
-              ? <ActivityIndicator color={COLORS.accent} />
-              : <IconImportarCodigo size={44} />}
-          </View>
-          <Text style={styles.cardLabel}>IMPORTAR VIA CÓDIGO</Text>
-          <IconChevron size={22} color={COLORS.accent2} />
-        </TouchableOpacity>
       </ScrollView>
-
-      <CultoSelectModal
-        visible={cultoModalImport}
-        onClose={() => {
-          setCultoModalImport(false);
-          setCodigoPendenteImport('');
-          setMusicasPendenteImport([]);
-        }}
-        onSelect={onCultoEscolhidoParaImportacao}
-        titulo="Importar playlist: em qual culto?"
-      />
-
-      <CodigoShareModal
-        visible={importCodigoModal}
-        modo="importar"
-        subtitulo="Código gerado em «Compartilhar com PC»."
-        carregando={importandoCodigo}
-        onClose={() => !importandoCodigo && setImportCodigoModal(false)}
-        onConfirmarImportar={confirmarCodigoImportacao}
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 56, paddingHorizontal: 20 },
-  // --- Card de status + desconectar ---
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,19 +138,7 @@ const styles = StyleSheet.create({
 
   titulo: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 3, color: COLORS.textDim, marginBottom: 20 },
   scrollContent: { paddingBottom: 40, gap: 14 },
-  btnDisabled: { opacity: 0.6 },
 
-  // --- Divisor «ocasional» ---
-  divisorWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 0 },
-  divisorLinha: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  divisorLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: COLORS.textDim,
-  },
-
-  // --- Cards de navegação (idênticos entre si) ---
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 12,

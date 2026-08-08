@@ -173,8 +173,8 @@ export default function BibliotecaLocalScreen() {
         visible: true,
         codigo: codigo || '',
         subtitulo: dataExp
-          ? `Válido até ${dataExp}. Na igreja, use «Importar via Código» na tela conectada ao PC.`
-          : 'Na igreja, use «Importar via Código» na tela conectada ao PC.',
+          ? `Válido até ${dataExp}. Na igreja, importe o código no Controlador (PC).`
+          : 'Na igreja, importe o código no Controlador (PC).',
       });
     } catch (e) {
       Alert.alert('Compartilhar com PC', e?.message || 'Falha de rede ao gerar o código.');
