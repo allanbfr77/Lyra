@@ -12981,10 +12981,10 @@ socket.on('connect', async () => {
 
   socket.on('disconnect', (motivo) => {
     atualizarUiConexao(false);
-    setStatusServidorRemoto('ocioso');
     /**
-     * Só reposicionar «AO VIVO» quando o próprio cliente desliga o socket ou encerra sessão —
-     * quedas rápidas (ex.: erro de transporte) reconectam e o servidor pode continuar a projetar.
+     * Só reposicionar «AO VIVO» quando o próprio cliente desliga o socket ou encerra sessão.
+     * Quedas do Servidor passam a reassumir o motor local (abaixo) — o badge «Este PC»
+     * tem de corresponder ao transporte real, não só à UI.
      */
     const m = String(motivo || '');
     const descarteCliente = m === 'io client disconnect' || m.includes('forced close');
@@ -12996,19 +12996,32 @@ socket.on('connect', async () => {
     atualizarPreviewOperador();
     atualizarBtnModoApresentacao();
     try {
-      if (!ehModoApresentacaoOperador()) return;
-      if (descarteCliente) {
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'DESCONECTADO — sem ligação ao servidor.' });
-      } else {
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'À espera de reconexão com o servidor…' });
+      if (ehModoApresentacaoOperador()) {
+        if (descarteCliente) {
+          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'DESCONECTADO — sem ligação ao servidor.' });
+        } else if (emModoProjecaoLocal()) {
+          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a projetar nesta máquina.' });
+        } else {
+          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a reassumir projeção local…' });
+        }
       }
     } catch (_) {
   // intencional — erro ignorado
 }
+
+    /* `ligarProjecaoNestaMaquina` desliga o socket de propósito: esse disconnect não deve
+       disparar outro reassumir. */
+    if (emModoProjecaoLocal() || projecaoLocalEmCurso || reassumirLocalEmCurso) {
+      setStatusServidorRemoto('ocioso');
+      return;
+    }
+    interromperReconexaoSocket();
+    void reassumirProjecaoLocalAposQuedaRemota();
   });
   socket.on('connect_error', () => {
-    /* Não achou Servidor: nada de destrutivo. Volta a LOCAL e o local segue intacto.
-       Não se mexe em `atualizarUiConexao` — o corpo continua no estado do modo local. */
+    /* Tentativa falhada: se o local ainda está de pé, só actualiza o badge. Se já não
+       está (queda após ligação remota bem-sucedida), reassume o motor local — o mesmo
+       caminho do `disconnect`, para o badge «Este PC» não mentir. */
     tratarFalhaLigacaoServidor();
   });
 }
@@ -13046,9 +13059,9 @@ function configurarAutoConectarAoAlternarJanelas() {
 /**
  * Badge do canto superior direito — só status, sem clique.
  *
- * Três estados:
- *   - `ocioso`      → «Este PC» ativo   — a projetar nesta máquina;
- *   - `conectando`  → «Servidor» amarelo (pulse) — tentativa em curso;
+ * Três estados (sempre alinhados ao transporte real):
+ *   - `ocioso`      → «Este PC» ativo   — motor local a projetar (ou a reassumir após queda);
+ *   - `conectando`  → «Servidor» amarelo (pulse) — tentativa remota em curso;
  *   - `conectado`   → «Servidor» verde  — ligado a um Servidor remoto.
  *
  * Falha (`tratarFalhaLigacaoServidor`) volta a `ocioso`. Qualquer valor desconhecido
@@ -13196,18 +13209,69 @@ async function consultarPapelHost5510(ip) {
 }
 
 /**
- * Não achou Servidor. Nada de destrutivo e — importante — nada de reabrir o motor local.
+ * Não achou Servidor (ou a ligação caiu).
  *
- * O badge volta a LOCAL. A projeção local, se estava de pé, continua: a tentativa
- * nunca a derruba (só o `connect` com sucesso a derruba). Reabrir o local aqui causava um
- * pisca-pisca das telas: uma vez ligado ao Servidor (local já derrubado), qualquer
- * `connect_error` das retentativas do socket reabria o local — que ganhava o M2 e a porta —
- * e a reconexão seguinte derrubava-o outra vez, em ciclo. O local só se (re)liga por
- * arranque ou por acção explícita do operador, nunca como efeito de uma falha remota.
+ * Se o modo local ainda está de pé — típico de uma tentativa de «Conectar» que falhou
+ * antes do `connect` bem-sucedido —, só actualiza o badge: a tentativa nunca derruba o
+ * local.
+ *
+ * Se o local já tinha sido abandonado (estávamos a comandar o Servidor), «Este PC» no
+ * badge sem reassumir o motor mentia: a projeção ficava sem transporte até reiniciar ou
+ * até Ferramentas › Projetar nesta máquina. Por isso reassumimos aqui também.
+ *
+ * As retentativas do Socket.IO são cortadas antes do reassumir, para não repetir o
+ * ciclo antigo (local sobe → reconnect remoto derruba → local sobe de novo).
  */
 function tratarFalhaLigacaoServidor(mensagem) {
-  setStatusServidorRemoto('ocioso');
+  if (emModoProjecaoLocal() || projecaoLocalEmCurso || reassumirLocalEmCurso) {
+    setStatusServidorRemoto('ocioso');
+  } else {
+    interromperReconexaoSocket();
+    void reassumirProjecaoLocalAposQuedaRemota();
+  }
   if (mensagem) alert(mensagem);
+}
+
+/** Impede o Socket.IO de continuar a tentar o Servidor depois de decidirmos voltar ao local. */
+function interromperReconexaoSocket() {
+  try {
+    if (socket?.io && typeof socket.io.reconnection === 'function') {
+      socket.io.reconnection(false);
+    }
+  } catch (_) {
+    // intencional
+  }
+}
+
+/**
+ * Após queda do Servidor remoto: liga o motor local para o badge «Este PC» e o
+ * transporte de projeção ficarem alinhados. Retenta com pausas curtas — no mesmo PC a
+ * porta 5510 pode ainda estar a libertar-se nos milissegundos a seguir ao fecho do Servidor.
+ */
+let reassumirLocalEmCurso = false;
+
+async function reassumirProjecaoLocalAposQuedaRemota() {
+  if (reassumirLocalEmCurso || emModoProjecaoLocal() || projecaoLocalEmCurso) {
+    setStatusServidorRemoto('ocioso');
+    return;
+  }
+  if (!ponteProjecaoLocal()) {
+    setStatusServidorRemoto('ocioso');
+    return;
+  }
+  reassumirLocalEmCurso = true;
+  setStatusServidorRemoto('ocioso');
+  try {
+    const atrasosMs = [0, 500, 1500];
+    for (const espera of atrasosMs) {
+      if (espera) await new Promise((r) => setTimeout(r, espera));
+      if (emModoProjecaoLocal()) return;
+      const r = await ligarProjecaoNestaMaquina();
+      if (r?.ok) return;
+    }
+  } finally {
+    reassumirLocalEmCurso = false;
+  }
 }
 
 async function carregarMusicas() {
