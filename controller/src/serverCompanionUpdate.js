@@ -551,6 +551,11 @@ function iniciarServidorInstalado({
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
+    env: (() => {
+      const env = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
+      return env;
+    })(),
   });
   if (child && typeof child.unref === 'function') child.unref();
   return exe;
@@ -597,6 +602,19 @@ function createServerCompanionUpdateApi(ctx, deps) {
     localAppData = process.env.LOCALAPPDATA,
     quitWaitMs = DEFAULT_QUIT_WAIT_MS,
     quitForceAfterMs = DEFAULT_QUIT_FORCE_AFTER_MS,
+    /**
+     * true (padrão): após download, handoff externo encerra Controlador+Server,
+     * instala, sobe Server, espera 5510 e reabre o Controlador.
+     * false: instalação inline no processo actual (testes / e2e API).
+     */
+    modoHandoff = true,
+    quitControllerImpl,
+    spawnHandoffImpl,
+    userDataPath,
+    reconnectIp = '127.0.0.1',
+    controllerExe,
+    controllerArgs,
+    controllerCwd,
   } = deps;
 
   const LOCAL_SERVER_BASE = localServerBase.endsWith('/')
@@ -749,6 +767,105 @@ function createServerCompanionUpdateApi(ctx, deps) {
         throw new Error(hash.erro);
       }
 
+      /*
+       * Handoff (fluxo normal): evita disputa na 5510 — o Controlador reassumia o modo
+       * local quando o Server caía. Após o download, um processo destacado faz
+       * install → Server → wait identity → Controlador.
+       */
+      if (modoHandoff) {
+        const handoffMod = require('./companionUpdateHandoff');
+        const ud =
+          userDataPath ||
+          (typeof app.getPath === 'function' ? app.getPath('userData') : '') ||
+          path.join(tmpDir, 'userdata');
+        handoffMod.escreverRelaunchFlag(ud, { ip: reconnectIp });
+
+        const handoffPath = path.join(tmpDir, 'handoff.json');
+        const isPackaged = !!(app && app.isPackaged);
+        handoffMod.escreverHandoff(handoffPath, {
+          setupPath,
+          buildId: manifesto.buildId,
+          localAppData,
+          controllerPid: process.pid,
+          controllerExe: controllerExe || process.execPath,
+          controllerArgs:
+            controllerArgs != null
+              ? controllerArgs
+              : isPackaged
+                ? []
+                : ['.'],
+          controllerCwd: controllerCwd || process.cwd(),
+          waitMs: Math.max(quitWaitMs, 120000),
+          forceAfterMs: quitForceAfterMs,
+        });
+
+        emitir('companion-update-progress', {
+          stage: 'handoff',
+          message:
+            'A reiniciar Controlador e Servidor para concluir a atualização…',
+          percent: 100,
+        });
+        setUpdateStatusTitle('A reiniciar para atualizar componentes…');
+
+        if (typeof spawnHandoffImpl === 'function') {
+          spawnHandoffImpl({ handoffPath });
+        } else {
+          handoffMod.spawnHandoffDetached({
+            handoffPath,
+            electronExecPath: process.execPath,
+          });
+        }
+
+        /*
+         * Crítico (falha UI 19:43): se app.exit() corre antes do helper escrever
+         * HANDOFF_PROCESS_BOOT, o Job Object mata o launcher e ninguém reinstala.
+         * Só depois deste marcador é seguro encerrar Controlador/Server.
+         */
+        const logFile = path.join(tmpDir, 'lyra-companion-handoff.log');
+        const boot = await handoffMod.aguardarMarcadorNoLog(logFile, 'HANDOFF_PROCESS_BOOT', {
+          timeoutMs: 20000,
+        });
+        if (!boot.ok) {
+          throw new Error(
+            'O assistente de atualização dos componentes não arrancou a tempo.\n\n' +
+              (boot.erro || '')
+          );
+        }
+
+        /* Liberta 5510 e pede quit do Server; o handoff espera ambos sumirem. */
+        if (typeof desligarProjecaoLocalImpl === 'function') {
+          try {
+            await desligarProjecaoLocalImpl();
+          } catch (_) {
+            // intencional
+          }
+        }
+
+        const doRequest = typeof requestJsonImpl === 'function' ? requestJsonImpl : requestJson;
+        try {
+          await doRequest(new URL('api/internal/quit-for-update', LOCAL_SERVER_BASE).href, {
+            method: 'POST',
+            body: { origem: 'controller-companion-handoff' },
+            timeoutMs: 4500,
+          });
+        } catch (_) {
+          // intencional — handoff força encerramento se o Server já não responde
+        }
+
+        ctx.companionUpdateAvailable = false;
+        ctx.companionUpdateInfo = null;
+        ctx.companionHandoffPending = true;
+        /* Não apagar setupPath: o handoff precisa dele. */
+        ctx.companionInstallInProgress = false;
+
+        if (typeof quitControllerImpl === 'function') {
+          quitControllerImpl();
+        } else if (app && typeof app.exit === 'function') {
+          app.exit(0);
+        }
+        return { ok: true, buildId: manifesto.buildId, handoff: true };
+      }
+
       emitir('companion-update-progress', {
         stage: 'quit',
         message:
@@ -885,8 +1002,10 @@ function createServerCompanionUpdateApi(ctx, deps) {
       emitir('companion-update-error', { message: String(err?.message || err) });
       throw err;
     } finally {
-      ctx.companionInstallInProgress = false;
-      try { fs.unlinkSync(setupPath); } catch (_) { /* intencional */ }
+      if (!ctx.companionHandoffPending) {
+        ctx.companionInstallInProgress = false;
+        try { fs.unlinkSync(setupPath); } catch (_) { /* intencional */ }
+      }
     }
   }
 

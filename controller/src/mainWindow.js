@@ -828,6 +828,15 @@ function registerMainWindowIpc(ctx, updaterApi, companionApi) {
     companionApi?.verificarCompanion?.(opts || {}) || { acao: 'noop' }
   );
   ipcMain.handle('lyra-companion-install', () => companionApi?.instalarCompanionLocal?.());
+  ipcMain.removeHandler('lyra-companion-consume-relaunch');
+  ipcMain.handle('lyra-companion-consume-relaunch', () => {
+    try {
+      const { consumirRelaunchFlag } = require('./companionUpdateHandoff');
+      return consumirRelaunchFlag(app.getPath('userData'));
+    } catch (_) {
+      return null;
+    }
+  });
 
   ipcMain.handle('lyra-open-display-devtools', () => abrirConsoleTelaoServidor(ctx));
   ipcMain.handle('lyra-clear-cache', () => limparCacheElectron(ctx));

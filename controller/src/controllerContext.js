@@ -19,6 +19,7 @@ module.exports = {
   companionUpdateAvailable: false,
   companionUpdateInfo: null,
   companionInstallInProgress: false,
+  companionHandoffPending: false,
 
   controllerRecarregarEmCurso: false,
   controllerRecarregarPendente: false,

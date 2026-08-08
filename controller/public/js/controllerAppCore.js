@@ -13105,6 +13105,9 @@ socket.on('connect', async () => {
   });
 }
 
+/** True enquanto o companion vai encerrar este Controlador (não reassumir a 5510). */
+let companionHandoffEmCurso = false;
+
 /** True enquanto o arranque com «Conectar automaticamente» está a sondar/ligar. */
 let autoConectarAoIniciarEmCurso = false;
 
@@ -13424,6 +13427,10 @@ function interromperReconexaoSocket() {
 let reassumirLocalEmCurso = false;
 
 async function reassumirProjecaoLocalAposQuedaRemota() {
+  if (companionHandoffEmCurso) {
+    setStatusServidorRemoto('ocioso');
+    return;
+  }
   if (reassumirLocalEmCurso || emModoProjecaoLocal() || projecaoLocalEmCurso) {
     setStatusServidorRemoto('ocioso');
     return;
@@ -17038,6 +17045,59 @@ document.getElementById('ip-input').addEventListener('change', (e) => {
   setTimeout(() => carregarRoteamentoTelasDoServidor(), 120);
 });
 
+/**
+ * Após handoff do companion: Server já deve estar na 5510. Não disputa o modo local —
+ * espera identity real e reconecta ao IP guardado (one-shot).
+ */
+async function tentarReconnectAposCompanionRelaunch() {
+  if (typeof window.lyraElectron?.consumirRelaunchCompanion !== 'function') return false;
+  let info = null;
+  try {
+    info = await window.lyraElectron.consumirRelaunchCompanion();
+  } catch (_) {
+    return false;
+  }
+  if (!info?.ip) return false;
+
+  const ip = String(info.ip).trim();
+  companionHandoffEmCurso = false;
+  autoConectarAoIniciarEmCurso = true;
+  try {
+    persistirIpServidor(ip);
+    const ipInput = document.getElementById('ip-input');
+    if (ipInput) ipInput.value = ip;
+
+    const deadline = Date.now() + 90000;
+    let disponivel = false;
+    while (Date.now() < deadline) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 2500);
+        try {
+          const r = await fetch(`http://${ip}:5510/api/identity`, {
+            cache: 'no-store',
+            signal: ctrl.signal,
+          });
+          if (r.ok && (await r.json())?.role === 'server') {
+            disponivel = true;
+            break;
+          }
+        } finally {
+          clearTimeout(t);
+        }
+      } catch (_) {
+        // intencional — retenta
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!disponivel) return true;
+    await conectar();
+    return true;
+  } finally {
+    autoConectarAoIniciarEmCurso = false;
+  }
+}
+
 setTimeout(() => {
   /*
    * Projetar nesta máquina é SEMPRE o arranque, sem excepção e sem consultar nada: não há
@@ -17049,28 +17109,35 @@ setTimeout(() => {
    *
    * Sem ponte não há modo local (o painel está num browser, fora do aplicativo), e aí só
    * resta o caminho remoto.
+   *
+   * Excepção: relaunch pós-companion — o Server já foi iniciado pelo handoff na 5510;
+   * aí reconectamos sem tentar assaltar a porta com o motor local.
    */
-  const ponte = ponteProjecaoLocal();
-  const querAuto = preferenciaAutoConectar();
-  /*
-   * Com a opção ligada, bloquear JÁ o auto-reconectar de foco/visibilidade — ele dispara
-   * quando o arranque do local falha (porta ocupada) e cria um socket «fantasma»
-   * (`connected` mas badge ainda em Este PC). O caminho novo via a seguir e abortava.
-   */
-  if (querAuto) autoConectarAoIniciarEmCurso = true;
-  if (!ponte) {
-    if (!querAuto) {
-      tentarAutoConectarSeDesconectado();
+  void (async () => {
+    if (await tentarReconnectAposCompanionRelaunch()) return;
+
+    const ponte = ponteProjecaoLocal();
+    const querAuto = preferenciaAutoConectar();
+    /*
+     * Com a opção ligada, bloquear JÁ o auto-reconectar de foco/visibilidade — ele dispara
+     * quando o arranque do local falha (porta ocupada) e cria um socket «fantasma»
+     * (`connected` mas badge ainda em Este PC). O caminho novo via a seguir e abortava.
+     */
+    if (querAuto) autoConectarAoIniciarEmCurso = true;
+    if (!ponte) {
+      if (!querAuto) {
+        tentarAutoConectarSeDesconectado();
+      }
+      void tentarConectarAutomaticoAoIniciar();
+      return;
     }
-    void tentarConectarAutomaticoAoIniciar();
-    return;
-  }
-  void ligarProjecaoNestaMaquina().then((r) => {
-    if (!r?.ok && !querAuto) {
-      tentarAutoConectarSeDesconectado();
-    }
-    void tentarConectarAutomaticoAoIniciar();
-  });
+    void ligarProjecaoNestaMaquina().then((r) => {
+      if (!r?.ok && !querAuto) {
+        tentarAutoConectarSeDesconectado();
+      }
+      void tentarConectarAutomaticoAoIniciar();
+    });
+  })();
 }, 200);
 
 // ════════════════════════════════════════════════════════════
@@ -18254,13 +18321,16 @@ function mostrarBannerCompanionDisponivel(_payload) {
 
 function mostrarBannerCompanionProgresso(payload) {
   const stage = String(payload?.stage || '');
+  if (stage === 'handoff' || stage === 'quit') {
+    companionHandoffEmCurso = true;
+  }
   const pct = Math.max(0, Math.min(100, Math.round(Number(payload?.percent || 0))));
   const msg = String(
     payload?.message ||
       'A atualizar componentes do Lyra. O Servidor será reiniciado e a projeção poderá ficar indisponível por alguns segundos.'
   );
   const titulo =
-    stage === 'install' || stage === 'quit' || stage === 'waiting'
+    stage === 'install' || stage === 'quit' || stage === 'waiting' || stage === 'handoff'
       ? 'A instalar componentes'
       : 'A descarregar componentes';
 
@@ -18281,7 +18351,12 @@ function mostrarBannerCompanionProgresso(payload) {
     mensagem: msg,
     botoes: [
       {
-        label: stage === 'download' ? 'A descarregar…' : 'Aguarde…',
+        label:
+          stage === 'download'
+            ? 'A descarregar…'
+            : stage === 'handoff'
+              ? 'A reiniciar…'
+              : 'Aguarde…',
         primary: true,
         disabled: true,
       },

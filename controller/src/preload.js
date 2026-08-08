@@ -169,6 +169,7 @@ contextBridge.exposeInMainWorld('lyraElectron', {
 
   verificarCompanionServidor: (opts) => ipcRenderer.invoke('lyra-companion-check', opts || {}),
   instalarCompanionServidor: () => ipcRenderer.invoke('lyra-companion-install'),
+  consumirRelaunchCompanion: () => ipcRenderer.invoke('lyra-companion-consume-relaunch'),
 
   onAtualizacaoDisponivel: (cb) => {
     const handler = (_event, payload) => cb(payload);

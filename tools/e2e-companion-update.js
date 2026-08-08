@@ -163,6 +163,7 @@ async function main() {
     setUpdateStatusTitle: (t) => {
       if (t) console.log(`[e2e-companion] title: ${t}`);
     },
+    modoHandoff: false,
   });
 
   console.log('[e2e-companion] a instalar companion (quit → wait process/port → NSIS → start → identity)…');

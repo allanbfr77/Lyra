@@ -80,6 +80,14 @@ const companionApi = createServerCompanionUpdateApi(ctx, {
       await ctx.projecaoLocal.desligar();
     }
   },
+  userDataPath: undefined, /* preenchido em whenReady */
+  quitControllerImpl: () => {
+    try {
+      app.exit(0);
+    } catch (_) {
+      process.exit(0);
+    }
+  },
 });
 
 app.whenReady().then(async () => {

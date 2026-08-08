@@ -30,6 +30,8 @@ function depsBase(extra = {}) {
       },
     }),
     setUpdateStatusTitle: () => {},
+    /* Testes exercitam o caminho inline (sem encerrar o processo Node). */
+    modoHandoff: false,
     ...extra,
   };
 }
@@ -321,4 +323,63 @@ test('18) Controlador package.json está em 1.2.3', () => {
   );
   assert.equal(pkg.version, '1.2.3');
   assert.ok(pkg.dependencies['electron-updater']);
+});
+
+test('handoff: após download spawna helper, quita Server e encerra Controlador', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-comp-handoff-'));
+  const setupSrc = path.join(dir, 'payload.bin');
+  fs.writeFileSync(setupSrc, 'installer-bytes-handoff');
+  const hash = sha512Base64Arquivo(setupSrc);
+  const events = [];
+  let quitCtrl = 0;
+  let spawned = null;
+  const ctx = ctxVazio();
+  ctx.companionManifest = {
+    buildId: 'build-handoff-1',
+    sha512: hash,
+    path: 'Lyra-Servidor-Setup.exe',
+  };
+
+  const api = createServerCompanionUpdateApi(
+    ctx,
+    depsBase({
+      modoHandoff: true,
+      userDataPath: dir,
+      quitControllerImpl: () => {
+        quitCtrl += 1;
+      },
+      spawnHandoffImpl: (opts) => {
+        spawned = opts;
+        const logFile = path.join(path.dirname(opts.handoffPath), 'lyra-companion-handoff.log');
+        fs.writeFileSync(logFile, 'HANDOFF_PROCESS_BOOT\n', 'utf8');
+      },
+      downloadArquivoImpl: async (_url, destino) => {
+        fs.mkdirSync(path.dirname(destino), { recursive: true });
+        fs.copyFileSync(setupSrc, destino);
+        return destino;
+      },
+      desligarProjecaoLocalImpl: async () => {},
+      requestJsonImpl: async () => ({ statusCode: 202, body: { ok: true, quitting: true } }),
+      getJanelaPrincipal: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          send: (canal, payload) => events.push({ canal, payload }),
+        },
+      }),
+    })
+  );
+
+  const r = await api.instalarCompanionLocal();
+  assert.equal(r.ok, true);
+  assert.equal(r.handoff, true);
+  assert.equal(quitCtrl, 1);
+  assert.ok(spawned?.handoffPath);
+  assert.ok(fs.existsSync(spawned.handoffPath));
+  assert.ok(events.some((e) => e.canal === 'companion-update-progress' && e.payload.stage === 'handoff'));
+  assert.equal(ctx.companionHandoffPending, true);
+  /* setup não apagado — handoff precisa dele */
+  const handoff = JSON.parse(fs.readFileSync(spawned.handoffPath, 'utf8'));
+  assert.equal(handoff.buildId, 'build-handoff-1');
+  assert.ok(fs.existsSync(handoff.setupPath));
+  fs.rmSync(dir, { recursive: true, force: true });
 });
