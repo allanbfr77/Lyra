@@ -24,7 +24,9 @@
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
-        "ACCESS_WIFI_STATE"
+        "ACCESS_WIFI_STATE",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
       ]
     },
     "assetBundlePatterns": [
@@ -33,7 +35,13 @@
     "plugins": [
       "expo-router",
       "expo-asset",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Lyra precisa de acesso às fotos para definir o fundo da Bíblia."
+        }
+      ]
     ],
     "extra": {
       "router": {},

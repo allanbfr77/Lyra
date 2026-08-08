@@ -1,5 +1,6 @@
 /**
  * Modo Bíblia — referência rápida (versão, livro, cap, versículo, monitor M2/M3).
+ * Configurações de exibição: menu completo (M2 / M3 / Leitura), espelho do PC.
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -15,14 +16,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Switch,
-  Modal,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { Ionicons } from '@expo/vector-icons';
 import BotaoEncerrarProjecao from '../src/BotaoEncerrarProjecao';
+import BibliaCfgModal from '../src/BibliaCfgModal';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
 import { TRADUCOES_PADRAO, resolverLivroBiblia } from '../src/bibliaLivros';
@@ -31,10 +31,9 @@ import {
   carregarCfgExibicaoBiblia,
   salvarCfgExibicaoBiblia,
   aplicarCfgExibicaoBiblia,
-  BIBLIA_FONTE_MIN,
-  BIBLIA_FONTE_MAX,
-  BIBLIA_FONTE_STEP,
+  BIBLIA_CFG_PADRAO,
 } from '../src/bibliaExibicao';
+import { dividirVersiculos } from '../src/dividirVersiculos';
 
 export default function BibliaScreen() {
   const { ip } = useLocalSearchParams();
@@ -49,9 +48,7 @@ export default function BibliaScreen() {
   const [carregando, setCarregando] = useState(false);
   const [preview, setPreview] = useState(null);
   const [livroResolvido, setLivroResolvido] = useState(null);
-  const [fontSize, setFontSize] = useState(5.5);
-  const [wrapLongLines, setWrapLongLines] = useState(true);
-  const [posY, setPosY] = useState('center');
+  const [cfg, setCfg] = useState(BIBLIA_CFG_PADRAO);
   const [modalCfgVisible, setModalCfgVisible] = useState(false);
 
   const socketRef = useRef(null);
@@ -59,12 +56,13 @@ export default function BibliaScreen() {
   const ultimaRotaMonitorRef = useRef('');
   const jaProjetouNestaSessaoRef = useRef(false);
   const cfgAplicadaRef = useRef('');
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
 
   useEffect(() => {
     carregarCfgExibicaoBiblia().then((c) => {
-      setFontSize(c.fontSize);
-      setWrapLongLines(c.wrapLongLines);
-      setPosY(c.posY);
+      setCfg(c);
+      cfgAplicadaRef.current = JSON.stringify(c);
     });
   }, []);
 
@@ -90,35 +88,27 @@ export default function BibliaScreen() {
     };
   }, [host]);
 
-  function cfgAtual() {
-    return { fontSize, wrapLongLines, posY };
-  }
-
-  async function persistirEEnviarCfg(socket) {
-    const norm = await salvarCfgExibicaoBiblia(cfgAtual());
-    setFontSize(norm.fontSize);
-    setWrapLongLines(norm.wrapLongLines);
-    setPosY(norm.posY);
+  async function persistirEEnviarCfg(socket, proximaCfg) {
+    const norm = await salvarCfgExibicaoBiblia(proximaCfg ?? cfgRef.current);
+    setCfg(norm);
     if (host) await aplicarCfgExibicaoBiblia(host, socket, norm);
     cfgAplicadaRef.current = JSON.stringify(norm);
+    return norm;
   }
 
-  function ajustarFontSize(delta) {
-    setFontSize((v) => {
-      const n = Math.round((v + delta) * 10) / 10;
-      return Math.min(BIBLIA_FONTE_MAX, Math.max(BIBLIA_FONTE_MIN, n));
-    });
+  function onCfgChange(proxima) {
+    setCfg(proxima);
   }
 
   useEffect(() => {
     if (!host || !socketRef.current?.connected) return;
-    const chave = JSON.stringify(cfgAtual());
+    const chave = JSON.stringify(cfg);
     if (chave === cfgAplicadaRef.current) return;
     const t = setTimeout(() => {
-      persistirEEnviarCfg(socketRef.current);
+      persistirEEnviarCfg(socketRef.current, cfg);
     }, 400);
     return () => clearTimeout(t);
-  }, [fontSize, wrapLongLines, posY, host]);
+  }, [cfg, host]);
 
   useEffect(() => {
     if (ultimaRotaMonitorRef.current && ultimaRotaMonitorRef.current !== monitor) {
@@ -130,7 +120,6 @@ export default function BibliaScreen() {
     if (!host) return;
     let socket = null;
     let cancelado = false;
-    // Carrega a identidade (auth) antes de conectar — evita conectar sem credencial.
     carregarIdentidadeDispositivo().then((ident) => {
       if (cancelado) return;
       socket = io(urlSocketProjecao(host), {
@@ -138,16 +127,8 @@ export default function BibliaScreen() {
         timeout: 5000,
         /*
          * Ordem deliberada: polling primeiro, WebSocket a seguir.
-         *
          * Com `['websocket', ...]` o socket.io tenta APENAS o WebSocket na ligação
-         * inicial — e, se falhar, reporta erro sem nunca experimentar o polling que está
-         * na lista ao lado. Basta uma rede, antivírus ou proxy que não trate bem o
-         * cabeçalho de upgrade para o app ficar sem ligação, mesmo com o servidor
-         * acessível e a responder por HTTP.
-         *
-         * Nesta ordem, o polling estabelece a ligação e o WebSocket entra logo depois,
-         * automaticamente, quando está disponível. Ganha-se a robustez sem perder o
-         * desempenho — é por isso que é o padrão do socket.io.
+         * inicial — e, se falhar, reporta erro sem nunca experimentar o polling.
          */
         transports: ['polling', 'websocket'],
         auth: ident,
@@ -202,6 +183,33 @@ export default function BibliaScreen() {
     return hit;
   }
 
+  /**
+   * Aplica a opção «Leitura» do PC: se a divisão estiver ativa, projeta a 1.ª parte.
+   */
+  function textoParaProjecao(hit, livroNome, cap) {
+    const leitura = cfgRef.current?.leitura || {};
+    const partes = dividirVersiculos(
+      [
+        {
+          ...hit,
+          livro: livroNome,
+          capitulo: cap,
+          versiculo: hit.versiculo,
+          traducao,
+        },
+      ],
+      {
+        ativo: leitura.dividirVersiculosLongos === true,
+        limite: leitura.limiteCaracteres,
+      }
+    );
+    const primeira = partes[0];
+    return {
+      texto: primeira?.texto != null ? String(primeira.texto) : String(hit.texto || ''),
+      partesTotal: primeira?.parteTotal || 1,
+    };
+  }
+
   async function projetar() {
     if (!host) {
       Alert.alert('Atenção', 'Conecte-se na tela inicial (IP do controlador).');
@@ -210,7 +218,7 @@ export default function BibliaScreen() {
     if (!socketRef.current?.connected) {
       Alert.alert(
         'Desconectado',
-        'Sem ligação à projeção (porta 5510). Confirme que o app Servidor (telas) está aberto no PC.'
+        'Sem ligação à projeção (porta 5510). Confirme que o Controlador (modo local) ou o app Servidor está aberto no PC.'
       );
       return;
     }
@@ -236,16 +244,17 @@ export default function BibliaScreen() {
     setPreview(null);
     try {
       const v = await buscarVersiculoNoControlador(livro.nome, cap, ver);
+      const { texto, partesTotal } = textoParaProjecao(v, livro.nome, cap);
 
-      const cfg = cfgAtual();
+      const cfgAtual = cfgRef.current;
       const mudouMonitor = ultimaRotaMonitorRef.current !== monitor;
       if (!rotaAplicadaRef.current || mudouMonitor) {
-        await prepararProjecaoBiblia(host, monitor, true, cfg);
+        await prepararProjecaoBiblia(host, monitor, true, cfgAtual);
         rotaAplicadaRef.current = true;
         ultimaRotaMonitorRef.current = monitor;
         jaProjetouNestaSessaoRef.current = false;
       } else {
-        await aplicarCfgExibicaoBiblia(host, socketRef.current, cfg);
+        await aplicarCfgExibicaoBiblia(host, socketRef.current, cfgAtual);
       }
 
       const alvo = alvoProjecaoDeMonitor(monitor);
@@ -255,7 +264,7 @@ export default function BibliaScreen() {
         capitulo: cap,
         versiculo: ver,
         traducao,
-        texto: v.texto,
+        texto,
         alvoProjecao: alvo,
         somenteTexto: jaProjetouNestaSessaoRef.current,
         reenviarDisplayConfig: !jaProjetouNestaSessaoRef.current,
@@ -267,7 +276,8 @@ export default function BibliaScreen() {
         ref: `${livro.nome} ${cap}:${ver}`,
         traducao,
         monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
-        texto: v.texto,
+        texto,
+        partesTotal,
       });
     } catch (e) {
       Alert.alert('Erro', e.message || 'Não foi possível projetar.');
@@ -287,52 +297,6 @@ export default function BibliaScreen() {
     jaProjetouNestaSessaoRef.current = false;
   }
 
-  function conteudoMenuExibicao() {
-    return (
-      <>
-        <Text style={styles.hintCfg}>Mesmas opções para telão (M2) e ministrante (M3).</Text>
-
-        <Text style={styles.subLabel}>TAMANHO DA LETRA</Text>
-        <View style={styles.rowFonte}>
-          <TouchableOpacity style={styles.btnStep} onPress={() => ajustarFontSize(-BIBLIA_FONTE_STEP)}>
-            <Text style={styles.btnStepTxt}>−</Text>
-          </TouchableOpacity>
-          <Text style={styles.fonteValor}>{fontSize.toFixed(1)} vh</Text>
-          <TouchableOpacity style={styles.btnStep} onPress={() => ajustarFontSize(BIBLIA_FONTE_STEP)}>
-            <Text style={styles.btnStepTxt}>+</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.rowSwitch}>
-          <Text style={styles.switchLabel}>Quebra de linha automática</Text>
-          <Switch
-            value={wrapLongLines}
-            onValueChange={setWrapLongLines}
-            trackColor={{ false: COLORS.border, true: COLORS.accent2 }}
-            thumbColor={wrapLongLines ? COLORS.accent : COLORS.surface2}
-          />
-        </View>
-
-        <Text style={styles.subLabel}>POSIÇÃO NA TELA</Text>
-        <View style={styles.rowPos}>
-          {[
-            { id: 'top', label: 'Topo' },
-            { id: 'center', label: 'Meio' },
-            { id: 'bottom', label: 'Rodapé' },
-          ].map((p) => (
-            <TouchableOpacity
-              key={p.id}
-              style={[styles.chipPos, posY === p.id && styles.chipPosAtivo]}
-              onPress={() => setPosY(p.id)}
-            >
-              <Text style={[styles.chipPosTxt, posY === p.id && styles.chipPosTxtAtivo]}>{p.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -348,9 +312,8 @@ export default function BibliaScreen() {
             style={styles.btnCfg}
             onPress={() => setModalCfgVisible(true)}
             accessibilityLabel="Configurações de exibição"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="settings-outline" size={26} color={COLORS.accent} />
+            <Ionicons name="settings-outline" size={22} color={COLORS.accent2} />
           </TouchableOpacity>
         </View>
 
@@ -367,20 +330,22 @@ export default function BibliaScreen() {
           ))}
         </View>
 
-        <Text style={styles.label}>LIVRO (NOME OU ABREVIAÇÃO)</Text>
+        <Text style={styles.label}>LIVRO</Text>
         <TextInput
           style={styles.input}
           value={livroInput}
           onChangeText={setLivroInput}
-          placeholder="Ex: João, Jo, Salmos..."
+          placeholder="Ex.: João, sl, 1co…"
           placeholderTextColor={COLORS.textDim}
-          autoCapitalize="none"
+          autoCapitalize="words"
           autoCorrect={false}
         />
-        {livroResolvido ? (
-          <Text style={styles.hintOk}>→ {livroResolvido.nome} ({livroResolvido.sigla})</Text>
-        ) : livroInput.trim() ? (
-          <Text style={styles.hintErro}>Livro não reconhecido</Text>
+        {livroInput.trim() ? (
+          livroResolvido ? (
+            <Text style={styles.hintOk}>→ {livroResolvido.nome}</Text>
+          ) : (
+            <Text style={styles.hintErro}>Livro não reconhecido</Text>
+          )
         ) : null}
 
         <View style={styles.rowNums}>
@@ -391,7 +356,7 @@ export default function BibliaScreen() {
               value={capitulo}
               onChangeText={setCapitulo}
               keyboardType="number-pad"
-              placeholder=""
+              placeholder="1"
               placeholderTextColor={COLORS.textDim}
             />
           </View>
@@ -402,7 +367,7 @@ export default function BibliaScreen() {
               value={versiculo}
               onChangeText={setVersiculo}
               keyboardType="number-pad"
-              placeholder=""
+              placeholder="1"
               placeholderTextColor={COLORS.textDim}
             />
           </View>
@@ -410,34 +375,37 @@ export default function BibliaScreen() {
 
         <Text style={styles.label}>PROJETAR EM</Text>
         <View style={styles.rowMonitores}>
-          <TouchableOpacity
-            style={[styles.chipMonitor, monitor === 'm2' && styles.chipMonitorAtivo]}
-            onPress={() => setMonitor('m2')}
-          >
-            <Text style={[styles.chipMonitorTitulo, monitor === 'm2' && styles.chipMonitorTituloAtivo]}>
-              M2
-            </Text>
-            <Text style={[styles.chipMonitorSub, monitor === 'm2' && styles.chipMonitorSubAtivo]}>
-              Público · Telão
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.chipMonitor, monitor === 'm3' && styles.chipMonitorAtivo]}
-            onPress={() => setMonitor('m3')}
-          >
-            <Text style={[styles.chipMonitorTitulo, monitor === 'm3' && styles.chipMonitorTituloAtivo]}>
-              M3
-            </Text>
-            <Text style={[styles.chipMonitorSub, monitor === 'm3' && styles.chipMonitorSubAtivo]}>
-              Ministrante · Retorno
-            </Text>
-          </TouchableOpacity>
+          {[
+            { id: 'm2', titulo: 'M2', sub: 'Telão / Público' },
+            { id: 'm3', titulo: 'M3', sub: 'Ministrante' },
+          ].map((m) => (
+            <TouchableOpacity
+              key={m.id}
+              style={[styles.chipMonitor, monitor === m.id && styles.chipMonitorAtivo]}
+              onPress={() => setMonitor(m.id)}
+            >
+              <Text
+                style={[
+                  styles.chipMonitorTitulo,
+                  monitor === m.id && styles.chipMonitorTituloAtivo,
+                ]}
+              >
+                {m.titulo}
+              </Text>
+              <Text
+                style={[styles.chipMonitorSub, monitor === m.id && styles.chipMonitorSubAtivo]}
+              >
+                {m.sub}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <TouchableOpacity
           style={[styles.btnProjetar, carregando && styles.btnDisabled]}
           onPress={projetar}
           disabled={carregando}
+          activeOpacity={0.85}
         >
           {carregando ? (
             <ActivityIndicator color={COLORS.onAccent} />
@@ -446,45 +414,26 @@ export default function BibliaScreen() {
           )}
         </TouchableOpacity>
 
-        <BotaoEncerrarProjecao onPress={limparTela} style={styles.btnLimpar} />
+        <BotaoEncerrarProjecao style={styles.btnLimpar} onPress={limparTela} />
 
         {preview ? (
           <View style={styles.previewCard}>
             <Text style={styles.previewHead}>● AO VIVO · {preview.monitor}</Text>
             <Text style={styles.previewRef}>
               {preview.ref} · {preview.traducao}
+              {preview.partesTotal > 1 ? ` · parte 1/${preview.partesTotal}` : ''}
             </Text>
             <Text style={styles.previewTexto}>{preview.texto}</Text>
           </View>
         ) : null}
       </ScrollView>
 
-      <Modal
+      <BibliaCfgModal
         visible={modalCfgVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setModalCfgVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitulo}>Exibição</Text>
-              <TouchableOpacity
-                onPress={() => setModalCfgVisible(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={26} color={COLORS.textDim} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              {conteudoMenuExibicao()}
-            </ScrollView>
-            <TouchableOpacity style={styles.btnModalFechar} onPress={() => setModalCfgVisible(false)}>
-              <Text style={styles.btnModalFecharTxt}>FECHAR</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setModalCfgVisible(false)}
+        cfg={cfg}
+        onChange={onCfgChange}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -517,12 +466,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 12,
   },
-  /** Mesmo label de seção, sem as margens verticais — alinha com a engrenagem. */
   labelHeader: { marginTop: 0, marginBottom: 0 },
-  rowVersoes: { flexDirection: 'row', gap: 8 },
+  rowVersoes: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {
-    flex: 1,
+    minWidth: 56,
+    flexGrow: 1,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -594,94 +544,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chipMonitorSubAtivo: { color: COLORS.accent2 },
-  hintCfg: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textDim,
-    marginBottom: 16,
-  },
-  subLabel: {
-    fontFamily: FONTS.semibold,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: COLORS.textDim,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  rowFonte: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    marginBottom: 14,
-    paddingVertical: 8,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  btnStep: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: COLORS.surface2,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnStepTxt: {
-    fontSize: 22,
-    color: COLORS.accent,
-    fontFamily: FONTS.bold,
-  },
-  fonteValor: {
-    minWidth: 72,
-    textAlign: 'center',
-    fontFamily: FONTS.bold,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  rowSwitch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  switchLabel: {
-    flex: 1,
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.text,
-    marginRight: 8,
-  },
-  rowPos: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  chipPos: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
-    alignItems: 'center',
-  },
-  chipPosAtivo: { borderColor: COLORS.accent, backgroundColor: COLORS.surface2 },
-  chipPosTxt: {
-    fontFamily: FONTS.semibold,
-    fontSize: 12,
-    color: COLORS.textDim,
-  },
-  chipPosTxtAtivo: { color: COLORS.accent },
   btnProjetar: {
     marginTop: 16,
     backgroundColor: COLORS.accent,
@@ -723,48 +585,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     color: COLORS.text,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: COLORS.bg,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderBottomWidth: 0,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 24,
-    maxHeight: '78%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  modalTitulo: {
-    fontFamily: FONTS.bold,
-    fontSize: 18,
-    color: COLORS.text,
-    letterSpacing: 1,
-  },
-  btnModalFechar: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-  },
-  btnModalFecharTxt: {
-    fontFamily: FONTS.semibold,
-    fontSize: 13,
-    letterSpacing: 2,
-    color: COLORS.textDim,
   },
 });
