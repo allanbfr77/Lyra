@@ -5,8 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
-  ScrollView,
 } from 'react-native';
 import {
   splitTextoEmEstrofesPorLinhaVaziaStrict,
@@ -15,6 +13,7 @@ import {
 } from './slideRules';
 import InfoTooltip from './InfoTooltip';
 import SegmentedControl from './SegmentedControl';
+import KeyboardScreen, { KeyboardFlatList } from './KeyboardScreen';
 import { COLORS, FONTS } from './theme';
 
 /** Opções do toggle Slides ↔ Letra completa (mesmos modos do controlador PC). */
@@ -183,7 +182,7 @@ export default function SlideEditorPanel({
   if (modo === 'completa') {
     return (
       <View style={styles.wrap}>
-        <ScrollView
+        <KeyboardScreen
           style={styles.list}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
@@ -220,14 +219,14 @@ export default function SlideEditorPanel({
             />
           </View>
           {listFooterComponent}
-        </ScrollView>
+        </KeyboardScreen>
       </View>
     );
   }
 
   return (
     <View style={styles.wrap}>
-      <FlatList
+      <KeyboardFlatList
         data={rows}
         keyExtractor={(item) => item.id}
         style={styles.list}

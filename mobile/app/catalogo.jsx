@@ -18,7 +18,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   Modal,
@@ -36,6 +35,7 @@ import {
 import { criarMusicaLocalCompleta } from '../src/localMusicStore';
 import CultoSelectModal from '../src/CultoSelectModal';
 import ChipToggle from '../src/ChipToggle';
+import { KeyboardFlatList } from '../src/KeyboardScreen';
 import { COLORS, FONTS } from '../src/theme';
 
 /** Etiqueta do card indicando por qual campo o resultado bateu. */
@@ -272,7 +272,7 @@ export default function CatalogoLocalScreen() {
 
   return (
     <View style={styles.container}>
-      <FlatList
+      <KeyboardFlatList
         data={resultados}
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={header}

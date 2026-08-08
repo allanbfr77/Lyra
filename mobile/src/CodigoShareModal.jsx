@@ -11,9 +11,12 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { COLORS, FONTS } from './theme';
+import KeyboardScreen from './KeyboardScreen';
 
 /**
  * Modal para exibir código gerado (C) ou digitar código para importar (I).
+ * KeyboardProvider cobre Modal nativo; KeyboardScreen com offset 0
+ * (sem header do Stack) mantém o campo acima do teclado.
  */
 export default function CodigoShareModal({
   visible,
@@ -49,55 +52,63 @@ export default function CodigoShareModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.tit}>{titulo || (isExibir ? 'Compartilhar playlist' : 'Importar playlist')}</Text>
-          {subtitulo ? <Text style={styles.sub}>{subtitulo}</Text> : null}
+          <KeyboardScreen
+            keyboardVerticalOffset={0}
+            style={styles.keyboardScreen}
+            contentContainerStyle={styles.keyboardContent}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+          >
+            <Text style={styles.tit}>{titulo || (isExibir ? 'Compartilhar playlist' : 'Importar playlist')}</Text>
+            {subtitulo ? <Text style={styles.sub}>{subtitulo}</Text> : null}
 
-          {isExibir ? (
-            <>
-              <Text style={styles.codigoExibir} selectable>
-                {codigo}
-              </Text>
-              <TouchableOpacity
-                style={styles.btnCopiar}
-                onPress={copiarCodigo}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.btnCopiarTxt}>{copiado ? 'COPIADO!' : 'COPIAR CÓDIGO'}</Text>
-              </TouchableOpacity>
-              <Text style={styles.hint}>Toque em «Copiar código» ou mantenha pressionado o código acima.</Text>
-            </>
-          ) : (
-            <TextInput
-              style={styles.input}
-              value={codigo}
-              onChangeText={setCodigo}
-              placeholder=""
-              placeholderTextColor={COLORS.textDim}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              editable={!carregando}
-              selectTextOnFocus
-            />
-          )}
+            {isExibir ? (
+              <>
+                <Text style={styles.codigoExibir} selectable>
+                  {codigo}
+                </Text>
+                <TouchableOpacity
+                  style={styles.btnCopiar}
+                  onPress={copiarCodigo}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.btnCopiarTxt}>{copiado ? 'COPIADO!' : 'COPIAR CÓDIGO'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.hint}>Toque em «Copiar código» ou mantenha pressionado o código acima.</Text>
+              </>
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={codigo}
+                onChangeText={setCodigo}
+                placeholder=""
+                placeholderTextColor={COLORS.textDim}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!carregando}
+                selectTextOnFocus
+              />
+            )}
 
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.btnSec} onPress={onClose} disabled={carregando}>
-              <Text style={styles.btnSecTxt}>{isExibir ? 'FECHAR' : 'CANCELAR'}</Text>
-            </TouchableOpacity>
-            {!isExibir ? (
-              <TouchableOpacity
-                style={[styles.btnPri, carregando && styles.btnDisabled]}
-                onPress={() => onConfirmarImportar?.(codigo)}
-                disabled={carregando}
-              >
-                {carregando ? (
-                  <ActivityIndicator color={COLORS.onAccent} />
-                ) : (
-                  <Text style={styles.btnPriTxt}>IMPORTAR</Text>
-                )}
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.btnSec} onPress={onClose} disabled={carregando}>
+                <Text style={styles.btnSecTxt}>{isExibir ? 'FECHAR' : 'CANCELAR'}</Text>
               </TouchableOpacity>
-            ) : null}
-          </View>
+              {!isExibir ? (
+                <TouchableOpacity
+                  style={[styles.btnPri, carregando && styles.btnDisabled]}
+                  onPress={() => onConfirmarImportar?.(codigo)}
+                  disabled={carregando}
+                >
+                  {carregando ? (
+                    <ActivityIndicator color={COLORS.onAccent} />
+                  ) : (
+                    <Text style={styles.btnPriTxt}>IMPORTAR</Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </KeyboardScreen>
         </Pressable>
       </Pressable>
     </Modal>
@@ -116,6 +127,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
+    maxHeight: '90%',
+    overflow: 'hidden',
+  },
+  keyboardScreen: {
+    flexGrow: 0,
+  },
+  keyboardContent: {
     padding: 20,
   },
   tit: {

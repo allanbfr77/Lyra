@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
   Switch,
   ActivityIndicator,
   Alert,
@@ -19,6 +18,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS } from './theme';
+import KeyboardScreen from './KeyboardScreen';
 import {
   BIBLIA_FONTES,
   BIBLIA_CORES_PRESET,
@@ -476,9 +476,14 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
             ))}
           </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <KeyboardScreen
+            keyboardVerticalOffset={0}
+            style={styles.cfgScroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {aba === 'leitura' ? renderLeitura() : renderCamada()}
-          </ScrollView>
+          </KeyboardScreen>
 
           <TouchableOpacity style={styles.btnModalFechar} onPress={onClose}>
             <Text style={styles.btnModalFecharTxt}>FECHAR</Text>
@@ -506,6 +511,9 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
     maxHeight: '88%',
+  },
+  cfgScroll: {
+    flexShrink: 1,
   },
   modalHeader: {
     flexDirection: 'row',

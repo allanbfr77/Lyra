@@ -15,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { IconChevron } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador } from '../src/lyraEndpoints';
+import KeyboardScreen from '../src/KeyboardScreen';
 
 /**
  * Monta a linha de metadata do item, no mesmo formato da Biblioteca Local
@@ -136,7 +137,7 @@ export default function MusicasScreen() {
   // --- Renderização principal ---
 
   return (
-    <View style={styles.container}>
+    <KeyboardScreen scroll={false} style={styles.container}>
       {/* Barra de busca local */}
       <View style={styles.searchBox}>
         <Text style={styles.searchIcon}>⌕</Text>
@@ -192,8 +193,9 @@ export default function MusicasScreen() {
           </View>
         )}
         contentContainerStyle={{ paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
       />
-    </View>
+    </KeyboardScreen>
   );
 }
 

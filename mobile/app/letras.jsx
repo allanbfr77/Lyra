@@ -21,7 +21,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   Modal,
@@ -41,6 +40,7 @@ import { criarMusicaLocalCompleta } from '../src/localMusicStore';
 import CultoSelectModal from '../src/CultoSelectModal';
 import SegmentedControl from '../src/SegmentedControl';
 import ChipToggle from '../src/ChipToggle';
+import { KeyboardFlatList } from '../src/KeyboardScreen';
 import { COLORS, FONTS } from '../src/theme';
 
 /** Fontes disponíveis para o segmented control (valores iguais aos usados na busca). */
@@ -443,7 +443,7 @@ export default function LetrasMusScreen() {
   return (
     <View style={styles.container}>
       {/* Lista de resultados com cabeçalho de busca embutido */}
-      <FlatList
+      <KeyboardFlatList
         data={resultados}
         keyExtractor={(item, index) => `${item.path}-${index}`}
         ListHeaderComponent={header}

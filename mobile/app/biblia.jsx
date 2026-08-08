@@ -14,10 +14,9 @@ import {
   Vibration,
   ScrollView,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
@@ -26,6 +25,7 @@ import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
 import { Ionicons } from '@expo/vector-icons';
 import BotaoEncerrarProjecao from '../src/BotaoEncerrarProjecao';
 import BibliaCfgModal from '../src/BibliaCfgModal';
+import KeyboardScreen from '../src/KeyboardScreen';
 import { COLORS, FONTS } from '../src/theme';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
 import { TRADUCOES_PADRAO, resolverLivroBiblia } from '../src/bibliaLivros';
@@ -512,11 +512,8 @@ export default function BibliaScreen() {
   }, [preview?.livro, preview?.capitulo, preview?.versiculo, versiculosCapitulo.length]);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
+    <View style={styles.container}>
+      <KeyboardScreen
         ref={scrollRef}
         style={styles.scrollArea}
         contentContainerStyle={styles.scroll}
@@ -721,7 +718,7 @@ export default function BibliaScreen() {
               })}
           </View>
         ) : null}
-      </ScrollView>
+      </KeyboardScreen>
 
       <View
         style={[
@@ -788,7 +785,7 @@ export default function BibliaScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

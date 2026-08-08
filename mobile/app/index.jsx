@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image,
-  StyleSheet, ActivityIndicator, Alert, ScrollView,
+  StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
@@ -21,6 +21,7 @@ import { normalizarHost } from '../src/lyraEndpoints';
 import { playlistTemMusicas } from '../src/playlistItens';
 import NetworkWarning from '../src/NetworkWarning';
 import ConfigAvancadasModal from '../src/ConfigAvancadasModal';
+import KeyboardScreen from '../src/KeyboardScreen';
 
 // --- Estado global do IP (socket em SocketProvider) ---
 
@@ -124,7 +125,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView
+      <KeyboardScreen
+        keyboardVerticalOffset={0}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator
@@ -235,7 +237,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-      </ScrollView>
+      </KeyboardScreen>
 
       <ConfigAvancadasModal visible={configAberta} onClose={() => setConfigAberta(false)} />
     </View>

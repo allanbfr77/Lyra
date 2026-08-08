@@ -19,6 +19,7 @@
         "foregroundImage": "../brand/lyra-light-1024.png",
         "backgroundColor": "#1a1a2e"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.lyra.app",
       "permissions": [
         "INTERNET",

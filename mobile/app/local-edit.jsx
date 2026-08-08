@@ -25,8 +25,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
@@ -180,10 +178,7 @@ export default function LocalEditScreen() {
   // --- Renderização principal ---
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={{ flex: 1 }}>
       <View style={styles.pad}>
         {/*
           Chave baseada no localId para forçar re-montagem do editor
@@ -264,7 +259,7 @@ export default function LocalEditScreen() {
           setTimeout(() => executarSalvar(item), 0);
         }}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

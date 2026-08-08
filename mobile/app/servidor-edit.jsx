@@ -15,8 +15,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import SlideEditorPanel from '../src/SlideEditorPanel';
@@ -192,10 +190,7 @@ export default function ServidorEditScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={{ flex: 1 }}>
       <View style={styles.pad}>
         <SlideEditorPanel
           key={`srv-${pacote.id}-${pacote.estrofes.length}`}
@@ -243,7 +238,7 @@ export default function ServidorEditScreen() {
           }
         />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -15,7 +15,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, FlatList, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, Keyboard,
 } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
@@ -32,6 +32,7 @@ import { publicarPlaylistNaNuvem } from '../src/lyraShare';
 import CodigoShareModal from '../src/CodigoShareModal';
 import CultoSelectModal from '../src/CultoSelectModal';
 import CardAcao from '../src/CardAcao';
+import { KeyboardFlatList } from '../src/KeyboardScreen';
 import {
   IconBusca,
   IconLixeira,
@@ -344,7 +345,7 @@ export default function BibliotecaLocalScreen() {
 
   return (
     <>
-    <FlatList
+    <KeyboardFlatList
       style={styles.container}
       data={filtradas}
       keyExtractor={(item) => item.localId}
