@@ -6,6 +6,7 @@
  * - Criação de nova música em branco (rascunho)
  * - Acesso à busca no Cifra Club
  * - Exclusão com confirmação
+ * - Compartilhar com PC via badge «C» (mesmo padrão visual do Controlador)
  * - Navegação para edição de cada música
  *
  * A lista é recarregada sempre que a tela ganha foco (useFocusEffect),
@@ -36,10 +37,13 @@ import {
   IconLixeira,
   IconChevron,
   IconNotaMusical,
-  IconSincronizar,
   IconBancoDados,
 } from '../src/Icons';
 import { COLORS, FONTS } from '../src/theme';
+
+/** Vermelho escuro do badge «C» ativo — alinhado ao botão C do Controlador. */
+const BADGE_C_ATIVO = '#8f2f2f';
+const BADGE_C_INATIVO = '#9a9590';
 
 /** Se todas as músicas tiverem o mesmo cultoId, devolve esse culto. */
 function inferirCultoComum(itens) {
@@ -121,6 +125,14 @@ export default function BibliotecaLocalScreen() {
           (m.artista || '').toLowerCase().includes(q)
         );
       });
+
+  /** Há itens com letra prontos para o fluxo «Compartilhar com PC» (mesmo critério do handler). */
+  const temParaCompartilhar = lista.some(
+    (m) =>
+      m.titulo &&
+      Array.isArray(m.estrofes) &&
+      m.estrofes.some((s) => String(s || '').trim())
+  );
 
   // --- Handlers de ação ---
 
@@ -266,16 +278,6 @@ export default function BibliotecaLocalScreen() {
         />
       </View>
 
-      {/* Ação de sincronização — isolada do grupo de adicionar */}
-      <CardAcao
-        Icone={IconSincronizar}
-        titulo="Compartilhar com PC"
-        descricao="Gera código para importar na igreja."
-        onPress={compartilharComPc}
-        carregando={compartilhando}
-        style={styles.cardCompartilhar}
-      />
-
       {/* Divisória: separa as ações da lista de músicas já salvas */}
       <View style={styles.divisoria} />
 
@@ -291,7 +293,40 @@ export default function BibliotecaLocalScreen() {
         />
       </View>
 
-      <Text style={styles.listaLabel}>MÚSICAS SALVAS</Text>
+      {/* Cabeçalho da lista + badge C (mesmo padrão visual do Controlador) */}
+      <View style={styles.listaHead}>
+        <Text style={styles.listaLabel}>MÚSICAS SALVAS</Text>
+        <TouchableOpacity
+          style={[
+            styles.badgeC,
+            temParaCompartilhar ? styles.badgeCAtivo : styles.badgeCInativo,
+          ]}
+          onPress={compartilharComPc}
+          disabled={compartilhando}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar com PC"
+          accessibilityHint={
+            temParaCompartilhar
+              ? 'Gera código para importar as músicas no computador'
+              : 'Nenhuma música com letra para compartilhar'
+          }
+          accessibilityState={{ busy: compartilhando, disabled: !temParaCompartilhar && !compartilhando }}
+        >
+          {compartilhando ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <Text
+              style={[
+                styles.badgeCTxt,
+                temParaCompartilhar ? styles.badgeCTxtAtivo : styles.badgeCTxtInativo,
+              ]}
+            >
+              C
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </>
   );
 
@@ -405,17 +440,49 @@ const styles = StyleSheet.create({
   },
   btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
   cardBancoLocal: { marginTop: 10 },
-  cardCompartilhar: { marginHorizontal: 16, marginBottom: 16 },
 
   // --- Separação entre ações e lista ---
   divisoria: { height: 1, backgroundColor: COLORS.border, marginHorizontal: 16, marginBottom: 14 },
+  listaHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    minHeight: 32,
+  },
   listaLabel: {
     fontSize: 11,
     letterSpacing: 1.5,
     color: COLORS.textDim,
     fontFamily: FONTS.semibold,
-    marginHorizontal: 18,
-    marginBottom: 8,
+    marginLeft: 2,
+  },
+  /** Badge «C» — espelha o botão de compartilhar do painel do Controlador. */
+  badgeC: {
+    minWidth: 32,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeCAtivo: {
+    backgroundColor: BADGE_C_ATIVO,
+  },
+  badgeCInativo: {
+    backgroundColor: BADGE_C_INATIVO,
+  },
+  badgeCTxt: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  badgeCTxtAtivo: {
+    color: COLORS.white,
+  },
+  badgeCTxtInativo: {
+    color: COLORS.white,
   },
 
   searchBox: {
