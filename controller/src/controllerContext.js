@@ -14,6 +14,12 @@ module.exports = {
   verificacaoManualAtualizacao: false,
   checkingManual: false,
 
+  /* Companion update do Servidor (artefacto sem versão de produto). */
+  companionManifest: null,
+  companionUpdateAvailable: false,
+  companionUpdateInfo: null,
+  companionInstallInProgress: false,
+
   controllerRecarregarEmCurso: false,
   controllerRecarregarPendente: false,
   suprimirQuitWindowAllClosedRecarregar: false,

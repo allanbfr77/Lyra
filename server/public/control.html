@@ -85,7 +85,7 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 4px;
+      gap: 6px;
     }
     .logo-img {
       display: block;
@@ -93,6 +93,7 @@
       width: 36px;
       object-fit: contain;
       border-radius: 8px;
+      transform: translateY(-1px);
     }
     .logo-sub {
       font-size: var(--fs-caption);
@@ -149,6 +150,20 @@
     }
 
     button:hover { border-color: var(--accent); background: var(--border); }
+
+    #btn-reload-window {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 50%;
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+    #btn-reload-window svg {
+      display: block;
+      width: 14px;
+      height: 14px;
+    }
 
     .btn-full { width: 100%; margin-top: 5px; }
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -496,14 +511,21 @@
   <div class="card-header">
     <div class="logo-group logo-brand">
       <img class="logo-img" src="./images/lyra-logo.png" alt="Lyra" width="36" height="36">
-      <span class="logo-sub">Servidor v1.2.0</span>
+      <span class="logo-sub">Lyra - Servidor</span>
     </div>
     <button
       id="btn-reload-window"
       type="button"
       aria-label="Recarregar janela"
-      style="padding: 6px; border-radius: 50%;"
-    >↻</button>
+      title="Recarregar janela"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+        <path d="M16 16h5v5"/>
+      </svg>
+    </button>
   </div>
 
   <div class="card-content">
@@ -523,9 +545,9 @@
     </button>
 
     <div class="btn-row">
-      <button id="btn-theme" type="button" aria-label="Alternar tema">
+      <button id="btn-theme" type="button" aria-label="Alternar para tema claro">
         <span class="btn-icon" id="btn-theme-icon" aria-hidden="true"></span>
-        <span class="btn-label" id="btn-theme-label">ESCURO</span>
+        <span class="btn-label" id="btn-theme-label">CLARO</span>
       </button>
       <button id="btn-help" type="button" aria-label="Abrir ajuda do servidor">
         <span class="btn-icon" aria-hidden="true">
@@ -615,7 +637,7 @@
         <div class="help-card">
           <div class="help-card-titulo">Como recarregar</div>
           <ul class="help-lista">
-            <li>Use o botao <strong>↻</strong> no canto superior direito para recarregar a janela do Servidor.</li>
+            <li>Use o botao de recarregar no canto superior direito para recarregar a janela do Servidor.</li>
             <li>Se a interface travar, recarregue primeiro e depois confirme se os monitores continuam reconhecidos.</li>
           </ul>
         </div>
@@ -625,7 +647,7 @@
           <ul class="help-lista">
             <li><strong>IP vazio ou conexao falhando:</strong> confirme se o Servidor e o controlador estao na mesma rede local.</li>
             <li><strong>Monitores nao aparecem:</strong> confira cabos, adaptadores e use o modo estendido do Windows, nao duplicacao.</li>
-            <li><strong>Janela ou exibicao parou:</strong> tente recarregar pelo botao <strong>↻</strong>; se nao resolver, feche e abra o aplicativo novamente.</li>
+            <li><strong>Janela ou exibicao parou:</strong> tente recarregar pelo botao de recarregar; se nao resolver, feche e abra o aplicativo novamente.</li>
           </ul>
         </div>
       </div>
@@ -668,11 +690,12 @@
     const elIcon = document.getElementById('btn-theme-icon');
     const elLabel = document.getElementById('btn-theme-label');
     const btn = document.getElementById('btn-theme');
-    if (elIcon) elIcon.innerHTML = isLight ? SVG_TEMA_SOL : SVG_TEMA_LUA;
-    if (elLabel) elLabel.textContent = isLight ? 'CLARO' : 'ESCURO';
+    /* Ação = destino: no escuro oferece Claro (sol); no claro oferece Escuro (lua). */
+    if (elIcon) elIcon.innerHTML = isLight ? SVG_TEMA_LUA : SVG_TEMA_SOL;
+    if (elLabel) elLabel.textContent = isLight ? 'ESCURO' : 'CLARO';
     btn?.setAttribute(
       'aria-label',
-      `Tema atual: ${isLight ? 'claro' : 'escuro'}. Clique para alternar.`
+      isLight ? 'Alternar para tema escuro' : 'Alternar para tema claro'
     );
   }
 

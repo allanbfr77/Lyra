@@ -3975,6 +3975,45 @@ try {
         'Atualização'
       );
     });
+    const offCompanionDisponivel = typeof api.onCompanionUpdateAvailable === 'function'
+      ? api.onCompanionUpdateAvailable((payload) => {
+          mostrarBannerCompanionDisponivel(payload);
+        })
+      : null;
+    const offCompanionProgresso = typeof api.onCompanionUpdateProgress === 'function'
+      ? api.onCompanionUpdateProgress((payload) => {
+          mostrarBannerCompanionProgresso(payload);
+        })
+      : null;
+    const offCompanionDone = typeof api.onCompanionUpdateDone === 'function'
+      ? api.onCompanionUpdateDone(() => {
+          esconderBannerAtualizacao();
+          void appAlert(
+            'Os componentes do Lyra foram atualizados. A ligação ao Servidor será reassumida.',
+            'Componentes do Lyra'
+          );
+          try { tentarAutoConectarSeDesconectado(); } catch (_) { /* intencional */ }
+        })
+      : null;
+    const offCompanionErro = typeof api.onCompanionUpdateError === 'function'
+      ? api.onCompanionUpdateError((payload) => {
+          esconderBannerAtualizacao();
+          void appAlert(
+            String(payload?.message || 'Não foi possível atualizar os componentes do Lyra.'),
+            'Componentes do Lyra'
+          );
+        })
+      : null;
+    const offCompanionRemoto = typeof api.onCompanionUpdateRemoteInfo === 'function'
+      ? api.onCompanionUpdateRemoteInfo((payload) => {
+          void appAlert(
+            'Há uma atualização disponível para os componentes do Lyra no computador onde o Servidor está a correr.\n\n' +
+              'Instale a atualização nesse PC (não é possível instalá-la remotamente a partir deste Controlador).' +
+              (payload?.host ? `\n\nServidor em: ${payload.host}` : ''),
+            'Componentes do Lyra'
+          );
+        })
+      : null;
     const offMenuCommand = typeof api.onMenuCommand === 'function'
       ? api.onMenuCommand((payload) => {
           void tratarComandoMenuLyra(payload);
@@ -4020,6 +4059,31 @@ try {
 }
         try {
           if (typeof offErroAtualizacao === 'function') offErroAtualizacao();
+        } catch (_) {
+  // intencional — erro ignorado
+}
+        try {
+          if (typeof offCompanionDisponivel === 'function') offCompanionDisponivel();
+        } catch (_) {
+  // intencional — erro ignorado
+}
+        try {
+          if (typeof offCompanionProgresso === 'function') offCompanionProgresso();
+        } catch (_) {
+  // intencional — erro ignorado
+}
+        try {
+          if (typeof offCompanionDone === 'function') offCompanionDone();
+        } catch (_) {
+  // intencional — erro ignorado
+}
+        try {
+          if (typeof offCompanionErro === 'function') offCompanionErro();
+        } catch (_) {
+  // intencional — erro ignorado
+}
+        try {
+          if (typeof offCompanionRemoto === 'function') offCompanionRemoto();
         } catch (_) {
   // intencional — erro ignorado
 }
@@ -12873,6 +12937,10 @@ socket.on('connect', async () => {
     // se formos somente-leitura, o servidor rejeita e o papel_controlador corrige o painel.
     papelControladorLocal = null;
     socket.emit('registrar_controlador');
+    /* Companion: se o Servidor for remoto, só informar — nunca instalar a partir daqui. */
+    if (!ehLocal && window.lyraElectron?.verificarCompanionServidor) {
+      void window.lyraElectron.verificarCompanionServidor({ hostRemoto: ip, manual: false });
+    }
     migrarTemasParaGlobal();
     temasPorCulto = loadTemasPorCulto();
     temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
@@ -17974,6 +18042,68 @@ function mostrarBannerAtualizacaoPronta(payload) {
         },
       },
     ],
+  });
+}
+
+function mostrarBannerCompanionDisponivel(_payload) {
+  configurarBannerAtualizacao({
+    titulo: 'Componentes do Lyra',
+    mensagem:
+      'Há uma atualização disponível para os componentes do Lyra.\n\n' +
+      'O Servidor será reiniciado durante a instalação e a projeção poderá ficar ' +
+      'indisponível por alguns segundos.\n\n' +
+      'Deseja atualizar agora?',
+    botoes: [
+      {
+        label: 'Depois',
+        onClick: () => esconderBannerAtualizacao(),
+      },
+      {
+        label: 'Atualizar componentes',
+        primary: true,
+        onClick: async () => {
+          mostrarBannerCompanionProgresso({
+            stage: 'download',
+            message: 'A descarregar componentes do Lyra…',
+            percent: 0,
+          });
+          try {
+            await window.lyraElectron?.instalarCompanionServidor?.();
+          } catch (err) {
+            esconderBannerAtualizacao();
+            await appAlert(
+              String(err?.message || err || 'Não foi possível atualizar os componentes do Lyra.'),
+              'Componentes do Lyra'
+            );
+          }
+        },
+      },
+    ],
+  });
+}
+
+function mostrarBannerCompanionProgresso(payload) {
+  const stage = String(payload?.stage || '');
+  const msg = String(
+    payload?.message ||
+      'A atualizar componentes do Lyra. O Servidor será reiniciado e a projeção poderá ficar indisponível por alguns segundos.'
+  );
+  const titulo =
+    stage === 'install' || stage === 'quit' || stage === 'waiting'
+      ? 'A instalar componentes'
+      : 'A descarregar componentes';
+  configurarBannerAtualizacao({
+    titulo,
+    mensagem: msg,
+    botoes: [
+      {
+        label: stage === 'download' ? 'A descarregar…' : 'Aguarde…',
+        primary: true,
+        disabled: true,
+      },
+    ],
+    mostrarProgresso: stage === 'download',
+    progresso: Number(payload?.percent || 0),
   });
 }
 

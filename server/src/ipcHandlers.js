@@ -1,6 +1,5 @@
 'use strict';
 
-const { autoUpdater } = require('electron-updater');
 const displayConfigModo = require('./lib/displayConfigModo');
 const { getPreferredLocalIPv4 } = require('./lib/localIp');
 const { buildMonitorsList } = require('./lib/monitorsList');
@@ -28,12 +27,6 @@ function registerIpcHandlers(ctx, paths, deps) {
   ipcMain.on('audio_state_update', (_e, payload) => {
     if (!ctx.io) return;
     ctx.io.emit('audio_state', payload && typeof payload === 'object' ? payload : {});
-  });
-
-  ipcMain.handle('update-install-now', () => {
-    if (!ctx.updateReady) return false;
-    setImmediate(() => autoUpdater.quitAndInstall());
-    return true;
   });
 
   ipcMain.handle('get_ip', () => getPreferredLocalIPv4());

@@ -1,19 +1,18 @@
 {
   "name": "lyra-server",
-  "version": "1.2.0",
+  "version": "0.0.0",
   "description": "Servidor Lyra — gerencia telas e recebe comandos",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "nodemon src/main.js",
     "postinstall": "electron-rebuild",
-    "build:win": "electron-builder --win nsis",
-    "publish:win": "electron-builder --win nsis --publish always",
+    "prebuild:win": "node ../tools/gerar-server-build.js",
+    "build:win": "electron-builder --win nsis && node ../tools/gerar-server-latest-yml.js",
     "build:dir": "electron-builder --dir"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
-    "electron-updater": "^6.3.9",
     "express": "^4.18.3",
     "socket.io": "4.7.4",
     "@lyra/projection-core": "file:../packages/projection-core"
@@ -46,6 +45,10 @@
       {
         "from": "../brand/lyra-server-512.png",
         "to": "brand/lyra-server-512.png"
+      },
+      {
+        "from": "resources/server-build.json",
+        "to": "server-build.json"
       }
     ],
     "icon": "../brand/lyra-server-512.png",
@@ -60,18 +63,12 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Lyra-Servidor-Setup-${version}.${ext}"
+      "artifactName": "Lyra-Servidor-Setup.${ext}"
     },
     "nsis": {
       "installerIcon": "../brand/lyra-server.ico",
       "uninstallerIcon": "../brand/lyra-server.ico",
       "installerHeaderIcon": "../brand/lyra-server.ico"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "allanbfr77",
-      "repo": "allanbfr77-new-holyrics-server-updates",
-      "releaseType": "release"
     }
   }
 }

@@ -24,6 +24,7 @@ const {
   paginaObs,
 } = require('@lyra/projection-core');
 const { createProjectionState } = require('./lib/projectionState');
+const { lerBuildIdServidor } = require('./lib/serverBuildInfo');
 
 /** Porta da API + WebSocket; `0.0.0.0` para acesso na rede local. */
 const HTTP_API_PORT = 5510;
@@ -34,10 +35,10 @@ const HTTP_OBS_PORT = 5001;
  * Express + Socket.io + servidor mínimo para OBS.
  * @param {object} ctx `serverContext`
  * @param {object} paths `createUserPaths`
- * @param {{ screen: object, logError: Function, windowsApi: object, reiniciarApp?: Function }} deps
+ * @param {{ screen: object, logError: Function, windowsApi: object, reiniciarApp?: Function, encerrarParaAtualizacao?: Function }} deps
  */
 function iniciarServidor(ctx, paths, deps) {
-  const { screen, logError, windowsApi, reiniciarApp } = deps;
+  const { screen, logError, windowsApi, reiniciarApp, encerrarParaAtualizacao } = deps;
   const {
     estadoPublicoParaSocketsOuApi,
     garantirTelasAbertasParaProjecao,
@@ -281,9 +282,13 @@ function iniciarServidor(ctx, paths, deps) {
   expressApp.use(express.json({ limit: '200mb' }));
 
   /* Identidade do host na 5510 — sem autenticação, usada pelo Controlador antes do
-     handshake para distinguir este Servidor de um Controlador em modo local. */
+     handshake para distinguir este Servidor de um Controlador em modo local.
+     `buildId` é identidade técnica do artefacto (companion update); não é versão de produto. */
   expressApp.get('/api/identity', (_req, res) => {
-    res.json({ role: 'server' });
+    const buildId = lerBuildIdServidor();
+    const payload = { role: 'server' };
+    if (buildId) payload.buildId = buildId;
+    res.json(payload);
   });
 
   expressApp.get('/api/estado', (_req, res) => {
@@ -330,6 +335,35 @@ function iniciarServidor(ctx, paths, deps) {
       }, 120);
     } catch (e) {
       logError('post-internal-restart-response', e);
+      res.status(500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
+  /* Encerra o processo sem relaunch — usado pelo Controlador antes de instalar o companion. */
+  expressApp.post('/api/internal/quit-for-update', (_req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(_req)) {
+      return res.status(403).json({
+        ok: false,
+        erro: 'Encerramento para atualização só é permitido localmente.',
+      });
+    }
+    if (typeof encerrarParaAtualizacao !== 'function') {
+      return res.status(501).json({
+        ok: false,
+        erro: 'Encerramento para atualização não disponível nesta instância.',
+      });
+    }
+    try {
+      res.status(202).json({ ok: true, quitting: true });
+      setTimeout(() => {
+        try {
+          encerrarParaAtualizacao();
+        } catch (e) {
+          logError('post-internal-quit-for-update', e);
+        }
+      }, 150);
+    } catch (e) {
+      logError('post-internal-quit-for-update-response', e);
       res.status(500).json({ ok: false, erro: e.message || String(e) });
     }
   });

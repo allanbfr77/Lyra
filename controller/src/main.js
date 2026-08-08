@@ -58,6 +58,7 @@ const { initControllerDatabase } = require('./db');
 const { iniciarServidorController } = require('./httpControllerServer');
 const mainWindow = require('./mainWindow');
 const { createUpdaterApi } = require('./updater');
+const { createServerCompanionUpdateApi } = require('./serverCompanionUpdate');
 const { caminhoIconeDock } = require('./lib/iconPath');
 const { criarProjecaoLocal } = require('./projecaoLocal');
 const { buscarMusicaLocalParaProjecao } = require('./lib/musicaParaProjecao');
@@ -67,6 +68,18 @@ const updaterApi = createUpdaterApi(ctx, {
   dialog,
   getJanelaPrincipal: () => mainWindow.getJanelaPrincipal(ctx),
   setUpdateStatusTitle: (status) => mainWindow.setUpdateStatusTitle(ctx, status),
+});
+
+const companionApi = createServerCompanionUpdateApi(ctx, {
+  app,
+  dialog,
+  getJanelaPrincipal: () => mainWindow.getJanelaPrincipal(ctx),
+  setUpdateStatusTitle: (status) => mainWindow.setUpdateStatusTitle(ctx, status),
+  desligarProjecaoLocalImpl: async () => {
+    if (ctx.projecaoLocal?.estaActiva?.()) {
+      await ctx.projecaoLocal.desligar();
+    }
+  },
 });
 
 app.whenReady().then(async () => {
@@ -99,11 +112,12 @@ app.whenReady().then(async () => {
     obterJanelaPainel: () => mainWindow.getJanelaPrincipal(ctx),
   });
 
-  mainWindow.registerMainWindowIpc(ctx, updaterApi);
+  mainWindow.registerMainWindowIpc(ctx, updaterApi, companionApi);
   mainWindow.criarJanela(ctx);
-  mainWindow.criarMenuAplicativo(ctx, updaterApi);
+  mainWindow.criarMenuAplicativo(ctx, updaterApi, companionApi);
   if (app.isPackaged) {
     updaterApi.configurarAtualizacaoAutomatica();
+    companionApi.configurarVerificacaoCompanion();
   }
 });
 

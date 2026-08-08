@@ -371,8 +371,8 @@ function anexarMenuContextoEdicao(win) {
   });
 }
 
-function criarMenuAplicativo(ctx, updaterApi) {
-  depsDoMenu = { updaterApi };
+function criarMenuAplicativo(ctx, updaterApi, companionApi) {
+  depsDoMenu = { updaterApi, companionApi };
   // Nota: o menu "Editar" foi removido da barra de propósito. Os atalhos de edição
   // (desfazer/refazer, recortar/copiar/colar, selecionar tudo) continuam funcionando
   // dentro dos campos de texto — quem os trata é o Chromium/Electron, não este menu —
@@ -472,7 +472,12 @@ function criarMenuAplicativo(ctx, updaterApi) {
       submenu: [
         {
           label: 'Verificar atualizações…',
-          click: () => updaterApi?.solicitarVerificacaoAtualizacaoManual?.(),
+          click: () => {
+            void (async () => {
+              await updaterApi?.solicitarVerificacaoAtualizacaoManual?.();
+              await companionApi?.verificarCompanion?.({ manual: true });
+            })();
+          },
         },
         { type: 'separator' },
         {
@@ -506,7 +511,7 @@ let depsDoMenu = null;
 function actualizarMenuAplicativo(ctx) {
   if (!depsDoMenu) return;
   try {
-    criarMenuAplicativo(ctx, depsDoMenu.updaterApi);
+    criarMenuAplicativo(ctx, depsDoMenu.updaterApi, depsDoMenu.companionApi);
   } catch (e) {
     console.error('[menu] falha ao actualizar', e);
   }
@@ -777,13 +782,15 @@ function criarJanela(ctx) {
   win.loadURL(`http://127.0.0.1:${HTTP_CONTROLLER_PORT}/controller.html`);
 }
 
-function registerMainWindowIpc(ctx, updaterApi) {
+function registerMainWindowIpc(ctx, updaterApi, companionApi) {
   ipcMain.removeHandler('update-download-now');
   ipcMain.removeHandler('update-install-now');
   ipcMain.removeHandler('voz-slides-url-modelo');
   ipcMain.removeHandler('lyra-clear-cache');
   ipcMain.removeHandler('lyra-restart-local-server');
   ipcMain.removeHandler('lyra-app-version');
+  ipcMain.removeHandler('lyra-companion-check');
+  ipcMain.removeHandler('lyra-companion-install');
   ipcMain.removeAllListeners('controller-recarregar');
 
   ipcMain.on('controller-recarregar', () => solicitarRecargaSubstituindoJanelaPrincipal(ctx));
@@ -798,6 +805,11 @@ function registerMainWindowIpc(ctx, updaterApi) {
 
   ipcMain.handle('update-download-now', () => updaterApi?.baixarAtualizacaoDisponivel?.() || false);
   ipcMain.handle('update-install-now', () => updaterApi?.instalarAtualizacaoAgora?.() || false);
+
+  ipcMain.handle('lyra-companion-check', (_e, opts) =>
+    companionApi?.verificarCompanion?.(opts || {}) || { acao: 'noop' }
+  );
+  ipcMain.handle('lyra-companion-install', () => companionApi?.instalarCompanionLocal?.());
 
   ipcMain.handle('lyra-open-display-devtools', () => abrirConsoleTelaoServidor(ctx));
   ipcMain.handle('lyra-clear-cache', () => limparCacheElectron(ctx));

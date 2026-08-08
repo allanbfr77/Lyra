@@ -8,10 +8,6 @@ module.exports = {
   minimizeToTrayEnabled: false,
   tray: null,
   windowControl: null,
-  /** Atualização baixada e pronta para `quitAndInstall`. */
-  updateReady: false,
-  verificacaoManualAtualizacao: false,
-  checkingManual: false,
 
   /* `windowsDisplay` saiu daqui no sub-passo 3b: o registo das janelas de projeção é
      privado ao motor (`lib/windowRegistry.js`), que é o seu dono. Para lêr, use

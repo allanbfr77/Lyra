@@ -163,6 +163,9 @@ contextBridge.exposeInMainWorld('lyraElectron', {
   baixarAtualizacao: () => ipcRenderer.invoke('update-download-now'),
   instalarAtualizacaoAgora: () => ipcRenderer.invoke('update-install-now'),
 
+  verificarCompanionServidor: (opts) => ipcRenderer.invoke('lyra-companion-check', opts || {}),
+  instalarCompanionServidor: () => ipcRenderer.invoke('lyra-companion-install'),
+
   onAtualizacaoDisponivel: (cb) => {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on('update-available', handler);
@@ -191,5 +194,31 @@ contextBridge.exposeInMainWorld('lyraElectron', {
     const handler = (_event, payload) => cb(payload);
     ipcRenderer.on('update-error', handler);
     return () => ipcRenderer.removeListener('update-error', handler);
+  },
+
+  onCompanionUpdateAvailable: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on('companion-update-available', handler);
+    return () => ipcRenderer.removeListener('companion-update-available', handler);
+  },
+  onCompanionUpdateProgress: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on('companion-update-progress', handler);
+    return () => ipcRenderer.removeListener('companion-update-progress', handler);
+  },
+  onCompanionUpdateDone: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on('companion-update-done', handler);
+    return () => ipcRenderer.removeListener('companion-update-done', handler);
+  },
+  onCompanionUpdateError: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on('companion-update-error', handler);
+    return () => ipcRenderer.removeListener('companion-update-error', handler);
+  },
+  onCompanionUpdateRemoteInfo: (cb) => {
+    const handler = (_event, payload) => cb(payload);
+    ipcRenderer.on('companion-update-remote-info', handler);
+    return () => ipcRenderer.removeListener('companion-update-remote-info', handler);
   },
 });

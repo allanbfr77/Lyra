@@ -5,6 +5,9 @@
 #
 # Releases (instalador .exe, latest.yml e notas) são publicados em repositório
 # separado do código-fonte: https://github.com/allanbfr77/lyra-releases
+#
+# Cada release do Controlador (tag vX.Y.Z) publica também o companion do Servidor:
+# Lyra-Servidor-Setup.exe + server-latest.yml (buildId técnico, sem versão de produto).
 
 name: Release
 
@@ -30,6 +33,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             controller/package-lock.json
+            server/package-lock.json
 
       - name: Instalar dependências (raiz)
         run: npm ci
@@ -38,7 +42,11 @@ jobs:
         run: npm ci
         working-directory: controller
 
-      - name: Sincronizar versão com a tag
+      - name: Instalar dependências (servidor)
+        run: npm ci
+        working-directory: server
+
+      - name: Sincronizar versão do Controlador com a tag
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".Substring(1)
@@ -47,9 +55,19 @@ jobs:
       - name: Gerar catálogo
         run: npm run catalog:build
 
-      - name: Compilar instalador Windows
+      - name: Compilar instalador do Controlador
         run: npm run build:win
         working-directory: controller
+
+      - name: Gerar buildId técnico e compilar companion do Servidor
+        shell: pwsh
+        run: |
+          $sha = "${{ github.sha }}"
+          $ver = "${{ github.ref_name }}".Substring(1)
+          $env:LYRA_SERVER_BUILD_ID = $sha.Substring(0, [Math]::Min(12, $sha.Length))
+          $env:LYRA_COMPATIBLE_CONTROLLER = ">=$ver"
+          npm run build:win
+        working-directory: server
 
       - name: Publicar release em allanbfr77/lyra-releases
         uses: softprops/action-gh-release@v2
@@ -64,3 +82,5 @@ jobs:
             controller/dist/*.exe
             controller/dist/latest.yml
             controller/dist/*.blockmap
+            server/dist/Lyra-Servidor-Setup.exe
+            server/dist/server-latest.yml

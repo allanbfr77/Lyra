@@ -36,7 +36,6 @@ const serverPrefs = require('./lib/serverPrefs');
 const projectionCore = require('@lyra/projection-core');
 const { createWindowsApi } = require('./windows');
 const { createTrayApi } = require('./tray');
-const { createUpdaterApi } = require('./updater');
 const path = require('path');
 const { caminhoIconeDock, caminhoIconeApp } = require('./lib/iconPath');
 const { iniciarServidor } = require('./httpServer');
@@ -50,8 +49,8 @@ ctx.displayConfig = displayConfigModo.sanitizarConfigSlidesParaJanelas(
 );
 ctx.minimizeToTrayEnabled = serverPrefs.loadServerPrefs(paths.serverPrefsPath).minimizeToTray;
 
-const APP_VERSION = app.getVersion();
-const WINDOW_TITLE = `Lyra — Servidor v${APP_VERSION}`;
+/* O Servidor é um componente neutro: sem versão de produto no título nem na UI. */
+const WINDOW_TITLE = 'Lyra — Servidor';
 
 const windowsApi = createWindowsApi(ctx, paths, {
   logError,
@@ -78,24 +77,6 @@ const trayApi = createTrayApi(ctx, paths, {
   Tray,
   nativeImage,
   showMainWindow: windowsApi.showMainWindow,
-});
-
-function setUpdateStatusTitle(status) {
-  const w = windowsApi.getJanelaControle();
-  if (!w) return;
-  if (!status) {
-    w.setTitle(WINDOW_TITLE);
-    return;
-  }
-  w.setTitle(`${WINDOW_TITLE} — ${status}`);
-}
-
-const { configurarAtualizacaoAutomatica } = createUpdaterApi(ctx, {
-  app,
-  dialog,
-  logError,
-  getJanelaControle: windowsApi.getJanelaControle,
-  setUpdateStatusTitle,
 });
 
 registerIpcHandlers(ctx, paths, { ipcMain, logError, windowsApi, screen });
@@ -146,6 +127,51 @@ function agendarReinicioServidorElectron() {
   }, 180);
 }
 
+/**
+ * Encerra sem relaunch — o Controlador instala o companion e volta a abrir o Servidor.
+ *
+ * Importante: `app.exit()` não emite `before-quit`/`will-quit` e no Windows deixa
+ * processos `--type=renderer` órfãos (`Lyra Servidor.exe`). O companion trata qualquer
+ * processo com esse nome como bloqueio do NSIS. Por isso fechamos janelas e usamos
+ * `app.quit()`; `app.exit` fica só como rede de segurança.
+ */
+function encerrarServidorParaAtualizacao() {
+  setTimeout(() => {
+    try {
+      try {
+        windowsApi.fecharTodasJanelasProjecao();
+      } catch (_) {
+        // intencional
+      }
+      try {
+        const w = windowsApi.getJanelaControle();
+        if (w && !w.isDestroyed()) w.destroy();
+      } catch (_) {
+        // intencional
+      }
+      try {
+        trayApi.destroyTray();
+      } catch (_) {
+        // intencional
+      }
+      app.quit();
+      setTimeout(() => {
+        try {
+          app.exit(0);
+        } catch (_) {
+          process.exit(0);
+        }
+      }, 2500);
+    } catch (_) {
+      try {
+        app.exit(0);
+      } catch (_) {
+        process.exit(0);
+      }
+    }
+  }, 100);
+}
+
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock?.setIcon) {
     app.dock.setIcon(caminhoIconeDock());
@@ -157,6 +183,7 @@ app.whenReady().then(() => {
     logError,
     windowsApi,
     reiniciarApp: agendarReinicioServidorElectron,
+    encerrarParaAtualizacao: encerrarServidorParaAtualizacao,
     /* Sem a porta principal o Servidor não serve para nada — e continuar de pé a mostrar
        «ONLINE» seria pior do que fechar. Avisa em português e sai. */
     aoPerderPorta: ({ mensagem }) => {
@@ -179,7 +206,6 @@ app.whenReady().then(() => {
   screen.on('display-metrics-changed', aoMudarDisplaysDoSistema);
   windowsApi.criarJanelaControle();
   trayApi.refreshMenusAndTray();
-  configurarAtualizacaoAutomatica();
 });
 
 app.on('before-quit', () => {
