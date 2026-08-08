@@ -189,11 +189,23 @@
     }
 
     .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 999px;
       background: var(--accent);
-      color: #000;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-size: 10px;
+      color: #111;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: var(--fw-bold);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      letter-spacing: 0;
+      -webkit-font-smoothing: antialiased;
+      flex-shrink: 0;
     }
 
     /* Estilos do Footer e Status Online */
@@ -540,7 +552,14 @@
     </div>
 
     <button class="btn-full" id="btn-monitores-info" type="button">
-      🖥 Monitores disponíveis 
+      <span class="btn-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+          <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+          <path d="M8 21h8"></path>
+          <path d="M12 17v4"></path>
+        </svg>
+      </span>
+      Monitores disponíveis
       <span class="badge" id="monitores-count">…</span>
     </button>
 
