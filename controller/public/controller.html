@@ -744,6 +744,22 @@
       flex: 0 0 auto;
       white-space: nowrap;
     }
+    .cfg-conexao-row .cfg-auto-conectar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+      white-space: nowrap;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+      font-family: var(--font-ui);
+    }
+    .cfg-conexao-row .cfg-auto-conectar input {
+      margin: 0;
+      cursor: pointer;
+    }
 
     .conn-label {
       font-size: 11px;
@@ -8856,11 +8872,15 @@
             <div class="cfg-nota">
               Um PC com os monitores corre o app <b>Servidor</b>; o outro corre o Controlador e envia os comandos. Ao conectar, este Controlador deixa de projetar aqui e passa a comandar o Servidor — <b>apenas durante esta sessão</b>. Se o Servidor for fechado ou a ligação cair, o Controlador reassume sozinho o modo <b>Este PC</b> (motor local) — o badge e a projeção ficam alinhados, sem precisar reiniciar. Ao fechar e reabrir o app, o Lyra volta sempre a projetar nesta máquina, e é preciso conectar de novo. O interruptor <b>Lembrar IP</b> decide se o endereço fica preenchido na próxima abertura (ligado) ou se é apagado ao reiniciar (desligado). Para voltar ao padrão sem reiniciar use <b>Ferramentas › Projetar nesta máquina</b>. O estado da ligação aparece no badge no canto superior direito do painel (amarelo enquanto tenta ligar; verde quando ligado). A janela de Ajustes fecha automaticamente quando a ligação vinga.
             </div>
-            <div class="cfg-row cfg-row--largo" data-busca="ip do servidor conectar conexao rede">
+            <div class="cfg-row cfg-row--largo" data-busca="ip do servidor conectar conexao rede automatico">
               <div class="cfg-row-copy"><div class="cfg-row-label">IP do servidor</div></div>
               <div class="cfg-row-controlo cfg-conexao-row">
                 <input type="text" class="conn-input" id="ip-input" placeholder="192.168.1.10" value="" autocomplete="off">
                 <button type="button" class="btn success" id="btn-conectar" onclick="conectar()">Conectar</button>
+                <label class="cfg-auto-conectar" title="Ao iniciar, liga ao Servidor se o IP estiver guardado e ele estiver disponível na rede">
+                  <input type="checkbox" id="cfg-auto-conectar" onchange="onCfgAutoConectarChange(this.checked)">
+                  Conectar automaticamente
+                </label>
               </div>
             </div>
             <div class="cfg-row" data-busca="lembrar ip salvar sessao limpar reiniciar">

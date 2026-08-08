@@ -59,6 +59,7 @@ import {
   LS_IP_KEY,
   LS_IP_LEGACY,
   LS_IP_LEMBRAR,
+  LS_AUTO_CONECTAR,
   LS_SLIDES_RAIL_PX,
   LS_SLIDES_PREVIEW_H_PX,
   LS_SLIDES_CHIP_ZOOM,
@@ -13096,6 +13097,9 @@ socket.on('connect', async () => {
   });
 }
 
+/** True enquanto o arranque com «Conectar automaticamente» está a sondar/ligar. */
+let autoConectarAoIniciarEmCurso = false;
+
 /** Liga ao servidor se há IP gravado. */
 function tentarAutoConectarSeDesconectado() {
   /* Em modo local não há Servidor a procurar — e procurá-lo não era só inútil: o
@@ -13104,6 +13108,8 @@ function tentarAutoConectarSeDesconectado() {
      «servidor não encontrado» e o modo local ficava por baixo, sem ninguém a apontar
      para ele. */
   if (emModoProjecaoLocal()) return;
+  /* Não disputar com «Conectar automaticamente» no arranque (probe + um único conectar). */
+  if (autoConectarAoIniciarEmCurso) return;
   const ip = (document.getElementById('ip-input')?.value || '').trim();
   if (!ip) return;
   if (socket && socket.connected) return;
@@ -13239,6 +13245,90 @@ function onCfgLembrarIpChange(ligado) {
     persistirIpServidor(document.getElementById('ip-input')?.value);
   } else {
     limparIpGuardado();
+  }
+}
+
+/** Preferência «Conectar automaticamente»: omissão = desligado. */
+function preferenciaAutoConectar() {
+  try {
+    const v = localStorage.getItem(LS_AUTO_CONECTAR);
+    return v === '1' || v === 'true';
+  } catch (_) {
+    return false;
+  }
+}
+
+function sincronizarUiAutoConectar() {
+  const el = document.getElementById('cfg-auto-conectar');
+  if (!el) return;
+  el.checked = preferenciaAutoConectar();
+}
+
+function onCfgAutoConectarChange(ligado) {
+  try {
+    localStorage.setItem(LS_AUTO_CONECTAR, ligado ? '1' : '0');
+  } catch (_) {
+    // intencional
+  }
+  sincronizarUiAutoConectar();
+}
+
+/**
+ * No arranque: se a opção estiver ligada e houver IP guardado, só tenta ligar quando o
+ * Servidor responde como `role: 'server'`. Caso contrário ignora em silêncio — sem badge
+ * «conectando», sem alert.
+ *
+ * Um único voo por arranque: se o local falhou (Servidor nesta máquina), o fallback antigo
+ * `tentarAutoConectarSeDesconectado` NÃO deve correr em paralelo — dois `conectar()` em
+ * corrida fazem o segundo `iniciarSocket` desligar o primeiro e o handler de `disconnect`
+ * tenta reassumir o local, deixando o badge em «Este PC» sem Servidor.
+ */
+async function tentarConectarAutomaticoAoIniciar() {
+  if (!preferenciaAutoConectar()) {
+    autoConectarAoIniciarEmCurso = false;
+    return;
+  }
+  /* Pode já estar true (bloqueio antecipado no boot) — assumimos este voo. */
+  autoConectarAoIniciarEmCurso = true;
+  try {
+    let ip = '';
+    try { ip = (readLsMigrate(LS_IP_KEY, LS_IP_LEGACY) || '').trim(); } catch (_) { ip = ''; }
+    if (!ip) ip = (document.getElementById('ip-input')?.value || '').trim();
+    const badgeRemoto = !!document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto');
+    if (!ip) return;
+    /* Só abortar se a ligação remota está de facto reflectida na UI.
+       `socket.connected` sozinho pode ser fantasma criado pelo auto-reconectar de foco —
+       nesse caso seguimos para `conectar()`, que via `iniciarSocket` substitui o socket
+       sem disparar o reassumir do handler de `disconnect` (remove o listener antes). */
+    if (socket && socket.connected && badgeRemoto) return;
+    let disponivel = false;
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      try {
+        const r = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store', signal: ctrl.signal });
+        if (r.ok) disponivel = (await r.json())?.role === 'server';
+      } finally {
+        clearTimeout(t);
+      }
+    } catch (_) {
+      disponivel = false;
+    }
+    if (!disponivel) return;
+    if (socket && socket.connected) {
+      const okUi = !!document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto');
+      if (okUi) return;
+    }
+    await conectar();
+    for (let i = 0; i < 50; i++) {
+      if (socket && socket.connected
+        && document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto')) {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  } finally {
+    autoConectarAoIniciarEmCurso = false;
   }
 }
 
@@ -14543,6 +14633,7 @@ exporCallbacksParaAtributosHtml({
   onCfgGeralTemaChange,
   onCfgGeralVozChange,
   onCfgLembrarIpChange,
+  onCfgAutoConectarChange,
   sincronizarFormCfgGeral,
   toggleCfgSwitch,
   getChkVal,
@@ -16785,6 +16876,7 @@ carregarPlaylistPreviewSlideOcultoDoArmazenamento();
 aplicarPlaylistPreviewSlideOcultoNoDom();
 
 sincronizarUiLembrarIp();
+sincronizarUiAutoConectar();
 if (preferenciaLembrarIp()) {
   const ipSalvo = readLsMigrate(LS_IP_KEY, LS_IP_LEGACY);
   if (ipSalvo) document.getElementById('ip-input').value = ipSalvo;
@@ -16945,20 +17037,25 @@ setTimeout(() => {
    * resta o caminho remoto.
    */
   const ponte = ponteProjecaoLocal();
+  const querAuto = preferenciaAutoConectar();
+  /*
+   * Com a opção ligada, bloquear JÁ o auto-reconectar de foco/visibilidade — ele dispara
+   * quando o arranque do local falha (porta ocupada) e cria um socket «fantasma»
+   * (`connected` mas badge ainda em Este PC). O caminho novo via a seguir e abortava.
+   */
+  if (querAuto) autoConectarAoIniciarEmCurso = true;
   if (!ponte) {
-    /* Painel num browser: sem motor local, só resta o Servidor. */
-    tentarAutoConectarSeDesconectado();
-    return;
-  }
-  /* Ligar ao Servidor é sempre uma acção manual do operador (badge / Ajustes), repetida a
-     cada abertura. Nada aqui a antecipa. */
-  void ligarProjecaoNestaMaquina().then((r) => {
-    if (!r?.ok) {
-      /* Local não subiu — porta ocupada, tipicamente porque o Servidor está nesta mesma
-         máquina. Só aí resta o caminho remoto, e só por isso: é o último recurso quando o
-         padrão não está disponível, não memória de uma sessão anterior. */
+    if (!querAuto) {
       tentarAutoConectarSeDesconectado();
     }
+    void tentarConectarAutomaticoAoIniciar();
+    return;
+  }
+  void ligarProjecaoNestaMaquina().then((r) => {
+    if (!r?.ok && !querAuto) {
+      tentarAutoConectarSeDesconectado();
+    }
+    void tentarConectarAutomaticoAoIniciar();
   });
 }, 200);
 

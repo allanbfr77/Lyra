@@ -1,0 +1,57 @@
+
+> lyra-server@0.0.0 start
+> electron .
+
+
+[Lyra] Servidor rodando na porta 5510
+[Lyra] OBS endpoint: http://192.168.0.96:5001/obs
+[Lyra] OBS endpoint (Bíblia): http://192.168.0.96:5001/obs/biblia
+[Lyra] OBS endpoint (Slides): http://192.168.0.96:5001/obs/slides
+[+] Cliente conectado: c-CZmlPlHvduBrgIAAAB
+[acesso] controlador_conectado {
+  socketId: 'c-CZmlPlHvduBrgIAAAB',
+  deviceId: 'fb0bae5f-3e29-4458-82a6-89087252f32b',
+  nome: '',
+  ip: '192.168.0.96',
+  primario: true
+}
+[+] Controlador registrado: c-CZmlPlHvduBrgIAAAB
+[acesso] bastao_liberado { anterior: 'fb0bae5f-3e29-4458-82a6-89087252f32b', novo: null }
+[!] Nenhum controlador no comando — fechando janelas
+[-] Cliente desconectado: c-CZmlPlHvduBrgIAAAB
+[+] Cliente conectado: GKiv7xeZzjjpV2L0AAAD
+[acesso] controlador_conectado {
+  socketId: 'GKiv7xeZzjjpV2L0AAAD',
+  deviceId: 'fb0bae5f-3e29-4458-82a6-89087252f32b',
+  nome: '',
+  ip: '192.168.0.96',
+  primario: true
+}
+[+] Controlador registrado: GKiv7xeZzjjpV2L0AAAD
+[acesso] bastao_liberado { anterior: 'fb0bae5f-3e29-4458-82a6-89087252f32b', novo: null }
+[!] Nenhum controlador no comando — fechando janelas
+[-] Cliente desconectado: GKiv7xeZzjjpV2L0AAAD
+[+] Cliente conectado: lmKcJ-fILxlw-D5eAAAF
+[acesso] controlador_conectado {
+  socketId: 'lmKcJ-fILxlw-D5eAAAF',
+  deviceId: 'fb0bae5f-3e29-4458-82a6-89087252f32b',
+  nome: '',
+  ip: '192.168.0.96',
+  primario: true
+}
+[+] Controlador registrado: lmKcJ-fILxlw-D5eAAAF
+[acesso] bastao_liberado { anterior: 'fb0bae5f-3e29-4458-82a6-89087252f32b', novo: null }
+[!] Nenhum controlador no comando — fechando janelas
+[-] Cliente desconectado: lmKcJ-fILxlw-D5eAAAF
+[+] Cliente conectado: hTmxJc6D3MSBTTaMAAAH
+[acesso] controlador_conectado {
+  socketId: 'hTmxJc6D3MSBTTaMAAAH',
+  deviceId: 'fb0bae5f-3e29-4458-82a6-89087252f32b',
+  nome: '',
+  ip: '192.168.0.96',
+  primario: true
+}
+[+] Controlador registrado: hTmxJc6D3MSBTTaMAAAH
+[acesso] bastao_liberado { anterior: 'fb0bae5f-3e29-4458-82a6-89087252f32b', novo: null }
+[!] Nenhum controlador no comando — fechando janelas
+[-] Cliente desconectado: hTmxJc6D3MSBTTaMAAAH
