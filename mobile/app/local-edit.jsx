@@ -4,7 +4,7 @@
  * Permite ao usuário editar título, artista, slides e culto de uma
  * música armazenada localmente no dispositivo.
  *
- * Usa o SlideEditorPanel para edição visual dos slides com as mesmas
+ * Usa o SlideEditorPanel (modos slides e letra completa) com as mesmas
  * regras do controlador (linhas totalmente vazias = novo slide).
  *
  * Ao guardar, pede um culto se nenhum foi definido ainda.
@@ -197,7 +197,8 @@ export default function LocalEditScreen() {
             <View style={styles.headerBlock}>
               {/* Ajuda em 1 linha: a escolha do culto é explicada no próprio momento do guardar */}
               <Text style={styles.hint}>
-                Cada bloco abaixo é um <Text style={styles.hintStrong}>slide</Text> na projeção.
+                Edite a letra em <Text style={styles.hintStrong}>slides</Text> ou em{' '}
+                <Text style={styles.hintStrong}>letra completa</Text> — a troca preserva o texto.
               </Text>
 
               {/* Exibe culto atual ou aviso de ausência */}

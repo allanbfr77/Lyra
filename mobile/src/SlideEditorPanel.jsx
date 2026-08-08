@@ -1,8 +1,27 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
-import { splitTextoEmEstrofesPorLinhaVaziaStrict, novoIdSlide } from './slideRules';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  ScrollView,
+} from 'react-native';
+import {
+  splitTextoEmEstrofesPorLinhaVaziaStrict,
+  juntarEstrofesParaLetraCompleta,
+  novoIdSlide,
+} from './slideRules';
 import InfoTooltip from './InfoTooltip';
+import SegmentedControl from './SegmentedControl';
 import { COLORS, FONTS } from './theme';
+
+/** Opções do toggle Slides ↔ Letra completa (mesmos modos do controlador PC). */
+const OPCOES_MODO = [
+  { valor: 'slides', label: 'Slides' },
+  { valor: 'completa', label: 'Letra completa' },
+];
 
 /**
  * Converte um array de textos de slides em objetos com ID único para o FlatList.
@@ -17,14 +36,11 @@ function paraLinhas(arr) {
 }
 
 /**
- * Editor visual de slides para músicas locais e do servidor.
+ * Editor visual de letra — dois modos, como no controlador PC:
+ * - `slides`: um card por slide (↑↓, apagar, + Slide, split ao sair do campo)
+ * - `completa`: um único texto; linha vazia separa slides (join/split canônicos)
  *
- * Permite criar, reordenar (↑↓) e apagar slides individuais.
- * Ao sair de um campo de texto, linhas totalmente vazias dentro do
- * texto criam novos slides automaticamente (regra do controlador).
- *
- * Não usa Reanimated nem arrastar para compatibilidade com Expo Go
- * e para evitar crashes em dispositivos com configurações nativas limitadas.
+ * A alternância preserva as alterações do usuário (join ↔ split).
  *
  * @param {{
  *   initialSlides: string[],
@@ -32,10 +48,6 @@ function paraLinhas(arr) {
  *   listHeaderComponent?: React.ReactNode,
  *   listFooterComponent?: React.ReactNode,
  * }} props
- * @prop {string[]} initialSlides - Slides iniciais ao montar o componente
- * @prop {(slides: string[]) => void} onSlidesChange - Chamado com o array atualizado a cada mudança
- * @prop {React.ReactNode} [listHeaderComponent] - Conteúdo renderizado acima dos slides
- * @prop {React.ReactNode} [listFooterComponent] - Conteúdo renderizado abaixo dos slides (ex.: botão salvar)
  */
 export default function SlideEditorPanel({
   initialSlides,
@@ -43,15 +55,33 @@ export default function SlideEditorPanel({
   listHeaderComponent,
   listFooterComponent,
 }) {
-  // Estado interno: lista de slides com IDs para chaves do FlatList
+  const [modo, setModo] = useState('slides');
   const [rows, setRows] = useState(() => paraLinhas(initialSlides));
+  const [letraFull, setLetraFull] = useState(() =>
+    juntarEstrofesParaLetraCompleta(
+      Array.isArray(initialSlides) && initialSlides.length ? initialSlides : ['']
+    )
+  );
 
   /**
-   * Aplica a regra de split ao texto de um slide quando o campo perde o foco.
-   * Se o texto contém linhas totalmente vazias, divide em múltiplos slides.
-   *
-   * @param {number} index - Índice do slide sendo editado
+   * Alterna entre modos, convertendo o conteúdo atual para não perder edições.
+   * @param {'slides'|'completa'} proximo
    */
+  function trocarModo(proximo) {
+    if (proximo === modo) return;
+    if (proximo === 'completa') {
+      const textos = rows.map((r) => r.text);
+      setLetraFull(juntarEstrofesParaLetraCompleta(textos));
+      onSlidesChange(textos);
+      setModo('completa');
+      return;
+    }
+    const parts = splitTextoEmEstrofesPorLinhaVaziaStrict(letraFull);
+    setRows(paraLinhas(parts));
+    onSlidesChange(parts);
+    setModo('slides');
+  }
+
   function aplicarSplitNoIndice(index) {
     setRows((prev) => {
       const texto = prev[index]?.text ?? '';
@@ -59,13 +89,11 @@ export default function SlideEditorPanel({
       const copy = [...prev];
 
       if (parts.length <= 1) {
-        // Sem divisão — apenas atualiza o texto normalizado
         copy[index] = { ...copy[index], text: parts[0] ?? '' };
         onSlidesChange(copy.map((r) => r.text));
         return copy;
       }
 
-      // Substitui o slide atual pelos novos slides gerados pela divisão
       const inserts = parts.map((p) => ({ id: novoIdSlide(), text: p }));
       copy.splice(index, 1, ...inserts);
       onSlidesChange(copy.map((r) => r.text));
@@ -73,13 +101,6 @@ export default function SlideEditorPanel({
     });
   }
 
-  /**
-   * Atualiza o texto de um slide enquanto o usuário digita.
-   * Não aplica split aqui — isso é feito ao sair do campo (onEndEditing).
-   *
-   * @param {number} index - Índice do slide
-   * @param {string} texto - Novo texto digitado
-   */
   function atualizarTexto(index, texto) {
     setRows((prev) => {
       const copy = [...prev];
@@ -89,15 +110,15 @@ export default function SlideEditorPanel({
     });
   }
 
-  /**
-   * Remove um slide pelo índice.
-   * Mantém ao menos um slide vazio para o editor não ficar sem conteúdo.
-   *
-   * @param {number} index - Índice do slide a remover
-   */
+  /** Em letra completa: mantém o texto e sincroniza o array de slides (mesmo modelo do PC). */
+  function atualizarLetraCompleta(texto) {
+    setLetraFull(texto);
+    onSlidesChange(splitTextoEmEstrofesPorLinhaVaziaStrict(texto));
+  }
+
   function remover(index) {
     setRows((prev) => {
-      if (prev.length <= 1) return prev; // Não permite remover o único slide
+      if (prev.length <= 1) return prev;
       const copy = prev.filter((_, i) => i !== index);
       const out = copy.length ? copy : [{ id: novoIdSlide(), text: '' }];
       onSlidesChange(out.map((r) => r.text));
@@ -105,9 +126,6 @@ export default function SlideEditorPanel({
     });
   }
 
-  /**
-   * Adiciona um novo slide vazio ao final da lista.
-   */
   function adicionar() {
     setRows((prev) => {
       const next = [...prev, { id: novoIdSlide(), text: '' }];
@@ -116,33 +134,33 @@ export default function SlideEditorPanel({
     });
   }
 
-  /**
-   * Move um slide para cima (delta = -1) ou para baixo (delta = 1) na lista.
-   * Ignora movimentos fora dos limites da lista.
-   *
-   * @param {number} index - Índice atual do slide
-   * @param {-1|1} delta - Direção do movimento
-   */
   function mover(index, delta) {
     setRows((prev) => {
-      const j = index + delta; // Posição de destino
-      if (j < 0 || j >= prev.length) return prev; // Fora dos limites
+      const j = index + delta;
+      if (j < 0 || j >= prev.length) return prev;
       const copy = [...prev];
-      // Troca as posições dos dois slides
       [copy[index], copy[j]] = [copy[j], copy[index]];
       onSlidesChange(copy.map((r) => r.text));
       return copy;
     });
   }
 
-  // --- Cabeçalho interno da lista (instruções + botão de adicionar) ---
-  const HeaderInterno = (
+  const ToggleModo = (
+    <SegmentedControl
+      opcoes={OPCOES_MODO}
+      valor={modo}
+      onChange={trocarModo}
+      style={styles.modoToggle}
+    />
+  );
+
+  const HeaderSlides = (
     <>
       {listHeaderComponent}
+      {ToggleModo}
       <View style={styles.slidesHeader}>
         <View style={styles.slidesHeaderLeft}>
           <Text style={styles.label}>LETRA (SLIDES)</Text>
-          {/* Instruções de uso do editor — sob demanda, fora do fluxo permanente */}
           <InfoTooltip titulo="COMO FUNCIONAM OS SLIDES" accessibilityLabel="Regras de formatação dos slides">
             <Text style={styles.regraHint}>
               Entre linhas do <Text style={styles.regraStrong}>mesmo slide</Text>, use só Enter. Uma linha{' '}
@@ -162,6 +180,51 @@ export default function SlideEditorPanel({
     </>
   );
 
+  if (modo === 'completa') {
+    return (
+      <View style={styles.wrap}>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {listHeaderComponent}
+          {ToggleModo}
+          <View style={styles.completaHeader}>
+            <Text style={styles.label}>LETRA COMPLETA</Text>
+            <InfoTooltip
+              titulo="MODO LETRA COMPLETA"
+              accessibilityLabel="Regras do modo letra completa"
+            >
+              <Text style={styles.regraHint}>
+                Edite a letra inteira num único campo. Uma linha{' '}
+                <Text style={styles.regraStrong}>totalmente vazia</Text> (sem espaços) entre blocos separa{' '}
+                <Text style={styles.regraStrong}>slides</Text> na projeção — igual ao controlador no PC.
+              </Text>
+              <Text style={[styles.regraHint, styles.regraHintUltima]}>
+                Ao voltar para <Text style={styles.regraStrong}>Slides</Text>, o texto é dividido pelos mesmos
+                critérios. Suas alterações são mantidas na troca de modo.
+              </Text>
+            </InfoTooltip>
+          </View>
+          <View style={styles.completaCard}>
+            <TextInput
+              style={styles.completaInput}
+              value={letraFull}
+              onChangeText={atualizarLetraCompleta}
+              placeholder={'Verso 1\nVerso 2\n\nRefrão\n…'}
+              placeholderTextColor={COLORS.textDim}
+              multiline
+              textAlignVertical="top"
+              autoCorrect
+            />
+          </View>
+          {listFooterComponent}
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <FlatList
@@ -170,13 +233,11 @@ export default function SlideEditorPanel({
         style={styles.list}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={HeaderInterno}
+        ListHeaderComponent={HeaderSlides}
         ListFooterComponent={listFooterComponent}
         renderItem={({ item, index }) => (
           <View style={styles.slideCard}>
-            {/* Barra superior do card: botões de ordem, número do slide, botão apagar */}
             <View style={styles.slideCardTop}>
-              {/* Botões de reordenação, lado a lado */}
               <View style={styles.ordemBtns}>
                 <TouchableOpacity
                   style={[styles.ordemBtn, index === 0 && styles.ordemBtnOff]}
@@ -198,17 +259,15 @@ export default function SlideEditorPanel({
 
               <Text style={styles.slideNum}>Slide {index + 1}</Text>
 
-              {/* Botão apagar — oculto quando há apenas um slide */}
               {rows.length > 1 ? (
                 <TouchableOpacity onPress={() => remover(index)} hitSlop={12}>
                   <Text style={styles.slideRemover}>Apagar</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={{ width: 52 }} /> // Espaçador para manter alinhamento
+                <View style={{ width: 52 }} />
               )}
             </View>
 
-            {/* Campo de texto do slide — multiline com auto-split ao sair */}
             <TextInput
               style={styles.slideInput}
               value={item.text}
@@ -230,6 +289,7 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   list: { flex: 1 },
   listContent: { paddingBottom: 32 },
+  modoToggle: { marginBottom: 14, marginTop: 2 },
   regraHint: {
     fontSize: 13,
     color: COLORS.textDim,
@@ -247,6 +307,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   slidesHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  completaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    marginTop: 4,
+  },
   label: { fontSize: 11, letterSpacing: 2, color: COLORS.textDim, fontFamily: FONTS.semibold },
   btnAddSlide: {
     borderWidth: 1,
@@ -260,6 +327,23 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: COLORS.accent,
     fontFamily: FONTS.semibold,
+  },
+  completaCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    marginBottom: 12,
+    minHeight: 280,
+  },
+  completaInput: {
+    minHeight: 260,
+    fontSize: 15,
+    lineHeight: 22,
+    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    padding: 0,
   },
   slideCard: {
     backgroundColor: COLORS.surface,
@@ -276,7 +360,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ordemBtns: {
-    flexDirection: 'row', // Lado a lado: libera altura do card
+    flexDirection: 'row',
     marginRight: 10,
     gap: 6,
   },
@@ -290,7 +374,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** Botão de ordem desabilitado (primeiro/último slide) */
   ordemBtnOff: { opacity: 0.35 },
   ordemBtnTxt: {
     fontSize: 16,

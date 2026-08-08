@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lyra",
     "slug": "invblyrics",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "scheme": "lyra",
     "userInterfaceStyle": "light",
@@ -15,7 +15,6 @@
     },
     "android": {
       "icon": "../brand/lyra-light-1024.png",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "../brand/lyra-light-1024.png",
         "backgroundColor": "#1a1a2e"
@@ -40,6 +39,14 @@
         "expo-image-picker",
         {
           "photosPermission": "O Lyra precisa de acesso às fotos para definir o fundo da Bíblia."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],

@@ -1,9 +1,24 @@
 /**
- * Regras de divisão de texto em slides para o projetor Lyra.
+ * Regras de divisão/junção de texto em slides para o projetor Lyra.
  *
  * Mantido alinhado ao controlador web (`splitTextoEmEstrofesPorLinhaVaziaStrict`
- * em controller.html). Qualquer alteração aqui deve ser refletida no servidor.
+ * e `juntarEstrofesParaLetraCompleta` em controllerAppCore.js). Qualquer alteração
+ * aqui deve ser refletida no controlador.
  */
+
+/**
+ * Junta os slides num texto único para o modo «letra completa» (mesmo join do PC).
+ * Cada slide é separado por uma linha totalmente vazia (`\n\n`).
+ *
+ * @param {string[]|null|undefined} estrofes
+ * @returns {string}
+ */
+export function juntarEstrofesParaLetraCompleta(estrofes) {
+  if (!Array.isArray(estrofes) || estrofes.length === 0) return '';
+  return estrofes
+    .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\s+$/, ''))
+    .join('\n\n');
+}
 
 /**
  * Divide um texto em estrofes (slides) usando apenas linhas **totalmente vazias** como separador.

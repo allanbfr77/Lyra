@@ -203,7 +203,10 @@ export default function ServidorEditScreen() {
           onSlidesChange={setSlides}
           listHeaderComponent={
             <View style={styles.headerBlock}>
-              <Text style={styles.hint}>Alterações gravadas na base do controlador.</Text>
+              <Text style={styles.hint}>
+                Alterações gravadas na base do controlador. Use o seletor para editar em slides ou
+                letra completa (igual ao PC).
+              </Text>
 
               {/* Comportamento crítico da tela — mesmo alerta âmbar usado na home */}
               <AlertaAmbar
