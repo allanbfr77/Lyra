@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
@@ -36,6 +37,7 @@ import {
 import { dividirVersiculos } from '../src/dividirVersiculos';
 
 export default function BibliaScreen() {
+  const insets = useSafeAreaInsets();
   const { ip } = useLocalSearchParams();
   const host = Array.isArray(ip) ? String(ip[0] || '') : String(ip || '');
 
@@ -47,6 +49,8 @@ export default function BibliaScreen() {
   const [monitor, setMonitor] = useState('m2');
   const [carregando, setCarregando] = useState(false);
   const [preview, setPreview] = useState(null);
+  /** Demais versículos do capítulo (anteriores e seguintes), excluindo o projetado. */
+  const [versiculosCapitulo, setVersiculosCapitulo] = useState([]);
   const [livroResolvido, setLivroResolvido] = useState(null);
   const [cfg, setCfg] = useState(BIBLIA_CFG_PADRAO);
   const [modalCfgVisible, setModalCfgVisible] = useState(false);
@@ -58,6 +62,8 @@ export default function BibliaScreen() {
   const cfgAplicadaRef = useRef('');
   const cfgRef = useRef(cfg);
   cfgRef.current = cfg;
+  /** Cache do capítulo atual: evita rebuscar a cada card dos próximos. */
+  const capituloCacheRef = useRef({ chave: '', rows: [] });
 
   useEffect(() => {
     carregarCfgExibicaoBiblia().then((c) => {
@@ -154,7 +160,16 @@ export default function BibliaScreen() {
     setLivroResolvido(r);
   }, [livroInput]);
 
-  async function buscarVersiculoNoControlador(livroNome, cap, ver) {
+  // Troca de tradução / livro / capítulo invalida o cache do capítulo.
+  useEffect(() => {
+    capituloCacheRef.current = { chave: '', rows: [] };
+  }, [traducao, livroInput, capitulo]);
+
+  /**
+   * Carrega (ou reutiliza) o capítulo inteiro e devolve a linha do versículo pedido.
+   * @returns {Promise<{ hit: object, rows: object[] }>}
+   */
+  async function carregarCapituloEVersiculo(livroNome, cap, ver) {
     const resCaps = await fetch(
       `${urlApiControlador(host)}/api/biblia/${traducao}/${encodeURIComponent(livroNome)}/caps`
     );
@@ -165,22 +180,36 @@ export default function BibliaScreen() {
       }
     }
 
-    const res = await fetch(
-      `${urlApiControlador(host)}/api/biblia/${traducao}/${encodeURIComponent(livroNome)}/${cap}`
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.erro || `Capítulo não encontrado (HTTP ${res.status})`);
+    const chave = `${traducao}|${livroNome}|${cap}`;
+    let rows = capituloCacheRef.current.chave === chave ? capituloCacheRef.current.rows : null;
+
+    if (!rows) {
+      const res = await fetch(
+        `${urlApiControlador(host)}/api/biblia/${traducao}/${encodeURIComponent(livroNome)}/${cap}`
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.erro || `Capítulo não encontrado (HTTP ${res.status})`);
+      }
+      rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) {
+        throw new Error('Capítulo vazio no banco do controlador.');
+      }
+      capituloCacheRef.current = { chave, rows };
     }
-    const rows = await res.json();
-    if (!Array.isArray(rows) || !rows.length) {
-      throw new Error('Capítulo vazio no banco do controlador.');
-    }
+
     const hit = rows.find((r) => Number(r.versiculo) === ver);
     if (!hit) {
       throw new Error(`Versículo ${ver} não existe neste capítulo.`);
     }
-    return hit;
+    return { hit, rows };
+  }
+
+  /** Todos os versículos do capítulo, menos o atualmente projetado (ordem de leitura). */
+  function outrosDoCapitulo(rows, ver) {
+    return (Array.isArray(rows) ? rows : [])
+      .filter((r) => Number(r.versiculo) !== ver)
+      .sort((a, b) => Number(a.versiculo) - Number(b.versiculo));
   }
 
   /**
@@ -208,6 +237,52 @@ export default function BibliaScreen() {
       texto: primeira?.texto != null ? String(primeira.texto) : String(hit.texto || ''),
       partesTotal: primeira?.parteTotal || 1,
     };
+  }
+
+  /**
+   * Projeta um versículo já resolvido (formulário ou card dos próximos).
+   */
+  async function projetarVersiculoResolvido(livro, cap, ver, hit, rows) {
+    const { texto, partesTotal } = textoParaProjecao(hit, livro.nome, cap);
+
+    const cfgAtual = cfgRef.current;
+    const mudouMonitor = ultimaRotaMonitorRef.current !== monitor;
+    if (!rotaAplicadaRef.current || mudouMonitor) {
+      await prepararProjecaoBiblia(host, monitor, true, cfgAtual);
+      rotaAplicadaRef.current = true;
+      ultimaRotaMonitorRef.current = monitor;
+      jaProjetouNestaSessaoRef.current = false;
+    } else {
+      await aplicarCfgExibicaoBiblia(host, socketRef.current, cfgAtual);
+    }
+
+    const alvo = alvoProjecaoDeMonitor(monitor);
+
+    socketRef.current.emit('exibir_versiculo', {
+      livro: livro.nome,
+      capitulo: cap,
+      versiculo: ver,
+      traducao,
+      texto,
+      alvoProjecao: alvo,
+      somenteTexto: jaProjetouNestaSessaoRef.current,
+      reenviarDisplayConfig: !jaProjetouNestaSessaoRef.current,
+    });
+    jaProjetouNestaSessaoRef.current = true;
+
+    Vibration.vibrate(30);
+    setVersiculo(String(ver));
+    setPreview({
+      ref: `${livro.nome} ${cap}:${ver}`,
+      traducao,
+      monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
+      texto,
+      partesTotal,
+      livro: livro.nome,
+      capitulo: cap,
+      versiculo: ver,
+    });
+    setVersiculosCapitulo(outrosDoCapitulo(rows, ver));
   }
 
   async function projetar() {
@@ -241,44 +316,32 @@ export default function BibliaScreen() {
     }
 
     setCarregando(true);
-    setPreview(null);
     try {
-      const v = await buscarVersiculoNoControlador(livro.nome, cap, ver);
-      const { texto, partesTotal } = textoParaProjecao(v, livro.nome, cap);
+      const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
+      await projetarVersiculoResolvido(livro, cap, ver, hit, rows);
+    } catch (e) {
+      Alert.alert('Erro', e.message || 'Não foi possível projetar.');
+    } finally {
+      setCarregando(false);
+    }
+  }
 
-      const cfgAtual = cfgRef.current;
-      const mudouMonitor = ultimaRotaMonitorRef.current !== monitor;
-      if (!rotaAplicadaRef.current || mudouMonitor) {
-        await prepararProjecaoBiblia(host, monitor, true, cfgAtual);
-        rotaAplicadaRef.current = true;
-        ultimaRotaMonitorRef.current = monitor;
-        jaProjetouNestaSessaoRef.current = false;
-      } else {
-        await aplicarCfgExibicaoBiblia(host, socketRef.current, cfgAtual);
-      }
+  /** Toque num card dos próximos: projeta na hora e atualiza a sequência. */
+  async function projetarProximo(item) {
+    if (carregando) return;
+    if (!host || !socketRef.current?.connected) {
+      Alert.alert('Desconectado', 'Sem ligação à projeção.');
+      return;
+    }
+    const livro = resolverLivroBiblia(livroInput) || (preview?.livro ? { nome: preview.livro } : null);
+    const cap = preview?.capitulo ?? parseInt(String(capitulo).trim(), 10);
+    const ver = Number(item?.versiculo);
+    if (!livro?.nome || !Number.isFinite(cap) || !Number.isFinite(ver)) return;
 
-      const alvo = alvoProjecaoDeMonitor(monitor);
-
-      socketRef.current.emit('exibir_versiculo', {
-        livro: livro.nome,
-        capitulo: cap,
-        versiculo: ver,
-        traducao,
-        texto,
-        alvoProjecao: alvo,
-        somenteTexto: jaProjetouNestaSessaoRef.current,
-        reenviarDisplayConfig: !jaProjetouNestaSessaoRef.current,
-      });
-      jaProjetouNestaSessaoRef.current = true;
-
-      Vibration.vibrate(30);
-      setPreview({
-        ref: `${livro.nome} ${cap}:${ver}`,
-        traducao,
-        monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
-        texto,
-        partesTotal,
-      });
+    setCarregando(true);
+    try {
+      const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
+      await projetarVersiculoResolvido(livro, cap, ver, hit, rows);
     } catch (e) {
       Alert.alert('Erro', e.message || 'Não foi possível projetar.');
     } finally {
@@ -294,6 +357,7 @@ export default function BibliaScreen() {
     Vibration.vibrate(40);
     socketRef.current.emit('encerrar_projecao_biblia');
     setPreview(null);
+    setVersiculosCapitulo([]);
     jaProjetouNestaSessaoRef.current = false;
   }
 
@@ -303,8 +367,10 @@ export default function BibliaScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
+        style={styles.scrollArea}
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
       >
         <View style={styles.headerRow}>
           <Text style={[styles.label, styles.labelHeader]}>MODO BÍBLIA</Text>
@@ -401,6 +467,78 @@ export default function BibliaScreen() {
           ))}
         </View>
 
+        {preview ? (
+          <View style={styles.navegacaoWrap}>
+            <Text style={styles.navegacaoTitulo}>NAVEGAR NO CAPÍTULO</Text>
+
+            {versiculosCapitulo
+              .filter((item) => Number(item.versiculo) < preview.versiculo)
+              .map((item) => {
+                const n = Number(item.versiculo);
+                const trecho = String(item.texto || '').trim();
+                return (
+                  <TouchableOpacity
+                    key={`ant-${n}`}
+                    style={[styles.navCard, carregando && styles.btnDisabled]}
+                    onPress={() => projetarProximo(item)}
+                    disabled={carregando}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Projetar versículo ${n}`}
+                  >
+                    <Text style={styles.navRef}>
+                      {preview.livro} {preview.capitulo}:{n}
+                    </Text>
+                    <Text style={styles.navTexto} numberOfLines={4}>
+                      {trecho || '(sem texto)'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+            <View style={styles.previewCard} accessibilityRole="summary">
+              <Text style={styles.previewHead}>● PROJETADO · {preview.monitor}</Text>
+              <Text style={styles.previewRef}>
+                {preview.ref} · {preview.traducao}
+                {preview.partesTotal > 1 ? ` · parte 1/${preview.partesTotal}` : ''}
+              </Text>
+              <Text style={styles.previewTexto}>{preview.texto}</Text>
+            </View>
+
+            {versiculosCapitulo
+              .filter((item) => Number(item.versiculo) > preview.versiculo)
+              .map((item) => {
+                const n = Number(item.versiculo);
+                const trecho = String(item.texto || '').trim();
+                return (
+                  <TouchableOpacity
+                    key={`prox-${n}`}
+                    style={[styles.navCard, carregando && styles.btnDisabled]}
+                    onPress={() => projetarProximo(item)}
+                    disabled={carregando}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Projetar versículo ${n}`}
+                  >
+                    <Text style={styles.navRef}>
+                      {preview.livro} {preview.capitulo}:{n}
+                    </Text>
+                    <Text style={styles.navTexto} numberOfLines={4}>
+                      {trecho || '(sem texto)'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <View
+        style={[
+          styles.rodapeAcoes,
+          { paddingBottom: Math.max(insets.bottom, 12) + 4 },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.btnProjetar, carregando && styles.btnDisabled]}
           onPress={projetar}
@@ -413,20 +551,8 @@ export default function BibliaScreen() {
             <Text style={styles.btnProjetarTxt}>PROJETAR</Text>
           )}
         </TouchableOpacity>
-
-        <BotaoEncerrarProjecao style={styles.btnLimpar} onPress={limparTela} />
-
-        {preview ? (
-          <View style={styles.previewCard}>
-            <Text style={styles.previewHead}>● AO VIVO · {preview.monitor}</Text>
-            <Text style={styles.previewRef}>
-              {preview.ref} · {preview.traducao}
-              {preview.partesTotal > 1 ? ` · parte 1/${preview.partesTotal}` : ''}
-            </Text>
-            <Text style={styles.previewTexto}>{preview.texto}</Text>
-          </View>
-        ) : null}
-      </ScrollView>
+        <BotaoEncerrarProjecao onPress={limparTela} />
+      </View>
 
       <BibliaCfgModal
         visible={modalCfgVisible}
@@ -440,7 +566,8 @@ export default function BibliaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  scroll: { padding: 20, paddingBottom: 40 },
+  scrollArea: { flex: 1 },
+  scroll: { padding: 20, paddingBottom: 24 },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,8 +671,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chipMonitorSubAtivo: { color: COLORS.accent2 },
+
+  rodapeAcoes: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 10,
+  },
   btnProjetar: {
-    marginTop: 16,
     backgroundColor: COLORS.accent,
     borderRadius: 8,
     padding: 16,
@@ -558,32 +693,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2,
   },
-  btnLimpar: { marginTop: 10 },
-  previewCard: {
-    marginTop: 20,
+
+  navegacaoWrap: { marginTop: 20, gap: 10 },
+  navegacaoTitulo: {
+    fontFamily: FONTS.semibold,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: COLORS.textDim,
+    marginBottom: 2,
+  },
+  navCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 10,
     borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    opacity: 0.9,
+  },
+  navRef: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.accent2,
+    marginBottom: 6,
+  },
+  navTexto: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.text,
+  },
+  previewCard: {
+    backgroundColor: COLORS.surface2,
+    borderRadius: 12,
+    borderWidth: 2.5,
     borderColor: COLORS.accent,
-    padding: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.accent,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+    }),
   },
   previewHead: {
-    fontFamily: FONTS.semibold,
-    fontSize: 10,
+    fontFamily: FONTS.bold,
+    fontSize: 11,
     letterSpacing: 2,
     color: COLORS.accent,
     marginBottom: 8,
   },
   previewRef: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: 17,
     color: COLORS.text,
     marginBottom: 10,
   },
   previewTexto: {
     fontFamily: FONTS.regular,
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 26,
     color: COLORS.text,
   },
 });
