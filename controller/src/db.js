@@ -652,6 +652,11 @@ function musicaIdPorTituloArtistaIgual(titulo, artista) {
   return dup ? dup.id : null;
 }
 
+/**
+ * Normaliza o payload de sync de músicas preservando a identidade de cada linha:
+ * originais (`parent_id` nulo, `is_immutable=1`) e cópias/versões (lineage + `rotulo`).
+ * Snapshots antigos sem lineage continuam sendo tratados como originais.
+ */
 function normalizarMusicasUsuarioParaSync(musicas) {
   if (!Array.isArray(musicas)) return [];
   const out = [];
@@ -664,25 +669,76 @@ function normalizarMusicasUsuarioParaSync(musicas) {
       ? raw.estrofes.map((s) => String(s ?? '')).filter((s) => s.trim())
       : [];
     if (!titulo || !estrofes.length) continue;
-    const item = { titulo, artista, estrofes };
+
     const idNum = Number(raw.id);
-    if (Number.isFinite(idNum) && idNum > 0) {
-      const id = Math.trunc(idNum);
-      if (ids.has(id)) continue;
+    const hasId = Number.isFinite(idNum) && idNum > 0;
+    const id = hasId ? Math.trunc(idNum) : null;
+    if (hasId && ids.has(id)) continue;
+
+    const parentRaw = raw.parent_id;
+    const parentNum = parentRaw == null || parentRaw === '' ? null : Number(parentRaw);
+    const parent_id =
+      parentNum != null && Number.isFinite(parentNum) && parentNum > 0 ? Math.trunc(parentNum) : null;
+
+    // Cópias precisam de id estável para `versaoLocalId` das playlists continuar válido.
+    if (parent_id != null && !hasId) continue;
+
+    // Original: parent nulo. Cópia: nunca imutável. Snapshot antigo sem lineage = original.
+    let is_immutable;
+    if (parent_id != null) {
+      is_immutable = 0;
+    } else if (raw.is_immutable != null && raw.is_immutable !== '') {
+      is_immutable = Number(raw.is_immutable) === 1 ? 1 : 0;
+    } else {
+      is_immutable = 1;
+    }
+
+    const rootRaw = raw.root_id;
+    const rootNum = rootRaw == null || rootRaw === '' ? null : Number(rootRaw);
+    let root_id =
+      rootNum != null && Number.isFinite(rootNum) && rootNum > 0 ? Math.trunc(rootNum) : null;
+    if (root_id == null) {
+      if (parent_id == null && hasId) root_id = id;
+      else if (parent_id != null) root_id = parent_id;
+    }
+
+    const rotulo = raw.rotulo != null ? String(raw.rotulo).trim().slice(0, 40) : '';
+
+    const item = {
+      titulo,
+      artista,
+      estrofes,
+      parent_id,
+      root_id,
+      is_immutable,
+      rotulo,
+    };
+    if (hasId) {
       ids.add(id);
       item.id = id;
+      if (parent_id == null) item.root_id = id;
     }
     out.push(item);
   }
+
+  // Pais antes dos filhos (e root antes de ramos) para reinserção previsível.
+  out.sort((a, b) => {
+    const aOrig = a.parent_id == null ? 0 : 1;
+    const bOrig = b.parent_id == null ? 0 : 1;
+    if (aOrig !== bOrig) return aOrig - bOrig;
+    const aId = Number.isFinite(a.id) ? a.id : Number.MAX_SAFE_INTEGER;
+    const bId = Number.isFinite(b.id) ? b.id : Number.MAX_SAFE_INTEGER;
+    return aId - bId;
+  });
   return out;
 }
 
 function listarMusicasUsuarioParaSync() {
   return db
     .prepare(
-      `SELECT id, titulo, artista, estrofes FROM musicas
-       WHERE parent_id IS NULL
-       ORDER BY id ASC`
+      `SELECT id, titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo
+       FROM musicas
+       ORDER BY CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END, id ASC`
     )
     .all()
     .map((row) => {
@@ -692,11 +748,18 @@ function listarMusicasUsuarioParaSync() {
       } catch (_) {
         estrofes = [];
       }
+      const id = row.id;
+      const parent_id = row.parent_id != null ? row.parent_id : null;
+      const root_id = row.root_id != null ? row.root_id : id;
       return {
-        id: row.id,
+        id,
         titulo: String(row.titulo || '').trim(),
         artista: String(row.artista || '').trim(),
         estrofes: Array.isArray(estrofes) ? estrofes.map((s) => String(s ?? '')) : [],
+        parent_id,
+        root_id,
+        is_immutable: Number(row.is_immutable) === 1 ? 1 : 0,
+        rotulo: row.rotulo != null ? String(row.rotulo) : '',
       };
     })
     .filter((row) => row.titulo && row.estrofes.length);
@@ -705,14 +768,14 @@ function listarMusicasUsuarioParaSync() {
 function substituirMusicasUsuarioParaSync(musicas) {
   const itens = normalizarMusicasUsuarioParaSync(musicas);
   const insertWithId = db.prepare(
-    `INSERT INTO musicas (id, titulo, artista, estrofes, is_immutable, parent_id, root_id)
-     VALUES (?, ?, ?, ?, 1, NULL, ?)`
+    `INSERT INTO musicas (id, titulo, artista, estrofes, is_immutable, parent_id, root_id, rotulo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertAuto = db.prepare(
     'INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)'
   );
 
-  const tx = db.transaction((lista) => {
+  const aplicar = (lista) => {
     db.prepare('DELETE FROM musicas').run();
     try {
       db.prepare("DELETE FROM sqlite_sequence WHERE name='musicas'").run();
@@ -723,15 +786,34 @@ function substituirMusicasUsuarioParaSync(musicas) {
       const estrofesJson = JSON.stringify(item.estrofes);
       if (Number.isFinite(item.id) && item.id > 0) {
         const id = Math.trunc(item.id);
-        insertWithId.run(id, item.titulo, item.artista, estrofesJson, id);
+        const parent_id = item.parent_id != null ? item.parent_id : null;
+        const root_id =
+          item.root_id != null ? item.root_id : parent_id == null ? id : parent_id;
+        const is_immutable = parent_id == null ? 1 : 0;
+        const rotulo = parent_id == null ? null : item.rotulo ? String(item.rotulo).slice(0, 40) : null;
+        insertWithId.run(
+          id,
+          item.titulo,
+          item.artista,
+          estrofesJson,
+          is_immutable,
+          parent_id,
+          root_id,
+          rotulo
+        );
       } else {
+        // Sem id só aceitamos originais (compat com snapshots antigos).
         const info = insertAuto.run(item.titulo, item.artista, estrofesJson);
         finalizarMusicaOriginalAposInsert(info.lastInsertRowid);
       }
     }
-  });
+  };
 
-  tx(itens);
+  if (typeof db.transaction === 'function') {
+    db.transaction(aplicar)(itens);
+  } else {
+    aplicar(itens);
+  }
   return { ok: true, total: itens.length };
 }
 
@@ -759,5 +841,6 @@ module.exports = {
   resolverRootIdDaMusica,
   listarMusicasUsuarioParaSync,
   musicaIdPorTituloArtistaIgual,
+  normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
 };

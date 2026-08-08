@@ -24,6 +24,7 @@ const {
   obterMusicaUsuarioPorId,
   resolverRootIdDaMusica,
   rowMusicaParaJson,
+  normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
 } = require('./db');
 const { loadPlaylistsJson, savePlaylistsJson } = require('./lib/playlistsStore');
@@ -156,6 +157,10 @@ function cloneJsonSafe(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * Preserva `versaoLocalId` numérico (cópia no SQLite). Remove só IDs legados `c_*`
+ * de localStorage, que não existem na outra máquina.
+ */
 function sanitizePlaylistValue(value) {
   if (Array.isArray(value)) {
     return value
@@ -165,7 +170,14 @@ function sanitizePlaylistValue(value) {
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, raw] of Object.entries(value)) {
-    if (key === 'versaoLocalId') continue;
+    if (key === 'versaoLocalId') {
+      const vid = raw != null ? String(raw).trim() : '';
+      if (!vid || vid.startsWith('c_')) continue;
+      const n = Number(vid);
+      if (!Number.isFinite(n) || n <= 0) continue;
+      out[key] = String(Math.trunc(n));
+      continue;
+    }
     const next = sanitizePlaylistValue(raw);
     if (next !== undefined) out[key] = next;
   }
@@ -173,28 +185,7 @@ function sanitizePlaylistValue(value) {
 }
 
 function normalizeMusicasForSync(musicas) {
-  if (!Array.isArray(musicas)) return [];
-  const out = [];
-  const ids = new Set();
-  for (const raw of musicas) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
-    const titulo = String(raw.titulo || '').trim();
-    const artista = String(raw.artista || '').trim();
-    const estrofes = Array.isArray(raw.estrofes)
-      ? raw.estrofes.map((s) => String(s ?? '')).filter((s) => s.trim())
-      : [];
-    if (!titulo || !estrofes.length) continue;
-    const item = { titulo, artista, estrofes };
-    const idNum = Number(raw.id);
-    if (Number.isFinite(idNum) && idNum > 0) {
-      const id = Math.trunc(idNum);
-      if (ids.has(id)) continue;
-      ids.add(id);
-      item.id = id;
-    }
-    out.push(item);
-  }
-  return out;
+  return normalizarMusicasUsuarioParaSync(musicas);
 }
 
 function normalizePlaylistsForSync(playlists) {

@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 
-const SYNC_SCHEMA_VERSION = 1;
+const SYNC_SCHEMA_VERSION = 2;
 
 function toIsoOrEmpty(value) {
   const txt = String(value || '').trim();
@@ -23,6 +23,10 @@ function cloneJsonSafe(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * Preserva `versaoLocalId` numérico (cópia no SQLite). Remove só IDs legados `c_*`
+ * de localStorage, que não existem na outra máquina.
+ */
 function sanitizePlaylistValue(value) {
   if (Array.isArray(value)) {
     return value
@@ -32,13 +36,25 @@ function sanitizePlaylistValue(value) {
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, raw] of Object.entries(value)) {
-    if (key === 'versaoLocalId') continue;
+    if (key === 'versaoLocalId') {
+      const vid = raw != null ? String(raw).trim() : '';
+      if (!vid || vid.startsWith('c_')) continue;
+      const n = Number(vid);
+      if (!Number.isFinite(n) || n <= 0) continue;
+      out[key] = String(Math.trunc(n));
+      continue;
+    }
     const next = sanitizePlaylistValue(raw);
     if (next !== undefined) out[key] = next;
   }
   return out;
 }
 
+/**
+ * Normaliza músicas do snapshot preservando originais e cópias/versões
+ * (`parent_id`, `root_id`, `is_immutable`, `rotulo`). Snapshots antigos sem
+ * lineage continuam sendo tratados como originais.
+ */
 function normalizeMusicas(musicas) {
   if (!Array.isArray(musicas)) return [];
   const out = [];
@@ -51,16 +67,64 @@ function normalizeMusicas(musicas) {
       ? raw.estrofes.map((s) => String(s ?? '')).filter((s) => s.trim())
       : [];
     if (!titulo || !estrofes.length) continue;
+
     const idNum = Number(raw.id);
-    const item = { titulo, artista, estrofes };
-    if (Number.isFinite(idNum) && idNum > 0) {
-      const id = Math.trunc(idNum);
-      if (ids.has(id)) continue;
+    const hasId = Number.isFinite(idNum) && idNum > 0;
+    const id = hasId ? Math.trunc(idNum) : null;
+    if (hasId && ids.has(id)) continue;
+
+    const parentRaw = raw.parent_id;
+    const parentNum = parentRaw == null || parentRaw === '' ? null : Number(parentRaw);
+    const parent_id =
+      parentNum != null && Number.isFinite(parentNum) && parentNum > 0 ? Math.trunc(parentNum) : null;
+
+    if (parent_id != null && !hasId) continue;
+
+    let is_immutable;
+    if (parent_id != null) {
+      is_immutable = 0;
+    } else if (raw.is_immutable != null && raw.is_immutable !== '') {
+      is_immutable = Number(raw.is_immutable) === 1 ? 1 : 0;
+    } else {
+      is_immutable = 1;
+    }
+
+    const rootRaw = raw.root_id;
+    const rootNum = rootRaw == null || rootRaw === '' ? null : Number(rootRaw);
+    let root_id =
+      rootNum != null && Number.isFinite(rootNum) && rootNum > 0 ? Math.trunc(rootNum) : null;
+    if (root_id == null) {
+      if (parent_id == null && hasId) root_id = id;
+      else if (parent_id != null) root_id = parent_id;
+    }
+
+    const rotulo = raw.rotulo != null ? String(raw.rotulo).trim().slice(0, 40) : '';
+
+    const item = {
+      titulo,
+      artista,
+      estrofes,
+      parent_id,
+      root_id,
+      is_immutable,
+      rotulo,
+    };
+    if (hasId) {
       ids.add(id);
       item.id = id;
+      if (parent_id == null) item.root_id = id;
     }
     out.push(item);
   }
+
+  out.sort((a, b) => {
+    const aOrig = a.parent_id == null ? 0 : 1;
+    const bOrig = b.parent_id == null ? 0 : 1;
+    if (aOrig !== bOrig) return aOrig - bOrig;
+    const aId = Number.isFinite(a.id) ? a.id : Number.MAX_SAFE_INTEGER;
+    const bId = Number.isFinite(b.id) ? b.id : Number.MAX_SAFE_INTEGER;
+    return aId - bId;
+  });
   return out;
 }
 
@@ -161,5 +225,8 @@ module.exports = {
   compareUpdatedAt,
   loadSharedDbSnapshot,
   normalizeSharedDbSnapshot,
+  normalizeMusicas,
+  normalizePlaylists,
+  sanitizePlaylistValue,
   saveSharedDbSnapshot,
 };
