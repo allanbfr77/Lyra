@@ -483,6 +483,125 @@ test('exibir_versiculo com somenteTexto e reenviarDisplayConfig reenvia mesmo as
   );
 });
 
+/* ── Independência do OBS face à projeção física ────────────────────────────── */
+
+/**
+ * Motor que falha em tudo o que é janela física.
+ *
+ * Reproduz o mundo real do relatório: sem monitor externo, com a rota a apontar para um
+ * ecrã que já não existe, ou com a janela destruída a meio. O overlay do OBS não tem nada
+ * a ver com isso — e não pode emudecer por causa disso.
+ */
+function motorSemTelas() {
+  const base = motorFalso();
+  return {
+    ...base,
+    garantirTelasAbertasParaProjecao() {
+      base.chamadas.push(['garantirTelasAbertasParaProjecao']);
+      throw new Error('nenhum monitor de projeção disponível');
+    },
+    aplicarDisplayConfigNasJanelas(opts) {
+      base.chamadas.push(['aplicarDisplayConfigNasJanelas', opts]);
+      throw new Error('janela destruída');
+    },
+    render(arg) {
+      base.chamadas.push(['render', arg]);
+      throw new Error('sem janela para desenhar');
+    },
+  };
+}
+
+function eventosPorNome(eventos) {
+  return Object.fromEntries(eventos.map((ev) => [ev.nome, ev.dados]));
+}
+
+const ALVOS_DO_RELATORIO = ['publico', 'ministrante', 'ambos', 'live'];
+
+for (const alvo of ALVOS_DO_RELATORIO) {
+  test(`exibir_versiculo com alvo «${alvo}» alimenta sempre o overlay de Bíblia`, () => {
+    const state = estadoFalso();
+    const { eventos } = criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar(
+      'exibir_versiculo',
+      {
+        livro: 'João',
+        capitulo: '3',
+        versiculo: '16',
+        texto: 'Porque Deus amou o mundo',
+        alvoProjecao: alvo,
+      }
+    );
+
+    const porNome = eventosPorNome(eventos);
+    assert.ok('estado' in porNome, '/obs/slides recebe `estado`');
+    assert.ok('estado_biblia_obs' in porNome, '/obs/biblia recebe `estado_biblia_obs`');
+
+    const obs = porNome.estado_biblia_obs;
+    assert.equal(obs.tipo, 'biblia');
+    assert.equal(obs.titulo, 'João 3:16');
+    assert.deepEqual(obs.linhas, ['Porque Deus amou o mundo']);
+    assert.equal(obs.telaLimpa, false);
+  });
+
+  test(`exibir_versiculo com alvo «${alvo}» alimenta o OBS mesmo sem telas físicas`, () => {
+    const state = estadoFalso();
+    const engine = motorSemTelas();
+    const { eventos } = criarAplicadorDeComandos({ state, engine, logError: () => {} }).aplicar(
+      'exibir_versiculo',
+      {
+        livro: 'Salmos',
+        capitulo: '23',
+        versiculo: '1',
+        texto: 'O Senhor é o meu pastor',
+        alvoProjecao: alvo,
+      }
+    );
+
+    const porNome = eventosPorNome(eventos);
+    assert.ok('estado' in porNome, 'a rota /obs/slides continua a receber `estado`');
+    assert.equal(porNome.estado_biblia_obs.titulo, 'Salmos 23:1');
+    assert.deepEqual(porNome.estado_biblia_obs.linhas, ['O Senhor é o meu pastor']);
+    /* A camada física foi de facto tentada — a blindagem não a saltou. */
+    assert.ok(engine.chamadas.some((c) => c[0] === 'render'));
+  });
+}
+
+test('a falha das telas não impede o estado público de ser difundido', () => {
+  const engine = motorSemTelas();
+  const { eventos } = criarAplicadorDeComandos({
+    state: estadoFalso(),
+    engine,
+    logError: () => {},
+  }).aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'live' });
+
+  const estado = eventosPorNome(eventos).estado;
+  assert.ok(estado, '`estado` cai no valor de reserva em vez de ficar por difundir');
+});
+
+test('encerrar_projecao_biblia limpa o overlay mesmo com as telas a falhar', () => {
+  const state = estadoFalso({ estadoAtual: versiculoProjetado() });
+  const { eventos } = criarAplicadorDeComandos({
+    state,
+    engine: motorSemTelas(),
+    logError: () => {},
+  }).aplicar('encerrar_projecao_biblia');
+
+  assert.equal(eventosPorNome(eventos).estado_biblia_obs.telaLimpa, true);
+});
+
+test('a camada física falhada é registada, não engolida', () => {
+  const registados = [];
+  criarAplicadorDeComandos({
+    state: estadoFalso(),
+    engine: motorSemTelas(),
+    logError: (etapa) => registados.push(etapa),
+  }).aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'publico' });
+
+  assert.ok(
+    registados.some((e) => e.startsWith('camada-fisica-')),
+    `esperava um log de camada física, veio ${JSON.stringify(registados)}`
+  );
+});
+
 test('exibir_apresentacao monta os overrides de imagem nos dois canais', () => {
   const state = estadoFalso({ estadoAtual: musicaProjetada() });
   criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_apresentacao', {

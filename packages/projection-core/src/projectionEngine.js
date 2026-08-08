@@ -621,14 +621,39 @@ function createProjectionEngine(paths, deps) {
     atualizarLoopTopoAbsolutoProjecao();
   }
 
+  /**
+   * Pinta de preto as janelas que ficaram abertas quando a rota não tem monitor nenhum.
+   *
+   * ## Só janelas — o conteúdo não é dela
+   *
+   * Esta função já apagou o estado de projeção (`estadoAtual`, `projecaoLiveAtiva`,
+   * os dois overrides) além de pintar as janelas. Era a origem da dependência entre o
+   * OBS e a projeção física, e o caminho era este:
+   *
+   * ```
+   * exibir_versiculo grava estadoAtual = { tipo: 'biblia', … }   ← conteúdo existe
+   *   garantirTelasAbertasParaProjecao()
+   *     rota sem monitor (pub < 0, min < 0, sem escudo) e operador ligado
+   *       aplicarPretoInativoNasJanelasAbertas()
+   *         state.estadoAtual = ocioso                            ← conteúdo destruído
+   *   evBibliaObs() lê estadoAtual                                ← já vazio
+   * ```
+   *
+   * O overlay do OBS deriva de `estadoAtual`, e «Live — OBS» é precisamente uma rota sem
+   * monitor: `publicoIndex` e `ministranteIndex` ficam a -1 porque não há tela para onde
+   * apontar. Ou seja, escolher OBS garantia o ramo que apagava o versículo antes de ele
+   * ser difundido. E projetar primeiro num monitor «resolvia» porque aí a rota tinha um
+   * índice válido, o ramo não corria, e o estado sobrevivia — que é exactamente a
+   * sequência que o operador descobriu por tentativa.
+   *
+   * A rota diz **onde** desenhar. Não pode decidir **se existe** o que desenhar. Manter o
+   * estado aqui não muda nada no que se vê: este ramo só corre quando não há monitor
+   * roteado, e as janelas que sobrem recebem o payload ocioso logo abaixo, como sempre
+   * receberam.
+   */
   function aplicarPretoInativoNasJanelasAbertas() {
     const pubOcioso = estadoOciosoPublico();
     const minOcioso = estadoOciosoMinistrante();
-    state.projecaoLiveAtiva = false;
-    state.estadoPublicoOverride = null;
-    state.ministranteApresentacaoOverride = null;
-    state.estadoAtual = pubOcioso;
-    state.estadoMinistrante = minOcioso;
     atualizarDisplays(pubOcioso);
     atualizarDisplayMinistrante(minOcioso);
     registro.todas()

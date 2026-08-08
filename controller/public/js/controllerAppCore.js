@@ -111,6 +111,11 @@ import {
   guardarIdentidadesRota,
   restaurarRotaPorIdentidade,
 } from './modules/identidadeMonitores.js';
+import {
+  alvoDeRota,
+  rotaCobreAlvo,
+  resolverEnvioBiblia,
+} from './modules/rotaEnvioBiblia.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -805,16 +810,14 @@ async function emitirEncerrarApresentacaoPublicoAoServidor() {
   }
 }
 
-/** Destino da projeção (cabeçalho «Monitor»): desativado | publico | ministrante | ambos | live. */
+/**
+ * Destino da projeção (cabeçalho «Monitor»): desativado | publico | ministrante | ambos | live.
+ *
+ * Delega em `modules/rotaEnvioBiblia.js`: alvo e cobertura têm de sair da mesma regra, ou
+ * voltam a divergir como divergiam antes (ver o cabeçalho desse módulo).
+ */
 function obterAlvoProjecaoDeRota(rota) {
-  const r = normalizarRota(rota);
-  if (r.live) return 'live';
-  const pub = r.publicoIndex >= 0;
-  const min = r.ministranteIndex >= 0;
-  if (!pub && !min) return 'desativado';
-  if (pub && min) return 'ambos';
-  if (pub) return 'publico';
-  return 'ministrante';
+  return alvoDeRota(rota);
 }
 
 function obterAlvoProjecaoModoApresentacao() {
@@ -848,8 +851,14 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
 
   const alvo = obterAlvoProjecaoDeRota(rotasPorModo[modo]);
   if (alvo === 'desativado') return;
-  /* Em «Live — OBS» não há janelas de monitor a alimentar. */
-  if (alvo === 'live') return;
+  /*
+   * «Live — OBS» não tem janelas de monitor a alimentar — mas tem overlay. Em modo Mídias
+   * continua a não haver nada a reenviar (a mídia é servida por outro caminho); em modo
+   * Bíblia o reenvio é o que garante que o OBS recebe uma actualização válida no instante
+   * em que o destino passa a ser o OBS, em vez de depender do estado que por acaso tenha
+   * ficado da projeção física anterior.
+   */
+  if (alvo === 'live' && modo !== 'biblia') return;
   if (alvo === guardado.payload.alvoProjecao) return;
 
   /* O PUT já respondeu, mas a janela do monitor novo ainda está a carregar a página: o
@@ -875,23 +884,23 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
 }
 
 function monitoresRotaCobremAlvo(rota, alvo) {
-  if (alvo === 'desativado') return false;
-  if (alvo === 'live') return normalizarRota(rota).live;
-  const r = normalizarRota(rota);
-  const pub = r.publicoIndex >= 0;
-  const min = r.ministranteIndex >= 0;
-  if (alvo === 'publico') return pub;
-  if (alvo === 'ministrante') return min;
-  return pub && min;
+  return rotaCobreAlvo(rota, alvo);
 }
 
 function monitoresApresentacaoCobremAlvo(alvo) {
   return monitoresRotaCobremAlvo(rotasPorModo.apresentacao, alvo);
 }
 
-function monitoresBibliaCobremAlvo(alvo) {
-  return monitoresRotaCobremAlvo(rotasPorModo.biblia, alvo);
-}
+/*
+ * Não há `monitoresBibliaCobremAlvo()`.
+ *
+ * Existia, e era metade do defeito: perguntar «os monitores cobrem o alvo?» antes de
+ * enviar fazia a ausência de monitor físico calar o OBS. No Modo Bíblia a decisão passou
+ * inteira para `resolverEnvioBiblia()` (`modules/rotaEnvioBiblia.js`), que lê alvo e
+ * cobertura da mesma rota já sincronizada e nunca devolve «não enviar» por falta de tela.
+ * O modo Mídias continua a usar `monitoresApresentacaoCobremAlvo()`: ali o conteúdo é uma
+ * mídia servida às janelas, e sem janela não há o que enviar.
+ */
 
 const APRESENTACAO_CARD6_AVISO_CFG_PADRAO = Object.freeze({
   fontSize: 5.5,
@@ -15832,7 +15841,6 @@ async function bibliaSincronizarRotaComServidorSeMudou() {
 
 async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   if (!projecao.ligada()) return;
-  const alvo = obterAlvoProjecaoModoBiblia();
   const livroRef = bibliaNormalizarCampoReferencia(v?.livro) || bibliaNormalizarCampoReferencia(bibliaSelecionadoLivro);
   const capituloRef =
     bibliaNormalizarCampoReferencia(v?.capitulo) || bibliaNormalizarCampoReferencia(bibliaSelecionadoCap);
@@ -15843,11 +15851,21 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
   const navegacaoRapida =
     opts.navegacaoRapida === true ||
     (bibliaParteProjetadaChave != null && bibliaParteProjetadaChave !== chaveParte);
-  if (!navegacaoRapida) {
-    /* Sincroniza rota só na primeira projeção — evita PUT /api/display-routing a cada versículo. */
-    await bibliaSincronizarRotaComServidorSeMudou();
-  }
-  if (!monitoresBibliaCobremAlvo(alvo)) {
+
+  /*
+   * Sincronizar primeiro, ler o alvo depois — a ordem é a correcção, e está em
+   * `modules/rotaEnvioBiblia.js` (com o histórico do defeito) para poder ser testada.
+   *
+   * Sincroniza-se só na primeira projeção: evita um PUT /api/display-routing por versículo
+   * durante a navegação rápida, onde a rota já foi alinhada.
+   */
+  const { alvo, alvoEnvio, enviar } = await resolverEnvioBiblia({
+    sincronizarRota: navegacaoRapida ? null : bibliaSincronizarRotaComServidorSeMudou,
+    lerRota: () => rotasPorModo.biblia,
+  });
+  if (!enviar) {
+    /* Único motivo legítimo para não enviar: «Desativado» é o operador a dizer que não
+       quer projetar. Ausência de monitor físico não é — o OBS não precisa de nenhum. */
     if (!navegacaoRapida) alert(mensagemAlvoInvalidoBiblia(alvo));
     return;
   }
@@ -15860,7 +15878,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
     versiculo: versiculoRef,
     texto: v?.texto != null ? String(v.texto) : '',
     traducao: bibliaTraducaoAtual,
-    alvoProjecao: alvo,
+    alvoProjecao: alvoEnvio,
     somenteTexto: navegacaoRapida,
   };
   projecao.enfileirar('exibir_versiculo', payloadVersiculo);

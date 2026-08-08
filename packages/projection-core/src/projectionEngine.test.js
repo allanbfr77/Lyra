@@ -541,3 +541,96 @@ test('sem deriva nenhuma o motor não mexe nas janelas', () => {
     'janela no sítio certo não devia ser tocada'
   );
 });
+
+/**
+ * ── A rota diz ONDE desenhar, não SE existe o que desenhar ────────────────────
+ *
+ * Regressão do defeito relatado: «Live — OBS» sem monitor físico não chegava ao overlay.
+ *
+ * «Live — OBS» é, no ficheiro de roteamento, uma rota sem monitor nenhum — não há tela
+ * para onde apontar, então `publicoIndex` e `ministranteIndex` ficam a -1. Era exactamente
+ * esse o ramo em que `garantirTelasAbertasParaProjecao()` apagava `estadoAtual`,
+ * `projecaoLiveAtiva` e os overrides. Como o overlay do OBS deriva de `estadoAtual`, o
+ * versículo era destruído entre ser gravado e ser difundido.
+ *
+ * O sintoma tinha a forma de uma dependência de sequência: projetar primeiro num monitor
+ * punha um índice válido na rota, o ramo deixava de correr, e só então o OBS via conteúdo.
+ */
+function montarSemMonitorRoteado() {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-sem-monitor-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  /* Nenhum monitor roteado — é isto que «Live — OBS» grava. */
+  fs.writeFileSync(routingPath, JSON.stringify({
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: -1 },
+    apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+  }));
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [] }));
+
+  const state = armazemDeProjecao();
+  state.displayConfig.clock = { showClock: false, monitorRelogio: 'ministrante' };
+  /* Um versículo acabado de projetar em «Live — OBS». */
+  state.estadoAtual = {
+    tipo: 'biblia', titulo: 'João 3:16', livro: 'João', capitulo: '3', versiculo: '16',
+    linhas: ['Porque Deus amou o mundo'], telaLimpa: false, blackout: false, slidePretoFinal: false,
+  };
+  state.projecaoLiveAtiva = true;
+  state.estadoPublicoOverride = null;
+
+  const engine = createProjectionEngine(
+    { displayRoutingPath: () => routingPath, displaySettingsPath: () => settingsPath },
+    {
+      logError: () => {},
+      screen: { getAllDisplays: () => [DISPLAYS[0]], getPrimaryDisplay: () => DISPLAYS[0], on: () => {} },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+  return { state, engine };
+}
+
+test('REGRESSÃO: rota sem monitor não apaga o versículo em projeção', () => {
+  const { state, engine } = montarSemMonitorRoteado();
+
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.strictEqual(state.estadoAtual.tipo, 'biblia', 'o conteúdo tem de sobreviver à camada de janelas');
+  assert.strictEqual(state.estadoAtual.telaLimpa, false);
+  assert.deepStrictEqual(state.estadoAtual.linhas, ['Porque Deus amou o mundo']);
+  assert.strictEqual(state.projecaoLiveAtiva, true, '«Live — OBS» não pode ser desligado pela rota');
+});
+
+test('REGRESSÃO: o estado sobrevive a chamadas repetidas (versículo após versículo)', () => {
+  const { state, engine } = montarSemMonitorRoteado();
+  for (let i = 0; i < 5; i++) engine.garantirTelasAbertasParaProjecao();
+  assert.strictEqual(state.estadoAtual.tipo, 'biblia');
+  assert.strictEqual(state.projecaoLiveAtiva, true);
+});
+
+test('sem monitor roteado as janelas que sobram continuam a receber o payload ocioso', () => {
+  /* A contraparte: preservar o estado não pode acender uma tela que devia estar preta. */
+  const { state, engine } = montarSemMonitorRoteado();
+  engine.sincronizarJanelasRelogio();
+  const antes = engine.janelasDeProjecao().flatMap((e) => e.win.sends.length);
+  engine.garantirTelasAbertasParaProjecao();
+
+  const conteudoEnviado = engine
+    .janelasDeProjecao()
+    .flatMap((e) => e.win.sends)
+    .filter((s) => s.canal === 'atualizar')
+    .map((s) => s.payload);
+  assert.ok(
+    conteudoEnviado.every((p) => !p || p.telaLimpa === true || (Array.isArray(p.linhas) && p.linhas.length === 0)),
+    `nenhuma janela devia receber o versículo; recebeu: ${JSON.stringify(conteudoEnviado)}`
+  );
+  assert.ok(Array.isArray(antes));
+  assert.strictEqual(state.estadoAtual.tipo, 'biblia');
+});

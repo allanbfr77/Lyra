@@ -259,6 +259,44 @@ function criarAplicadorDeComandos(deps) {
       logError('sincronizar-janelas-relogio', err);
     }
   }
+
+  /**
+   * Executa a camada FÍSICA de um comando sem deixar que ela silencie o OBS.
+   *
+   * O overlay do OBS não é uma tela: é um cliente Socket.IO que só depende dos eventos
+   * devolvidos por `aplicar()`. Mas abrir/posicionar janelas do Electron falha por motivos
+   * que nada têm a ver com o overlay — monitor desligado a meio, janela destruída, rota a
+   * apontar para um ecrã que já não existe. Sem esta fronteira, uma dessas falhas propaga
+   * para fora de `aplicar()`, o host apanha-a no `catch` e NENHUM evento é difundido: o
+   * estado já mudou, mas o OBS continua a mostrar o versículo anterior, sem erro visível.
+   *
+   * Com a fronteira, a regra fica explícita: o estado é a fonte de verdade e os eventos
+   * saem sempre; desenhar nas telas é um efeito que pode falhar isoladamente.
+   *
+   * @template T
+   * @param {string} etapa Nome para o log.
+   * @param {() => T} fn
+   * @param {T} [fallback] Devolvido quando `fn` falha.
+   * @returns {T}
+   */
+  function camadaFisica(etapa, fn, fallback) {
+    try {
+      return fn();
+    } catch (err) {
+      logError(`camada-fisica-${etapa}`, err);
+      return fallback;
+    }
+  }
+
+  /**
+   * Estado público a difundir quando `engine.render()` não pôde correr.
+   *
+   * Derivar do estado (em vez de devolver `undefined`) mantém `/obs/slides` e o painel
+   * coerentes com o que o comando acabou de gravar.
+   */
+  function estadoPublicoDeReserva() {
+    return camadaFisica('estado-publico', () => engine.estadoPublicoParaSocketsOuApi(), null);
+  }
   if (!state || typeof state !== 'object') {
     throw new TypeError('criarAplicadorDeComandos: porta de estado inválida');
   }
@@ -298,8 +336,17 @@ function criarAplicadorDeComandos(deps) {
     encerrar_projecao_biblia() {
       state.projecaoLiveAtiva = false;
       projectionEncerrar.encerrarCamadaBiblia(state);
-      const { estadoPublico } = engine.render({ estado: state.estadoAtual });
-      engine.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
+      /* Mesmo raciocínio de `exibir_versiculo`: limpar o overlay do OBS não pode depender
+         de as janelas físicas aceitarem o frame de limpeza. */
+      const renderizado = camadaFisica(
+        'render-encerrar-biblia',
+        () => engine.render({ estado: state.estadoAtual }),
+        null
+      );
+      camadaFisica('display-config-encerrar-biblia', () =>
+        engine.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' })
+      );
+      const estadoPublico = renderizado ? renderizado.estadoPublico : estadoPublicoDeReserva();
       return [evEstado(estadoPublico), evBibliaObs()];
     },
 
@@ -437,18 +484,31 @@ function criarAplicadorDeComandos(deps) {
         ? null
         : { modo: 'biblia', titulo: '', atual: '', proximo: '', telaLimpa: true };
 
-      engine.garantirTelasAbertasParaProjecao();
+      /*
+       * A partir daqui é tudo camada física — e nada dela é pré-requisito do OBS.
+       *
+       * `garantirTelasAbertasParaProjecao()` decide janelas a partir da rota de monitores
+       * gravada em disco: sem monitor externo ela fecha tudo, e é legítimo. O overlay, esse,
+       * já tem o que precisa — `state.estadoAtual` foi escrito acima, incondicionalmente.
+       * Isolar cada passo garante que «não há tela para abrir» ou «a tela falhou a abrir»
+       * nunca se traduza em «o OBS não recebeu».
+       */
+      camadaFisica('garantir-telas-versiculo', () => engine.garantirTelasAbertasParaProjecao());
       /* Fundo/tipografia da Bíblia já estão nas janelas (o `preview_display_config` ao
          entrar no modo). Reenviar `display_config` a cada versículo — com `bgImage` em
          base64 — causava atraso visível na navegação. */
       const reenviarConfig = dados.reenviarDisplayConfig === true || dados.somenteTexto !== true;
       if (reenviarConfig) {
-        engine.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
+        camadaFisica('display-config-versiculo', () =>
+          engine.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' })
+        );
       }
-      const { estadoPublico } = engine.render({
-        estado: state.estadoAtual,
-        reforcarMinistrante: true,
-      });
+      const renderizado = camadaFisica(
+        'render-versiculo',
+        () => engine.render({ estado: state.estadoAtual, reforcarMinistrante: true }),
+        null
+      );
+      const estadoPublico = renderizado ? renderizado.estadoPublico : estadoPublicoDeReserva();
       return [evEstado(estadoPublico), evBibliaObs()];
     },
 
