@@ -101,7 +101,7 @@ function attachPublicProjectionRender(ctx) {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     const fontSize = Number(cfg.fontSize);
     return {
-      fontSize: Number.isFinite(fontSize) ? Math.min(9, Math.max(2.2, fontSize)) : 5.5,
+      fontSize: Number.isFinite(fontSize) ? Math.min(15, Math.max(2.2, fontSize)) : 5.5,
       textColor: normalizarCorHexAviso(cfg.textColor, '#ffffff'),
       backgroundColor: normalizarCorHexAviso(cfg.backgroundColor, '#000000'),
       transparentBackground: cfg.transparentBackground === true,
@@ -126,6 +126,8 @@ function attachPublicProjectionRender(ctx) {
         ...publico,
         fontFamily: 'CMG Sans, sans-serif',
         fontSize: aviso.fontSize,
+        /* Teto do Aviso (Ajustes › Aviso); slides/bíblia continuam no padrão 9. */
+        fontSizeMaxVh: 15,
         negrito: true,
         italico: aviso.italic,
         maiusculo: false,

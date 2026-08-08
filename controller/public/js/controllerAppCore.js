@@ -927,7 +927,7 @@ function normalizarCfgAvisoCard6(raw) {
   const cfg = raw && typeof raw === 'object' ? raw : {};
   const fontSize = Number(cfg.fontSize);
   if (Number.isFinite(fontSize)) {
-    base.fontSize = Math.min(9, Math.max(2.2, fontSize));
+    base.fontSize = Math.min(15, Math.max(2.2, fontSize));
   }
   base.textColor = normalizarCorHexCard6Aviso(cfg.textColor, base.textColor);
   base.backgroundColor = normalizarCorHexCard6Aviso(cfg.backgroundColor, base.backgroundColor);
@@ -18580,17 +18580,18 @@ function bootOverlaysEAppDialogCtrl() {
   aprimorarControlesVisuaisCfg();
 }
 
-/** Slider vh com pontinhos 0…9 + cores com código hex à direita. */
+/** Slider vh com pontinhos 0…max (atributo do input) + cores com código hex à direita. */
 function aprimorarControlesVisuaisCfg() {
   document.querySelectorAll('.cfg-modal .cfg-slider--vh').forEach((input) => {
     if (input.dataset.cfgTicks === '1') {
       sincronizarTicksSliderVh(input);
       return;
     }
+    const maxVh = Math.max(0, Math.round(Number(input.max) || 9));
     input.min = '0';
-    input.max = '9';
+    input.max = String(maxVh);
     input.step = '1';
-    const rounded = Math.max(0, Math.min(9, Math.round(Number(input.value) || 0)));
+    const rounded = Math.max(0, Math.min(maxVh, Math.round(Number(input.value) || 0)));
     input.value = String(rounded);
     input.dataset.cfgTicks = '1';
     const wrap = document.createElement('div');
@@ -18600,11 +18601,11 @@ function aprimorarControlesVisuaisCfg() {
     const ticks = document.createElement('div');
     ticks.className = 'cfg-size-ticks';
     ticks.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i <= 9; i += 1) {
+    for (let i = 0; i <= maxVh; i += 1) {
       const d = document.createElement('span');
       d.className = 'cfg-size-tick';
       d.dataset.n = String(i);
-      if (i === 0 || i === 9) d.setAttribute('data-label', String(i));
+      if (i === 0 || i === maxVh) d.setAttribute('data-label', String(i));
       ticks.appendChild(d);
     }
     wrap.appendChild(ticks);
@@ -18635,12 +18636,13 @@ function aprimorarControlesVisuaisCfg() {
 function sincronizarTicksSliderVh(input) {
   const wrap = input.closest('.cfg-size-wrap');
   if (!wrap) return;
-  const v = Math.max(0, Math.min(9, Math.round(Number(input.value) || 0)));
+  const maxVh = Math.max(0, Math.round(Number(input.max) || 9));
+  const v = Math.max(0, Math.min(maxVh, Math.round(Number(input.value) || 0)));
   if (String(input.value) !== String(v)) input.value = String(v);
   wrap.querySelectorAll('.cfg-size-tick').forEach((t) => {
     const n = Number(t.dataset.n);
     t.classList.toggle('ativo', n === v);
-    if (n === v || n === 0 || n === 9) t.setAttribute('data-label', String(n));
+    if (n === v || n === 0 || n === maxVh) t.setAttribute('data-label', String(n));
     else t.removeAttribute('data-label');
   });
 }

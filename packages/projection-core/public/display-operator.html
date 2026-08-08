@@ -247,7 +247,7 @@
       const cfg = raw && typeof raw === 'object' ? raw : {};
       const fontSize = Number(cfg.fontSize);
       return {
-        fontSize: Number.isFinite(fontSize) ? Math.min(9, Math.max(2.2, fontSize)) : 5.5,
+        fontSize: Number.isFinite(fontSize) ? Math.min(15, Math.max(2.2, fontSize)) : 5.5,
         textColor: normalizarCorHexAviso(cfg.textColor, '#ffffff'),
         backgroundColor: normalizarCorHexAviso(cfg.backgroundColor, '#000000'),
         transparentBackground: cfg.transparentBackground === true,

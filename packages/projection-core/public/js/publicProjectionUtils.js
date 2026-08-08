@@ -7,7 +7,7 @@
  *  - Validação de números
  *  - Cálculo da área útil do container
  *  - Renderização de linhas de texto como spans estilizados
- *  - Tamanho em vh (2.2–9) e line-height (1–2.4) alinhados ao painel Ministrante
+ *  - Tamanho em vh (2.2–9 nos slides; aviso até 15 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
  *  - Autoajuste horizontal (mesma regra que `display-operator.html`)
  *  - Aplicação imediata de wrap de texto
  *
@@ -42,13 +42,22 @@ function attachPublicProjectionUtils(ctx) {
     return ctx.elLetras;
   }
 
-  /** Mesma escala vh (2.2–9) que o painel Ministrante; migra JSON antigo 2–40. */
+  /**
+   * Escala vh do telão público.
+   *
+   * Teto por omissão: 9 (slides / bíblia). O aviso pode pedir até 15 via
+   * `pb.fontSizeMaxVh` — sem isso, valores 10–15 cairiam no ramo legado 2–40 e
+   * seriam remapeados para ~3–5 vh, e o seletor «aumentava» sem o texto crescer.
+   */
   function fontSizeVhPublico(pb) {
+    const maxPedido = Number(pb && pb.fontSizeMaxVh);
+    const teto = Number.isFinite(maxPedido) && maxPedido >= 2.2 ? maxPedido : 9;
     const v = Number(pb && pb.fontSize);
     if (!Number.isFinite(v)) return 5.5;
-    if (v >= 2.2 && v <= 9) return v;
-    if (v >= 2 && v <= 40) return 2.2 + ((v - 2) * (9 - 2.2)) / (40 - 2);
-    return Math.min(9, Math.max(2.2, v));
+    if (v >= 2.2 && v <= teto) return v;
+    /* JSON antigo 2–40 → vh 2.2–9. Só com o teto padrão: com teto > 9, 10–15 são vh reais. */
+    if (teto <= 9 && v >= 2 && v <= 40) return 2.2 + ((v - 2) * (9 - 2.2)) / (40 - 2);
+    return Math.min(teto, Math.max(2.2, v));
   }
 
   /** Line-height CSS absoluto (1–2.4), igual ministrante; legado: incremento −0.5…1 → 1+valor. */
@@ -196,7 +205,8 @@ function attachPublicProjectionUtils(ctx) {
   // Tecnica igual ao Holyrics: vh como unidade base + medidor invisivel
 
   /**
-   * Aplica `font-size` em vh (2.2–9) e, se o autoajuste estiver ativo (mesma regra
+   * Aplica `font-size` em vh (teto 9 nos slides; aviso pode ir a 15 via
+   * `fontSizeMaxVh`) e, se o autoajuste estiver activo (mesma regra
    * que `display-operator.html`: sem wrap → sempre ajusta; com wrap → só se
    * `autoFitLongLines`), reduz até a linha caber na largura útil.
    */
