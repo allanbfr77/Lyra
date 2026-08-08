@@ -263,8 +263,11 @@ seguinte. Este bloco é o que protege essa garantia.
       Servidor que caiu.
 - [ ] **Conectar** a um Servidor, fechar e reabrir → abre a **projetar nesta máquina**, com o badge
       em «PROJETANDO NESTA MÁQUINA» e o item do menu marcado. Não há ligação automática.
-- [ ] Depois desse reabrir, o **IP continua preenchido** no campo de Ajustes › Conexão — poupa-se a
-      redigitação, mas basta isso: nada se liga sozinho, é preciso clicar em «Conectar».
+- [ ] Depois desse reabrir, com **Lembrar IP** ligado, o **IP continua preenchido** no campo de
+      Ajustes › Conexão — poupa-se a redigitação, mas basta isso: nada se liga sozinho, é preciso
+      clicar em «Conectar».
+- [ ] Com **Lembrar IP** desligado: conectar, fechar e reabrir → o campo de IP vem **vazio** (o
+      endereço não sobrevive à sessão).
 - [ ] **Conectar, e reabrir com o Servidor desligado** → o Controlador projeta nesta máquina na
       mesma, sem erro nem espera. (Era este o cenário mau da versão que persistia o modo: abria a
       apontar para uma máquina ausente e não projetava nada.)

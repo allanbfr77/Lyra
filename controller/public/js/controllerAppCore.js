@@ -58,6 +58,7 @@ import {
   LS_COPIAS_LOCAIS,
   LS_IP_KEY,
   LS_IP_LEGACY,
+  LS_IP_LEMBRAR,
   LS_SLIDES_RAIL_PX,
   LS_SLIDES_PREVIEW_H_PX,
   LS_SLIDES_CHIP_ZOOM,
@@ -11693,8 +11694,8 @@ async function conectar() {
    * Servidor vale para esta sessão; o arranque seguinte volta a projetar nesta máquina.
    * Ver o bloco sobre persistência junto a `projecaoLocalEmCurso`.
    *
-   * O IP, esse, continua guardado (`LS_IP_KEY`) — poupa redigitação e não liga nada
-   * sozinho.
+   * O IP só fica guardado (`LS_IP_KEY`) se «Lembrar IP» estiver ligado — poupa
+   * redigitação e não liga nada sozinho. Sem a preferência, o endereço vale só nesta sessão.
    */
 
   /* Sem Servidor a que ligar (campo vazio, ou a 5510 desta máquina servida pelo próprio
@@ -11724,13 +11725,15 @@ async function conectar() {
 
   /* A projeção local NÃO se derruba aqui. Enquanto a ligação ao Servidor não confirmar, o
      local continua a projetar — uma tentativa que falha não faz perder a projeção. A troca
-     para o Servidor acontece só no `socket.on('connect')`, quando há de facto ligação. O
-     badge também não muda na tentativa: só passa a SERVIDOR (verde) quando a ligação vinga. */
+     para o Servidor acontece só no `socket.on('connect')`, quando há de facto ligação.
+     O badge passa a «conectando» já na tentativa e só a SERVIDOR (verde) no sucesso. */
   if (typeof io !== 'undefined') {
+    setStatusServidorRemoto('conectando');
     iniciarSocket(ip);
     return;
   }
   if (socketScriptLoading) return;
+  setStatusServidorRemoto('conectando');
   socketScriptLoading = true;
   const script = document.createElement('script');
   script.src = `http://${ip}:5510/socket.io/socket.io.js`;
@@ -11766,8 +11769,9 @@ async function conectar() {
  * configuração, nem em base de dados. A ligação ao Servidor é sempre um acto explícito do
  * operador — no badge ou em Ajustes › Conexão — repetido a cada abertura.
  *
- * Nota sobre `LS_IP_KEY`: o *endereço* continua guardado, e isso não contradiz o acima.
- * Guardar o IP poupa redigitação; não liga nada sozinho. Quem decide ligar é o clique.
+ * Nota sobre `LS_IP_KEY`: o *endereço* pode ficar guardado (preferência «Lembrar IP»),
+ * e isso não contradiz o acima. Guardar o IP poupa redigitação; não liga nada sozinho.
+ * Quem decide ligar é o clique. Sem «Lembrar IP», o campo limpa-se no próximo arranque.
  *
  * A chave `lyra_projetar_nesta_maquina`, de versões que persistiam a escolha, é apagada no
  * arranque por `migrarChavesLegadoLocalStorage` — ver `CHAVES_OBSOLETAS` nesse módulo.
@@ -12871,7 +12875,10 @@ socket.on('connect', async () => {
     temasPorCulto = loadTemasPorCulto();
     temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
     aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
-    if (typeof fecharOverlaysPainelCtrl === 'function') fecharOverlaysPainelCtrl();
+    /* Fecha Ajustes sem perguntar por alterações por salvar: a ligação não descarta o
+       rascunho (`cfgDirtyCtrl` mantém-se). `fecharCfgModal()` pediria confirmação e
+       atrapalhava o feedback de sucesso. */
+    document.getElementById('cfg-modal-overlay-ctrl')?.classList.remove('aberto');
     setStatusServidorRemoto('conectado');
     /* Ligação confirmada — e é só isso que acontece. O modo remoto NÃO se grava: vale para
        esta sessão e acaba com ela. No próximo arranque o Controlador volta a projetar
@@ -12879,7 +12886,7 @@ socket.on('connect', async () => {
     atualizarUiConexao(true);
     document.getElementById('info-ip').textContent = ip;
     atualizarUrlsObs();
-    try { localStorage.setItem(LS_IP_KEY, ip); } catch (_) {
+    try { persistirIpServidor(ip); } catch (_) {
   // intencional — erro ignorado
 }
     forcarRepinturaCompositorLyra();
@@ -13039,21 +13046,28 @@ function configurarAutoConectarAoAlternarJanelas() {
 /**
  * Badge do canto superior direito — só status, sem clique.
  *
- * Dois estados:
- *   - `ocioso`    → cinza,  texto «LOCAL»    — a projetar nesta máquina;
- *   - `conectado` → verde,  texto «SERVIDOR» — ligado a um Servidor remoto.
+ * Três estados:
+ *   - `ocioso`      → «Este PC» ativo   — a projetar nesta máquina;
+ *   - `conectando`  → «Servidor» amarelo (pulse) — tentativa em curso;
+ *   - `conectado`   → «Servidor» verde  — ligado a um Servidor remoto.
  *
- * Tentativa falhada não altera o badge: fica em LOCAL. Qualquer valor que não seja
- * `conectado` cai em `ocioso`.
+ * Falha (`tratarFalhaLigacaoServidor`) volta a `ocioso`. Qualquer valor desconhecido
+ * também cai em `ocioso`.
  */
 function setStatusServidorRemoto(estado) {
   const badge = document.getElementById('status-conn-badge');
   if (!badge) return;
-  const remoto = estado === 'conectado';
-  badge.className = 'status-seg ' + (remoto ? 'status-seg--remoto' : 'status-seg--local');
-  badge.title = remoto
-    ? 'Ligado ao Servidor remoto'
-    : 'A projetar nesta máquina';
+  let classe = 'status-seg--local';
+  let titulo = 'A projetar nesta máquina';
+  if (estado === 'conectado') {
+    classe = 'status-seg--remoto';
+    titulo = 'Ligado ao Servidor remoto';
+  } else if (estado === 'conectando') {
+    classe = 'status-seg--conectando';
+    titulo = 'A ligar ao Servidor…';
+  }
+  badge.className = 'status-seg ' + classe;
+  badge.title = titulo;
 }
 
 /** IPs desta máquina (LAN + loopback lógico). Evita tratar o motor local como Servidor remoto. */
@@ -13084,6 +13098,65 @@ function ipRemotoAlvo() {
   const doCampo = (document.getElementById('ip-input')?.value || '').trim();
   if (doCampo) return doCampo;
   try { return (readLsMigrate(LS_IP_KEY, LS_IP_LEGACY) || '').trim(); } catch (_) { return ''; }
+}
+
+/**
+ * Preferência «Lembrar IP»: omissão (chave ausente) = lembrar, para não mudar o hábito
+ * de quem já tinha o endereço guardado.
+ */
+function preferenciaLembrarIp() {
+  try {
+    const v = localStorage.getItem(LS_IP_LEMBRAR);
+    if (v === null || v === undefined || v === '') return true;
+    return v === '1' || v === 'true';
+  } catch (_) {
+    return true;
+  }
+}
+
+function limparIpGuardado() {
+  try {
+    localStorage.removeItem(LS_IP_KEY);
+    localStorage.removeItem(LS_IP_LEGACY);
+  } catch (_) {
+    // intencional — armazenamento indisponível
+  }
+}
+
+/** Grava ou apaga o IP conforme «Lembrar IP». O valor no campo da sessão não é alterado. */
+function persistirIpServidor(ip) {
+  if (!preferenciaLembrarIp()) {
+    limparIpGuardado();
+    return;
+  }
+  const valor = String(ip || '').trim();
+  try {
+    if (valor) localStorage.setItem(LS_IP_KEY, valor);
+    else limparIpGuardado();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+function sincronizarUiLembrarIp() {
+  const el = document.getElementById('cfg-lembrar-ip');
+  if (!el) return;
+  setCfgSwitchState(el, preferenciaLembrarIp());
+}
+
+function onCfgLembrarIpChange(ligado) {
+  const ativo = !!ligado;
+  try {
+    localStorage.setItem(LS_IP_LEMBRAR, ativo ? '1' : '0');
+  } catch (_) {
+    // intencional
+  }
+  sincronizarUiLembrarIp();
+  if (ativo) {
+    persistirIpServidor(document.getElementById('ip-input')?.value);
+  } else {
+    limparIpGuardado();
+  }
 }
 
 /**
@@ -14335,6 +14408,7 @@ exporCallbacksParaAtributosHtml({
   toggleDarkCtrl,
   onCfgGeralTemaChange,
   onCfgGeralVozChange,
+  onCfgLembrarIpChange,
   sincronizarFormCfgGeral,
   toggleCfgSwitch,
   getChkVal,
@@ -16576,8 +16650,13 @@ aplicarPreviewPainelOcultoNoDom();
 carregarPlaylistPreviewSlideOcultoDoArmazenamento();
 aplicarPlaylistPreviewSlideOcultoNoDom();
 
-const ipSalvo = readLsMigrate(LS_IP_KEY, LS_IP_LEGACY);
-if (ipSalvo) document.getElementById('ip-input').value = ipSalvo;
+sincronizarUiLembrarIp();
+if (preferenciaLembrarIp()) {
+  const ipSalvo = readLsMigrate(LS_IP_KEY, LS_IP_LEGACY);
+  if (ipSalvo) document.getElementById('ip-input').value = ipSalvo;
+} else {
+  limparIpGuardado();
+}
 carregarMusicas();
 setTimeout(() => carregarRoteamentoTelasDoServidor(), 120);
 
@@ -16715,7 +16794,7 @@ document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () =
 });
 
 document.getElementById('ip-input').addEventListener('change', (e) => {
-  localStorage.setItem(LS_IP_KEY, e.target.value);
+  persistirIpServidor(e.target.value);
   setTimeout(() => carregarRoteamentoTelasDoServidor(), 120);
 });
 

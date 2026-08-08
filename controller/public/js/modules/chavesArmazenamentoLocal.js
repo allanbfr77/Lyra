@@ -58,6 +58,8 @@ export const MAX_COPIAS_LOCAIS_POR_MUSICA = 5;
 
 export const LS_IP_KEY = 'lyra_ip';
 export const LS_IP_LEGACY = 'churchdisplay_ip';
+/** Preferência: gravar o IP do Servidor entre sessões (`1`/`0`; omissão = lembrar). */
+export const LS_IP_LEMBRAR = 'lyra_ip_lembrar';
 export const LS_SLIDES_RAIL_PX = 'lyra_slides_rail_px';
 /** Modo slides: altura (px) da faixa de prévias TELÃO/TV — ajustada arrastando a divisória. */
 export const LS_SLIDES_PREVIEW_H_PX = 'lyra_slides_preview_h_px';
