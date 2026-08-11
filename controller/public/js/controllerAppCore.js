@@ -5938,6 +5938,8 @@ let temaSelecionadoPorCulto = {};
 let temasPorCulto = {};
 /** Só permite editar/apagar estrofes após «Editar letra». */
 let modoEdicaoEstrofes = false;
+/** true = TODAS MAIÚSCULAS na edição; false = 1.ª maiúscula + resto minúsculas (por linha). */
+let caixaLetrasEdicaoMaiuscula = false;
 /** Coluna central: ver letra inteira num só bloco (cópia), em vez dos cartões por slide. */
 let modoLetraCompletaCentral = false;
 /** Cópia ao entrar no modo letra completa — «Cancelar» restaura isto (não aplica o textarea). */
@@ -11049,6 +11051,8 @@ function atualizarToolbarModoEdicao() {
   const sep1 = document.getElementById('toolbar-sep-1');
   if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
 
+  atualizarToolbarCaixaLetrasEdicao();
+
   /* Sem música a linha fica sem nenhum botão: esconder remove também a
      divisória que ela desenha por baixo dos campos de título/artista. */
   document
@@ -11476,10 +11480,119 @@ function atualizarToolbarModoLetraCompleta() {
   }
 }
 
+/** Caixa das letras só no modo edição (slides ou letra completa). */
+function atualizarToolbarCaixaLetrasEdicao() {
+  const btn = document.getElementById('btn-caixa-letras-edicao');
+  const sep = document.getElementById('toolbar-sep-caixa-letras');
+  const mostrar = !!musicaAtiva && (modoEdicaoEstrofes || modoLetraCompletaCentral);
+  if (sep) sep.style.display = mostrar ? '' : 'none';
+  if (!btn) return;
+  btn.style.display = mostrar ? '' : 'none';
+  btn.disabled = !mostrar;
+  btn.classList.toggle('ativo', !!caixaLetrasEdicaoMaiuscula);
+  btn.setAttribute('aria-pressed', caixaLetrasEdicaoMaiuscula ? 'true' : 'false');
+  btn.title = caixaLetrasEdicaoMaiuscula
+    ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
+    : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
+}
+
+/** Por linha: 1.ª letra maiúscula, restante minúsculas (preserva espaços à esquerda). */
+function textoEstrofeCaixaSentenca(texto) {
+  return String(texto ?? '')
+    .split(/\r\n|\r|\n/)
+    .map((line) => {
+      const m = line.match(/^(\s*)(.*)$/);
+      if (!m) return line;
+      const corpo = m[2];
+      if (!corpo) return line;
+      return m[1] + corpo.charAt(0).toLocaleUpperCase('pt-BR') + corpo.slice(1).toLocaleLowerCase('pt-BR');
+    })
+    .join('\n');
+}
+
+function textoEstrofeCaixaMaiuscula(texto) {
+  return String(texto ?? '').toLocaleUpperCase('pt-BR');
+}
+
+function aplicarCaixaLetrasAoTexto(texto) {
+  return caixaLetrasEdicaoMaiuscula
+    ? textoEstrofeCaixaMaiuscula(texto)
+    : textoEstrofeCaixaSentenca(texto);
+}
+
+/** Força MAIÚSCULAS no textarea preservando o cursor (só no modo aA activo). */
+function forcarMaiusculasNoTextareaSeAtivo(ta) {
+  if (!caixaLetrasEdicaoMaiuscula || !ta) return;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const up = textoEstrofeCaixaMaiuscula(ta.value);
+  if (up === ta.value) return;
+  ta.value = up;
+  try {
+    ta.setSelectionRange(start, end);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/** Aplica a caixa actual a todas as estrofes / textarea da edição. */
+function aplicarCaixaLetrasNasEstrofesEmEdicao() {
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
+  if (modoLetraCompletaCentral) {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    if (ta) {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      ta.value = aplicarCaixaLetrasAoTexto(ta.value);
+      try {
+        ta.setSelectionRange(start, end);
+      } catch (_) {
+        /* ignore */
+      }
+      sincronizarEstrofesDesdeTextareaLetraCompleta();
+      if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
+        guiasEstrofesLetraCompleta.agendar();
+      }
+    }
+  } else if (modoEdicaoEstrofes) {
+    musicaAtiva.estrofes = musicaAtiva.estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
+    renderEstrofesEditor();
+  }
+  renderSlidesStrip();
+  atualizarPreviewOperador();
+  if (projecaoMusicaEmitidaNoServidor && projecao.pronta() && estrofeAtiva >= 0) {
+    emitirEstrofeAoServidor(estrofeAtiva);
+  }
+}
+
+function alternarCaixaLetrasEdicao() {
+  if (!musicaAtiva || (!modoEdicaoEstrofes && !modoLetraCompletaCentral)) return;
+  if (modoEdicaoEstrofes && !modoLetraCompletaCentral) {
+    /* Sincroniza textareas abertos antes de transformar. */
+    document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta').forEach((ta) => {
+      const idx = parseInt(ta.dataset.i, 10);
+      if (Number.isFinite(idx) && musicaAtiva.estrofes[idx] != null) {
+        musicaAtiva.estrofes[idx] = ta.value;
+      }
+    });
+  }
+  caixaLetrasEdicaoMaiuscula = !caixaLetrasEdicaoMaiuscula;
+  aplicarCaixaLetrasNasEstrofesEmEdicao();
+  atualizarToolbarCaixaLetrasEdicao();
+}
+
 function configurarCamposMetadadosMusicaHome() {
   const atualizar = () => atualizarToolbarModoEdicao();
   document.getElementById('edit-titulo')?.addEventListener('input', atualizar);
   document.getElementById('edit-artista')?.addEventListener('input', atualizar);
+  const taFull = document.getElementById('centro-letra-completa-ta');
+  if (taFull && taFull.dataset.caixaLetrasLigada !== '1') {
+    taFull.dataset.caixaLetrasLigada = '1';
+    taFull.addEventListener('input', () => {
+      if (!modoLetraCompletaCentral) return;
+      forcarMaiusculasNoTextareaSeAtivo(taFull);
+    });
+  }
 }
 
 function entrarModoEdicao() {
@@ -11667,6 +11780,7 @@ function renderEstrofesEditor() {
       const taEst = div.querySelector('textarea');
       taEst.addEventListener('focus', () => aplicarAlturaCardEstrofe(div));
       taEst.addEventListener('input', (e) => {
+        forcarMaiusculasNoTextareaSeAtivo(e.target);
         const idx = parseInt(e.target.dataset.i, 10);
         const val = e.target.value;
         const parts = splitTextoEmEstrofesPorLinhaVaziaStrict(val);
@@ -15044,6 +15158,7 @@ exporCallbacksParaAtributosHtml({
   iniciarCriarNovaVersao,
   alternarModoLetraCompletaCentral,
   cancelarModoLetraCompletaCentral,
+  alternarCaixaLetrasEdicao,
   sairModoEdicao,
   salvarMusicaServidor,
   novaEstrofe,

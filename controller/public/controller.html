@@ -2186,6 +2186,40 @@
       background: var(--text);
     }
 
+    .centro-toolbar-acoes .btn-caixa-letras {
+      min-width: 36px;
+      padding: 5px 8px;
+      font-family: var(--font-ui);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+    .centro-toolbar-acoes .btn-caixa-letras .btn-caixa-letras-glyph {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 1px;
+      line-height: 1;
+      font-size: 15px;
+    }
+    .centro-toolbar-acoes .btn-caixa-letras .caixa-min {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .centro-toolbar-acoes .btn-caixa-letras .caixa-maj {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .centro-toolbar-acoes .btn-caixa-letras.ativo {
+      border-color: color-mix(in srgb, var(--text) 55%, var(--border));
+      color: var(--surface);
+      background: color-mix(in srgb, var(--text) 82%, var(--surface2));
+    }
+    .centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-min,
+    .centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-maj {
+      color: var(--surface);
+    }
+
     /* SAIR (limpa as telas de projecção): neutro em repouso, vermelho só
        no hover/foco — é reversível, mas não deve competir em repouso. */
     .centro-toolbar-acoes .btn.danger#btn-sair-projecao {
@@ -8447,12 +8481,14 @@
             <div id="musica-versoes-bar" class="musica-versoes-bar" hidden aria-label="Versões locais da música"></div>
           </div>
           <div class="centro-toolbar-row centro-toolbar-acoes" id="centro-toolbar-acoes">
-            <button type="button" class="btn" onclick="editarNomeVersaoSelecionada()" id="btn-editar-nome-versao" style="display:none" title="Renomear a cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 12 22l-9-9V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Editar nome</button>
+            <button type="button" class="btn" onclick="editarNomeVersaoSelecionada()" id="btn-editar-nome-versao" style="display:none" title="Renomear a tag da cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 12 22l-9-9V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Editar tag</button>
             <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Apagar cópia</button>
             <span class="toolbar-sep" id="toolbar-sep-1" aria-hidden="true" style="display:none"></span>
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar letra</button>
             <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto"><span class="btn-ico" id="ico-modo-letra-completa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg></span><span class="btn-txt" id="txt-modo-letra-completa">Modo letra completa</span></button>
             <button type="button" class="btn" onclick="cancelarModoLetraCompletaCentral()" id="btn-cancelar-letra-completa" style="display:none" title="Descarta as alterações desta sessão e volta aos slides"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancelar</button>
+            <span class="toolbar-sep" id="toolbar-sep-caixa-letras" aria-hidden="true" style="display:none"></span>
+            <button type="button" class="btn btn-caixa-letras" id="btn-caixa-letras-edicao" onclick="alternarCaixaLetrasEdicao()" style="display:none" title="Alternar caixa das letras (aA)" aria-label="Alternar maiúsculas e minúsculas" aria-pressed="false"><span class="btn-caixa-letras-glyph" aria-hidden="true"><span class="caixa-min">a</span><span class="caixa-maj">A</span></span></button>
             <button type="button" class="btn" onclick="novaEstrofe()" id="btn-nova-estrofe" disabled style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>Novo slide</button>
             <button type="button" class="btn primary" onclick="salvarMusicaServidor()" id="btn-salvar-musica" disabled style="display:none" title="Grava na versão seleccionada (original no servidor ou cópia local) e sai do modo edição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Salvar alterações</button>
             <button type="button" class="btn" onclick="sairModoEdicao()" id="btn-encerrar-edicao" style="display:none" title="Descarta todas as alterações desta sessão e sai do modo edição (não grava no servidor)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Encerrar edição</button>
