@@ -64,6 +64,8 @@ import {
   LS_SLIDES_PREVIEW_H_PX,
   LS_SLIDES_CHIP_ZOOM,
   CLOUD_SHARE_URL,
+  CLOUD_INVB_TONS_SYNC_URL,
+  LS_INVB_TONS_SYNC_AT,
   LS_FILTRO_TITULO,
   LS_FILTRO_ARTISTA,
   LS_FILTRO_LETRA,
@@ -93,6 +95,7 @@ import {
   htmlCorpoLinhaPlaylistSimples,
   carregarMinistrantesDoServidor,
   criarMinistranteNoServidor,
+  garantirMinistrantePorNomeNoServidor,
   renomearMinistranteNoServidor,
   excluirMinistranteNoServidor,
   buscarTomMemoria,
@@ -6614,8 +6617,10 @@ async function copiarCodigoCompartilhar(btn, codigo) {
 /**
  * Letra a enviar no código de compartilhamento = exatamente a versão do item na playlist.
  * (`id` = original/root; `versaoLocalId` = cópia escolhida, se houver.)
+ * Inclui ministrante (nome) e tom preenchidos na playlist — o destino resolve o cadastro pelo nome.
  */
 async function conteudoMusicaParaShare(it) {
+  const extrasShare = camposMinistranteTomParaShare(it);
   const vid = it.versaoLocalId != null && String(it.versaoLocalId).trim() ? String(it.versaoLocalId).trim() : '';
   if (vid && ehVersaoLocalLegada(vid)) {
     const c = encontrarCopiaLocal(it.id, vid);
@@ -6627,6 +6632,7 @@ async function conteudoMusicaParaShare(it) {
         // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
         // p/ exibição no destino; não recria fork/lineage entre bancos.
         rotulo: String(c.rotulo || it.versaoRotulo || '').trim(),
+        ...extrasShare,
       };
     }
   }
@@ -6644,7 +6650,52 @@ async function conteudoMusicaParaShare(it) {
     // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
     // p/ exibição no destino; não recria fork/lineage entre bancos.
     rotulo: String(m.rotulo || it.versaoRotulo || '').trim(),
+    ...extrasShare,
   };
+}
+
+/** Nome do ministrante + tom da linha da playlist (só se preenchidos). */
+function camposMinistranteTomParaShare(it) {
+  const out = {};
+  const nome = nomeMinistrantePorId(it?.ministranteId);
+  if (nome) out.ministrante = nome;
+  const tom = normalizarTomPlaylist(it?.tom);
+  if (tom) out.tom = tom;
+  return out;
+}
+
+/**
+ * Resolve ministrante/tom vindos do código C para IDs locais (+ memória de tom).
+ * @param {object} m payload da música no share
+ * @param {number} musicaId id root/cópia no banco local
+ * @param {string} [bancoFonte]
+ */
+async function aplicarMinistranteTomDoShareNaPlaylistMeta(m, musicaId, bancoFonte) {
+  const tom = normalizarTomPlaylist(m?.tom);
+  const nome = String(m?.ministrante || m?.ministranteNome || '').trim();
+  let ministranteId = null;
+  if (nome) {
+    try {
+      const min = await garantirMinistrantePorNomeNoServidor(getControllerApiBase(), nome);
+      if (min) ministranteId = normalizarMinistranteIdPlaylist(min.id);
+    } catch (_) {
+      // intencional — import segue sem ministrante
+    }
+  }
+  if (ministranteId && tom && Number.isFinite(Number(musicaId))) {
+    try {
+      await gravarTomMemoria(
+        getControllerApiBase(),
+        ministranteId,
+        Number(musicaId),
+        bancoFonte === 'catalog' ? 'catalog' : 'user',
+        tom
+      );
+    } catch (_) {
+      // intencional — playlist ainda recebe o tom mesmo se a memória falhar
+    }
+  }
+  return { ministranteId, tom };
 }
 
 async function compartilharPlaylist() {
@@ -6658,6 +6709,11 @@ async function compartilharPlaylist() {
   // Modal (mesmo app-dialog do restante do app) já abre no estado de carregamento.
   const modalWrap = abrirModalCompartilharPlaylist();
   try {
+    try {
+      await garantirMinistrantesCarregados();
+    } catch (_) {
+      // intencional — share segue; sem cache o nome do ministrante pode ficar de fora
+    }
     // Coleta estrofes de cada música via API local do controlador (sempre em localhost:3001)
     const musicas = [];
     for (const it of pl) {
@@ -6665,7 +6721,14 @@ async function compartilharPlaylist() {
       try {
         musicas.push(await conteudoMusicaParaShare(it));
       } catch (_) {
-        if (it.titulo) musicas.push({ titulo: it.titulo, artista: it.artista || '', estrofes: [] });
+        if (it.titulo) {
+          musicas.push({
+            titulo: it.titulo,
+            artista: it.artista || '',
+            estrofes: [],
+            ...camposMinistranteTomParaShare(it),
+          });
+        }
       }
     }
 
@@ -7355,11 +7418,15 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
           // Não grava nada: a playlist passa a apontar para a música já existente.
           const idExistente = Number(nova.existente?.id);
           if (Number.isFinite(idExistente) && idExistente > 0) {
+            const rootId = Number(nova.existente.rootId || idExistente);
+            const mt = await aplicarMinistranteTomDoShareNaPlaylistMeta(m, rootId, 'user');
             addMusicaNaPlaylistParaCulto(cultoDestino, {
-              id: Number(nova.existente.rootId || idExistente),
+              id: rootId,
               titulo: nova.existente.titulo || m.titulo,
               artista: nova.existente.artista || m.artista || '',
               bancoFonte: 'user',
+              ministranteId: mt.ministranteId,
+              tom: mt.tom,
             });
             importadas++;
             mantidas++;
@@ -7379,11 +7446,15 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
       // Rótulo de origem enviado no payload (ex.: 'CÓPIA'). Compat.: se o app
       // de origem não enviou, fica vazio e o item segue sem tag como hoje.
       const rotuloOrigem = String(m.rotulo || '').trim();
+      const idParaTom = nova.copyImportada ? Number(nova.id) : rootId;
+      const mt = await aplicarMinistranteTomDoShareNaPlaylistMeta(m, idParaTom, 'user');
       addMusicaNaPlaylistParaCulto(cultoDestino, {
         id: rootId,
         titulo: m.titulo,
         artista: m.artista || '',
         bancoFonte: 'user',
+        ministranteId: mt.ministranteId,
+        tom: mt.tom,
         ...(nova.copyImportada
           ? { versaoLocalId: String(nova.id), versaoRotulo: 'CÓPIA/IMPORTADA' }
           : rotuloOrigem
@@ -7400,6 +7471,11 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
 
   savePlaylists();
   renderSeletorTemasPlaylist();
+  try {
+    await carregarMinistrantesDoServidor(getControllerApiBase());
+  } catch (_) {
+    // intencional — selects usam cache; refresh best-effort
+  }
   renderPlaylist();
   // `carregarMusicas` não usa IP — o banco é sempre o :3001 desta máquina.
   // Um ReferenceError antigo em `ip` (variável inexistente aqui) impedia o
@@ -7723,17 +7799,23 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
     // intencional — erro ignorado
   }
 
-  initCultoSelect();
-  renderSeletorTemasPlaylist();
-  onCultoChange();
-  emitirPlaylistsDoControlador();
-
   try {
     await carregarMusicas();
     refreshListaBanco();
   } catch (_) {
     // intencional — erro ignorado
   }
+
+  try {
+    await carregarMinistrantesDoServidor(getControllerApiBase());
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+
+  initCultoSelect();
+  renderSeletorTemasPlaylist();
+  onCultoChange();
+  emitirPlaylistsDoControlador();
 
   if (opts.forcarRepintura !== false) {
     forcarRepinturaCompositorLyra();
@@ -8941,8 +9023,7 @@ async function onCfgImportTonsArquivoChange(ev) {
         : `Falha na importação (HTTP ${res.status}).`);
       throw new Error(detalhe);
     }
-    await renderListaCfgMinistrantes();
-    renderPlaylist();
+    await aposSyncTonsInvb(data);
     const msg =
       `Importação concluída.\n` +
       `Aplicados agora: ${data.aplicados || 0}\n` +
@@ -8957,6 +9038,115 @@ async function onCfgImportTonsArquivoChange(ev) {
   } catch (e) {
     alert(e.message || 'Falha ao importar tons.');
   }
+}
+
+/** Após sync/import de tons: refresca UI e playlists do disco se o servidor as alterou. */
+async function aposSyncTonsInvb(data) {
+  if (data?.updatedAt) {
+    try {
+      localStorage.setItem(LS_INVB_TONS_SYNC_AT, String(data.updatedAt));
+    } catch (_) {
+      // intencional
+    }
+  }
+  if (Number(data?.playlistsAtualizadas) > 0) {
+    try {
+      const res = await fetch(`${getControllerApiBase()}/api/playlists`);
+      if (res.ok) {
+        const remoto = await res.json();
+        if (remoto && typeof remoto === 'object' && !Array.isArray(remoto)) {
+          playlists = remoto;
+          try {
+            localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists));
+          } catch (_) {
+            // intencional
+          }
+        }
+      }
+    } catch (_) {
+      // intencional
+    }
+  }
+  await renderListaCfgMinistrantes();
+  renderPlaylist();
+  refrescarAberturaM3SeMusicaAtivaNaPlaylist();
+}
+
+/**
+ * Sincroniza tons/ministrantes do site Tom Louvores.
+ * @param {{ silencioso?: boolean }} [opts]
+ */
+async function sincronizarTonsInvbDoSite(opts = {}) {
+  const silencioso = opts.silencioso === true;
+  const outEl = document.getElementById('cfg-tom-import-resultado');
+  const since = (() => {
+    try {
+      return String(localStorage.getItem(LS_INVB_TONS_SYNC_AT) || '').trim();
+    } catch (_) {
+      return '';
+    }
+  })();
+  const body = {};
+  if (CLOUD_INVB_TONS_SYNC_URL) {
+    body.fonte = 'cloud';
+    body.cloudUrl = CLOUD_INVB_TONS_SYNC_URL;
+    if (since) body.since = since;
+  } else {
+    body.fonte = 'supabase';
+  }
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/tom-memoria/sync-invb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.erro || `Falha no sync (HTTP ${res.status}).`);
+    if (data.semMudanca) {
+      if (!silencioso && outEl) {
+        outEl.hidden = false;
+        outEl.textContent = 'Tons do site já estavam atualizados.';
+      }
+      return data;
+    }
+    await aposSyncTonsInvb(data);
+    const msg =
+      `Sync do site (${data.origem || 'supabase'}).\n` +
+      `Aplicados: ${data.aplicados || 0} · Pendentes: ${data.pendentes || 0} · ` +
+      `Ministrantes novos: ${data.ministrantesCriados || 0}` +
+      (data.playlistsAtualizadas
+        ? `\nPlaylist: ${data.playlistsAtualizadas} tom(ns) atualizado(s).`
+        : '');
+    if (outEl) {
+      outEl.hidden = false;
+      outEl.textContent = msg;
+    }
+    if (!silencioso) alert(msg);
+    return data;
+  } catch (e) {
+    if (!silencioso) alert(e.message || 'Falha ao sincronizar tons do site.');
+    throw e;
+  }
+}
+
+async function onCfgSyncTonsInvbClick() {
+  try {
+    await sincronizarTonsInvbDoSite({ silencioso: false });
+  } catch (_) {
+    // alerta já mostrado
+  }
+}
+
+let invbTonsSyncTimer = null;
+function iniciarSyncPeriodicoTonsInvb() {
+  clearInterval(invbTonsSyncTimer);
+  /* Primeira passagem após arranque (site → memória local). */
+  setTimeout(() => {
+    sincronizarTonsInvbDoSite({ silencioso: true }).catch(() => {});
+  }, 8000);
+  invbTonsSyncTimer = setInterval(() => {
+    sincronizarTonsInvbDoSite({ silencioso: true }).catch(() => {});
+  }, 5 * 60 * 1000);
 }
 
 /** Ordem da playlist respeitando marcadores de tema (cabeçalhos mesmo sem música). */
@@ -9710,13 +9900,13 @@ function obterTomPlaylistMusicaAtiva() {
   return normalizarTomPlaylist(it?.tom);
 }
 
-/** Título do 1.º slide M3: título + tom quando cadastrado. */
+/** Título do 1.º slide M3: «[ Título / Tom ]» quando o tom estiver cadastrado. */
 function tituloAberturaM3MusicaAtiva(tituloBase) {
   const tit = String(tituloBase || musicaAtiva?.titulo || '').trim();
   const tom = obterTomPlaylistMusicaAtiva();
-  if (!tit) return tom;
+  if (!tit) return tom ? `[ ${tom} ]` : '';
   if (!tom) return tit;
-  return `${tit}  ·  ${tom}`;
+  return `[ ${tit} / ${tom} ]`;
 }
 
 function limparPreviewTituloMusicaAbertura() {
@@ -15224,6 +15414,7 @@ exporCallbacksParaAtributosHtml({
   limparCfgBusca,
   onCfgMinistranteAdicionar,
   onCfgImportTonsArquivoChange,
+  onCfgSyncTonsInvbClick,
   setPosCtrl,
   salvarCfgNoServidor,
   onBancoFonteChange,
@@ -17363,6 +17554,7 @@ try {
   atualizarBtnModoBiblia();
   configurarObserverPreviewMinistrante();
   garantirMinistrantesCarregados().catch(() => {});
+  iniciarSyncPeriodicoTonsInvb();
 
   if (typeof window !== 'undefined' && window.lyraElectron?.onMusicasSincronizadas) {
     window.lyraElectron.onMusicasSincronizadas((payload) => {

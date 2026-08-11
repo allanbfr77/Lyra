@@ -1,0 +1,17 @@
+{
+  "name": "invb-webhook-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Recebe webhooks do Supabase (Tom Louvores) e expõe sync de tons para o Lyra",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

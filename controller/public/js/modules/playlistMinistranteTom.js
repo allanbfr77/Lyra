@@ -160,6 +160,33 @@ export async function criarMinistranteNoServidor(apiBase, nome) {
 }
 
 /**
+ * Garante ministrante pelo nome (cria se ainda não existir). Usado no import do código C.
+ * @param {string} apiBase
+ * @param {string} nomeRaw
+ * @returns {Promise<{ id: number, nome: string }|null>}
+ */
+export async function garantirMinistrantePorNomeNoServidor(apiBase, nomeRaw) {
+  const nome = String(nomeRaw || '').trim();
+  if (!nome) return null;
+  await carregarMinistrantesDoServidor(apiBase);
+  const nomeKey = nome.toLocaleLowerCase('pt-BR');
+  const existente = cacheMinistrantes.find(
+    (m) => String(m.nome || '').toLocaleLowerCase('pt-BR') === nomeKey
+  );
+  if (existente) return { id: Number(existente.id), nome: String(existente.nome || nome) };
+  try {
+    const criado = await criarMinistranteNoServidor(apiBase, nome);
+    return { id: Number(criado.id), nome: String(criado.nome || nome) };
+  } catch (_) {
+    await carregarMinistrantesDoServidor(apiBase);
+    const deNovo = cacheMinistrantes.find(
+      (m) => String(m.nome || '').toLocaleLowerCase('pt-BR') === nomeKey
+    );
+    return deNovo ? { id: Number(deNovo.id), nome: String(deNovo.nome || nome) } : null;
+  }
+}
+
+/**
  * @param {string} apiBase
  * @param {number} id
  * @param {string} nome

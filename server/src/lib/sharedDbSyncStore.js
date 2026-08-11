@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 
-const SYNC_SCHEMA_VERSION = 2;
+const SYNC_SCHEMA_VERSION = 3;
 
 function toIsoOrEmpty(value) {
   const txt = String(value || '').trim();
@@ -139,6 +139,62 @@ function normalizePlaylists(playlists) {
   return out;
 }
 
+const TONS_SYNC_VALIDOS = new Set([
+  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
+  'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+]);
+
+function normalizeMinistrantes(ministrantes) {
+  if (!Array.isArray(ministrantes)) return [];
+  const out = [];
+  const ids = new Set();
+  const nomes = new Set();
+  for (const raw of ministrantes) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const idNum = Number(raw.id);
+    const id = Number.isFinite(idNum) && idNum > 0 ? Math.trunc(idNum) : null;
+    const nome = String(raw.nome || '').trim();
+    if (!id || !nome || ids.has(id)) continue;
+    const nomeKey = nome.toLocaleLowerCase('pt-BR');
+    if (nomes.has(nomeKey)) continue;
+    ids.add(id);
+    nomes.add(nomeKey);
+    out.push({ id, nome: nome.slice(0, 80) });
+  }
+  out.sort((a, b) => a.id - b.id);
+  return out;
+}
+
+function normalizeTomMemoria(itens) {
+  if (!Array.isArray(itens)) return [];
+  const out = [];
+  const chaves = new Set();
+  for (const raw of itens) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const ministranteId = Number(raw.ministranteId ?? raw.ministrante_id);
+    const musicaId = Number(raw.musicaId ?? raw.musica_id);
+    if (!Number.isFinite(ministranteId) || ministranteId <= 0) continue;
+    if (!Number.isFinite(musicaId) || musicaId <= 0) continue;
+    const bancoFonte = raw.bancoFonte === 'catalog' || raw.banco_fonte === 'catalog' || raw.fonte === 'catalog'
+      ? 'catalog'
+      : 'user';
+    const tom = String(raw.tom || '').trim();
+    if (!TONS_SYNC_VALIDOS.has(tom)) continue;
+    const mid = Math.trunc(ministranteId);
+    const uid = Math.trunc(musicaId);
+    const chave = `${mid}|${uid}|${bancoFonte}`;
+    if (chaves.has(chave)) continue;
+    chaves.add(chave);
+    out.push({ ministranteId: mid, musicaId: uid, bancoFonte, tom });
+  }
+  out.sort((a, b) => {
+    if (a.ministranteId !== b.ministranteId) return a.ministranteId - b.ministranteId;
+    if (a.musicaId !== b.musicaId) return a.musicaId - b.musicaId;
+    return a.bancoFonte.localeCompare(b.bancoFonte);
+  });
+  return out;
+}
+
 function normalizeCultosManuais(cultosManuais) {
   if (!Array.isArray(cultosManuais)) return [];
   return cultosManuais
@@ -186,7 +242,7 @@ function normalizeAberturaRemovidaPorCulto(aberturaRemovidaPorCulto) {
 
 function normalizeSharedDbSnapshot(snapshot, opts = {}) {
   const src = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {};
-  return {
+  const out = {
     schemaVersion: SYNC_SCHEMA_VERSION,
     updatedAt: toIsoOrEmpty(src.updatedAt) || toIsoOrEmpty(opts.fallbackUpdatedAt) || '',
     musicas: normalizeMusicas(src.musicas),
@@ -195,6 +251,11 @@ function normalizeSharedDbSnapshot(snapshot, opts = {}) {
     temasPorCulto: normalizeTemasPorCulto(src.temasPorCulto),
     aberturaRemovidaPorCulto: normalizeAberturaRemovidaPorCulto(src.aberturaRemovidaPorCulto),
   };
+  if (Array.isArray(src.ministrantes)) {
+    out.ministrantes = normalizeMinistrantes(src.ministrantes);
+    out.tomMemoria = normalizeTomMemoria(src.tomMemoria);
+  }
+  return out;
 }
 
 function loadSharedDbSnapshot(sharedDbSyncPathFn) {
@@ -227,6 +288,8 @@ module.exports = {
   normalizeSharedDbSnapshot,
   normalizeMusicas,
   normalizePlaylists,
+  normalizeMinistrantes,
+  normalizeTomMemoria,
   sanitizePlaylistValue,
   saveSharedDbSnapshot,
 };

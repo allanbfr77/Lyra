@@ -27,6 +27,11 @@ const {
   normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
   listarMinistrantesNoDb,
+  listarMinistrantesParaSync,
+  normalizarMinistrantesParaSync,
+  listarTomMemoriaParaSync,
+  normalizarTomMemoriaParaSync,
+  substituirMinistrantesETomMemoriaParaSync,
   inserirMinistranteNoDb,
   atualizarMinistranteNoDb,
   apagarMinistranteNoDb,
@@ -46,6 +51,11 @@ const cifra = require('./lib/cifraLetras');
 const letrasMus = require('./lib/letrasMusBr');
 const indiceBusca = require('./lib/indiceMusicasBusca');
 const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
+const {
+  buildImportPayloadFromSupabase,
+  payloadImportFromWebhookBody,
+} = require('./lib/invbTonsFromSupabase');
+const { aplicarTonsImportNasPlaylists } = require('./lib/aplicarTonsImportPlaylists');
 
 const HTTP_CONTROLLER_PORT = 3001;
 const NOMES_TRADUCAO_BIBLIA = {
@@ -226,7 +236,7 @@ function normalizarSnapshotCompartilhado(snapshot, paths, opts = {}) {
         opts.preserveCurrentUpdatedAt && metaAtual.updatedAt ? metaAtual.updatedAt : new Date().toISOString(),
     }
   );
-  return {
+  const out = {
     updatedAt: meta.updatedAt,
     musicas: normalizeMusicasForSync(src.musicas),
     playlists: normalizePlaylistsForSync(src.playlists),
@@ -234,6 +244,12 @@ function normalizarSnapshotCompartilhado(snapshot, paths, opts = {}) {
     temasPorCulto: meta.temasPorCulto,
     aberturaRemovidaPorCulto: meta.aberturaRemovidaPorCulto,
   };
+  /* Snapshots antigos sem estes campos: não forçar [] (evita apagar cadastro local). */
+  if (Array.isArray(src.ministrantes)) {
+    out.ministrantes = normalizarMinistrantesParaSync(src.ministrantes);
+    out.tomMemoria = normalizarTomMemoriaParaSync(src.tomMemoria);
+  }
+  return out;
 }
 
 function montarSnapshotCompartilhadoLocal(paths) {
@@ -245,6 +261,8 @@ function montarSnapshotCompartilhadoLocal(paths) {
     cultosManuais: meta.cultosManuais,
     temasPorCulto: meta.temasPorCulto,
     aberturaRemovidaPorCulto: meta.aberturaRemovidaPorCulto,
+    ministrantes: listarMinistrantesParaSync(),
+    tomMemoria: listarTomMemoriaParaSync(),
   };
 }
 
@@ -572,6 +590,7 @@ async function iniciarServidorController(ctx, paths) {
     try {
       const nome = req.body && req.body.nome != null ? req.body.nome : '';
       const criado = inserirMinistranteNoDb(nome);
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
       res.status(201).json(criado);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -582,6 +601,7 @@ async function iniciarServidorController(ctx, paths) {
     try {
       const nome = req.body && req.body.nome != null ? req.body.nome : '';
       const atualizado = atualizarMinistranteNoDb(req.params.id, nome);
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
       res.json(atualizado);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -590,7 +610,9 @@ async function iniciarServidorController(ctx, paths) {
 
   expressApp.delete('/api/ministrantes/:id', (req, res) => {
     try {
-      res.json(apagarMinistranteNoDb(req.params.id));
+      const out = apagarMinistranteNoDb(req.params.id);
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      res.json(out);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
     }
@@ -614,6 +636,7 @@ async function iniciarServidorController(ctx, paths) {
         body.fonte,
         body.tom
       );
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
       res.json(out);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -625,9 +648,106 @@ async function iniciarServidorController(ctx, paths) {
     try {
       const body = req.body;
       const resumo = importarTonsMemoriaDeArquivo(body);
-      res.json({ ok: true, ...resumo });
+      const pl = aplicarTonsImportNasPlaylists(
+        paths.playlistsJsonPath,
+        Array.isArray(body?.itens) ? body.itens : body?.musicas || []
+      );
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      res.json({ ok: true, ...resumo, playlistsAtualizadas: pl.atualizadas });
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  /**
+   * Sincroniza tons/ministrantes a partir do site (Supabase) ou da API webhook na nuvem.
+   * Body opcional: { fonte: 'supabase'|'cloud', since?: string }
+   */
+  expressApp.post('/api/tom-memoria/sync-invb', async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const fontePedida = String(body.fonte || '').trim().toLowerCase();
+      const cloudBase = String(
+        process.env.INVB_TONS_SYNC_URL || body.cloudUrl || ''
+      )
+        .trim()
+        .replace(/\/$/, '');
+      const since = String(body.since || '').trim();
+
+      let payload;
+      let origem = 'supabase';
+      let cloudUpdatedAt = '';
+
+      if ((fontePedida === 'cloud' || (!fontePedida && cloudBase)) && cloudBase) {
+        origem = 'cloud';
+        const q = since ? `?since=${encodeURIComponent(since)}` : '';
+        const r = await fetch(`${cloudBase}/api/invb/tons-sync${q}`);
+        if (r.status === 204) {
+          return res.json({
+            ok: true,
+            origem,
+            semMudanca: true,
+            updatedAt: since,
+            aplicados: 0,
+            pendentes: 0,
+            playlistsAtualizadas: 0,
+          });
+        }
+        if (!r.ok) {
+          const errTxt = await r.text().catch(() => '');
+          throw Object.assign(new Error(`Cloud sync HTTP ${r.status}: ${errTxt}`), {
+            statusCode: 502,
+          });
+        }
+        payload = await r.json();
+        cloudUpdatedAt = String(payload.updatedAt || '');
+      } else {
+        payload = await buildImportPayloadFromSupabase();
+        cloudUpdatedAt = payload.gerado_em || new Date().toISOString();
+      }
+
+      const resumo = importarTonsMemoriaDeArquivo(payload);
+      const pl = aplicarTonsImportNasPlaylists(paths.playlistsJsonPath, payload.itens || []);
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      res.json({
+        ok: true,
+        origem,
+        updatedAt: cloudUpdatedAt,
+        ...resumo,
+        playlistsAtualizadas: pl.atualizadas,
+      });
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
+  /**
+   * Recebe o mesmo payload do webhook Supabase (útil com túnel ngrok no Controlador).
+   * Em produção preferir a API na nuvem + sync-invb.
+   */
+  expressApp.post('/api/tom-memoria/webhook-invb', (req, res) => {
+    try {
+      const secretEsperado = String(process.env.LYRA_INVB_WEBHOOK_SECRET || '').trim();
+      if (secretEsperado) {
+        const got = String(req.get('x-lyra-webhook-secret') || '').trim();
+        if (got !== secretEsperado) {
+          return res.status(401).json({ ok: false, erro: 'secret inválido' });
+        }
+      }
+      const payload = payloadImportFromWebhookBody(req.body || {});
+      if (!payload.itens || !payload.itens.length) {
+        return res.json({
+          ok: true,
+          ignorado: true,
+          motivo: 'evento sem pares tom/ministrante válidos',
+        });
+      }
+      const resumo = importarTonsMemoriaDeArquivo(payload);
+      const pl = aplicarTonsImportNasPlaylists(paths.playlistsJsonPath, payload.itens);
+      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      res.json({ ok: true, ...resumo, playlistsAtualizadas: pl.atualizadas });
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ ok: false, erro: e.message || String(e) });
     }
   });
 
@@ -683,6 +803,9 @@ async function iniciarServidorController(ctx, paths) {
 
     substituirMusicasUsuarioParaSync(incoming.musicas);
     savePlaylistsJson(paths.playlistsJsonPath, incoming.playlists);
+    if (Array.isArray(incoming.ministrantes)) {
+      substituirMinistrantesETomMemoriaParaSync(incoming.ministrantes, incoming.tomMemoria);
+    }
     saveSharedSyncMeta(
       paths.sharedSyncMetaPath,
       {

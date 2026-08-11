@@ -330,7 +330,7 @@ test('9) playlist recebida aponta exatamente para as mesmas versões da origem',
     playlists: origem,
   });
 
-  assert.strictEqual(SYNC_SCHEMA_VERSION, 2);
+  assert.strictEqual(SYNC_SCHEMA_VERSION, 3);
   assert.strictEqual(idEfetivoPlaylist(snapshot.playlists.sabado[0]), rootId);
   assert.strictEqual(idEfetivoPlaylist(snapshot.playlists.sabado[1]), c1.id);
   assert.strictEqual(idEfetivoPlaylist(snapshot.playlists.sabado[2]), c2.id);
@@ -430,4 +430,56 @@ test('normalizeMusicas do servidor alinha com o controlador (cópias + tags)', (
   assert.strictEqual(b[1].rotulo, 'CÓPIA/IMPORTADA');
   assert.strictEqual(a[1].parent_id, 1);
   assert.strictEqual(b[1].parent_id, 1);
+});
+
+test('11) sync preserva ministranteId/tom na playlist e cadastro+tom_memoria', () => {
+  const {
+    listarMinistrantesParaSync,
+    listarTomMemoriaParaSync,
+    substituirMinistrantesETomMemoriaParaSync,
+    inserirMinistranteNoDb,
+    gravarTomMemoriaNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Com Tom', 'Banda', ['letra']);
+  const min = inserirMinistranteNoDb('Cris');
+  gravarTomMemoriaNoDb(min.id, musicaId, 'user', 'G#');
+
+  const sanitizado = sanitizePlaylistValue({
+    id: musicaId,
+    titulo: 'Com Tom',
+    artista: 'Banda',
+    ministranteId: min.id,
+    tom: 'G#',
+  });
+  assert.strictEqual(sanitizado.ministranteId, min.id);
+  assert.strictEqual(sanitizado.tom, 'G#');
+
+  const snap = normalizeSharedDbSnapshot({
+    updatedAt: new Date().toISOString(),
+    musicas: listarMusicasUsuarioParaSync(),
+    playlists: { culto: [sanitizado] },
+    ministrantes: listarMinistrantesParaSync(),
+    tomMemoria: listarTomMemoriaParaSync(),
+  });
+  assert.ok(Array.isArray(snap.ministrantes));
+  assert.strictEqual(snap.ministrantes.length, 1);
+  assert.strictEqual(snap.ministrantes[0].nome, 'Cris');
+  assert.strictEqual(snap.tomMemoria.length, 1);
+  assert.strictEqual(snap.tomMemoria[0].tom, 'G#');
+  assert.strictEqual(snap.playlists.culto[0].ministranteId, min.id);
+  assert.strictEqual(snap.playlists.culto[0].tom, 'G#');
+
+  bancoLimpo();
+  substituirMusicasUsuarioParaSync(snap.musicas);
+  substituirMinistrantesETomMemoriaParaSync(snap.ministrantes, snap.tomMemoria);
+  const mins = listarMinistrantesParaSync();
+  const tons = listarTomMemoriaParaSync();
+  assert.strictEqual(mins.length, 1);
+  assert.strictEqual(mins[0].id, min.id);
+  assert.strictEqual(mins[0].nome, 'Cris');
+  assert.strictEqual(tons.length, 1);
+  assert.strictEqual(tons[0].tom, 'G#');
+  assert.strictEqual(tons[0].musicaId, musicaId);
 });

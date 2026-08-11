@@ -68,6 +68,13 @@ export const LS_SLIDES_PREVIEW_H_PX = 'lyra_slides_preview_h_px';
 export const LS_SLIDES_CHIP_ZOOM = 'lyra_slides_chip_zoom';
 export const LS_BANCO_FONTE = 'lyra_banco_fonte';
 export const CLOUD_SHARE_URL = 'https://invb-share-api.onrender.com';
+/**
+ * Base da API webhook Tom Louvores (após deploy do `services/invb-webhook-api`).
+ * Vazio = o Controlador sincroniza direto do Supabase.
+ */
+export const CLOUD_INVB_TONS_SYNC_URL = '';
+/** Último `updatedAt` aplicado no sync de tons do site. */
+export const LS_INVB_TONS_SYNC_AT = 'lyra_invb_tons_sync_at';
 export const LS_FILTRO_TITULO = 'lyra_filtro_busca_titulo';
 export const LS_FILTRO_ARTISTA = 'lyra_filtro_busca_artista';
 export const LS_FILTRO_LETRA = 'lyra_filtro_busca_letra';

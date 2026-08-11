@@ -121,13 +121,13 @@ function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
   return lines.slice(0, max).join('\n');
 }
 
-/** Título do 1.º slide do M3: «Título · Tom» se houver tom; senão só o título. */
+/** Título do 1.º slide do M3: «[ Título / Tom ]» se houver tom; senão só o título. */
 function formatarTituloAberturaComTom(tituloMusica, tomMusica) {
   const tit = String(tituloMusica || '').trim();
   const tom = String(tomMusica || '').trim();
-  if (!tit) return tom;
+  if (!tit) return tom ? `[ ${tom} ]` : '';
   if (!tom) return tit;
-  return `${tit}  ·  ${tom}`;
+  return `[ ${tit} / ${tom} ]`;
 }
 
 /**

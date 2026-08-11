@@ -1234,6 +1234,122 @@ function substituirMusicasUsuarioParaSync(musicas) {
   return { ok: true, total: itens.length };
 }
 
+/**
+ * Snapshot de sync: ministrantes com id estável (playlists referenciam `ministranteId`).
+ */
+function normalizarMinistrantesParaSync(ministrantes) {
+  if (!Array.isArray(ministrantes)) return [];
+  const out = [];
+  const ids = new Set();
+  const nomes = new Set();
+  for (const raw of ministrantes) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const idNum = Number(raw.id);
+    const id = Number.isFinite(idNum) && idNum > 0 ? Math.trunc(idNum) : null;
+    const nome = String(raw.nome || '').trim();
+    if (!id || !nome || ids.has(id)) continue;
+    const nomeKey = nome.toLocaleLowerCase('pt-BR');
+    if (nomes.has(nomeKey)) continue;
+    ids.add(id);
+    nomes.add(nomeKey);
+    out.push({ id, nome: nome.slice(0, 80) });
+  }
+  out.sort((a, b) => a.id - b.id);
+  return out;
+}
+
+function listarMinistrantesParaSync() {
+  return normalizarMinistrantesParaSync(listarMinistrantesNoDb());
+}
+
+/**
+ * Memória de tom (ministrante + música + fonte → tom) para o sync entre PCs.
+ */
+function normalizarTomMemoriaParaSync(itens) {
+  if (!Array.isArray(itens)) return [];
+  const out = [];
+  const chaves = new Set();
+  for (const raw of itens) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const ministranteId = Number(raw.ministranteId ?? raw.ministrante_id);
+    const musicaId = Number(raw.musicaId ?? raw.musica_id);
+    if (!Number.isFinite(ministranteId) || ministranteId <= 0) continue;
+    if (!Number.isFinite(musicaId) || musicaId <= 0) continue;
+    const bancoFonte = normalizarBancoFonteTom(raw.bancoFonte ?? raw.banco_fonte ?? raw.fonte);
+    const tom = normalizarTomMusical(raw.tom);
+    if (!tom) continue;
+    const mid = Math.trunc(ministranteId);
+    const uid = Math.trunc(musicaId);
+    const chave = `${mid}|${uid}|${bancoFonte}`;
+    if (chaves.has(chave)) continue;
+    chaves.add(chave);
+    out.push({ ministranteId: mid, musicaId: uid, bancoFonte, tom });
+  }
+  out.sort((a, b) => {
+    if (a.ministranteId !== b.ministranteId) return a.ministranteId - b.ministranteId;
+    if (a.musicaId !== b.musicaId) return a.musicaId - b.musicaId;
+    return a.bancoFonte.localeCompare(b.bancoFonte);
+  });
+  return out;
+}
+
+function listarTomMemoriaParaSync() {
+  return db
+    .prepare(
+      `SELECT ministrante_id, musica_id, banco_fonte, tom
+       FROM tom_memoria
+       ORDER BY ministrante_id ASC, musica_id ASC, banco_fonte ASC`
+    )
+    .all()
+    .map((r) => ({
+      ministranteId: Number(r.ministrante_id),
+      musicaId: Number(r.musica_id),
+      bancoFonte: normalizarBancoFonteTom(r.banco_fonte),
+      tom: normalizarTomMusical(r.tom),
+    }))
+    .filter((r) => r.ministranteId > 0 && r.musicaId > 0 && r.tom);
+}
+
+/**
+ * Substitui cadastro de ministrantes + memória de tom (preserva IDs do snapshot).
+ * Snapshots antigos sem estes campos não devem chamar esta função.
+ */
+function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria) {
+  const mins = normalizarMinistrantesParaSync(ministrantes);
+  const tons = normalizarTomMemoriaParaSync(tomMemoria);
+  const idsMin = new Set(mins.map((m) => m.id));
+  const tonsOk = tons.filter((t) => idsMin.has(t.ministranteId));
+
+  const insertMin = db.prepare('INSERT INTO ministrantes (id, nome) VALUES (?, ?)');
+  const insertTom = db.prepare(
+    `INSERT INTO tom_memoria (ministrante_id, musica_id, banco_fonte, tom, atualizado_em)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`
+  );
+
+  const aplicar = () => {
+    db.prepare('DELETE FROM tom_memoria').run();
+    db.prepare('DELETE FROM ministrantes').run();
+    try {
+      db.prepare("DELETE FROM sqlite_sequence WHERE name='ministrantes'").run();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+    for (const m of mins) {
+      insertMin.run(m.id, m.nome);
+    }
+    for (const t of tonsOk) {
+      insertTom.run(t.ministranteId, t.musicaId, t.bancoFonte, t.tom);
+    }
+  };
+
+  if (typeof db.transaction === 'function') {
+    db.transaction(aplicar)();
+  } else {
+    aplicar();
+  }
+  return { ok: true, ministrantes: mins.length, tomMemoria: tonsOk.length };
+}
+
 module.exports = {
   initControllerDatabase,
   getDb,
@@ -1261,6 +1377,11 @@ module.exports = {
   normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
   listarMinistrantesNoDb,
+  listarMinistrantesParaSync,
+  normalizarMinistrantesParaSync,
+  listarTomMemoriaParaSync,
+  normalizarTomMemoriaParaSync,
+  substituirMinistrantesETomMemoriaParaSync,
   inserirMinistranteNoDb,
   atualizarMinistranteNoDb,
   apagarMinistranteNoDb,
