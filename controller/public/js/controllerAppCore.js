@@ -8749,7 +8749,8 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
       `Usar «${nome}» em todas as músicas deste culto?\n\n` +
         `Os tons memorizados serão preenchidos quando existirem. ` +
         `Depois você pode alterar o nome ou o tom em qualquer música.`,
-      'Ministrante do culto'
+      'Ministrante do culto',
+      { fecharNoBackdrop: false }
     );
     if (ok) {
       await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
@@ -17674,6 +17675,8 @@ setTimeout(() => {
 // ════════════════════════════════════════════════════════════
 
 let appDialogResolver = null;
+/** Se false, clique no escuro do app-dialog não fecha (só OK/Cancelar). */
+let appDialogFecharNoBackdrop = true;
 let appPromptResolver = null;
 let appEscolhaResolver = null;
 let appCompartilharResolver = null;
@@ -17681,6 +17684,7 @@ let appImportarResolver = null;
 let appSincronizarResolver = null;
 
 function fecharAppDialog(resultado) {
+  appDialogFecharNoBackdrop = true;
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
   const okBtn = document.getElementById('app-dialog-ok');
@@ -17794,6 +17798,8 @@ function abrirAppDialog(msg, opts = {}) {
   ok.textContent = String(opts.okLabel || 'OK');
   cancel.textContent = String(opts.cancelLabel || 'Cancelar');
   cancel.style.display = opts.confirm ? '' : 'none';
+  /* Por omissão clique no escuro fecha; `fecharNoBackdrop: false` ignora o clique. */
+  appDialogFecharNoBackdrop = opts.fecharNoBackdrop !== false;
   ov.hidden = false;
   ov.classList.add('aberto');
   return new Promise((resolve) => {
@@ -17807,8 +17813,14 @@ function appAlert(msg, title) {
   return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false });
 }
 
-function appConfirm(msg, title) {
-  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: true });
+function appConfirm(msg, title, opts = {}) {
+  return abrirAppDialog(msg, {
+    title: title || 'Lyra',
+    confirm: true,
+    fecharNoBackdrop: opts.fecharNoBackdrop,
+    okLabel: opts.okLabel,
+    cancelLabel: opts.cancelLabel,
+  });
 }
 
 /** Diálogo com campo de texto; resolve string normalizada ou null (cancelar).
@@ -19647,7 +19659,10 @@ function bootOverlaysEAppDialogCtrl() {
     if (e.target && e.target.id === 'lyra-menu-modal-overlay') fecharLyraMenuModal();
   });
   document.getElementById('app-dialog-overlay')?.addEventListener('click', (e) => {
-    if (e.target && e.target.id === 'app-dialog-overlay') fecharAppDialog(false);
+    if (e.target && e.target.id === 'app-dialog-overlay') {
+      if (!appDialogFecharNoBackdrop) return;
+      fecharAppDialog(false);
+    }
   });
   aprimorarControlesVisuaisCfg();
 }
