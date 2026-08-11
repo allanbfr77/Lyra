@@ -8567,11 +8567,20 @@ function garantirMusicaAtivaVisivelNaPlaylist() {
 }
 
 /**
- * Botões ↑↓✕ + selects Ministrante/Tom numa linha da playlist.
+ * Botões ↑↓✕ (+ limpar min/tom no Home) e selects Ministrante/Tom.
  * Selects não disparam seleção/projeção da música (stopPropagation).
  */
 function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
-  const [bUp, bDn, bRm] = row.querySelectorAll('.playlist-btns button');
+  const bLimpar = row.querySelector('.pl-btn-limpar-mestre-min-tom');
+  const bUp = row.querySelector('.pl-btn-subir');
+  const bDn = row.querySelector('.pl-btn-descer');
+  const bRm = row.querySelector('.pl-btn-remover');
+  if (bLimpar) {
+    bLimpar.onclick = (e) => {
+      e.stopPropagation();
+      limparMinistranteTomDeTodaPlaylist();
+    };
+  }
   if (bUp) {
     bUp.onclick = (e) => {
       e.stopPropagation();
@@ -8635,6 +8644,26 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
     playlistRowClickTimer = null;
     playlistDuploCliqueIniciarProjecao(item);
   });
+}
+
+/** Música 1 — limpa ministrante e tom de todas as músicas desta playlist (não remove músicas). */
+function limparMinistranteTomDeTodaPlaylist() {
+  if (!cultoId) return;
+  const pl = getPlaylist(cultoId);
+  if (!Array.isArray(pl) || !pl.length) return;
+  let mudou = false;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    if (it.ministranteId != null || it.tom) {
+      it.ministranteId = null;
+      it.tom = '';
+      mudou = true;
+    }
+  }
+  if (!mudou) return;
+  savePlaylists();
+  renderPlaylist();
+  refrescarAberturaM3SeMusicaAtivaNaPlaylist();
 }
 
 /** Índice da 1.ª música real da playlist (ignora marcadores de tema). */
@@ -8784,7 +8813,10 @@ function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao) {
   if (ehModoSlidesOperador()) {
     return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml);
   }
-  return htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersao, escapeHtml);
+  return htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersao, escapeHtml, {
+    /* Só na música 1: limpar mestre (toda a playlist). */
+    mostrarLimparMestre: Number(songNum) === 1,
+  });
 }
 
 async function garantirMinistrantesCarregados() {
@@ -11485,6 +11517,7 @@ function atualizarToolbarCaixaLetrasEdicao() {
   const btn = document.getElementById('btn-caixa-letras-edicao');
   const sep = document.getElementById('toolbar-sep-caixa-letras');
   const mostrar = !!musicaAtiva && (modoEdicaoEstrofes || modoLetraCompletaCentral);
+  /* aA fica sempre no fim da fila de ações; o «|» separa das ações à esquerda. */
   if (sep) sep.style.display = mostrar ? '' : 'none';
   if (!btn) return;
   btn.style.display = mostrar ? '' : 'none';

@@ -85,11 +85,15 @@ export function htmlSelectTom(tomAtual) {
  * @param {number} songNum
  * @param {string} rotuloVersaoHtml já escapado / sufixo pronto
  * @param {(s: string) => string} escapeHtml
+ * @param {{ mostrarLimparMestre?: boolean }} [opts]
  */
-export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersaoHtml, escapeHtml) {
+export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
   const lista = obterCacheMinistrantes();
+  const btnLimparMestre = opts.mostrarLimparMestre
+    ? `<button class="btn sm pl-btn-limpar-mestre-min-tom" type="button" title="Limpar ministrante e tom de todas as músicas desta playlist" aria-label="Limpar ministrante e tom de toda a playlist">∅</button>`
+    : '';
   return `
       <div class="playlist-row-cols">
         <div class="pl-col pl-col-meta">
@@ -99,9 +103,10 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
         <div class="pl-col pl-col-ministrante">${htmlSelectMinistrante(lista, item?.ministranteId)}</div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
         <div class="playlist-btns">
-          <button class="btn sm" type="button" title="Subir">↑</button>
-          <button class="btn sm" type="button" title="Descer">↓</button>
-          <button class="btn sm danger" type="button" title="Remover">✕</button>
+          ${btnLimparMestre}
+          <button class="btn sm pl-btn-subir" type="button" title="Subir">↑</button>
+          <button class="btn sm pl-btn-descer" type="button" title="Descer">↓</button>
+          <button class="btn sm danger pl-btn-remover" type="button" title="Remover">✕</button>
         </div>
       </div>`;
 }
@@ -117,9 +122,9 @@ export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, e
       <div class="tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
       ${artista ? `<div class="mini" title="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
       <div class="playlist-btns">
-        <button class="btn sm" type="button" title="Subir">↑</button>
-        <button class="btn sm" type="button" title="Descer">↓</button>
-        <button class="btn sm danger" type="button" title="Remover">✕</button>
+        <button class="btn sm pl-btn-subir" type="button" title="Subir">↑</button>
+        <button class="btn sm pl-btn-descer" type="button" title="Descer">↓</button>
+        <button class="btn sm danger pl-btn-remover" type="button" title="Remover">✕</button>
       </div>`;
 }
 
