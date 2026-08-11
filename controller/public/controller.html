@@ -1646,11 +1646,11 @@
       justify-content: space-between;
     }
 
-    /* Cabeçalho: TÍTULO (+artista abaixo na linha) | MINISTRANTE | TOM
-       Ministrante um pouco mais estreito; Tom um pouco mais largo — sobra vai para o título. */
+    /* Cabeçalho: TÍTULO | MINISTRANTE | TOM | (reserva dos botões ↑↓✕)
+       Coluna de botões com largura fixa — evita desalinhamento no hover / música 1. */
     .playlist-cols-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 100px 80px 52px;
+      grid-template-columns: minmax(0, 1fr) 100px 80px 112px;
       gap: 6px;
       align-items: center;
       padding: 4px 10px 6px;
@@ -1674,7 +1674,7 @@
 
     .playlist-row-cols {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 100px 80px auto;
+      grid-template-columns: minmax(0, 1fr) 100px 80px 112px;
       gap: 6px;
       align-items: center;
       width: 100%;
@@ -1698,7 +1698,7 @@
     }
 
     .pl-col-artista {
-      font-size: 11px;
+      font-size: 12.5px;
       font-weight: 500;
       color: var(--text-dim);
       white-space: nowrap;
@@ -1707,7 +1707,7 @@
     }
 
     .pl-col-titulo.tit {
-      font-size: var(--fs-text-base);
+      font-size: 15px;
       font-weight: 700;
       line-height: 1.25;
       flex: unset;
@@ -1766,6 +1766,9 @@
       display: flex;
       gap: 4px;
       flex-shrink: 0;
+      width: 112px;
+      justify-content: flex-end;
+      box-sizing: border-box;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.14s ease;
@@ -4799,7 +4802,7 @@
     }
 
     body.app-mod-slides .panel-playlist .playlist-row .tit {
-      font-size: 13.5px;
+      font-size: 14.5px;
       font-weight: 700;
       line-height: 1.25;
     }
@@ -4816,7 +4819,7 @@
     /* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
     body.app-mod-slides .panel-playlist .playlist-row .mini {
       margin-top: 3px;
-      font-size: 12.5px;
+      font-size: 13px;
       line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
