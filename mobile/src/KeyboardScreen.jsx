@@ -30,6 +30,7 @@ function useHeaderHeightSafe() {
  * @param {object} props
  * @param {React.ReactNode} props.children
  * @param {boolean} [props.scroll=true] — se false, usa KeyboardAvoidingView da lib (sem scroll)
+ * @param {boolean} [props.fill=true] — se false, não aplica flex:1 (modais com altura intrínseca)
  * @param {import('react-native').StyleProp<import('react-native').ViewStyle>} [props.style]
  * @param {import('react-native').StyleProp<import('react-native').ViewStyle>} [props.contentContainerStyle]
  * @param {number} [props.keyboardVerticalOffset] — mapeado para bottomOffset; fallback = altura do header
@@ -38,6 +39,7 @@ const KeyboardScreen = forwardRef(function KeyboardScreen(
   {
     children,
     scroll = true,
+    fill = true,
     style,
     contentContainerStyle,
     keyboardVerticalOffset,
@@ -51,12 +53,13 @@ const KeyboardScreen = forwardRef(function KeyboardScreen(
     keyboardVerticalOffset !== undefined && keyboardVerticalOffset !== null
       ? keyboardVerticalOffset
       : headerHeight;
+  const baseStyle = fill ? { flex: 1 } : null;
 
   if (!scroll) {
     return (
       <KeyboardAvoidingView
         ref={ref}
-        style={[{ flex: 1 }, style]}
+        style={[baseStyle, style]}
         behavior="padding"
         keyboardVerticalOffset={offset}
         {...rest}
@@ -69,7 +72,7 @@ const KeyboardScreen = forwardRef(function KeyboardScreen(
   return (
     <KeyboardAwareScrollView
       ref={ref}
-      style={[{ flex: 1 }, style]}
+      style={[baseStyle, style]}
       contentContainerStyle={contentContainerStyle}
       bottomOffset={offset}
       keyboardShouldPersistTaps={keyboardShouldPersistTaps}

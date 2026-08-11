@@ -77,45 +77,86 @@ function estadoMinistranteFromEstadoAtual(ex) {
   }
   if (ex.tipo === 'musica') {
     const titulo = ex.titulo || '';
-    let atual = '';
-    if (ex.slidePretoFinal) atual = '';
-    else if (Array.isArray(ex.linhas)) atual = ex.linhas.join('\n');
+    if (ex.slidePretoFinal) {
+      return {
+        titulo,
+        atual: '',
+        proximo: '',
+        telaLimpa: false,
+        slidePretoFinal: true,
+        aberturaMusica: false,
+      };
+    }
+    if (Array.isArray(ex.estrofes) && ex.estrofes.length) {
+      return payloadMinistranteMusicaFromEstrofes(ex.estrofes, ex.estrofeIndex, titulo);
+    }
+    /* Fallback sem estrofes: no 1.º slide, só 2 linhas do próximo. */
+    let atual = Array.isArray(ex.linhas) ? ex.linhas.join('\n') : '';
     let proximo = '';
-    if (ex.proximoSlidePreto) proximo = '';
-    else if (Array.isArray(ex.linhasProximo)) proximo = ex.linhasProximo.join('\n');
+    if (!ex.proximoSlidePreto && Array.isArray(ex.linhasProximo) && ex.linhasProximo.length) {
+      proximo = primeirasLinhasEstrofeMinistrante(ex.linhasProximo.join('\n'), 2);
+    }
+    const aberturaMusica = Number(ex.estrofeIndex) === 0;
+    if (!aberturaMusica && Array.isArray(ex.linhasProximo)) {
+      proximo = ex.proximoSlidePreto ? '' : ex.linhasProximo.join('\n');
+    }
     return {
       titulo,
       atual,
       proximo,
       telaLimpa: false,
-      slidePretoFinal: !!ex.slidePretoFinal,
+      slidePretoFinal: false,
+      aberturaMusica,
     };
   }
   return { titulo: '', atual: '', proximo: '', telaLimpa: true };
 }
 
+/** Primeiras N linhas de uma estrofe (para prévia do próximo no slide 1 do M3). */
+function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
+  const max = Math.max(0, Number(n) || 0);
+  const lines = String(texto ?? '').split(/\r\n|\r|\n/);
+  if (lines.length <= max) return String(texto ?? '');
+  return lines.slice(0, max).join('\n');
+}
+
+/**
+ * Payload M3 (ministrante) a partir das estrofes.
+ * Slide 1: título no topo (aberturaMusica) + slide atual + só 2 linhas do próximo.
+ * A partir do 2.º: atual + próximo completo.
+ */
 function payloadMinistranteMusicaFromEstrofes(estrofes, idxEstrofe, tituloMusica) {
   const n = Array.isArray(estrofes) ? estrofes.length : 0;
   const idx = Number(idxEstrofe);
   if (!Number.isFinite(idx) || idx < 0 || idx > n) {
-    return { titulo: '', atual: '', proximo: '', telaLimpa: true };
+    return { titulo: '', atual: '', proximo: '', telaLimpa: true, aberturaMusica: false };
   }
+  const titulo = tituloMusica || '';
   if (idx === n) {
     return {
-      titulo: tituloMusica || '',
+      titulo,
       atual: '',
       proximo: '',
       telaLimpa: false,
       slidePretoFinal: true,
+      aberturaMusica: false,
     };
   }
   const atualStr = estrofes[idx] != null ? String(estrofes[idx]) : '';
   let proximoStr = '';
   if (idx < n - 1) {
     const nxt = estrofes[idx + 1];
-    proximoStr = nxt != null ? String(nxt) : '';
+    const nxtStr = nxt != null ? String(nxt) : '';
+    /* No 1.º slide: só as 2 primeiras linhas do próximo (não o slide inteiro). */
+    proximoStr = idx === 0 ? primeirasLinhasEstrofeMinistrante(nxtStr, 2) : nxtStr;
   }
-  return { titulo: tituloMusica || '', atual: atualStr, proximo: proximoStr, telaLimpa: false };
+  return {
+    titulo,
+    atual: atualStr,
+    proximo: proximoStr,
+    telaLimpa: false,
+    aberturaMusica: idx === 0,
+  };
 }
 
 /**
@@ -163,6 +204,7 @@ module.exports = {
   estadoPublicoOcioso,
   linhasProximoParaMusica,
   estadoMinistranteFromEstadoAtual,
+  primeirasLinhasEstrofeMinistrante,
   payloadMinistranteMusicaFromEstrofes,
   snapshotMinistranteAtual,
 };

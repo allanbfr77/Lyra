@@ -26,6 +26,13 @@ const {
   rowMusicaParaJson,
   normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
+  listarMinistrantesNoDb,
+  inserirMinistranteNoDb,
+  atualizarMinistranteNoDb,
+  apagarMinistranteNoDb,
+  obterTomMemoriaNoDb,
+  gravarTomMemoriaNoDb,
+  importarTonsMemoriaDeArquivo,
 } = require('./db');
 const { loadPlaylistsJson, savePlaylistsJson } = require('./lib/playlistsStore');
 const {
@@ -549,6 +556,78 @@ async function iniciarServidorController(ctx, paths) {
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  /* —— Ministrantes (pessoas) e memória de tom — não confundir com monitor M3. —— */
+  expressApp.get('/api/ministrantes', (_req, res) => {
+    try {
+      res.json(listarMinistrantesNoDb());
+    } catch (e) {
+      res.status(500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.post('/api/ministrantes', (req, res) => {
+    try {
+      const nome = req.body && req.body.nome != null ? req.body.nome : '';
+      const criado = inserirMinistranteNoDb(nome);
+      res.status(201).json(criado);
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.put('/api/ministrantes/:id', (req, res) => {
+    try {
+      const nome = req.body && req.body.nome != null ? req.body.nome : '';
+      const atualizado = atualizarMinistranteNoDb(req.params.id, nome);
+      res.json(atualizado);
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.delete('/api/ministrantes/:id', (req, res) => {
+    try {
+      res.json(apagarMinistranteNoDb(req.params.id));
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.get('/api/tom-memoria', (req, res) => {
+    try {
+      const tom = obterTomMemoriaNoDb(req.query.ministranteId, req.query.musicaId, req.query.fonte);
+      res.json({ tom: tom || '' });
+    } catch (e) {
+      res.status(500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.put('/api/tom-memoria', (req, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const out = gravarTomMemoriaNoDb(
+        body.ministranteId,
+        body.musicaId,
+        body.fonte,
+        body.tom
+      );
+      res.json(out);
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  /** Importa JSON de tons do site (cruza título/artista; pendentes aguardam cadastro). */
+  expressApp.post('/api/tom-memoria/import', (req, res) => {
+    try {
+      const body = req.body;
+      const resumo = importarTonsMemoriaDeArquivo(body);
+      res.json({ ok: true, ...resumo });
+    } catch (e) {
+      res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
     }
   });
 

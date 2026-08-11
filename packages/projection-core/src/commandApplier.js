@@ -563,6 +563,10 @@ function criarAplicadorDeComandos(deps) {
             titulo: pl.titulo != null ? String(pl.titulo) : snapshot.titulo || '',
             atual: pl.atual != null ? String(pl.atual) : snapshot.atual || '',
             proximo: pl.proximo != null ? String(pl.proximo) : snapshot.proximo || '',
+            aberturaMusica:
+              typeof pl.aberturaMusica === 'boolean'
+                ? pl.aberturaMusica
+                : !!snapshot.aberturaMusica,
             projecaoAtiva: typeof pl.projecaoAtiva === 'boolean' ? pl.projecaoAtiva : undefined,
             telaLimpa: typeof pl.telaLimpa === 'boolean' ? pl.telaLimpa : !!snapshot.telaLimpa,
             slidePretoFinal:

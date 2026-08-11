@@ -88,6 +88,19 @@ import {
   normalizarCorComentarioMinistrante,
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
+import {
+  htmlCorpoLinhaPlaylistComMinistranteTom,
+  carregarMinistrantesDoServidor,
+  criarMinistranteNoServidor,
+  renomearMinistranteNoServidor,
+  excluirMinistranteNoServidor,
+  buscarTomMemoria,
+  gravarTomMemoria,
+  limparMinistranteDasPlaylists,
+  obterCacheMinistrantes,
+  normalizarMinistranteIdPlaylist,
+  normalizarTomPlaylist,
+} from './modules/playlistMinistranteTom.js';
 
 migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
@@ -8365,6 +8378,8 @@ function getPlaylist(cid) {
           : null,
       versaoRotulo: String(it.versaoRotulo || '').trim(),
       bancoFonte: it.bancoFonte === 'catalog' ? 'catalog' : 'user',
+      ministranteId: normalizarMinistranteIdPlaylist(it.ministranteId),
+      tom: normalizarTomPlaylist(it.tom),
     };
   });
   return playlists[cid];
@@ -8548,6 +8563,270 @@ function garantirMusicaAtivaVisivelNaPlaylist() {
   });
 }
 
+/**
+ * Botões ↑↓✕ + selects Ministrante/Tom numa linha da playlist.
+ * Selects não disparam seleção/projeção da música (stopPropagation).
+ */
+function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
+  const [bUp, bDn, bRm] = row.querySelectorAll('.playlist-btns button');
+  if (bUp) {
+    bUp.onclick = (e) => {
+      e.stopPropagation();
+      movePlItem(idxPl, -1);
+    };
+  }
+  if (bDn) {
+    bDn.onclick = (e) => {
+      e.stopPropagation();
+      movePlItem(idxPl, 1);
+    };
+  }
+  if (bRm) {
+    bRm.onclick = (e) => {
+      e.stopPropagation();
+      removePlItem(idxPl);
+    };
+  }
+
+  const selMin = row.querySelector('.pl-sel-ministrante');
+  const selTom = row.querySelector('.pl-sel-tom');
+  if (selMin) {
+    selMin.addEventListener('click', (e) => e.stopPropagation());
+    selMin.addEventListener('mousedown', (e) => e.stopPropagation());
+    selMin.addEventListener('change', (e) => {
+      e.stopPropagation();
+      onPlaylistMinistranteChange(idxPl, selMin.value, selTom);
+    });
+  }
+  if (selTom) {
+    selTom.addEventListener('click', (e) => e.stopPropagation());
+    selTom.addEventListener('mousedown', (e) => e.stopPropagation());
+    selTom.addEventListener('change', (e) => {
+      e.stopPropagation();
+      onPlaylistTomChange(idxPl, selTom.value);
+    });
+  }
+
+  row.addEventListener('click', (ev) => {
+    if (ev.target.closest('.playlist-btns') || ev.target.closest('.pl-sel')) return;
+    clearTimeout(playlistRowClickTimer);
+    const idNum = Number(item.id);
+    playlistRowClickTimer = setTimeout(() => {
+      playlistRowClickTimer = null;
+      if (playlistItemSelecionadoNaUi(item)) {
+        deselecionarMusicaAtivaAPartirDaPlaylist();
+        return;
+      }
+      selecionarMusicaDoBanco(idNum, {
+        habilitarFaixaModoSlides: true,
+        versaoLocalId: item.versaoLocalId || undefined,
+        fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
+      });
+    }, 300);
+  });
+  row.addEventListener('dblclick', (ev) => {
+    if (ev.target.closest('.pl-sel') || ev.target.closest('.playlist-btns')) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    clearTimeout(playlistRowClickTimer);
+    playlistRowClickTimer = null;
+    playlistDuploCliqueIniciarProjecao(item);
+  });
+}
+
+async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
+  if (!cultoId) return;
+  const pl = getPlaylist(cultoId);
+  const item = pl[idxPl];
+  if (!item || ehMarcadorTemaPlaylist(item)) return;
+  const novoId = normalizarMinistranteIdPlaylist(valorSelect);
+  item.ministranteId = novoId;
+  if (novoId) {
+    try {
+      const tomMem = await buscarTomMemoria(
+        getControllerApiBase(),
+        novoId,
+        Number(item.id),
+        item.bancoFonte === 'catalog' ? 'catalog' : 'user'
+      );
+      item.tom = tomMem || '';
+      if (selTomEl) selTomEl.value = item.tom;
+    } catch (_) {
+      // intencional — memória indisponível; mantém tom actual
+    }
+  }
+  /* Remover ministrante: TOM permanece (não apagar). */
+  savePlaylists();
+}
+
+async function onPlaylistTomChange(idxPl, valorSelect) {
+  if (!cultoId) return;
+  const pl = getPlaylist(cultoId);
+  const item = pl[idxPl];
+  if (!item || ehMarcadorTemaPlaylist(item)) return;
+  const tom = normalizarTomPlaylist(valorSelect);
+  item.tom = tom;
+  savePlaylists();
+  const minId = normalizarMinistranteIdPlaylist(item.ministranteId);
+  if (!minId) return;
+  try {
+    await gravarTomMemoria(
+      getControllerApiBase(),
+      minId,
+      Number(item.id),
+      item.bancoFonte === 'catalog' ? 'catalog' : 'user',
+      tom
+    );
+  } catch (_) {
+    // intencional — falha ao gravar memória não impede o tom do culto
+  }
+}
+
+function atualizarCabecalhoColunasPlaylist(temMusicas) {
+  const head = document.getElementById('playlist-cols-head');
+  if (!head) return;
+  head.hidden = !temMusicas || !cultoId;
+}
+
+async function garantirMinistrantesCarregados() {
+  try {
+    await carregarMinistrantesDoServidor(getControllerApiBase());
+    renderPlaylist();
+  } catch (_) {
+    // intencional — API ainda a subir; dropdowns ficam só com «—»
+  }
+}
+
+async function renderListaCfgMinistrantes() {
+  const el = document.getElementById('cfg-ministrantes-lista');
+  if (!el) return;
+  try {
+    await carregarMinistrantesDoServidor(getControllerApiBase());
+  } catch (e) {
+    el.innerHTML = `<div class="placeholder-msg">${escapeHtml(e.message || 'Falha ao carregar.')}</div>`;
+    return;
+  }
+  const lista = obterCacheMinistrantes();
+  if (!lista.length) {
+    el.innerHTML = '<div class="placeholder-msg">Nenhum ministrante cadastrado ainda.</div>';
+    return;
+  }
+  el.innerHTML = '';
+  for (const m of lista) {
+    const row = document.createElement('div');
+    row.className = 'cfg-ministrante-row';
+    row.innerHTML = `
+      <span class="cfg-ministrante-nome">${escapeHtml(m.nome)}</span>
+      <button type="button" class="btn sm" data-acao="edit" title="Renomear">✎</button>
+      <button type="button" class="btn sm danger" data-acao="del" title="Excluir">✕</button>
+    `;
+    row.querySelector('[data-acao="edit"]').onclick = () => onCfgMinistranteRenomear(m.id, m.nome);
+    row.querySelector('[data-acao="del"]').onclick = () => onCfgMinistranteExcluir(m.id, m.nome);
+    el.appendChild(row);
+  }
+}
+
+async function onCfgMinistranteAdicionar() {
+  const input = document.getElementById('cfg-ministrante-novo-nome');
+  const nome = String(input?.value || '').trim();
+  if (!nome) {
+    alert('Digite o nome do ministrante.');
+    return;
+  }
+  try {
+    await criarMinistranteNoServidor(getControllerApiBase(), nome);
+    if (input) input.value = '';
+    await renderListaCfgMinistrantes();
+    renderPlaylist();
+  } catch (e) {
+    alert(e.message || 'Falha ao adicionar.');
+  }
+}
+
+async function onCfgMinistranteRenomear(id, nomeAtual) {
+  /* Electron bloqueia `window.prompt` — usar o diálogo interno do painel. */
+  const novo = await appPrompt('Novo nome do ministrante:', {
+    title: 'Renomear ministrante',
+    defaultValue: nomeAtual || '',
+    emptyMsg: 'Digite um nome válido.',
+    maxLength: 80,
+    normalizar: (v) => String(v ?? '').trim().slice(0, 80),
+  });
+  if (novo == null) return;
+  const nome = String(novo).trim();
+  if (!nome) {
+    alert('Nome inválido.');
+    return;
+  }
+  try {
+    await renomearMinistranteNoServidor(getControllerApiBase(), id, nome);
+    await renderListaCfgMinistrantes();
+    renderPlaylist();
+  } catch (e) {
+    alert(e.message || 'Falha ao renomear.');
+  }
+}
+
+async function onCfgMinistranteExcluir(id, nome) {
+  const ok = await appConfirm(
+    `Excluir o ministrante «${nome}»?\n\nAs músicas que o tinham selecionado ficam sem ministrante. Os tons memorizados deste nome também são removidos.`,
+    'Excluir ministrante'
+  );
+  if (!ok) return;
+  try {
+    await excluirMinistranteNoServidor(getControllerApiBase(), id);
+    if (limparMinistranteDasPlaylists(playlists, id)) savePlaylists();
+    await renderListaCfgMinistrantes();
+    renderPlaylist();
+  } catch (e) {
+    alert(e.message || 'Falha ao excluir.');
+  }
+}
+
+async function onCfgImportTonsArquivoChange(ev) {
+  const file = ev?.target?.files?.[0];
+  const outEl = document.getElementById('cfg-tom-import-resultado');
+  if (ev?.target) ev.target.value = '';
+  if (!file) return;
+  let payload;
+  try {
+    const texto = await file.text();
+    payload = JSON.parse(texto);
+  } catch (_) {
+    alert('Arquivo JSON inválido.');
+    return;
+  }
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/tom-memoria/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detalhe = data.erro || (res.status === 404
+        ? 'Rota de importação não encontrada. Reinicie o Lyra Controlador e tente de novo.'
+        : `Falha na importação (HTTP ${res.status}).`);
+      throw new Error(detalhe);
+    }
+    await renderListaCfgMinistrantes();
+    renderPlaylist();
+    const msg =
+      `Importação concluída.\n` +
+      `Aplicados agora: ${data.aplicados || 0}\n` +
+      `Pendentes (música ainda não no banco): ${data.pendentes || 0}\n` +
+      `Ministrantes criados: ${data.ministrantesCriados || 0}\n` +
+      `Ignorados: ${data.ignorados || 0}`;
+    if (outEl) {
+      outEl.hidden = false;
+      outEl.textContent = msg;
+    }
+    alert(msg);
+  } catch (e) {
+    alert(e.message || 'Falha ao importar tons.');
+  }
+}
+
 /** Ordem da playlist respeitando marcadores de tema (cabeçalhos mesmo sem música). */
 function renderPlaylistItensComMarcadores(el, pl) {
   let i = 0;
@@ -8560,55 +8839,13 @@ function renderPlaylistItensComMarcadores(el, pl) {
     row.dataset.plIdx = String(idxPl);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.innerHTML = `
-      <div class="playlist-row-top">
-        <div class="tit">${songNum}. ${escapeHtml(item.titulo)}${rotuloVersao}</div>
-        <div class="playlist-btns">
-          <button class="btn sm" type="button" title="Subir">↑</button>
-          <button class="btn sm" type="button" title="Descer">↓</button>
-          <button class="btn sm danger" type="button" title="Remover">✕</button>
-        </div>
-      </div>
-      ${item.artista ? `<div class="mini">${escapeHtml(item.artista)}</div>` : ''}
-    `;
-    const [bUp, bDn, bRm] = row.querySelectorAll('.playlist-btns button');
-    bUp.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idxPl, -1);
-    };
-    bDn.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idxPl, 1);
-    };
-    bRm.onclick = (e) => {
-      e.stopPropagation();
-      removePlItem(idxPl);
-    };
-    row.addEventListener('click', (ev) => {
-      if (ev.target.closest('.playlist-btns')) return;
-      clearTimeout(playlistRowClickTimer);
-      const idNum = Number(item.id);
-      playlistRowClickTimer = setTimeout(() => {
-        playlistRowClickTimer = null;
-        /* Só desmarca o que a UI mostra como selecionado; com a faixa vazia, carrega. */
-        if (playlistItemSelecionadoNaUi(item)) {
-          deselecionarMusicaAtivaAPartirDaPlaylist();
-          return;
-        }
-        selecionarMusicaDoBanco(idNum, {
-          habilitarFaixaModoSlides: true,
-          versaoLocalId: item.versaoLocalId || undefined,
-          fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
-        });
-      }, 300);
-    });
-    row.addEventListener('dblclick', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      clearTimeout(playlistRowClickTimer);
-      playlistRowClickTimer = null;
-      playlistDuploCliqueIniciarProjecao(item);
-    });
+    row.innerHTML = htmlCorpoLinhaPlaylistComMinistranteTom(
+      item,
+      songNum,
+      rotuloVersao,
+      escapeHtml
+    );
+    ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl);
     songAppendParent.appendChild(row);
   };
 
@@ -8712,16 +8949,21 @@ function renderPlaylist() {
   el.innerHTML = '';
   renderSeletorTemasPlaylist();
   if (!cultoId) {
+    atualizarCabecalhoColunasPlaylist(false);
     el.innerHTML = '<div class="placeholder-msg" style="margin:16px">🗓️ Selecione primeiro o <strong>dia do culto</strong> para ver ou montar a playlist.</div>';
     return;
   }
   const pl = getPlaylist(cultoId);
   if (!pl.length) {
+    atualizarCabecalhoColunasPlaylist(false);
     el.innerHTML = ehModoSlidesOperador()
       ? '<div class="placeholder-msg" style="margin:16px">📝 Nenhuma música neste culto.<br>Abra <strong>TELA INICIAL</strong> (topo) e, no <strong>banco de músicas à esquerda</strong>, toque em <strong>+</strong> em cada música para incluir na playlist.</div>'
       : '<div class="placeholder-msg" style="margin:16px">📝 Nenhuma música neste culto.<br>No banco de músicas <strong>à esquerda</strong>, toque em <strong>+</strong> na linha da música para adicionar ao culto.</div>';
     return;
   }
+
+  const temMusica = pl.some((it) => !ehMarcadorTemaPlaylist(it));
+  atualizarCabecalhoColunasPlaylist(temMusica);
 
   if (playlistPossuiMarcadoresTema(pl)) {
     renderPlaylistItensComMarcadores(el, pl);
@@ -8749,55 +8991,13 @@ function renderPlaylist() {
     row.dataset.plIdx = String(idx);
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
-    row.innerHTML = `
-      <div class="playlist-row-top">
-        <div class="tit">${nLista}. ${escapeHtml(item.titulo)}${rotuloVersao}</div>
-        <div class="playlist-btns">
-          <button class="btn sm" type="button" title="Subir">↑</button>
-          <button class="btn sm" type="button" title="Descer">↓</button>
-          <button class="btn sm danger" type="button" title="Remover">✕</button>
-        </div>
-      </div>
-      ${item.artista ? `<div class="mini">${escapeHtml(item.artista)}</div>` : ''}
-    `;
-    const [bUp, bDn, bRm] = row.querySelectorAll('.playlist-btns button');
-    bUp.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idx, -1);
-    };
-    bDn.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idx, 1);
-    };
-    bRm.onclick = (e) => {
-      e.stopPropagation();
-      removePlItem(idx);
-    };
-    row.addEventListener('click', (ev) => {
-      if (ev.target.closest('.playlist-btns')) return;
-      clearTimeout(playlistRowClickTimer);
-      const idNum = Number(item.id);
-      playlistRowClickTimer = setTimeout(() => {
-        playlistRowClickTimer = null;
-        /* Só desmarca o que a UI mostra como selecionado; com a faixa vazia, carrega. */
-        if (playlistItemSelecionadoNaUi(item)) {
-          deselecionarMusicaAtivaAPartirDaPlaylist();
-          return;
-        }
-        selecionarMusicaDoBanco(idNum, {
-          habilitarFaixaModoSlides: true,
-          versaoLocalId: item.versaoLocalId || undefined,
-          fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
-        });
-      }, 300);
-    });
-    row.addEventListener('dblclick', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      clearTimeout(playlistRowClickTimer);
-      playlistRowClickTimer = null;
-      playlistDuploCliqueIniciarProjecao(item);
-    });
+    row.innerHTML = htmlCorpoLinhaPlaylistComMinistranteTom(
+      item,
+      nLista,
+      rotuloVersao,
+      escapeHtml
+    );
+    ligarBotoesESeletoresLinhaPlaylist(row, item, idx);
     songAppendParent.appendChild(row);
   }
   garantirMusicaAtivaVisivelNaPlaylist();
@@ -9102,6 +9302,8 @@ async function addMusicaNaPlaylist(meta) {
     versaoLocalId,
     versaoRotulo,
     bancoFonte,
+    ministranteId: null,
+    tom: '',
   };
   if (temMarcadores) {
     // Insere no fim do bloco do tema escolhido (posição correta na playlist plana).
@@ -9138,6 +9340,8 @@ function addMusicaNaPlaylistParaCulto(cid, meta) {
     versaoLocalId: vid,
     versaoRotulo: String(meta.versaoRotulo || '').trim(),
     bancoFonte: bfAdd,
+    ministranteId: normalizarMinistranteIdPlaylist(meta.ministranteId),
+    tom: normalizarTomPlaylist(meta.tom),
   });
 }
 
@@ -9365,6 +9569,34 @@ function configurarModalSyncPlaylist() {
 
 function textoSlideMaiusculo(texto) {
   return (texto || '').toUpperCase();
+}
+
+/** Primeiras N linhas de uma estrofe — prévia do próximo no slide 1 do M3. */
+function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
+  const max = Math.max(0, Number(n) || 0);
+  const lines = String(texto ?? '').split(/\r\n|\r|\n/);
+  if (lines.length <= max) return String(texto ?? '');
+  return lines.slice(0, max).join('\n');
+}
+
+function limparPreviewTituloMusicaAbertura() {
+  const opTit = document.getElementById('op-titulo');
+  if (!opTit) return;
+  opTit.textContent = '';
+  opTit.classList.add('vazio');
+}
+
+/** Título dourado no topo do preview M3 — só no 1.º slide da música. */
+function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
+  const opTit = document.getElementById('op-titulo');
+  if (!opTit) return;
+  const t = String(titulo || '').trim();
+  if (!mostrar || !t) {
+    limparPreviewTituloMusicaAbertura();
+    return;
+  }
+  opTit.textContent = textoSlideMaiusculo(t);
+  opTit.classList.remove('vazio');
 }
 
 /**
@@ -9746,6 +9978,7 @@ function preencherPreviewOperadorSomenteEstadoServidorMusica() {
   const opP = document.getElementById('op-proximo');
   if (!e || e.tipo !== 'musica') return;
   if (e.slidePretoFinal) {
+    limparPreviewTituloMusicaAbertura();
     opA.innerHTML = '';
     opA.className = 'op-slide-text vazio';
     limparEstiloPreviewSlide(opA);
@@ -9755,19 +9988,26 @@ function preencherPreviewOperadorSomenteEstadoServidorMusica() {
     return;
   }
   const idx = Number.isFinite(Number(e.estrofeIndex)) ? Number(e.estrofeIndex) : -1;
+  const tituloMusica =
+    (musicaAtiva && musicaEstadoCombinaComAtiva(e) && musicaAtiva.titulo) || e.titulo || '';
+  const abertura = idx === 0;
+  aplicarPreviewTituloMusicaAbertura(tituloMusica, abertura);
+
   let curRaw = '';
   let proxRaw = '';
   if (musicaAtiva && musicaEstadoCombinaComAtiva(e) && Array.isArray(musicaAtiva.estrofes)) {
     if (idx >= 0 && idx < musicaAtiva.estrofes.length) curRaw = String(musicaAtiva.estrofes[idx] ?? '');
     if (e.proximoSlidePreto) proxRaw = '';
     else if (idx >= 0 && idx < musicaAtiva.estrofes.length - 1) {
-      proxRaw = String(musicaAtiva.estrofes[idx + 1] ?? '');
+      const nxt = String(musicaAtiva.estrofes[idx + 1] ?? '');
+      proxRaw = abertura ? primeirasLinhasEstrofeMinistrante(nxt, 2) : nxt;
     }
   } else {
     curRaw = (e.linhas || []).join('\n');
     if (e.proximoSlidePreto) proxRaw = '';
     else if (Array.isArray(e.linhasProximo) && e.linhasProximo.length) {
-      proxRaw = e.linhasProximo.join('\n');
+      const nxt = e.linhasProximo.join('\n');
+      proxRaw = abertura ? primeirasLinhasEstrofeMinistrante(nxt, 2) : nxt;
     }
   }
 
@@ -9790,6 +10030,7 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
   const opP = document.getElementById('op-proximo');
 
   if (!musicaAtiva || !musicaAtiva.estrofes || musicaAtiva.estrofes.length === 0) {
+    limparPreviewTituloMusicaAbertura();
     opA.textContent = '';
     opA.className = 'op-slide-text vazio';
     limparEstiloPreviewSlide(opA);
@@ -9803,6 +10044,7 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
   const idxPreto = nEst;
 
   if (estrofeAtiva < 0) {
+    limparPreviewTituloMusicaAbertura();
     opA.innerHTML = '';
     opA.className = 'op-slide-text vazio';
     limparEstiloPreviewSlide(opA);
@@ -9819,6 +10061,7 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
   }
 
   if (estrofeAtiva === idxPreto) {
+    limparPreviewTituloMusicaAbertura();
     opA.innerHTML = '';
     opA.className = 'op-slide-text vazio';
     limparEstiloPreviewSlide(opA);
@@ -9828,9 +10071,17 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
     return;
   }
 
+  const abertura = estrofeAtiva === 0;
+  aplicarPreviewTituloMusicaAbertura(musicaAtiva.titulo || '', abertura);
+
   const cur = musicaAtiva.estrofes[estrofeAtiva];
   const proximoEhPreto = estrofeAtiva === nEst - 1;
-  const nxt = proximoEhPreto ? null : musicaAtiva.estrofes[estrofeAtiva + 1];
+  const nxtFull = proximoEhPreto ? null : musicaAtiva.estrofes[estrofeAtiva + 1];
+  const nxt = nxtFull
+    ? abertura
+      ? primeirasLinhasEstrofeMinistrante(nxtFull, 2)
+      : nxtFull
+    : null;
 
   opA.className = 'op-slide-text';
   if (cur) {
@@ -9910,6 +10161,7 @@ function atualizarPreviewOperador() {
     const opP = document.getElementById('op-proximo');
 
     if (slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante()) {
+      limparPreviewTituloMusicaAbertura();
       preencherPreviewInformeMidiaApresentacaoSlide(opA);
       opP.textContent = '';
       opP.className = 'op-slide-text vazio';
@@ -9925,6 +10177,7 @@ function atualizarPreviewOperador() {
       if (podeEspelharLetraNosPreviewsModoSlide()) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
+        limparPreviewTituloMusicaAbertura();
         opA.textContent = '';
         opA.className = 'op-slide-text vazio';
         limparEstiloPreviewSlide(opA);
@@ -9938,6 +10191,7 @@ function atualizarPreviewOperador() {
     }
 
     if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) {
+      limparPreviewTituloMusicaAbertura();
       opA.textContent = '';
       opA.className = 'op-slide-text vazio';
       limparEstiloPreviewSlide(opA);
@@ -9950,6 +10204,7 @@ function atualizarPreviewOperador() {
     }
 
     if (!hayProjecaoAtivaNoServidor()) {
+      limparPreviewTituloMusicaAbertura();
       opA.textContent = '';
       opA.className = 'op-slide-text vazio';
       limparEstiloPreviewSlide(opA);
@@ -9962,6 +10217,7 @@ function atualizarPreviewOperador() {
     }
 
     if (suprimirEspelhoPreviewsPorNavegacaoPlaylist()) {
+      limparPreviewTituloMusicaAbertura();
       opA.textContent = '';
       opA.className = 'op-slide-text vazio';
       limparEstiloPreviewSlide(opA);
@@ -9978,6 +10234,7 @@ function atualizarPreviewOperador() {
       estadoServidor.tipo === 'biblia' &&
       (!estadoServidor.telaLimpa || estadoServidor.projecaoSomenteMinistrante)
     ) {
+      limparPreviewTituloMusicaAbertura();
       const linhasBib = Array.isArray(estadoServidor.linhas) ? estadoServidor.linhas : [];
       const txtBib = linhasBib.map((s) => String(s ?? '')).join('\n').trim();
       opA.textContent = txtBib;
@@ -10030,6 +10287,7 @@ function atualizarPreviewOperador() {
       if (mostrarPreviewOpLocal) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
+        limparPreviewTituloMusicaAbertura();
         opA.textContent = '';
         opA.className = 'op-slide-text vazio';
         limparEstiloPreviewSlide(opA);
@@ -10042,6 +10300,7 @@ function atualizarPreviewOperador() {
     }
 
     if (previewMusicaEsperandoDockParaEspelharLetra()) {
+      limparPreviewTituloMusicaAbertura();
       opA.textContent = '';
       opA.className = 'op-slide-text vazio';
       limparEstiloPreviewSlide(opA);
@@ -10096,10 +10355,17 @@ function emitirEstadoMinistranteAoServidor() {
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
   const slidePretoFinal = !!(estadoServidor && estadoServidor.slidePretoFinal);
   const telaLimpa = !atual && !proximo && !projecaoAtiva;
+  const tituloMusica = musicaAtiva?.titulo || '';
+  const aberturaMusica =
+    !slidePretoFinal &&
+    !!musicaAtiva &&
+    estrofeAtiva === 0 &&
+    !!(tituloMusica || atual || proximo);
   projecao.enviar('exibir_ministrante', {
-    titulo: musicaAtiva?.titulo || '',
+    titulo: tituloMusica,
     atual: slidePretoFinal ? '' : atual,
     proximo: slidePretoFinal ? '' : proximo,
+    aberturaMusica,
     projecaoAtiva,
     telaLimpa,
     slidePretoFinal,
@@ -14695,6 +14961,8 @@ exporCallbacksParaAtributosHtml({
   mudarDestinoCfg,
   onCfgBuscaInput,
   limparCfgBusca,
+  onCfgMinistranteAdicionar,
+  onCfgImportTonsArquivoChange,
   setPosCtrl,
   salvarCfgNoServidor,
   onBancoFonteChange,
@@ -15487,7 +15755,7 @@ function setPosAvisoCard6Ctrl(val) {
 /* O menu lateral é fixo: seis entradas, nenhuma escondida por modo.
    Telão/Ministrante deixaram de ser abas e passaram a ser destinos dentro
    de «Slides» e «Bíblia» — ver `mudarDestinoCfg`. */
-const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos'];
+const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos', 'ministrantes'];
 
 const CFG_DESTINOS_CTRL = {
   slides: ['telao', 'ministrante'],
@@ -16833,6 +17101,7 @@ try {
   atualizarBtnModoApresentacao();
   atualizarBtnModoBiblia();
   configurarObserverPreviewMinistrante();
+  garantirMinistrantesCarregados().catch(() => {});
 
   if (typeof window !== 'undefined' && window.lyraElectron?.onMusicasSincronizadas) {
     window.lyraElectron.onMusicasSincronizadas((payload) => {
@@ -17303,7 +17572,7 @@ function appPrompt(msg, opts = {}) {
   p.textContent = String(msg || '');
   const input = document.createElement('input');
   input.type = 'text';
-  input.maxLength = 40;
+  input.maxLength = Number.isFinite(Number(opts.maxLength)) ? Number(opts.maxLength) : 40;
   input.value = String(opts.defaultValue || '');
   input.style.width = '100%';
   input.style.boxSizing = 'border-box';
@@ -18494,6 +18763,7 @@ function mudarAbaCfg(aba) {
   cfgAbaAtualCtrl = alvo;
   limparCfgBusca({ manterAba: true });
   if (alvo === 'geral') sincronizarFormCfgGeral();
+  if (alvo === 'ministrantes') renderListaCfgMinistrantes().catch(() => {});
   CFG_ABAS_CTRL.forEach((a) => {
     const tab = document.getElementById('cfg-tab-ctrl-' + a);
     const panel = document.getElementById('cfg-panel-ctrl-' + a);
@@ -18560,6 +18830,10 @@ function popularFormCfg(cfg) {
   setInputVal('cfg-ministrante-bg-gradient-ctrl', mb.bgGradient || '');
   setInputVal('cfg-ministrante-text-color-atual-ctrl', mb.textColorAtual || '#ffffff');
   setInputVal('cfg-ministrante-text-color-proximo-ctrl', mb.textColorProximo || '#f3c15a');
+  const opACor = document.getElementById('op-atual');
+  const opPCor = document.getElementById('op-proximo');
+  if (opACor) opACor.style.color = mb.textColorAtual || '#ffffff';
+  if (opPCor) opPCor.style.color = mb.textColorProximo || '#f3c15a';
   const corComentarioForm = normalizarCorComentarioMinistrante(
     mb.commentColor,
     corComentarioMinistrantePainel
@@ -18935,6 +19209,10 @@ function onMinistranteSlideCfgChange() {
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
   aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl.ministrante.commentColor);
+  const opA = document.getElementById('op-atual');
+  const opP = document.getElementById('op-proximo');
+  if (opA) opA.style.color = currentCfgCtrl.ministrante.textColorAtual || '#ffffff';
+  if (opP) opP.style.color = currentCfgCtrl.ministrante.textColorProximo || '#f3c15a';
   debounceSalvarCfg();
 }
 

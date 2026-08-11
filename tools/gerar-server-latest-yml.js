@@ -32,7 +32,7 @@ const buf = fs.readFileSync(exePath);
 const sha512 = crypto.createHash('sha512').update(buf).digest('base64');
 const size = buf.length;
 const releaseDate = new Date().toISOString();
-const compatibleController = String(process.env.LYRA_COMPATIBLE_CONTROLLER || '>=1.2.3').trim();
+const compatibleController = String(process.env.LYRA_COMPATIBLE_CONTROLLER || '>=1.2.4').trim();
 
 const yml = [
   `buildId: "${buildId}"`,

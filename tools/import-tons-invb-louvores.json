@@ -1,0 +1,1588 @@
+{
+  "versao": 1,
+  "fonte": "https://louvores.invbotafogo.com.br/",
+  "gerado_em": "2026-08-11T20:49:35.011Z",
+  "_comentario": "Exportado do Tom Louvores (INVB). Artista preenchido quando havia link do Cifra Club. Tons Orig. omitidos. Importe em Ajustes → Ministrantes → Importar tons do site.",
+  "itens": [
+    {
+      "titulo": "1000 Graus",
+      "artista": "Renascer Praise",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "A Casa é Sua",
+      "artista": "",
+      "tons": {
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "A Deus Seja Glória",
+      "artista": "",
+      "tons": {
+        "Daniela": "Bm"
+      }
+    },
+    {
+      "titulo": "A Ele a Glória",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "E"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "C"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "F#m"
+        }
+      ]
+    },
+    {
+      "titulo": "A Honra e a Glória",
+      "artista": "",
+      "tons": {
+        "Mirian": "C#m",
+        "Raphaela": "E"
+      }
+    },
+    {
+      "titulo": "A Resposta",
+      "artista": "Thalles Roberto",
+      "tons": {
+        "Daniela": "B"
+      }
+    },
+    {
+      "titulo": "A Ti Eu Vou Clamar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "A Tua Palavra Escondi",
+      "artista": "",
+      "tons": {
+        "Cris": "A"
+      }
+    },
+    {
+      "titulo": "Abra os Olhos do Meu Coração",
+      "artista": "David Quinlan",
+      "tons": {
+        "Daniela": "E"
+      }
+    },
+    {
+      "titulo": "Abraça-me",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Adorador",
+      "artista": "",
+      "tons": {
+        "Raphaela": "F",
+        "Mirian": "G"
+      }
+    },
+    {
+      "titulo": "Advogado Fiel",
+      "artista": "",
+      "tons": {
+        "Cris": "D#m"
+      }
+    },
+    {
+      "titulo": "Agnus Dei",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Águas Purificadoras",
+      "artista": "Diante Do Trono",
+      "tons": {
+        "Daniela": "B"
+      }
+    },
+    {
+      "titulo": "Ah Jesus / Coração igual ao Teu",
+      "artista": "Julliany Souza",
+      "tons": {
+        "Daniela": "D"
+      }
+    },
+    {
+      "titulo": "Além do Rio Azul",
+      "artista": "",
+      "tons": {
+        "Mirian": "Bm",
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Alfa e Ômega",
+      "artista": "",
+      "tons": {
+        "Raphaela": "D"
+      }
+    },
+    {
+      "titulo": "Amo o Senhor",
+      "artista": "Fernanda Brum",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "E"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "C"
+        }
+      ]
+    },
+    {
+      "titulo": "Ao Rei dos Reis",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Ao Único",
+      "artista": "Aline Barros",
+      "tons": {
+        "Daniela": "G",
+        "Cris": "A"
+      }
+    },
+    {
+      "titulo": "Aquele Que Está Feliz",
+      "artista": "Comunidade De Nilopolis",
+      "tons": {
+        "Raphaela": "D",
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "As Promessas do Pai",
+      "artista": "Ministerio Sai Da Tenda",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "E"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "Até Que o Senhor Venha",
+      "artista": "",
+      "tons": {
+        "Daniela": "F#"
+      }
+    },
+    {
+      "titulo": "Atos 2",
+      "artista": "",
+      "tons": {
+        "Mirian": "C#m"
+      }
+    },
+    {
+      "titulo": "Bondade de Deus",
+      "artista": "Isaias Saad",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "F"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "E"
+        }
+      ]
+    },
+    {
+      "titulo": "Cadeias Quebrar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "Gm"
+      }
+    },
+    {
+      "titulo": "Caia Fogo",
+      "artista": "",
+      "tons": {
+        "Mirian": "F#m"
+      }
+    },
+    {
+      "titulo": "Caminho no Deserto",
+      "artista": "",
+      "tons": {
+        "Daniela": "B"
+      }
+    },
+    {
+      "titulo": "Canção ao Cordeiro",
+      "artista": "",
+      "tons": {
+        "Raphaela": "E"
+      }
+    },
+    {
+      "titulo": "Celebrai",
+      "artista": "Ministerio Koinonya De Louvor",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Celebre ao Rei",
+      "artista": "",
+      "tons": {
+        "Raphaela": "C"
+      }
+    },
+    {
+      "titulo": "Clamo Jesus",
+      "artista": "Paulo Cesar Baruk",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Com Muito Louvor",
+      "artista": "",
+      "tons": {
+        "Daniela": "G",
+        "Raphaela": "F"
+      }
+    },
+    {
+      "titulo": "Consagração",
+      "artista": "",
+      "tons": {
+        "Vanessa": "E"
+      }
+    },
+    {
+      "titulo": "Deixa",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Derrama Tua Glória",
+      "artista": "Ministerio Uncao Agape",
+      "tons": {
+        "Daniela": "F#m"
+      }
+    },
+    {
+      "titulo": "Deserto",
+      "artista": "",
+      "tons": {
+        "Mirian": "G",
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Deus de Aliança",
+      "artista": "",
+      "tons": {
+        "Raphaela": "E"
+      }
+    },
+    {
+      "titulo": "Deus de Obras Completas",
+      "artista": "Kemilly Santos",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "F"
+        },
+        {
+          "ministrante": "Cris",
+          "tom": "C"
+        },
+        {
+          "ministrante": "Cris",
+          "tom": "G"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "E"
+        }
+      ]
+    },
+    {
+      "titulo": "Deus dos Deuses",
+      "artista": "",
+      "tons": {
+        "Mirian": "A"
+      }
+    },
+    {
+      "titulo": "Deus Está Aqui (Noites Traiçoeiras)",
+      "artista": "Anjos De Resgate Musicas",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Diante de Ti",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "F#"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "Digno de Glória",
+      "artista": "Asaph Borba",
+      "tons": {
+        "Raphaela": "F"
+      }
+    },
+    {
+      "titulo": "Digno é o Senhor",
+      "artista": "Aline Barros",
+      "tons": {
+        "Daniela": "E",
+        "Mirian": "D",
+        "Raphaela": "B"
+      }
+    },
+    {
+      "titulo": "Dono de Tudo",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "É Ele",
+      "artista": "",
+      "tons": {
+        "Raphaela": "B",
+        "Daniela": "F#"
+      }
+    },
+    {
+      "titulo": "Efésios 6",
+      "artista": "Anderson Freire",
+      "tons": [
+        {
+          "ministrante": "Mirian",
+          "tom": "Am"
+        },
+        {
+          "ministrante": "Mirian",
+          "tom": "Bm"
+        }
+      ]
+    },
+    {
+      "titulo": "Eis Que Estou à Porta",
+      "artista": "Fernandinho",
+      "tons": {
+        "Raphaela": "A",
+        "Daniela": "Gm"
+      }
+    },
+    {
+      "titulo": "Eis-me Aqui",
+      "artista": "Valesca Mayssa",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "Gm"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        }
+      ]
+    },
+    {
+      "titulo": "Ele é Exaltado",
+      "artista": "",
+      "tons": {
+        "Daniela": "B",
+        "Vanessa": "C",
+        "Cris": "D"
+      }
+    },
+    {
+      "titulo": "Ele é o Leão",
+      "artista": "",
+      "tons": {
+        "Raphaela": "Am"
+      }
+    },
+    {
+      "titulo": "Ele Vem",
+      "artista": "",
+      "tons": {
+        "Mirian": "F#m",
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Em Espírito, Em Verdade",
+      "artista": "Harpa Crista",
+      "tons": {
+        "Daniela": "C",
+        "Mirian": "C#m"
+      }
+    },
+    {
+      "titulo": "Em Nome de Jesus",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "G#"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "A#"
+        }
+      ]
+    },
+    {
+      "titulo": "Em Teus braços",
+      "artista": "Laura Souguellis",
+      "tons": {
+        "Daniela": "C",
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Em Tua Presença",
+      "artista": "",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Escape",
+      "artista": "",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Escudo",
+      "artista": "Eli Soares",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Espírito Santo",
+      "artista": "Ministerio Sarando Terra Ferida",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Espírito, Enche a Minha Vida",
+      "artista": "",
+      "tons": {
+        "Daniela": "F",
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Estrela da Manhã",
+      "artista": "",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Eu Me Rendo",
+      "artista": "",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Eu Navegarei",
+      "artista": "",
+      "tons": {
+        "Daniela": "G"
+      }
+    },
+    {
+      "titulo": "Eu Só Quero Tua Presença",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "D"
+        }
+      ]
+    },
+    {
+      "titulo": "Eu Sou Teu Pai",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "F#"
+        }
+      ]
+    },
+    {
+      "titulo": "Eu Vejo a Glória",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Faça Morada",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Fidelidade",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Mirian",
+          "tom": "G#m"
+        },
+        {
+          "ministrante": "Mirian",
+          "tom": "Am"
+        }
+      ]
+    },
+    {
+      "titulo": "Fiel a Mim",
+      "artista": "Eyshila",
+      "tons": {
+        "Raphaela": "E"
+      }
+    },
+    {
+      "titulo": "Foi Deus",
+      "artista": "Davi Sacer",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Galileu",
+      "artista": "Fernandinho",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "A#m"
+        }
+      ]
+    },
+    {
+      "titulo": "Grande é o Senhor",
+      "artista": "Adhemar De Campos",
+      "tons": {
+        "Daniela": "D"
+      }
+    },
+    {
+      "titulo": "Gratidão",
+      "artista": "Get Worship",
+      "tons": {
+        "Daniela": "C",
+        "Raphaela": "C#"
+      }
+    },
+    {
+      "titulo": "Há Uma Saída",
+      "artista": "",
+      "tons": {
+        "Mirian": "A"
+      }
+    },
+    {
+      "titulo": "Haja de Deus",
+      "artista": "",
+      "tons": {
+        "Daniela": "E"
+      }
+    },
+    {
+      "titulo": "Inflama",
+      "artista": "Valesca Mayssa",
+      "tons": {
+        "Daniela": "E",
+        "Cris": "F"
+      }
+    },
+    {
+      "titulo": "Já Estou Crucificado Com Cristo",
+      "artista": "",
+      "tons": {
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Jeová é o Teu Cavaleiro",
+      "artista": "",
+      "tons": {
+        "Daniela": "F#"
+      }
+    },
+    {
+      "titulo": "Jeová Jireh",
+      "artista": "",
+      "tons": {
+        "Mirian": "D",
+        "Daniela": "C",
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Jesus (Eu Te Amo)",
+      "artista": "",
+      "tons": {
+        "Mirian": "Bm"
+      }
+    },
+    {
+      "titulo": "Jesus em Tua Presença",
+      "artista": "Ministerio Morada",
+      "tons": {
+        "Raphaela": "A",
+        "Mirian": "G"
+      }
+    },
+    {
+      "titulo": "Jesus, Plano Perfeito",
+      "artista": "",
+      "tons": {
+        "Mirian": "C"
+      }
+    },
+    {
+      "titulo": "João Viu",
+      "artista": "Andrea Fontes",
+      "tons": [
+        {
+          "ministrante": "Cris",
+          "tom": "G"
+        },
+        {
+          "ministrante": "Cris",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "Liberta-me",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Lindo Momento",
+      "artista": "",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Lugar da Adoração",
+      "artista": "Ministerio Nova Jerusalem",
+      "tons": {
+        "Mirian": "G"
+      }
+    },
+    {
+      "titulo": "Lugar de Adoração",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "A"
+        }
+      ]
+    },
+    {
+      "titulo": "Lugar Secreto",
+      "artista": "",
+      "tons": {
+        "Mirian": "Gm"
+      }
+    },
+    {
+      "titulo": "Lugares Altos",
+      "artista": "",
+      "tons": {
+        "Mirian": "F#"
+      }
+    },
+    {
+      "titulo": "Manancial",
+      "artista": "",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Marca da Promessa",
+      "artista": "Davi Sacer",
+      "tons": {
+        "Daniela": "Em"
+      }
+    },
+    {
+      "titulo": "Me Atraiu",
+      "artista": "",
+      "tons": {
+        "Daniela": "A#",
+        "Raphaela": "C"
+      }
+    },
+    {
+      "titulo": "Me Derramar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "C#",
+        "Vanessa": "C"
+      }
+    },
+    {
+      "titulo": "Meu Alvo",
+      "artista": "",
+      "tons": {
+        "Daniela": "A#"
+      }
+    },
+    {
+      "titulo": "Morrer Pra Viver",
+      "artista": "",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Na Unção de Deus",
+      "artista": "Attos2 Worship",
+      "tons": {
+        "Raphaela": "B",
+        "Mirian": "A",
+        "Cris": "C#"
+      }
+    },
+    {
+      "titulo": "Nada Além do Sangue",
+      "artista": "",
+      "tons": {
+        "Daniela": "B"
+      }
+    },
+    {
+      "titulo": "Nada Mais",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "A#"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "C"
+        }
+      ]
+    },
+    {
+      "titulo": "Nada Pode Calar Um Adorador",
+      "artista": "",
+      "tons": {
+        "Mirian": "E"
+      }
+    },
+    {
+      "titulo": "Não Há Deus Como Tu",
+      "artista": "Elizeu Gomes",
+      "tons": {
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Não Me Envergonharei",
+      "artista": "",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Não Temas",
+      "artista": "Diante Do Trono",
+      "tons": {
+        "Cris": "B"
+      }
+    },
+    {
+      "titulo": "No Dia de Pentecoste",
+      "artista": "",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Nos Braços do Pai",
+      "artista": "",
+      "tons": {
+        "Daniela": "F#"
+      }
+    },
+    {
+      "titulo": "Nunca Pare de Lutar",
+      "artista": "Ludmila Ferber",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "A"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "O Amigo",
+      "artista": "",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "O Espírito de Deus Está Aqui",
+      "artista": "",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "O Fogo Arderá",
+      "artista": "Alexsander Lucio",
+      "tons": {
+        "Raphaela": "B",
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "O Medo Não Vai Me Parar",
+      "artista": "Sarah Beatriz",
+      "tons": {
+        "Raphaela": "Gm"
+      }
+    },
+    {
+      "titulo": "O Nosso General é Cristo",
+      "artista": "",
+      "tons": {
+        "Cris": "Cm"
+      }
+    },
+    {
+      "titulo": "O Que Tua Glória Fez Comigo",
+      "artista": "Fernanda Brum",
+      "tons": {
+        "Daniela": "Dm"
+      }
+    },
+    {
+      "titulo": "O Rei Está Voltando",
+      "artista": "",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Oceanos",
+      "artista": "",
+      "tons": {
+        "Mirian": "A#"
+      }
+    },
+    {
+      "titulo": "Oh Quão Lindo Esse Nome É",
+      "artista": "Ana Nobrega",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Óleo de Alegria",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "E"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "D"
+        }
+      ]
+    },
+    {
+      "titulo": "Onde o Fogo Não Apaga",
+      "artista": "",
+      "tons": {
+        "Cris": "F"
+      }
+    },
+    {
+      "titulo": "Os Que Confiam no Senhor",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Ouve-se Um Júbilo",
+      "artista": "",
+      "tons": {
+        "Raphaela": "Am"
+      }
+    },
+    {
+      "titulo": "Para Que Entre o Rei",
+      "artista": "",
+      "tons": {
+        "Daniela": "Am"
+      }
+    },
+    {
+      "titulo": "Perto Quero Estar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "E"
+      }
+    },
+    {
+      "titulo": "Pode Morar Aqui",
+      "artista": "",
+      "tons": {
+        "Mirian": "F"
+      }
+    },
+    {
+      "titulo": "Poder da Oração",
+      "artista": "",
+      "tons": {
+        "Cris": "D"
+      }
+    },
+    {
+      "titulo": "Poderoso Deus",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "E"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "F"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "D"
+        }
+      ]
+    },
+    {
+      "titulo": "Poderoso Deus / O Que Tua Glória Fez Comigo",
+      "artista": "David Quinlan",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Por Causa Dele",
+      "artista": "",
+      "tons": {
+        "Raphaela": "A"
+      }
+    },
+    {
+      "titulo": "Porque Ele Vive",
+      "artista": "",
+      "tons": {
+        "Vanessa": "D",
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Posso Clamar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "D#"
+      }
+    },
+    {
+      "titulo": "Pra Sempre",
+      "artista": "Fernandinho",
+      "tons": {
+        "Daniela": "B"
+      }
+    },
+    {
+      "titulo": "Primeira Essência",
+      "artista": "Felipe Rodrigues",
+      "tons": {
+        "Daniela": "G#"
+      }
+    },
+    {
+      "titulo": "Quando Eu Cheguei Aqui",
+      "artista": "",
+      "tons": {
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Quando Eu Chorar",
+      "artista": "Bruna Karla",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Quando o Vento Soprar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "D"
+      }
+    },
+    {
+      "titulo": "Quão Formoso És",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Quão Grande é o Meu Deus",
+      "artista": "",
+      "tons": {
+        "Raphaela": "F",
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Quão Lindo",
+      "artista": "",
+      "tons": {
+        "Cris": "A"
+      }
+    },
+    {
+      "titulo": "Que Ele Cresça",
+      "artista": "Deigma Marques",
+      "tons": {
+        "Daniela": "D"
+      }
+    },
+    {
+      "titulo": "Quem é Esse",
+      "artista": "Julliany Souza",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "C#"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "C"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "A#"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "Bm"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "A"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "D"
+        }
+      ]
+    },
+    {
+      "titulo": "Reacende a Chama",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "Am"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "Bm"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        }
+      ]
+    },
+    {
+      "titulo": "Rendido Estou",
+      "artista": "",
+      "tons": {
+        "Mirian": "A#"
+      }
+    },
+    {
+      "titulo": "Sai da Tua Tenda",
+      "artista": "",
+      "tons": {
+        "Cris": "E"
+      }
+    },
+    {
+      "titulo": "Sai da Tua Tenda",
+      "artista": "",
+      "tons": {
+        "Cris": "E"
+      }
+    },
+    {
+      "titulo": "Santo Espírito",
+      "artista": "",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Santo Pra Sempre",
+      "artista": "",
+      "tons": {
+        "Raphaela": "E",
+        "Daniela": "D"
+      }
+    },
+    {
+      "titulo": "Se Eu Me Humilhar",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "Em"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "F"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "G"
+        }
+      ]
+    },
+    {
+      "titulo": "Se Eu Não Te Ouvir",
+      "artista": "Sarah Farias",
+      "tons": {
+        "Raphaela": "A#",
+        "Cris": "C"
+      }
+    },
+    {
+      "titulo": "Se Não For Pra Te Adorar",
+      "artista": "",
+      "tons": {
+        "Mirian": "D"
+      }
+    },
+    {
+      "titulo": "Segura na Mão de Deus",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Cris",
+          "tom": "C"
+        },
+        {
+          "ministrante": "Cris",
+          "tom": "A"
+        }
+      ]
+    },
+    {
+      "titulo": "Senhor e Rei",
+      "artista": "",
+      "tons": {
+        "Mirian": "D",
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Ser Conhecido de Deus",
+      "artista": "Renascer Praise",
+      "tons": {
+        "Daniela": "E"
+      }
+    },
+    {
+      "titulo": "Seu Sangue",
+      "artista": "",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Só Tu És Santo",
+      "artista": "Ministerio Morada",
+      "tons": {
+        "Daniela": "A"
+      }
+    },
+    {
+      "titulo": "Sobre as Águas",
+      "artista": "",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Solta o Cabo da Nau",
+      "artista": "Corinhos Evangelicos",
+      "tons": [
+        {
+          "ministrante": "Cris",
+          "tom": "D"
+        },
+        {
+          "ministrante": "Cris",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "Sonda-me, Usa-me",
+      "artista": "Aline Barros",
+      "tons": {
+        "Daniela": "G"
+      }
+    },
+    {
+      "titulo": "Sopra Espírito (Sobre o Vale dos Ossos Secos)",
+      "artista": "",
+      "tons": {
+        "Daniela": "G"
+      }
+    },
+    {
+      "titulo": "Sou Casa",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "C"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "A"
+        }
+      ]
+    },
+    {
+      "titulo": "Sublime (FHOP)",
+      "artista": "Florianopolis House Of Prayer",
+      "tons": {
+        "Daniela": "D"
+      }
+    },
+    {
+      "titulo": "Te Agradeço",
+      "artista": "",
+      "tons": {
+        "Vanessa": "G"
+      }
+    },
+    {
+      "titulo": "Te Alegrar",
+      "artista": "",
+      "tons": {
+        "Mirian": "E"
+      }
+    },
+    {
+      "titulo": "Terremoto",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Teu Amor Não Falha",
+      "artista": "",
+      "tons": {
+        "Daniela": "B",
+        "Raphaela": "Am"
+      }
+    },
+    {
+      "titulo": "Toda Sorte De Bençãos",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Daniela",
+          "tom": "A"
+        },
+        {
+          "ministrante": "Daniela",
+          "tom": "C"
+        }
+      ]
+    },
+    {
+      "titulo": "Tu És",
+      "artista": "Florianopolis House Of Prayer",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "C#"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "B"
+        }
+      ]
+    },
+    {
+      "titulo": "Tu És Bom",
+      "artista": "",
+      "tons": {
+        "Raphaela": "D"
+      }
+    },
+    {
+      "titulo": "Tu És Fiel Senhor",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Tua Graça Me Basta",
+      "artista": "",
+      "tons": {
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Tudo é Perda",
+      "artista": "Felipe Rodrigues",
+      "tons": {
+        "Daniela": "A#",
+        "Raphaela": "C#"
+      }
+    },
+    {
+      "titulo": "Última Chance",
+      "artista": "",
+      "tons": {
+        "Mirian": "D"
+      }
+    },
+    {
+      "titulo": "Um Novo Dia",
+      "artista": "",
+      "tons": {
+        "Daniela": "F"
+      }
+    },
+    {
+      "titulo": "Unção de Deus + Há uma saída",
+      "artista": "Attos2 Worship",
+      "tons": {
+        "Mirian": "A"
+      }
+    },
+    {
+      "titulo": "Vem Com Josué Lutar em Jericó",
+      "artista": "",
+      "tons": {
+        "Raphaela": "Am"
+      }
+    },
+    {
+      "titulo": "Vem Com Teu Fogo",
+      "artista": "Hebrom Ministerio Fortaleza De Adoracao",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "Gm"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "C"
+        }
+      ]
+    },
+    {
+      "titulo": "Vem Me Buscar",
+      "artista": "",
+      "tons": {
+        "Mirian": "Bm",
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Vem, Jesus",
+      "artista": "",
+      "tons": {
+        "Raphaela": "B"
+      }
+    },
+    {
+      "titulo": "Vencendo Vem Jesus",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Vim Para Adorar-Te",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "A"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "G"
+        }
+      ]
+    },
+    {
+      "titulo": "Vitória no Deserto",
+      "artista": "",
+      "tons": [
+        {
+          "ministrante": "Raphaela",
+          "tom": "D"
+        },
+        {
+          "ministrante": "Raphaela",
+          "tom": "F"
+        }
+      ]
+    },
+    {
+      "titulo": "Vitorioso És",
+      "artista": "",
+      "tons": {
+        "Mirian": "F",
+        "Raphaela": "G"
+      }
+    },
+    {
+      "titulo": "Vou Seguir",
+      "artista": "",
+      "tons": {
+        "Cris": "G"
+      }
+    },
+    {
+      "titulo": "Vou Seguir Com Fé",
+      "artista": "Kleber Lucas",
+      "tons": {
+        "Daniela": "C"
+      }
+    },
+    {
+      "titulo": "Vou Te Alegrar",
+      "artista": "",
+      "tons": {
+        "Raphaela": "C"
+      }
+    },
+    {
+      "titulo": "Yahweh",
+      "artista": "",
+      "tons": {
+        "Daniela": "Am"
+      }
+    }
+  ]
+}

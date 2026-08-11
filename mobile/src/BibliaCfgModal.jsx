@@ -14,7 +14,9 @@ import {
   Switch,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS } from './theme';
@@ -56,8 +58,12 @@ const BG_TIPOS = [
  * @param {(cfg: object) => void} props.onChange
  */
 export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [aba, setAba] = useState('m2');
   const [escolhendoImagem, setEscolhendoImagem] = useState(false);
+  // Sheet ~88% da tela; reserva header + abas + FECHAR + safe area para o scroll
+  const scrollMaxHeight = Math.max(220, Math.round(windowHeight * 0.88) - 200 - insets.bottom);
 
   const camadaKey = aba === 'm3' ? 'm3' : 'm2';
   const padrao = aba === 'm3' ? BIBLIA_CAMADA_M3_PADRAO : BIBLIA_CAMADA_M2_PADRAO;
@@ -456,7 +462,7 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
+        <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitulo}>Configurações</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -477,10 +483,13 @@ export default function BibliaCfgModal({ visible, onClose, cfg, onChange }) {
           </View>
 
           <KeyboardScreen
+            fill={false}
             keyboardVerticalOffset={0}
-            style={styles.cfgScroll}
+            style={[styles.cfgScroll, { maxHeight: scrollMaxHeight }]}
+            contentContainerStyle={styles.cfgScrollContent}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
           >
             {aba === 'leitura' ? renderLeitura() : renderCamada()}
           </KeyboardScreen>
@@ -509,11 +518,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 24,
     maxHeight: '88%',
   },
   cfgScroll: {
+    flexGrow: 0,
     flexShrink: 1,
+  },
+  cfgScrollContent: {
+    paddingBottom: 12,
+    flexGrow: 0,
   },
   modalHeader: {
     flexDirection: 'row',

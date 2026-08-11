@@ -40,7 +40,8 @@
       background: transparent !important;
     }
     body.slide-preto-final .slide,
-    body.slide-preto-final .ref-biblica-op {
+    body.slide-preto-final .ref-biblica-op,
+    body.slide-preto-final .titulo-musica-op {
       visibility: hidden !important;
       opacity: 0 !important;
     }
@@ -76,6 +77,22 @@
     #atual { color: #ffffff; transition: opacity 150ms ease; }
     #proximo {
       color: #f3c15a;
+    }
+    /* Título da música no 1.º slide — dourado fixo, acima do slide atual. */
+    .titulo-musica-op {
+      width: 100%;
+      max-width: 100%;
+      text-align: center;
+      font-weight: 700;
+      font-size: 6.5vh;
+      line-height: 1.3;
+      color: #f3c15a;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      text-shadow: 0 2px 28px rgba(28, 22, 22, 0.12);
+    }
+    .titulo-musica-op.oculta {
+      display: none;
     }
     .linha-ministrante {
       display: block;
@@ -174,6 +191,7 @@
   <div id="capa-apresentacao-op" class="capa-apresentacao-op" hidden></div>
   <div id="capa-aviso-op" class="capa-aviso-op" hidden><pre id="capa-aviso-op-texto"></pre></div>
   <div class="wrap" id="op-wrap-letras">
+    <div class="titulo-musica-op oculta" id="titulo-musica-op"></div>
     <div class="slide vazio" id="atual"></div>
     <div class="ref-biblica-op oculta" id="ref-biblica-op"></div>
     <div class="slide vazio" id="proximo"></div>
@@ -181,6 +199,7 @@
   <script>
     const { ipcRenderer } = require('electron');
     const elAtual = document.getElementById('atual');
+    const elTituloMusicaOp = document.getElementById('titulo-musica-op');
     const elRefBiblicaOp = document.getElementById('ref-biblica-op');
     const elProximo = document.getElementById('proximo');
     const elCapaAp = document.getElementById('capa-apresentacao-op');
@@ -325,6 +344,22 @@
       const refVh = Number.isFinite(refVw) && refVw > 0 ? refVw * 0.95 : 1.7;
       elRefBiblicaOp.style.fontSize = `${refVh}vh`;
       elRefBiblicaOp.style.textTransform = 'none';
+    }
+
+    /** Título da música no topo do M3 — só no 1.º slide, dourado fixo. */
+    function aplicarTituloMusicaAbertura(payload) {
+      if (!elTituloMusicaOp) return;
+      const modo = String(payload?.modo || '');
+      const tit = String(payload?.titulo || '').trim();
+      const mostrar = modo === 'musica' && !!payload?.aberturaMusica && !!tit;
+      if (!mostrar) {
+        elTituloMusicaOp.textContent = '';
+        elTituloMusicaOp.classList.add('oculta');
+        return;
+      }
+      elTituloMusicaOp.classList.remove('oculta');
+      elTituloMusicaOp.textContent = tit.toUpperCase();
+      elTituloMusicaOp.style.color = '#f3c15a';
     }
 
     function substituirCamadaDisplay(atual, camada) {
@@ -788,6 +823,7 @@
         limparHtmlMinistrante(elAtual);
         limparHtmlMinistrante(elProximo);
         aplicarReferenciaBiblicaMinistrante('', 'texto');
+        aplicarTituloMusicaAbertura({ modo: 'texto' });
         elAtual.classList.add('vazio');
         elProximo.classList.add('vazio');
         const wrapPreto = document.querySelector('.wrap');
@@ -806,6 +842,7 @@
         limparHtmlMinistrante(elAtual);
         limparHtmlMinistrante(elProximo);
         aplicarReferenciaBiblicaMinistrante('', 'texto');
+        aplicarTituloMusicaAbertura({ modo: 'texto' });
         elAtual.classList.add('vazio');
         elProximo.classList.add('vazio');
         const wrapOcioso = document.querySelector('.wrap');
@@ -820,6 +857,7 @@
       if (modo === 'apresentacao') {
         limparCapasApresentacaoOuAviso();
         elCapaAviso.hidden = true;
+        aplicarTituloMusicaAbertura({ modo: 'texto' });
         renderizarMidiaApresentacaoNoHost(elCapaAp, payload.apresentacao);
         elCapaAp.hidden = false;
         if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
@@ -829,6 +867,7 @@
       if (modo === 'aviso') {
         limparCapasApresentacaoOuAviso();
         elCapaAp.hidden = true;
+        aplicarTituloMusicaAbertura({ modo: 'texto' });
         aplicarEstiloAvisoMinistrante(payload.avisoConfig);
         const linhas = Array.isArray(payload.linhas) ? payload.linhas : [];
         elCapaAvisoTexto.textContent = linhas.join('\n');
@@ -849,6 +888,7 @@
         aplicarHtmlMinistrante(elAtual, atualTxt, mai);
         aplicarHtmlMinistrante(elProximo, proxTxt, mai);
         aplicarReferenciaBiblicaMinistrante(tituloRef, modoPayload);
+        aplicarTituloMusicaAbertura(payload);
       };
 
       if (ehBiblia) {

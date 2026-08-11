@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lyra",
     "slug": "invblyrics",
-    "version": "1.2.1",
+    "version": "1.2.5",
     "orientation": "portrait",
     "scheme": "lyra",
     "userInterfaceStyle": "light",
@@ -21,6 +21,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.lyra.app",
+      "versionCode": 125,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",

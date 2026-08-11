@@ -1646,9 +1646,113 @@
       justify-content: space-between;
     }
 
-    .playlist-row .tit {
-      font-size: 13px;
+    /* Cabeçalho: TÍTULO (+artista abaixo na linha) | MINISTRANTE | TOM */
+    .playlist-cols-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 128px 68px 52px;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 10px 6px;
+      margin: 0 8px;
+      font-family: var(--font-ui);
+      font-size: 9px;
       font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .playlist-cols-head[hidden] {
+      display: none !important;
+    }
+    .playlist-cols-head span:last-child {
+      /* reserva alinhada aos botões ↑↓✕ */
+      visibility: hidden;
+    }
+
+    .playlist-row-cols {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 128px 68px auto;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .pl-col {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pl-col-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      overflow: hidden;
+      white-space: normal;
+    }
+
+    .pl-col-artista {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pl-col-titulo.tit {
+      font-size: var(--fs-text-base);
+      font-weight: 700;
+      line-height: 1.25;
+      flex: unset;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+
+    .pl-sel {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 3px;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
+      color-scheme: dark;
+    }
+    html:not(.dark) .pl-sel {
+      color-scheme: light;
+    }
+    .pl-sel option,
+    .pl-sel optgroup {
+      background-color: var(--surface2, #1c1c1c);
+      color: var(--text, #f0ebe3);
+    }
+    .pl-sel:focus {
+      outline: none;
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .pl-sel-ministrante,
+    .pl-sel-ministrante option {
+      text-transform: uppercase;
+    }
+
+    .playlist-row .tit {
+      font-size: var(--fs-text-base);
+      font-weight: 700;
       line-height: 1.25;
       min-width: 0;
       flex: 1;
@@ -2652,6 +2756,21 @@
 
     #op-proximo:not(.vazio) {
       color: #FFDE21;
+    }
+
+    .op-titulo-musica {
+      font-family: var(--slide-font);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #f3c15a;
+      font-size: 11px;
+      line-height: 1.3;
+      width: 100%;
+      text-align: center;
+    }
+    .op-titulo-musica.vazio {
+      display: none;
     }
 
     .op-slide-text .preview-linha {
@@ -4612,7 +4731,43 @@
     }
 
     body.app-mod-slides .panel-playlist .playlist-row .tit {
-      font-size: 14px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    body.app-mod-slides .panel-playlist .pl-sel,
+    body.app-mod-slides .panel-playlist .pl-sel-tom {
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    /* Modo slides (coluna estreita ~230px): meta empilhada; selects numa linha. */
+    body.app-mod-slides .playlist-cols-head {
+      display: none !important;
+    }
+    body.app-mod-slides .playlist-row-cols {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "meta btns"
+        "sels sels";
+      gap: 3px 6px;
+    }
+    body.app-mod-slides .pl-col-meta { grid-area: meta; }
+    body.app-mod-slides .pl-col-artista { font-size: 10px; }
+    body.app-mod-slides .playlist-btns { grid-area: btns; }
+    body.app-mod-slides .pl-col-ministrante,
+    body.app-mod-slides .pl-col-tom {
+      grid-area: sels;
+    }
+    body.app-mod-slides .pl-col-ministrante {
+      display: inline-block;
+      width: calc(62% - 3px);
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    body.app-mod-slides .pl-col-tom {
+      display: inline-block;
+      width: calc(38% - 1px);
+      vertical-align: middle;
     }
 
     /* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
@@ -7594,6 +7749,48 @@
       margin-top: 0;
       height: 18px;
     }
+
+    .cfg-ministrante-add {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+    }
+    .cfg-ministrante-add .search-box {
+      flex: 1;
+      min-width: 0;
+    }
+    .cfg-ministrantes-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px 0 12px;
+    }
+    .cfg-ministrante-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface2);
+    }
+    .cfg-ministrante-nome {
+      flex: 1;
+      min-width: 0;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cfg-ministrante-row .btn.sm {
+      flex-shrink: 0;
+      min-width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
     .cfg-size-ticks {
       display: flex;
       justify-content: space-between;
@@ -8315,6 +8512,7 @@
           </div>
           <div class="preview-card-body">
             <div class="preview-operator-slides">
+              <div id="op-titulo" class="op-titulo-musica vazio"></div>
               <div id="op-atual" class="op-slide-text vazio"></div>
               <div id="op-proximo" class="op-slide-text vazio"></div>
             </div>
@@ -8434,6 +8632,12 @@
         </button>
         <button type="button" id="playlist-tema-del" class="btn sm danger playlist-tema-acao playlist-tema-acao--destrutiva" title="Excluir o tema e remover da playlist todas as músicas desse tema" aria-label="Excluir tema selecionado">✕</button>
       </div>
+    </div>
+    <div class="playlist-cols-head" id="playlist-cols-head" hidden>
+      <span>Título</span>
+      <span>Ministrante</span>
+      <span>Tom</span>
+      <span aria-hidden="true">···</span>
     </div>
     <div class="playlist-list" id="playlist-list"></div>
   </aside>
@@ -8782,6 +8986,11 @@
         <button type="button" class="cfg-tab" id="cfg-tab-ctrl-biblia" onclick="mudarAbaCfg('biblia')">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 0-2 2V5z"/><path d="M6 3v16M10 8h6M10 12h5"/></svg>
           <span class="cfg-tab-nome">Bíblia</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-ministrantes" onclick="mudarAbaCfg('ministrantes')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="cfg-tab-nome">Ministrantes</span>
           <span class="cfg-tab-conta" hidden></span>
         </button>
 
@@ -9485,6 +9694,51 @@
             </div>
           </section>
         </div>
+      </div>
+
+      <!-- ═══════════════ MINISTRANTES (pessoas) ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-ministrantes">
+        <div class="cfg-destino-rotulo">Conteúdo › Ministrantes</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Ministrantes</h2>
+          <p class="cfg-painel-hint">Nomes que aparecem no dropdown da playlist do culto. O tom memorizado por ministrante + música também é gerido aqui (ao excluir um nome, os vínculos de tom dele saem).</p>
+        </header>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Cadastrar</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row cfg-row--largo" data-busca="adicionar ministrante nome cadastro playlist">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Novo ministrante</div>
+              </div>
+              <div class="cfg-row-controlo cfg-ministrante-add">
+                <input type="text" id="cfg-ministrante-novo-nome" class="search-box" placeholder="Nome" maxlength="80" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();onCfgMinistranteAdicionar();}">
+                <button type="button" class="btn sm primary" onclick="onCfgMinistranteAdicionar()">Adicionar</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Lista</span></div>
+          <div class="cfg-card-corpo">
+            <div id="cfg-ministrantes-lista" class="cfg-ministrantes-lista"></div>
+          </div>
+        </section>
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Importar tons do site</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row cfg-row--largo" data-busca="importar tons ministrante musica json site">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Arquivo JSON</div>
+                <div class="cfg-row-hint">Cruza título + artista com o banco. Se a música ainda não existir, o tom fica pendente e aplica ao cadastrar. Exemplo: <code>tools/exemplo-import-tons-ministrantes.json</code></div>
+              </div>
+              <div class="cfg-row-controlo">
+                <input type="file" id="cfg-tom-import-file" accept=".json,application/json" hidden onchange="onCfgImportTonsArquivoChange(event)">
+                <button type="button" class="btn sm" onclick="document.getElementById('cfg-tom-import-file').click()">Escolher arquivo…</button>
+              </div>
+            </div>
+            <div id="cfg-tom-import-resultado" class="cfg-nota" hidden></div>
+          </div>
+        </section>
       </div>
 
       <!-- ═══════════════ RELÓGIO ═══════════════ -->

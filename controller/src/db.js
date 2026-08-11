@@ -106,6 +106,417 @@ function initApresentacoesDB() {
 }
 
 /**
+ * Cadastro de ministrantes (pessoas) e memória de tom por (ministrante + música).
+ * Independente do monitor M3 (`displayConfig.ministrante`).
+ */
+function initMinistrantesETomMemoriaDB() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ministrantes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL COLLATE NOCASE,
+      criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_ministrantes_nome
+      ON ministrantes(nome COLLATE NOCASE);
+    CREATE TABLE IF NOT EXISTS tom_memoria (
+      ministrante_id INTEGER NOT NULL,
+      musica_id INTEGER NOT NULL,
+      banco_fonte TEXT NOT NULL DEFAULT 'user',
+      tom TEXT NOT NULL,
+      atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (ministrante_id, musica_id, banco_fonte),
+      FOREIGN KEY (ministrante_id) REFERENCES ministrantes(id) ON DELETE CASCADE
+    );
+    /* Tons do site ainda sem música no banco — aplicados quando a música for cadastrada. */
+    CREATE TABLE IF NOT EXISTS tom_import_pendente (
+      titulo_norm TEXT NOT NULL,
+      artista_norm TEXT NOT NULL,
+      ministrante_nome TEXT NOT NULL COLLATE NOCASE,
+      tom TEXT NOT NULL,
+      titulo_original TEXT,
+      artista_original TEXT,
+      PRIMARY KEY (titulo_norm, artista_norm, ministrante_nome)
+    );
+  `);
+}
+
+const TONS_MUSICAIS_VALIDOS = new Set([
+  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
+  'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+]);
+
+function normalizarTomMusical(tom) {
+  const t = String(tom ?? '').trim();
+  if (!t) return '';
+  return TONS_MUSICAIS_VALIDOS.has(t) ? t : '';
+}
+
+function normalizarBancoFonteTom(fonte) {
+  return fonte === 'catalog' ? 'catalog' : 'user';
+}
+
+function listarMinistrantesNoDb() {
+  return db
+    .prepare('SELECT id, nome FROM ministrantes ORDER BY nome COLLATE NOCASE')
+    .all()
+    .map((r) => ({ id: r.id, nome: String(r.nome || '') }));
+}
+
+function inserirMinistranteNoDb(nomeRaw) {
+  const nome = String(nomeRaw ?? '').trim();
+  if (!nome) {
+    const err = new Error('Nome do ministrante é obrigatório.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (nome.length > 80) {
+    const err = new Error('Nome demasiado longo (máx. 80 caracteres).');
+    err.statusCode = 400;
+    throw err;
+  }
+  try {
+    const info = db.prepare('INSERT INTO ministrantes (nome) VALUES (?)').run(nome);
+    return { id: info.lastInsertRowid, nome };
+  } catch (e) {
+    if (String(e.message || '').includes('UNIQUE')) {
+      const err = new Error('Já existe um ministrante com este nome.');
+      err.statusCode = 409;
+      throw err;
+    }
+    throw e;
+  }
+}
+
+function atualizarMinistranteNoDb(idRaw, nomeRaw) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id) || id <= 0) {
+    const err = new Error('Ministrante inválido.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const nome = String(nomeRaw ?? '').trim();
+  if (!nome) {
+    const err = new Error('Nome do ministrante é obrigatório.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (nome.length > 80) {
+    const err = new Error('Nome demasiado longo (máx. 80 caracteres).');
+    err.statusCode = 400;
+    throw err;
+  }
+  const row = db.prepare('SELECT id FROM ministrantes WHERE id = ?').get(id);
+  if (!row) {
+    const err = new Error('Ministrante não encontrado.');
+    err.statusCode = 404;
+    throw err;
+  }
+  try {
+    db.prepare('UPDATE ministrantes SET nome = ? WHERE id = ?').run(nome, id);
+  } catch (e) {
+    if (String(e.message || '').includes('UNIQUE')) {
+      const err = new Error('Já existe um ministrante com este nome.');
+      err.statusCode = 409;
+      throw err;
+    }
+    throw e;
+  }
+  return { id, nome };
+}
+
+/**
+ * Remove o ministrante e a memória de tom associada (CASCADE).
+ * @returns {{ id: number, ok: true }}
+ */
+function apagarMinistranteNoDb(idRaw) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id) || id <= 0) {
+    const err = new Error('Ministrante inválido.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const aplicar = db.transaction((ministranteId) => {
+    db.prepare('DELETE FROM tom_memoria WHERE ministrante_id = ?').run(ministranteId);
+    return db.prepare('DELETE FROM ministrantes WHERE id = ?').run(ministranteId);
+  });
+  const info = aplicar(id);
+  if (!info.changes) {
+    const err = new Error('Ministrante não encontrado.');
+    err.statusCode = 404;
+    throw err;
+  }
+  return { id, ok: true };
+}
+
+function obterTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw) {
+  const ministranteId = Number(ministranteIdRaw);
+  const musicaId = Number(musicaIdRaw);
+  if (!Number.isFinite(ministranteId) || !Number.isFinite(musicaId)) return null;
+  const banco_fonte = normalizarBancoFonteTom(bancoFonteRaw);
+  const row = db
+    .prepare(
+      `SELECT tom FROM tom_memoria
+       WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+    )
+    .get(ministranteId, musicaId, banco_fonte);
+  if (!row) return null;
+  const tom = normalizarTomMusical(row.tom);
+  return tom || null;
+}
+
+function gravarTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw, tomRaw) {
+  const ministranteId = Number(ministranteIdRaw);
+  const musicaId = Number(musicaIdRaw);
+  if (!Number.isFinite(ministranteId) || !Number.isFinite(musicaId)) {
+    const err = new Error('Parâmetros inválidos para memória de tom.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const minRow = db.prepare('SELECT id FROM ministrantes WHERE id = ?').get(ministranteId);
+  if (!minRow) {
+    const err = new Error('Ministrante não encontrado.');
+    err.statusCode = 404;
+    throw err;
+  }
+  const tom = normalizarTomMusical(tomRaw);
+  const banco_fonte = normalizarBancoFonteTom(bancoFonteRaw);
+  if (!tom) {
+    db.prepare(
+      `DELETE FROM tom_memoria
+       WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+    ).run(ministranteId, musicaId, banco_fonte);
+    return { ministranteId, musicaId, bancoFonte: banco_fonte, tom: '' };
+  }
+  db.prepare(
+    `INSERT INTO tom_memoria (ministrante_id, musica_id, banco_fonte, tom, atualizado_em)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(ministrante_id, musica_id, banco_fonte)
+     DO UPDATE SET tom = excluded.tom, atualizado_em = CURRENT_TIMESTAMP`
+  ).run(ministranteId, musicaId, banco_fonte, tom);
+  return { ministranteId, musicaId, bancoFonte: banco_fonte, tom };
+}
+
+/** Garante ministrante pelo nome (cria se não existir). */
+function garantirMinistrantePorNomeNoDb(nomeRaw) {
+  const nome = String(nomeRaw ?? '').trim();
+  if (!nome) return null;
+  const existente = db
+    .prepare('SELECT id, nome FROM ministrantes WHERE nome = ? COLLATE NOCASE')
+    .get(nome);
+  if (existente) return { id: existente.id, nome: String(existente.nome || nome), criado: false };
+  const criado = inserirMinistranteNoDb(nome);
+  return { id: criado.id, nome: criado.nome, criado: true };
+}
+
+/**
+ * Normaliza o payload do ficheiro de importação de tons.
+ * Aceita:
+ *  - `{ versao, itens: [{ titulo, artista, tons: { "Nome": "G#" } }] }`
+ *  - `[{ titulo, artista, ministrante, tom }]`
+ */
+function normalizarPayloadImportTons(raw) {
+  const pares = [];
+  if (Array.isArray(raw)) {
+    for (const row of raw) {
+      if (!row || typeof row !== 'object') continue;
+      pares.push({
+        titulo: String(row.titulo || '').trim(),
+        artista: String(row.artista || '').trim(),
+        ministrante: String(row.ministrante || row.ministranteNome || '').trim(),
+        tom: String(row.tom || '').trim(),
+      });
+    }
+  } else if (raw && typeof raw === 'object') {
+    const itens = Array.isArray(raw.itens) ? raw.itens : Array.isArray(raw.musicas) ? raw.musicas : [];
+    for (const item of itens) {
+      if (!item || typeof item !== 'object') continue;
+      const titulo = String(item.titulo || '').trim();
+      const artista = String(item.artista || '').trim();
+      if (item.tons && typeof item.tons === 'object' && !Array.isArray(item.tons)) {
+        for (const [ministrante, tom] of Object.entries(item.tons)) {
+          pares.push({
+            titulo,
+            artista,
+            ministrante: String(ministrante || '').trim(),
+            tom: String(tom || '').trim(),
+          });
+        }
+      } else if (Array.isArray(item.tons)) {
+        for (const t of item.tons) {
+          if (!t || typeof t !== 'object') continue;
+          pares.push({
+            titulo,
+            artista,
+            ministrante: String(t.ministrante || t.nome || '').trim(),
+            tom: String(t.tom || '').trim(),
+          });
+        }
+      } else if (item.ministrante || item.tom) {
+        pares.push({
+          titulo,
+          artista,
+          ministrante: String(item.ministrante || '').trim(),
+          tom: String(item.tom || '').trim(),
+        });
+      }
+    }
+  }
+  return pares.filter((p) => p.titulo && p.ministrante && normalizarTomMusical(p.tom));
+}
+
+function upsertTomImportPendente(titulo, artista, ministranteNome, tom) {
+  const titulo_norm = normalizarChaveComparacao(titulo);
+  const artista_norm = normalizarArtistaComparacao(artista);
+  if (!titulo_norm) return;
+  db.prepare(
+    `INSERT INTO tom_import_pendente
+       (titulo_norm, artista_norm, ministrante_nome, tom, titulo_original, artista_original)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(titulo_norm, artista_norm, ministrante_nome)
+     DO UPDATE SET tom = excluded.tom,
+                   titulo_original = excluded.titulo_original,
+                   artista_original = excluded.artista_original`
+  ).run(
+    titulo_norm,
+    artista_norm,
+    String(ministranteNome).trim(),
+    normalizarTomMusical(tom),
+    String(titulo || '').trim(),
+    String(artista || '').trim()
+  );
+}
+
+/**
+ * Importa arquivo de tons do site → memória + pendências.
+ * Cruza por título/artista normalizados com músicas já no banco.
+ */
+function importarTonsMemoriaDeArquivo(payload) {
+  const pares = normalizarPayloadImportTons(payload);
+  const resumo = {
+    total: pares.length,
+    aplicados: 0,
+    pendentes: 0,
+    ministrantesCriados: 0,
+    ignorados: 0,
+    detalhes: [],
+  };
+  if (!pares.length) {
+    const err = new Error(
+      'Nenhum vínculo válido no arquivo. Use titulo + ministrante + tom (C, G#, Am…).'
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const aplicar = db.transaction(() => {
+    for (const p of pares) {
+      const tom = normalizarTomMusical(p.tom);
+      if (!tom) {
+        resumo.ignorados += 1;
+        continue;
+      }
+      const min = garantirMinistrantePorNomeNoDb(p.ministrante);
+      if (!min) {
+        resumo.ignorados += 1;
+        continue;
+      }
+      if (min.criado) resumo.ministrantesCriados += 1;
+
+      const match = encontrarMusicaUsuarioDuplicada(p.titulo, p.artista);
+      if (match && match.motivo === 'titulo-artista') {
+        const musicaId = match.rootId != null ? match.rootId : match.id;
+        gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+        resumo.aplicados += 1;
+        resumo.detalhes.push({
+          status: 'aplicado',
+          titulo: p.titulo,
+          artista: p.artista,
+          ministrante: min.nome,
+          tom,
+          musicaId,
+        });
+      } else if (match && match.motivo === 'titulo' && !normalizarArtistaComparacao(p.artista)) {
+        /* Só título e artista vazio no arquivo: aceitar match por título. */
+        const musicaId = match.rootId != null ? match.rootId : match.id;
+        gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+        resumo.aplicados += 1;
+        resumo.detalhes.push({
+          status: 'aplicado',
+          titulo: p.titulo,
+          artista: p.artista,
+          ministrante: min.nome,
+          tom,
+          musicaId,
+          match: 'titulo',
+        });
+      } else {
+        upsertTomImportPendente(p.titulo, p.artista, min.nome, tom);
+        resumo.pendentes += 1;
+        resumo.detalhes.push({
+          status: 'pendente',
+          titulo: p.titulo,
+          artista: p.artista,
+          ministrante: min.nome,
+          tom,
+        });
+      }
+    }
+  });
+  aplicar();
+  return resumo;
+}
+
+/**
+ * Quando uma música nova entra no banco, aplica tons pendentes do import do site.
+ * @returns {number} quantos vínculos aplicados
+ */
+function aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista) {
+  const musicaId = Number(musicaIdRaw);
+  if (!Number.isFinite(musicaId) || musicaId <= 0) return 0;
+  const titulo_norm = normalizarChaveComparacao(titulo);
+  if (!titulo_norm) return 0;
+  const artista_norm = normalizarArtistaComparacao(artista);
+
+  let rows = db
+    .prepare(
+      `SELECT ministrante_nome, tom FROM tom_import_pendente
+       WHERE titulo_norm = ? AND artista_norm = ?`
+    )
+    .all(titulo_norm, artista_norm);
+
+  if (!rows.length && !artista_norm) {
+    rows = db
+      .prepare(
+        `SELECT ministrante_nome, tom FROM tom_import_pendente
+         WHERE titulo_norm = ?`
+      )
+      .all(titulo_norm);
+  }
+  if (!rows.length) return 0;
+
+  let n = 0;
+  const aplicar = db.transaction(() => {
+    for (const row of rows) {
+      const min = garantirMinistrantePorNomeNoDb(row.ministrante_nome);
+      if (!min) continue;
+      const tom = normalizarTomMusical(row.tom);
+      if (!tom) continue;
+      gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+      n += 1;
+    }
+    if (artista_norm) {
+      db.prepare(
+        `DELETE FROM tom_import_pendente WHERE titulo_norm = ? AND artista_norm = ?`
+      ).run(titulo_norm, artista_norm);
+    } else {
+      db.prepare(`DELETE FROM tom_import_pendente WHERE titulo_norm = ?`).run(titulo_norm);
+    }
+  });
+  aplicar();
+  return n;
+}
+
+/**
  * @param {object} paths Objeto de caminhos (`createUserPaths`).
  * @param {typeof import('better-sqlite3')} Database
  */
@@ -169,6 +580,7 @@ function initControllerDatabase(paths, Database) {
   if (count.c === 0) inserirMusicasExemplo();
 
   initApresentacoesDB();
+  initMinistrantesETomMemoriaDB();
 }
 
 const ROTULO_COPIA_MODIFICADA = 'CÓPIA';
@@ -285,6 +697,11 @@ function inserirMusicaUsuario(titulo, artista, estrofes) {
     .run(String(titulo).trim(), String(artista || '').trim(), JSON.stringify(norm));
   const newId = info.lastInsertRowid;
   finalizarMusicaOriginalAposInsert(newId);
+  try {
+    aplicarTonsPendentesParaMusica(newId, titulo, artista);
+  } catch (_) {
+    // intencional — memória de tom não deve impedir o cadastro
+  }
   return { ok: true, id: newId };
 }
 
@@ -843,4 +1260,15 @@ module.exports = {
   musicaIdPorTituloArtistaIgual,
   normalizarMusicasUsuarioParaSync,
   substituirMusicasUsuarioParaSync,
+  listarMinistrantesNoDb,
+  inserirMinistranteNoDb,
+  atualizarMinistranteNoDb,
+  apagarMinistranteNoDb,
+  obterTomMemoriaNoDb,
+  gravarTomMemoriaNoDb,
+  importarTonsMemoriaDeArquivo,
+  aplicarTonsPendentesParaMusica,
+  garantirMinistrantePorNomeNoDb,
+  normalizarTomMusical,
+  TONS_MUSICAIS_VALIDOS,
 };

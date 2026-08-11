@@ -456,6 +456,7 @@ function createProjectionEngine(paths, deps) {
         titulo: payload.titulo || '',
         atual: slidePreto || blackoutAtivo ? '' : payload.atual || '',
         proximo: slidePreto || blackoutAtivo ? '' : payload.proximo || '',
+        aberturaMusica: !!(payload.aberturaMusica) && modoMin === 'musica' && !slidePreto && !blackoutAtivo,
         projecaoAtiva: hayProjecaoAtivaMinistrante(),
         telaLimpa: !!payload.telaLimpa,
         slidePretoFinal: slidePreto,
