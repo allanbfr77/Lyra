@@ -2087,7 +2087,20 @@
 
     .musica-toolbar-titulo-row {
       width: 100%;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .edit-field-label {
+      flex: 0 0 auto;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      user-select: none;
     }
 
     .centro-toolbar-row {
@@ -4732,8 +4745,9 @@
     }
 
     body.app-mod-slides .panel-playlist .playlist-row .tit {
-      font-size: 12px;
+      font-size: 13.5px;
       font-weight: 700;
+      line-height: 1.25;
     }
 
     /* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */
@@ -4748,7 +4762,8 @@
     /* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
     body.app-mod-slides .panel-playlist .playlist-row .mini {
       margin-top: 3px;
-      font-size: 12px;
+      font-size: 12.5px;
+      line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -8424,8 +8439,10 @@
         <div class="centro-toolbar">
           <div class="musica-toolbar-head-card">
             <div class="centro-toolbar-row musica-toolbar-titulo-row">
-              <input type="text" class="edit-field-titulo" id="edit-titulo" placeholder="Título da música" disabled>
-              <input type="text" class="edit-field-artista" id="edit-artista" placeholder="Artista (opcional)" disabled>
+              <label class="edit-field-label" for="edit-artista">Artista:</label>
+              <input type="text" class="edit-field-artista" id="edit-artista" placeholder="Nome do artista" disabled>
+              <label class="edit-field-label" for="edit-titulo">Título:</label>
+              <input type="text" class="edit-field-titulo" id="edit-titulo" placeholder="Nome da música" disabled>
             </div>
             <div id="musica-versoes-bar" class="musica-versoes-bar" hidden aria-label="Versões locais da música"></div>
           </div>
