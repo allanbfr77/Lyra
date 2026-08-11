@@ -77,6 +77,7 @@ function estadoMinistranteFromEstadoAtual(ex) {
   }
   if (ex.tipo === 'musica') {
     const titulo = ex.titulo || '';
+    const tom = ex.tom || '';
     if (ex.slidePretoFinal) {
       return {
         titulo,
@@ -88,7 +89,7 @@ function estadoMinistranteFromEstadoAtual(ex) {
       };
     }
     if (Array.isArray(ex.estrofes) && ex.estrofes.length) {
-      return payloadMinistranteMusicaFromEstrofes(ex.estrofes, ex.estrofeIndex, titulo);
+      return payloadMinistranteMusicaFromEstrofes(ex.estrofes, ex.estrofeIndex, titulo, tom);
     }
     /* Fallback sem estrofes: no 1.º slide, só 2 linhas do próximo. */
     let atual = Array.isArray(ex.linhas) ? ex.linhas.join('\n') : '';
@@ -101,7 +102,7 @@ function estadoMinistranteFromEstadoAtual(ex) {
       proximo = ex.proximoSlidePreto ? '' : ex.linhasProximo.join('\n');
     }
     return {
-      titulo,
+      titulo: aberturaMusica ? formatarTituloAberturaComTom(titulo, tom) : titulo,
       atual,
       proximo,
       telaLimpa: false,
@@ -120,21 +121,32 @@ function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
   return lines.slice(0, max).join('\n');
 }
 
+/** Título do 1.º slide do M3: «Título · Tom» se houver tom; senão só o título. */
+function formatarTituloAberturaComTom(tituloMusica, tomMusica) {
+  const tit = String(tituloMusica || '').trim();
+  const tom = String(tomMusica || '').trim();
+  if (!tit) return tom;
+  if (!tom) return tit;
+  return `${tit}  ·  ${tom}`;
+}
+
 /**
  * Payload M3 (ministrante) a partir das estrofes.
- * Slide 1: título no topo (aberturaMusica) + slide atual + só 2 linhas do próximo.
+ * Slide 1: título (+ tom, se houver) no topo (aberturaMusica) + slide atual + só 2 linhas do próximo.
  * A partir do 2.º: atual + próximo completo.
  */
-function payloadMinistranteMusicaFromEstrofes(estrofes, idxEstrofe, tituloMusica) {
+function payloadMinistranteMusicaFromEstrofes(estrofes, idxEstrofe, tituloMusica, tomMusica) {
   const n = Array.isArray(estrofes) ? estrofes.length : 0;
   const idx = Number(idxEstrofe);
   if (!Number.isFinite(idx) || idx < 0 || idx > n) {
     return { titulo: '', atual: '', proximo: '', telaLimpa: true, aberturaMusica: false };
   }
-  const titulo = tituloMusica || '';
+  const tituloBase = tituloMusica || '';
+  const titulo =
+    idx === 0 ? formatarTituloAberturaComTom(tituloBase, tomMusica) : tituloBase;
   if (idx === n) {
     return {
-      titulo,
+      titulo: tituloBase,
       atual: '',
       proximo: '',
       telaLimpa: false,
@@ -189,7 +201,7 @@ function snapshotMinistranteAtual(estadoAtual, logError) {
     }
     if (ex.tipo === 'musica') {
       const estrofes = ex.estrofes || [];
-      return payloadMinistranteMusicaFromEstrofes(estrofes, ex.estrofeIndex, ex.titulo);
+      return payloadMinistranteMusicaFromEstrofes(estrofes, ex.estrofeIndex, ex.titulo, ex.tom);
     }
   } catch (e) {
     logError('snapshotMinistranteAtual', e);
@@ -205,6 +217,7 @@ module.exports = {
   linhasProximoParaMusica,
   estadoMinistranteFromEstadoAtual,
   primeirasLinhasEstrofeMinistrante,
+  formatarTituloAberturaComTom,
   payloadMinistranteMusicaFromEstrofes,
   snapshotMinistranteAtual,
 };

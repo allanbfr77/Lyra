@@ -90,6 +90,7 @@ import {
 } from './modules/comentariosSlide.js';
 import {
   htmlCorpoLinhaPlaylistComMinistranteTom,
+  htmlCorpoLinhaPlaylistSimples,
   carregarMinistrantesDoServidor,
   criarMinistranteNoServidor,
   renomearMinistranteNoServidor,
@@ -8723,11 +8724,15 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
       await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
       savePlaylists();
       renderPlaylist();
+      refrescarAberturaM3SeMusicaAtivaNaPlaylist();
       return;
     }
   }
 
   savePlaylists();
+  if (playlistItemMesmaVersaoQueAtiva(item)) {
+    refrescarAberturaM3SeMusicaAtivaNaPlaylist();
+  }
 }
 
 async function onPlaylistTomChange(idxPl, valorSelect) {
@@ -8738,6 +8743,9 @@ async function onPlaylistTomChange(idxPl, valorSelect) {
   const tom = normalizarTomPlaylist(valorSelect);
   item.tom = tom;
   savePlaylists();
+  if (playlistItemMesmaVersaoQueAtiva(item)) {
+    refrescarAberturaM3SeMusicaAtivaNaPlaylist();
+  }
   const minId = normalizarMinistranteIdPlaylist(item.ministranteId);
   if (!minId) return;
   try {
@@ -8753,10 +8761,28 @@ async function onPlaylistTomChange(idxPl, valorSelect) {
   }
 }
 
+/** Atualiza título (+ tom) do 1.º slide no preview/M3 quando a playlist muda. */
+function refrescarAberturaM3SeMusicaAtivaNaPlaylist() {
+  atualizarPreviewOperador();
+  emitirEstadoMinistranteAoServidor();
+  if (projecaoMusicaEmitidaNoServidor && projecao.pronta() && musicaAtiva && estrofeAtiva === 0) {
+    emitirEstrofeAoServidor(0);
+  }
+}
+
 function atualizarCabecalhoColunasPlaylist(temMusicas) {
   const head = document.getElementById('playlist-cols-head');
   if (!head) return;
-  head.hidden = !temMusicas || !cultoId;
+  /* Ministrante/Tom só no Home — no modo Slide o cabeçalho some. */
+  head.hidden = !temMusicas || !cultoId || ehModoSlidesOperador();
+}
+
+/** HTML da linha da playlist: Home com Ministrante/Tom; Slide compacto como antes. */
+function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao) {
+  if (ehModoSlidesOperador()) {
+    return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml);
+  }
+  return htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersao, escapeHtml);
 }
 
 async function garantirMinistrantesCarregados() {
@@ -8910,12 +8936,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
     row.dataset.plIdx = String(idxPl);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.innerHTML = htmlCorpoLinhaPlaylistComMinistranteTom(
-      item,
-      songNum,
-      rotuloVersao,
-      escapeHtml
-    );
+    row.innerHTML = htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao);
     ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl);
     songAppendParent.appendChild(row);
   };
@@ -9062,12 +9083,7 @@ function renderPlaylist() {
     row.dataset.plIdx = String(idx);
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
-    row.innerHTML = htmlCorpoLinhaPlaylistComMinistranteTom(
-      item,
-      nLista,
-      rotuloVersao,
-      escapeHtml
-    );
+    row.innerHTML = htmlLinhaPlaylistModoAtual(item, nLista, rotuloVersao);
     ligarBotoesESeletoresLinhaPlaylist(row, item, idx);
     songAppendParent.appendChild(row);
   }
@@ -9650,6 +9666,24 @@ function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
   return lines.slice(0, max).join('\n');
 }
 
+/** Tom da música ativa na playlist do culto (vazio se não houver). */
+function obterTomPlaylistMusicaAtiva() {
+  if (!musicaAtiva || !cultoId) return '';
+  const pl = getPlaylist(cultoId);
+  if (!Array.isArray(pl)) return '';
+  const it = pl.find((x) => playlistItemMesmaVersaoQueAtiva(x));
+  return normalizarTomPlaylist(it?.tom);
+}
+
+/** Título do 1.º slide M3: título + tom quando cadastrado. */
+function tituloAberturaM3MusicaAtiva(tituloBase) {
+  const tit = String(tituloBase || musicaAtiva?.titulo || '').trim();
+  const tom = obterTomPlaylistMusicaAtiva();
+  if (!tit) return tom;
+  if (!tom) return tit;
+  return `${tit}  ·  ${tom}`;
+}
+
 function limparPreviewTituloMusicaAbertura() {
   const opTit = document.getElementById('op-titulo');
   if (!opTit) return;
@@ -10062,7 +10096,12 @@ function preencherPreviewOperadorSomenteEstadoServidorMusica() {
   const tituloMusica =
     (musicaAtiva && musicaEstadoCombinaComAtiva(e) && musicaAtiva.titulo) || e.titulo || '';
   const abertura = idx === 0;
-  aplicarPreviewTituloMusicaAbertura(tituloMusica, abertura);
+  aplicarPreviewTituloMusicaAbertura(
+    musicaAtiva && musicaEstadoCombinaComAtiva(e)
+      ? tituloAberturaM3MusicaAtiva(tituloMusica)
+      : tituloMusica,
+    abertura
+  );
 
   let curRaw = '';
   let proxRaw = '';
@@ -10143,7 +10182,7 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
   }
 
   const abertura = estrofeAtiva === 0;
-  aplicarPreviewTituloMusicaAbertura(musicaAtiva.titulo || '', abertura);
+  aplicarPreviewTituloMusicaAbertura(tituloAberturaM3MusicaAtiva(musicaAtiva.titulo || ''), abertura);
 
   const cur = musicaAtiva.estrofes[estrofeAtiva];
   const proximoEhPreto = estrofeAtiva === nEst - 1;
@@ -10426,7 +10465,7 @@ function emitirEstadoMinistranteAoServidor() {
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
   const slidePretoFinal = !!(estadoServidor && estadoServidor.slidePretoFinal);
   const telaLimpa = !atual && !proximo && !projecaoAtiva;
-  const tituloMusica = musicaAtiva?.titulo || '';
+  const tituloMusica = tituloAberturaM3MusicaAtiva(musicaAtiva?.titulo || '');
   const aberturaMusica =
     !slidePretoFinal &&
     !!musicaAtiva &&
@@ -14819,6 +14858,8 @@ function montarPayloadExibirMusica(estrofeIndex) {
   const payload = { musicaId: musicaAtiva.id, estrofeIndex };
   payload.estrofes = (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
   payload.titulo = String(musicaAtiva.titulo || '').trim();
+  /* Tom só para o M3 (abertura); o título público permanece sem tom. */
+  payload.tom = obterTomPlaylistMusicaAtiva();
   return payload;
 }
 

@@ -107,6 +107,23 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
 }
 
 /**
+ * Linha compacta da playlist (modo Slide): só título + artista + botões.
+ * Ministrante/Tom ficam exclusivos do modo Home.
+ */
+export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml) {
+  const artista = String(item?.artista || '').trim();
+  const titulo = String(item?.titulo || '');
+  return `
+      <div class="tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
+      ${artista ? `<div class="mini" title="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
+      <div class="playlist-btns">
+        <button class="btn sm" type="button" title="Subir">↑</button>
+        <button class="btn sm" type="button" title="Descer">↓</button>
+        <button class="btn sm danger" type="button" title="Remover">✕</button>
+      </div>`;
+}
+
+/**
  * @param {string} apiBase
  */
 export async function carregarMinistrantesDoServidor(apiBase) {

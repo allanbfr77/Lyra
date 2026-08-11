@@ -4735,40 +4735,14 @@
       font-size: 12px;
       font-weight: 700;
     }
-    body.app-mod-slides .panel-playlist .pl-sel,
-    body.app-mod-slides .panel-playlist .pl-sel-tom {
-      font-size: 10px;
-      font-weight: 500;
-    }
 
-    /* Modo slides (coluna estreita ~230px): meta empilhada; selects numa linha. */
+    /* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */
     body.app-mod-slides .playlist-cols-head {
       display: none !important;
     }
-    body.app-mod-slides .playlist-row-cols {
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas:
-        "meta btns"
-        "sels sels";
-      gap: 3px 6px;
-    }
-    body.app-mod-slides .pl-col-meta { grid-area: meta; }
-    body.app-mod-slides .pl-col-artista { font-size: 10px; }
-    body.app-mod-slides .playlist-btns { grid-area: btns; }
     body.app-mod-slides .pl-col-ministrante,
     body.app-mod-slides .pl-col-tom {
-      grid-area: sels;
-    }
-    body.app-mod-slides .pl-col-ministrante {
-      display: inline-block;
-      width: calc(52% - 3px);
-      margin-right: 4px;
-      vertical-align: middle;
-    }
-    body.app-mod-slides .pl-col-tom {
-      display: inline-block;
-      width: calc(48% - 1px);
-      vertical-align: middle;
+      display: none !important;
     }
 
     /* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
