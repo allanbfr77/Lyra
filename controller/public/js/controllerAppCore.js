@@ -8634,6 +8634,55 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
   });
 }
 
+/** Índice da 1.ª música real da playlist (ignora marcadores de tema). */
+function indicePrimeiraMusicaNaPlaylist(pl) {
+  if (!Array.isArray(pl)) return -1;
+  for (let i = 0; i < pl.length; i++) {
+    if (pl[i] && !ehMarcadorTemaPlaylist(pl[i])) return i;
+  }
+  return -1;
+}
+
+function contarMusicasNaPlaylist(pl) {
+  if (!Array.isArray(pl)) return 0;
+  let n = 0;
+  for (const it of pl) {
+    if (it && !ehMarcadorTemaPlaylist(it)) n += 1;
+  }
+  return n;
+}
+
+function nomeMinistrantePorId(id) {
+  const n = Number(id);
+  const m = obterCacheMinistrantes().find((x) => Number(x.id) === n);
+  return m ? String(m.nome || '').trim() : '';
+}
+
+/**
+ * Preenche ministrante em todas as músicas do culto e aplica tom memorizado quando existir.
+ * Não trava edição posterior — cada linha continua editável.
+ */
+async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
+  const api = getControllerApiBase();
+  const mid = normalizarMinistranteIdPlaylist(ministranteId);
+  if (!mid || !Array.isArray(pl)) return;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    it.ministranteId = mid;
+    try {
+      const tomMem = await buscarTomMemoria(
+        api,
+        mid,
+        Number(it.id),
+        it.bancoFonte === 'catalog' ? 'catalog' : 'user'
+      );
+      if (tomMem) it.tom = tomMem;
+    } catch (_) {
+      // intencional — sem memória: mantém o tom que já estava na linha
+    }
+  }
+}
+
 async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
   if (!cultoId) return;
   const pl = getPlaylist(cultoId);
@@ -8654,8 +8703,30 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
     } catch (_) {
       // intencional — memória indisponível; mantém tom actual
     }
+  } else {
+    /* Limpar ministrante (—): limpa o tom também. */
+    item.tom = '';
+    if (selTomEl) selTomEl.value = '';
   }
-  /* Remover ministrante: TOM permanece (não apagar). */
+
+  /* Música 1: oferecer aplicar o mesmo ministrante (+ tons memorizados) em todas. */
+  const ehMusica1 = idxPl === indicePrimeiraMusicaNaPlaylist(pl);
+  if (novoId && ehMusica1 && contarMusicasNaPlaylist(pl) > 1) {
+    const nome = nomeMinistrantePorId(novoId) || 'este ministrante';
+    const ok = await appConfirm(
+      `Usar «${nome}» em todas as músicas deste culto?\n\n` +
+        `Os tons memorizados serão preenchidos quando existirem. ` +
+        `Depois você pode alterar o nome ou o tom em qualquer música.`,
+      'Ministrante do culto'
+    );
+    if (ok) {
+      await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
+      savePlaylists();
+      renderPlaylist();
+      return;
+    }
+  }
+
   savePlaylists();
 }
 

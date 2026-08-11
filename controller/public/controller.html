@@ -933,12 +933,12 @@
     .tab:hover { color: var(--text); }
     .tab.ativa { color: var(--accent); border-bottom-color: var(--accent); }
 
-    /* ─── Corpo: 3 colunas ─── */
+    /* ─── Corpo: 3 colunas (playlist um pouco mais larga; centro cede espaço) ─── */
     .dashboard-main {
       position: relative;
       z-index: 0;
       display: grid;
-      grid-template-columns: minmax(232px, 300px) 1fr minmax(300px, 440px);
+      grid-template-columns: minmax(232px, 300px) minmax(0, 1fr) minmax(360px, 540px);
       grid-template-rows: minmax(0, 1fr);
       min-height: 0;
       height: 100%;
@@ -1646,10 +1646,11 @@
       justify-content: space-between;
     }
 
-    /* Cabeçalho: TÍTULO (+artista abaixo na linha) | MINISTRANTE | TOM */
+    /* Cabeçalho: TÍTULO (+artista abaixo na linha) | MINISTRANTE | TOM
+       Ministrante um pouco mais estreito; Tom um pouco mais largo — sobra vai para o título. */
     .playlist-cols-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 128px 68px 52px;
+      grid-template-columns: minmax(0, 1fr) 100px 80px 52px;
       gap: 6px;
       align-items: center;
       padding: 4px 10px 6px;
@@ -1673,7 +1674,7 @@
 
     .playlist-row-cols {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 128px 68px auto;
+      grid-template-columns: minmax(0, 1fr) 100px 80px auto;
       gap: 6px;
       align-items: center;
       width: 100%;
@@ -4760,13 +4761,13 @@
     }
     body.app-mod-slides .pl-col-ministrante {
       display: inline-block;
-      width: calc(62% - 3px);
+      width: calc(52% - 3px);
       margin-right: 4px;
       vertical-align: middle;
     }
     body.app-mod-slides .pl-col-tom {
       display: inline-block;
-      width: calc(38% - 1px);
+      width: calc(48% - 1px);
       vertical-align: middle;
     }
 
