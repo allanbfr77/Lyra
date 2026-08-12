@@ -2,6 +2,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+  normMin,
+  resolverMinistranteNoCadastro,
+} = require('./lib/invbTonsFromSupabase');
 
 let db;
 let catalog = null;
@@ -137,17 +141,28 @@ function initMinistrantesETomMemoriaDB() {
       artista_original TEXT,
       PRIMARY KEY (titulo_norm, artista_norm, ministrante_nome)
     );
+    /* Tom «Todos» do site: padrão da música, não é um ministrante cadastrado. */
+    CREATE TABLE IF NOT EXISTS tom_padrao (
+      musica_id INTEGER NOT NULL,
+      banco_fonte TEXT NOT NULL DEFAULT 'user',
+      tom TEXT NOT NULL,
+      atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (musica_id, banco_fonte)
+    );
   `);
+  migrarMinistranteTodosParaTomPadrao();
 }
 
 const TONS_MUSICAIS_VALIDOS = new Set([
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'ORIG.',
 ]);
 
 function normalizarTomMusical(tom) {
-  const t = String(tom ?? '').trim();
+  let t = String(tom ?? '').trim();
   if (!t) return '';
+  if (/^orig\.?$/i.test(t)) t = 'ORIG.';
   return TONS_MUSICAIS_VALIDOS.has(t) ? t : '';
 }
 
@@ -155,17 +170,154 @@ function normalizarBancoFonteTom(fonte) {
   return fonte === 'catalog' ? 'catalog' : 'user';
 }
 
+/** «Todos» no site = tom padrão da música, não uma pessoa. */
+function ehMinistranteTodos(nome) {
+  const k = String(nome || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return k === 'todos' || k === 'todas';
+}
+
+function gravarTomPadraoNoDb(musicaIdRaw, bancoFonteRaw, tomRaw) {
+  const musicaId = Number(musicaIdRaw);
+  if (!Number.isFinite(musicaId) || musicaId <= 0) return null;
+  const banco_fonte = normalizarBancoFonteTom(bancoFonteRaw);
+  const tom = normalizarTomMusical(tomRaw);
+  if (!tom) {
+    db.prepare('DELETE FROM tom_padrao WHERE musica_id = ? AND banco_fonte = ?').run(
+      Math.trunc(musicaId),
+      banco_fonte
+    );
+    return { musicaId: Math.trunc(musicaId), bancoFonte: banco_fonte, tom: '' };
+  }
+  db.prepare(
+    `INSERT INTO tom_padrao (musica_id, banco_fonte, tom, atualizado_em)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(musica_id, banco_fonte)
+     DO UPDATE SET tom = excluded.tom, atualizado_em = CURRENT_TIMESTAMP`
+  ).run(Math.trunc(musicaId), banco_fonte, tom);
+  return { musicaId: Math.trunc(musicaId), bancoFonte: banco_fonte, tom };
+}
+
+function obterTomPadraoNoDb(musicaIdRaw, bancoFonteRaw) {
+  const musicaId = Number(musicaIdRaw);
+  if (!Number.isFinite(musicaId) || musicaId <= 0) return null;
+  const banco_fonte = normalizarBancoFonteTom(bancoFonteRaw);
+  const row = db
+    .prepare('SELECT tom FROM tom_padrao WHERE musica_id = ? AND banco_fonte = ?')
+    .get(Math.trunc(musicaId), banco_fonte);
+  if (!row) return null;
+  const tom = normalizarTomMusical(row.tom);
+  return tom || null;
+}
+
+/**
+ * Se um import antigo criou o ministrante «Todos», move os tons para tom_padrao e apaga o nome.
+ */
+function migrarMinistranteTodosParaTomPadrao() {
+  const row = db
+    .prepare('SELECT id FROM ministrantes WHERE nome = ? COLLATE NOCASE')
+    .get('Todos');
+  if (!row) return;
+  const tons = db
+    .prepare('SELECT musica_id, banco_fonte, tom FROM tom_memoria WHERE ministrante_id = ?')
+    .all(row.id);
+  for (const t of tons) {
+    gravarTomPadraoNoDb(t.musica_id, t.banco_fonte, t.tom);
+  }
+  db.prepare('DELETE FROM tom_memoria WHERE ministrante_id = ?').run(row.id);
+  db.prepare('DELETE FROM ministrantes WHERE id = ?').run(row.id);
+}
+
+/**
+ * Site usa «Cris». Se o cadastro ainda tiver «Cris Medeiros», renomeia ou
+ * funde no «Cris» já existente (tom específico do Cris prevalece).
+ */
+function migrarMinistranteCrisMedeirosParaCris(playlistsJsonPathFn) {
+  try {
+    db.prepare(
+      `UPDATE tom_import_pendente SET ministrante_nome = 'Cris'
+       WHERE ministrante_nome = 'Cris Medeiros' COLLATE NOCASE`
+    ).run();
+  } catch (_) {
+    /* tabela pode não existir ainda */
+  }
+
+  const antigo = db
+    .prepare('SELECT id FROM ministrantes WHERE nome = ? COLLATE NOCASE')
+    .get('Cris Medeiros');
+  if (!antigo) return null;
+
+  const cris = db
+    .prepare('SELECT id FROM ministrantes WHERE nome = ? COLLATE NOCASE')
+    .get('Cris');
+
+  if (!cris || Number(cris.id) === Number(antigo.id)) {
+    db.prepare('UPDATE ministrantes SET nome = ? WHERE id = ?').run('Cris', antigo.id);
+    return { deId: antigo.id, paraId: antigo.id, acao: 'renomeou' };
+  }
+
+  const tons = db
+    .prepare('SELECT musica_id, banco_fonte, tom FROM tom_memoria WHERE ministrante_id = ?')
+    .all(antigo.id);
+  for (const t of tons) {
+    const ja = db
+      .prepare(
+        `SELECT 1 FROM tom_memoria
+         WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+      )
+      .get(cris.id, t.musica_id, t.banco_fonte);
+    if (!ja) {
+      db.prepare(
+        `UPDATE tom_memoria SET ministrante_id = ?
+         WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+      ).run(cris.id, antigo.id, t.musica_id, t.banco_fonte);
+    }
+  }
+  db.prepare('DELETE FROM tom_memoria WHERE ministrante_id = ?').run(antigo.id);
+  db.prepare('DELETE FROM ministrantes WHERE id = ?').run(antigo.id);
+
+  if (typeof playlistsJsonPathFn === 'function') {
+    try {
+      const { loadPlaylistsJson, savePlaylistsJson } = require('./lib/playlistsStore');
+      const playlists = loadPlaylistsJson(playlistsJsonPathFn);
+      let mudou = false;
+      for (const lista of Object.values(playlists)) {
+        if (!Array.isArray(lista)) continue;
+        for (const it of lista) {
+          if (!it || it.tipo === 'marcador_tema') continue;
+          if (Number(it.ministranteId) === Number(antigo.id)) {
+            it.ministranteId = cris.id;
+            mudou = true;
+          }
+        }
+      }
+      if (mudou) savePlaylistsJson(playlistsJsonPathFn, playlists);
+    } catch (_) {
+      /* playlists opcionais na migração */
+    }
+  }
+
+  return { deId: antigo.id, paraId: cris.id, acao: 'fundiu' };
+}
+
 function listarMinistrantesNoDb() {
   return db
     .prepare('SELECT id, nome FROM ministrantes ORDER BY nome COLLATE NOCASE')
     .all()
-    .map((r) => ({ id: r.id, nome: String(r.nome || '') }));
+    .map((r) => ({ id: r.id, nome: String(r.nome || '') }))
+    .filter((r) => !ehMinistranteTodos(r.nome));
 }
 
 function inserirMinistranteNoDb(nomeRaw) {
   const nome = String(nomeRaw ?? '').trim();
   if (!nome) {
     const err = new Error('Nome do ministrante é obrigatório.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (ehMinistranteTodos(nome)) {
+    const err = new Error('«Todos» não é um ministrante — é o tom padrão da música no site.');
     err.statusCode = 400;
     throw err;
   }
@@ -202,6 +354,11 @@ function atualizarMinistranteNoDb(idRaw, nomeRaw) {
   }
   if (nome.length > 80) {
     const err = new Error('Nome demasiado longo (máx. 80 caracteres).');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (ehMinistranteTodos(nome)) {
+    const err = new Error('«Todos» não é um ministrante — é o tom padrão da música no site.');
     err.statusCode = 400;
     throw err;
   }
@@ -248,20 +405,80 @@ function apagarMinistranteNoDb(idRaw) {
   return { id, ok: true };
 }
 
-function obterTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw) {
+function obterTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw, tituloHint) {
   const ministranteId = Number(ministranteIdRaw);
   const musicaId = Number(musicaIdRaw);
-  if (!Number.isFinite(ministranteId) || !Number.isFinite(musicaId)) return null;
+  const tituloHintStr = String(tituloHint || '').trim();
+  if (!Number.isFinite(musicaId) && !tituloHintStr) return null;
   const banco_fonte = normalizarBancoFonteTom(bancoFonteRaw);
-  const row = db
-    .prepare(
-      `SELECT tom FROM tom_memoria
-       WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
-    )
-    .get(ministranteId, musicaId, banco_fonte);
-  if (!row) return null;
-  const tom = normalizarTomMusical(row.tom);
-  return tom || null;
+  const fontes = banco_fonte === 'catalog' ? ['catalog', 'user'] : ['user', 'catalog'];
+
+  const ids = [];
+  if (Number.isFinite(musicaId) && musicaId > 0) ids.push(Math.trunc(musicaId));
+
+  let titulo = tituloHintStr;
+  let artista = '';
+  let nomeMin = '';
+  if (Number.isFinite(ministranteId) && ministranteId > 0) {
+    const minRow = db.prepare('SELECT nome FROM ministrantes WHERE id = ?').get(ministranteId);
+    nomeMin = minRow ? String(minRow.nome || '') : '';
+  }
+
+  if (Number.isFinite(musicaId) && musicaId > 0) {
+    const rowMusica = getMusicaLinhaUsuarioOuCatalogo(musicaId);
+    if (rowMusica) {
+      const root = resolverRootIdDaMusica(rowMusica);
+      if (root && !ids.includes(Number(root))) ids.push(Number(root));
+      if (!titulo) titulo = String(rowMusica.titulo || '').trim();
+      artista = String(rowMusica.artista || '').trim();
+    }
+  }
+
+  const lerMemoria = (mid, id, fonte) => {
+    const row = db
+      .prepare(
+        `SELECT tom FROM tom_memoria
+         WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+      )
+      .get(mid, id, fonte);
+    return row ? normalizarTomMusical(row.tom) : '';
+  };
+
+  if (Number.isFinite(ministranteId) && ministranteId > 0) {
+    for (const id of ids) {
+      for (const f of fontes) {
+        const tom = lerMemoria(ministranteId, id, f);
+        if (tom) return tom;
+      }
+    }
+  }
+  for (const id of ids) {
+    for (const f of fontes) {
+      const tom = obterTomPadraoNoDb(id, f);
+      if (tom) return tom;
+    }
+  }
+
+  if (titulo) {
+    const match = encontrarMusicaUsuarioParaTomImport(titulo, artista);
+    if (match) {
+      const id = match.rootId != null ? match.rootId : match.id;
+      if (Number.isFinite(ministranteId) && ministranteId > 0) {
+        for (const f of fontes) {
+          const tom = lerMemoria(ministranteId, id, f);
+          if (tom) return tom;
+        }
+      }
+      for (const f of fontes) {
+        const tom = obterTomPadraoNoDb(id, f);
+        if (tom) return tom;
+      }
+    }
+    const pend = obterTomImportPendentePorTitulo(titulo, nomeMin);
+    if (pend) return pend;
+  }
+
+  return null;
 }
 
 function gravarTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw, tomRaw) {
@@ -296,15 +513,18 @@ function gravarTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw, tomR
   return { ministranteId, musicaId, bancoFonte: banco_fonte, tom };
 }
 
-/** Garante ministrante pelo nome (cria se não existir). */
+/** Garante ministrante pelo nome (cria se não existir). «Todos» não é cadastrado. */
 function garantirMinistrantePorNomeNoDb(nomeRaw) {
   const nome = String(nomeRaw ?? '').trim();
-  if (!nome) return null;
+  if (!nome || ehMinistranteTodos(nome)) return null;
   const existente = db
     .prepare('SELECT id, nome FROM ministrantes WHERE nome = ? COLLATE NOCASE')
     .get(nome);
   if (existente) return { id: existente.id, nome: String(existente.nome || nome), criado: false };
-  const criado = inserirMinistranteNoDb(nome);
+  const alias = resolverMinistranteNoCadastro(nome, listarMinistrantesNoDb());
+  if (alias) return { id: alias.id, nome: String(alias.nome || nome), criado: false };
+  const nomeCanonico = String(normMin(nome) || nome).trim() || nome;
+  const criado = inserirMinistranteNoDb(nomeCanonico);
   return { id: criado.id, nome: criado.nome, criado: true };
 }
 
@@ -386,9 +606,121 @@ function upsertTomImportPendente(titulo, artista, ministranteNome, tom) {
   );
 }
 
+function partesTituloMedleyNorm(titulo) {
+  return String(titulo || '')
+    .split(/\s*[/|]+\s*/)
+    .map((p) => normalizarChaveComparacao(p))
+    .filter((p) => p.length >= 4);
+}
+
+function titulosTomCompativeis(tituloA, tituloB) {
+  const a = normalizarChaveComparacao(tituloA);
+  const b = normalizarChaveComparacao(tituloB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const pa = partesTituloMedleyNorm(tituloA);
+  const pb = partesTituloMedleyNorm(tituloB);
+  if (pa.some((p) => p === b) || pb.some((p) => p === a)) return true;
+  if (pa.some((p) => pb.includes(p))) return true;
+  if (a.length >= 8 && b.includes(a)) return true;
+  if (b.length >= 8 && a.includes(b)) return true;
+  return false;
+}
+
+/**
+ * Match de música só para import de tom: título+artista, título único
+ * (mesmo com artista diferente) ou medley («Tu És / Águas Purificadoras»).
+ */
+function encontrarMusicaUsuarioParaTomImport(titulo, artista) {
+  const tituloAlvo = normalizarChaveComparacao(titulo);
+  if (!tituloAlvo) return null;
+  const artistaAlvo = normalizarArtistaComparacao(artista);
+
+  const rows = db
+    .prepare(
+      'SELECT id, titulo, artista, root_id FROM musicas WHERE parent_id IS NULL ORDER BY id ASC'
+    )
+    .all();
+
+  const montar = (row, motivo) => ({
+    id: row.id,
+    titulo: String(row.titulo || '').trim(),
+    artista: String(row.artista || '').trim(),
+    rootId: row.root_id != null ? row.root_id : row.id,
+    motivo,
+  });
+
+  const mesmoTitulo = [];
+  const medley = [];
+  for (const row of rows) {
+    const tRow = normalizarChaveComparacao(row.titulo);
+    if (!tRow) continue;
+    if (tRow === tituloAlvo) {
+      mesmoTitulo.push(row);
+      const artistaRow = normalizarArtistaComparacao(row.artista);
+      if (artistaRow && artistaAlvo && artistaRow === artistaAlvo) {
+        return montar(row, 'titulo-artista');
+      }
+      continue;
+    }
+    if (titulosTomCompativeis(titulo, row.titulo)) medley.push(row);
+  }
+  if (mesmoTitulo.length === 1) return montar(mesmoTitulo[0], 'titulo-unico');
+  if (mesmoTitulo.length > 1) {
+    const semArtista = mesmoTitulo.filter((row) => {
+      const a = normalizarArtistaComparacao(row.artista);
+      return !a || !artistaAlvo;
+    });
+    if (semArtista.length === 1) return montar(semArtista[0], 'titulo');
+  }
+  if (medley.length === 1) return montar(medley[0], 'titulo-medley');
+  return null;
+}
+
+function obterTomImportPendentePorTitulo(titulo, nomeMinistrante) {
+  const variantes = new Set([normalizarChaveComparacao(titulo)].filter(Boolean));
+  for (const p of partesTituloMedleyNorm(titulo)) variantes.add(p);
+  if (!variantes.size) return null;
+
+  let rows = [];
+  try {
+    rows = db
+      .prepare(
+        `SELECT titulo_norm, ministrante_nome, tom FROM tom_import_pendente`
+      )
+      .all();
+  } catch (_) {
+    return null;
+  }
+
+  const nomeKey = String(nomeMinistrante || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  let tomTodos = '';
+  let tomEspecifico = '';
+  for (const row of rows) {
+    const tn = String(row.titulo_norm || '');
+    const bate = [...variantes].some((v) => v && (tn === v || tn.includes(v) || v.includes(tn)));
+    if (!bate) continue;
+    const tom = normalizarTomMusical(row.tom);
+    if (!tom) continue;
+    if (ehMinistranteTodos(row.ministrante_nome)) tomTodos = tom;
+    else if (
+      nomeKey &&
+      String(row.ministrante_nome || '')
+        .trim()
+        .toLocaleLowerCase('pt-BR') === nomeKey
+    ) {
+      tomEspecifico = tom;
+    }
+  }
+  return tomEspecifico || tomTodos || null;
+}
+
 /**
  * Importa arquivo de tons do site → memória + pendências.
  * Cruza por título/artista normalizados com músicas já no banco.
+ * «Todos» vira tom padrão e também preenche os ministrantes já cadastrados.
  */
 function importarTonsMemoriaDeArquivo(payload) {
   const pares = normalizarPayloadImportTons(payload);
@@ -408,61 +740,119 @@ function importarTonsMemoriaDeArquivo(payload) {
     throw err;
   }
 
-  const aplicar = db.transaction(() => {
-    for (const p of pares) {
-      const tom = normalizarTomMusical(p.tom);
-      if (!tom) {
-        resumo.ignorados += 1;
-        continue;
-      }
-      const min = garantirMinistrantePorNomeNoDb(p.ministrante);
-      if (!min) {
-        resumo.ignorados += 1;
-        continue;
-      }
-      if (min.criado) resumo.ministrantesCriados += 1;
+  const grupos = new Map();
+  for (const p of pares) {
+    const tom = normalizarTomMusical(p.tom);
+    if (!tom) {
+      resumo.ignorados += 1;
+      continue;
+    }
+    const chave = `${String(p.titulo || '').trim()}\0${String(p.artista || '').trim()}`;
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        titulo: String(p.titulo || '').trim(),
+        artista: String(p.artista || '').trim(),
+        todos: null,
+        especificos: [],
+      });
+    }
+    const g = grupos.get(chave);
+    if (ehMinistranteTodos(p.ministrante)) g.todos = tom;
+    else g.especificos.push({ nome: String(p.ministrante || '').trim(), tom });
+  }
 
-      const match = encontrarMusicaUsuarioDuplicada(p.titulo, p.artista);
-      if (match && match.motivo === 'titulo-artista') {
-        const musicaId = match.rootId != null ? match.rootId : match.id;
-        gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+  for (const g of grupos.values()) {
+    if (!g.todos) {
+      const tomsUnicos = new Set(g.especificos.map((e) => e.tom));
+      if (tomsUnicos.size === 1) g.todos = [...tomsUnicos][0];
+    }
+  }
+
+  const aplicar = () => {
+    const padroesAplicados = [];
+
+    for (const g of grupos.values()) {
+      const match = encontrarMusicaUsuarioParaTomImport(g.titulo, g.artista);
+      const musicaId = match ? (match.rootId != null ? match.rootId : match.id) : null;
+      const motivoMatch = match && match.motivo !== 'titulo-artista' ? match.motivo : undefined;
+
+      if (!musicaId) {
+        if (g.todos) {
+          upsertTomImportPendente(g.titulo, g.artista, 'Todos', g.todos);
+          resumo.pendentes += 1;
+          resumo.detalhes.push({
+            status: 'pendente',
+            titulo: g.titulo,
+            artista: g.artista,
+            ministrante: 'Todos',
+            tom: g.todos,
+          });
+        }
+        for (const e of g.especificos) {
+          upsertTomImportPendente(g.titulo, g.artista, e.nome, e.tom);
+          resumo.pendentes += 1;
+          resumo.detalhes.push({
+            status: 'pendente',
+            titulo: g.titulo,
+            artista: g.artista,
+            ministrante: e.nome,
+            tom: e.tom,
+          });
+        }
+        continue;
+      }
+
+      const idsEspecificos = new Set();
+      for (const e of g.especificos) {
+        const min = garantirMinistrantePorNomeNoDb(e.nome);
+        if (!min) {
+          resumo.ignorados += 1;
+          continue;
+        }
+        if (min.criado) resumo.ministrantesCriados += 1;
+        gravarTomMemoriaNoDb(min.id, musicaId, 'user', e.tom);
+        idsEspecificos.add(Number(min.id));
         resumo.aplicados += 1;
         resumo.detalhes.push({
           status: 'aplicado',
-          titulo: p.titulo,
-          artista: p.artista,
+          titulo: g.titulo,
+          artista: g.artista,
           ministrante: min.nome,
-          tom,
+          tom: e.tom,
           musicaId,
+          match: motivoMatch,
         });
-      } else if (match && match.motivo === 'titulo' && !normalizarArtistaComparacao(p.artista)) {
-        /* Só título e artista vazio no arquivo: aceitar match por título. */
-        const musicaId = match.rootId != null ? match.rootId : match.id;
-        gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+      }
+
+      if (g.todos) {
+        gravarTomPadraoNoDb(musicaId, 'user', g.todos);
+        padroesAplicados.push({ musicaId, tom: g.todos, idsEspecificos });
         resumo.aplicados += 1;
         resumo.detalhes.push({
           status: 'aplicado',
-          titulo: p.titulo,
-          artista: p.artista,
-          ministrante: min.nome,
-          tom,
+          titulo: g.titulo,
+          artista: g.artista,
+          ministrante: 'Todos',
+          tom: g.todos,
           musicaId,
-          match: 'titulo',
-        });
-      } else {
-        upsertTomImportPendente(p.titulo, p.artista, min.nome, tom);
-        resumo.pendentes += 1;
-        resumo.detalhes.push({
-          status: 'pendente',
-          titulo: p.titulo,
-          artista: p.artista,
-          ministrante: min.nome,
-          tom,
+          padraoTodos: true,
+          match: motivoMatch,
         });
       }
     }
-  });
-  aplicar();
+
+    if (padroesAplicados.length) {
+      const cadastrados = listarMinistrantesNoDb();
+      for (const p of padroesAplicados) {
+        for (const m of cadastrados) {
+          if (p.idsEspecificos.has(Number(m.id))) continue;
+          gravarTomMemoriaNoDb(m.id, p.musicaId, 'user', p.tom);
+        }
+      }
+    }
+  };
+  if (typeof db.transaction === 'function') db.transaction(aplicar)();
+  else aplicar();
   return resumo;
 }
 
@@ -484,35 +874,57 @@ function aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista) {
     )
     .all(titulo_norm, artista_norm);
 
-  if (!rows.length && !artista_norm) {
-    rows = db
+  let aplicouPorTitulo = false;
+  if (!rows.length) {
+    const porTitulo = db
       .prepare(
-        `SELECT ministrante_nome, tom FROM tom_import_pendente
+        `SELECT artista_norm, ministrante_nome, tom FROM tom_import_pendente
          WHERE titulo_norm = ?`
       )
       .all(titulo_norm);
+    const artistas = new Set(porTitulo.map((r) => String(r.artista_norm || '')));
+    if (porTitulo.length && (artistas.size <= 1 || !artista_norm)) {
+      rows = porTitulo;
+      aplicouPorTitulo = true;
+    }
   }
   if (!rows.length) return 0;
 
   let n = 0;
-  const aplicar = db.transaction(() => {
+  const aplicar = () => {
+    const idsEspecificos = new Set();
+    let tomTodos = '';
     for (const row of rows) {
-      const min = garantirMinistrantePorNomeNoDb(row.ministrante_nome);
-      if (!min) continue;
       const tom = normalizarTomMusical(row.tom);
       if (!tom) continue;
+      if (ehMinistranteTodos(row.ministrante_nome)) {
+        gravarTomPadraoNoDb(musicaId, 'user', tom);
+        tomTodos = tom;
+        n += 1;
+        continue;
+      }
+      const min = garantirMinistrantePorNomeNoDb(row.ministrante_nome);
+      if (!min) continue;
       gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+      idsEspecificos.add(Number(min.id));
       n += 1;
     }
-    if (artista_norm) {
+    if (tomTodos) {
+      for (const m of listarMinistrantesNoDb()) {
+        if (idsEspecificos.has(Number(m.id))) continue;
+        gravarTomMemoriaNoDb(m.id, musicaId, 'user', tomTodos);
+      }
+    }
+    if (aplicouPorTitulo || !artista_norm) {
+      db.prepare(`DELETE FROM tom_import_pendente WHERE titulo_norm = ?`).run(titulo_norm);
+    } else {
       db.prepare(
         `DELETE FROM tom_import_pendente WHERE titulo_norm = ? AND artista_norm = ?`
       ).run(titulo_norm, artista_norm);
-    } else {
-      db.prepare(`DELETE FROM tom_import_pendente WHERE titulo_norm = ?`).run(titulo_norm);
     }
-  });
-  aplicar();
+  };
+  if (typeof db.transaction === 'function') db.transaction(aplicar)();
+  else aplicar();
   return n;
 }
 
@@ -581,6 +993,7 @@ function initControllerDatabase(paths, Database) {
 
   initApresentacoesDB();
   initMinistrantesETomMemoriaDB();
+  migrarMinistranteCrisMedeirosParaCris(paths?.playlistsJsonPath);
 }
 
 const ROTULO_COPIA_MODIFICADA = 'CÓPIA';
@@ -1249,7 +1662,7 @@ function normalizarMinistrantesParaSync(ministrantes) {
     const nome = String(raw.nome || '').trim();
     if (!id || !nome || ids.has(id)) continue;
     const nomeKey = nome.toLocaleLowerCase('pt-BR');
-    if (nomes.has(nomeKey)) continue;
+    if (ehMinistranteTodos(nome) || nomes.has(nomeKey)) continue;
     ids.add(id);
     nomes.add(nomeKey);
     out.push({ id, nome: nome.slice(0, 80) });
@@ -1310,13 +1723,50 @@ function listarTomMemoriaParaSync() {
     .filter((r) => r.ministranteId > 0 && r.musicaId > 0 && r.tom);
 }
 
+function normalizarTomPadraoParaSync(itens) {
+  if (!Array.isArray(itens)) return [];
+  const out = [];
+  const chaves = new Set();
+  for (const raw of itens) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const musicaId = Number(raw.musicaId ?? raw.musica_id);
+    if (!Number.isFinite(musicaId) || musicaId <= 0) continue;
+    const bancoFonte = normalizarBancoFonteTom(raw.bancoFonte ?? raw.banco_fonte ?? raw.fonte);
+    const tom = normalizarTomMusical(raw.tom);
+    if (!tom) continue;
+    const uid = Math.trunc(musicaId);
+    const chave = `${uid}|${bancoFonte}`;
+    if (chaves.has(chave)) continue;
+    chaves.add(chave);
+    out.push({ musicaId: uid, bancoFonte, tom });
+  }
+  out.sort((a, b) => {
+    if (a.musicaId !== b.musicaId) return a.musicaId - b.musicaId;
+    return a.bancoFonte.localeCompare(b.bancoFonte);
+  });
+  return out;
+}
+
+function listarTomPadraoParaSync() {
+  return db
+    .prepare('SELECT musica_id, banco_fonte, tom FROM tom_padrao ORDER BY musica_id ASC, banco_fonte ASC')
+    .all()
+    .map((r) => ({
+      musicaId: Number(r.musica_id),
+      bancoFonte: normalizarBancoFonteTom(r.banco_fonte),
+      tom: normalizarTomMusical(r.tom),
+    }))
+    .filter((r) => r.musicaId > 0 && r.tom);
+}
+
 /**
  * Substitui cadastro de ministrantes + memória de tom (preserva IDs do snapshot).
  * Snapshots antigos sem estes campos não devem chamar esta função.
  */
-function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria) {
+function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria, tomPadrao) {
   const mins = normalizarMinistrantesParaSync(ministrantes);
   const tons = normalizarTomMemoriaParaSync(tomMemoria);
+  const padroes = normalizarTomPadraoParaSync(tomPadrao);
   const idsMin = new Set(mins.map((m) => m.id));
   const tonsOk = tons.filter((t) => idsMin.has(t.ministranteId));
 
@@ -1325,9 +1775,14 @@ function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria) {
     `INSERT INTO tom_memoria (ministrante_id, musica_id, banco_fonte, tom, atualizado_em)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`
   );
+  const insertPadrao = db.prepare(
+    `INSERT INTO tom_padrao (musica_id, banco_fonte, tom, atualizado_em)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+  );
 
   const aplicar = () => {
     db.prepare('DELETE FROM tom_memoria').run();
+    db.prepare('DELETE FROM tom_padrao').run();
     db.prepare('DELETE FROM ministrantes').run();
     try {
       db.prepare("DELETE FROM sqlite_sequence WHERE name='ministrantes'").run();
@@ -1340,6 +1795,9 @@ function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria) {
     for (const t of tonsOk) {
       insertTom.run(t.ministranteId, t.musicaId, t.bancoFonte, t.tom);
     }
+    for (const p of padroes) {
+      insertPadrao.run(p.musicaId, p.bancoFonte, p.tom);
+    }
   };
 
   if (typeof db.transaction === 'function') {
@@ -1347,7 +1805,12 @@ function substituirMinistrantesETomMemoriaParaSync(ministrantes, tomMemoria) {
   } else {
     aplicar();
   }
-  return { ok: true, ministrantes: mins.length, tomMemoria: tonsOk.length };
+  return {
+    ok: true,
+    ministrantes: mins.length,
+    tomMemoria: tonsOk.length,
+    tomPadrao: padroes.length,
+  };
 }
 
 module.exports = {
@@ -1381,7 +1844,13 @@ module.exports = {
   normalizarMinistrantesParaSync,
   listarTomMemoriaParaSync,
   normalizarTomMemoriaParaSync,
+  listarTomPadraoParaSync,
+  normalizarTomPadraoParaSync,
   substituirMinistrantesETomMemoriaParaSync,
+  ehMinistranteTodos,
+  migrarMinistranteCrisMedeirosParaCris,
+  obterTomPadraoNoDb,
+  gravarTomPadraoNoDb,
   inserirMinistranteNoDb,
   atualizarMinistranteNoDb,
   apagarMinistranteNoDb,

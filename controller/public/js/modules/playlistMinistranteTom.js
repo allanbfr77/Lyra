@@ -7,6 +7,7 @@
 export const TONS_MUSICAIS = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'ORIG.',
 ];
 
 const TONS_SET = new Set(TONS_MUSICAIS);
@@ -19,7 +20,8 @@ export function obterCacheMinistrantes() {
 }
 
 export function normalizarTomPlaylist(tom) {
-  const t = String(tom ?? '').trim();
+  let t = String(tom ?? '').trim();
+  if (/^orig\.?$/i.test(t)) t = 'ORIG.';
   return TONS_SET.has(t) ? t : '';
 }
 
@@ -223,12 +225,14 @@ export async function excluirMinistranteNoServidor(apiBase, id) {
  * @param {number} musicaId
  * @param {string} fonte
  */
-export async function buscarTomMemoria(apiBase, ministranteId, musicaId, fonte) {
+export async function buscarTomMemoria(apiBase, ministranteId, musicaId, fonte, titulo) {
   const q = new URLSearchParams({
     ministranteId: String(ministranteId),
     musicaId: String(musicaId),
     fonte: fonte === 'catalog' ? 'catalog' : 'user',
   });
+  const t = String(titulo || '').trim();
+  if (t) q.set('titulo', t);
   const res = await fetch(`${apiBase}/api/tom-memoria?${q}`);
   if (!res.ok) return '';
   const data = await res.json().catch(() => ({}));

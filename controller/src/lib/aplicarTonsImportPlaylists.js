@@ -2,7 +2,7 @@
 
 const { normalizarChaveComparacao, listarMinistrantesNoDb } = require('../db');
 const { loadPlaylistsJson, savePlaylistsJson } = require('./playlistsStore');
-const { TONS_OK } = require('./invbTonsFromSupabase');
+const { TONS_OK, ehMinistranteTodos, normTom, normMin } = require('./invbTonsFromSupabase');
 
 /**
  * Monta mapa tituloNorm → { ministranteNomeLower → tom }.
@@ -18,13 +18,13 @@ function mapaTonsPorTitulo(itens) {
     const tons = item.tons;
     if (tons && typeof tons === 'object' && !Array.isArray(tons)) {
       for (const [min, tom] of Object.entries(tons)) {
-        const t = String(tom || '').trim();
+        const t = normTom(tom);
         if (!TONS_OK.has(t)) continue;
         byMin.set(String(min || '').trim().toLocaleLowerCase('pt-BR'), t);
       }
     } else if (Array.isArray(tons)) {
       for (const p of tons) {
-        const t = String(p?.tom || '').trim();
+        const t = normTom(p?.tom);
         const min = String(p?.ministrante || '').trim().toLocaleLowerCase('pt-BR');
         if (!min || !TONS_OK.has(t)) continue;
         byMin.set(min, t);
@@ -35,7 +35,51 @@ function mapaTonsPorTitulo(itens) {
 }
 
 /**
+ * Chave do mapa de tons do site para este nome (Humberto ≈ Pr. Humberto).
+ * @param {Map<string, string>} byMin
+ * @param {string} nomeMinistrante
+ */
+function chaveMinistranteNoMapaTons(byMin, nomeMinistrante) {
+  const key = String(nomeMinistrante || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  if (!key || ehMinistranteTodos(key) || !byMin || typeof byMin.has !== 'function') return '';
+  if (byMin.has(key)) return key;
+  const canon = String(normMin(nomeMinistrante) || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  if (canon && byMin.has(canon)) return canon;
+  const hits = [];
+  for (const k of byMin.keys()) {
+    if (!k || ehMinistranteTodos(k)) continue;
+    if (
+      k.startsWith(`${key} `) ||
+      key.startsWith(`${k} `) ||
+      (canon && (k.startsWith(`${canon} `) || canon.startsWith(`${k} `)))
+    ) {
+      hits.push(k);
+    }
+  }
+  return hits.length === 1 ? hits[0] : '';
+}
+
+/**
+ * Tom específico do ministrante, ou o tom «Todos» se não houver específico.
+ * @param {Map<string, string>} byMin
+ * @param {string} nomeMinistrante
+ */
+function resolverTomDoMapa(byMin, nomeMinistrante) {
+  if (!byMin || typeof byMin.get !== 'function') return '';
+  const chave = chaveMinistranteNoMapaTons(byMin, nomeMinistrante);
+  if (chave) return byMin.get(chave) || '';
+  if (byMin.has('todos')) return byMin.get('todos') || '';
+  if (byMin.has('todas')) return byMin.get('todas') || '';
+  return '';
+}
+
+/**
  * Atualiza `tom` nas playlists locais quando há match título + ministrante.
+ * «Todos» no site preenche qualquer ministrante já escolhido na linha.
  * @returns {{ mudou: boolean, atualizadas: number }}
  */
 function aplicarTonsImportNasPlaylists(playlistsJsonPathFn, itens) {
@@ -44,6 +88,7 @@ function aplicarTonsImportNasPlaylists(playlistsJsonPathFn, itens) {
 
   const idParaNome = new Map();
   for (const m of listarMinistrantesNoDb()) {
+    if (ehMinistranteTodos(m.nome)) continue;
     idParaNome.set(Number(m.id), String(m.nome || '').trim().toLocaleLowerCase('pt-BR'));
   }
 
@@ -62,7 +107,7 @@ function aplicarTonsImportNasPlaylists(playlistsJsonPathFn, itens) {
       if (!Number.isFinite(mid) || mid <= 0) continue;
       const nomeKey = idParaNome.get(mid);
       if (!nomeKey) continue;
-      const tomNovo = byMin.get(nomeKey);
+      const tomNovo = resolverTomDoMapa(byMin, nomeKey);
       if (!tomNovo) continue;
       if (String(it.tom || '').trim() === tomNovo) continue;
       it.tom = tomNovo;
@@ -77,5 +122,7 @@ function aplicarTonsImportNasPlaylists(playlistsJsonPathFn, itens) {
 
 module.exports = {
   mapaTonsPorTitulo,
+  resolverTomDoMapa,
+  chaveMinistranteNoMapaTons,
   aplicarTonsImportNasPlaylists,
 };

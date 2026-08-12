@@ -13,7 +13,6 @@ const INVB_SUPABASE_ANON_KEY_DEFAULT =
 
 const MAP_MIN = {
   cris: 'Cris',
-  'cris medeiros': 'Cris',
   daniela: 'Daniela',
   mirian: 'Mirian',
   raphaela: 'Raphaela',
@@ -26,17 +25,80 @@ const MAP_MIN = {
 const TONS_OK = new Set([
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'ORIG.',
 ]);
 
+/** No site, «Todos» não é pessoa: tom padrão da música para qualquer ministrante. */
+function ehMinistranteTodos(nome) {
+  const k = String(nome || '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+  return k === 'todos' || k === 'todas';
+}
+
+function chaveNomeMinistrante(nome) {
+  return String(nome || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+}
+
 function normMin(n) {
+  if (ehMinistranteTodos(n)) return 'Todos';
   const k = String(n || '')
     .trim()
     .toLowerCase();
   return MAP_MIN[k] || String(n || '').trim();
 }
 
+/**
+ * Associa o nome do site a um ministrante já cadastrado (Humberto ≈ Pr. Humberto).
+ * Não cria pessoa — só resolve alias/prefixo único.
+ * @param {string} nomeRaw
+ * @param {{id:number, nome:string}[]} cadastrados
+ * @returns {{id:number, nome:string}|null}
+ */
+function resolverMinistranteNoCadastro(nomeRaw, cadastrados) {
+  const lista = Array.isArray(cadastrados) ? cadastrados : [];
+  const bruto = String(nomeRaw || '').trim();
+  if (!bruto || ehMinistranteTodos(bruto)) return null;
+  const alvo = chaveNomeMinistrante(normMin(bruto));
+  if (!alvo) return null;
+
+  const exact = [];
+  const prefixo = [];
+  for (const m of lista) {
+    if (!m || ehMinistranteTodos(m.nome)) continue;
+    const n = chaveNomeMinistrante(m.nome);
+    const nCanon = chaveNomeMinistrante(normMin(m.nome));
+    if (n === alvo || nCanon === alvo) {
+      exact.push(m);
+      continue;
+    }
+    if (
+      n.startsWith(`${alvo} `) ||
+      alvo.startsWith(`${n} `) ||
+      nCanon.startsWith(`${alvo} `) ||
+      alvo.startsWith(`${nCanon} `)
+    ) {
+      prefixo.push(m);
+    }
+  }
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) {
+    const mesmoTexto = exact.find(
+      (m) => chaveNomeMinistrante(m.nome) === chaveNomeMinistrante(bruto)
+    );
+    return mesmoTexto || exact[0];
+  }
+  if (prefixo.length === 1) return prefixo[0];
+  return null;
+}
+
 function normTom(tom) {
   let t = String(tom || '').trim();
+  if (/^orig\.?$/i.test(t)) return 'ORIG.';
   const map = {
     Db: 'C#',
     Eb: 'D#',
@@ -80,6 +142,16 @@ function parsePares(tomField, ministranteField) {
     const min = normMin(ministranteField);
     if (tom && min) out.push({ tom, min });
   }
+  const nomesCampo = String(ministranteField || '')
+    .split(/[,;/|]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (nomesCampo.some((n) => ehMinistranteTodos(n))) {
+    const tomTodos = out[0]?.tom || normTom(tomField);
+    if (tomTodos && TONS_OK.has(tomTodos) && !out.some((p) => ehMinistranteTodos(p.min))) {
+      out.push({ tom: tomTodos, min: 'Todos' });
+    }
+  }
   return out;
 }
 
@@ -108,6 +180,15 @@ function itemImportFromMusicaRow(row) {
   for (const p of valid) {
     if (!byMin.has(p.min)) byMin.set(p.min, []);
     byMin.get(p.min).push(p.tom);
+  }
+
+  /* Um único tom no site = tag Todos automática (vale para qualquer ministrante). */
+  const temTodos = [...byMin.keys()].some((k) => ehMinistranteTodos(k));
+  if (!temTodos) {
+    const tomsUnicos = new Set(valid.map((p) => p.tom));
+    if (tomsUnicos.size === 1) {
+      byMin.set('Todos', [[...tomsUnicos][0]]);
+    }
   }
 
   const multi = [...byMin.values()].some((arr) => arr.length > 1);
@@ -203,6 +284,9 @@ async function buildImportPayloadFromSupabase() {
 
 module.exports = {
   TONS_OK,
+  ehMinistranteTodos,
+  chaveNomeMinistrante,
+  resolverMinistranteNoCadastro,
   normMin,
   normTom,
   parsePares,

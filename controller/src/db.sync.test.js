@@ -483,3 +483,154 @@ test('11) sync preserva ministranteId/tom na playlist e cadastro+tom_memoria', (
   assert.strictEqual(tons[0].tom, 'G#');
   assert.strictEqual(tons[0].musicaId, musicaId);
 });
+
+test('12) Todos é tom padrão e não cria ministrante', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    listarMinistrantesNoDb,
+    obterTomPadraoNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Te amo', 'Banda', ['letra']);
+  const cris = inserirMinistranteNoDb('Cris');
+
+  const resumo = importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'Te amo',
+        artista: 'Banda',
+        tons: { Todos: 'B', Cris: 'G' },
+      },
+    ],
+  });
+  assert.strictEqual(resumo.aplicados, 2);
+  assert.ok(!listarMinistrantesNoDb().some((m) => String(m.nome).toLowerCase() === 'todos'));
+  assert.strictEqual(obterTomPadraoNoDb(musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'G');
+
+  const daniela = inserirMinistranteNoDb('Daniela');
+  assert.strictEqual(obterTomMemoriaNoDb(daniela.id, musicaId, 'user'), 'B');
+
+  assert.throws(() => inserirMinistranteNoDb('Todos'), /não é um ministrante/i);
+});
+
+test('13) Todos preenche todos os ministrantes já cadastrados', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    obterTomPadraoNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Te amo', '', ['letra']);
+  const cris = inserirMinistranteNoDb('Cris');
+  const daniela = inserirMinistranteNoDb('Daniela');
+  const mirian = inserirMinistranteNoDb('Mirian');
+
+  importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'Te amo',
+        artista: 'Diante Do Trono',
+        tons: { Todos: 'B', Cris: 'G' },
+      },
+    ],
+  });
+
+  assert.strictEqual(obterTomPadraoNoDb(musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'G');
+  assert.strictEqual(obterTomMemoriaNoDb(daniela.id, musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(mirian.id, musicaId, 'user'), 'B');
+});
+
+test('14) Cris Medeiros no cadastro vira Cris (como no site)', () => {
+  const {
+    inserirMinistranteNoDb,
+    migrarMinistranteCrisMedeirosParaCris,
+    listarMinistrantesNoDb,
+    gravarTomMemoriaNoDb,
+    obterTomMemoriaNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Te amo', '', ['letra']);
+  const antigo = inserirMinistranteNoDb('Cris Medeiros');
+  gravarTomMemoriaNoDb(antigo.id, musicaId, 'user', 'G');
+
+  const out = migrarMinistranteCrisMedeirosParaCris();
+  assert.ok(out);
+  assert.strictEqual(out.acao, 'renomeou');
+  const mins = listarMinistrantesNoDb();
+  assert.ok(mins.some((m) => m.nome === 'Cris'));
+  assert.ok(!mins.some((m) => String(m.nome).toLowerCase() === 'cris medeiros'));
+  assert.strictEqual(obterTomMemoriaNoDb(out.paraId, musicaId, 'user'), 'G');
+
+  const cris = inserirMinistranteNoDb('Cris Extra');
+  db.prepare("UPDATE ministrantes SET nome = 'Cris Medeiros' WHERE id = ?").run(cris.id);
+  const fundiu = migrarMinistranteCrisMedeirosParaCris();
+  assert.strictEqual(fundiu.acao, 'fundiu');
+  assert.strictEqual(fundiu.paraId, out.paraId);
+  assert.ok(!listarMinistrantesNoDb().some((m) => String(m.nome).toLowerCase() === 'cris medeiros'));
+});
+
+test('15) Todos do site + medley preenche qualquer ministrante', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    obterTomPadraoNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Águas Purificadoras', '', ['letra']);
+  const cris = inserirMinistranteNoDb('Cris');
+
+  importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'Tu És / Águas Purificadoras',
+        artista: 'FHOP',
+        tons: { Todos: 'B' },
+      },
+    ],
+  });
+
+  assert.strictEqual(obterTomPadraoNoDb(musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'B');
+  assert.strictEqual(
+    obterTomMemoriaNoDb(cris.id, 999999, 'catalog', 'Tu És / Águas Purificadoras'),
+    'B'
+  );
+});
+
+test('16) um único tom no site (Raphaela B) preenche qualquer ministrante', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    obterTomPadraoNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Tu És / Águas Purificadoras', '', ['letra']);
+  const cris = inserirMinistranteNoDb('Cris');
+  const raphaela = inserirMinistranteNoDb('Raphaela');
+
+  importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'Tu És / Águas Purificadoras',
+        artista: '',
+        tons: { Raphaela: 'B' },
+      },
+    ],
+  });
+
+  assert.strictEqual(obterTomPadraoNoDb(musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(raphaela.id, musicaId, 'user'), 'B');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'B');
+});

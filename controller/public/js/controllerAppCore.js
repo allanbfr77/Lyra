@@ -99,7 +99,6 @@ import {
   renomearMinistranteNoServidor,
   excluirMinistranteNoServidor,
   buscarTomMemoria,
-  gravarTomMemoria,
   limparMinistranteDasPlaylists,
   obterCacheMinistrantes,
   normalizarMinistranteIdPlaylist,
@@ -6682,19 +6681,6 @@ async function aplicarMinistranteTomDoShareNaPlaylistMeta(m, musicaId, bancoFont
       // intencional — import segue sem ministrante
     }
   }
-  if (ministranteId && tom && Number.isFinite(Number(musicaId))) {
-    try {
-      await gravarTomMemoria(
-        getControllerApiBase(),
-        ministranteId,
-        Number(musicaId),
-        bancoFonte === 'catalog' ? 'catalog' : 'user',
-        tom
-      );
-    } catch (_) {
-      // intencional — playlist ainda recebe o tom mesmo se a memória falhar
-    }
-  }
   return { ministranteId, tom };
 }
 
@@ -8773,7 +8759,7 @@ function nomeMinistrantePorId(id) {
 }
 
 /**
- * Preenche ministrante em todas as músicas do culto e aplica tom memorizado quando existir.
+ * Preenche ministrante em todas as músicas do culto e aplica o tom do site quando existir.
  * Não trava edição posterior — cada linha continua editável.
  */
 async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
@@ -8788,7 +8774,8 @@ async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
         api,
         mid,
         Number(it.id),
-        it.bancoFonte === 'catalog' ? 'catalog' : 'user'
+        it.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        it.titulo
       );
       if (tomMem) it.tom = tomMem;
     } catch (_) {
@@ -8810,7 +8797,8 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
         getControllerApiBase(),
         novoId,
         Number(item.id),
-        item.bancoFonte === 'catalog' ? 'catalog' : 'user'
+        item.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        item.titulo
       );
       item.tom = tomMem || '';
       if (selTomEl) selTomEl.value = item.tom;
@@ -8829,8 +8817,8 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
     const nome = nomeMinistrantePorId(novoId) || 'este ministrante';
     const ok = await appConfirm(
       `Usar «${nome}» em todas as músicas deste culto?\n\n` +
-        `Os tons memorizados serão preenchidos quando existirem. ` +
-        `Depois você pode alterar o nome ou o tom em qualquer música.`,
+        `Os tons do site serão preenchidos quando existirem. ` +
+        `Alterar o tom na playlist vale só neste culto — o original continua no site.`,
       'Ministrante do culto',
       { fecharNoBackdrop: false }
     );
@@ -8849,7 +8837,7 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
   }
 }
 
-async function onPlaylistTomChange(idxPl, valorSelect) {
+function onPlaylistTomChange(idxPl, valorSelect) {
   if (!cultoId) return;
   const pl = getPlaylist(cultoId);
   const item = pl[idxPl];
@@ -8859,19 +8847,6 @@ async function onPlaylistTomChange(idxPl, valorSelect) {
   savePlaylists();
   if (playlistItemMesmaVersaoQueAtiva(item)) {
     refrescarAberturaM3SeMusicaAtivaNaPlaylist();
-  }
-  const minId = normalizarMinistranteIdPlaylist(item.ministranteId);
-  if (!minId) return;
-  try {
-    await gravarTomMemoria(
-      getControllerApiBase(),
-      minId,
-      Number(item.id),
-      item.bancoFonte === 'catalog' ? 'catalog' : 'user',
-      tom
-    );
-  } catch (_) {
-    // intencional — falha ao gravar memória não impede o tom do culto
   }
 }
 

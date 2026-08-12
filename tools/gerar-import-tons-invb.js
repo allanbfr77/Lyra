@@ -21,10 +21,9 @@ async function carregarRaw() {
   return res.json();
 }
 
-/* Nomes como no site / cadastro Lyra (evitar duplicar "Cris" vs "Cris Medeiros"). */
+/* Nomes como no site / cadastro Lyra. */
 const MAP_MIN = {
   cris: "Cris",
-  "cris medeiros": "Cris",
   daniela: "Daniela",
   mirian: "Mirian",
   raphaela: "Raphaela",
@@ -43,6 +42,7 @@ function normMin(n) {
 
 function normTom(tom) {
   let t = String(tom || "").trim();
+  if (/^orig\.?$/i.test(t)) return "ORIG.";
   const map = {
     Db: "C#",
     Eb: "D#",
@@ -84,6 +84,7 @@ const TONS_OK = new Set([
   "Am",
   "A#m",
   "Bm",
+  "ORIG.",
 ]);
 
 function parsePares(tomField, ministranteField) {
@@ -181,7 +182,7 @@ async function main() {
     fonte: "https://louvores.invbotafogo.com.br/",
     gerado_em: new Date().toISOString(),
     _comentario:
-      "Exportado do Tom Louvores (INVB). Artista preenchido quando havia link do Cifra Club. Tons Orig. foram omitidos (não são notas). Importe em Ajustes → Ministrantes → Importar tons do site.",
+      "Exportado do Tom Louvores (INVB). Artista preenchido quando havia link do Cifra Club. Inclui ORIG. quando o site marca tom original. Importe em Ajustes → Ministrantes → Importar tons do site.",
     itens,
   };
 

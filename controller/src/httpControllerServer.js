@@ -31,6 +31,8 @@ const {
   normalizarMinistrantesParaSync,
   listarTomMemoriaParaSync,
   normalizarTomMemoriaParaSync,
+  listarTomPadraoParaSync,
+  normalizarTomPadraoParaSync,
   substituirMinistrantesETomMemoriaParaSync,
   inserirMinistranteNoDb,
   atualizarMinistranteNoDb,
@@ -248,6 +250,7 @@ function normalizarSnapshotCompartilhado(snapshot, paths, opts = {}) {
   if (Array.isArray(src.ministrantes)) {
     out.ministrantes = normalizarMinistrantesParaSync(src.ministrantes);
     out.tomMemoria = normalizarTomMemoriaParaSync(src.tomMemoria);
+    out.tomPadrao = normalizarTomPadraoParaSync(src.tomPadrao);
   }
   return out;
 }
@@ -263,6 +266,7 @@ function montarSnapshotCompartilhadoLocal(paths) {
     aberturaRemovidaPorCulto: meta.aberturaRemovidaPorCulto,
     ministrantes: listarMinistrantesParaSync(),
     tomMemoria: listarTomMemoriaParaSync(),
+    tomPadrao: listarTomPadraoParaSync(),
   };
 }
 
@@ -620,7 +624,12 @@ async function iniciarServidorController(ctx, paths) {
 
   expressApp.get('/api/tom-memoria', (req, res) => {
     try {
-      const tom = obterTomMemoriaNoDb(req.query.ministranteId, req.query.musicaId, req.query.fonte);
+      const tom = obterTomMemoriaNoDb(
+        req.query.ministranteId,
+        req.query.musicaId,
+        req.query.fonte,
+        req.query.titulo
+      );
       res.json({ tom: tom || '' });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e) });
@@ -804,7 +813,11 @@ async function iniciarServidorController(ctx, paths) {
     substituirMusicasUsuarioParaSync(incoming.musicas);
     savePlaylistsJson(paths.playlistsJsonPath, incoming.playlists);
     if (Array.isArray(incoming.ministrantes)) {
-      substituirMinistrantesETomMemoriaParaSync(incoming.ministrantes, incoming.tomMemoria);
+      substituirMinistrantesETomMemoriaParaSync(
+        incoming.ministrantes,
+        incoming.tomMemoria,
+        incoming.tomPadrao
+      );
     }
     saveSharedSyncMeta(
       paths.sharedSyncMetaPath,

@@ -142,6 +142,7 @@ function normalizePlaylists(playlists) {
 const TONS_SYNC_VALIDOS = new Set([
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'ORIG.',
 ]);
 
 function normalizeMinistrantes(ministrantes) {
@@ -156,7 +157,7 @@ function normalizeMinistrantes(ministrantes) {
     const nome = String(raw.nome || '').trim();
     if (!id || !nome || ids.has(id)) continue;
     const nomeKey = nome.toLocaleLowerCase('pt-BR');
-    if (nomes.has(nomeKey)) continue;
+    if (nomeKey === 'todos' || nomeKey === 'todas' || nomes.has(nomeKey)) continue;
     ids.add(id);
     nomes.add(nomeKey);
     out.push({ id, nome: nome.slice(0, 80) });
@@ -178,7 +179,8 @@ function normalizeTomMemoria(itens) {
     const bancoFonte = raw.bancoFonte === 'catalog' || raw.banco_fonte === 'catalog' || raw.fonte === 'catalog'
       ? 'catalog'
       : 'user';
-    const tom = String(raw.tom || '').trim();
+    let tom = String(raw.tom || '').trim();
+    if (/^orig\.?$/i.test(tom)) tom = 'ORIG.';
     if (!TONS_SYNC_VALIDOS.has(tom)) continue;
     const mid = Math.trunc(ministranteId);
     const uid = Math.trunc(musicaId);
@@ -189,6 +191,34 @@ function normalizeTomMemoria(itens) {
   }
   out.sort((a, b) => {
     if (a.ministranteId !== b.ministranteId) return a.ministranteId - b.ministranteId;
+    if (a.musicaId !== b.musicaId) return a.musicaId - b.musicaId;
+    return a.bancoFonte.localeCompare(b.bancoFonte);
+  });
+  return out;
+}
+
+function normalizeTomPadrao(itens) {
+  if (!Array.isArray(itens)) return [];
+  const out = [];
+  const chaves = new Set();
+  for (const raw of itens) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const musicaId = Number(raw.musicaId ?? raw.musica_id);
+    if (!Number.isFinite(musicaId) || musicaId <= 0) continue;
+    const bancoFonte =
+      raw.bancoFonte === 'catalog' || raw.banco_fonte === 'catalog' || raw.fonte === 'catalog'
+        ? 'catalog'
+        : 'user';
+    let tom = String(raw.tom || '').trim();
+    if (/^orig\.?$/i.test(tom)) tom = 'ORIG.';
+    if (!TONS_SYNC_VALIDOS.has(tom)) continue;
+    const uid = Math.trunc(musicaId);
+    const chave = `${uid}|${bancoFonte}`;
+    if (chaves.has(chave)) continue;
+    chaves.add(chave);
+    out.push({ musicaId: uid, bancoFonte, tom });
+  }
+  out.sort((a, b) => {
     if (a.musicaId !== b.musicaId) return a.musicaId - b.musicaId;
     return a.bancoFonte.localeCompare(b.bancoFonte);
   });
@@ -254,6 +284,7 @@ function normalizeSharedDbSnapshot(snapshot, opts = {}) {
   if (Array.isArray(src.ministrantes)) {
     out.ministrantes = normalizeMinistrantes(src.ministrantes);
     out.tomMemoria = normalizeTomMemoria(src.tomMemoria);
+    out.tomPadrao = normalizeTomPadrao(src.tomPadrao);
   }
   return out;
 }
@@ -290,6 +321,7 @@ module.exports = {
   normalizePlaylists,
   normalizeMinistrantes,
   normalizeTomMemoria,
+  normalizeTomPadrao,
   sanitizePlaylistValue,
   saveSharedDbSnapshot,
 };

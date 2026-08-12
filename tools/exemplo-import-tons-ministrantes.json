@@ -1,12 +1,12 @@
 {
   "versao": 1,
-  "_comentario": "Exporte do seu site neste formato e importe em Ajustes → Ministrantes → Importar tons. Tons válidos: C C# D D# E F F# G G# A A# B e menores (Cm, C#m, … Bm). Se a música ainda não estiver no banco Lyra, o vínculo fica pendente e aplica sozinho quando ela for cadastrada (mesmo título+artista).",
+  "_comentario": "Exporte do seu site neste formato e importe em Ajustes → Ministrantes → Importar tons. Tons válidos: C C# D D# E F F# G G# A A# B, menores (Cm, C#m, … Bm) e ORIG. Se a música ainda não estiver no banco Lyra, o vínculo fica pendente e aplica sozinho quando ela for cadastrada (mesmo título+artista).",
   "itens": [
     {
       "titulo": "Galileu",
       "artista": "Fernandinho",
       "tons": {
-        "Cris Medeiros": "G#",
+        "Cris": "G#",
         "Raphaela": "A"
       }
     },
@@ -14,7 +14,7 @@
       "titulo": "Sublime",
       "artista": "FHOP Music",
       "tons": {
-        "Cris Medeiros": "C",
+        "Cris": "C",
         "Daniela": "D"
       }
     },
