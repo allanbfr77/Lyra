@@ -7,6 +7,8 @@ const {
   payloadImportFromWebhookBody,
   payloadImportFromMusicaRows,
   resolverMinistranteNoCadastro,
+  indexarHistoricoLouvores,
+  escolherTomComHistorico,
 } = require('./invbTonsFromSupabase');
 
 test('itemImportFromMusicaRow lê JSON de tons do site', () => {
@@ -98,6 +100,51 @@ test('campo ministrante TODOS no site vira tom padrão', () => {
   });
   assert.ok(item);
   assert.strictEqual(item.tons.Todos, 'B');
+});
+
+test('vários tons da mesma pessoa: sem histórico usa o primeiro do site', () => {
+  const item = itemImportFromMusicaRow({
+    nome: 'Óleo de Alegria',
+    tom: JSON.stringify([
+      { tom: 'E', min: 'Daniela' },
+      { tom: 'D', min: 'Daniela' },
+    ]),
+    ministrante: 'Daniela',
+  });
+  assert.ok(item);
+  assert.strictEqual(item.tons.Daniela, 'E');
+  assert.strictEqual(item.tons.Todos, 'E');
+});
+
+test('vários tons da mesma pessoa: histórico escolhe o mais cantado', () => {
+  const historico = indexarHistoricoLouvores([
+    { nome: 'Óleo de Alegria', tom: 'E', ministrante: 'Daniela', data: '2026-01-01' },
+    { nome: 'Óleo de Alegria', tom: 'D', ministrante: 'Daniela', data: '2026-02-01' },
+    { nome: 'Óleo de Alegria', tom: 'D', ministrante: 'Daniela', data: '2026-03-01' },
+  ]);
+  const item = itemImportFromMusicaRow(
+    {
+      nome: 'Óleo de Alegria',
+      tom: JSON.stringify([
+        { tom: 'E', min: 'Daniela' },
+        { tom: 'D', min: 'Daniela' },
+      ]),
+      ministrante: 'Daniela',
+    },
+    historico
+  );
+  assert.ok(item);
+  assert.strictEqual(item.tons.Daniela, 'D');
+  assert.strictEqual(item.tons.Todos, 'D');
+});
+
+test('escolherTomComHistorico empata nas vezes e usa a data mais recente', () => {
+  const historico = indexarHistoricoLouvores([
+    { nome: 'Óleo de Alegria', tom: 'E', ministrante: 'Daniela', data: '2026-01-10' },
+    { nome: 'Óleo de Alegria', tom: 'D', ministrante: 'Daniela', data: '2026-04-01' },
+  ]);
+  const stats = historico.porTitulo.get('oleo de alegria');
+  assert.strictEqual(escolherTomComHistorico(['E', 'D'], stats, 'Daniela'), 'D');
 });
 
 test('itemImportFromMusicaRow aceita Orig. como ORIG.', () => {

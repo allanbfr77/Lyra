@@ -1650,7 +1650,7 @@
        Coluna de botões com largura fixa — evita desalinhamento no hover / música 1. */
     .playlist-cols-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 100px 80px 112px;
+      grid-template-columns: minmax(0, 1fr) 128px 84px 112px;
       gap: 6px;
       align-items: center;
       padding: 4px 10px 6px;
@@ -1674,7 +1674,7 @@
 
     .playlist-row-cols {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 100px 80px 112px;
+      grid-template-columns: minmax(0, 1fr) 128px 84px 112px;
       gap: 6px;
       align-items: center;
       width: 100%;
@@ -1722,7 +1722,7 @@
       max-width: 100%;
       box-sizing: border-box;
       font-family: var(--font-ui);
-      font-size: 11px;
+      font-size: var(--fs-label-base);
       font-weight: 500;
       padding: 4px 3px;
       border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -1738,6 +1738,7 @@
     }
     .pl-sel option,
     .pl-sel optgroup {
+      font-size: var(--fs-label-base);
       background-color: var(--surface2, #1c1c1c);
       color: var(--text, #f0ebe3);
     }

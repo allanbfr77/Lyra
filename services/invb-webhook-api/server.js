@@ -23,6 +23,7 @@ const {
   payloadImportFromMusicaRows,
   payloadImportFromWebhookBody,
   fetchMusicasFromSupabase,
+  fetchHistoricoFromSupabase,
   itemImportFromMusicaRow,
 } = require('../../controller/src/lib/invbTonsFromSupabase');
 
@@ -114,7 +115,8 @@ app.post('/api/invb/musicas-webhook', authWebhook, async (req, res) => {
     store.lastEventType = tipo || 'UNKNOWN';
     saveStore(store);
 
-    const payload = payloadImportFromWebhookBody(body);
+    const historico = await fetchHistoricoFromSupabase().catch(() => []);
+    const payload = payloadImportFromWebhookBody(body, historico);
     res.json({
       ok: true,
       updatedAt: store.updatedAt,
@@ -139,7 +141,8 @@ app.get('/api/invb/tons-sync', async (req, res) => {
     if (since && store.updatedAt && Date.parse(store.updatedAt) <= Date.parse(since)) {
       return res.status(204).end();
     }
-    const payload = payloadImportFromMusicaRows(rowsFromStore(store));
+    const historico = await fetchHistoricoFromSupabase().catch(() => []);
+    const payload = payloadImportFromMusicaRows(rowsFromStore(store), historico);
     res.json({
       ok: true,
       updatedAt: store.updatedAt,

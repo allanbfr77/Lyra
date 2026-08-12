@@ -56,6 +56,7 @@ const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 const {
   buildImportPayloadFromSupabase,
   payloadImportFromWebhookBody,
+  fetchHistoricoFromSupabase,
 } = require('./lib/invbTonsFromSupabase');
 const { aplicarTonsImportNasPlaylists } = require('./lib/aplicarTonsImportPlaylists');
 
@@ -734,7 +735,7 @@ async function iniciarServidorController(ctx, paths) {
    * Recebe o mesmo payload do webhook Supabase (útil com túnel ngrok no Controlador).
    * Em produção preferir a API na nuvem + sync-invb.
    */
-  expressApp.post('/api/tom-memoria/webhook-invb', (req, res) => {
+  expressApp.post('/api/tom-memoria/webhook-invb', async (req, res) => {
     try {
       const secretEsperado = String(process.env.LYRA_INVB_WEBHOOK_SECRET || '').trim();
       if (secretEsperado) {
@@ -743,7 +744,8 @@ async function iniciarServidorController(ctx, paths) {
           return res.status(401).json({ ok: false, erro: 'secret inválido' });
         }
       }
-      const payload = payloadImportFromWebhookBody(req.body || {});
+      const historico = await fetchHistoricoFromSupabase().catch(() => []);
+      const payload = payloadImportFromWebhookBody(req.body || {}, historico);
       if (!payload.itens || !payload.itens.length) {
         return res.json({
           ok: true,
