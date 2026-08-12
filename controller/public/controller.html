@@ -2801,6 +2801,7 @@
       width: 100%;
       height: 100%;
       text-align: center;
+      position: relative;
     }
 
     .op-slide-text,
@@ -2830,12 +2831,17 @@
     }
 
     .op-titulo-musica {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 2;
       font-family: var(--slide-font);
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: #f3c15a;
-      font-size: 11px;
+      font-size: 11px; /* fallback; Ajustes › Slides › Ministrante sobrepõe via style */
       line-height: 1.3;
       width: 100%;
       text-align: center;
@@ -9388,12 +9394,20 @@
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor do comentário</div></div>
                 <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" oninput="onMinistranteSlideCfgChange()"></div>
               </div>
+              <div class="cfg-row" data-busca="cor do titulo slide 1 abertura musica ministrante m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Cor do título (1.º slide)</div></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-abertura-titulo-color-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
             </div>
           </section>
 
           <section class="cfg-card">
             <div class="cfg-card-head"><span class="cfg-card-titulo">Tamanhos</span></div>
             <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="tamanho da fonte titulo slide 1 abertura musica ministrante m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (título 1.º slide) <span class="cfg-row-val"><span id="cfg-ministrante-abertura-titulo-fontsize-val-ctrl">7</span> vh</span></div></div>
+                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-abertura-titulo-fontsize-ctrl" min="0" max="12" step="1" value="7" oninput="onMinistranteSlideCfgChange()"></div>
+              </div>
               <div class="cfg-row" data-busca="tamanho da fonte atual ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (atual) <span class="cfg-row-val"><span id="cfg-ministrante-fontsize-atual-val-ctrl">4.1</span> vh</span></div></div>
                 <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-fontsize-atual-ctrl" min="0" max="9" step="1" value="4" oninput="onMinistranteSlideCfgChange()"></div>

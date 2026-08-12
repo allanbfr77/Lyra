@@ -78,13 +78,20 @@
     #proximo {
       color: #f3c15a;
     }
-    /* Título da música no 1.º slide — dourado fixo, acima do slide atual. */
+    /* Título da música no 1.º slide — no topo, fora da pilha centralizada da letra. */
     .titulo-musica-op {
+      position: absolute;
+      top: 1.2vh;
+      left: 0;
+      right: 0;
+      z-index: 2;
       width: 100%;
       max-width: 100%;
+      padding: 0 2vw;
+      box-sizing: border-box;
       text-align: center;
       font-weight: 700;
-      font-size: 6.5vh;
+      font-size: 7vh;
       line-height: 1.3;
       color: #f3c15a;
       text-transform: uppercase;
@@ -218,6 +225,8 @@
         textColorAtual: '#ffffff',
         textColorProximo: '#f3c15a',
         commentColor: '#00c8ff',
+        aberturaTituloColor: '#f3c15a',
+        aberturaTituloFontSize: 7,
         fontSize: 4.1,
         fontSizeAtual: 4.1,
         fontSizeProximo: 4.1,
@@ -346,12 +355,28 @@
       elRefBiblicaOp.style.textTransform = 'none';
     }
 
-    /** Título da música no topo do M3 — só no 1.º slide, dourado fixo. */
+    /** Cor e tamanho do título do 1.º slide — aplicados na config, como atual/próximo. */
+    function aplicarEstiloTituloAberturaOp() {
+      if (!elTituloMusicaOp) return;
+      const mon = displayConfig.ministrante || {};
+      const cor = String(mon.aberturaTituloColor || '').trim() || '#f3c15a';
+      const vh = Number(mon.aberturaTituloFontSize);
+      const fontVh = Number.isFinite(vh) && vh > 0 ? Math.min(20, vh) : 7;
+      elTituloMusicaOp.style.color = cor;
+      elTituloMusicaOp.style.fontSize = `${fontVh}vh`;
+    }
+
+    /** Título da música no topo do M3 — só no 1.º slide. */
     function aplicarTituloMusicaAbertura(payload) {
       if (!elTituloMusicaOp) return;
       const modo = String(payload?.modo || '');
       const tit = String(payload?.titulo || '').trim();
-      const mostrar = modo === 'musica' && !!payload?.aberturaMusica && !!tit;
+      const mostrar =
+        !!payload?.aberturaMusica &&
+        !!tit &&
+        modo !== 'biblia' &&
+        modo !== 'apresentacao' &&
+        modo !== 'aviso';
       if (!mostrar) {
         elTituloMusicaOp.textContent = '';
         elTituloMusicaOp.classList.add('oculta');
@@ -359,7 +384,7 @@
       }
       elTituloMusicaOp.classList.remove('oculta');
       elTituloMusicaOp.textContent = tit.toUpperCase();
-      elTituloMusicaOp.style.color = '#f3c15a';
+      aplicarEstiloTituloAberturaOp();
     }
 
     function substituirCamadaDisplay(atual, camada) {
@@ -448,6 +473,7 @@
       if (assinatura !== null && assinatura === assinaturaConfigMinistranteAplicada) return;
       assinaturaConfigMinistranteAplicada = assinatura;
       definirCorComentarioMinistrante(corComentario);
+      aplicarEstiloTituloAberturaOp();
       elAtual.style.color = mon.textColorAtual || '#ffffff';
       elProximo.style.color = mon.textColorProximo || '#f3c15a';
       const baseAtualVh = Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));

@@ -9900,13 +9900,13 @@ function obterTomPlaylistMusicaAtiva() {
   return normalizarTomPlaylist(it?.tom);
 }
 
-/** Título do 1.º slide M3: «[ Título / Tom ]» quando o tom estiver cadastrado. */
+/** Título do 1.º slide M3: «Título / Tom» quando o tom estiver cadastrado. */
 function tituloAberturaM3MusicaAtiva(tituloBase) {
   const tit = String(tituloBase || musicaAtiva?.titulo || '').trim();
   const tom = obterTomPlaylistMusicaAtiva();
-  if (!tit) return tom ? `[ ${tom} ]` : '';
+  if (!tit) return tom || '';
   if (!tom) return tit;
-  return `[ ${tit} / ${tom} ]`;
+  return `${tit} / ${tom}`;
 }
 
 function limparPreviewTituloMusicaAbertura() {
@@ -9916,7 +9916,20 @@ function limparPreviewTituloMusicaAbertura() {
   opTit.classList.add('vazio');
 }
 
-/** Título dourado no topo do preview M3 — só no 1.º slide da música. */
+/** Estilo do título do 1.º slide na prévia M3 (cor + tamanho relativos à config). */
+function aplicarEstiloPreviewTituloAbertura() {
+  const opTit = document.getElementById('op-titulo');
+  if (!opTit) return;
+  const mb = currentCfgCtrl?.ministrante || {};
+  const cor = String(mb.aberturaTituloColor || '').trim() || '#f3c15a';
+  const vh = Number(mb.aberturaTituloFontSize);
+  const fontVh = Number.isFinite(vh) && vh >= 0 ? vh : 7;
+  opTit.style.color = cor;
+  /* Prévia é pequena: ~1.6 px por vh (7 vh ≈ 11 px, o tamanho anterior). */
+  opTit.style.fontSize = `${Math.max(8, Math.round(fontVh * 1.6))}px`;
+}
+
+/** Título no topo do preview M3 — só no 1.º slide da música. */
 function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
   const opTit = document.getElementById('op-titulo');
   if (!opTit) return;
@@ -9927,6 +9940,7 @@ function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
   }
   opTit.textContent = textoSlideMaiusculo(t);
   opTit.classList.remove('vazio');
+  aplicarEstiloPreviewTituloAbertura();
 }
 
 /**
@@ -19122,6 +19136,8 @@ let currentCfgCtrl = {
     textColorAtual: '#ffffff',
     textColorProximo: '#f3c15a',
     commentColor: '#00c8ff',
+    aberturaTituloColor: '#f3c15a',
+    aberturaTituloFontSize: 7,
     fontSize: 4.1,
     lineSpacing: 1.35,
     wrapLongLines: true,
@@ -19306,6 +19322,15 @@ function popularFormCfg(cfg) {
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
   currentCfgCtrl.ministrante.commentColor = corComentarioForm;
   aplicarCorComentarioMinistranteNoPainel(corComentarioForm);
+  const mbAberturaCor = String(mb.aberturaTituloColor || '').trim() || '#f3c15a';
+  const mbAberturaFontRaw = Number(mb.aberturaTituloFontSize);
+  const mbAberturaFont = Number.isFinite(mbAberturaFontRaw) ? mbAberturaFontRaw : 7;
+  setInputVal('cfg-ministrante-abertura-titulo-color-ctrl', mbAberturaCor);
+  setInputVal('cfg-ministrante-abertura-titulo-fontsize-ctrl', mbAberturaFont);
+  setSpanText('cfg-ministrante-abertura-titulo-fontsize-val-ctrl', String(mbAberturaFont));
+  currentCfgCtrl.ministrante.aberturaTituloColor = mbAberturaCor;
+  currentCfgCtrl.ministrante.aberturaTituloFontSize = mbAberturaFont;
+  aplicarEstiloPreviewTituloAbertura();
   const mbFontAtual = mb.fontSizeAtual ?? mb.fontSize ?? 4.1;
   const mbFontProximo = mb.fontSizeProximo ?? mb.fontSize ?? 4.1;
   setInputVal('cfg-ministrante-fontsize-atual-ctrl', mbFontAtual);
@@ -19655,6 +19680,12 @@ function onMinistranteSlideCfgChange() {
     document.getElementById('cfg-ministrante-comment-color-ctrl')?.value,
     corComentarioMinistrantePainel
   );
+  currentCfgCtrl.ministrante.aberturaTituloColor =
+    document.getElementById('cfg-ministrante-abertura-titulo-color-ctrl')?.value || '#f3c15a';
+  currentCfgCtrl.ministrante.aberturaTituloFontSize = lerNumeroInput(
+    'cfg-ministrante-abertura-titulo-fontsize-ctrl',
+    currentCfgCtrl.ministrante.aberturaTituloFontSize ?? 7
+  );
   currentCfgCtrl.ministrante.fontSizeAtual = lerNumeroInput(
     'cfg-ministrante-fontsize-atual-ctrl',
     currentCfgCtrl.ministrante.fontSizeAtual ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
@@ -19669,10 +19700,12 @@ function onMinistranteSlideCfgChange() {
   );
   currentCfgCtrl.ministrante.wrapLongLines = getChkVal('cfg-ministrante-wrap-ctrl');
   currentCfgCtrl.ministrante.autoFitLongLines = getChkVal('cfg-ministrante-autofit-ctrl');
+  setSpanText('cfg-ministrante-abertura-titulo-fontsize-val-ctrl', String(currentCfgCtrl.ministrante.aberturaTituloFontSize));
   setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeAtual));
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
   aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl.ministrante.commentColor);
+  aplicarEstiloPreviewTituloAbertura();
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (opA) opA.style.color = currentCfgCtrl.ministrante.textColorAtual || '#ffffff';
