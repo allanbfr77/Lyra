@@ -11,9 +11,14 @@ async function carregarRaw() {
     return JSON.parse(txt);
   }
   const url =
+    process.env.INVB_SUPABASE_URL ||
     "https://rosvseljurczmzdycbxs.supabase.co/rest/v1/musicas?select=*&order=nome.asc";
-  const key =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvc3ZzZWxqdXJjem16ZHljYnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4ODI0MTUsImV4cCI6MjA5NjQ1ODQxNX0.XbiVRQLFzWj7j7-KRXxdtT_3giO0TOsE5hRw86NYNVQ";
+  const key = String(process.env.INVB_SUPABASE_ANON_KEY || "").trim();
+  if (!key) {
+    throw new Error(
+      "INVB_SUPABASE_ANON_KEY não definido. Use o arquivo _raw-supabase-musicas.json ou configure a variável de ambiente."
+    );
+  }
   const res = await fetch(url, {
     headers: { apikey: key, Authorization: `Bearer ${key}` },
   });

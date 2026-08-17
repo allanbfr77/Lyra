@@ -11,9 +11,6 @@ const INVB_SUPABASE_REST_BASE_DEFAULT =
 const INVB_SUPABASE_URL_DEFAULT =
   `${INVB_SUPABASE_REST_BASE_DEFAULT}/musicas?select=*&order=nome.asc`;
 
-const INVB_SUPABASE_ANON_KEY_DEFAULT =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvc3ZzZWxqdXJjem16ZHljYnhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4ODI0MTUsImV4cCI6MjA5NjQ1ODQxNX0.XbiVRQLFzWj7j7-KRXxdtT_3giO0TOsE5hRw86NYNVQ';
-
 const MAP_MIN = {
   cris: 'Cris',
   daniela: 'Daniela',
@@ -388,7 +385,14 @@ function payloadImportFromWebhookBody(body, historico) {
 
 function supabaseConfigFromEnv() {
   const url = String(process.env.INVB_SUPABASE_URL || INVB_SUPABASE_URL_DEFAULT).trim();
-  const key = String(process.env.INVB_SUPABASE_ANON_KEY || INVB_SUPABASE_ANON_KEY_DEFAULT).trim();
+  const key = String(process.env.INVB_SUPABASE_ANON_KEY || '').trim();
+  if (!key) {
+    const err = new Error(
+      'INVB_SUPABASE_ANON_KEY não definido. Configure a variável de ambiente com a chave anon do Supabase.'
+    );
+    err.statusCode = 500;
+    throw err;
+  }
   return { url, key };
 }
 
@@ -492,5 +496,4 @@ module.exports = {
   buildImportPayloadFromSupabase,
   supabaseConfigFromEnv,
   INVB_SUPABASE_URL_DEFAULT,
-  INVB_SUPABASE_ANON_KEY_DEFAULT,
 };
