@@ -1,5 +1,7 @@
 'use strict';
 
+require('./lib/loadEnv').loadLocalEnv();
+
 const { app, dialog, session, systemPreferences } = require('electron');
 const Database = require('better-sqlite3');
 
