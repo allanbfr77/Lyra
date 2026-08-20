@@ -437,6 +437,10 @@ function createProjectionEngine(paths, deps) {
       } catch (_) {
         payload = state.ministranteApresentacaoOverride;
       }
+      /* Contagem no palco: o tempo é carimbado aqui, na emissão, e não quando o comando
+         chegou. Sem isto, um monitor de ministrante ligado a meio da contagem receberia o
+         tempo que faltava no início dela. Mesma razão do carimbo no telão. */
+      payload = projectionPayloads.carimbarContagemNoPayload(payload, Date.now());
     } else {
       try {
         payload = JSON.parse(JSON.stringify(estado));
@@ -515,6 +519,9 @@ function createProjectionEngine(paths, deps) {
     if (st.tipo === 'aviso') {
       return Array.isArray(st.linhas) && st.linhas.length > 0;
     }
+    /* A contagem não tem `linhas` — os dígitos nascem no renderer a partir do tempo. Sem
+       este ramo o motor concluiria «telão ocioso» e revelaria o relógio por cima dela. */
+    if (st.tipo === 'contagem') return !!st.contagem;
     return Array.isArray(st.linhas) && st.linhas.length > 0;
   }
 
@@ -535,6 +542,9 @@ function createProjectionEngine(paths, deps) {
         if (ov.modo === 'aviso') {
           return Array.isArray(ov.linhas) && ov.linhas.length > 0;
         }
+        /* Contagem no palco (alvo «ambos»): não tem `atual`/`proximo`. Sem este ramo o
+           motor acharia o M3 ocioso e esconderia a janela para revelar o relógio. */
+        if (ov.modo === 'contagem') return !!ov.contagem;
         return !!(String(ov.atual || '').trim() || String(ov.proximo || '').trim());
       }
     }

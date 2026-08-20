@@ -4,6 +4,7 @@ const projectionEncerrar = require('./projectionEncerrar');
 const projectionPayloads = require('./projectionPayloads');
 const comentariosSlide = require('./comentariosSlide');
 const displayConfigModo = require('./displayConfigModo');
+const contagemRegressiva = require('./contagemRegressiva');
 
 /**
  * Aplicador de comandos de projeção.
@@ -75,7 +76,10 @@ function estadoBibliaParaObs(state) {
   const apresentacaoCobrePublico =
     !!ov &&
     typeof ov === 'object' &&
-    (ov.tipo === 'apresentacao' || ov.tipo === 'aviso' || !!ov.apresentacao);
+    (ov.tipo === 'apresentacao' ||
+      ov.tipo === 'aviso' ||
+      ov.tipo === 'contagem' ||
+      !!ov.apresentacao);
   if (!ehBiblia || apresentacaoCobrePublico) {
     return { tipo: null, titulo: '', linhas: [], telaLimpa: true, blackout: false, slidePretoFinal: false };
   }
@@ -153,6 +157,65 @@ function estadoPublicoOverrideDePayloadApresentacao(estadoAtual, payload) {
       title: String(pl.title || pl.name || 'Apresentação'),
     },
   };
+}
+
+/**
+ * Override público que desenha a contagem regressiva no telão.
+ *
+ * Reaproveita a camada da apresentação em vez de inventar uma terceira: a pergunta que o
+ * telão faz é «há algo por cima dos slides?», e a contagem responde sim exactamente como
+ * um aviso responde. Ganha de borla tudo o que essa camada já sabe fazer — o ESC que a
+ * encerra, o blackout que a apaga sem a perder, o OBS de Bíblia que se cala enquanto ela
+ * está no ar, o telão que reabre com ela ao ligar um monitor a meio.
+ *
+ * `blackout` do estado por baixo é preservado pela mesma razão que no aviso: o operador
+ * que apagou o telão não quer que uma contagem o acenda.
+ *
+ * @param {object} estadoAtual
+ * @param {object} estadoContagem Estado interno (com `alvoEm`); o carimbo para duração
+ *   acontece na emissão, em `projectionPayloads.payloadPublicoAtual`.
+ */
+function estadoPublicoOverrideDeContagem(estadoAtual, estadoContagem) {
+  const base = projectionPayloads.clonePayloadSafe(estadoAtual) || {};
+  return {
+    ...base,
+    tipo: 'contagem',
+    linhas: [],
+    linhasProximo: [],
+    proximoSlidePreto: false,
+    apresentacao: undefined,
+    blackout: !!base.blackout,
+    slidePretoFinal: false,
+    telaLimpa: false,
+    contagem: estadoContagem,
+  };
+}
+
+/** Telão só (padrão), ou telão e monitor do ministrante. */
+const ALVO_CONTAGEM_PADRAO = 'publico';
+
+/**
+ * @param {unknown} valor
+ * @param {string} [anterior] Usado quando `valor` não é um alvo conhecido.
+ */
+function normalizarAlvoContagem(valor, anterior) {
+  const a = String(valor ?? '').toLowerCase();
+  if (a === 'ambos' || a === 'publico') return a;
+  return anterior === 'ambos' ? 'ambos' : ALVO_CONTAGEM_PADRAO;
+}
+
+/**
+ * A mesma contagem, para o monitor do ministrante.
+ *
+ * Não é uma versão reduzida: quem está no palco precisa de ver os mesmos dígitos que a
+ * sala vê, e não uma aproximação. Vai o estado inteiro, incluindo a aparência — o
+ * `contagemRender.js` partilhado desenha-o igual nas duas telas.
+ *
+ * @param {object} estadoContagem Estado interno; o carimbo para duração acontece na
+ *   emissão, em `projectionEngine.atualizarDisplayMinistrante`.
+ */
+function ministranteOverrideDeContagem(estadoContagem) {
+  return { modo: 'contagem', telaLimpa: false, contagem: estadoContagem };
 }
 
 /** Payload equivalente para `display-operator.html` (`modo` + dados). */
@@ -244,6 +307,9 @@ function criarAplicadorDeComandos(deps) {
     typeof deps.reescreverSrcMidia === 'function' ? deps.reescreverSrcMidia : (src) => src;
   const displayConfigPath = deps.displayConfigPath || null;
   const logError = typeof deps.logError === 'function' ? deps.logError : () => {};
+  /* Único ponto do aplicador que lê o tempo. Injectável para que a suíte possa exercitar
+     pausar/retomar/ajustar sem esperar segundos reais passarem. */
+  const relogio = typeof deps.agora === 'function' ? deps.agora : () => Date.now();
 
   /** Corpo de config tem de ser um objeto simples — array e null não servem de patch. */
   const ehCorpoDeConfig = (cfg) => typeof cfg === 'object' && cfg !== null && !Array.isArray(cfg);
@@ -532,6 +598,97 @@ function criarAplicadorDeComandos(deps) {
       state.ministranteApresentacaoOverride =
         (alvo === 'ministrante' || alvo === 'ambos') && minOv != null ? minOv : null;
 
+      engine.garantirTelasAbertasParaProjecao();
+      const { estadoPublico } = engine.render({ estado: state.estadoAtual });
+      return [evEstado(estadoPublico), evBibliaObs()];
+    },
+
+    /**
+     * Põe, ajusta ou controla a contagem regressiva no telão.
+     *
+     * Um comando só, com `acao`, e não cinco eventos de socket separados. O motivo não é
+     * economia de nomes: `pausar` e `ajustar` operam sobre a contagem que já existe, e
+     * separá-los em eventos próprios convidaria cada um a inventar a sua maneira de a
+     * encontrar. Aqui há um caminho e um sítio onde o estado é escrito.
+     *
+     * Cada acção devolve `null` quando não faz sentido — «pausar» sem contagem no ar,
+     * «definir» sem duração e sem contagem anterior de onde a herdar. É a mesma regra do
+     * `exibir_musica` com índice fora do intervalo: recusar-se é diferente de agir e não
+     * ter nada a difundir.
+     *
+     * @param {object} [dados]
+     * @param {'definir'|'pausar'|'retomar'|'ajustar'} [dados.acao]
+     * @param {number} [dados.minutos]
+     * @param {number} [dados.segundos]
+     * @param {number} [dados.duracaoMs]
+     * @param {number} [dados.ajusteMs] Só em `ajustar`; negativo encurta.
+     * @param {boolean} [dados.rodando] Só em `definir`; `false` deixa a contagem armada.
+     * @param {object} [dados.contagemConfig] Aparência; pode vir sozinha, sem mexer no tempo.
+     * @param {'publico'|'ambos'} [dados.alvo] Telão só, ou telão e ministrante. Persiste
+     *   entre comandos, como a aparência.
+     */
+    exibir_contagem(dados = {}) {
+      const pl = dados && typeof dados === 'object' && !Array.isArray(dados) ? dados : {};
+      const agora = relogio();
+      const acao = String(pl.acao || 'definir').toLowerCase();
+      const anterior = state.contagem || null;
+
+      let proximo = null;
+      if (acao === 'pausar') {
+        if (!anterior) return null;
+        proximo = contagemRegressiva.pausarContagem(anterior, agora);
+      } else if (acao === 'retomar') {
+        if (!anterior) return null;
+        proximo = contagemRegressiva.retomarContagem(anterior, agora);
+      } else if (acao === 'ajustar') {
+        if (!anterior) return null;
+        proximo = contagemRegressiva.ajustarContagem(anterior, pl.ajusteMs, agora);
+      } else {
+        proximo = contagemRegressiva.criarEstadoContagem(pl, agora, anterior);
+      }
+      if (!proximo) return null;
+
+      /* A config viaja fora das acções de tempo de propósito: mudar a cor enquanto a
+         contagem corre não pode reiniciá-la, e `pausar` não pode descartar um ajuste de
+         aparência que veio no mesmo comando. */
+      if (pl.contagemConfig !== undefined) {
+        proximo = {
+          ...proximo,
+          cfg: contagemRegressiva.normalizarCfgContagem(pl.contagemConfig),
+        };
+      }
+
+      /* O alvo acompanha a aparência, e pela mesma razão: um «pausar» que não o mencione
+         não pode tirar a contagem do monitor do ministrante a meio. */
+      if (pl.alvo !== undefined) {
+        state.contagemAlvo = normalizarAlvoContagem(pl.alvo, state.contagemAlvo);
+      }
+      const alvo = normalizarAlvoContagem(state.contagemAlvo, ALVO_CONTAGEM_PADRAO);
+      state.contagemAlvo = alvo;
+
+      state.contagem = proximo;
+      state.projecaoLiveAtiva = false;
+      state.estadoPublicoOverride = estadoPublicoOverrideDeContagem(state.estadoAtual, proximo);
+      /* Escrito nos dois casos, e não só quando é «ambos»: deixar o valor anterior de pé
+         faria uma contagem passada a «só telão» continuar no palco. */
+      state.ministranteApresentacaoOverride =
+        alvo === 'ambos' ? ministranteOverrideDeContagem(proximo) : null;
+
+      engine.garantirTelasAbertasParaProjecao();
+      const { estadoPublico } = engine.render({ estado: state.estadoAtual });
+      return [evEstado(estadoPublico), evBibliaObs()];
+    },
+
+    /**
+     * Tira a contagem do telão, devolvendo o que estava por baixo.
+     *
+     * Delega em `encerrarCamadaApresentacao` — a mesma função que o ESC do telão chama —
+     * em vez de limpar os campos à mão. Duas maneiras de encerrar a mesma camada é como
+     * uma delas se esquece de limpar `state.contagem`.
+     */
+    encerrar_contagem() {
+      state.projecaoLiveAtiva = false;
+      projectionEncerrar.encerrarCamadaApresentacao(state);
       engine.garantirTelasAbertasParaProjecao();
       const { estadoPublico } = engine.render({ estado: state.estadoAtual });
       return [evEstado(estadoPublico), evBibliaObs()];

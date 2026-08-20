@@ -166,6 +166,59 @@
     .capa-aviso-op[hidden] {
       display: none !important;
     }
+
+    /* ─── Contagem regressiva ───
+       Cobre o monitor inteiro, como o aviso. As classes de dentro (`contagem-digitos`,
+       `contagem-msg`, `piscando`) têm os mesmos nomes do telão de propósito: é o mesmo
+       `contagemRender.js` que as escreve nas duas telas. */
+    .capa-contagem-op {
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.2vh;
+      padding: 4vh 4vw;
+      box-sizing: border-box;
+      overflow: hidden;
+      text-align: center;
+      background: var(--bg-contagem-projecao, #000000);
+    }
+    .capa-contagem-op[hidden] { display: none !important; }
+    .capa-contagem-op.pos-top    { justify-content: flex-start; }
+    .capa-contagem-op.pos-bottom { justify-content: flex-end; }
+
+    .capa-contagem-op .contagem-msg {
+      max-width: 92%;
+      line-height: 1.25;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .capa-contagem-op .contagem-msg:empty { display: none; }
+
+    /* `tabular-nums`: sem ele o 1 é mais estreito do que o 8 e a linha dança a cada
+       segundo — no palco isso lê-se como instabilidade. */
+    .capa-contagem-op .contagem-digitos {
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+      white-space: nowrap;
+    }
+
+    .capa-contagem-op.piscando .contagem-digitos {
+      animation: contagem-pisca-op 1s steps(1, end) infinite;
+    }
+
+    @keyframes contagem-pisca-op {
+      0%, 49%   { opacity: 1; }
+      50%, 100% { opacity: 0.15; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .capa-contagem-op.piscando .contagem-digitos { animation: none; }
+    }
     .capa-apresentacao-op img,
     .capa-apresentacao-op video,
     .capa-apresentacao-op iframe {
@@ -197,6 +250,11 @@
 <body>
   <div id="capa-apresentacao-op" class="capa-apresentacao-op" hidden></div>
   <div id="capa-aviso-op" class="capa-aviso-op" hidden><pre id="capa-aviso-op-texto"></pre></div>
+  <div id="capa-contagem-op" class="capa-contagem-op" hidden>
+    <div class="contagem-msg" id="capa-contagem-op-topo"></div>
+    <div class="contagem-digitos" id="capa-contagem-op-digitos"></div>
+    <div class="contagem-msg" id="capa-contagem-op-rodape"></div>
+  </div>
   <div class="wrap" id="op-wrap-letras">
     <div class="titulo-musica-op oculta" id="titulo-musica-op"></div>
     <div class="slide vazio" id="atual"></div>
@@ -212,6 +270,36 @@
     const elCapaAp = document.getElementById('capa-apresentacao-op');
     const elCapaAviso = document.getElementById('capa-aviso-op');
     const elCapaAvisoTexto = document.getElementById('capa-aviso-op-texto');
+    const elCapaContagem = document.getElementById('capa-contagem-op');
+
+    /*
+     * Contagem: o MESMO desenho do telão, não uma segunda implementação.
+     *
+     * Quando o operador manda a contagem para os dois monitores, a sala e o palco ficam a
+     * ver o mesmo relógio ao mesmo tempo — dois códigos a contar em paralelo acabariam,
+     * mais cedo ou mais tarde, a discordar de um segundo bem à vista de toda a gente.
+     *
+     * O `try` protege o arranque: se o módulo faltar, esta tela perde a contagem mas
+     * continua a mostrar letra e versículo, que é o essencial do monitor do ministrante.
+     */
+    let contagemRender = null;
+    try {
+      contagemRender = require('./js/contagemRender').criarRenderContagem({
+        document,
+        performance: window.performance,
+        elBox: elCapaContagem,
+        elDigitos: document.getElementById('capa-contagem-op-digitos'),
+        elMsgTopo: document.getElementById('capa-contagem-op-topo'),
+        elMsgRodape: document.getElementById('capa-contagem-op-rodape'),
+      });
+    } catch (e) {
+      console.error('[Lyra] contagem indisponível no monitor do ministrante:', e && e.message);
+    }
+
+    function limparContagemMinistrante() {
+      if (contagemRender) contagemRender.limpar();
+      else if (elCapaContagem) elCapaContagem.hidden = true;
+    }
     const elWrapLetras = document.getElementById('op-wrap-letras');
     let ultimoPayloadMinistrante = null;
     let displayConfig = {
@@ -376,7 +464,8 @@
         !!tit &&
         modo !== 'biblia' &&
         modo !== 'apresentacao' &&
-        modo !== 'aviso';
+        modo !== 'aviso' &&
+        modo !== 'contagem';
       if (!mostrar) {
         elTituloMusicaOp.textContent = '';
         elTituloMusicaOp.classList.add('oculta');
@@ -422,6 +511,9 @@
       if (modo === 'aviso') {
         return Array.isArray(payload.linhas) && payload.linhas.length > 0;
       }
+      /* Sem isto o monitor cairia no modo ocioso (relógio) por não haver letra — e o
+         relógio taparia a contagem. */
+      if (modo === 'contagem') return !!payload.contagem;
       return !!(String(payload.atual || '').trim() || String(payload.proximo || '').trim());
     }
 
@@ -579,6 +671,7 @@
       elCapaAp.innerHTML = '';
       elCapaAviso.hidden = true;
       elCapaAvisoTexto.textContent = '';
+      limparContagemMinistrante();
       if (elWrapLetras) elWrapLetras.style.visibility = '';
     }
 
@@ -834,7 +927,7 @@
       const modo = String(payload?.modo || 'texto');
       /* Apresentação e aviso ficam de fora: recriam `<video>`/`<iframe>` e o seu ciclo de
          vida não é assunto desta correcção. Só o caminho de letra/Bíblia é deduplicado. */
-      const podeDeduplicar = modo !== 'apresentacao' && modo !== 'aviso';
+      const podeDeduplicar = modo !== 'apresentacao' && modo !== 'aviso' && modo !== 'contagem';
       const assinatura = podeDeduplicar ? assinaturaRenderMinistrante(payload) : null;
       const repetido = assinatura !== null && assinatura === assinaturaRenderMinistranteAplicada;
       ultimoPayloadMinistrante = payload || null;
@@ -886,6 +979,16 @@
         aplicarTituloMusicaAbertura({ modo: 'texto' });
         renderizarMidiaApresentacaoNoHost(elCapaAp, payload.apresentacao);
         elCapaAp.hidden = false;
+        if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
+        return;
+      }
+
+      if (modo === 'contagem') {
+        limparCapasApresentacaoOuAviso();
+        elCapaAp.hidden = true;
+        elCapaAviso.hidden = true;
+        aplicarTituloMusicaAbertura({ modo: 'texto' });
+        if (contagemRender) contagemRender.mostrar(payload.contagem);
         if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
         return;
       }

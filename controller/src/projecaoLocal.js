@@ -390,12 +390,25 @@ function criarProjecaoLocal(deps) {
      * autenticação que acabou de se pôr no socket. O celular comanda pelo socket, com
      * credencial; não perde nada.
      */
-    const rotaComando = (comando) => (req, res) => {
+    const rotaComando = (comando, opts = {}) => (req, res) => {
       void receberComando(comando, req.body || {}, null).then((r) => {
+        /*
+         * `aplicado === false` é a regra a recusar-se — payload sem efeito, não avaria.
+         * Só a contagem o traduz em 400: os comandos antigos sempre responderam 200 nesse
+         * caso, e o painel trata qualquer não-200 como erro visível ao operador. Mudar-lhes
+         * o contrato aqui faria aparecer alertas em situações que hoje passam em silêncio.
+         */
+        if (r.ok && r.aplicado === false && opts.recusaEh400) {
+          return res.status(400).json({ ok: false, erro: `${comando}: comando sem efeito` });
+        }
         if (r.ok) return res.json({ ok: true });
         res.status(500).json(r);
       });
     };
+    /* A contagem vem por HTTP pelo mesmo motivo da mídia: a imagem de fundo em Base64 não
+       cabe num pacote de socket. */
+    apiApp.post('/api/comando/exibir_contagem', soLocal, rotaComando('exibir_contagem', { recusaEh400: true }));
+    apiApp.post('/api/comando/encerrar_contagem', soLocal, rotaComando('encerrar_contagem'));
     for (const comando of [
       'exibir_apresentacao',
       'encerrar_apresentacao_publico',

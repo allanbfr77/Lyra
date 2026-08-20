@@ -861,6 +861,313 @@ test('aplicado distingue «recusou» de «agiu e não há nada a difundir»', ()
   assert.deepEqual(passou, { eventos: [], aplicado: true });
 });
 
+// --- contagem regressiva --------------------------------------------------------------
+
+/* Relógio de bolso: o aplicador aceita `deps.agora`, e é por aí que a suíte controla o
+   tempo em vez de dormir. */
+function relogioFalso(inicio = 1_700_000_000_000) {
+  let t = inicio;
+  return {
+    agora: () => t,
+    avancar(ms) {
+      t += ms;
+    },
+  };
+}
+
+function aplicadorComContagem(inicial = {}) {
+  const state = estadoFalso(inicial);
+  const engine = motorFalso();
+  const clock = relogioFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine, agora: clock.agora });
+  return { state, engine, clock, aplicador };
+}
+
+test('contagem entra como override público sem apagar o slide por baixo', () => {
+  const { state, aplicador } = aplicadorComContagem({ estadoAtual: musicaProjetada() });
+
+  const r = aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  assert.equal(r.aplicado, true);
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
+  assert.equal(state.contagem.rodando, true);
+  assert.equal(state.contagem.duracaoMs, 300_000);
+  /* O slide continua em `estadoAtual`: encerrar a contagem devolve a música ao telão. */
+  assert.equal(state.estadoAtual.tipo, 'musica');
+});
+
+test('contagem fica só no telão por omissão', () => {
+  const { state, aplicador } = aplicadorComContagem();
+
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
+  assert.equal(
+    state.ministranteApresentacaoOverride,
+    null,
+    'sem alvo declarado, o palco continua com o que lá estava'
+  );
+});
+
+test('alvo «ambos» põe a mesma contagem no monitor do ministrante', () => {
+  const { state, aplicador } = aplicadorComContagem();
+
+  aplicador.aplicar('exibir_contagem', { minutos: 5, alvo: 'ambos' });
+
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'contagem');
+  /* O MESMO estado nos dois canais: é o que garante dígitos iguais nas duas telas. */
+  assert.equal(state.ministranteApresentacaoOverride.contagem, state.contagem);
+  assert.equal(state.estadoPublicoOverride.contagem, state.contagem);
+});
+
+test('alvo persiste através de pausar, ajustar e retomar', () => {
+  /* Um «pausar» que não mencione o alvo não pode tirar a contagem do palco a meio. */
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5, alvo: 'ambos' });
+
+  aplicador.aplicar('exibir_contagem', { acao: 'pausar' });
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'contagem');
+
+  aplicador.aplicar('exibir_contagem', { acao: 'ajustar', ajusteMs: 60_000 });
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'contagem');
+
+  aplicador.aplicar('exibir_contagem', { acao: 'retomar' });
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'contagem');
+});
+
+test('voltar a «publico» tira a contagem do palco', () => {
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5, alvo: 'ambos' });
+
+  aplicador.aplicar('exibir_contagem', { alvo: 'publico' });
+
+  assert.equal(state.ministranteApresentacaoOverride, null);
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
+});
+
+test('encerrar limpa a contagem dos dois canais', () => {
+  const { state, aplicador } = aplicadorComContagem({ estadoAtual: musicaProjetada() });
+  aplicador.aplicar('exibir_contagem', { minutos: 5, alvo: 'ambos' });
+
+  aplicador.aplicar('encerrar_contagem', {});
+
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});
+
+test('alvo desconhecido não promove a contagem ao palco', () => {
+  const { state, aplicador } = aplicadorComContagem();
+
+  aplicador.aplicar('exibir_contagem', { minutos: 5, alvo: 'toda-a-gente' });
+
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});
+
+test('contagem abre as telas antes de desenhar', () => {
+  const { engine, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 1 });
+
+  const nomes = engine.chamadas.map((c) => c[0]);
+  assert.ok(
+    nomes.indexOf('garantirTelasAbertasParaProjecao') < nomes.indexOf('render'),
+    'sem telas abertas o render não tem onde desenhar'
+  );
+});
+
+test('contagem preserva o blackout do telão', () => {
+  /* Quem apagou o telão não quer que uma contagem o acenda. */
+  const { state, aplicador } = aplicadorComContagem({
+    estadoAtual: { ...musicaProjetada(), blackout: true },
+  });
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  assert.equal(state.estadoPublicoOverride.blackout, true);
+});
+
+test('o payload emitido leva duração, nunca o instante do relógio do host', () => {
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  clock.avancar(120_000);
+  const pub = projectionPayloads.payloadPublicoAtual(
+    state.estadoAtual,
+    state.estadoPublicoOverride,
+    { agora: clock.agora() }
+  );
+
+  assert.equal(pub.tipo, 'contagem');
+  assert.equal(pub.contagem.restanteMs, 180_000);
+  assert.equal(pub.contagem.alvoEm, undefined, 'alvoEm é do host e não atravessa a fronteira');
+});
+
+test('um telão que liga a meio recebe o tempo que falta, não o tempo inicial', () => {
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 10 });
+
+  clock.avancar(400_000);
+  const tardio = projectionPayloads.payloadPublicoAtual(
+    state.estadoAtual,
+    state.estadoPublicoOverride,
+    { agora: clock.agora() }
+  );
+  assert.equal(tardio.contagem.restanteMs, 200_000);
+});
+
+test('pausar congela e retomar continua de onde parou', () => {
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  clock.avancar(60_000);
+  aplicador.aplicar('exibir_contagem', { acao: 'pausar' });
+  assert.equal(state.contagem.rodando, false);
+  assert.equal(state.contagem.restanteMs, 240_000);
+
+  clock.avancar(600_000);
+  assert.equal(state.contagem.restanteMs, 240_000, 'pausada, o tempo parado não conta');
+
+  aplicador.aplicar('exibir_contagem', { acao: 'retomar' });
+  clock.avancar(40_000);
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride, {
+    agora: clock.agora(),
+  });
+  assert.equal(pub.contagem.restanteMs, 200_000);
+});
+
+test('ajustar estica a contagem sem a reiniciar', () => {
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  clock.avancar(60_000);
+
+  aplicador.aplicar('exibir_contagem', { acao: 'ajustar', ajusteMs: 60_000 });
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride, {
+    agora: clock.agora(),
+  });
+  assert.equal(pub.contagem.restanteMs, 300_000);
+  assert.equal(pub.contagem.rodando, true, 'ajustar não pode pausar');
+});
+
+test('mudar só a aparência não reinicia o tempo', () => {
+  /* É o caminho de quem mexe num slider no Ajustes com a contagem no ar. */
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  clock.avancar(120_000);
+
+  aplicador.aplicar('exibir_contagem', { contagemConfig: { textColor: '#ff0000' } });
+
+  assert.equal(state.contagem.cfg.textColor, '#ff0000');
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride, {
+    agora: clock.agora(),
+  });
+  assert.equal(pub.contagem.restanteMs, 180_000);
+});
+
+test('pausar sem contagem no ar recusa-se em vez de inventar uma', () => {
+  const { aplicador } = aplicadorComContagem();
+  assert.deepEqual(aplicador.aplicar('exibir_contagem', { acao: 'pausar' }), {
+    eventos: [],
+    aplicado: false,
+  });
+  assert.deepEqual(aplicador.aplicar('exibir_contagem', { acao: 'retomar' }), {
+    eventos: [],
+    aplicado: false,
+  });
+  assert.deepEqual(aplicador.aplicar('exibir_contagem', { acao: 'ajustar', ajusteMs: 1000 }), {
+    eventos: [],
+    aplicado: false,
+  });
+});
+
+test('definir sem duração e sem contagem anterior recusa-se', () => {
+  const { aplicador } = aplicadorComContagem();
+  assert.deepEqual(aplicador.aplicar('exibir_contagem', {}), { eventos: [], aplicado: false });
+});
+
+test('encerrar devolve o telão ao que estava por baixo', () => {
+  const { state, aplicador } = aplicadorComContagem({ estadoAtual: musicaProjetada() });
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  const r = aplicador.aplicar('encerrar_contagem');
+
+  assert.equal(r.aplicado, true);
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.contagem, null, 'o estado interno também sai — senão ressuscita');
+  assert.equal(state.estadoAtual.tipo, 'musica');
+});
+
+test('depois de encerrar, um comando só de aparência não ressuscita a contagem', () => {
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  aplicador.aplicar('encerrar_contagem');
+
+  const r = aplicador.aplicar('exibir_contagem', { contagemConfig: { textColor: '#00ff00' } });
+
+  assert.equal(r.aplicado, false);
+  assert.equal(state.estadoPublicoOverride, null);
+});
+
+test('encerrar a apresentação leva a contagem junto — é a mesma camada', () => {
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  aplicador.aplicar('encerrar_apresentacao_publico');
+
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.contagem, null);
+});
+
+test('contagem no ar cala o overlay de Bíblia do OBS', () => {
+  /* Mesma regra do aviso: o que cobre o telão cobre o overlay. */
+  const { state, aplicador } = aplicadorComContagem({ estadoAtual: versiculoProjetado() });
+  assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
+
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  assert.equal(estadoBibliaParaObs(state).tipo, null);
+
+  aplicador.aplicar('encerrar_contagem');
+  assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
+});
+
+test('a contagem não chega a nenhum overlay do OBS', () => {
+  /*
+   * Contrato, não coincidência.
+   *
+   * Os três overlays decidem o que desenhar a partir deste payload, cada um à sua
+   * maneira: `/obs` e `/obs/slides` perguntam por `linhas` com conteúdo, `/obs/slides`
+   * filtra ainda por `tipo`, e `/obs/biblia` vive de `estado_biblia_obs`. Se algum dia a
+   * contagem passar a trazer `linhas` — para reaproveitar o renderizador de texto, por
+   * exemplo —, estreia-se na transmissão sem ninguém pedir. Este teste é o que faz esse
+   * dia falhar aqui, e não ao vivo.
+   */
+  const { state, aplicador } = aplicadorComContagem({ estadoAtual: musicaProjetada() });
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  const pub = projectionPayloads.payloadPublicoAtual(
+    state.estadoAtual,
+    state.estadoPublicoOverride
+  );
+
+  /* `/obs` e `/obs/slides`: sem linhas, os dois caem no ramo «vazio». */
+  assert.deepEqual(pub.linhas, [], 'a contagem não pode trazer texto para o OBS desenhar');
+
+  /* `/obs/slides`: filtra por tipo, e `contagem` não é nenhum dos que aceita. */
+  assert.notEqual(pub.tipo, 'musica');
+  assert.notEqual(pub.tipo, 'aviso');
+
+  /* `/obs/biblia`: a contagem cobre o telão, portanto cala o versículo. */
+  assert.equal(estadoBibliaParaObs(state).tipo, null);
+});
+
+test('contagem armada em pausa não corre até o operador mandar', () => {
+  const { state, clock, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5, rodando: false });
+
+  clock.avancar(120_000);
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride, {
+    agora: clock.agora(),
+  });
+  assert.equal(pub.contagem.restanteMs, 300_000);
+  assert.equal(pub.contagem.rodando, false);
+});
+
 test('todos os comandos de projeção do Servidor estão cobertos', () => {
   const aplicador = criarAplicadorDeComandos({ state: estadoFalso(), engine: motorFalso() });
   const esperados = [
@@ -872,6 +1179,8 @@ test('todos os comandos de projeção do Servidor estão cobertos', () => {
     'exibir_versiculo',
     'exibir_apresentacao',
     'encerrar_apresentacao_publico',
+    'exibir_contagem',
+    'encerrar_contagem',
     'exibir_ministrante',
     'preview_display_config',
     'set_display_config',

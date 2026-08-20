@@ -13,6 +13,12 @@
  * @param {Object} ctx - Contexto compartilhado com referências aos elementos DOM
  *                       e helpers de renderização (elTela, elLetras, elTitulo, etc.).
  */
+/* O desenho da contagem é partilhado com `display-operator.html`, para o telão e o monitor
+   do ministrante nunca discordarem sobre que segundo estão a mostrar. Este módulo só corre
+   sob Node (o `attach` só é chamado quando `safeRequire` devolve algo), por isso o require
+   é seguro. */
+const { criarRenderContagem } = require('./contagemRender');
+
 function attachPublicProjectionRender(ctx) {
   const BIBLIA_FADE_MS = 150;
   let bibliaFadeTimer = null;
@@ -66,6 +72,23 @@ function attachPublicProjectionRender(ctx) {
       }
     }, BIBLIA_FADE_MS);
   }
+
+  // ─── Contagem regressiva ────────────────────────────────────────────────
+
+  /*
+   * O desenho vive em `contagemRender.js`, partilhado com o monitor do ministrante. Aqui
+   * fica só a ligação aos elementos desta tela.
+   */
+  const contagemRender = criarRenderContagem({
+    document: ctx.document,
+    performance: ctx.performance,
+    elBox: ctx.elContagemBox,
+    elDigitos: ctx.elContagemDigitos,
+    elMsgTopo: ctx.elContagemMsgTopo,
+    elMsgRodape: ctx.elContagemMsgRodape,
+  });
+  const renderizarContagem = (dados) => contagemRender.mostrar(dados);
+  const limparContagem = () => contagemRender.limpar();
 
   /** Telão: relógio é exclusivo do ministrante. */
   function ocultarRelogioTelao() {
@@ -532,12 +555,25 @@ function attachPublicProjectionRender(ctx) {
       !st.slidePretoFinal &&
       Array.isArray(st.linhas) &&
       st.linhas.length > 0;
+    const ehContagem = st.tipo === 'contagem' && !st.telaLimpa && !st.blackout && !!st.contagem;
     const telaoOcioso =
       !st.blackout &&
       !st.slidePretoFinal &&
       !ehApresentacao &&
       !ehAviso &&
+      !ehContagem &&
       (st.telaLimpa || !st.linhas || st.linhas.length === 0);
+
+    /*
+     * A contagem sai deste caminho de propósito.
+     *
+     * `ctx.exibir(st)` reconstrói a partir do estado GUARDADO, e o `restanteMs` desse
+     * estado é o do instante em que o host o enviou. Redesenhar daqui — a meio de uma
+     * contagem, porque o operador mexeu num slider de Slides — reancoraria os dígitos num
+     * tempo já vencido e o telão saltaria para trás. Nada em `displayConfig` afeta a
+     * contagem, que tem config própria; não há o que reaplicar.
+     */
+    if (ehContagem) return;
 
     if (!telaoOcioso && typeof ctx.exibir === 'function') {
       ctx.exibir(st);
@@ -592,23 +628,37 @@ function attachPublicProjectionRender(ctx) {
       Array.isArray(st.linhas) &&
       st.linhas.length > 0;
 
+    /* Contagem regressiva: os dígitos nascem aqui, não vêm em `linhas` — por isso a
+       verificação é sobre `st.contagem` e não sobre o conteúdo de texto. */
+    const ehContagem =
+      st.tipo === 'contagem' &&
+      !st.telaLimpa &&
+      !st.blackout &&
+      !st.slidePretoFinal &&
+      !!st.contagem;
+
     // Modo idle: sem projeção ativa (tela limpa ou sem linhas, sem blackout)
     const idleSemProjecao =
       !st.blackout &&
       !st.slidePretoFinal &&
       !ehApresentacao &&
       !ehAviso &&
+      !ehContagem &&
       (st.telaLimpa || !st.linhas || st.linhas.length === 0);
 
     // ── Atualiza as classes CSS do body para controle visual ───────
     ctx.document.body.classList.toggle('blackout-ativo', !!st.blackout);
     ctx.document.body.classList.toggle('slide-preto-final', !!(st.slidePretoFinal && !st.blackout));
     ctx.document.body.classList.toggle('modo-aviso-projecao', !!ehAviso);
+    ctx.document.body.classList.toggle('modo-contagem-projecao', !!ehContagem);
     aplicarTransparenciaOciosaTelao(idleSemProjecao, cfg);
 
     // ── Blackout / Slide preto: fundo/preto sem relógio ───────────────
     if (st.blackout || st.slidePretoFinal) {
       limparApresentacaoMedia();
+      /* O blackout apaga a contagem na tela mas não a encerra no host: o estado continua
+         lá e a contagem reaparece — com o tempo certo — assim que o telão voltar. */
+      limparContagem();
       ctx.elLetras.textContent = '';
       ctx.elTitulo.textContent = '';
       aplicarReferenciaBiblica({ tipo: null, titulo: '' }, cfg);
@@ -619,6 +669,7 @@ function attachPublicProjectionRender(ctx) {
     // ── Tela limpa: apenas fundo (relógio só no ministrante) ───────
     if (st.telaLimpa) {
       limparApresentacaoMedia();
+      limparContagem();
       ctx.elLetras.textContent = '';
       ctx.elTitulo.textContent = '';
       aplicarReferenciaBiblica({ tipo: null, titulo: '' }, cfg);
@@ -626,8 +677,20 @@ function attachPublicProjectionRender(ctx) {
       return;
     }
 
+    // ── Modo contagem: dígitos calculados na própria tela ──────────
+    if (ehContagem) {
+      limparApresentacaoMedia();
+      ctx.elLetras.textContent = '';
+      ctx.elTitulo.textContent = '';
+      aplicarReferenciaBiblica({ tipo: null, titulo: '' }, cfg);
+      ocultarRelogioTelao();
+      renderizarContagem(st.contagem);
+      return;
+    }
+
     // ── Modo apresentação: exibe mídia e limpa texto ───────────────
     if (ehApresentacao) {
+      limparContagem();
       ctx.elLetras.textContent = '';
       ctx.elTitulo.textContent = '';
       aplicarReferenciaBiblica({ tipo: null, titulo: '' }, cfg);
@@ -639,6 +702,7 @@ function attachPublicProjectionRender(ctx) {
     // ── Modo aviso: exibe texto unificado sem título ou referência ─
     if (ehAviso) {
       limparApresentacaoMedia();
+      limparContagem();
       ctx.elTitulo.textContent = '';
       aplicarReferenciaBiblica({ tipo: null, titulo: '' }, cfg);
       ocultarRelogioTelao();
@@ -653,6 +717,7 @@ function attachPublicProjectionRender(ctx) {
 
     // ── Sem linhas para exibir: limpa a tela ──────────────────────
     limparApresentacaoMedia();
+    limparContagem();
 
     if (!st.linhas || st.linhas.length === 0) {
       ctx.elLetras.textContent = '';
@@ -692,6 +757,9 @@ function attachPublicProjectionRender(ctx) {
   ctx.aplicarConfig = aplicarConfig;
   ctx.exibir = exibir;
   ctx.aplicarSyncVideoApresentacao = aplicarSyncVideoApresentacao;
+  /* Expostos para a janela poder parar o tick ao fechar e para inspecção no DevTools. */
+  ctx.renderizarContagem = renderizarContagem;
+  ctx.limparContagem = limparContagem;
 }
 
 module.exports = { attachPublicProjectionRender };

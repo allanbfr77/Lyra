@@ -243,6 +243,60 @@
       opacity: 0.65;
     }
 
+    /* ─── Contagem regressiva ─── */
+    /* Fundo próprio, como o aviso: a contagem cobre o telão inteiro e não herda o tema
+       dos slides — senão uma contagem sobre fundo de imagem de louvor sairia ilegível. */
+    body.modo-contagem-projecao .tela {
+      background: var(--bg-contagem-projecao, #000000) !important;
+    }
+
+    .contagem-box {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.2vh;
+      padding: 4vh 4vw;
+      text-align: center;
+      font-family: var(--slide-font);
+    }
+    .contagem-box[hidden] { display: none !important; }
+    .contagem-box.pos-top    { justify-content: flex-start; }
+    .contagem-box.pos-bottom { justify-content: flex-end; }
+
+    .contagem-msg {
+      max-width: 92%;
+      line-height: 1.25;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .contagem-msg:empty { display: none; }
+
+    /* `tabular-nums` é o que impede a linha de «respirar» a cada segundo: sem ele, o 1 é
+       mais estreito do que o 8 e os dígitos dançam de posição durante toda a contagem. */
+    .contagem-digitos {
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+      white-space: nowrap;
+    }
+
+    .contagem-box.piscando .contagem-digitos {
+      animation: contagem-pisca 1s steps(1, end) infinite;
+    }
+
+    @keyframes contagem-pisca {
+      0%, 49%   { opacity: 1; }
+      50%, 100% { opacity: 0.15; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .contagem-box.piscando .contagem-digitos { animation: none; }
+    }
+
     /* Versículo */
     .clock-verse {
       font-family: var(--slide-font);
@@ -264,6 +318,14 @@
   <div class="letras" id="letras"></div>
   <div class="ref-biblica" id="ref-biblica"></div>
   <div class="apresentacao-media" id="apresentacao-media" hidden></div>
+
+  <!-- Contagem regressiva: os dígitos são calculados aqui, na tela, a partir da duração
+       que o host enviou. Ver packages/projection-core/src/contagemRegressiva.js. -->
+  <div class="contagem-box" id="contagem-box" hidden>
+    <div class="contagem-msg" id="contagem-msg-topo"></div>
+    <div class="contagem-digitos" id="contagem-digitos"></div>
+    <div class="contagem-msg" id="contagem-msg-rodape"></div>
+  </div>
 
   <!-- Overlay do relógio: oculto no telão por CSS e por lógica (relógio só no ministrante). -->
   <div class="clock-overlay" id="clock-overlay">
@@ -298,6 +360,10 @@ const elTitulo       = document.getElementById('titulo');
 const elLetras       = document.getElementById('letras');
 const elRefBiblica   = document.getElementById('ref-biblica');
 const elApresentacaoMedia = document.getElementById('apresentacao-media');
+const elContagemBox    = document.getElementById('contagem-box');
+const elContagemMsgTopo = document.getElementById('contagem-msg-topo');
+const elContagemDigitos = document.getElementById('contagem-digitos');
+const elContagemMsgRodape = document.getElementById('contagem-msg-rodape');
 const elClockOverlay = document.getElementById('clock-overlay');
 const elClockDigital = document.getElementById('clock-digital');
 const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
@@ -442,6 +508,10 @@ window.elTitulo = elTitulo;
 window.elLetras = elLetras;
 window.elRefBiblica = elRefBiblica;
 window.elApresentacaoMedia = elApresentacaoMedia;
+window.elContagemBox = elContagemBox;
+window.elContagemMsgTopo = elContagemMsgTopo;
+window.elContagemDigitos = elContagemDigitos;
+window.elContagemMsgRodape = elContagemMsgRodape;
 window.elClockOverlay = elClockOverlay;
 window.elClockDigital = elClockDigital;
 window.elClockAnalogWrap = elClockAnalogWrap;

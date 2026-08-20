@@ -416,6 +416,41 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
+  /**
+   * Contagem regressiva por HTTP.
+   *
+   * É o caminho primário do painel, e não um fallback como nos outros comandos: a config
+   * da contagem admite imagem de fundo em Base64, e o Socket.IO corta pacotes acima de
+   * ~1 MB derrubando a ligação — o mesmo motivo pelo qual `exibir_apresentacao` já vinha
+   * por aqui. O evento de socket continua registado para o celular e para o OBS.
+   *
+   * `aplicado === false` é payload recusado pela regra (pausar sem contagem no ar,
+   * definir sem duração), não erro de servidor — daí o 400.
+   */
+  expressApp.post('/api/comando/exibir_contagem', (req, res) => {
+    try {
+      const { eventos, aplicado } = aplicador.aplicar('exibir_contagem', req.body || {});
+      if (!aplicado) {
+        return res.status(400).json({ ok: false, erro: 'contagem: comando sem efeito' });
+      }
+      difundir(null, eventos);
+      res.json({ ok: true });
+    } catch (e) {
+      logError('post-exibir-contagem', e);
+      res.status(500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
+  expressApp.post('/api/comando/encerrar_contagem', (_req, res) => {
+    try {
+      difundir(null, aplicador.aplicar('encerrar_contagem').eventos);
+      res.json({ ok: true });
+    } catch (e) {
+      logError('post-encerrar-contagem', e);
+      res.status(500).json({ ok: false, erro: e.message || String(e) });
+    }
+  });
+
   expressApp.post('/api/comando/encerrar_apresentacao_publico', (_req, res) => {
     try {
       difundir(null, aplicador.aplicar('encerrar_apresentacao_publico').eventos);
@@ -735,6 +770,16 @@ function iniciarServidor(ctx, paths, deps) {
     socket.on('encerrar_apresentacao_publico', () => {
       if (!comandoAutorizado(socket)) return;
       aplicarEDifundir(socket, 'encerrar_apresentacao_publico');
+    });
+
+    socket.on('exibir_contagem', (payload = {}) => {
+      if (!comandoAutorizado(socket)) return;
+      aplicarEDifundir(socket, 'exibir_contagem', payload);
+    });
+
+    socket.on('encerrar_contagem', () => {
+      if (!comandoAutorizado(socket)) return;
+      aplicarEDifundir(socket, 'encerrar_contagem');
     });
 
     socket.on('exibir_musica', async (payload = {}) => {

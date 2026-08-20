@@ -42,6 +42,10 @@ function limparOverridePublicoBibliaSomenteMinistrante(ctx) {
 function encerrarCamadaApresentacao(ctx) {
   ctx.estadoPublicoOverride = null;
   ctx.ministranteApresentacaoOverride = null;
+  /* A contagem regressiva vive nesta camada — o override é o que a desenha. Deixar o
+     estado interno para trás faria um `exibir_contagem` seguinte, vindo sem duração
+     (só «mudei a cor»), ressuscitar uma contagem que o operador já tinha encerrado. */
+  ctx.contagem = null;
 }
 
 /**
@@ -97,6 +101,7 @@ function inferirModoEncerrarPorCanalJanela(ctx, canal, canais = {}) {
     ctx.estadoPublicoOverride &&
     (ctx.estadoPublicoOverride.tipo === 'apresentacao' ||
       ctx.estadoPublicoOverride.tipo === 'aviso' ||
+      ctx.estadoPublicoOverride.tipo === 'contagem' ||
       ctx.estadoPublicoOverride.apresentacao)
   ) {
     return MODO_APRESENTACAO;
@@ -107,7 +112,9 @@ function inferirModoEncerrarPorCanalJanela(ctx, canal, canais = {}) {
     ctx.estadoPublicoOverride,
     { apresentacaoDominaPublico: !!canais.apresentacaoDominaPublico }
   );
-  if (pub?.tipo === 'apresentacao' || pub?.tipo === 'aviso') return MODO_APRESENTACAO;
+  if (pub?.tipo === 'apresentacao' || pub?.tipo === 'aviso' || pub?.tipo === 'contagem') {
+    return MODO_APRESENTACAO;
+  }
   if (ctx.estadoAtual?.tipo === 'biblia') return MODO_BIBLIA;
   if (
     ctx.estadoAtual?.tipo === 'musica' ||

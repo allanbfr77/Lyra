@@ -157,6 +157,9 @@
       elWrap.classList.remove('visivel');
 
       fadeTimer = setTimeout(() => {
+        /* Só música e aviso. A Bíblia tem fonte própria (`/obs/biblia`), a mídia é
+           servida por outro caminho, e a contagem regressiva é deliberadamente de sala —
+           ver a nota em `obs.html`. */
         const ehSlide = !!estado && (estado.tipo === 'musica' || estado.tipo === 'aviso');
         const vazio =
           !ehSlide ||

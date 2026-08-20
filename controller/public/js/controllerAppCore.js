@@ -139,6 +139,28 @@ import {
   resolverEnvioBiblia,
 } from './modules/rotaEnvioBiblia.js';
 import { deveAbortarLigacaoIpLocalSemServidor } from './modules/ligarServidorGuard.js';
+import {
+  PRESETS_CONTAGEM_MIN,
+  AJUSTE_CONTAGEM_MS,
+  LS_CONTAGEM_CFG,
+  LS_CONTAGEM_ALVO,
+  LS_CONTAGEM_ULTIMO_TEMPO,
+  clonarCfgContagemPadrao,
+  normalizarCfgContagem,
+  formatarContagem,
+  estadoContagemVazio,
+  ancorarContagem,
+  restanteLocalMs,
+  situacaoContagem,
+  msParaCampos,
+  camposParaMs,
+  acaoBotaoPrincipal,
+  acabouDeZerar,
+  comandoIniciarContagem,
+  comandoControloContagem,
+  comandoAjustarContagem,
+  comandoAparenciaContagem,
+} from './modules/contagemPainel.js';
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -16936,7 +16958,7 @@ function setPosAvisoCard6Ctrl(val) {
 /* O menu lateral é fixo: seis entradas, nenhuma escondida por modo.
    Telão/Ministrante deixaram de ser abas e passaram a ser destinos dentro
    de «Slides» e «Bíblia» — ver `mudarDestinoCfg`. */
-const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos', 'ministrantes'];
+const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos', 'contagem', 'ministrantes'];
 
 const CFG_DESTINOS_CTRL = {
   slides: ['telao', 'ministrante'],
@@ -18900,6 +18922,18 @@ const LYRA_MANUAL_SECTIONS = [
       '<strong>Slide:</strong> opera músicas, estrofes, playlist do culto, próxima música e projeção em telão/ministrante.',
       '<strong>Bíblia:</strong> permite buscar livro, capítulo e versículo, navegar rapidamente e projetar textos bíblicos com configuração visual própria.',
       '<strong>Mídias:</strong> projeta imagens, PDFs e apresentações nos cards 1 a 4, vídeo no card 5 (exclusivo para vídeo) e avisos rápidos no card 6 — inclusive em canais separados do telão e do ministrante.',
+      '<strong>Contagem:</strong> abre o relógio pré-culto no telão («O culto começa em 04:32»), com pausa, ajuste de tempo em pleno ar e mensagens livres acima e abaixo dos dígitos.',
+    ],
+  },
+  {
+    title: 'Contagem regressiva',
+    items: [
+      'O botão <strong>Contagem</strong>, no cabeçalho, abre o painel do tempo: escolha os minutos (ou use um dos atalhos de 5, 10, 15 e 30) e clique em <strong>Iniciar</strong>.',
+      'Com a contagem no ar, o mesmo botão <strong>pausa</strong> e <strong>retoma</strong>; <strong>−1 min</strong> e <strong>+1 min</strong> esticam ou encurtam o tempo <em>sem</em> reiniciar os dígitos, para quando o culto atrasa.',
+      'As duas mensagens (acima e abaixo dos dígitos) são texto livre e podem ser trocadas com a contagem já projetada — o telão acompanha sem perder o tempo que corre.',
+      'A contagem <strong>cobre</strong> o que estiver no telão em vez de o apagar: ao encerrar, o slide ou versículo que estava por baixo volta sozinho. O <strong>ESC</strong> numa janela de projeção também a encerra.',
+      'Fonte, tamanho, cores, fundo (cor, gradiente ou imagem), formato do tempo e o que fazer ao chegar a zero ficam em <strong>Ajustes → Contagem</strong>. Mudanças ali aparecem no ato, sem reiniciar o tempo.',
+      'Em <strong>Ao chegar a zero</strong> escolha entre ficar em 00:00, contar para cima (<code>+00:42</code>, útil para medir atraso) ou encerrar sozinha e devolver o telão.',
     ],
   },
   {
@@ -19922,6 +19956,7 @@ function abrirCfgModal(aba) {
   carregarBibliaCfgDoStorage();
   bibliaPopularFormularioCfg();
   popularFormCfgAvisoCard6();
+  popularFormCfgContagem();
   sincronizarFormCfgGeral();
   aprimorarControlesVisuaisCfg();
   void carregarEstadoModoApresentacaoDoServidor().then(() => {
@@ -20716,6 +20751,1054 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECÇÃO I — Contagem regressiva (telão pré-culto)
+
+   Duas peças, e a divisão entre elas é deliberada:
+
+   - a REGRA — formato dos dígitos, limites da config, relógio do painel — vive em
+     `modules/contagemPainel.js`, pura e testável. Conta localmente pelo mesmo motivo que
+     o telão conta: emitir um pacote por segundo só para alimentar uma leitura seria pagar
+     rede por uma conta que os dois lados sabem fazer;
+   - o que sobra aqui é DOM e transporte.
+
+   A regra de FORMATO existe em duplicado — aqui em ES module, e no Core em CommonJS. Não
+   por descuido: o painel corre com `sandbox: true`, e um preload sandboxed só alcança
+   `require('electron')`, nunca `node_modules` — não há ponte possível para o Core. É o
+   mesmo obstáculo que `comentariosSlide` já tinha, e a mesma resposta. O que impede as
+   duas cópias de divergirem em silêncio é `contagemPainel.paridade.test.mjs`, que as
+   compara em toda a grelha de durações e configurações.
+
+   A aparência persiste no `localStorage` deste painel, como a do aviso do card 6 — não em
+   `displayConfig`. São conjuntos separados: a contagem tem fundo e tipografia próprios, e
+   metê-la nas camadas de Slides/Bíblia obrigaria a mexer no merge de config que o modo
+   Bíblia e o modo Slides já partilham com cuidado.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let contagemCfg = clonarCfgContagemPadrao();
+
+/** Espelho do que o painel sabe da contagem que mandou projetar. */
+let contagemEstadoPainel = estadoContagemVazio();
+
+/** Tick do mostrador do painel. Só corre com o modal aberto e a contagem a andar. */
+let contagemTickPainel = null;
+
+/**
+ * Restante do tick anterior, para detectar a passagem por zero uma vez só.
+ *
+ * Sem esta memória, «encerrar ao zerar» dispararia um `encerrar_contagem` a cada 200 ms
+ * depois do zero. Ver `acabouDeZerar` em `modules/contagemPainel.js`.
+ */
+let contagemRestanteUltimoTick = 0;
+
+function agoraPainelMs() {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
+function formatarContagemPainel(ms) {
+  return formatarContagem(ms, contagemCfg);
+}
+
+// ── Persistência da aparência ─────────────────────────────────────────────
+
+/**
+ * Espera entre a última mexida e o trabalho pesado.
+ *
+ * Um `oninput` de slider dispara por pixel arrastado. Sem esta pausa, arrastar o tamanho
+ * da fonte de 8 para 30 vh gravaria no `localStorage` e faria um POST — com a imagem de
+ * fundo em Base64 a reboque — algumas dezenas de vezes por segundo. Mesmo número do
+ * aviso do card 6, pelo mesmo motivo.
+ */
+const CONTAGEM_DEBOUNCE_MS = 120;
+
+let contagemPersistirTimer = null;
+
+/**
+ * Grava a aparência e, se houver contagem no ar, leva-a ao telão — uma vez só, depois de
+ * o operador parar de mexer.
+ *
+ * @param {{ imediato?: boolean }} [opts] `imediato` para acções discretas (escolher uma
+ *   imagem, restaurar o padrão), onde não há rajada a absorver e esperar só atrasa.
+ */
+function persistirCfgContagem(opts = {}) {
+  const aplicar = () => {
+    contagemPersistirTimer = null;
+    salvarContagemCfgNoStorage();
+    if (contagemEstadoPainel.noAr) {
+      void enviarComandoContagem(comandoAparenciaContagem(contagemCfg), { silencioso: true });
+    }
+  };
+  clearTimeout(contagemPersistirTimer);
+  if (opts.imediato) {
+    aplicar();
+    return;
+  }
+  contagemPersistirTimer = setTimeout(aplicar, CONTAGEM_DEBOUNCE_MS);
+}
+
+function salvarContagemCfgNoStorage() {
+  try {
+    localStorage.setItem(LS_CONTAGEM_CFG, JSON.stringify(contagemCfg));
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+function carregarContagemCfgDoStorage() {
+  try {
+    const raw = localStorage.getItem(LS_CONTAGEM_CFG);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') contagemCfg = normalizarCfgContagem(parsed);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/**
+ * O último tempo digitado sobrevive ao fecho do app; o tempo A CORRER não.
+ *
+ * Reabrir o Lyra e encontrar uma contagem viva seria pior do que inútil: ela teria
+ * continuado a descontar durante o tempo em que o app esteve fechado, e apareceria já
+ * vencida. O que o operador quer de volta é o «15 minutos» que costuma usar.
+ */
+function salvarUltimoTempoContagem(ms) {
+  try {
+    localStorage.setItem(LS_CONTAGEM_ULTIMO_TEMPO, String(Math.max(0, Math.round(ms) || 0)));
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+function carregarUltimoTempoContagem() {
+  try {
+    const n = Number(localStorage.getItem(LS_CONTAGEM_ULTIMO_TEMPO));
+    return Number.isFinite(n) && n > 0 ? n : 5 * 60_000;
+  } catch (_) {
+    return 5 * 60_000;
+  }
+}
+
+// ── Formulário de Ajustes › Contagem ──────────────────────────────────────
+
+function fundoCssPreviewContagem(cfg) {
+  if (cfg.bgType === 'gradient') return cfg.bgGradient || '#000000';
+  if (cfg.bgType === 'image' && cfg.bgImage) {
+    return `url('${String(cfg.bgImage).replace(/'/g, '%27')}') center/cover no-repeat`;
+  }
+  return cfg.bgColor || '#000000';
+}
+
+/** Prévia da aba: o mesmo desenho do telão, em miniatura e com um tempo de exemplo. */
+function atualizarPreviewContagem() {
+  const box = document.getElementById('cfg-contagem-preview');
+  if (!box) return;
+  const cfg = contagemCfg;
+  box.style.background = fundoCssPreviewContagem(cfg);
+  box.style.justifyContent =
+    cfg.verticalPosition === 'top'
+      ? 'flex-start'
+      : cfg.verticalPosition === 'bottom'
+        ? 'flex-end'
+        : 'center';
+
+  const topo = document.getElementById('cfg-contagem-preview-topo');
+  if (topo) {
+    topo.textContent = cfg.mensagemTopo || '';
+    topo.style.color = cfg.mensagemTopoColor;
+    topo.style.fontFamily = cfg.fontFamily;
+  }
+  const rodape = document.getElementById('cfg-contagem-preview-rodape');
+  if (rodape) {
+    rodape.textContent = cfg.mensagemRodape || '';
+    rodape.style.color = cfg.mensagemRodapeColor;
+    rodape.style.fontFamily = cfg.fontFamily;
+  }
+  const dig = document.getElementById('cfg-contagem-preview-dig');
+  if (dig) {
+    /* Cinco minutos de exemplo: mostra o formato escolhido sem depender de haver uma
+       contagem no ar, e é o preset mais usado. */
+    dig.textContent = formatarContagem(5 * 60_000, cfg);
+    dig.style.color = cfg.textColor;
+    dig.style.fontFamily = cfg.fontFamily;
+    dig.style.fontWeight = cfg.negrito ? '700' : '400';
+    dig.style.letterSpacing = `${cfg.letterSpacing}em`;
+  }
+}
+
+function atualizarVisibilidadeFundoContagem() {
+  const tipo = contagemCfg.bgType;
+  const mostrar = (id, cond) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = cond ? '' : 'none';
+  };
+  mostrar('cfg-contagem-bg-solid-wrap', tipo === 'solid');
+  mostrar('cfg-contagem-bg-gradient-wrap', tipo === 'gradient');
+  mostrar('cfg-contagem-bg-image-wrap', tipo === 'image');
+  mostrar('cfg-contagem-bg-image-limpar-wrap', tipo === 'image' && !!contagemCfg.bgImage);
+
+  const nome = document.getElementById('cfg-contagem-bg-image-nome');
+  if (nome) {
+    nome.textContent = contagemCfg.bgImage
+      ? 'Imagem carregada — «Escolher imagem…» substitui.'
+      : 'Nenhuma imagem escolhida.';
+  }
+}
+
+function popularFormCfgContagem() {
+  const cfg = contagemCfg;
+  setSelVal('cfg-contagem-bg-type', cfg.bgType);
+  setInputVal('cfg-contagem-bg-color', cfg.bgColor);
+  setInputVal('cfg-contagem-bg-gradient', cfg.bgGradient);
+  setSelVal('cfg-contagem-fontfamily', cfg.fontFamily);
+  setInputVal('cfg-contagem-fontsize', cfg.fontSize);
+  setSpanText('cfg-contagem-fontsize-val', String(cfg.fontSize));
+  setInputVal('cfg-contagem-text-color', cfg.textColor);
+  setChkVal('cfg-contagem-negrito', cfg.negrito);
+  setInputVal('cfg-contagem-letterspacing', cfg.letterSpacing);
+  setSpanText('cfg-contagem-letterspacing-val', String(cfg.letterSpacing));
+  setInputVal('cfg-contagem-topo-size', cfg.mensagemTopoFontSize);
+  setSpanText('cfg-contagem-topo-size-val', String(cfg.mensagemTopoFontSize));
+  setInputVal('cfg-contagem-topo-color', cfg.mensagemTopoColor);
+  setInputVal('cfg-contagem-rodape-size', cfg.mensagemRodapeFontSize);
+  setSpanText('cfg-contagem-rodape-size-val', String(cfg.mensagemRodapeFontSize));
+  setInputVal('cfg-contagem-rodape-color', cfg.mensagemRodapeColor);
+  setSelVal('cfg-contagem-mostrar-horas', cfg.mostrarHoras);
+  setChkVal('cfg-contagem-mostrar-segundos', cfg.mostrarSegundos);
+  setInputVal('cfg-contagem-alerta-segundos', cfg.alertaSegundos);
+  setSpanText('cfg-contagem-alerta-val', String(cfg.alertaSegundos));
+  setInputVal('cfg-contagem-alerta-color', cfg.alertaColor);
+  setChkVal('cfg-contagem-piscar', cfg.piscarNoFinal);
+  setSelVal('cfg-contagem-ao-zerar', cfg.aoZerar);
+  setInputVal('cfg-contagem-texto-final', cfg.textoFinal);
+
+  const grupo = document.getElementById('cfg-contagem-posy-group');
+  if (grupo) {
+    grupo.querySelectorAll('.cfg-btn-pos').forEach((b) => {
+      b.classList.toggle('ativo', b.dataset.val === cfg.verticalPosition);
+    });
+  }
+
+  atualizarVisibilidadeFundoContagem();
+  atualizarPreviewContagem();
+}
+
+function lerCfgContagemDoFormulario() {
+  const el = (id) => document.getElementById(id);
+  return normalizarCfgContagem({
+    ...contagemCfg,
+    bgType: el('cfg-contagem-bg-type')?.value,
+    bgColor: el('cfg-contagem-bg-color')?.value,
+    bgGradient: el('cfg-contagem-bg-gradient')?.value,
+    /* A imagem não vem do formulário: o `<input type=file>` não a devolve depois de lida.
+       Fica no estado, e sai de lá por «Remover» ou por outra escolha de ficheiro. */
+    bgImage: contagemCfg.bgImage,
+    fontFamily: el('cfg-contagem-fontfamily')?.value,
+    fontSize: lerNumeroInput('cfg-contagem-fontsize', contagemCfg.fontSize),
+    textColor: el('cfg-contagem-text-color')?.value,
+    negrito: getChkVal('cfg-contagem-negrito'),
+    letterSpacing: lerNumeroInput('cfg-contagem-letterspacing', contagemCfg.letterSpacing),
+    mensagemTopoFontSize: lerNumeroInput('cfg-contagem-topo-size', contagemCfg.mensagemTopoFontSize),
+    mensagemTopoColor: el('cfg-contagem-topo-color')?.value,
+    mensagemRodapeFontSize: lerNumeroInput(
+      'cfg-contagem-rodape-size',
+      contagemCfg.mensagemRodapeFontSize
+    ),
+    mensagemRodapeColor: el('cfg-contagem-rodape-color')?.value,
+    mostrarHoras: el('cfg-contagem-mostrar-horas')?.value,
+    mostrarSegundos: getChkVal('cfg-contagem-mostrar-segundos'),
+    alertaSegundos: lerNumeroInput('cfg-contagem-alerta-segundos', contagemCfg.alertaSegundos),
+    alertaColor: el('cfg-contagem-alerta-color')?.value,
+    piscarNoFinal: getChkVal('cfg-contagem-piscar'),
+    aoZerar: el('cfg-contagem-ao-zerar')?.value,
+    textoFinal: el('cfg-contagem-texto-final')?.value,
+  });
+}
+
+/**
+ * Grava a aparência e, se houver contagem no ar, leva-a ao telão sem tocar no tempo.
+ *
+ * O comando de aparência não fala de duração — é assim que o host sabe herdar a contagem
+ * que já corre em vez de a reiniciar. Ver `comandoAparenciaContagem`.
+ */
+function onContagemCfgChange() {
+  contagemCfg = lerCfgContagemDoFormulario();
+  popularFormCfgContagem();
+  sincronizarCamposMensagemContagem();
+  persistirCfgContagem();
+}
+
+function setPosContagemCtrl(val) {
+  contagemCfg = normalizarCfgContagem({ ...contagemCfg, verticalPosition: val });
+  popularFormCfgContagem();
+  persistirCfgContagem({ imediato: true });
+}
+
+async function onContagemBgImagemChange() {
+  const input = document.getElementById('cfg-contagem-bg-image');
+  const file = input?.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => reject(r.error || new Error('falha a ler a imagem'));
+      r.readAsDataURL(file);
+    });
+    contagemCfg = normalizarCfgContagem({ ...contagemCfg, bgType: 'image', bgImage: dataUrl });
+    popularFormCfgContagem();
+    persistirCfgContagem({ imediato: true });
+  } catch (e) {
+    alert(`Não foi possível carregar a imagem: ${e?.message || e}`);
+  } finally {
+    /* Limpar o input permite reescolher o MESMO ficheiro (o `change` não dispara duas
+       vezes para o mesmo valor). */
+    if (input) input.value = '';
+  }
+}
+
+function limparImagemFundoContagem() {
+  contagemCfg = normalizarCfgContagem({ ...contagemCfg, bgImage: '', bgType: 'solid' });
+  popularFormCfgContagem();
+  persistirCfgContagem({ imediato: true });
+}
+
+async function restaurarPadraoContagem() {
+  const ok = await appConfirm('Restaurar toda a aparência da contagem aos valores de fábrica?');
+  if (!ok) return;
+  contagemCfg = clonarCfgContagemPadrao();
+  popularFormCfgContagem();
+  sincronizarCamposMensagemContagem();
+  persistirCfgContagem({ imediato: true });
+}
+
+// ── Transporte ────────────────────────────────────────────────────────────
+
+/**
+ * Manda um comando de contagem ao motor de projeção.
+ *
+ * Por HTTP e não pela porta de projeção, pelo mesmo motivo de `emitirApresentacao`: a
+ * config pode trazer uma imagem de fundo em Base64, e o Socket.IO corta pacotes acima de
+ * ~1 MB derrubando a ligação — o operador veria «DESCONECTADO» ao escolher um fundo.
+ *
+ * `silencioso` existe para os comandos que o operador não pediu explicitamente (o slider
+ * do Ajustes a arrastar): falhar aí não merece um alerta modal por cima do formulário.
+ *
+ * @param {object} payload
+ * @param {{ silencioso?: boolean }} [opts]
+ * @returns {Promise<boolean>}
+ */
+async function enviarComandoContagem(payload, opts = {}) {
+  const ip = getServidorProjeccaoIp();
+  if (!ip) {
+    if (!opts.silencioso) alert('Sem servidor de projeção para receber a contagem.');
+    return false;
+  }
+  try {
+    const r = await fetch(`http://${ip}:5510/api/comando/exibir_contagem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      /* O alvo entra aqui, e não em cada fábrica de payload: é estado do painel, igual
+         para «definir», «pausar» e «ajustar», e um comando que o esquecesse tiraria a
+         contagem do palco sem ninguém a pedir. `payload` sobrepõe-se, para quem precise. */
+      body: JSON.stringify({ alvo: contagemAlvoPainel, ...(payload || {}) }),
+    });
+    if (r.ok) return true;
+    /*
+     * 400 é a regra a recusar-se — pausar sem contagem no ar, por exemplo. Acontece
+     * legitimamente quando o painel e o host se desencontram (outro operador encerrou a
+     * contagem daqui a pouco). Ressincroniza em vez de acusar o operador de um erro.
+     */
+    if (r.status === 400) {
+      contagemEstadoPainel = estadoContagemVazio();
+      renderPainelContagem();
+      return false;
+    }
+    throw new Error(`HTTP ${r.status}`);
+  } catch (e) {
+    if (!opts.silencioso) {
+      alert(
+        'Não foi possível falar com o servidor de projeção (porta 5510).\n\n' +
+          String(e?.message || e)
+      );
+    }
+    return false;
+  }
+}
+
+async function enviarEncerrarContagem() {
+  const ip = getServidorProjeccaoIp();
+  if (!ip) return false;
+  try {
+    const r = await fetch(`http://${ip}:5510/api/comando/encerrar_contagem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    return r.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+// ── Painel do operador ────────────────────────────────────────────────────
+
+function sincronizarCamposMensagemContagem() {
+  const topo = document.getElementById('contagem-msg-topo');
+  const rodape = document.getElementById('contagem-msg-rodape');
+  if (topo && document.activeElement !== topo) topo.value = contagemCfg.mensagemTopo || '';
+  if (rodape && document.activeElement !== rodape) rodape.value = contagemCfg.mensagemRodape || '';
+}
+
+/**
+ * Destaque do botão no cabeçalho.
+ *
+ * Usa o mesmo helper dos restantes modos, e não um `setAttribute` à parte: com a contagem
+ * no ar o telão está coberto, e o operador tem de ver isso na barra sem abrir o painel.
+ */
+function atualizarBtnContagemCabecalho() {
+  definirEstadoBtnModoCabecalho(
+    'btn-modo-contagem',
+    contagemEstadoPainel.noAr,
+    'CONTAGEM NO AR — clique para pausar, ajustar ou encerrar',
+    'CONTAGEM REGRESSIVA — tempo para o culto começar'
+  );
+}
+
+const ROTULOS_SITUACAO_CONTAGEM = {
+  parada: 'Parada',
+  'no-ar': 'No ar',
+  pausada: 'Pausada',
+  zerada: 'Chegou a zero',
+};
+
+function pararTickPainelContagem() {
+  if (contagemTickPainel) {
+    clearInterval(contagemTickPainel);
+    contagemTickPainel = null;
+  }
+}
+
+/**
+ * Redesenha o mostrador e o estado dos botões.
+ *
+ * Chamada tanto pelo tick como por cada resposta do host — é o único sítio que escreve
+ * neste pedaço de DOM, o que evita dois caminhos a discordarem sobre o que mostrar.
+ */
+function renderPainelContagem() {
+  const agora = agoraPainelMs();
+  const restante = restanteLocalMs(contagemEstadoPainel, agora);
+  const situacao = situacaoContagem(contagemEstadoPainel, agora);
+
+  const textoTempo = contagemEstadoPainel.noAr
+    ? formatarContagemPainel(restante)
+    : formatarContagemPainel(camposParaMs(lerCampoContagem('minutos'), lerCampoContagem('segundos')) ?? 0);
+  const zerada = situacao === 'zerada';
+
+  const valor = document.getElementById('contagem-mostrador-valor');
+  if (valor) valor.textContent = textoTempo;
+
+  const headTempo = document.getElementById('contagem-head-tempo');
+  if (headTempo) {
+    headTempo.textContent = textoTempo;
+    headTempo.classList.toggle('zerada', zerada);
+  }
+
+  const mostrador = document.getElementById('contagem-mostrador');
+  if (mostrador) mostrador.classList.toggle('zerada', zerada);
+
+  const badge = document.getElementById('contagem-situacao');
+  if (badge) {
+    badge.dataset.situacao = situacao;
+    badge.textContent = ROTULOS_SITUACAO_CONTAGEM[situacao] || situacao;
+  }
+
+  const principal = document.getElementById('contagem-btn-principal');
+  if (principal) principal.textContent = acaoBotaoPrincipal(contagemEstadoPainel, agora).rotulo;
+
+  const noAr = contagemEstadoPainel.noAr;
+  ['contagem-btn-encerrar', 'contagem-btn-menos', 'contagem-btn-mais', 'contagem-btn-reiniciar'].forEach(
+    (id) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !noAr;
+    }
+  );
+
+  atualizarBtnContagemCabecalho();
+  atualizarAlertaRotaContagem();
+  sincronizarSeletorMonitorContagem();
+}
+
+/** Um tick só, partilhado pelo mostrador e pela deteção de «chegou a zero». */
+function tickPainelContagem() {
+  const restante = restanteLocalMs(contagemEstadoPainel, agoraPainelMs());
+  const zerouAgora = acabouDeZerar(contagemRestanteUltimoTick, restante);
+  contagemRestanteUltimoTick = restante;
+
+  renderPainelContagem();
+
+  if (!zerouAgora) return;
+  /*
+   * «Encerrar ao zerar» é decidido AQUI, e não no telão.
+   *
+   * O telão sabe desenhar, não sabe comandar — e são vários (telão, TV, OBS): se cada um
+   * mandasse encerrar ao chegar a zero, o mesmo comando atravessaria a rede N vezes. O
+   * painel é um só e é quem opera; a decisão é dele.
+   */
+  if (contagemCfg.aoZerar === 'encerrar' && contagemEstadoPainel.noAr) {
+    void encerrarContagemDoPainel();
+  }
+}
+
+function garantirTickPainelContagem() {
+  pararTickPainelContagem();
+  const modal = document.getElementById('contagem-backdrop');
+  const aberto = modal?.classList.contains('aberto');
+  const precisaContar = contagemEstadoPainel.noAr && contagemEstadoPainel.rodando;
+  /* Com o modal fechado o tick continua enquanto a contagem corre — é o que permite ao
+     modo «encerrar ao zerar» funcionar com o operador noutra aba do painel. */
+  if (!aberto && !precisaContar) return;
+  contagemTickPainel = setInterval(tickPainelContagem, 200);
+}
+
+function lerCampoContagem(qual) {
+  const el = document.getElementById(qual === 'minutos' ? 'contagem-minutos' : 'contagem-segundos');
+  return el ? el.value : '';
+}
+
+/**
+ * Onde é que o telão está, agora, segundo o cabeçalho.
+ *
+ * Lê o seletor de rota tal como o operador o vê, e não `rotasPorModo.apresentacao` como
+ * na primeira versão: a contagem pode ser aberta de qualquer modo, e cada modo tem a sua
+ * rota. Perguntar sempre pela do modo Mídias fazia o aviso aparecer com o telão ligado —
+ * ou calar-se com ele desligado, que é pior.
+ *
+ * @returns {{ estado: 'ok'|'sem-monitor'|'live', rotulo: string }}
+ *   `rotulo` é o nome que o seletor tem no modo actual («Público» nos Slides, «Monitor»
+ *   nos modos Bíblia e Mídias) — dizer o nome errado ao operador é pior do que não dizer.
+ */
+function situacaoRotaContagem() {
+  let rota = null;
+  try {
+    rota = rotaSelecionadaNaUi();
+  } catch (_) {
+    rota = null;
+  }
+  /* Sem seletor no DOM não há nada de útil a dizer — melhor calar do que alarmar. */
+  if (!rota) return { estado: 'ok' };
+  if (rota.live) return { estado: 'live' };
+  return { estado: rota.publicoIndex >= 0 ? 'ok' : 'sem-monitor' };
+}
+
+function atualizarAlertaRotaContagem() {
+  const el = document.getElementById('contagem-alerta-rota');
+  const texto = document.getElementById('contagem-alerta-rota-texto');
+  if (!el || !texto) return;
+
+  const { estado } = situacaoRotaContagem();
+  el.hidden = estado === 'ok';
+  if (estado === 'ok') return;
+
+  texto.textContent =
+    estado === 'live'
+      ? 'O destino agora é «Live — OBS», que não usa monitor físico. A contagem não é ' +
+        'enviada ao OBS de propósito: aquelas fontes são para letra e versículo, e um ' +
+        'relógio a piscar por cima da transmissão não é o que se quer. Escolha um monitor ' +
+        'abaixo para a contagem aparecer.'
+      : 'Nenhum monitor está a receber o telão — escolha um abaixo.';
+}
+
+/**
+ * Para onde a contagem é enviada: só o telão, ou telão e monitor do ministrante.
+ *
+ * Preferência de uso, não de hardware — por isso persiste como a aparência, e não como a
+ * rota (que é de sessão). É sanitizada na leitura: um «ambos» guardado num culto com dois
+ * monitores não pode sobreviver a um culto onde só há um.
+ */
+let contagemAlvoPainel = 'publico';
+
+function normalizarAlvoContagemPainel(v) {
+  return String(v ?? '').toLowerCase() === 'ambos' ? 'ambos' : 'publico';
+}
+
+function carregarAlvoContagemDoStorage() {
+  try {
+    contagemAlvoPainel = normalizarAlvoContagemPainel(localStorage.getItem(LS_CONTAGEM_ALVO));
+  } catch (_) {
+    contagemAlvoPainel = 'publico';
+  }
+}
+
+function salvarAlvoContagemNoStorage() {
+  try {
+    localStorage.setItem(LS_CONTAGEM_ALVO, contagemAlvoPainel);
+  } catch (_) {
+  // intencional — erro ignorado
+}
+}
+
+/**
+ * Escolha do monitor do telão, feita de dentro do painel da contagem.
+ *
+ * ## Porquê um seletor próprio, e o que ele NÃO reimplementa
+ *
+ * As duas tentativas anteriores mandavam o operador ao dropdown do cabeçalho — fechando o
+ * painel, ou abrindo o menu por cima dele. Nenhuma servia: o dropdown muda de forma
+ * conforme o modo (nos modos Bíblia e Mídias oferece «Público / Ministrante / Ambos /
+ * Live», não uma lista de monitores), e num modo de Slides sem segundo monitor chega a
+ * ficar desativado. Depender dele significava depender do modo em que o operador estava —
+ * e a contagem abre de qualquer um.
+ *
+ * O que se desenha aqui é a MESMA lista, com os MESMOS rótulos
+ * (`listaMonitoresParaProjecao`, `montarLabelMonitor`, `montarTitleMonitor`), apresentada
+ * como botões em vez de menu. E a escolha continua a ser aplicada pelo caminho de sempre:
+ * escreve no seletor do cabeçalho e chama `salvarRoteamentoTelasNoServidor`, que é quem
+ * conhece as regras por modo — conflito entre slides e mídia, o canal que a Bíblia
+ * partilha com Mídias, o «Live». Nada disso é repetido aqui; repeti-lo seria como se
+ * ganha um telão que fecha sozinho a meio do culto.
+ *
+ * @param {object} opcao Uma entrada de `opcoesMonitorContagem()`.
+ */
+async function definirMonitorDoTelaoDaContagem(opcao) {
+  const o = opcao && typeof opcao === 'object' ? opcao : {};
+  const hidPub = document.getElementById('route-publico');
+  const hidMin = document.getElementById('route-ministrante');
+  if (!hidPub) return;
+
+  hidPub.value = String(o.publicoIndex ?? -1);
+  /* Só «Ambos» reclama o canal do ministrante. As outras opções não lhe tocam: em modo
+     Slides é lá que está a letra do palco, e roubá-la para pôr uma contagem que o operador
+     não pediu seria uma surpresa cara. */
+  if (hidMin && Number.isFinite(o.ministranteIndex)) hidMin.value = String(o.ministranteIndex);
+  /* Sair do «Live — OBS»: é o `dataset` que `rotaLiveSelecionadaNaUi` lê, e deixá-lo para
+     trás faria a rota gravada continuar sem monitor nenhum. */
+  delete hidPub.dataset.live;
+
+  contagemAlvoPainel = normalizarAlvoContagemPainel(o.alvo);
+  salvarAlvoContagemNoStorage();
+
+  atualizarEstiloRotasDesativadas();
+  await salvarRoteamentoTelasNoServidor();
+  /* Redesenha o cabeçalho a partir da rota já gravada, para o dropdown de lá acompanhar a
+     escolha feita aqui. Sem sincronizar de novo — acabou de ser gravada. */
+  await aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
+
+  /* Contagem já no ar: um comando de aparência leva o alvo novo ao host sem lhe tocar no
+     tempo — é como o operador tira a contagem do palco (ou a põe lá) a meio. */
+  if (contagemEstadoPainel && contagemEstadoPainel.noAr) {
+    void enviarComandoContagem(comandoAparenciaContagem(contagemCfg), { silencioso: true });
+  }
+
+  renderSeletorMonitorContagem();
+  renderPainelContagem();
+}
+
+/** Índice do monitor que está a receber o telão agora, ou `-1`. */
+function indiceMonitorPublicoAtual() {
+  let rota = null;
+  try {
+    rota = rotaSelecionadaNaUi();
+  } catch (_) {
+    rota = null;
+  }
+  if (!rota || rota.live) return -1;
+  return Number.isFinite(rota.publicoIndex) ? rota.publicoIndex : -1;
+}
+
+/**
+ * Qual opção do seletor está em vigor.
+ *
+ * «Ambos» não é só uma rota — é rota mais alvo. Um modo de Slides com telão e ministrante
+ * ligados tem exactamente a mesma rota que «Ambos» e não deve aparecer destacado como tal:
+ * a letra continua no palco, e a contagem só lá vai se o operador a mandar.
+ */
+function chaveMonitorSelecionadoContagem() {
+  const pub = indiceMonitorPublicoAtual();
+  if (contagemAlvoPainel === 'ambos') {
+    const ambos = opcoesMonitorContagem().find((o) => o.chave === 'ambos');
+    if (ambos && ambos.publicoIndex === pub) return 'ambos';
+  }
+  return String(pub);
+}
+
+/**
+ * Opções do seletor: «Desativado», cada monitor de projeção, e «Ambos» quando há dois.
+ *
+ * «Ambos» usa os mesmos índices que o resto do app trata como telão e ministrante
+ * (`indicesPadraoPublicoMinistranteApresentacao` — Monitor 2 e Monitor 3, na convenção do
+ * Lyra), para a contagem não inventar um arranjo de ecrãs próprio.
+ */
+function opcoesMonitorContagem() {
+  const lista = listaMonitoresParaProjecao(monitoresServidorCache);
+  const out = [
+    {
+      chave: '-1',
+      publicoIndex: -1,
+      alvo: 'publico',
+      label: 'Desativado',
+      title: 'Sem telão — a contagem não aparece em monitor nenhum.',
+    },
+  ];
+
+  lista.forEach((m) => {
+    out.push({
+      chave: String(m.index),
+      publicoIndex: m.index,
+      alvo: 'publico',
+      label: montarLabelMonitor(m),
+      title: montarTitleMonitor(m),
+    });
+  });
+
+  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(monitoresServidorCache);
+  if (iPub >= 0 && iMin >= 0 && iPub !== iMin) {
+    out.push({
+      chave: 'ambos',
+      publicoIndex: iPub,
+      ministranteIndex: iMin,
+      alvo: 'ambos',
+      label: `Ambos — Monitor ${iPub + 1} e Monitor ${iMin + 1}`,
+      title:
+        'A mesma contagem no telão e no monitor do ministrante, com os mesmos dígitos ao ' +
+        'mesmo tempo.',
+    });
+  }
+
+  return out;
+}
+
+function renderSeletorMonitorContagem() {
+  const host = document.getElementById('contagem-monitores');
+  if (!host) return;
+
+  const opcoes = opcoesMonitorContagem();
+  const atual = chaveMonitorSelecionadoContagem();
+  host.innerHTML = '';
+
+  /* Só «Desativado» significa que não há para onde projetar — dizer isso é mais útil do
+     que oferecer uma lista de um item que não leva a lado nenhum. */
+  if (opcoes.length <= 1) {
+    const vazio = document.createElement('div');
+    vazio.className = 'contagem-nota';
+    vazio.textContent =
+      'Nenhum monitor além do principal foi encontrado. Ligue um segundo monitor (ou ' +
+      'projetor) e reabra este painel.';
+    host.appendChild(vazio);
+    return;
+  }
+
+  opcoes.forEach((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'contagem-monitor-btn';
+    b.dataset.chave = o.chave;
+    b.textContent = o.label;
+    if (o.title) b.title = o.title;
+    const ativo = o.chave === atual;
+    b.classList.toggle('ativo', ativo);
+    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      void definirMonitorDoTelaoDaContagem(o);
+    });
+    host.appendChild(b);
+  });
+}
+
+/**
+ * Acerta o destaque sem reconstruir o DOM.
+ *
+ * Corre a cada tick do painel (cinco vezes por segundo), e é por isso que não recria os
+ * botões: recriá-los tiraria o foco de quem estivesse a navegar por teclado, e piscaria.
+ * Só quando a própria lista de monitores muda — alguém ligou um projetor com o painel
+ * aberto — é que vale a pena redesenhar.
+ */
+function sincronizarSeletorMonitorContagem() {
+  const host = document.getElementById('contagem-monitores');
+  if (!host) return;
+
+  const botoes = host.querySelectorAll('.contagem-monitor-btn');
+  const opcoes = opcoesMonitorContagem();
+  if (botoes.length !== (opcoes.length > 1 ? opcoes.length : 0)) {
+    renderSeletorMonitorContagem();
+    return;
+  }
+
+  const atual = chaveMonitorSelecionadoContagem();
+  botoes.forEach((b) => {
+    const ativo = b.dataset.chave === atual;
+    b.classList.toggle('ativo', ativo);
+    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+  });
+}
+
+/**
+ * Abre o painel, ou fecha-o se já estiver aberto.
+ *
+ * O painel deixou de ser modal e não se fecha por clique fora; sem esta alternância, o
+ * botão do cabeçalho seria a única entrada de um sítio sem saída óbvia.
+ */
+function alternarPainelContagem() {
+  const modal = document.getElementById('contagem-backdrop');
+  if (modal?.classList.contains('aberto')) {
+    fecharPainelContagem();
+    return;
+  }
+  abrirPainelContagem();
+}
+
+function abrirPainelContagem() {
+  const modal = document.getElementById('contagem-backdrop');
+  if (!modal) return;
+
+  if (!contagemEstadoPainel.noAr) {
+    const campos = msParaCampos(carregarUltimoTempoContagem());
+    setInputVal('contagem-minutos', campos.minutos);
+    setInputVal('contagem-segundos', campos.segundos);
+  }
+  sincronizarCamposMensagemContagem();
+  atualizarAlertaRotaContagem();
+  renderSeletorMonitorContagem();
+  /* Painel aberto antes de o cabeçalho ter falado com o servidor: sem isto, a lista de
+     monitores ficaria vazia até o operador ir a outro modo e voltar. */
+  if (!listaMonitoresParaProjecao(monitoresServidorCache).length) {
+    void carregarRoteamentoTelasDoServidor().then(() => renderSeletorMonitorContagem());
+  }
+
+  modal.classList.add('aberto');
+  modal.setAttribute('aria-hidden', 'false');
+  /* Reabrir sempre expandido: a barra compacta é uma escolha da sessão actual. */
+  definirPainelContagemRetraido(false);
+  renderPainelContagem();
+  garantirTickPainelContagem();
+}
+
+function fecharPainelContagem() {
+  const modal = document.getElementById('contagem-backdrop');
+  if (!modal) return;
+  modal.classList.remove('aberto');
+  modal.setAttribute('aria-hidden', 'true');
+  definirPainelContagemRetraido(false);
+  atualizarBtnContagemCabecalho();
+  garantirTickPainelContagem();
+}
+
+/**
+ * Barra compacta: só o cabeçalho fica visível, com o cronómetro ao lado do título.
+ * Não mexe no estado da contagem — o tick e o telão continuam iguais.
+ */
+function definirPainelContagemRetraido(retraido) {
+  const painel = document.querySelector('#contagem-backdrop .contagem-painel');
+  const btn = document.getElementById('contagem-retrair');
+  const on = !!retraido;
+  if (painel) painel.classList.toggle('retraido', on);
+  if (btn) {
+    btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    btn.setAttribute('aria-label', on ? 'Expandir painel' : 'Retrair painel');
+    btn.title = on ? 'Expandir painel' : 'Retrair painel';
+  }
+}
+
+function alternarRetrairPainelContagem() {
+  const painel = document.querySelector('#contagem-backdrop .contagem-painel');
+  if (!painel) return;
+  definirPainelContagemRetraido(!painel.classList.contains('retraido'));
+  /* Garante dígitos frescos no cabeçalho no instante da retração. */
+  renderPainelContagem();
+}
+
+/** Aplica ao estado local a resposta do host e volta a desenhar. */
+function registarContagemNoAr(payload) {
+  contagemEstadoPainel = ancorarContagem(payload, agoraPainelMs());
+  contagemRestanteUltimoTick = restanteLocalMs(contagemEstadoPainel, agoraPainelMs());
+  renderPainelContagem();
+  garantirTickPainelContagem();
+}
+
+async function iniciarContagemDoPainel() {
+  /* `camposParaMs` devolve `null` (os dois campos vazios) ou um número — daí o `===`. */
+  const ms = camposParaMs(lerCampoContagem('minutos'), lerCampoContagem('segundos'));
+  if (ms === null) {
+    alert('Escreva quantos minutos (e segundos) a contagem deve durar.');
+    return;
+  }
+  if (ms <= 0) {
+    alert('A contagem precisa de pelo menos um segundo.');
+    return;
+  }
+  salvarUltimoTempoContagem(ms);
+  const ok = await enviarComandoContagem(comandoIniciarContagem(ms, contagemCfg));
+  if (!ok) return;
+  /* O host devolve só `{ok:true}`; o estado do painel arranca do que ele próprio pediu.
+     Divergências reais chegam pelo evento `estado`, que reancoram isto. */
+  registarContagemNoAr({ rodando: true, restanteMs: ms, duracaoMs: ms });
+}
+
+async function alternarPausaContagemDoPainel() {
+  const { acao } = acaoBotaoPrincipal(contagemEstadoPainel, agoraPainelMs());
+  if (acao === 'definir') {
+    await iniciarContagemDoPainel();
+    return;
+  }
+  const restante = restanteLocalMs(contagemEstadoPainel, agoraPainelMs());
+  const ok = await enviarComandoContagem(comandoControloContagem(acao, contagemCfg));
+  if (!ok) return;
+  registarContagemNoAr({
+    rodando: acao === 'retomar',
+    restanteMs: restante,
+    duracaoMs: contagemEstadoPainel.duracaoMs,
+  });
+}
+
+async function ajustarContagemDoPainel(deltaMs) {
+  if (!contagemEstadoPainel.noAr) return;
+  const restante = Math.max(0, restanteLocalMs(contagemEstadoPainel, agoraPainelMs()) + deltaMs);
+  const ok = await enviarComandoContagem(comandoAjustarContagem(deltaMs, contagemCfg));
+  if (!ok) return;
+  registarContagemNoAr({
+    rodando: contagemEstadoPainel.rodando,
+    restanteMs: restante,
+    duracaoMs: Math.max(contagemEstadoPainel.duracaoMs, restante),
+  });
+}
+
+async function reiniciarContagemDoPainel() {
+  const ms = camposParaMs(lerCampoContagem('minutos'), lerCampoContagem('segundos'));
+  if (ms === null || ms <= 0) {
+    alert('Escreva um tempo válido nos campos acima antes de reiniciar.');
+    return;
+  }
+  salvarUltimoTempoContagem(ms);
+  const ok = await enviarComandoContagem(comandoIniciarContagem(ms, contagemCfg));
+  if (!ok) return;
+  registarContagemNoAr({ rodando: true, restanteMs: ms, duracaoMs: ms });
+}
+
+async function encerrarContagemDoPainel() {
+  await enviarEncerrarContagem();
+  contagemEstadoPainel = estadoContagemVazio();
+  contagemRestanteUltimoTick = 0;
+  renderPainelContagem();
+  garantirTickPainelContagem();
+}
+
+// ── Arranque ──────────────────────────────────────────────────────────────
+
+(function iniciarContagemRegressivaPainel() {
+  carregarContagemCfgDoStorage();
+  carregarAlvoContagemDoStorage();
+
+  const presets = document.getElementById('contagem-presets');
+  if (presets) {
+    PRESETS_CONTAGEM_MIN.forEach((min) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'contagem-preset';
+      b.textContent = `${min} min`;
+      b.addEventListener('click', () => {
+        setInputVal('contagem-minutos', min);
+        setInputVal('contagem-segundos', 0);
+        renderPainelContagem();
+      });
+      presets.appendChild(b);
+    });
+  }
+
+  document.getElementById('contagem-fechar')?.addEventListener('click', fecharPainelContagem);
+  document.getElementById('contagem-retrair')?.addEventListener('click', alternarRetrairPainelContagem);
+  document.getElementById('contagem-abrir-ajustes')?.addEventListener('click', () => {
+    fecharPainelContagem();
+    abrirCfgModal('contagem');
+  });
+
+  document
+    .getElementById('contagem-btn-principal')
+    ?.addEventListener('click', () => void alternarPausaContagemDoPainel());
+  document
+    .getElementById('contagem-btn-encerrar')
+    ?.addEventListener('click', () => void encerrarContagemDoPainel());
+  document
+    .getElementById('contagem-btn-menos')
+    ?.addEventListener('click', () => void ajustarContagemDoPainel(-AJUSTE_CONTAGEM_MS));
+  document
+    .getElementById('contagem-btn-mais')
+    ?.addEventListener('click', () => void ajustarContagemDoPainel(AJUSTE_CONTAGEM_MS));
+  document
+    .getElementById('contagem-btn-reiniciar')
+    ?.addEventListener('click', () => void reiniciarContagemDoPainel());
+
+  ['contagem-minutos', 'contagem-segundos'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      /* Com a contagem parada, o mostrador é a prévia do que vai ser projetado. */
+      if (!contagemEstadoPainel.noAr) renderPainelContagem();
+    });
+  });
+
+  /* As mensagens fazem parte da aparência (viajam em `contagemConfig`), mas editam-se
+     aqui, no painel — é onde o operador está quando decide o que escrever. */
+  const ligarCampoMensagem = (id, chave) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      contagemCfg = normalizarCfgContagem({ ...contagemCfg, [chave]: el.value });
+      atualizarPreviewContagem();
+      /* O mesmo debounce dos sliders: escrever «O culto começa em» são 17 teclas, e 17
+         POSTs com a imagem de fundo a reboque seriam 17 travessias inúteis. */
+      persistirCfgContagem();
+    });
+  };
+  ligarCampoMensagem('contagem-msg-topo', 'mensagemTopo');
+  ligarCampoMensagem('contagem-msg-rodape', 'mensagemRodape');
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('contagem-backdrop');
+    if (!modal?.classList.contains('aberto')) return;
+    e.preventDefault();
+    /* Com o painel aberto e o menu de rota por cima, o primeiro ESC fecha o menu — fechar
+       o painel por baixo deixaria o menu órfão no cabeçalho. */
+    if (document.querySelector('.route-dd.route-dd-open')) {
+      fecharMenusRoteamentoTelas();
+      return;
+    }
+    fecharPainelContagem();
+  });
+
+  /*
+   * O host é a fonte de verdade: se outro operador (ou o ESC de uma janela de projeção)
+   * encerrar a contagem, o painel tem de saber. `estado` é o mesmo evento que já alimenta
+   * a prévia do telão — a contagem só se pendura nele.
+   */
+  projecao.aoReceber('estado', (st) => {
+    if (st && st.tipo === 'contagem' && st.contagem) {
+      registarContagemNoAr(st.contagem);
+      return;
+    }
+    if (contagemEstadoPainel.noAr) {
+      contagemEstadoPainel = estadoContagemVazio();
+      contagemRestanteUltimoTick = 0;
+      renderPainelContagem();
+      garantirTickPainelContagem();
+    }
+  });
+
+  renderPainelContagem();
+})();
+
+exporCallbacksParaAtributosHtml({
+  abrirPainelContagem,
+  alternarPainelContagem,
+  onContagemCfgChange,
+  onContagemBgImagemChange,
+  limparImagemFundoContagem,
+  setPosContagemCtrl,
+  restaurarPadraoContagem,
+});
 
 /* ─────────────────────────────────────────────────────────────────────────
    Equilíbrio das laterais do cabeçalho.

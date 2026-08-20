@@ -85,7 +85,7 @@
       --nav-dock-pad: 6px;
       --nav-dock-radius: 20px;
       --nav-item-radius: 14px;
-      --nav-item-w: 76px;
+      --nav-item-w: 90px;
       --nav-item-h: 58px;
       --nav-icon-size: 20px;
       /* Folga horizontal da cápsula à volta do ícone. */
@@ -113,6 +113,7 @@
       --mode-midias: #7c5cbf;
       --mode-biblia: #b8860b;
       --mode-slide: #2d8a6e;
+      --mode-contagem: #b5603a;
       --mode-cfg: #5b7c99;
       --mode-tema: #4a6fa5;
       --mode-voz: color-mix(in srgb, var(--text) 72%, transparent);
@@ -606,6 +607,7 @@
     .hdr-action--apresentacao { --nav-accent: var(--mode-midias); }
     .hdr-action--biblia { --nav-accent: var(--mode-biblia); }
     .hdr-action--slides { --nav-accent: var(--mode-slide); }
+    .hdr-action--contagem { --nav-accent: var(--mode-contagem); }
     .hdr-action--cfg { --nav-accent: var(--mode-cfg); }
     .hdr-action--tema { --nav-accent: var(--mode-tema); }
     .hdr-action--voz { --nav-accent: var(--mode-voz); }
@@ -650,7 +652,7 @@
        em vez de a legenda desaparecer. */
     @media (max-width: 1180px) {
       .app-header {
-        --nav-item-w: 64px;
+        --nav-item-w: 78px;
         --nav-item-h: 54px;
         --nav-icon-size: 19px;
         --nav-capsula-px: 11px;
@@ -663,7 +665,7 @@
     }
     @media (max-width: 980px) {
       .app-header {
-        --nav-item-w: 56px;
+        --nav-item-w: 70px;
         --nav-item-h: 50px;
         --nav-icon-size: 18px;
         --nav-capsula-px: 8px;
@@ -6650,6 +6652,7 @@
       --mode-midias: #a894ee;
       --mode-biblia: #d9ae53;
       --mode-slide: #55c495;
+      --mode-contagem: #e08a5f;
       --mode-cfg: #8fb2cf;
       --mode-tema: #8aaee0;
       --mode-voz: color-mix(in srgb, var(--text) 78%, transparent);
@@ -8212,6 +8215,283 @@
       font-family: var(--font-ui);
       color: var(--text-dim);
     }
+    /* ═══════════ Painel da contagem regressiva ═══════════
+       Modal próprio, e não uma aba de Ajustes: o operador abre isto durante o culto, com
+       o telão a contar, e precisa de pausar num clique — não de navegar por um menu de
+       definições. A aparência, essa, vive mesmo em Ajustes › Contagem. */
+    /*
+     * Painel flutuante, não modal.
+     *
+     * A primeira versão era modal, com véu escuro por cima de tudo — e isso tornava o
+     * cabeçalho inalcançável. Mas é precisamente no cabeçalho que se escolhe o monitor do
+     * telão, e a contagem sem monitor não aparece em lado nenhum: o painel bloqueava a
+     * única coisa que o operador precisava de fazer a seguir. A saída de fechar e reabrir
+     * o painel à volta dessa escolha resolvia mal um problema que não devia existir.
+     *
+     * Sem véu e sem captura de cliques, o seletor de rota continua a ser o do cabeçalho —
+     * um só, o mesmo dos outros modos — e o painel fica ao lado enquanto se usa.
+     */
+    .contagem-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      /* Abaixo da barra do cabeçalho, que tem de permanecer visível e clicável. */
+      padding: 104px 16px 16px;
+      background: transparent;
+      pointer-events: none;
+    }
+    .contagem-backdrop.aberto { display: flex; }
+
+    .contagem-painel {
+      width: min(520px, 94vw);
+      max-height: calc(100vh - 128px);
+      overflow: auto;
+      background: var(--surface);
+      color: var(--text);
+      /* Contorno mais marcado do que num modal: sem véu por trás, é a borda e a sombra
+         que separam o painel do painel de operação por baixo. */
+      border: 1px solid color-mix(in srgb, var(--mode-contagem) 45%, var(--border));
+      border-radius: 16px;
+      box-shadow: 0 24px 60px -18px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(0 0 0 / 0.06);
+      font-family: var(--font-ui);
+      pointer-events: auto;
+    }
+
+    .contagem-painel-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .contagem-painel-head .contagem-titulo { flex: 1; min-width: 0; }
+    /* Cronómetro no cabeçalho: só na barra compacta (painel retraído). */
+    .contagem-head-tempo {
+      display: none;
+      flex: 0 0 auto;
+      font-family: var(--slide-font);
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+      color: var(--text);
+      padding: 0 4px;
+    }
+    .contagem-head-tempo.zerada { color: var(--red); }
+    .contagem-painel.retraido {
+      overflow: hidden;
+      max-height: none;
+    }
+    .contagem-painel.retraido .contagem-painel-head {
+      border-bottom: none;
+    }
+    .contagem-painel.retraido .contagem-head-tempo { display: block; }
+    .contagem-painel.retraido .contagem-painel-corpo { display: none; }
+    .contagem-retrair-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      padding-left: 6px;
+      padding-right: 6px;
+      line-height: 0;
+    }
+    .contagem-retrair-btn svg {
+      display: block;
+      flex-shrink: 0;
+    }
+    .contagem-retrair-btn .contagem-ico-expandir { display: none; }
+    .contagem-painel.retraido .contagem-retrair-btn .contagem-ico-retrair { display: none; }
+    .contagem-painel.retraido .contagem-retrair-btn .contagem-ico-expandir { display: block; }
+    .contagem-painel-corpo { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Mostrador: o número que o operador confere de relance. `tabular-nums` pela mesma
+       razão do telão — sem ele a linha muda de largura a cada segundo. */
+    .contagem-mostrador {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 10px;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .contagem-mostrador-valor {
+      font-family: var(--slide-font);
+      font-size: 54px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
+    .contagem-mostrador.zerada .contagem-mostrador-valor { color: var(--red); }
+
+    .contagem-situacao {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.85;
+    }
+    .contagem-situacao::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .contagem-situacao[data-situacao='no-ar']   { color: var(--green); }
+    .contagem-situacao[data-situacao='pausada'] { color: var(--yellow); }
+    .contagem-situacao[data-situacao='zerada']  { color: var(--red); }
+    .contagem-situacao[data-situacao='parada']  { color: var(--text-dim); opacity: 0.55; }
+
+    .contagem-grupo { display: flex; flex-direction: column; gap: 8px; }
+    .contagem-grupo-rotulo {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+      opacity: 0.6;
+    }
+
+    .contagem-tempo-linha { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .contagem-campo { display: flex; flex-direction: column; gap: 4px; }
+    .contagem-campo-rotulo { font-size: 11px; opacity: 0.7; }
+    .contagem-campo input {
+      width: 84px;
+      padding: 8px 10px;
+      font-size: 18px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .contagem-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .contagem-preset {
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .contagem-preset:hover { border-color: var(--mode-contagem); }
+
+    .contagem-painel input[type='text'] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 14px;
+    }
+
+    .contagem-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+    .contagem-acoes .btn { flex: 1 1 auto; min-width: 96px; justify-content: center; }
+    .contagem-acoes-secundarias { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .contagem-nota { font-size: 12px; line-height: 1.5; opacity: 0.7; }
+    .contagem-nota button.contagem-link {
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .contagem-alerta-rota {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+      background: color-mix(in srgb, var(--red) 10%, transparent);
+      color: var(--red);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .contagem-alerta-rota[hidden] { display: none !important; }
+
+    /* Seletor de monitor do painel: mesma lista e mesmos rótulos do cabeçalho, desenhados
+       como botões em vez de dropdown — aqui há espaço, e uma escolha de um clique é
+       melhor do que abrir um menu por cima do painel. */
+    .contagem-monitores { display: flex; flex-direction: column; gap: 6px; }
+    .contagem-monitor-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13.5px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .contagem-monitor-btn::before {
+      content: '';
+      flex: 0 0 auto;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 1px solid color-mix(in srgb, var(--text) 40%, transparent);
+      background: transparent;
+    }
+    .contagem-monitor-btn:hover { border-color: var(--mode-contagem); }
+    .contagem-monitor-btn.ativo {
+      border-color: var(--mode-contagem);
+      background: color-mix(in srgb, var(--mode-contagem) 14%, var(--surface2));
+      font-weight: 600;
+    }
+    .contagem-monitor-btn.ativo::before {
+      background: var(--mode-contagem);
+      border-color: var(--mode-contagem);
+    }
+    .contagem-monitor-btn:disabled { opacity: 0.55; cursor: default; }
+
+    /* Prévia do fundo e das cores em Ajustes › Contagem. */
+    .cfg-contagem-preview {
+      width: 100%;
+      min-height: 88px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      overflow: hidden;
+      padding: 8px;
+      font-family: var(--slide-font);
+    }
+    .cfg-contagem-preview .prev-msg { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; }
+    .cfg-contagem-preview .prev-dig {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
     .cfg-panel-body { display: none; }
     .cfg-panel-body.ativo { display: block; }
     /* Select nativo não permite espaçamento nas opções no Windows — lista customizada */
@@ -8625,6 +8905,17 @@
           <span class="hdr-btn-caption" aria-hidden="true">Bíblia</span>
         </button>
       </div>
+      <div class="hdr-action hdr-action--contagem">
+        <button type="button" class="hdr-btn-round" id="btn-modo-contagem" onclick="alternarPainelContagem()" title="CONTAGEM REGRESSIVA — tempo para o culto começar" aria-label="Contagem regressiva" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M6 2h12"/>
+            <path d="M6 22h12"/>
+            <path d="M8 2v3.5a4 4 0 0 0 1.6 3.2L12 10.5l2.4-1.8A4 4 0 0 0 16 5.5V2"/>
+            <path d="M8 22v-3.5a4 4 0 0 1 1.6-3.2L12 13.5l2.4 1.8a4 4 0 0 1 1.6 3.2V22"/>
+          </svg>
+          <span class="hdr-btn-caption" aria-hidden="true">Contagem</span>
+        </button>
+      </div>
       <div class="hdr-action hdr-action--apresentacao">
         <button type="button" class="hdr-btn-round" id="btn-modo-apresentacao" onclick="abrirMenuModoApresentacao()" title="MODO MÍDIAS" aria-label="Modo mídias" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -8774,7 +9065,7 @@
           </div>
           <div class="centro-toolbar-row centro-toolbar-acoes" id="centro-toolbar-acoes">
             <button type="button" class="btn" onclick="editarNomeVersaoSelecionada()" id="btn-editar-nome-versao" style="display:none" title="Renomear a tag da cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 12 22l-9-9V3h10l7.59 7.59a2 2 0 0 1 0 2.82Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Editar tag</button>
-            <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Apagar cópia</button>
+            <button type="button" class="btn" onclick="apagarCopiaVersaoSelecionada()" id="btn-apagar-copia-versao" style="display:none" title="Remover a cópia/versão selecionada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Apagar esta versão</button>
             <span class="toolbar-sep" id="toolbar-sep-1" aria-hidden="true" style="display:none"></span>
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled><span class="btn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></span><span class="btn-txt">Editar letra</span></button>
             <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto"><span class="btn-ico" id="ico-modo-letra-completa" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg></span><span class="btn-txt" id="txt-modo-letra-completa">Modo letra completa</span></button>
@@ -9363,6 +9654,11 @@
         <button type="button" class="cfg-tab" id="cfg-tab-ctrl-avisos" onclick="mudarAbaCfg('avisos')">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
           <span class="cfg-tab-nome">Avisos</span>
+          <span class="cfg-tab-conta" hidden></span>
+        </button>
+        <button type="button" class="cfg-tab" id="cfg-tab-ctrl-contagem" onclick="mudarAbaCfg('contagem')">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12M6 22h12"/><path d="M8 2v3.5a4 4 0 0 0 1.6 3.2L12 10.5l2.4-1.8A4 4 0 0 0 16 5.5V2"/><path d="M8 22v-3.5a4 4 0 0 1 1.6-3.2L12 13.5l2.4 1.8a4 4 0 0 1 1.6 3.2V22"/></svg>
+          <span class="cfg-tab-nome">Contagem</span>
           <span class="cfg-tab-conta" hidden></span>
         </button>
       </div>
@@ -10328,6 +10624,228 @@
         </section>
       </div>
 
+
+      <!-- ═══════════════ CONTAGEM ═══════════════ -->
+      <div class="cfg-panel-body" id="cfg-panel-ctrl-contagem">
+        <div class="cfg-destino-rotulo">Sempre no ar › Contagem</div>
+        <header class="cfg-painel-topo">
+          <h2 class="cfg-painel-titulo">Contagem regressiva</h2>
+          <p class="cfg-painel-hint">Aparência do relógio pré-culto no telão. O tempo e as mensagens ficam no painel da Contagem, no cabeçalho. Com a contagem no ar, as mudanças aqui aplicam-se de imediato — sem reiniciar o tempo.</p>
+        </header>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Prévia</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row cfg-row--largo" data-busca="previa contagem regressiva">
+              <div class="cfg-row-controlo" style="width:100%">
+                <div class="cfg-contagem-preview" id="cfg-contagem-preview" role="img" aria-label="Prévia da contagem">
+                  <div class="prev-msg" id="cfg-contagem-preview-topo"></div>
+                  <div class="prev-dig" id="cfg-contagem-preview-dig">05:00</div>
+                  <div class="prev-msg" id="cfg-contagem-preview-rodape"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Fundo</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="tipo de fundo cor solida gradiente imagem contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tipo de fundo</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-contagem-bg-type" onchange="onContagemCfgChange()">
+                  <option value="solid">Cor sólida</option>
+                  <option value="gradient">Gradiente CSS</option>
+                  <option value="image">Imagem</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" id="cfg-contagem-bg-solid-wrap" data-busca="cor de fundo contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-bg-color" value="#000000" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row cfg-row--largo" id="cfg-contagem-bg-gradient-wrap" style="display:none" data-busca="gradiente css fundo contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-contagem-bg-gradient" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" id="cfg-contagem-bg-image-wrap" style="display:none" data-busca="imagem de fundo contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Imagem</div>
+                <div class="cfg-row-hint" id="cfg-contagem-bg-image-nome">Nenhuma imagem escolhida.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-arquivo"><input type="file" accept="image/*" id="cfg-contagem-bg-image" onchange="onContagemBgImagemChange()"><label class="cfg-arquivo-btn" for="cfg-contagem-bg-image">Escolher imagem…</label></div>
+              </div>
+            </div>
+            <div class="cfg-row" id="cfg-contagem-bg-image-limpar-wrap" style="display:none" data-busca="remover imagem de fundo contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Remover imagem</div></div>
+              <div class="cfg-row-controlo"><button type="button" class="btn sm danger" onclick="limparImagemFundoContagem()">Remover</button></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Dígitos</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="familia da fonte tipografia contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Família da fonte</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-contagem-fontfamily" onchange="onContagemCfgChange()">
+                  <option value="CMG Sans, sans-serif">CMG Sans</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="'Times New Roman', serif">Times New Roman</option>
+                  <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Verdana, sans-serif">Verdana</option>
+                  <option value="'Courier New', monospace">Courier New</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="tamanho dos digitos fonte contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-contagem-fontsize-val">18</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-fontsize" min="4" max="40" step="1" value="18" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor dos digitos texto contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-text-color" value="#ffffff" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="negrito digitos contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch cfg-switch--on" id="cfg-contagem-negrito" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onContagemCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="espacamento entre caracteres digitos contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento <span class="cfg-row-val" id="cfg-contagem-letterspacing-val">-0.02</span></div></div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-contagem-letterspacing" min="-0.15" max="0.3" step="0.01" value="-0.02" oninput="onContagemCfgChange()"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Mensagens</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="tamanho mensagem acima topo contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Acima — tamanho <span class="cfg-row-val"><span id="cfg-contagem-topo-size-val">4.5</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-topo-size" min="1" max="15" step="0.5" value="4.5" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor mensagem acima topo contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Acima — cor</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-topo-color" value="#f3c15a" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="tamanho mensagem abaixo rodape contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Abaixo — tamanho <span class="cfg-row-val"><span id="cfg-contagem-rodape-size-val">3</span> vh</span></div></div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-rodape-size" min="1" max="15" step="0.5" value="3" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor mensagem abaixo rodape contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Abaixo — cor</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-rodape-color" value="#ffffff" oninput="onContagemCfgChange()"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Formato do tempo</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="mostrar horas formato contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Mostrar horas</div>
+                <div class="cfg-row-hint">«Automático» só mostra a casa das horas quando existe.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-contagem-mostrar-horas" onchange="onContagemCfgChange()">
+                  <option value="auto">Automático</option>
+                  <option value="sempre">Sempre</option>
+                  <option value="nunca">Nunca</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="mostrar segundos formato contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Mostrar segundos</div>
+                <div class="cfg-row-hint">Desligado, mostra só minutos — arredondados para cima.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch cfg-switch--on" id="cfg-contagem-mostrar-segundos" role="switch" aria-checked="true" aria-label="Mostrar segundos" onclick="toggleCfgSwitch(this); onContagemCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Reta final</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="alerta segundos finais cor contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Alertar nos últimos <span class="cfg-row-val"><span id="cfg-contagem-alerta-val">60</span> s</span></div>
+                <div class="cfg-row-hint">Os dígitos mudam de cor. Zero desliga.</div>
+              </div>
+              <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-contagem-alerta-segundos" min="0" max="300" step="5" value="60" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="cor do alerta final contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Cor do alerta</div></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-alerta-color" value="#ff5a5a" oninput="onContagemCfgChange()"></div>
+            </div>
+            <div class="cfg-row" data-busca="piscar no final contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Piscar no final</div>
+                <div class="cfg-row-hint">Nos últimos dez segundos e ao chegar a zero.</div>
+              </div>
+              <div class="cfg-row-controlo">
+                <button type="button" class="cfg-switch cfg-switch--on" id="cfg-contagem-piscar" role="switch" aria-checked="true" aria-label="Piscar no final" onclick="toggleCfgSwitch(this); onContagemCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Ao chegar a zero</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="ao zerar parar subir encerrar contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Comportamento</div></div>
+              <div class="cfg-row-controlo">
+                <select class="cfg-form-select" id="cfg-contagem-ao-zerar" onchange="onContagemCfgChange()">
+                  <option value="parar">Ficar em 00:00</option>
+                  <option value="subir">Contar para cima (+00:42)</option>
+                  <option value="encerrar">Encerrar a contagem sozinha</option>
+                </select>
+              </div>
+            </div>
+            <div class="cfg-row cfg-row--largo" data-busca="texto final mensagem ao zerar contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Texto final</div>
+                <div class="cfg-row-hint">Aparece no lugar dos dígitos ao chegar a zero. Vazio mantém 00:00.</div>
+              </div>
+              <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-contagem-texto-final" maxlength="160" placeholder="ex.: COMEÇAMOS!" oninput="onContagemCfgChange()"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="cfg-card">
+          <div class="cfg-card-head"><span class="cfg-card-titulo">Posição na tela</span></div>
+          <div class="cfg-card-corpo">
+            <div class="cfg-row" data-busca="posicao vertical topo meio rodape contagem regressiva">
+              <div class="cfg-row-copy"><div class="cfg-row-label">Vertical</div></div>
+              <div class="cfg-row-controlo">
+                <div class="cfg-btn-group" id="cfg-contagem-posy-group">
+                  <button type="button" class="cfg-btn-pos" data-val="top" onclick="setPosContagemCtrl('top')">Topo</button>
+                  <button type="button" class="cfg-btn-pos ativo" data-val="center" onclick="setPosContagemCtrl('center')">Meio</button>
+                  <button type="button" class="cfg-btn-pos" data-val="bottom" onclick="setPosContagemCtrl('bottom')">Rodapé</button>
+                </div>
+              </div>
+            </div>
+            <div class="cfg-row" data-busca="restaurar padrao contagem regressiva">
+              <div class="cfg-row-copy">
+                <div class="cfg-row-label">Restaurar padrão</div>
+                <div class="cfg-row-hint">Devolve toda esta aba aos valores de fábrica.</div>
+              </div>
+              <div class="cfg-row-controlo"><button type="button" class="btn sm" onclick="restaurarPadraoContagem()">Restaurar</button></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
     </div><!-- fecha cfg-modal-body -->
     </div><!-- fecha cfg-modal-main -->
     <div class="cfg-modal-footer">
@@ -10335,6 +10853,84 @@
       <div style="display:flex;gap:8px">
         <button class="btn" onclick="fecharCfgModal()">Fechar</button>
         <button class="btn success" onclick="salvarCfgNoServidor()">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Contagem regressiva — painel do operador ═══════════
+     O tempo e as mensagens ficam aqui, à mão durante o culto. Fonte, cores e fundo ficam
+     em Ajustes › Contagem, porque são decisões que se tomam uma vez. -->
+<div class="contagem-backdrop" id="contagem-backdrop" aria-hidden="true">
+  <div class="contagem-painel" role="dialog" aria-modal="true" aria-labelledby="contagem-painel-titulo">
+    <div class="contagem-painel-head">
+      <span class="contagem-titulo" id="contagem-painel-titulo">Contagem regressiva</span>
+      <span class="contagem-head-tempo" id="contagem-head-tempo" aria-live="polite">00:00</span>
+      <button type="button" class="btn sm" id="contagem-abrir-ajustes" title="Fonte, cores, fundo e comportamento ao zerar">Aparência…</button>
+      <button type="button" class="btn sm contagem-retrair-btn" id="contagem-retrair" title="Retrair painel" aria-label="Retrair painel" aria-expanded="true" aria-controls="contagem-painel-corpo">
+        <svg class="contagem-ico-retrair" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m18 15-6-6-6 6"/>
+        </svg>
+        <svg class="contagem-ico-expandir" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </button>
+      <button type="button" class="btn sm" id="contagem-fechar" aria-label="Fechar">✕</button>
+    </div>
+
+    <div class="contagem-painel-corpo" id="contagem-painel-corpo">
+      <div class="contagem-alerta-rota" id="contagem-alerta-rota" hidden>
+        <span id="contagem-alerta-rota-texto"></span>
+      </div>
+
+      <div class="contagem-grupo">
+        <div class="contagem-grupo-rotulo">Selecione o monitor</div>
+        <div class="contagem-monitores" id="contagem-monitores"></div>
+      </div>
+
+      <div class="contagem-mostrador" id="contagem-mostrador">
+        <div class="contagem-mostrador-valor" id="contagem-mostrador-valor">00:00</div>
+        <div class="contagem-situacao" id="contagem-situacao" data-situacao="parada">Parada</div>
+      </div>
+
+      <div class="contagem-grupo">
+        <div class="contagem-grupo-rotulo">Tempo</div>
+        <div class="contagem-tempo-linha">
+          <div class="contagem-campo">
+            <label class="contagem-campo-rotulo" for="contagem-minutos">Minutos</label>
+            <input type="number" id="contagem-minutos" min="0" max="1439" step="1" value="5" inputmode="numeric">
+          </div>
+          <div class="contagem-campo">
+            <label class="contagem-campo-rotulo" for="contagem-segundos">Segundos</label>
+            <input type="number" id="contagem-segundos" min="0" max="59" step="1" value="0" inputmode="numeric">
+          </div>
+        </div>
+        <div class="contagem-presets" id="contagem-presets"></div>
+      </div>
+
+      <div class="contagem-grupo">
+        <div class="contagem-grupo-rotulo">Mensagens no telão</div>
+        <input type="text" id="contagem-msg-topo" maxlength="160" placeholder="Acima dos dígitos — ex.: O culto começa em">
+        <input type="text" id="contagem-msg-rodape" maxlength="160" placeholder="Abaixo dos dígitos — ex.: Desligue o celular">
+      </div>
+
+      <div class="contagem-acoes">
+        <button type="button" class="btn primary" id="contagem-btn-principal">Iniciar</button>
+        <button type="button" class="btn danger" id="contagem-btn-encerrar" disabled>Encerrar</button>
+      </div>
+
+      <div class="contagem-acoes-secundarias">
+        <button type="button" class="btn sm" id="contagem-btn-menos" disabled title="Tirar um minuto sem parar a contagem">−1 min</button>
+        <button type="button" class="btn sm" id="contagem-btn-mais" disabled title="Somar um minuto sem parar a contagem">+1 min</button>
+        <button type="button" class="btn sm" id="contagem-btn-reiniciar" disabled title="Voltar ao tempo dos campos acima">Reiniciar</button>
+      </div>
+
+      <div class="contagem-nota">
+        A contagem aparece nos monitores escolhidos acima. Enquanto está no ar, cobre o que
+        estiver projetado <strong>sem o perder</strong>: ao encerrar, a música ou o
+        versículo que estava por baixo volta ao ecrã.
+        <strong>Não vai para o OBS</strong> — as fontes de Browser Source são para letra e
+        versículo, e a transmissão tem o seu próprio contador.
       </div>
     </div>
   </div>

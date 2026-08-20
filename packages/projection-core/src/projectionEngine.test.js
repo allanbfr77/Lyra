@@ -312,6 +312,76 @@ test('slide preto final: ministrante fica activo (tela preta) e não revela o re
   assert.strictEqual(String(ultimo.proximo || ''), '');
 });
 
+test('contagem no alvo «ambos»: M3 fica activo e não revela o relógio', () => {
+  /* Sem ramo `modo === 'contagem'` em hayProjecaoAtivaMinistrante, o override só traz
+     `contagem` (sem atual/próximo) e o motor escondia o M3 — o relógio tapava os dígitos. */
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-contagem-ambos-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(
+    routingPath,
+    JSON.stringify({
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    })
+  );
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [1, 2] }));
+
+  const state = armazemDeProjecao();
+  state.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  state.ministranteApresentacaoOverride = {
+    modo: 'contagem',
+    telaLimpa: false,
+    contagem: { restanteMs: 60_000, excedenteMs: 0, rodando: true, cfg: {} },
+  };
+  const engine = createProjectionEngine(
+    {
+      displayRoutingPath: () => routingPath,
+      displaySettingsPath: () => settingsPath,
+    },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+
+  engine.sincronizarJanelasRelogio();
+  engine.abrirTelasConfiguradas();
+  limparSends(engine);
+  engine.render({ estado: state.estadoAtual });
+
+  const ministrantes = engine.janelasDeProjecao().filter((e) => e.role === 'ministrante');
+  assert.ok(ministrantes.length > 0, 'precisa de janela ministrante');
+  ministrantes.forEach((e) => {
+    assert.notStrictEqual(
+      e.ocultoParaRelogio,
+      true,
+      'contagem em «ambos» não pode esconder o M3 para revelar o relógio'
+    );
+    assert.ok(e.win.isVisible(), 'janela ministrante permanece visível com a contagem');
+  });
+
+  const enviosMin = sends(engine).filter((s) => s.canal === 'atualizar_ministrante');
+  assert.ok(enviosMin.length > 0, 'ministrante recebeu actualização');
+  const ultimo = enviosMin[enviosMin.length - 1].payload;
+  assert.strictEqual(ultimo.modo, 'contagem');
+  assert.ok(ultimo.contagem, 'payload leva a contagem ao M3');
+});
+
 /**
  * Guarda do monitor do operador.
  *

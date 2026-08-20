@@ -206,6 +206,20 @@
           const tipo = estado && estado.tipo;
           if (tipo === 'apresentacao') {
             setStatus(`Ligado a ${SERVER_URL} — modo apresentação/mídia (sem letra no OBS).`, 'ok');
+          } else if (tipo === 'contagem') {
+            /*
+             * A contagem regressiva não entra na transmissão, e não é por não caber aqui.
+             * Estas fontes existem para letra e versículo — o que a assembleia canta e lê.
+             * O relógio pré-culto é informação para quem está na sala, e sobrepô-lo à
+             * transmissão daria a quem assiste de casa um cronómetro a piscar sobre a
+             * imagem, sem contexto nenhum.
+             *
+             * O silêncio já vinha de graça (a contagem não traz `linhas`, logo cai no
+             * ramo «vazio» acima), mas de graça não é o mesmo que de propósito: sem este
+             * ramo, alguém que amanhã desse `linhas` à contagem estreava-a no OBS sem
+             * reparar. Aqui a decisão está escrita.
+             */
+            setStatus(`Ligado a ${SERVER_URL} — contagem regressiva no telão (não vai ao OBS).`, 'ok');
           } else {
             setStatus(`Ligado a ${SERVER_URL} — à espera de letra/slide.`, 'ok');
           }

@@ -1,6 +1,7 @@
 'use strict';
 
 const comentariosSlide = require('./comentariosSlide');
+const contagemRegressiva = require('./contagemRegressiva');
 
 function clonePayloadSafe(obj) {
   try {
@@ -26,16 +27,50 @@ function filtrarEstadoMusicaParaPublico(estado) {
   return out;
 }
 
-function payloadPublicoAtual(baseEstado, estadoPublicoOverride) {
+/**
+ * Converte o estado interno da contagem no que a tela precisa de saber.
+ *
+ * Este carimbo vive aqui, e não no aplicador, porque o aplicador corre uma vez por
+ * comando e este payload é reconstruído a cada emissão — inclusive na que o host faz
+ * quando um telão novo se liga, minutos depois de a contagem ter começado. Carimbar no
+ * comando congelaria o `restanteMs` no instante do comando, e quem chegasse tarde
+ * receberia o tempo que faltava quando a contagem foi criada.
+ *
+ * O `alvoEm` do estado interno não atravessa a fronteira: é um instante no relógio do
+ * host, e o cliente não tem como o interpretar. Sai daqui como duração.
+ *
+ * Serve os dois canais. O telão marca a contagem em `tipo`, o monitor do ministrante em
+ * `modo` — nomes diferentes por herança, mesma necessidade: quando a contagem vai aos dois
+ * ecrãs, carimbar só um deixaria o outro a mostrar o tempo que faltava no instante do
+ * comando.
+ *
+ * @param {object|null} payload Já clonado — a função escreve nele.
+ * @param {number} agora
+ */
+function carimbarContagemNoPayload(payload, agora) {
+  if (!payload || typeof payload !== 'object') return payload;
+  if (payload.tipo !== 'contagem' && payload.modo !== 'contagem') return payload;
+  const vivo = contagemRegressiva.payloadContagem(payload.contagem, agora);
+  if (vivo) payload.contagem = vivo;
+  return payload;
+}
+
+/**
+ * @param {object} baseEstado
+ * @param {object | null} estadoPublicoOverride
+ * @param {{ agora?: number }} [opts] `agora` injectável para teste; por omissão, o relógio.
+ */
+function payloadPublicoAtual(baseEstado, estadoPublicoOverride, opts = {}) {
+  const agora = Number.isFinite(opts && opts.agora) ? opts.agora : Date.now();
   let base = clonePayloadSafe(baseEstado);
   base = filtrarEstadoMusicaParaPublico(base);
-  if (!estadoPublicoOverride) return base;
+  if (!estadoPublicoOverride) return carimbarContagemNoPayload(base, agora);
   const over = clonePayloadSafe(estadoPublicoOverride);
   const overFiltrado = filtrarEstadoMusicaParaPublico(over);
   if (base && typeof base === 'object') {
     overFiltrado.blackout = !!base.blackout;
   }
-  return overFiltrado;
+  return carimbarContagemNoPayload(overFiltrado, agora);
 }
 
 /**
@@ -211,6 +246,7 @@ function snapshotMinistranteAtual(estadoAtual, logError) {
 
 module.exports = {
   clonePayloadSafe,
+  carimbarContagemNoPayload,
   payloadPublicoAtual,
   estadoPublicoParaSocketsOuApi,
   estadoPublicoOcioso,

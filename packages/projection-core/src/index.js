@@ -57,6 +57,9 @@ module.exports = {
 
   // módulos de projeção (também usados directamente pelo Servidor)
   comentariosSlide: require('./comentariosSlide'),
+  /* Regra da contagem regressiva: pura, sem relógio nem DOM. O renderer das telas usa-a
+     para formatar os dígitos; o aplicador, para mexer no tempo. */
+  contagemRegressiva: require('./contagemRegressiva'),
   displayConfig: require('./displayConfig'),
   displayConfigModo: require('./displayConfigModo'),
   displayConfigTransforms: require('./displayConfigTransforms'),

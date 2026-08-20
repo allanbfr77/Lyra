@@ -77,6 +77,7 @@ outro avisa em vez de disputar as telas.
 - **Bíblia** — múltiplas traduções (ACF, ARA, ARC, NAA, NTLH, NVI)
 - **Playlists e cultos** — organização por evento com sincronização entre dispositivos
 - **Múltiplas telas** — telão, segunda TV e integração com OBS
+- **Contagem regressiva** — relógio pré-culto no telão, com mensagens livres, pausa e ajuste de tempo ao vivo
 - **Controle remoto** — outro PC na rede ou app Android
 - **Tema claro/escuro** — interface consistente em todos os módulos ([guia de tema](docs/lyra-theme.md))
 - **Atualização automática** — instaladores Windows publicados em [lyra-releases](https://github.com/allanbfr77/lyra-releases)
@@ -257,6 +258,7 @@ Para gerar um release a partir do código-fonte, crie uma tag `v*.*.*` — o wor
 - [Controlador — operação no PC](controller/README.md)
 - [Mobile — app Android](mobile/README.md)
 - [Guia de tema dark/light](docs/lyra-theme.md)
+- [Roteiro de teste — contagem regressiva](docs/roteiro-teste-contagem.md)
 
 ## Licença
 
