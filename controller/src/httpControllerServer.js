@@ -20,6 +20,7 @@ const {
   substituirMusicaUsuarioNoDb,
   encontrarMusicaUsuarioDuplicada,
   listarVersoesPorRootId,
+  garantirCopiaPadraoNoDb,
   listarMusicasUsuarioParaSync,
   obterMusicaUsuarioPorId,
   resolverRootIdDaMusica,
@@ -1055,6 +1056,8 @@ async function iniciarServidorController(ctx, paths) {
         root_id: ins.rootId,
         is_immutable: ins.copyImportada ? 0 : 1,
         copyImportada: !!ins.copyImportada,
+        // Cópia editável criada junto com o original (é a que o controlador abre).
+        copiaId: ins.copiaId != null ? ins.copiaId : null,
       });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e) });
@@ -1136,6 +1139,7 @@ async function iniciarServidorController(ctx, paths) {
         id: r.id,
         rootId: r.rootId,
         copyImportada: !!r.copyImportada,
+        copiaId: r.copiaId != null ? r.copiaId : null,
         titulo: String(titulo || '').trim(),
         artista: String(artista || '').trim(),
       });
@@ -1172,6 +1176,38 @@ async function iniciarServidorController(ctx, paths) {
       const rootId = resolverRootIdDaMusica(row);
       const versoes = listarVersoesPorRootId(rootId);
       res.json({ rootId, versoes });
+    } catch (e) {
+      res.status(500).json({ erro: e.message || String(e) });
+    }
+  });
+
+  /**
+   * Cópia editável padrão da música — criada na hora se ainda não existir.
+   *
+   * É o que o controlador abre quando o usuário clica numa música: o ORIGINAL
+   * fica preservado e a edição acontece sempre sobre esta cópia. Músicas
+   * cadastradas antes deste comportamento não têm cópia; a primeira abertura
+   * materializa uma, sem tocar no original.
+   */
+  expressApp.post('/api/musicas/:id/copia-padrao', (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id)) return res.status(400).json({ erro: 'id inválido' });
+      const r = garantirCopiaPadraoNoDb(id);
+      if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
+      if (r.criada) {
+        const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+        notificarBancoCompartilhadoAlterado(meta.updatedAt);
+      }
+      const row = obterMusicaUsuarioPorId(r.id);
+      if (!row) return res.status(404).json({ erro: 'Não encontrado' });
+      res.json({
+        ok: true,
+        id: r.id,
+        rootId: r.rootId,
+        criada: !!r.criada,
+        musica: rowMusicaParaJson(row, { fonte: 'user' }),
+      });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e) });
     }

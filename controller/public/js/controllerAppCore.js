@@ -4676,6 +4676,37 @@ function versaoAtivaParaCompararPlaylist() {
   return '';
 }
 
+/**
+ * Id da cópia editável padrão de uma música do banco do usuário.
+ *
+ * O ORIGINAL nunca é alterado pela edição: ao abrir uma música o controlador
+ * trabalha sobre a cópia que nasceu junto com ela. Músicas cadastradas antes
+ * desse comportamento não têm cópia — o servidor materializa uma aqui, na
+ * primeira abertura, sem tocar no original.
+ *
+ * Devolve `null` em qualquer falha: nesse caso a música abre no original, como
+ * antes, em vez de o clique não fazer nada.
+ *
+ * @returns {Promise<number|null>}
+ */
+async function garantirCopiaPadraoServidor(id) {
+  const idNum = Number(id);
+  if (!Number.isFinite(idNum)) return null;
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/copia-padrao`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const copiaId = Number(data && data.id);
+    return Number.isFinite(copiaId) && copiaId !== idNum ? copiaId : null;
+  } catch (_) {
+    // intencional — sem cópia o fluxo segue no original
+    return null;
+  }
+}
+
 async function carregarVersoesMusicaServidor(rootId) {
   const root = Number(rootId);
   if (!Number.isFinite(root)) {
@@ -13335,7 +13366,7 @@ function configurarModalPreviewLetras() {
     if (userId != null && fontePend === 'banco-local') {
       // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
       // o seu papel — limpa igual aos demais para manter o painel consistente.
-      await selecionarMusicaDoBanco(userId, { fonte: 'user' });
+      await selecionarMusicaDoBanco(userId, { fonte: 'user', preferirCopia: true });
       limparBuscaLetras();
     } else if (catalogId != null && fontePend === 'banco-local') {
       await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
@@ -14330,9 +14361,13 @@ function renderizarListaLocal(lista) {
   listaLocalRenderizada.forEach((m) => {
     const div = document.createElement('div');
     const rowFonte = m.fonte === 'catalog' ? 'catalog' : 'user';
+    /* Compara pelo root: a lista mostra os ORIGINAIS, mas o que está carregado
+       normalmente é a cópia editável — a linha tem de continuar destacada. */
+    const idAtivoNaLista =
+      rowFonte === 'catalog' ? Number(musicaAtiva?.id) : Number(obterRootIdMusicaAtiva());
     const ativo =
-      musicaAtiva &&
-      Number(musicaAtiva.id) === Number(m.id) &&
+      !!musicaAtiva &&
+      idAtivoNaLista === Number(m.id) &&
       (musicaBancoFonte === 'catalog' ? 'catalog' : 'user') === rowFonte;
     div.className = 'item' + (ativo ? ' ativo' : '');
     div.innerHTML = `
@@ -14374,7 +14409,9 @@ function renderizarListaLocal(lista) {
     }
     div.addEventListener('click', (ev) => {
       if (ev.target instanceof Element && ev.target.closest('.item-acoes-banco')) return;
-      selecionarMusicaDoBanco(m.id, { fonte: rowFonte });
+      /* Clicar na lista abre a CÓPIA editável; o original fica preservado e
+         acessível pelo chip «Original» da barra de versões. */
+      selecionarMusicaDoBanco(m.id, { fonte: rowFonte, preferirCopia: true });
     });
 
     el.appendChild(div);
@@ -14584,7 +14621,7 @@ async function usarMusicaExistenteDoBanco(data) {
     return;
   }
   await carregarMusicas();
-  await selecionarMusicaDoBanco(idExistente, { fonte: 'user' });
+  await selecionarMusicaDoBanco(idExistente, { fonte: 'user', preferirCopia: true });
   limparBuscaLetras();
 }
 
@@ -14613,7 +14650,7 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decis
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id);
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar.');
@@ -14640,7 +14677,7 @@ async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id);
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar do catálogo.');
@@ -14714,7 +14751,7 @@ async function salvarNovaMusicaManualNoServidor(decisaoDuplicidade = '') {
     }
     fecharModalNovaMusicaManual();
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id);
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
   } catch (e) {
     alert(e.message || 'Erro ao criar a música no banco local.');
   }
@@ -15062,6 +15099,20 @@ async function trocarVersaoMusicaCentral(copiaId) {
   }
 }
 
+/**
+ * Carrega uma música do banco no editor/projeção.
+ *
+ * @param {number|string} id
+ * @param {object} [opts]
+ * @param {'user'|'catalog'} [opts.fonte]
+ * @param {string} [opts.versaoLocalId] Versão explícita (item de playlist, chip
+ *   de versão). Quando presente, manda — inclusive quando aponta para o original.
+ * @param {boolean} [opts.preferirCopia] Abre a **cópia** editável em vez do
+ *   ORIGINAL quando nenhuma versão foi pedida explicitamente. É o caminho dos
+ *   cliques do usuário na lista do banco: o original fica preservado e as
+ *   edições caem sempre na cópia. A playlist não usa isto — lá vale a versão
+ *   que o item guardou.
+ */
 async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
   const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
@@ -15085,10 +15136,25 @@ async function selecionarMusicaDoBanco(id, opts) {
     if (!base || !Array.isArray(base.estrofes)) {
       throw new Error('Resposta inválida do servidor ao carregar a música.');
     }
-    const versaoReq =
+    let versaoReq =
       opts && opts.versaoLocalId !== undefined && opts.versaoLocalId !== null
         ? String(opts.versaoLocalId)
         : null;
+
+    /* Clique do usuário sem versão pedida: cai na cópia editável, não no original.
+       Só faz sentido sobre um ORIGINAL do banco do usuário — o catálogo é
+       só-leitura e uma cópia já carregada não precisa de outra. */
+    if (
+      !versaoReq &&
+      opts &&
+      opts.preferirCopia &&
+      fonteBanco === 'user' &&
+      Number(base.is_immutable) === 1
+    ) {
+      const copiaId = await garantirCopiaPadraoServidor(base.id != null ? base.id : id);
+      if (copiaId != null) versaoReq = String(copiaId);
+    }
+
     musicaBancoFonte = fonteBanco;
     if (versaoReq && ehVersaoServidorId(versaoReq)) {
       const resV = await fetch(`${getControllerApiBase()}/api/musicas/${encodeURIComponent(versaoReq)}`);

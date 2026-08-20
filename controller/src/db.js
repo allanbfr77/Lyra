@@ -999,6 +999,13 @@ function initControllerDatabase(paths, Database) {
 const ROTULO_COPIA_MODIFICADA = 'CÓPIA';
 const ROTULO_COPIA_IMPORTADA = 'CÓPIA/IMPORTADA';
 const ROTULO_COPIA_MANUAL = 'CÓPIA/MANUAL';
+/**
+ * Rótulo da cópia editável que nasce junto com o original.
+ *
+ * Mesmo texto de `ROTULO_COPIA_MODIFICADA` de propósito: para o usuário é a
+ * mesma coisa («a cópia»), e a barra de versões já sabe desenhar esse rótulo.
+ */
+const ROTULO_COPIA_PADRAO = 'CÓPIA';
 
 /** Marcas de acentuação isoladas pela decomposição NFD (U+0300..U+036F). */
 const REGEX_MARCAS_ACENTO = /[\u0300-\u036f]/g;
@@ -1103,19 +1110,42 @@ function finalizarMusicaOriginalAposInsert(id) {
   );
 }
 
+/**
+ * Cadastra uma música nova: **duas linhas**, sempre.
+ *
+ * 1. o ORIGINAL (`is_immutable = 1`), que nunca é alterado pela edição normal;
+ * 2. uma CÓPIA filha idêntica (`is_immutable = 0`), que é a versão que o
+ *    controlador abre por padrão e onde as edições acontecem.
+ *
+ * Antes só o original era gravado e a cópia nascia tarde, no primeiro fork de
+ * `atualizarMusicaNoDb`. O `id` devolvido continua sendo o do original — é ele
+ * que a lista do banco e as playlists usam como âncora (`root_id`).
+ */
 function inserirMusicaUsuario(titulo, artista, estrofes) {
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
+  const tituloTrim = String(titulo).trim();
+  const artistaTrim = String(artista || '').trim();
   const info = db
     .prepare('INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)')
-    .run(String(titulo).trim(), String(artista || '').trim(), JSON.stringify(norm));
+    .run(tituloTrim, artistaTrim, JSON.stringify(norm));
   const newId = info.lastInsertRowid;
   finalizarMusicaOriginalAposInsert(newId);
+
+  let copiaId = null;
+  const originalRow = obterMusicaUsuarioPorId(newId);
+  if (originalRow) {
+    const copia = inserirCopiaMusica(originalRow, tituloTrim, artistaTrim, norm, {
+      rotulo: ROTULO_COPIA_PADRAO,
+    });
+    if (copia && copia.ok) copiaId = copia.id;
+  }
+
   try {
     aplicarTonsPendentesParaMusica(newId, titulo, artista);
   } catch (_) {
     // intencional — memória de tom não deve impedir o cadastro
   }
-  return { ok: true, id: newId };
+  return { ok: true, id: newId, copiaId, rootId: newId };
 }
 
 function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
@@ -1155,6 +1185,69 @@ function listarVersoesPorRootId(rootIdRaw) {
 function resolverRootIdDaMusica(row) {
   if (!row) return null;
   return row.root_id != null ? row.root_id : row.id;
+}
+
+/**
+ * Cópia editável «padrão» de uma família: a filha mais antiga do root.
+ *
+ * Não é um campo no banco — é uma convenção (menor `id` entre as cópias), que
+ * mantém a escolha estável mesmo depois de o usuário criar outras versões.
+ */
+function obterCopiaPadraoDoRoot(rootIdRaw) {
+  const rootId = parseInt(rootIdRaw, 10);
+  if (!Number.isFinite(rootId)) return null;
+  return (
+    db
+      .prepare(
+        `SELECT * FROM musicas
+         WHERE root_id = ? AND parent_id IS NOT NULL AND is_immutable = 0
+         ORDER BY id ASC
+         LIMIT 1`
+      )
+      .get(rootId) || null
+  );
+}
+
+/**
+ * Resolve — criando se ainda não existir — a cópia editável padrão da música.
+ *
+ * As músicas cadastradas antes desta mudança só têm o original; em vez de uma
+ * migração em massa (que dobraria a tabela de uma vez), a cópia é materializada
+ * na primeira vez que a música é aberta. O original nunca é tocado aqui.
+ *
+ * @returns {{ok:true, id:number, rootId:number, criada:boolean}|{ok:false, erro:string}}
+ */
+function garantirCopiaPadraoNoDb(idRaw) {
+  const id = parseInt(idRaw, 10);
+  if (!Number.isFinite(id)) return { ok: false, erro: 'id inválido' };
+
+  const row = obterMusicaUsuarioPorId(id);
+  if (!row) return { ok: false, erro: 'Não encontrado' };
+
+  const rootId = Number(resolverRootIdDaMusica(row));
+
+  // Já é uma cópia (a padrão ou uma versão nomeada): nada a criar.
+  if (Number(row.is_immutable) !== 1 && row.parent_id != null) {
+    return { ok: true, id: Number(row.id), rootId, criada: false };
+  }
+
+  const existente = obterCopiaPadraoDoRoot(rootId);
+  if (existente) return { ok: true, id: Number(existente.id), rootId, criada: false };
+
+  const rootRow = Number(row.id) === rootId ? row : obterMusicaUsuarioPorId(rootId);
+  if (!rootRow) return { ok: false, erro: 'Não encontrado' };
+
+  const estrofes = parseEstrofesJson(rootRow.estrofes);
+  if (!estrofes.length) return { ok: false, erro: 'estrofes vazias' };
+
+  const fork = inserirCopiaMusica(
+    rootRow,
+    String(rootRow.titulo || '').trim(),
+    String(rootRow.artista || '').trim(),
+    estrofes,
+    { rotulo: ROTULO_COPIA_PADRAO }
+  );
+  return { ok: true, id: Number(fork.id), rootId: Number(fork.rootId), criada: true };
 }
 
 function estrofesIguaisNoBanco(estrofesExistentesJson, estrofesNovos) {
@@ -1264,7 +1357,8 @@ function gravarComoCopiaDeExistente(existente, tituloTrim, artistaTrim, norm, ro
   const row = obterMusicaUsuarioPorId(existente.id);
   if (!row) return { ok: false, erro: 'Não encontrado' };
   const fork = inserirCopiaMusica(row, tituloTrim, artistaTrim, norm, { rotulo });
-  return { ok: true, id: fork.id, rootId: fork.rootId, copyImportada: true };
+  // Aqui o registro gravado já é a própria cópia editável.
+  return { ok: true, id: fork.id, rootId: fork.rootId, copiaId: fork.id, copyImportada: true };
 }
 
 /**
@@ -1286,7 +1380,7 @@ function importarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
   if (!existente) {
     const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
     if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
-    return { ok: true, id: ins.id, rootId: ins.id, copyImportada: false };
+    return { ok: true, id: ins.id, rootId: ins.id, copiaId: ins.copiaId, copyImportada: false };
   }
 
   if (String(opts.aoDuplicar || 'copiar') === 'perguntar') {
@@ -1320,7 +1414,7 @@ function criarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
   if (!existente) {
     const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
     if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
-    return { ok: true, id: ins.id, rootId: ins.id, copyImportada: false };
+    return { ok: true, id: ins.id, rootId: ins.id, copiaId: ins.copiaId, copyImportada: false };
   }
 
   if (String(opts.aoDuplicar || 'copiar') === 'perguntar') {
@@ -1834,6 +1928,8 @@ module.exports = {
   criarVersaoMusicaNoDb,
   atualizarRotuloVersaoNoDb,
   listarVersoesPorRootId,
+  obterCopiaPadraoDoRoot,
+  garantirCopiaPadraoNoDb,
   resolverRootIdDaMusica,
   listarMusicasUsuarioParaSync,
   musicaIdPorTituloArtistaIgual,
