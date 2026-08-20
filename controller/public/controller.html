@@ -2460,6 +2460,267 @@
       margin: 0;
     }
 
+    /* ======================================================================
+       MODO COMPARATIVO
+       Duas versões da mesma música lado a lado, com o que difere destacado.
+       Reaproveita a linguagem visual do MODO LETRA COMPLETA (mesma caixa,
+       mesma tipografia, mesmo raio de canto) — muda só o facto de serem
+       duas colunas e de haver uma camada de realces por baixo do texto.
+       ====================================================================== */
+
+    .centro-comparativo-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      margin-top: 4px;
+    }
+
+    .centro-comparativo-wrap[hidden] {
+      display: none !important;
+    }
+
+    .centro-comparativo-hint {
+      margin: 0;
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.4;
+    }
+
+    .centro-comparativo-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .centro-comparativo-col {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .centro-comparativo-col-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 22px;
+    }
+
+    .centro-comparativo-col-rotulo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Selo do ORIGINAL: lembra que aquele lado é o protegido. */
+    .centro-comparativo-col-selo {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+      white-space: nowrap;
+    }
+
+    .centro-comparativo-col-selo[hidden] { display: none; }
+
+    .centro-comparativo-editor {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .centro-comparativo-ta {
+      flex: 1;
+      min-height: 220px;
+      width: 100%;
+      box-sizing: border-box;
+      resize: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 12px 14px;
+      font-family: var(--font-ui);
+      font-size: 14px;
+      line-height: 1.5;
+      outline: none;
+    }
+
+    .centro-comparativo-ta:focus {
+      border-color: var(--accent);
+    }
+
+    /**
+     * Camada de realces. Mesmo truque das divisórias do MODO LETRA COMPLETA:
+     * um textarea só desenha texto puro, por isso os fundos coloridos vivem
+     * numa camada por baixo, num espelho que copia as métricas tipográficas do
+     * textarea em tempo de execução (ver `realcesComparativo` no JS).
+     * Aqui o espelho não é `visibility: hidden` — precisa de pintar os fundos —
+     * mas o texto dele é transparente: quem se lê é sempre o textarea por cima.
+     */
+    .centro-comparativo-editor .centro-comparativo-ta {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+
+    .centro-comparativo-realces {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--surface2);
+      box-sizing: border-box;
+    }
+
+    .centro-comparativo-realces-desloca {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      will-change: transform;
+    }
+
+    .centro-comparativo-espelho {
+      color: transparent;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: normal;
+      box-sizing: border-box;
+      margin: 0;
+    }
+
+    /* Linha que existe dos dois lados mas mudou: fundo âmbar discreto. */
+    .centro-comparativo-espelho .cmp-linha--alterada {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      border-radius: 3px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* Linha que só existe deste lado: fundo mais forte. */
+    .centro-comparativo-espelho .cmp-linha--exclusiva {
+      background: color-mix(in srgb, var(--accent) 30%, transparent);
+      border-radius: 3px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    /* Palavra exacta que mudou, dentro de uma linha alterada. */
+    .centro-comparativo-espelho .cmp-palavra {
+      background: color-mix(in srgb, var(--accent) 55%, transparent);
+      border-radius: 3px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+    }
+
+    .centro-comparativo-rodape {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 18px;
+    }
+
+    .centro-comparativo-resumo {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .centro-comparativo-resumo.igual {
+      color: var(--text-dim);
+    }
+
+    .centro-comparativo-legenda {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .centro-comparativo-legenda[hidden] { display: none; }
+
+    .centro-comparativo-legenda span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .centro-comparativo-legenda i {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .centro-comparativo-legenda .amostra-alterada {
+      background: color-mix(in srgb, var(--accent) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    }
+
+    .centro-comparativo-legenda .amostra-exclusiva {
+      background: color-mix(in srgb, var(--accent) 30%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+
+    .centro-comparativo-legenda .amostra-palavra {
+      background: color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+
+    /* Seletores de versão do diálogo «o que comparar». */
+    .cmp-escolha-campo {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cmp-escolha-campo label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .cmp-escolha-campo select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+    }
+
+    .cmp-escolha-erro {
+      font-size: 12px;
+      min-height: 16px;
+      color: var(--danger, #c44);
+    }
+
     .estrofe-slide-edit {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -8230,6 +8491,7 @@
     .edit-field-titulo,
     .edit-field-artista,
     .centro-letra-completa-ta,
+    .centro-comparativo-ta,
     .estrofe-slide-ta,
     .estrofe-slide-view-body,
     .biblia-select,
@@ -8517,6 +8779,8 @@
             <button type="button" class="btn primary" onclick="entrarModoEdicao()" id="btn-editar-letra" disabled><span class="btn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></span><span class="btn-txt">Editar letra</span></button>
             <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoLetraCompletaCentral()" id="btn-modo-letra-completa" style="display:none" title="Editar ou copiar a letra inteira num só texto"><span class="btn-ico" id="ico-modo-letra-completa" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg></span><span class="btn-txt" id="txt-modo-letra-completa">Modo letra completa</span></button>
             <button type="button" class="btn" onclick="cancelarModoLetraCompletaCentral()" id="btn-cancelar-letra-completa" style="display:none" title="Descarta as alterações desta sessão e volta aos slides"><span class="btn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span><span class="btn-txt">Cancelar</span></button>
+            <button type="button" class="btn btn-toolbar-letra-completa" onclick="alternarModoComparativoCentral()" id="btn-modo-comparativo" style="display:none" title="Abrir duas versões lado a lado e destacar as diferenças"><span class="btn-ico" id="ico-modo-comparativo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/><path d="M12 3v18"/></svg></span><span class="btn-txt" id="txt-modo-comparativo">Modo comparativo</span></button>
+            <button type="button" class="btn" onclick="cancelarModoComparativoCentral()" id="btn-cancelar-comparativo" style="display:none" title="Descarta as alterações desta sessão e fecha a comparação"><span class="btn-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span><span class="btn-txt">Cancelar</span></button>
             <button type="button" class="btn" onclick="novaEstrofe()" id="btn-nova-estrofe" disabled style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>Novo slide</button>
             <button type="button" class="btn primary" onclick="salvarMusicaServidor()" id="btn-salvar-musica" disabled style="display:none" title="Grava na versão seleccionada (original no servidor ou cópia local) e sai do modo edição"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>Salvar alterações</button>
             <button type="button" class="btn" onclick="sairModoEdicao()" id="btn-encerrar-edicao" style="display:none" title="Descarta todas as alterações desta sessão e sai do modo edição (não grava no servidor)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>Cancelar</button>
@@ -8540,6 +8804,44 @@
           <div class="centro-letra-completa-editor" id="centro-letra-completa-editor">
             <div class="centro-letra-completa-guias" id="centro-letra-completa-guias" aria-hidden="true"></div>
             <textarea id="centro-letra-completa-ta" class="centro-letra-completa-ta" spellcheck="false" aria-label="Letra completa editável"></textarea>
+          </div>
+        </div>
+        <!-- MODO COMPARATIVO: duas versões lado a lado. Cada coluna é um textarea
+             editável (fonte de verdade do texto) com uma camada de realces por
+             baixo, desenhada por `realcesComparativo` no controllerAppCore.js. -->
+        <div id="centro-comparativo-wrap" class="centro-comparativo-wrap" hidden>
+          <p class="centro-comparativo-hint">
+            Duas versões da mesma música lado a lado. O que estiver <strong>diferente</strong> fica destacado; se forem idênticas, nada é marcado. Edite qualquer um dos lados e use <strong>Salvar alterações</strong> para gravar, ou <strong>Cancelar</strong> para descartar.
+          </p>
+          <div class="centro-comparativo-grid">
+            <div class="centro-comparativo-col">
+              <div class="centro-comparativo-col-head">
+                <span class="centro-comparativo-col-rotulo" id="comparativo-rotulo-a">—</span>
+                <span class="centro-comparativo-col-selo" id="comparativo-selo-a" hidden>original protegido</span>
+              </div>
+              <div class="centro-comparativo-editor" id="centro-comparativo-editor-a">
+                <div class="centro-comparativo-realces" id="comparativo-realces-a" aria-hidden="true"></div>
+                <textarea id="comparativo-ta-a" class="centro-comparativo-ta" spellcheck="false" aria-label="Letra da versão à esquerda"></textarea>
+              </div>
+            </div>
+            <div class="centro-comparativo-col">
+              <div class="centro-comparativo-col-head">
+                <span class="centro-comparativo-col-rotulo" id="comparativo-rotulo-b">—</span>
+                <span class="centro-comparativo-col-selo" id="comparativo-selo-b" hidden>original protegido</span>
+              </div>
+              <div class="centro-comparativo-editor" id="centro-comparativo-editor-b">
+                <div class="centro-comparativo-realces" id="comparativo-realces-b" aria-hidden="true"></div>
+                <textarea id="comparativo-ta-b" class="centro-comparativo-ta" spellcheck="false" aria-label="Letra da versão à direita"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="centro-comparativo-rodape">
+            <span class="centro-comparativo-resumo" id="comparativo-resumo"></span>
+            <span class="centro-comparativo-legenda" id="comparativo-legenda" hidden>
+              <span><i class="amostra-alterada"></i>linha alterada</span>
+              <span><i class="amostra-palavra"></i>palavra</span>
+              <span><i class="amostra-exclusiva"></i>só de um lado</span>
+            </span>
           </div>
         </div>
         <div id="estrofes-slide-editor" class="estrofes-slide-editor"></div>

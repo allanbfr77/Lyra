@@ -125,6 +125,10 @@ import {
   indicePrimeiraParteDoVersiculo,
 } from './modules/dividirVersiculos.js';
 import {
+  compararLetras,
+  resumirComparacao,
+} from './modules/diffLetrasComparativo.js';
+import {
   identidadesDaRota,
   guardarIdentidadesRota,
   restaurarRotaPorIdentidade,
@@ -5977,6 +5981,19 @@ let caixaLetrasEdicaoMaiuscula = false;
 let modoLetraCompletaCentral = false;
 /** Cópia ao entrar no modo letra completa — «Cancelar» restaura isto (não aplica o textarea). */
 let snapshotLetraCompleta = null;
+/**
+ * MODO COMPARATIVO — duas versões da mesma música lado a lado.
+ *
+ * Vive à parte dos outros dois modos da coluna central (cartões por slide e
+ * letra completa): tem painel próprio, guarda o seu próprio par de versões e
+ * grava directamente por `id` de versão, sem passar por `musicaAtiva`. É por
+ * isso que não mexe em nada do fluxo de edição existente.
+ */
+let modoComparativoCentral = false;
+/** `{ a: LadoComparativo, b: LadoComparativo }` das versões carregadas. */
+let comparativoLados = null;
+/** Estrofes de cada lado ao abrir — «Cancelar» descarta contra isto. */
+let snapshotComparativo = null;
 /** Cópia ao entrar em edição — «Encerrar edição» restaura isto (não grava). */
 let snapshotEdicaoEstrofes = null;
 /**
@@ -11303,6 +11320,9 @@ function atualizarToolbarModoEdicao() {
     ?.classList.toggle('centro-toolbar-acoes--sem-musica', !m);
 
   atualizarToolbarModoLetraCompleta();
+  /* Por último: quando o MODO COMPARATIVO está activo, ele esconde as acções
+     dos outros modos — tem de correr depois de todas elas. */
+  atualizarToolbarModoComparativo();
 }
 
 function juntarEstrofesParaLetraCompleta() {
@@ -11510,6 +11530,13 @@ function aplicarLayoutModoLetraCompleta(opts = {}) {
     snapshotLetraCompleta = null;
     full.hidden = true;
     ed.style.display = '';
+    /* Sem música não há o que comparar — o painel comparativo também sai. */
+    if (modoComparativoCentral) {
+      modoComparativoCentral = false;
+      comparativoLados = null;
+      snapshotComparativo = null;
+      aplicarLayoutModoComparativo();
+    }
     return;
   }
   const on = modoLetraCompletaCentral;
@@ -11519,6 +11546,12 @@ function aplicarLayoutModoLetraCompleta(opts = {}) {
   /* As guias só medem com o painel visível — (re)calcular sempre que ele alterna. */
   if (on) guiasEstrofesLetraCompleta.ligar();
   else guiasEstrofesLetraCompleta.agendar();
+  /* O MODO COMPARATIVO tem painel próprio e manda no layout enquanto estiver
+     activo — nem os cartões por slide nem a letra completa podem reaparecer. */
+  if (modoComparativoCentral) {
+    ed.style.display = 'none';
+    full.hidden = true;
+  }
 }
 
 /** Grava o conteúdo do textarea de letra completa em `musicaAtiva.estrofes` e atualiza faixa/previews. */
@@ -11600,6 +11633,7 @@ function temEdicaoMusicaNaoGravada() {
   if (metadadosMusicaSujosNaHome()) return true;
   if (edicaoEstrofesSujaVsSnapshot()) return true;
   if (letraCompletaSujaVsSnapshot()) return true;
+  if (comparativoSujoVsSnapshot()) return true;
   return false;
 }
 
@@ -11608,6 +11642,10 @@ function limparFlagsModoEdicaoMusica() {
   modoEdicaoEstrofes = false;
   snapshotLetraCompleta = null;
   modoLetraCompletaCentral = false;
+  modoComparativoCentral = false;
+  comparativoLados = null;
+  snapshotComparativo = null;
+  aplicarLayoutModoComparativo();
   aplicarLayoutModoLetraCompleta();
 }
 
@@ -11617,7 +11655,9 @@ function limparFlagsModoEdicaoMusica() {
  */
 async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
   if (!temEdicaoMusicaNaoGravada()) {
-    if (modoEdicaoEstrofes || modoLetraCompletaCentral) limparFlagsModoEdicaoMusica();
+    if (modoEdicaoEstrofes || modoLetraCompletaCentral || modoComparativoCentral) {
+      limparFlagsModoEdicaoMusica();
+    }
     return true;
   }
   const ok = await appConfirm(
@@ -11720,6 +11760,638 @@ function atualizarToolbarModoLetraCompleta() {
   if (btnCancelar) {
     btnCancelar.style.display = mostrar && modoLetraCompletaCentral ? '' : 'none';
     btnCancelar.disabled = !mostrar || !modoLetraCompletaCentral;
+  }
+}
+
+/* ==========================================================================
+ * MODO COMPARATIVO — duas versões da mesma música lado a lado
+ * ==========================================================================
+ * Painel próprio (`#centro-comparativo-wrap`), estado próprio
+ * (`modoComparativoCentral` / `comparativoLados` / `snapshotComparativo`) e
+ * gravação própria, por `id` de versão. Nada aqui escreve em `musicaAtiva`
+ * durante a edição: os outros modos da coluna central continuam exactamente
+ * como eram.
+ *
+ * O visual segue o MODO LETRA COMPLETA — mesma caixa, mesma tipografia — e os
+ * realces usam o mesmo truque das divisórias daquele modo: como um `<textarea>`
+ * só desenha texto puro, os fundos coloridos vivem numa camada por baixo, num
+ * espelho que copia as métricas tipográficas do textarea em tempo de execução.
+ * ========================================================================== */
+
+/** Rótulo de exibição de uma versão na coluna e no seletor. */
+function rotuloVersaoComparativo(v, rootId) {
+  if (!v) return '';
+  const ehOriginal = v.parent_id == null && Number(v.id) === Number(rootId);
+  if (ehOriginal) return 'ORIGINAL';
+  const rotulo = String(v.rotulo || '').trim();
+  return (rotulo || 'Cópia').toLocaleUpperCase('pt-BR');
+}
+
+function comparativoTextarea(lado) {
+  return document.getElementById(`comparativo-ta-${lado}`);
+}
+
+/**
+ * Camada de realces das duas colunas.
+ *
+ * Estritamente decorativa: lê o texto dos dois textareas, calcula as diferenças
+ * com `compararLetras` e pinta os fundos. Não escreve em lado nenhum do estado
+ * da aplicação.
+ */
+const realcesComparativo = (() => {
+  /**
+   * Propriedades que afectam a disposição do texto e têm de ser idênticas no
+   * espelho. As larguras de borda ficam de fora de propósito — a camada
+   * `.centro-comparativo-realces` já tem uma borda transparente da mesma
+   * espessura, e contá-las aqui duplicaria o desvio.
+   */
+  const PROPS_METRICA = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
+    'letterSpacing', 'wordSpacing', 'lineHeight', 'textIndent', 'textTransform',
+    'tabSize', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+  ];
+
+  const LADOS = ['a', 'b'];
+  const partes = { a: null, b: null };
+  let agendado = false;
+
+  function elementos(lado) {
+    const ta = comparativoTextarea(lado);
+    const camada = document.getElementById(`comparativo-realces-${lado}`);
+    if (!ta || !camada) return null;
+    let ref = partes[lado];
+    if (!ref || ref.desloca.parentNode !== camada) {
+      camada.innerHTML = '';
+      const desloca = document.createElement('div');
+      desloca.className = 'centro-comparativo-realces-desloca';
+      const espelho = document.createElement('div');
+      espelho.className = 'centro-comparativo-espelho';
+      desloca.appendChild(espelho);
+      camada.appendChild(desloca);
+      ref = { desloca, espelho };
+      partes[lado] = ref;
+    }
+    return { ta, camada, ...ref };
+  }
+
+  /** Reproduz as marcas de uma coluna no espelho, linha a linha. */
+  function pintar(espelho, marcas) {
+    espelho.textContent = '';
+    marcas.forEach((m, i) => {
+      if (i > 0) espelho.appendChild(document.createTextNode('\n'));
+      if (m.tipo === 'igual') {
+        if (m.texto) espelho.appendChild(document.createTextNode(m.texto));
+        return;
+      }
+      const linha = document.createElement('span');
+      linha.className =
+        m.tipo === 'exclusiva' ? 'cmp-linha cmp-linha--exclusiva' : 'cmp-linha cmp-linha--alterada';
+      if (!m.texto) {
+        /* Linha vazia exclusiva: sem um caractere o fundo teria largura zero e
+           não se veria. Um espaço fixo não muda a altura nem quebra a linha. */
+        linha.textContent = ' ';
+      } else if (m.tipo === 'alterada') {
+        m.partes.forEach((p) => {
+          if (!p.txt) return;
+          if (!p.mudou) {
+            linha.appendChild(document.createTextNode(p.txt));
+            return;
+          }
+          const palavra = document.createElement('span');
+          palavra.className = 'cmp-palavra';
+          palavra.textContent = p.txt;
+          linha.appendChild(palavra);
+        });
+      } else {
+        linha.textContent = m.texto;
+      }
+      espelho.appendChild(linha);
+    });
+  }
+
+  function atualizarRodape(resultado) {
+    const resumo = document.getElementById('comparativo-resumo');
+    const legenda = document.getElementById('comparativo-legenda');
+    if (resumo) {
+      resumo.textContent = resumirComparacao(resultado);
+      resumo.classList.toggle('igual', !!resultado.iguais);
+    }
+    if (legenda) legenda.hidden = !!resultado.iguais;
+  }
+
+  function desenhar() {
+    agendado = false;
+    const refA = elementos('a');
+    const refB = elementos('b');
+    if (!refA || !refB) return;
+
+    if (!modoComparativoCentral || refA.camada.offsetParent === null) {
+      refA.espelho.textContent = '';
+      refB.espelho.textContent = '';
+      return;
+    }
+
+    const resultado = compararLetras(refA.ta.value, refB.ta.value);
+    const marcas = { a: resultado.linhasA, b: resultado.linhasB };
+
+    for (const lado of LADOS) {
+      const ref = lado === 'a' ? refA : refB;
+      const cs = getComputedStyle(ref.ta);
+      PROPS_METRICA.forEach((p) => {
+        ref.espelho.style[p] = cs[p];
+      });
+      /* `clientWidth` já exclui a barra de deslocamento — largura útil certa. */
+      ref.espelho.style.width = `${ref.ta.clientWidth}px`;
+      ref.espelho.style.border = '0';
+      ref.desloca.style.width = `${ref.ta.clientWidth}px`;
+      /* Iguais: espelho vazio. É o requisito de não marcar nada nesse caso. */
+      pintar(ref.espelho, resultado.iguais ? [] : marcas[lado]);
+      ref.desloca.style.transform = `translateY(${-ref.ta.scrollTop}px)`;
+    }
+
+    atualizarRodape(resultado);
+  }
+
+  function sincronizarDeslocamento(lado) {
+    const ref = partes[lado];
+    const ta = comparativoTextarea(lado);
+    if (!ref || !ta) return;
+    ref.desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
+  }
+
+  /** Recalcula na próxima pintura (agrupa rajadas de `input`). */
+  function agendar() {
+    if (agendado) return;
+    agendado = true;
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(desenhar);
+    else setTimeout(desenhar, 0);
+  }
+
+  function ligar() {
+    for (const lado of LADOS) {
+      const ref = elementos(lado);
+      if (!ref) continue;
+      const { ta } = ref;
+      if (ta.dataset.realcesLigados === '1') continue;
+      ta.dataset.realcesLigados = '1';
+      ta.addEventListener('input', agendar);
+      ta.addEventListener('scroll', () => sincronizarDeslocamento(lado), { passive: true });
+      if (typeof ResizeObserver === 'function') new ResizeObserver(agendar).observe(ta);
+    }
+    window.addEventListener('resize', agendar);
+    agendar();
+  }
+
+  function limpar() {
+    for (const lado of LADOS) {
+      const ref = partes[lado];
+      if (ref) ref.espelho.textContent = '';
+    }
+    const resumo = document.getElementById('comparativo-resumo');
+    if (resumo) resumo.textContent = '';
+    const legenda = document.getElementById('comparativo-legenda');
+    if (legenda) legenda.hidden = true;
+  }
+
+  return { ligar, agendar, limpar };
+})();
+
+/** Versões do servidor comparáveis (original + cópias) da música carregada. */
+async function carregarVersoesParaComparativo() {
+  const rootId = obterRootIdMusicaAtiva();
+  if (!Number.isFinite(rootId)) return { rootId: null, versoes: [] };
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/${rootId}/versoes`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const versoes = Array.isArray(data.versoes) ? data.versoes : [];
+    return { rootId: Number(data.rootId) || rootId, versoes };
+  } catch (_) {
+    return { rootId, versoes: [] };
+  }
+}
+
+/**
+ * Pergunta que duas versões comparar.
+ *
+ * Reutiliza o `app-dialog` padrão (e o `appEscolhaResolver`, para que Escape e
+ * clique no escuro continuem a fechar). Resolve `{ idA, idB }` ou `null`.
+ */
+function escolherVersoesParaComparar(versoes, rootId) {
+  const ov = document.getElementById('app-dialog-overlay');
+  const body = document.getElementById('app-dialog-body');
+  const head = document.getElementById('app-dialog-head');
+  const ok = document.getElementById('app-dialog-ok');
+  const cancel = document.getElementById('app-dialog-cancel');
+  if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    appEscolhaResolver = resolve;
+    head.textContent = 'Comparar versões';
+    body.innerHTML = '';
+
+    const wrap = document.createElement('div');
+    wrap.style.display = 'flex';
+    wrap.style.flexDirection = 'column';
+    wrap.style.gap = '12px';
+
+    const det = document.createElement('p');
+    det.style.margin = '0';
+    det.style.fontSize = '13px';
+    det.style.lineHeight = '1.5';
+    det.style.color = 'var(--text-muted, #7a726b)';
+    det.textContent = 'Escolha as duas versões que quer ver lado a lado.';
+    wrap.appendChild(det);
+
+    const criarCampo = (rotulo, idCampo, indicePadrao) => {
+      const campo = document.createElement('div');
+      campo.className = 'cmp-escolha-campo';
+      const lbl = document.createElement('label');
+      lbl.setAttribute('for', idCampo);
+      lbl.textContent = rotulo;
+      const sel = document.createElement('select');
+      sel.id = idCampo;
+      versoes.forEach((v) => {
+        const op = document.createElement('option');
+        op.value = String(v.id);
+        op.textContent = rotuloVersaoComparativo(v, rootId);
+        sel.appendChild(op);
+      });
+      if (versoes[indicePadrao]) sel.value = String(versoes[indicePadrao].id);
+      campo.appendChild(lbl);
+      campo.appendChild(sel);
+      wrap.appendChild(campo);
+      return sel;
+    };
+
+    /* Padrão: primeira contra segunda — normalmente ORIGINAL contra a cópia. */
+    const selA = criarCampo('Versão à esquerda', 'cmp-escolha-a', 0);
+    const selB = criarCampo('Versão à direita', 'cmp-escolha-b', 1);
+
+    const erro = document.createElement('div');
+    erro.className = 'cmp-escolha-erro';
+    wrap.appendChild(erro);
+    body.appendChild(wrap);
+
+    const finish = (v) => {
+      if (!appEscolhaResolver) return;
+      const r = appEscolhaResolver;
+      appEscolhaResolver = null;
+      body.innerHTML = '';
+      ok.style.display = '';
+      ov.classList.remove('aberto');
+      ov.hidden = true;
+      r(v);
+    };
+
+    ok.style.display = '';
+    ok.textContent = 'Comparar';
+    ok.onclick = () => {
+      const idA = Number(selA.value);
+      const idB = Number(selB.value);
+      if (!Number.isFinite(idA) || !Number.isFinite(idB)) {
+        erro.textContent = 'Escolha as duas versões.';
+        return;
+      }
+      if (idA === idB) {
+        erro.textContent = 'Escolha duas versões diferentes.';
+        return;
+      }
+      finish({ idA, idB });
+    };
+    cancel.style.display = '';
+    cancel.textContent = 'Cancelar';
+    cancel.onclick = () => finish(null);
+
+    ov.hidden = false;
+    ov.classList.add('aberto');
+  });
+}
+
+/** Carrega uma versão do servidor no formato usado pelas colunas. */
+async function carregarLadoComparativo(id) {
+  const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(id)}`);
+  if (!res.ok) throw new Error(`Falha ao carregar a versão (HTTP ${res.status}).`);
+  const v = await res.json();
+  if (!v || !Array.isArray(v.estrofes)) throw new Error('Resposta inválida do controlador.');
+  return {
+    id: Number(v.id),
+    titulo: String(v.titulo || ''),
+    artista: String(v.artista || ''),
+    estrofes: v.estrofes.map((s) => String(s ?? '')),
+    rootId: Number(v.root_id ?? v.id),
+    imutavel: Number(v.is_immutable) === 1,
+    rotulo: String(v.rotulo || ''),
+  };
+}
+
+/** Junta estrofes num texto único, com a mesma regra do modo letra completa. */
+function juntarEstrofesParaComparativo(estrofes) {
+  return (estrofes || [])
+    .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\s+$/, ''))
+    .join('\n\n');
+}
+
+function preencherPainelComparativo() {
+  if (!comparativoLados) return;
+  for (const lado of ['a', 'b']) {
+    const dados = comparativoLados[lado];
+    const ta = comparativoTextarea(lado);
+    const rotulo = document.getElementById(`comparativo-rotulo-${lado}`);
+    const selo = document.getElementById(`comparativo-selo-${lado}`);
+    if (ta) ta.value = juntarEstrofesParaComparativo(dados.estrofes);
+    if (rotulo) rotulo.textContent = dados.rotuloExibicao;
+    if (selo) {
+      selo.hidden = !dados.imutavel;
+      selo.title = dados.imutavel
+        ? 'O ORIGINAL nunca é alterado: gravar mudanças deste lado cria uma cópia nova.'
+        : '';
+    }
+  }
+}
+
+/** Estrofes actuais de um lado, lidas do textarea. */
+function estrofesLadoComparativo(lado) {
+  const ta = comparativoTextarea(lado);
+  if (!ta) return [];
+  return splitTextoLetraCompletaEmEstrofes(ta.value);
+}
+
+function comparativoSujoVsSnapshot() {
+  if (!modoComparativoCentral || !snapshotComparativo) return false;
+  return ['a', 'b'].some(
+    (lado) => !estrofesArraysIguaisParaEdicao(estrofesLadoComparativo(lado), snapshotComparativo[lado])
+  );
+}
+
+/**
+ * Visibilidade do painel comparativo.
+ *
+ * Enquanto está activo manda no layout da coluna central: esconde tanto os
+ * cartões por slide como o painel de letra completa.
+ */
+function aplicarLayoutModoComparativo() {
+  const wrap = document.getElementById('centro-comparativo-wrap');
+  if (!wrap) return;
+  if (!musicaAtiva) {
+    modoComparativoCentral = false;
+    comparativoLados = null;
+    snapshotComparativo = null;
+  }
+  const on = modoComparativoCentral;
+  wrap.hidden = !on;
+  if (on) {
+    const ed = document.getElementById('estrofes-slide-editor');
+    const full = document.getElementById('centro-letra-completa-wrap');
+    if (ed) ed.style.display = 'none';
+    if (full) full.hidden = true;
+    realcesComparativo.ligar();
+  } else {
+    realcesComparativo.limpar();
+  }
+}
+
+/** Abre o modo, perguntando antes que duas versões comparar. */
+async function abrirModoComparativo() {
+  if (!musicaAtiva) return;
+  if (musicaBancoFonte === 'catalog') {
+    await appAlert(
+      'Música do catálogo: não há versões para comparar. Importe-a para o seu banco primeiro.',
+      'Modo comparativo'
+    );
+    return;
+  }
+  if (
+    !(await confirmarProsseguirDescartandoEdicaoPendente(
+      'Há alterações não gravadas nesta sessão. Descartar e abrir o modo comparativo?',
+      'Alterações não gravadas'
+    ))
+  ) {
+    return;
+  }
+
+  const { rootId, versoes } = await carregarVersoesParaComparativo();
+  if (versoes.length < 2) {
+    await appAlert(
+      'Esta música tem só uma versão no banco. Crie uma cópia (chip «Nova versão») para poder comparar.',
+      'Modo comparativo'
+    );
+    return;
+  }
+
+  const escolha = await escolherVersoesParaComparar(versoes, rootId);
+  if (!escolha) return;
+
+  try {
+    const [a, b] = await Promise.all([
+      carregarLadoComparativo(escolha.idA),
+      carregarLadoComparativo(escolha.idB),
+    ]);
+    const acharVersao = (id) => versoes.find((v) => Number(v.id) === Number(id)) || null;
+    a.rotuloExibicao = rotuloVersaoComparativo(acharVersao(a.id) || { ...a, parent_id: a.imutavel ? null : 1 }, rootId);
+    b.rotuloExibicao = rotuloVersaoComparativo(acharVersao(b.id) || { ...b, parent_id: b.imutavel ? null : 1 }, rootId);
+    comparativoLados = { a, b };
+    snapshotComparativo = {
+      a: a.estrofes.map((s) => String(s)),
+      b: b.estrofes.map((s) => String(s)),
+    };
+    modoComparativoCentral = true;
+    aplicarLayoutModoComparativo();
+    preencherPainelComparativo();
+    realcesComparativo.agendar();
+    atualizarToolbarModoEdicao();
+  } catch (e) {
+    comparativoLados = null;
+    snapshotComparativo = null;
+    modoComparativoCentral = false;
+    aplicarLayoutModoComparativo();
+    await appAlert(e?.message || 'Não foi possível abrir o modo comparativo.', 'Modo comparativo');
+  }
+}
+
+/** Fecha o painel e devolve a coluna central ao estado anterior. */
+function fecharModoComparativo() {
+  modoComparativoCentral = false;
+  comparativoLados = null;
+  snapshotComparativo = null;
+  aplicarLayoutModoComparativo();
+  /* Devolve os cartões por slide (ou o painel de letra completa, se estivesse aberto). */
+  aplicarLayoutModoLetraCompleta();
+  atualizarToolbarModoEdicao();
+}
+
+/**
+ * Grava os lados que mudaram, um pedido por versão.
+ *
+ * Gravar sobre o ORIGINAL não o altera: o servidor bifurca e cria uma cópia
+ * nova (`forked`), que é exactamente a protecção que se quer. O utilizador é
+ * avisado quando isso acontece.
+ */
+async function salvarComparativoNoServidor() {
+  if (!modoComparativoCentral || !comparativoLados || !snapshotComparativo) return false;
+  const api = getControllerApiBase();
+  const bifurcados = [];
+  const gravados = [];
+
+  for (const lado of ['a', 'b']) {
+    const dados = comparativoLados[lado];
+    const estrofes = estrofesLadoComparativo(lado);
+    if (estrofesArraysIguaisParaEdicao(estrofes, snapshotComparativo[lado])) continue;
+    if (!estrofes.length || estrofes.every((s) => !String(s).trim())) {
+      await appAlert(
+        `A versão «${dados.rotuloExibicao}» ficou sem nenhuma estrofe. Escreva ao menos uma linha antes de gravar.`,
+        'Modo comparativo'
+      );
+      return false;
+    }
+    try {
+      const res = await fetch(`${api}/api/musicas/${dados.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: dados.titulo, artista: dados.artista, estrofes }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.erro || `Erro HTTP ${res.status}`);
+      gravados.push(dados.id);
+      if (data.forked) bifurcados.push({ rotulo: dados.rotuloExibicao, id: Number(data.id) });
+    } catch (e) {
+      await appAlert(
+        `Não foi possível gravar a versão «${dados.rotuloExibicao}»: ${e?.message || e}`,
+        'Modo comparativo'
+      );
+      return false;
+    }
+  }
+
+  if (!gravados.length) return true;
+
+  await carregarMusicas();
+  const rootId = obterRootIdMusicaAtiva();
+  if (Number.isFinite(rootId)) await carregarVersoesMusicaServidor(rootId);
+  /* Se um dos lados era a versão aberta no editor, recarrega-a para os cartões
+     e a pré-visualização mostrarem o texto novo. */
+  if (musicaAtiva && gravados.some((id) => Number(id) === Number(musicaAtiva.id))) {
+    await recarregarMusicaAtivaDoServidor();
+  }
+
+  if (bifurcados.length) {
+    const lista = bifurcados.map((b) => `«${b.rotulo}»`).join(' e ');
+    await appAlert(
+      `O ORIGINAL não é alterado: as mudanças em ${lista} foram gravadas numa cópia nova, visível na barra de versões.`,
+      'Original preservado'
+    );
+  }
+  return true;
+}
+
+/** Recarrega `musicaAtiva` do servidor mantendo o slide seleccionado. */
+async function recarregarMusicaAtivaDoServidor() {
+  if (!musicaAtiva || musicaAtiva.id == null) return;
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(musicaAtiva.id)}`);
+    if (!res.ok) return;
+    const nova = await res.json();
+    if (!nova || !Array.isArray(nova.estrofes)) return;
+    musicaAtiva = nova;
+    musicaRootId = Number(nova.root_id ?? nova.id);
+    const n = musicaAtiva.estrofes.length;
+    if (estrofeAtiva > n) estrofeAtiva = n;
+    if (estrofeAtiva < -1) estrofeAtiva = -1;
+    renderSlidesStrip();
+    renderEstrofesEditor();
+    atualizarPreviewOperador();
+    marcacaoEstrofeEditor();
+  } catch (_) {
+    // intencional — a gravação já foi feita; o painel recarrega na próxima seleção
+  }
+}
+
+/** Botão da barra: abre o modo ou grava e fecha. */
+async function alternarModoComparativoCentral() {
+  if (!musicaAtiva) return;
+  if (!modoComparativoCentral) {
+    await abrirModoComparativo();
+    return;
+  }
+  if (comparativoSujoVsSnapshot()) {
+    const ok = await salvarComparativoNoServidor();
+    if (!ok) return;
+  }
+  fecharModoComparativo();
+}
+
+/** Sai do modo sem gravar nada — o que foi digitado nas colunas é descartado. */
+async function cancelarModoComparativoCentral() {
+  if (!modoComparativoCentral) return;
+  if (comparativoSujoVsSnapshot()) {
+    const ok = await appConfirm(
+      'Descartar as alterações feitas nesta comparação?',
+      'Modo comparativo'
+    );
+    if (!ok) return;
+  }
+  fecharModoComparativo();
+}
+
+/**
+ * Botões do modo comparativo na barra.
+ *
+ * Enquanto o modo está activo, esconde as acções dos outros modos: elas operam
+ * sobre `musicaAtiva`, que aqui não é a fonte de verdade de nenhuma das duas
+ * colunas. Chamada no fim de `atualizarToolbarModoEdicao`.
+ */
+function atualizarToolbarModoComparativo() {
+  const btn = document.getElementById('btn-modo-comparativo');
+  const btnCancelar = document.getElementById('btn-cancelar-comparativo');
+  const on = modoComparativoCentral;
+  const podeAbrir =
+    !!musicaAtiva && !modoEdicaoEstrofes && !modoLetraCompletaCentral && musicaBancoFonte !== 'catalog';
+  const mostrar = on || podeAbrir;
+
+  if (btn) {
+    btn.style.display = mostrar ? '' : 'none';
+    btn.disabled = !mostrar;
+    const txt = document.getElementById('txt-modo-comparativo');
+    if (txt) txt.textContent = on ? 'Salvar alterações' : 'Modo comparativo';
+    const ico = document.getElementById('ico-modo-comparativo');
+    if (ico) {
+      ico.innerHTML = on
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/><path d="M12 3v18"/></svg>';
+    }
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.classList.toggle('ativo', on);
+    btn.title = on
+      ? 'Grava no banco os lados que foram alterados e fecha a comparação'
+      : 'Abrir duas versões lado a lado e destacar as diferenças';
+  }
+  if (btnCancelar) {
+    btnCancelar.style.display = on ? '' : 'none';
+    btnCancelar.disabled = !on;
+  }
+
+  if (!on) return;
+
+  /* Modo activo: só «Salvar alterações» e «Cancelar» desta função fazem sentido. */
+  const esconder = [
+    'btn-editar-letra',
+    'btn-modo-letra-completa',
+    'btn-cancelar-letra-completa',
+    'btn-nova-estrofe',
+    'btn-salvar-musica',
+    'btn-encerrar-edicao',
+    'btn-editar-nome-versao',
+    'btn-apagar-copia-versao',
+    'toolbar-sep-1',
+    'toolbar-sep-caixa-letras',
+    'btn-caixa-letras-edicao',
+    'btn-seta-anterior',
+    'btn-seta-proxima',
+    'btn-sair-projecao',
+  ];
+  for (const id of esconder) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
   }
 }
 
@@ -15437,6 +16109,8 @@ exporCallbacksParaAtributosHtml({
   iniciarCriarNovaVersao,
   alternarModoLetraCompletaCentral,
   cancelarModoLetraCompletaCentral,
+  alternarModoComparativoCentral,
+  cancelarModoComparativoCentral,
   alternarCaixaLetrasEdicao,
   sairModoEdicao,
   salvarMusicaServidor,
