@@ -10,6 +10,7 @@ const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
 const { caminhoIconeApp } = require('./lib/iconPath');
+const historicoWindow = require('./historicoWindow');
 const SERVER_LOCAL_BASE_URL = 'http://127.0.0.1:5510/';
 const ZOOM_BASE_LARGURA = 1920;
 const ZOOM_BASE_ALTURA = 1080;
@@ -383,6 +384,16 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
     {
       label: 'Janelas',
       submenu: [
+        {
+          label: 'Histórico e relatórios…',
+          accelerator: 'CmdOrCtrl+H',
+          click: () => {
+            historicoWindow.abrirJanelaHistorico(getJanelaPrincipal(ctx));
+          },
+        },
+        /* Separador: acima, a janela que o operador usa; abaixo, os consoles de
+           diagnóstico. Sem ele, «Histórico» lê-se como mais uma ferramenta de depuração. */
+        { type: 'separator' },
         {
           label: 'Abrir console do controlador',
           click: () => {

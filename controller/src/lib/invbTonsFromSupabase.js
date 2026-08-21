@@ -23,8 +23,8 @@ const MAP_MIN = {
 };
 
 const TONS_OK = new Set([
-  'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  'Cm', 'C#m', 'Dm', 'D#m', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'A#m', 'Bm',
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B', 'Cb',
+  'Cm', 'C#m', 'Dbm', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gbm', 'Gm', 'G#m', 'Abm', 'Am', 'A#m', 'Bbm', 'Bm',
   'ORIG.',
 ]);
 
@@ -214,19 +214,7 @@ function resolverMinistranteNoCadastro(nomeRaw, cadastrados) {
 function normTom(tom) {
   let t = String(tom || '').trim();
   if (/^orig\.?$/i.test(t)) return 'ORIG.';
-  const map = {
-    Db: 'C#',
-    Eb: 'D#',
-    Gb: 'F#',
-    Ab: 'G#',
-    Bb: 'A#',
-    Dbm: 'C#m',
-    Ebm: 'D#m',
-    Gbm: 'F#m',
-    Abm: 'G#m',
-    Bbm: 'A#m',
-  };
-  if (map[t]) t = map[t];
+  /* Bemóis ficam bemóis — passam a ser opções oficiais do seletor. */
   return t;
 }
 

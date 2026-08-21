@@ -15950,12 +15950,92 @@ function montarPayloadExibirMusica(estrofeIndex) {
   return payload;
 }
 
+/**
+ * Nome do culto activo, como aparece no seletor do painel.
+ *
+ * Gravado por extenso no histórico ao lado do id: renomear ou apagar um culto não pode
+ * reescrever o que já aconteceu.
+ */
+function nomeCultoAtivoParaHistorico() {
+  if (!cultoId) return '';
+  try {
+    const item = listarCultosDisponiveis(dataRefDoCultoImportado(cultoId)).find(
+      (c) => c.id === cultoId
+    );
+    if (!item) return cultoId;
+    const p = parseLabelCulto(item.label);
+    return [p.data, p.desc].filter(Boolean).join(' — ') || cultoId;
+  } catch (_) {
+    return cultoId;
+  }
+}
+
+/** Ministrante da música activa na playlist do culto (o do dia, não o cadastro todo). */
+function ministrantePlaylistMusicaAtiva() {
+  if (!musicaAtiva || !cultoId) return { id: null, nome: '' };
+  try {
+    const pl = getPlaylist(cultoId);
+    const it = Array.isArray(pl) ? pl.find((x) => playlistItemMesmaVersaoQueAtiva(x)) : null;
+    const id = it ? normalizarMinistranteIdPlaylist(it.ministranteId) : null;
+    return { id: id ?? null, nome: id != null ? nomeMinistrantePorId(id) : '' };
+  } catch (_) {
+    return { id: null, nome: '' };
+  }
+}
+
+/**
+ * Regista no histórico que esta música foi ao ar.
+ *
+ * ## Porquê aqui, e porquê sem `await`
+ *
+ * Este é o ponto por onde toda a projeção de música passa — o duplo clique, as setas, o
+ * «próxima da playlist», o comando de voz. Pendurar o registo em cada um deles seria
+ * garantir que um fica esquecido.
+ *
+ * Não há `await` nem tratamento de erro visível: o histórico é um subproduto: se a rede
+ * local engasgar ou o servidor HTTP estiver a arrancar, perde-se uma linha de relatório —
+ * e é tudo. Fazer o operador esperar por isto, ou mostrar-lhe um erro a meio de um culto,
+ * seria trocar o essencial pelo acessório.
+ *
+ * A decisão de gravar ou não é do servidor (ver `POST /api/historico`), que é quem tem a
+ * regra de repetição; daqui manda-se a cada estrofe sem pensar. É também por isso que o
+ * registo vive no painel e não no motor de projeção: só aqui se conhece o tom da playlist,
+ * o ministrante do dia e o culto — o payload que vai para o telão não leva nada disso.
+ */
+function registarProjecaoNoHistorico() {
+  if (!musicaAtiva) return;
+  const min = ministrantePlaylistMusicaAtiva();
+  const corpo = {
+    musicaId: Number(musicaAtiva.id) || null,
+    rootId: obterRootIdMusicaAtiva(),
+    bancoFonte: musicaBancoFonte === 'catalog' ? 'catalog' : 'user',
+    titulo: String(musicaAtiva.titulo || '').trim(),
+    artista: String(musicaAtiva.artista || '').trim(),
+    rotulo: String(musicaAtiva.rotulo || '').trim(),
+    tom: obterTomPlaylistMusicaAtiva(),
+    ministranteId: min.id,
+    ministranteNome: min.nome,
+    cultoId: String(cultoId || ''),
+    cultoNome: nomeCultoAtivoParaHistorico(),
+  };
+  try {
+    fetch(`${getControllerApiBase()}/api/historico`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    }).catch(() => {});
+  } catch (_) {
+  // intencional — o histórico nunca pode atrapalhar a projeção
+}
+}
+
 function emitirEstrofeAoServidor(index) {
   if (!projecao.pronta() || !musicaAtiva) return;
   bloqueioSincronizarEstrofeDoServidor = false;
   projecaoMusicaEmitidaNoServidor = true;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
   projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
+  registarProjecaoNoHistorico();
 }
 
 /** Atualiza só o painel (estrofe «selecionada»). Não envia às telas — use duplo clique ou setas após projeção iniciada. */

@@ -1,6 +1,6 @@
 {
   "versao": 1,
-  "_comentario": "Exporte do seu site neste formato e importe em Ajustes → Ministrantes → Importar tons. Tons válidos: C C# D D# E F F# G G# A A# B, menores (Cm, C#m, … Bm) e ORIG. Se a música ainda não estiver no banco Lyra, o vínculo fica pendente e aplica sozinho quando ela for cadastrada (mesmo título+artista).",
+  "_comentario": "Exporte do seu site neste formato e importe em Ajustes → Ministrantes → Importar tons. Tons válidos: C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B Cb; menores Cm C#m Dbm Dm D#m Ebm Em Fm F#m Gbm Gm G#m Abm Am A#m Bbm Bm; e ORIG. Se a música ainda não estiver no banco Lyra, o vínculo fica pendente e aplica sozinho quando ela for cadastrada (mesmo título+artista).",
   "itens": [
     {
       "titulo": "Galileu",

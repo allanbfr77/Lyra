@@ -48,46 +48,44 @@ function normMin(n) {
 function normTom(tom) {
   let t = String(tom || "").trim();
   if (/^orig\.?$/i.test(t)) return "ORIG.";
-  const map = {
-    Db: "C#",
-    Eb: "D#",
-    Gb: "F#",
-    Ab: "G#",
-    Bb: "A#",
-    Dbm: "C#m",
-    Ebm: "D#m",
-    Gbm: "F#m",
-    Abm: "G#m",
-    Bbm: "A#m",
-  };
-  if (map[t]) t = map[t];
   return t;
 }
 
 const TONS_OK = new Set([
   "C",
   "C#",
+  "Db",
   "D",
   "D#",
+  "Eb",
   "E",
   "F",
   "F#",
+  "Gb",
   "G",
   "G#",
+  "Ab",
   "A",
   "A#",
+  "Bb",
   "B",
+  "Cb",
   "Cm",
   "C#m",
+  "Dbm",
   "Dm",
   "D#m",
+  "Ebm",
   "Em",
   "Fm",
   "F#m",
+  "Gbm",
   "Gm",
   "G#m",
+  "Abm",
   "Am",
   "A#m",
+  "Bbm",
   "Bm",
   "ORIG.",
 ]);

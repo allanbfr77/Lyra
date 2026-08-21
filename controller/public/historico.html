@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src http://127.0.0.1:3001; img-src data:;">
+<title>Histórico e relatórios — Lyra</title>
+<style>
+  /* Paleta do controlador. Duplicada aqui de propósito: esta janela é um documento
+     independente, sem acesso ao CSS do painel, e um `@import` por ficheiro seria uma
+     dependência a mais para uma janela que tem de abrir depressa. */
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --surface2: #ebe8e2;
+    --border: #d8d3c9;
+    --accent: #a67c2d;
+    --text: #000000;
+    --text-dim: #55504a;
+    --green: #2f7d4e;
+    --red: #b03028;
+    --on-accent: #1a1612;
+    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  html.dark {
+    --bg: #18181b;
+    --surface: #232328;
+    --surface2: #2e2e35;
+    --border: #3f3f48;
+    --accent: #c49a3a;
+    --text: #e8e5e0;
+    --text-dim: #9a9690;
+    --green: #3aad65;
+    --red: #d9534f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    flex: 0 0 auto;
+    padding: 14px 18px 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  h1 { margin: 0 0 2px; font-size: 17px; font-weight: 650; }
+  .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--text-dim); }
+
+  .barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .barra .espaco { flex: 1 1 auto; }
+
+  .btn {
+    padding: 7px 13px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* Segmentos de período e de vista: um grupo, uma escolha. */
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    padding: 7px 13px;
+    border: 0;
+    background: var(--surface2);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+  .busca {
+    padding: 7px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    min-width: 210px;
+  }
+
+  main { flex: 1 1 auto; overflow: auto; padding: 0 18px 18px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg);
+    text-align: left;
+    padding: 10px 10px 8px;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tbody td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:hover { background: var(--surface2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dim { color: var(--text-dim); }
+  .titulo-cel { font-weight: 550; }
+  th.acao, td.acao { width: 1%; white-space: nowrap; }
+
+  .btn-linha {
+    border: 0;
+    background: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+  .btn-linha:hover { color: var(--red); background: var(--surface2); }
+
+  .vazio { padding: 44px 20px; text-align: center; color: var(--text-dim); line-height: 1.6; }
+  .vazio strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
+
+  .rodape {
+    flex: 0 0 auto;
+    padding: 9px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 12.5px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .rodape .espaco { flex: 1 1 auto; }
+
+  .aviso {
+    margin: 12px 0;
+    padding: 9px 12px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--red) 45%, var(--border));
+    background: color-mix(in srgb, var(--red) 10%, transparent);
+    font-size: 13px;
+  }
+  .aviso[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Histórico e relatórios</h1>
+    <p class="sub" id="sub">O que foi projetado, e com que frequência.</p>
+
+    <div class="barra">
+      <div class="seg" id="seg-periodo" role="group" aria-label="Período">
+        <button type="button" data-periodo="30d" aria-pressed="true">30 dias</button>
+        <button type="button" data-periodo="90d" aria-pressed="false">90 dias</button>
+        <button type="button" data-periodo="12m" aria-pressed="false">12 meses</button>
+        <button type="button" data-periodo="tudo" aria-pressed="false">Tudo</button>
+      </div>
+
+      <div class="seg" id="seg-vista" role="group" aria-label="Vista">
+        <button type="button" data-vista="repertorio" aria-pressed="true">Repertório</button>
+        <button type="button" data-vista="detalhe" aria-pressed="false">Linha a linha</button>
+      </div>
+
+      <input type="search" class="busca" id="busca" placeholder="Filtrar por música, artista…"
+             aria-label="Filtrar">
+
+      <span class="espaco"></span>
+
+      <button type="button" class="btn" id="btn-atualizar">Atualizar</button>
+      <button type="button" class="btn primary" id="btn-csv">Exportar CSV</button>
+    </div>
+
+    <div class="aviso" id="aviso" hidden></div>
+  </header>
+
+  <main>
+    <div class="vazio" id="vazio" hidden></div>
+    <table id="tabela" hidden>
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </main>
+
+  <div class="rodape">
+    <span id="resumo">A carregar…</span>
+    <span class="espaco"></span>
+    <button type="button" class="btn danger" id="btn-limpar">Apagar este período…</button>
+  </div>
+
+<script>
+'use strict';
+
+/* A janela fala com a API do controlador na 3001 — a mesma que o painel usa. Sem estado
+   partilhado com o painel: abrir esta janela nunca pode interferir com uma projeção a
+   decorrer. */
+const API = 'http://127.0.0.1:3001';
+
+let periodo = '30d';
+let vista = 'repertorio';
+let filtro = '';
+/** Última resposta do servidor, para filtrar e exportar sem ir buscar de novo. */
+let dados = { de: 0, ate: 0, linhas: [], grupos: [] };
+
+const el = (id) => document.getElementById(id);
+
+/* ── Tema ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Segue o tema do painel.
+ *
+ * Lê a mesma chave do `localStorage`, e não uma preferência própria: duas janelas do mesmo
+ * programa com temas diferentes lêem-se como um erro, não como uma opção.
+ */
+function aplicarTema() {
+  try {
+    const escuro = localStorage.getItem('holyrics-ctrl-dark') === '1';
+    document.documentElement.classList.toggle('dark', escuro);
+    document.documentElement.style.colorScheme = escuro ? 'dark' : 'light';
+  } catch (_) {
+    /* Sem storage: fica no tema claro, que é o padrão do painel. */
+  }
+}
+
+/* O painel grava a chave quando o operador troca de tema; o evento chega aqui de borla. */
+window.addEventListener('storage', (e) => {
+  if (e.key === 'holyrics-ctrl-dark') aplicarTema();
+});
+
+/* ── Formatação ────────────────────────────────────────────────────────────────────── */
+
+function dataHora(ms) {
+  const d = new Date(Number(ms));
+  if (!Number.isFinite(d.getTime())) return '';
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+function soData(ms) {
+  const d = new Date(Number(ms));
+  if (!Number.isFinite(d.getTime())) return '';
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/**
+ * «Há quanto tempo», em palavras.
+ *
+ * O número de dias é exacto, mas é a leitura rápida que interessa: quem procura o que não
+ * canta há muito tempo quer varrer a coluna com os olhos, não fazer contas.
+ */
+function haQuantoTempo(dias) {
+  const n = Number(dias);
+  if (!Number.isFinite(n)) return '';
+  if (n === 0) return 'hoje';
+  if (n === 1) return 'ontem';
+  if (n < 7) return `há ${n} dias`;
+  if (n < 30) return `há ${Math.floor(n / 7)} semana${Math.floor(n / 7) > 1 ? 's' : ''}`;
+  if (n < 365) return `há ${Math.floor(n / 30)} ${Math.floor(n / 30) > 1 ? 'meses' : 'mês'}`;
+  const anos = Math.floor(n / 365);
+  return `há ${anos} ano${anos > 1 ? 's' : ''}`;
+}
+
+function diasDesde(ms) {
+  const a = new Date(Number(ms));
+  const b = new Date();
+  if (!Number.isFinite(a.getTime())) return null;
+  const dA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const dB = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.max(0, Math.round((dB - dA) / 86400000));
+}
+
+function normalizar(t) {
+  return String(t ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/* ── Dados ─────────────────────────────────────────────────────────────────────────── */
+
+function mostrarAviso(msg) {
+  const a = el('aviso');
+  if (!msg) {
+    a.hidden = true;
+    a.textContent = '';
+    return;
+  }
+  a.hidden = false;
+  a.textContent = msg;
+}
+
+async function carregar() {
+  mostrarAviso('');
+  el('resumo').textContent = 'A carregar…';
+  try {
+    const rota = vista === 'repertorio' ? 'repertorio' : '';
+    const r = await fetch(`${API}/api/historico${rota ? '/' + rota : ''}?periodo=${periodo}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    dados = { de: j.de, ate: j.ate, linhas: j.linhas || [], grupos: j.grupos || [] };
+    render();
+  } catch (e) {
+    dados = { de: 0, ate: 0, linhas: [], grupos: [] };
+    render();
+    mostrarAviso(
+      'Não foi possível falar com o Lyra. A janela lê os dados do próprio controlador — ' +
+        'se ele estiver a arrancar, tente Atualizar daqui a instantes. (' + (e && e.message) + ')'
+    );
+  }
+}
+
+/* ── Desenho ───────────────────────────────────────────────────────────────────────── */
+
+function linhasFiltradas() {
+  const f = normalizar(filtro);
+  const base = vista === 'repertorio' ? dados.grupos : dados.linhas;
+  if (!f) return base;
+  return base.filter((x) =>
+    normalizar(`${x.titulo} ${x.artista} ${x.ministranteNome || ''} ${x.cultoNome || ''}`).includes(f)
+  );
+}
+
+function render() {
+  const lista = linhasFiltradas();
+  const tabela = el('tabela');
+  const vazio = el('vazio');
+
+  if (!lista.length) {
+    tabela.hidden = true;
+    vazio.hidden = false;
+    vazio.innerHTML = filtro
+      ? '<strong>Nada encontrado</strong>Nenhuma música corresponde a este filtro no período escolhido.'
+      : '<strong>Ainda não há nada registado neste período</strong>' +
+        'O histórico começa a encher-se sozinho: cada música projetada entra aqui, com o ' +
+        'tom, o ministrante e o culto do momento.';
+    el('resumo').textContent = '';
+    return;
+  }
+
+  vazio.hidden = true;
+  tabela.hidden = false;
+  if (vista === 'repertorio') desenharRepertorio(lista);
+  else desenharDetalhe(lista);
+}
+
+function desenharRepertorio(grupos) {
+  el('thead').innerHTML =
+    '<tr><th>Música</th><th>Artista</th><th class="num">Vezes</th>' +
+    '<th>Última vez</th><th>Tons</th><th>Ministrantes</th></tr>';
+
+  const tb = el('tbody');
+  tb.innerHTML = '';
+  grupos.forEach((g) => {
+    const dias = diasDesde(g.ultimaEm);
+    const tr = document.createElement('tr');
+    tr.appendChild(td(g.titulo, 'titulo-cel'));
+    tr.appendChild(td(g.artista, 'dim'));
+    tr.appendChild(td(String(g.vezes), 'num'));
+    tr.appendChild(td(`${soData(g.ultimaEm)} · ${haQuantoTempo(dias)}`, 'dim'));
+    tr.appendChild(td((g.tons || []).join(' / '), 'dim'));
+    tr.appendChild(td((g.ministrantes || []).join(', '), 'dim'));
+    tb.appendChild(tr);
+  });
+
+  const total = grupos.reduce((s, g) => s + g.vezes, 0);
+  el('resumo').textContent =
+    `${grupos.length} música${grupos.length === 1 ? '' : 's'} · ` +
+    `${total} projeç${total === 1 ? 'ão' : 'ões'} · ${soData(dados.de)} a ${soData(dados.ate)}`;
+}
+
+function desenharDetalhe(linhas) {
+  el('thead').innerHTML =
+    '<tr><th>Quando</th><th>Música</th><th>Versão</th><th>Tom</th>' +
+    '<th>Ministrante</th><th>Culto</th><th class="acao"></th></tr>';
+
+  const tb = el('tbody');
+  tb.innerHTML = '';
+  linhas.forEach((l) => {
+    const tr = document.createElement('tr');
+    tr.appendChild(td(dataHora(l.projetadoEm), 'dim'));
+
+    const cel = document.createElement('td');
+    cel.className = 'titulo-cel';
+    cel.textContent = l.titulo;
+    if (l.artista) {
+      const s = document.createElement('span');
+      s.className = 'dim';
+      s.textContent = ` — ${l.artista}`;
+      cel.appendChild(s);
+    }
+    tr.appendChild(cel);
+
+    tr.appendChild(td(l.rotulo, 'dim'));
+    tr.appendChild(td(l.tom, 'dim'));
+    tr.appendChild(td(l.ministranteNome, 'dim'));
+    tr.appendChild(td(l.cultoNome, 'dim'));
+
+    const acao = document.createElement('td');
+    acao.className = 'acao';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-linha';
+    btn.textContent = '✕';
+    btn.title = 'Remover esta linha do histórico';
+    btn.setAttribute('aria-label', `Remover ${l.titulo} de ${dataHora(l.projetadoEm)}`);
+    btn.addEventListener('click', () => removerLinha(l));
+    acao.appendChild(btn);
+    tr.appendChild(acao);
+
+    tb.appendChild(tr);
+  });
+
+  el('resumo').textContent =
+    `${linhas.length} registo${linhas.length === 1 ? '' : 's'} · ` +
+    `${soData(dados.de)} a ${soData(dados.ate)}`;
+}
+
+function td(texto, cls) {
+  const c = document.createElement('td');
+  if (cls) c.className = cls;
+  c.textContent = texto == null ? '' : String(texto);
+  return c;
+}
+
+/* ── Ações ─────────────────────────────────────────────────────────────────────────── */
+
+async function removerLinha(l) {
+  const ok = await window.lyraHistorico.confirmar({
+    titulo: 'Remover do histórico',
+    mensagem: `Remover «${l.titulo}» de ${dataHora(l.projetadoEm)}?`,
+    detalhe: 'A linha desaparece dos relatórios. A música em si não é tocada.',
+    confirmar: 'Remover',
+  });
+  if (!ok) return;
+  try {
+    const r = await fetch(`${API}/api/historico/${l.id}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await carregar();
+  } catch (e) {
+    mostrarAviso('Não foi possível remover a linha. ' + (e && e.message));
+  }
+}
+
+async function limparPeriodo() {
+  const rotulo = el('seg-periodo').querySelector('[aria-pressed="true"]').textContent;
+  const quantas = dados.linhas.length || dados.grupos.reduce((s, g) => s + g.vezes, 0);
+  const ok = await window.lyraHistorico.confirmar({
+    titulo: 'Apagar histórico',
+    mensagem: `Apagar ${quantas} registo(s) do período «${rotulo}»?`,
+    detalhe:
+      'Isto não pode ser desfeito, e os relatórios deste período ficam vazios. ' +
+      'Se ainda não exportou o CSV, cancele e exporte primeiro.',
+    confirmar: 'Apagar',
+    perigo: true,
+  });
+  if (!ok) return;
+  try {
+    const r = await fetch(`${API}/api/historico/limpar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirmar: true, de: dados.de, ate: dados.ate }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await carregar();
+  } catch (e) {
+    mostrarAviso('Não foi possível apagar o período. ' + (e && e.message));
+  }
+}
+
+async function exportarCsv() {
+  const lista = linhasFiltradas();
+  if (!lista.length) {
+    mostrarAviso('Não há nada para exportar com os filtros actuais.');
+    return;
+  }
+  /* O CSV é montado no processo principal, pela mesma regra que os testes cobrem — daqui
+     vai só o que está no ecrã, filtro incluído: o operador exporta o que está a ver. */
+  const res = await window.lyraHistorico.exportarCsv({
+    vista,
+    periodo,
+    linhas: lista,
+  });
+  if (res && res.erro) mostrarAviso('Não foi possível gravar o ficheiro. ' + res.erro);
+  else if (res && res.caminho) el('resumo').textContent = `Gravado em ${res.caminho}`;
+}
+
+/* ── Ligações ──────────────────────────────────────────────────────────────────────── */
+
+function ligarSegmento(id, aoEscolher) {
+  el(id).addEventListener('click', (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    [...el(id).querySelectorAll('button')].forEach((x) =>
+      x.setAttribute('aria-pressed', x === b ? 'true' : 'false')
+    );
+    aoEscolher(b.dataset);
+  });
+}
+
+ligarSegmento('seg-periodo', (d) => {
+  periodo = d.periodo;
+  carregar();
+});
+
+ligarSegmento('seg-vista', (d) => {
+  vista = d.vista;
+  carregar();
+});
+
+let filtroTimer = null;
+el('busca').addEventListener('input', (e) => {
+  filtro = e.target.value;
+  /* Filtrar é local; o atraso é só para não redesenhar a tabela a cada tecla. */
+  clearTimeout(filtroTimer);
+  filtroTimer = setTimeout(render, 120);
+});
+
+el('btn-atualizar').addEventListener('click', carregar);
+el('btn-csv').addEventListener('click', exportarCsv);
+el('btn-limpar').addEventListener('click', limparPeriodo);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') window.lyraHistorico.fechar();
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    el('busca').focus();
+    el('busca').select();
+  }
+});
+
+aplicarTema();
+carregar();
+</script>
+</body>
+</html>

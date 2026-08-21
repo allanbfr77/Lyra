@@ -58,6 +58,7 @@ const { createUserPaths } = require('./lib/paths');
 const { migrateUserDataFiles } = require('./lib/migrateUserData');
 const { initControllerDatabase } = require('./db');
 const { iniciarServidorController } = require('./httpControllerServer');
+const historicoWindow = require('./historicoWindow');
 const mainWindow = require('./mainWindow');
 const { createUpdaterApi } = require('./updater');
 const { createServerCompanionUpdateApi } = require('./serverCompanionUpdate');
@@ -121,6 +122,10 @@ app.whenReady().then(async () => {
     /* E é também quem toca o áudio, no lugar da janela de controle do Servidor. */
     obterJanelaPainel: () => mainWindow.getJanelaPrincipal(ctx),
   });
+
+  /* Antes de criar a janela principal: o menu já pode abrir o histórico, e um clique
+     rápido não pode encontrar os handlers por registar. */
+  historicoWindow.registarIpcHistorico(() => mainWindow.getJanelaPrincipal(ctx));
 
   mainWindow.registerMainWindowIpc(ctx, updaterApi, companionApi);
   mainWindow.criarJanela(ctx);
