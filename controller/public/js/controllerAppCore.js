@@ -9971,6 +9971,31 @@ function limparPreviewTituloMusicaAbertura() {
   opTit.classList.add('vazio');
 }
 
+/** O `gap` que o flex já põe entre os filhos da prévia, em px — acompanha o CSS. */
+const GAP_PREVIEW_SLIDES_PX = 14;
+
+/** `line-height` da letra na prévia — acompanha `.op-slide-text` no CSS. */
+const LINE_HEIGHT_PREVIEW_SLIDE = 1.35;
+
+/**
+ * Separa o título da letra por uma linha, como no M3 real.
+ *
+ * Mesma regra de lá (ver `aplicarRespiroTituloAberturaOp`): a linha mede-se na LETRA, e o
+ * `gap` do flex já conta para a distância — a margem só acrescenta o que falta.
+ *
+ * Assim a prévia encolhe junto com a letra: como aqui a fonte é ~12 px e lá são ~4 vh, um
+ * valor fixo em qualquer um dos lados faria os dois deixarem de se parecer.
+ */
+function aplicarRespiroPreviewTituloAbertura() {
+  const opTit = document.getElementById('op-titulo');
+  if (!opTit || opTit.classList.contains('vazio')) return;
+  const opAtual = document.getElementById('op-atual');
+  const fontePx = opAtual ? parseFloat(getComputedStyle(opAtual).fontSize) : 0;
+  const linhaPx = (Number.isFinite(fontePx) && fontePx > 0 ? fontePx : 12) *
+    LINE_HEIGHT_PREVIEW_SLIDE;
+  opTit.style.marginBottom = `${Math.max(0, Math.round(linhaPx - GAP_PREVIEW_SLIDES_PX))}px`;
+}
+
 /** Estilo do título do 1.º slide na prévia M3 (cor + tamanho relativos à config). */
 function aplicarEstiloPreviewTituloAbertura() {
   const opTit = document.getElementById('op-titulo');
@@ -9996,6 +10021,7 @@ function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
   opTit.textContent = textoSlideMaiusculo(t);
   opTit.classList.remove('vazio');
   aplicarEstiloPreviewTituloAbertura();
+  aplicarRespiroPreviewTituloAbertura();
 }
 
 /**

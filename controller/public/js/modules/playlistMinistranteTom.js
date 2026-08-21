@@ -83,6 +83,18 @@ export function htmlSelectTom(tomAtual) {
 }
 
 /**
+ * Seta circular anti-horária — «repor tudo ao estado inicial».
+ *
+ * Traço e não preenchimento, `currentColor` e 14 px: é assim que os ícones do painel são
+ * desenhados, e um ícone que destoasse dos vizinhos chamaria mais atenção do que a ação
+ * merece — ela é rara, e é destrutiva.
+ */
+const SVG_LIMPAR_MESTRE =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+
+/**
  * @param {object} item
  * @param {number} songNum
  * @param {string} rotuloVersaoHtml já escapado / sufixo pronto
@@ -93,8 +105,18 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
   const lista = obterCacheMinistrantes();
+  /*
+   * Seta circular, no lugar do antigo `∅`.
+   *
+   * O conjunto vazio dizia bem o que faz a quem já sabe o que faz, e nada a quem não sabe —
+   * e este botão aparece uma vez só, na primeira linha, onde ninguém o procura.
+   *
+   * Como a seta também se lê como «desfazer», o que a desambigua é o `title`: diz que
+   * apaga, diz em quantas músicas, e diz que não há como voltar atrás. É o texto que o
+   * ícone não consegue carregar sozinho.
+   */
   const btnLimparMestre = opts.mostrarLimparMestre
-    ? `<button class="btn sm pl-btn-limpar-mestre-min-tom" type="button" title="Limpar ministrante e tom de todas as músicas desta playlist" aria-label="Limpar ministrante e tom de toda a playlist">∅</button>`
+    ? `<button class="btn sm pl-btn-limpar-mestre-min-tom" type="button" title="Apagar o ministrante e o tom de TODAS as músicas desta playlist (não é possível desfazer)" aria-label="Apagar ministrante e tom de todas as músicas da playlist">${SVG_LIMPAR_MESTRE}</button>`
     : '';
   return `
       <div class="playlist-row-cols">

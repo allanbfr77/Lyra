@@ -78,16 +78,19 @@
     #proximo {
       color: #f3c15a;
     }
-    /* Título da música no 1.º slide — no topo, fora da pilha centralizada da letra. */
+    /*
+     * Título da música no 1.º slide — primeiro item da pilha, não uma camada solta.
+     *
+     * Era `position: absolute; top: 1.2vh`, encostado ao topo do ecrã enquanto a letra se
+     * centrava na altura toda. A distância entre os dois não era escolhida por ninguém:
+     * saía do tamanho do bloco de letra, e num slide curto abria um vazio enorme.
+     *
+     * No fluxo, título e letra centram-se JUNTOS e a distância é a que `margin-bottom`
+     * disser — uma linha da letra, calculada em `aplicarRespiroTituloAberturaOp`.
+     */
     .titulo-musica-op {
-      position: absolute;
-      top: 1.2vh;
-      left: 0;
-      right: 0;
-      z-index: 2;
       width: 100%;
       max-width: 100%;
-      padding: 0 2vw;
       box-sizing: border-box;
       text-align: center;
       font-weight: 700;
@@ -444,6 +447,40 @@
     }
 
     /** Cor e tamanho do título do 1.º slide — aplicados na config, como atual/próximo. */
+    /** O `gap` que o flex já põe entre os filhos de `.wrap`, em vh — acompanha o CSS. */
+    const GAP_SLIDES_VH = 2.8;
+
+    /** `line-height` da letra — acompanha o `.slide` no CSS. */
+    const LINE_HEIGHT_SLIDE = 1.35;
+
+    /**
+     * Separa o título da letra por exactamente uma linha em branco.
+     *
+     * «Uma linha» é medida na letra, não no título: é o texto de baixo que dá a escala com
+     * que o olho lê o espaço, e é lá que uma linha vazia teria a altura que tem.
+     *
+     * O `gap` do flex já separa os dois; a margem só acrescenta o que falta para chegar a
+     * uma linha. Somar a linha inteira por cima do gap daria quase duas.
+     */
+    function aplicarRespiroTituloAberturaOp() {
+      if (!elTituloMusicaOp || elTituloMusicaOp.classList.contains('oculta')) return;
+      const mon = displayConfig.ministrante || {};
+      /*
+       * A fonte EFECTIVA do slide, não a da config: o auto-fit encolhe-a quando a letra é
+       * comprida, e uma linha medida na config ficaria maior do que a linha que está mesmo
+       * no ecrã — logo naquelas músicas onde o espaço já é escasso.
+       */
+      const fonteEfetiva = parseFloat(elAtual && elAtual.style.fontSize);
+      const fonteVh = Number.isFinite(fonteEfetiva) && fonteEfetiva > 0
+        ? fonteEfetiva
+        : Math.max(2.2, Number(mon.fontSizeAtual ?? mon.fontSize ?? 4.1));
+      const linhaVh = fonteVh * LINE_HEIGHT_SLIDE;
+      /* Fonte pequena com gap grande já chega a uma linha — nesse caso não se acrescenta
+         nada, em vez de encolher o gap e aproximar mais do que o pedido. */
+      const faltaVh = Math.max(0, linhaVh - GAP_SLIDES_VH);
+      elTituloMusicaOp.style.marginBottom = `${faltaVh.toFixed(2)}vh`;
+    }
+
     function aplicarEstiloTituloAberturaOp() {
       if (!elTituloMusicaOp) return;
       const mon = displayConfig.ministrante || {};
@@ -474,6 +511,7 @@
       elTituloMusicaOp.classList.remove('oculta');
       elTituloMusicaOp.textContent = tit.toUpperCase();
       aplicarEstiloTituloAberturaOp();
+      aplicarRespiroTituloAberturaOp();
     }
 
     function substituirCamadaDisplay(atual, camada) {
@@ -664,6 +702,8 @@
 
       ajustarPainel(elAtual, baseAtual, plMed.atual);
       ajustarPainel(elProximo, baseProximo, plMed.proximo);
+      /* Por último: a linha do respiro mede-se na fonte que acabou de ficar decidida. */
+      aplicarRespiroTituloAberturaOp();
     }
 
     function limparCapasApresentacaoOuAviso() {

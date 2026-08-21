@@ -1780,6 +1780,12 @@
     .playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom {
       color: var(--text-dim);
       min-width: 26px;
+      /* O `.btn` base alinha texto; este leva um SVG e precisa de o centrar à mão, senão
+         a seta assenta na linha de base e fica um par de pixels abaixo do ↑ ↓ ✕ ao lado. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 8px;
     }
     .playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom:hover {
       color: var(--text);
@@ -3094,12 +3100,10 @@
       color: #FFDE21;
     }
 
+    /* Primeiro item da pilha, como no M3 real — ver o CSS de `.titulo-musica-op` em
+       `display-operator.html`. A distância à letra é uma linha, posta por
+       `aplicarRespiroPreviewTituloAbertura`. */
     .op-titulo-musica {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 2;
       font-family: var(--slide-font);
       font-weight: 700;
       text-transform: uppercase;
@@ -5233,14 +5237,14 @@
     .biblia-livro-btn.biblia-livro-btn--texto-escuro { color: #1a1a1a; }
 
     .biblia-livro-btn .livro-sigla {
-      font-size: 17px;
+      font-size: 19px;
       font-weight: 900;
       display: block;
       margin-bottom: 4px;
       color: inherit;
     }
     .biblia-livro-btn .livro-nome {
-      font-size: 11px;
+      font-size: 13px;
       opacity: 0.9;
       display: block;
       line-height: 1.2;
