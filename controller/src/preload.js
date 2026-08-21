@@ -33,6 +33,17 @@ contextBridge.exposeInMainWorld('lyraElectron', {
   limparCacheElectron: () => ipcRenderer.invoke('lyra-clear-cache'),
   reiniciarServidorLocal: () => ipcRenderer.invoke('lyra-restart-local-server'),
   obterVersaoApp: () => ipcRenderer.invoke('lyra-app-version'),
+  /**
+   * Pré-voo: confirma se os ficheiros de mídia ainda existem no disco.
+   *
+   * Entra e sai só o essencial — caminhos que o painel já conhece, e um booleano por cada.
+   * Nada aqui lista pastas nem lê conteúdo: a ponte serve esta pergunta e mais nenhuma.
+   *
+   * @param {string[]} caminhos
+   * @returns {Promise<Array<{caminho: string, existe: boolean}>>}
+   */
+  verificarArquivosExistem: (caminhos) =>
+    ipcRenderer.invoke('lyra-verificar-arquivos', Array.isArray(caminhos) ? caminhos : []),
   /** Informa o main se há ligação Socket.IO ao Servidor remoto (habilita menu Encerrar Server). */
   informarEstadoRemoto: (ligado) => {
     ipcRenderer.send('lyra-remoto-estado', { ligado: !!ligado });

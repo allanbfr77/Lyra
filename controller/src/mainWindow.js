@@ -2,6 +2,8 @@
 
 const { BrowserWindow, ipcMain, dialog, Menu, app, session } = require('electron');
 const path = require('path');
+/* Só para o pré-voo verificar ficheiros de mídia — ver `lyra-verificar-arquivos`. */
+const fsPreVoo = require('fs');
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
@@ -381,9 +383,29 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
   // (No Windows, `visible: false` em item de topo não oculta de forma confiável;
   // por isso removemos do template em vez de apenas escondê-lo.)
   const template = [
+    /*
+     * «Culto» — as ferramentas de quem prepara e presta contas de um culto.
+     *
+     * Menu próprio, e não mais itens em «Janelas»: ali vivem os consoles de diagnóstico, e
+     * um «Verificar antes de começar» ao lado de «Abrir console do controlador» lê-se como
+     * ferramenta de depuração. Estas duas não são para depurar coisa nenhuma — são para o
+     * operador usar todos os domingos.
+     *
+     * A ordem é a do próprio culto: primeiro verifica-se, depois consulta-se o que passou.
+     */
     {
-      label: 'Janelas',
+      label: 'Culto',
       submenu: [
+        {
+          label: 'Verificar antes de começar…',
+          /* F9, e não `Ctrl+Shift+V`: esse é o «colar sem formatação» do Chromium, e um
+             acelerador de menu tem prioridade sobre ele — passaria a roubar a colagem em
+             todos os campos de letra do painel. F9 está livre e alcança-se com uma tecla,
+             que é o que serve a quem está com pressa antes de começar. */
+          accelerator: 'F9',
+          click: () => enviarComandoMenuAoRenderer(ctx, 'culto-prevoo'),
+        },
+        { type: 'separator' },
         {
           label: 'Histórico e relatórios…',
           accelerator: 'CmdOrCtrl+H',
@@ -391,9 +413,11 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
             historicoWindow.abrirJanelaHistorico(getJanelaPrincipal(ctx));
           },
         },
-        /* Separador: acima, a janela que o operador usa; abaixo, os consoles de
-           diagnóstico. Sem ele, «Histórico» lê-se como mais uma ferramenta de depuração. */
-        { type: 'separator' },
+      ],
+    },
+    {
+      label: 'Janelas',
+      submenu: [
         {
           label: 'Abrir console do controlador',
           click: () => {
@@ -853,6 +877,32 @@ function registerMainWindowIpc(ctx, updaterApi, companionApi) {
   ipcMain.handle('lyra-clear-cache', () => limparCacheElectron(ctx));
   ipcMain.handle('lyra-restart-local-server', () => reiniciarServidorLocal(ctx));
   ipcMain.handle('lyra-app-version', () => app.getVersion());
+
+  /*
+   * Pré-voo: os ficheiros de mídia ainda estão onde estavam?
+   *
+   * Devolve só um booleano por caminho, e nunca lista uma pasta nem lê conteúdo. O painel
+   * já conhece estes caminhos — foi ele que os guardou quando o operador adicionou os
+   * vídeos —, por isso não há aqui informação nova a escapar; o que não pode acontecer é
+   * esta ponte virar um `fs` genérico ao alcance da página.
+   *
+   * O tecto de 200 caminhos é um travão, não um limite de uso: nenhum culto tem tantos
+   * vídeos, e um pedido com mil entradas só pode ser engano ou abuso.
+   */
+  ipcMain.handle('lyra-verificar-arquivos', (_ev, caminhos) => {
+    const lista = Array.isArray(caminhos) ? caminhos.slice(0, 200) : [];
+    return lista.map((c) => {
+      const caminho = String(c || '').trim();
+      if (!caminho) return { caminho, existe: false };
+      try {
+        /* `isFile`, e não só `existsSync`: uma pasta com o nome do vídeo passaria no teste
+           de existência e falharia na projeção, que é exactamente o que queremos apanhar. */
+        return { caminho, existe: fsPreVoo.statSync(caminho).isFile() };
+      } catch (_) {
+        return { caminho, existe: false };
+      }
+    });
+  });
 
   ipcMain.removeAllListeners('lyra-remoto-estado');
   ipcMain.on('lyra-remoto-estado', (_ev, payload) => {
