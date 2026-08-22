@@ -1,6 +1,7 @@
 'use strict';
 
 const { autoUpdater } = require('electron-updater');
+const { normalizarReleaseNotes } = require('./lib/releaseNotesText');
 
 function mensagemErroAtualizacaoAmigavel(err) {
   const msg = String(err?.message || err || '');
@@ -21,20 +22,6 @@ function mensagemErroAtualizacaoAmigavel(err) {
     return 'Falha de rede ao acessar o GitHub Releases. Verifique sua conexão com a internet.';
   }
   return msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
-}
-
-function normalizarReleaseNotes(releaseNotes) {
-  if (Array.isArray(releaseNotes)) {
-    return releaseNotes
-      .map((item) => {
-        if (!item) return '';
-        if (typeof item === 'string') return item;
-        return String(item.note || item.name || '');
-      })
-      .filter(Boolean)
-      .join('\n\n');
-  }
-  return typeof releaseNotes === 'string' ? releaseNotes : '';
 }
 
 function createUpdaterApi(ctx, deps) {
