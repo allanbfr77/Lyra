@@ -17,6 +17,9 @@ secrets.json
 
 # Dados brutos do Supabase (gerados localmente; podem conter dados sensíveis)
 tools/_raw-supabase-musicas.json
+
+# Gerado no build do Controlador (chave publishable embutida no instalador)
+controller/resources/runtime-env.json
 # Nota: os .sqlite da Bíblia agora vivem em controller/data/biblia/ e são
 # versionados de propósito, pois precisam ir embutidos no instalador do controller.
 

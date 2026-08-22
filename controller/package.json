@@ -1,6 +1,6 @@
 {
   "name": "lyra-controller",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Controlador Lyra — PC operador",
   "main": "src/main.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "dev": "nodemon src/main.js",
     "prepublish:win": "node -e \"if (!process.env.GH_TOKEN) { console.error('GH_TOKEN não definido no ambiente.'); process.exit(1); }\"",
     "catalog:build": "node ../tools/gerar-catalog.js",
-    "prebuild:win": "node ../tools/gerar-catalog.js",
+    "prebuild:win": "node ../tools/gerar-catalog.js && node ../tools/gerar-controller-runtime-env.js",
     "build:win": "electron-builder --win nsis",
     "publish:win": "electron-builder --win nsis --publish always",
     "build:dir": "electron-builder --dir"
@@ -61,6 +61,10 @@
         "filter": [
           "catalog.db"
         ]
+      },
+      {
+        "from": "resources/runtime-env.json",
+        "to": "runtime-env.json"
       }
     ],
     "icon": "../brand/lyra-controller-512.png",

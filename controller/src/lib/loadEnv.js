@@ -61,12 +61,41 @@ function hydrateFromWindowsUserEnv() {
   }
 }
 
-/** Carrega `.env` local e variáveis de usuário do Windows (Cursor/Electron não herdam setx). */
+/**
+ * Fallback do instalador: `resources/runtime-env.json` gerado no build
+ * (`tools/gerar-controller-runtime-env.js` → extraResources).
+ * Só preenche chaves ainda vazias (não sobrescreve .env / Windows).
+ */
+function hydrateFromPackagedRuntimeEnv() {
+  const candidatos = [];
+  if (process.resourcesPath) {
+    candidatos.push(path.join(process.resourcesPath, 'runtime-env.json'));
+  }
+  candidatos.push(path.join(__dirname, '../../resources/runtime-env.json'));
+  for (const filePath of candidatos) {
+    if (!filePath || !fs.existsSync(filePath)) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (!raw || typeof raw !== 'object') continue;
+      for (const key of ENV_KEYS_WINDOWS) {
+        if (String(process.env[key] || '').trim()) continue;
+        const val = String(raw[key] || '').trim();
+        if (val) process.env[key] = val;
+      }
+      return;
+    } catch (_) {
+      // intencional — JSON inválido ou ilegível
+    }
+  }
+}
+
+/** Carrega `.env` local, Windows user env e runtime-env do instalador. */
 function loadLocalEnv() {
   const srcDir = __dirname;
   loadEnvFile(path.join(srcDir, '../../.env'));
   loadEnvFile(path.join(srcDir, '../.env'));
   hydrateFromWindowsUserEnv();
+  hydrateFromPackagedRuntimeEnv();
 }
 
 module.exports = { loadLocalEnv };
