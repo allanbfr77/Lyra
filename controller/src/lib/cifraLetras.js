@@ -170,12 +170,77 @@ function estrofesDeParagrafos(blob) {
 }
 
 /**
+ * Markup Next.js recente do Cifra: a letra fica em `<div>` filhos (não em `<p>`),
+ * com acordes em `<b data-chord-name>`. Sem este parser, `data-chord-content`
+ * existia mas devolvia 0 estrofes → falso "Cifra sem letra no HTML".
+ */
+function estrofesDeChordContentDivs(blob) {
+  const estrofes = [];
+  let i = 0;
+  while (i < blob.length) {
+    const open = blob.slice(i).search(/<div\b/i);
+    if (open === -1) break;
+    const openAbs = i + open;
+    const openTagEnd = blob.indexOf('>', openAbs);
+    if (openTagEnd === -1) break;
+
+    let depth = 1;
+    let j = openTagEnd + 1;
+    while (j < blob.length && depth > 0) {
+      const slice = blob.slice(j);
+      const mOpen = /<div\b/i.exec(slice);
+      const mClose = /<\/div>/i.exec(slice);
+      const openRel = mOpen ? mOpen.index : -1;
+      const closeRel = mClose ? mClose.index : -1;
+      if (closeRel === -1) return estrofes;
+      if (openRel !== -1 && openRel < closeRel) {
+        depth += 1;
+        j += openRel + mOpen[0].length;
+      } else {
+        depth -= 1;
+        if (depth === 0) {
+          const inner = blob.slice(openTagEnd + 1, j + closeRel);
+          // Só folhas: se ainda tem <div>, o walk externo já visita os filhos.
+          if (!/<div\b/i.test(inner)) {
+            let text = inner.replace(/<b\b[^>]*\bdata-chord-name\b[^>]*>[\s\S]*?<\/b>/gi, '');
+            text = text.replace(/<br\s*\/?>/gi, '\n');
+            text = text.replace(/<[^>]+>/g, '');
+            text = decodeHtmlEntidades(text);
+            const stanza = text
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .join('\n')
+              .trim();
+            if (stanza && textoTemLetraUtil(stanza)) estrofes.push(stanza);
+          }
+          i = j + closeRel + 6;
+          break;
+        }
+        j += closeRel + mClose[0].length;
+      }
+    }
+    if (depth !== 0) break;
+  }
+  return estrofes;
+}
+
+/** Descarta blocos só de [Intro]/acordes, sem verso cantado. */
+function textoTemLetraUtil(texto) {
+  const limpo = String(texto || '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\b[A-G](?:#|b)?(?:m|maj|min|dim|aug|sus|add|M)?[0-9]*(?:\/[A-G](?:#|b)?)?\b/g, ' ')
+    .replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  return limpo.length >= 4;
+}
+
+/**
  * Estrofes da página de letra do CifraClub.
  *
- * Duas estratégias: `div.letra` (markup antigo) e `data-chord-content` (Next.js
- * atual). A segunda foi acrescentada depois de constatar que a primeira não casa
- * mais — e que, sem ela, a extração caía na meta description, que traz **apenas
- * as 4 primeiras linhas** da música.
+ * Estratégias: `div.letra` (legado), `data-chord-content` com `<p>` (Next.js
+ * antigo) e `data-chord-content` com `<div>` + `<b data-chord-name>` (Next.js
+ * atual). Sem a terceira, a página tinha a letra no HTML mas a extração
+ * devolvia vazio.
  */
 function estrofesDePaginaCifraClub(html) {
   const legado = extrairHtmlInternoDivPorClasse(html, 'letra');
@@ -187,8 +252,10 @@ function estrofesDePaginaCifraClub(html) {
   for (const atributo of ['data-chord-content', 'data-chord-container']) {
     const blob = extrairHtmlInternoPorAtributo(html, atributo, atributo === 'data-chord-container' ? 'article' : 'div');
     if (!blob) continue;
-    const estrofes = estrofesDeParagrafos(blob);
-    if (estrofes.length) return estrofes;
+    const porP = estrofesDeParagrafos(blob);
+    if (porP.length) return porP;
+    const porDiv = estrofesDeChordContentDivs(blob);
+    if (porDiv.length) return porDiv;
   }
 
   return [];
@@ -303,20 +370,231 @@ function tituloArtistaDoScriptPageArgsLetras(html) {
   return { titulo, artista };
 }
 
-function slugsLetrasParaTentar(htmlCifra, dns, songSlug) {
+/** Máximo de páginas do Letras tentadas via índice (após o slug direto falhar). */
+const MAX_LETRAS_VIA_INDICE = 5;
+
+/**
+ * Converte título exibido em slug de URL (ex.: "A Casa é Sua" → "a-casa-e-sua").
+ * Usado quando a URL do Cifra não bate com a do Letras (títulos compostos com "/").
+ */
+function slugifyParaUrl(texto) {
+  return foldAccents(String(texto || ''))
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Alternativas de slug a partir do título (ex.: "Sou Casa / A Casa é Sua").
+ * O Cifra muitas vezes usa só a 1ª parte na URL; o Letras usa a 2ª ou o nome completo.
+ */
+function slugsAlternativosDoTitulo(titulo, songSlug) {
+  const out = [];
+  const t = String(titulo || '').trim();
+  if (!t) return out;
+  for (const parte of t.split(/\s*\/\s*/)) {
+    const s = slugifyParaUrl(parte);
+    if (s && s !== songSlug) out.push(s);
+  }
+  const full = slugifyParaUrl(t.replace(/\//g, ' '));
+  if (full && full !== songSlug) out.push(full);
+  return out;
+}
+
+function slugsLetrasParaTentar(htmlCifra, dns, songSlug, tituloOpcional) {
   const esc = String(dns || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (!esc || !songSlug) return [songSlug];
+  if (!esc || !songSlug) return songSlug ? [songSlug] : [];
   const re = new RegExp(`href="/${esc}/([a-z0-9-]+)/"`, 'gi');
   const found = new Set();
   let m;
-  while ((m = re.exec(htmlCifra)) !== null) found.add(m[1]);
+  while ((m = re.exec(htmlCifra || '')) !== null) found.add(m[1]);
   const arr = [...found];
   const related = arr.filter((s) => s === songSlug || s.startsWith(`${songSlug}-`));
   const ordered =
     related.length > 0
       ? [...related].sort((a, b) => b.length - a.length)
       : [songSlug];
-  return [...new Set(ordered)];
+  const extras = slugsAlternativosDoTitulo(tituloOpcional, songSlug);
+  return [...new Set([...ordered, ...extras])];
+}
+
+/**
+ * Pares artista/música alternativos quando o path do índice não existe no Letras
+ * (ex.: /casa-worship-elizeu-alves/sou-casa-a-casa-e-sua/ → /elizeu-alves/sou-casa/).
+ */
+function paresDnsSlugAlternativos(dns, songSlug) {
+  const out = [];
+  const d = String(dns || '');
+  const s = String(songSlug || '');
+  if (!d || !s) return out;
+
+  const artistaUtil = (a) => {
+    const parts = String(a || '').split('-').filter(Boolean);
+    return parts.length >= 2 && String(a).length >= 8;
+  };
+
+  const dParts = d.split('-').filter(Boolean);
+  for (let i = 1; i < dParts.length; i++) {
+    const left = dParts.slice(0, i).join('-');
+    const right = dParts.slice(i).join('-');
+    if (artistaUtil(left)) out.push([left, s]);
+    if (artistaUtil(right)) out.push([right, s]);
+  }
+
+  const sParts = s.split('-').filter(Boolean);
+  const songCuts = new Set();
+  if (sParts.length >= 2) songCuts.add(sParts.slice(0, 2).join('-'));
+  if (sParts.length >= 3) songCuts.add(sParts.slice(0, 3).join('-'));
+  if (sParts.length >= 4) {
+    const mid = Math.floor(sParts.length / 2);
+    songCuts.add(sParts.slice(0, mid).join('-'));
+    songCuts.add(sParts.slice(mid).join('-'));
+  }
+
+  const artists = new Set([d, ...out.map((p) => p[0])].filter(artistaUtil));
+  // Sempre inclui o dns original para cortes curtos da música
+  artists.add(d);
+
+  const pares = [];
+  for (const art of artists) {
+    for (const song of songCuts) {
+      if (art === d && song === s) continue;
+      pares.push([art, song]);
+    }
+  }
+  // Artista derivado + slug completo (menos prioritário, mas útil)
+  for (const [art] of out) {
+    if (art !== d) pares.push([art, s]);
+  }
+  return pares;
+}
+
+function pontuarCandidatoLetras(row, dns, songSlug, titulo) {
+  let score = 0;
+  const d = String(dns || '').toLowerCase();
+  const s = String(songSlug || '').toLowerCase();
+  const seg = String(row.path || '')
+    .toLowerCase()
+    .split('/')
+    .filter(Boolean);
+  const rd = seg[0] || '';
+  const rs = seg[1] || '';
+
+  if (rd && d) {
+    if (rd === d) score += 10;
+    else if (d.endsWith(`-${rd}`)) score += 12; // feat: casa-worship-elizeu-alves → elizeu-alves
+    else if (d.startsWith(`${rd}-`)) score += 6;
+    else if (d.includes(rd) || rd.includes(d)) score += 4;
+  }
+  if (rs && s) {
+    if (rs === s) score += 5; // slug completo do Cifra muitas vezes 404 no Letras
+    else if (s.startsWith(`${rs}-`)) {
+      // Prefixo curto (ex.: sou-casa ⊂ sou-casa-a-casa-e-sua) — padrão real do Letras
+      score += 12;
+      if (rs.split('-').length <= 3) score += 4;
+    } else if (rs.startsWith(`${s}-`) || s.includes(rs) || rs.includes(s)) {
+      score += 4;
+    }
+  }
+
+  const tit = foldAccents(row.titulo || '');
+  const want = foldAccents(titulo || '');
+  if (tit && want) {
+    if (tit === want) score += 6;
+    else if (tit.includes(want) || want.includes(tit)) score += 4;
+  }
+  return score;
+}
+
+/**
+ * Quando o slug do Cifra não existe no Letras, consulta o índice Studio Sol
+ * com título+artista e tenta as URLs candidatas (preferindo o mesmo artista).
+ *
+ * @returns {Promise<{ estrofes: string[], titulo: string, artista: string, path?: string }|null>}
+ */
+async function tentarLetraLetrasViaIndice({ titulo, artista, dns, songSlug, jaTentados }) {
+  const tit = String(titulo || '').trim();
+  const art = String(artista || '').trim();
+  const dnsNorm = String(dns || '').toLowerCase();
+  const slugNorm = String(songSlug || '').toLowerCase();
+
+  const vistoPath = new Set();
+  const resultados = [];
+
+  const semMedley = slugNorm.replace(/^medley-/, '');
+  const termos = [
+    ...new Set(
+      [
+        tit,
+        art ? `${tit} ${art}` : '',
+        slugParaTituloExibicao(semMedley),
+        slugParaTituloExibicao(dnsNorm),
+      ].filter((t) => String(t || '').trim().length >= 4)
+    ),
+  ];
+  for (const termo of termos) {
+    try {
+      const rows = await buscarNoIndiceDeMusicas({
+        texto: termo,
+        filtros: { titulo: true, artista: false, letra: false },
+        fonte: 'letras-mus-br',
+      });
+      for (const row of rows || []) {
+        if (vistoPath.has(row.path)) continue;
+        vistoPath.add(row.path);
+        resultados.push(row);
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+
+  // Pares derivados do path (artista composto / título com barra) mesmo sem índice.
+  for (const [d, s] of paresDnsSlugAlternativos(dnsNorm, slugNorm)) {
+    const path = `/${d}/${s}/`;
+    if (vistoPath.has(path)) continue;
+    vistoPath.add(path);
+    resultados.push({
+      path,
+      titulo: tit || slugParaTituloExibicao(s),
+      artista: art || slugParaTituloExibicao(d),
+    });
+  }
+
+  if (!resultados.length) return null;
+
+  const ordenados = [...resultados].sort(
+    (a, b) =>
+      pontuarCandidatoLetras(b, dnsNorm, slugNorm, tit) -
+      pontuarCandidatoLetras(a, dnsNorm, slugNorm, tit)
+  );
+
+  for (const row of ordenados.slice(0, MAX_LETRAS_VIA_INDICE + 8)) {
+    const seg = String(row.path || '')
+      .split('/')
+      .filter(Boolean);
+    const d = seg[0] || '';
+    const s = seg[1] || '';
+    if (!d || !s) continue;
+    const chave = `${d}/${s}`.toLowerCase();
+    if (jaTentados && jaTentados.has(chave)) continue;
+    if (jaTentados) jaTentados.add(chave);
+    try {
+      const hl = await fetchHtmlLetrasMus(d, s);
+      const estrofes = estrofesDePaginaLetrasMusHtml(hl);
+      if (estrofes.length) {
+        const pa = tituloArtistaDoScriptPageArgsLetras(hl);
+        return {
+          estrofes,
+          titulo: pa.titulo || row.titulo || '',
+          artista: pa.artista || row.artista || '',
+          path: `/${d}/${s}/`,
+        };
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  return null;
 }
 
 async function fetchHtmlLetrasMus(dns, slugMusica) {
@@ -543,28 +821,21 @@ function normalizarEstrofesComMaxLinhas(estrofes, maxLinhasPorSlide = 4) {
     ? parseInt(maxLinhasPorSlide, 10)
     : 4;
 
-  const blocos = [];
-  let totalLinhasMusica = 0;
+  // "Linhas por slide" vale sobre a letra inteira: junta todos os versos e fatia
+  // em grupos de no máximo N. Tratar cada verso/div do Cifra como slide próprio
+  // (comum no Next.js) fazia 44 slides com "4 linhas" selecionado.
+  const todasLinhas = [];
   for (const bloco of inArr) {
     const t = String(bloco || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
     if (!t) continue;
     const rawLines = expandirLinhasLongas(
       t.split('\n').map((l) => l.trim()).filter((l) => l.length)
     );
-    if (rawLines.length === 0) continue;
-    totalLinhasMusica += rawLines.length;
-    blocos.push(rawLines);
+    todasLinhas.push(...rawLines);
   }
 
-  const out = [];
-  for (const rawLines of blocos) {
-    if (rawLines.length === 1) {
-      out.push(rawLines[0]);
-      continue;
-    }
-    out.push(...fatiarLinhasEmSlides(rawLines, maxLinhas, totalLinhasMusica));
-  }
-  return out.length ? out : [''];
+  if (!todasLinhas.length) return [''];
+  return fatiarLinhasEmSlides(todasLinhas, maxLinhas, todasLinhas.length);
 }
 
 function tituloArtistaDoHtmlCifra(html) {
@@ -574,6 +845,21 @@ function tituloArtistaDoHtmlCifra(html) {
   const h2 = html.match(/<h2[^>]*class="[^"]*t3[^"]*"[^>]*>([\s\S]*?)<\/h2>/i);
   if (h1) titulo = decodeHtmlEntidades(h1[1].replace(/<[^>]+>/g, '')).trim();
   if (h2) artista = decodeHtmlEntidades(h2[1].replace(/<[^>]+>/g, '')).trim();
+
+  // Next.js: h1.t1/h2.t3 sumiram; og:title ainda traz "Música - Artista - Cifra Club".
+  if (!titulo || !artista) {
+    const og = metaTagContent(html, { property: 'og:title' }) || metaTagContent(html, { name: 'title' });
+    if (og) {
+      const limpo = og.replace(/\s*[-–]\s*Cifra Club\s*$/i, '').trim();
+      const parts = limpo.split(/\s[-–]\s/);
+      if (parts.length >= 2) {
+        if (!titulo) titulo = parts[0].trim();
+        if (!artista) artista = parts.slice(1).join(' - ').trim();
+      } else if (!titulo) {
+        titulo = limpo;
+      }
+    }
+  }
   return { titulo, artista };
 }
 
@@ -607,11 +893,14 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
    */
   let estrofes = estrofesDePaginaCifraClub(html);
   let parcial = false;
+  const { titulo: tHtmlEarly, artista: aHtmlEarly } = tituloArtistaDoHtmlCifra(html);
+  const jaTentadosLetras = new Set();
 
   // Página completa do Letras.mus.br antes de qualquer meta tag.
   if (!estrofes.length && dns && songSlug) {
-    const slugs = slugsLetrasParaTentar(html, dns, songSlug);
+    const slugs = slugsLetrasParaTentar(html, dns, songSlug, tHtmlEarly);
     for (const slugTry of slugs) {
+      jaTentadosLetras.add(`${dns}/${slugTry}`.toLowerCase());
       try {
         const hl = await fetchHtmlLetrasMus(dns, slugTry);
         estrofes = estrofesDePaginaLetrasMusHtml(hl);
@@ -619,6 +908,7 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
           const pa = tituloArtistaDoScriptPageArgsLetras(hl);
           tituloLetras = pa.titulo;
           artistaLetras = pa.artista;
+          parcial = false;
           break;
         }
         // Guarda a og:description desta página como último recurso, sem parar aqui.
@@ -633,6 +923,23 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
           }
         }
       } catch (_) { continue; }
+    }
+  }
+
+  // Slug do Cifra ≠ Letras (título composto, artista diferente, etc.): busca no índice.
+  if (!estrofes.length || parcial) {
+    const viaIndice = await tentarLetraLetrasViaIndice({
+      titulo: tHtmlEarly || slugParaTituloExibicao(songSlug),
+      artista: aHtmlEarly || slugParaTituloExibicao(dns),
+      dns,
+      songSlug,
+      jaTentados: jaTentadosLetras,
+    });
+    if (viaIndice?.estrofes?.length) {
+      estrofes = viaIndice.estrofes;
+      tituloLetras = viaIndice.titulo || tituloLetras;
+      artistaLetras = viaIndice.artista || artistaLetras;
+      parcial = false;
     }
   }
 
@@ -651,9 +958,12 @@ async function extrairLetraCifraClubParaPreviewOuImport(pathRaw, opts = {}) {
 
   estrofes = normalizarEstrofesComMaxLinhas(estrofes, maxLinhasPorSlide);
 
-  const { titulo: tHtml, artista: aHtml } = tituloArtistaDoHtmlCifra(html);
-  const titulo = String(tituloLetras || tHtml || '').trim() || slugParaTituloExibicao(seg[1] || '') || 'Sem título';
-  const artista = String(artistaLetras || aHtml || '').trim() || slugParaTituloExibicao(seg[0] || '');
+  const titulo =
+    String(tituloLetras || tHtmlEarly || '').trim() ||
+    slugParaTituloExibicao(seg[1] || '') ||
+    'Sem título';
+  const artista =
+    String(artistaLetras || aHtmlEarly || '').trim() || slugParaTituloExibicao(seg[0] || '');
   const pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return { titulo, artista, estrofes, path: pathNorm, maxLinhasPorSlide, parcial };
 }
@@ -760,15 +1070,33 @@ async function buscarLetraCifraClub(titulo, artista) {
           const seg = row.path.split('/').filter(Boolean);
           const dns = seg[0] || '';
           const songSlug = seg[1] || '';
+          const { titulo: tRow, artista: aRow } = tituloArtistaDoHtmlCifra(htmlLetra);
+          const jaTentados = new Set();
           if (dns && songSlug) {
-            const slugs = slugsLetrasParaTentar(htmlLetra, dns, songSlug);
+            const slugs = slugsLetrasParaTentar(
+              htmlLetra,
+              dns,
+              songSlug,
+              tRow || row.titulo
+            );
             for (const slugTry of slugs) {
+              jaTentados.add(`${dns}/${slugTry}`.toLowerCase());
               try {
                 const hl = await fetchHtmlLetrasMus(dns, slugTry);
                 estrofes = estrofesDePaginaLetrasMusHtml(hl);
                 if (estrofes.length) break;
               } catch (_) { continue; }
             }
+          }
+          if (!estrofes.length) {
+            const viaIndice = await tentarLetraLetrasViaIndice({
+              titulo: tRow || row.titulo || slugParaTituloExibicao(songSlug),
+              artista: aRow || row.artista || slugParaTituloExibicao(dns),
+              dns,
+              songSlug,
+              jaTentados,
+            });
+            if (viaIndice?.estrofes?.length) estrofes = viaIndice.estrofes;
           }
         }
 
@@ -795,6 +1123,9 @@ module.exports = {
   foldAccents,
   decodeHtmlEntidades,
   slugParaTituloExibicao,
+  slugifyParaUrl,
+  slugsAlternativosDoTitulo,
+  slugsLetrasParaTentar,
   parseCaminhoLetraCifraClub,
   normalizarMaxLinhasPorSlide,
   normalizarEstrofesComMaxLinhas,
@@ -806,6 +1137,7 @@ module.exports = {
   estrofesDeTextoLetrasMetaEOg,
   tituloArtistaDoScriptPageArgsLetras,
   fetchHtmlLetrasMus,
+  tentarLetraLetrasViaIndice,
   buscarLetraLocal,
   buscarLetraVagalume,
   buscarLetraCifraClub,

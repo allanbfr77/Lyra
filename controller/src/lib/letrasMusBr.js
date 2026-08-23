@@ -11,6 +11,8 @@ const {
   estrofesDeTextoLetrasMetaEOg,
   tituloArtistaDoScriptPageArgsLetras,
   fetchHtmlLetrasMus,
+  tentarLetraLetrasViaIndice,
+  extrairLetraCifraClubParaPreviewOuImport,
 } = require('./cifraLetras');
 
 const LETRAS_ORIGIN = 'https://www.letras.mus.br';
@@ -90,26 +92,85 @@ async function extrairLetraLetrasMusParaPreviewOuImport(pathRaw, opts = {}) {
   const seg = abs.split('/').filter(Boolean);
   const dns = seg[0] || '';
   const slug = seg[1] || '';
+  const jaTentados = new Set([`${dns}/${slug}`.toLowerCase()]);
 
-  let html;
+  let html = null;
+  let erroDireto = null;
   try {
     html = await fetchHtmlLetrasMus(dns, slug);
   } catch (e) {
-    return { erro: e.message || 'Letras.mus.br indisponível.' };
+    erroDireto = e;
   }
 
-  let estrofes = estrofesDePaginaLetrasMusHtml(html);
-  if (!estrofes.length) estrofes = estrofesDeTextoLetrasMetaEOg(html);
+  let estrofes = html ? estrofesDePaginaLetrasMusHtml(html) : [];
+  let titulo = '';
+  let artista = '';
+  let pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+
+  if (html && estrofes.length) {
+    const pa = tituloArtistaDoScriptPageArgsLetras(html);
+    titulo = String(pa.titulo || '').trim();
+    artista = String(pa.artista || '').trim();
+  } else if (html) {
+    estrofes = estrofesDeTextoLetrasMetaEOg(html);
+    if (estrofes.length) {
+      const pa = tituloArtistaDoScriptPageArgsLetras(html);
+      titulo = String(pa.titulo || '').trim();
+      artista = String(pa.artista || '').trim();
+    }
+  }
+
+  // Path do índice às vezes 404 no Letras (slug compartilhado com o Cifra não existe).
+  // 1) Mesma URL no CifraClub — preserva a faixa exata (ex.: medley que só existe lá).
+  // 2) Depois alternativas no Letras via índice (podem ser outra versão/artista).
   if (!estrofes.length) {
-    return { erro: 'Não foi possível ler a letra nesta página do Letras.mus.br.' };
+    try {
+      const viaCifra = await extrairLetraCifraClubParaPreviewOuImport(abs, {
+        maxLinhasPorSlide,
+      });
+      if (!viaCifra.erro && viaCifra.estrofes?.length) {
+        return {
+          titulo: viaCifra.titulo,
+          artista: viaCifra.artista,
+          estrofes: viaCifra.estrofes,
+          path: pathNorm,
+          maxLinhasPorSlide: viaCifra.maxLinhasPorSlide || maxLinhasPorSlide,
+          parcial: !!viaCifra.parcial,
+          fonteFallback: 'cifraclub',
+        };
+      }
+    } catch (_) {
+      /* tenta Letras via índice abaixo */
+    }
+  }
+
+  if (!estrofes.length) {
+    const viaIndice = await tentarLetraLetrasViaIndice({
+      titulo: titulo || slugParaTituloExibicao(slug),
+      artista: artista || slugParaTituloExibicao(dns),
+      dns,
+      songSlug: slug,
+      jaTentados,
+    });
+    if (viaIndice?.estrofes?.length) {
+      estrofes = viaIndice.estrofes;
+      titulo = viaIndice.titulo || titulo;
+      artista = viaIndice.artista || artista;
+      if (viaIndice.path) pathNorm = viaIndice.path;
+    }
+  }
+
+  if (!estrofes.length) {
+    return {
+      erro:
+        (erroDireto && erroDireto.message) ||
+        'Não foi possível ler a letra nesta página do Letras.mus.br.',
+    };
   }
 
   estrofes = normalizarEstrofesComMaxLinhas(estrofes, maxLinhasPorSlide);
-  const pa = tituloArtistaDoScriptPageArgsLetras(html);
-  const titulo =
-    String(pa.titulo || '').trim() || slugParaTituloExibicao(slug) || 'Sem título';
-  const artista = String(pa.artista || '').trim() || slugParaTituloExibicao(dns);
-  const pathNorm = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  titulo = titulo || slugParaTituloExibicao(slug) || 'Sem título';
+  artista = artista || slugParaTituloExibicao(dns);
   return { titulo, artista, estrofes, path: pathNorm, maxLinhasPorSlide };
 }
 
