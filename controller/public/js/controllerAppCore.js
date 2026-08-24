@@ -139,6 +139,7 @@ import {
   resolverEnvioBiblia,
 } from './modules/rotaEnvioBiblia.js';
 import { deveAbortarLigacaoIpLocalSemServidor } from './modules/ligarServidorGuard.js';
+import { bnpNumeroEntradaCompleta } from './modules/bnpNumeroEntradaCompleta.js';
 import {
   PRESETS_CONTAGEM_MIN,
   AJUSTE_CONTAGEM_MS,
@@ -17519,12 +17520,24 @@ function bibliaPrefetchCapitulosVizinhos() {
   });
 }
 
-function bibliaLimparEstadoOperador() {
+/**
+ * Tira só o que está no ar (marcadores de projeção/seleção de versículo).
+ * Mantém livro, capítulo e lista — o operador continua a navegar após ESC/encerrar.
+ */
+function bibliaLimparProjecaoOperador() {
   bibliaParteProjetadaChave = null;
   if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
     ultimoConteudoProjetadoModoUnificado = null;
   }
   bibliaVersiculoSelecionadoIdx = null;
+  document.querySelectorAll('.biblia-v-card').forEach((c) => {
+    c.classList.remove('projetado', 'selecionado');
+  });
+}
+
+/** Limpa navegação local (livro/capítulo/lista). Usado ao sair do modo Bíblia. */
+function bibliaLimparEstadoOperador() {
+  bibliaLimparProjecaoOperador();
   bibliaVersiculosCapitulo = [];
   bibliaVersiculosBrutosCapitulo = [];
   bibliaPrefetchCapJob++;
@@ -17533,15 +17546,21 @@ function bibliaLimparEstadoOperador() {
   bibliaSelecionadoLivro = null;
   bibliaSelecionadoLivroDb = null;
   bibliaSelecionadoCap = null;
-  document.querySelectorAll('.biblia-v-card').forEach((c) => {
-    c.classList.remove('projetado', 'selecionado');
-  });
   bibliaNavPopupFechar();
 }
 
-/** Limpa estado local e manda encerrar a camada Bíblia no servidor. */
-function encerrarCamadaBibliaNoControlador() {
-  bibliaLimparEstadoOperador();
+/**
+ * Encerra a camada Bíblia no servidor.
+ * @param {{ limparNavegacao?: boolean }} [opts]
+ *   `limparNavegacao: false` — só tira a projeção; livro/capítulo ficam activos.
+ *   Por omissão limpa tudo (sair do modo).
+ */
+function encerrarCamadaBibliaNoControlador(opts = {}) {
+  if (opts.limparNavegacao === false) {
+    bibliaLimparProjecaoOperador();
+  } else {
+    bibliaLimparEstadoOperador();
+  }
   if (estadoServidor && estadoServidor.tipo === 'biblia') {
     estadoServidor = {
       tipo: null,
@@ -17557,10 +17576,10 @@ function encerrarCamadaBibliaNoControlador() {
   projecao.enviar('encerrar_projecao_biblia');
 }
 
-/** Encerra apenas a projeção da Bíblia (botão «Encerrar projeção» no modo Bíblia). */
+/** Encerra apenas a projeção da Bíblia (botão «Encerrar projeção» / ESC no modo Bíblia). */
 function encerrarProjecaoModoBiblia() {
   if (!ehModoBibliaOperador()) return;
-  encerrarCamadaBibliaNoControlador();
+  encerrarCamadaBibliaNoControlador({ limparNavegacao: false });
   atualizarPreviewOperador();
 }
 
@@ -17894,17 +17913,6 @@ function bibliaNavPopupFechar() {
   bnpFocoIndex = -1;
   const inp = document.getElementById('biblia-busca-rapida');
   if (inp) inp.blur();
-}
-
-/** Número digitado está completo (evita avançar em "1" quando ainda pode ser "12"). */
-function bnpNumeroEntradaCompleta(str, max) {
-  const t = String(str || '').trim();
-  if (!/^\d+$/.test(t)) return false;
-  const n = parseInt(t, 10);
-  if (n < 1 || n > max) return false;
-  const maxLen = String(max).length;
-  if (t.length >= maxLen) return true;
-  return n * Math.pow(10, maxLen - t.length) > max;
 }
 
 function bnpLivroPorSiglaExata(q) {
