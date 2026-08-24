@@ -10270,13 +10270,13 @@ function obterTomPlaylistMusicaAtiva() {
   return normalizarTomPlaylist(it?.tom);
 }
 
-/** Título do 1.º slide M3: «Título / Tom» quando o tom estiver cadastrado. */
+/** Título do 1.º slide M3: «♪ Título | Tom» quando o tom estiver cadastrado. */
 function tituloAberturaM3MusicaAtiva(tituloBase) {
   const tit = String(tituloBase || musicaAtiva?.titulo || '').trim();
   const tom = obterTomPlaylistMusicaAtiva();
   if (!tit) return tom || '';
-  if (!tom) return tit;
-  return `${tit} / ${tom}`;
+  const corpo = tom ? `${tit} | ${tom}` : tit;
+  return `♪ ${corpo}`;
 }
 
 function limparPreviewTituloMusicaAbertura() {
@@ -16314,6 +16314,10 @@ function montarPayloadExibirMusica(estrofeIndex) {
   payload.titulo = String(musicaAtiva.titulo || '').trim();
   /* Tom só para o M3 (abertura); o título público permanece sem tom. */
   payload.tom = obterTomPlaylistMusicaAtiva();
+  const idx = Number(estrofeIndex);
+  if (Number.isFinite(idx) && idx === 0) {
+    payload.tituloAbertura = tituloAberturaM3MusicaAtiva(payload.titulo);
+  }
   return payload;
 }
 
@@ -16402,6 +16406,7 @@ function emitirEstrofeAoServidor(index) {
   projecaoMusicaEmitidaNoServidor = true;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
   projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
+  emitirEstadoMinistranteAoServidor();
   registarProjecaoNoHistorico();
 }
 

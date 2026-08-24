@@ -292,6 +292,24 @@ test('exibir_musica aplica a config das janelas ANTES de renderizar', () => {
   assert.equal(engine.chamadas.at(-1)[1].reforcarMinistrante, true);
 });
 
+test('snapshotMinistranteAtual usa tituloAbertura do controlador no slide 1', () => {
+  const snap = projectionPayloads.snapshotMinistranteAtual(
+    {
+      tipo: 'musica',
+      titulo: 'A Casa É Sua',
+      tom: 'C#',
+      tituloAbertura: '♪ A Casa É Sua | C#',
+      estrofes: ['Primeira linha'],
+      estrofeIndex: 0,
+      telaLimpa: false,
+    },
+    () => {}
+  );
+
+  assert.equal(snap.titulo, '♪ A Casa É Sua | C#');
+  assert.equal(snap.aberturaMusica, true);
+});
+
 test('exibir_musica no índice n é o slide preto final, sem título nem linhas', () => {
   const state = estadoFalso();
   criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_musica', {

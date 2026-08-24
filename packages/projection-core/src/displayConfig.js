@@ -34,7 +34,7 @@ const DEFAULT_DISPLAY_CONFIG = {
     textColorProximo: '#f3c15a',
     /** Cor das linhas `//` (comentário só no ministrante). Azul legado. */
     commentColor: '#00c8ff',
-    /** Título da música no 1.º slide do M3 (`[ Título / Tom ]`). */
+    /** Título da música no 1.º slide do M3 (`♪ Título | Tom`). */
     aberturaTituloColor: '#f3c15a',
     aberturaTituloFontSize: 7,
     fontSize: 4.1,

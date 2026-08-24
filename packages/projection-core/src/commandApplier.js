@@ -491,6 +491,7 @@ function criarAplicadorDeComandos(deps) {
           musicaId,
           titulo: String(dados.titulo || '').trim(),
           tom: String(dados.tom || '').trim(),
+          tituloAbertura: String(dados.tituloAbertura || '').trim(),
           linhas: comentariosSlide.filtrarLinhasParaPublico(String(estrofe).split('\n')),
           linhasProximo: proxMeta.linhasProximo,
           proximoSlidePreto: proxMeta.proximoSlidePreto,
