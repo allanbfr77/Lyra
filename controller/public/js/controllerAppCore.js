@@ -548,7 +548,6 @@ function rotaLiveSelecionadaNaUi() {
  */
 function hayProjecaoMidiaApresentacaoAtiva() {
   if (apresentacaoMidiaProjetadaId) return true;
-  if (apresentacaoAvisoCard6Ativo) return true;
   if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
@@ -570,9 +569,13 @@ function hayProjecaoMidiaApresentacaoAtiva() {
   return false;
 }
 
+function hayProjecaoApresentacaoModoAtiva() {
+  return hayProjecaoMidiaApresentacaoAtiva() || apresentacaoAvisoCard6Ativo;
+}
+
 /** Projeção de Bíblia ou apresentação ainda no ar — ao mudar de tela, manter rota de monitores. */
 function hayProjecaoAtivaModoBibliaOuApresentacao() {
-  if (hayProjecaoMidiaApresentacaoAtiva()) return true;
+  if (hayProjecaoApresentacaoModoAtiva()) return true;
   if (bibliaParteProjetadaChave != null) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
@@ -584,14 +587,14 @@ function hayProjecaoAtivaModoBibliaOuApresentacao() {
 async function desativarRotasModosTransitorios(opts = {}) {
   if (opts.forcar !== true && hayProjecaoAtivaModoBibliaOuApresentacao()) return;
   const sync = opts.sincronizarServidor !== false;
-  const midiaAtiva = hayProjecaoMidiaApresentacaoAtiva();
+  const projecaoApAtiva = hayProjecaoApresentacaoModoAtiva();
   /* Mídia no ar: Bíblia e Mídias partilham o canal `apresentacao` no dual-routing —
      desativar essa rota fecharia as janelas e encerraria a projeção. */
-  if (!midiaAtiva) {
+  if (!projecaoApAtiva) {
     rotasPorModo.apresentacao = rotaDesativada();
   }
   rotasPorModo.biblia = rotaDesativada();
-  marcarRotaLiveNoDom(midiaAtiva ? !!normalizarRota(rotasPorModo.apresentacao).live : false);
+  marcarRotaLiveNoDom(projecaoApAtiva ? !!normalizarRota(rotasPorModo.apresentacao).live : false);
   const modo = modoRoteamentoAtual();
   if (modo === 'apresentacao' || modo === 'biblia') {
     renderRoteamentoTelas(monitoresServidorCache, rotasPorModo[modo]);
@@ -893,24 +896,18 @@ function obterAlvoProjecaoModoBiblia() {
   return obterAlvoProjecaoDeRota(rotasPorModo.biblia);
 }
 
-/** Card 6: monitor independente do cabeçalho «Monitor» (mídias). */
-let apresentacaoCard6MonitorIndependente = false;
 /** Aviso do card 6 ainda no telão (pode coexistir com mídia noutro monitor). */
 let apresentacaoAvisoCard6Ativo = false;
 /** Último payload de aviso — reenvio ao mudar o seletor do card 6. */
 let ultimoPayloadAvisoCard6 = null;
 
-function rotasApresentacaoCard6SaoIguais(a, b) {
-  const x = normalizarRota(a);
-  const y = normalizarRota(b);
-  return !!x.live === !!y.live && x.publicoIndex === y.publicoIndex && x.ministranteIndex === y.ministranteIndex;
+function obterRotaAvisoCard6() {
+  return normalizarRota(rotasPorModo.apresentacaoAviso);
 }
 
-function obterRotaAvisoCard6() {
-  if (!apresentacaoCard6MonitorIndependente) {
-    return normalizarRota(rotasPorModo.apresentacao);
-  }
-  return normalizarRota(rotasPorModo.apresentacaoAviso);
+function rotaApresentacaoEstaDesativada(rota) {
+  const r = normalizarRota(rota);
+  return !r.live && r.publicoIndex < 0 && r.ministranteIndex < 0;
 }
 
 function obterAlvoProjecaoAvisoCard6() {
@@ -922,6 +919,9 @@ function monitoresAvisoCard6CobremAlvo(alvo) {
 }
 
 function mensagemAlvoInvalidoAvisoCard6(alvo) {
+  if (alvo === 'desativado') {
+    return 'Escolha um monitor no seletor de Avisos (card 6) antes de projetar.';
+  }
   return mensagemAlvoInvalidoMonitor(alvo, 'avisos (card 6)');
 }
 
@@ -943,27 +943,51 @@ function mesclarRotasApresentacaoMidiaEAviso(rotaMidia, rotaAviso) {
 
 function obterRotaApresentacaoParaServidor() {
   const midia = normalizarRota(rotasPorModo.apresentacao);
-  if (!apresentacaoCard6MonitorIndependente) return midia;
   const aviso = normalizarRota(rotasPorModo.apresentacaoAviso);
-  if (rotasApresentacaoCard6SaoIguais(midia, aviso)) return midia;
+  if (rotaApresentacaoEstaDesativada(aviso)) return midia;
   return mesclarRotasApresentacaoMidiaEAviso(midia, aviso);
 }
 
-function sincronizarLigacaoMonitorAvisoCard6ComCabecalho() {
-  if (apresentacaoCard6MonitorIndependente) return;
-  rotasPorModo.apresentacaoAviso = { ...normalizarRota(rotasPorModo.apresentacao) };
+function canaisOcupadosPorAlvoProjecao(alvo) {
+  const a = String(alvo || '').toLowerCase();
+  if (a === 'publico' || a === 'live') return ['publico'];
+  if (a === 'ministrante') return ['ministrante'];
+  if (a === 'ambos') return ['publico', 'ministrante'];
+  return [];
+}
+
+/** Canais a limpar ao encerrar um conteúdo sem apagar o outro que partilha o mesmo telão. */
+function canaisParaEncerrarConteudoApresentacao(alvoConteudo, alvoOutroConteudo) {
+  const meus = canaisOcupadosPorAlvoProjecao(alvoConteudo);
+  if (!meus.length) return [];
+  const outroAlvo = String(alvoOutroConteudo || '').toLowerCase();
+  if (!outroAlvo || outroAlvo === 'desativado') {
+    return meus.length === 2 ? ['ambos'] : meus;
+  }
+  const outros = new Set(canaisOcupadosPorAlvoProjecao(outroAlvo));
+  const limpar = meus.filter((c) => !outros.has(c));
+  return limpar.length ? limpar : [];
+}
+
+async function encerrarCanaisApresentacaoNoServidor(canais) {
+  const lista = Array.isArray(canais) ? canais : [];
+  if (!lista.length) return;
+  if (lista.includes('ambos') || (lista.includes('publico') && lista.includes('ministrante'))) {
+    await emitirEncerrarApresentacaoPublicoAoServidor('ambos');
+    return;
+  }
+  for (const canal of lista) {
+    await emitirEncerrarApresentacaoPublicoAoServidor(canal);
+  }
 }
 
 function aplicarSelecaoMonitorAvisoCard6(opcao) {
   const o = opcao && typeof opcao === 'object' ? opcao : {};
-  const nova = normalizarRota({
+  rotasPorModo.apresentacaoAviso = normalizarRota({
     publicoIndex: o.pub ?? -1,
     ministranteIndex: o.min ?? -1,
     live: !!o.live,
   });
-  const cabecalho = normalizarRota(rotasPorModo.apresentacao);
-  apresentacaoCard6MonitorIndependente = !rotasApresentacaoCard6SaoIguais(nova, cabecalho);
-  rotasPorModo.apresentacaoAviso = nova;
 }
 
 async function reemitirAvisoCard6AposMudancaDeRota() {
@@ -980,7 +1004,6 @@ async function reemitirAvisoCard6AposMudancaDeRota() {
 }
 
 function rotuloSeletorMonitorAvisoCard6() {
-  sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
   const rota = obterRotaAvisoCard6();
   const lista = monitoresServidorCache;
   const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
@@ -1006,9 +1029,8 @@ function criarSeletorMonitorAvisoCard6() {
   btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('aria-label', 'Monitor para avisos');
   const rotulo = rotuloSeletorMonitorAvisoCard6();
-  btn.title = apresentacaoCard6MonitorIndependente
-    ? 'Monitor exclusivo para avisos — independente do «Monitor» do cabeçalho (mídias)'
-    : 'Igual ao «Monitor» do cabeçalho — escolha outro destino aqui para projetar avisos noutro ecrã';
+  btn.title =
+    'Monitor exclusivo para avisos — independente do «Monitor» do cabeçalho (mídias)';
   const spanLbl = document.createElement('span');
   spanLbl.className = 'route-dd-label';
   spanLbl.textContent = rotulo;
@@ -1053,6 +1075,9 @@ function criarSeletorMonitorAvisoCard6() {
       menu.querySelectorAll('.route-dd-item').forEach((ib) => {
         ib.setAttribute('aria-selected', ib.dataset.apOp === o.key ? 'true' : 'false');
       });
+      if (o.key === 'des' && apresentacaoAvisoCard6Ativo) {
+        void encerrarAvisoCard6NoControlador();
+      }
       salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false })
         .then(() => reemitirAvisoCard6AposMudancaDeRota())
         .catch(() => {});
@@ -1119,10 +1144,6 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
   if (guardado.tipo === 'apresentacao') {
     if (!apresentacaoMidiaProjetadaId) return;
     await emitirApresentacao({ ...guardado.payload, alvoProjecao: alvo });
-    if (!apresentacaoCard6MonitorIndependente && apresentacaoAvisoCard6Ativo) {
-      sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
-      await reemitirAvisoCard6AposMudancaDeRota();
-    }
     return;
   }
 
@@ -1496,15 +1517,12 @@ async function projetarAvisoCard6() {
     alert('Digite um aviso no card 6 antes de projetar.');
     return;
   }
-  sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
   const alvo = obterAlvoProjecaoAvisoCard6();
-  if (!monitoresAvisoCard6CobremAlvo(alvo)) {
+  if (alvo === 'desativado' || !monitoresAvisoCard6CobremAlvo(alvo)) {
     alert(mensagemAlvoInvalidoAvisoCard6(alvo));
     return;
   }
-  if (apresentacaoCard6MonitorIndependente) {
-    await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-  }
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
   const payload = montarPayloadAvisoCard6Atual(alvo);
   const ok = await emitirApresentacao(payload, {
     naoSubstituirUltimoUnificado: !!apresentacaoMidiaProjetadaId,
@@ -1512,6 +1530,11 @@ async function projetarAvisoCard6() {
   if (!ok) return;
   apresentacaoAvisoCard6Ativo = true;
   ultimoPayloadAvisoCard6 = payload;
+  try {
+    localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '1');
+  } catch (_) {
+  // intencional — erro ignorado
+}
   atualizarFeedbackProjecaoApresentacaoUi();
 }
 
@@ -3638,12 +3661,20 @@ function renderGridApresentacao() {
   btnProjCard6.type = 'button';
   btnProjCard6.className = 'btn sm primary';
   btnProjCard6.textContent = 'Projetar';
-  btnProjCard6.title = apresentacaoCard6MonitorIndependente
-    ? 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)'
-    : 'Projeta o aviso no mesmo destino do «Monitor» do cabeçalho';
+  btnProjCard6.title = 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)';
   btnProjCard6.addEventListener('click', (ev) => {
     ev.stopPropagation();
     projetarAvisoCard6();
+  });
+  const btnEncerrarAviso = document.createElement('button');
+  btnEncerrarAviso.type = 'button';
+  btnEncerrarAviso.className = 'btn sm danger';
+  btnEncerrarAviso.textContent = 'Encerrar';
+  btnEncerrarAviso.title = 'Encerra só a projeção do aviso — a mídia do cabeçalho continua no ar';
+  btnEncerrarAviso.disabled = !apresentacaoAvisoCard6Ativo;
+  btnEncerrarAviso.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    void encerrarAvisoCard6NoControlador();
   });
   const btnLimparTxt = document.createElement('button');
   btnLimparTxt.type = 'button';
@@ -3656,6 +3687,7 @@ function renderGridApresentacao() {
     renderGridApresentacao();
   });
   footer6.appendChild(btnProjCard6);
+  footer6.appendChild(btnEncerrarAviso);
   footer6.appendChild(btnLimparTxt);
   body6.appendChild(footer6);
   body6.appendChild(ta);
@@ -3727,10 +3759,11 @@ function abrirMenuModoApresentacao() {
     renderSlidesStrip();
     if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
       rotasPorModo.apresentacao = rotaDesativada();
+      rotasPorModo.apresentacaoAviso = rotaDesativada();
       marcarRotaLiveNoDom(false);
+    } else if (!apresentacaoAvisoCard6Ativo) {
+      rotasPorModo.apresentacaoAviso = rotaDesativada();
     }
-    apresentacaoCard6MonitorIndependente = false;
-    sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
     aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
     apresentacaoCardSelecionadoIdx = null;
     renderGridApresentacao();
@@ -3936,7 +3969,7 @@ async function carregarTraducoes() {
 
 function fecharMenuModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
-  const preservarProjecao = hayProjecaoMidiaApresentacaoAtiva();
+  const preservarProjecao = hayProjecaoApresentacaoModoAtiva();
   executarComTransicaoUi(() => {
     document.body.classList.remove('app-mod-apresentacao');
     document.title = 'Lyra — Controlador';
@@ -3964,29 +3997,52 @@ function escolherArquivoModoApresentacao() {
 }
 
 /**
- * Para mídia/telas no servidor e limpa estado local usado nas prévias.
- * Usado ao escolher «Desativado» no modo apresentação e no botão «Encerrar projeção».
+ * Para a mídia no servidor e limpa estado local da mídia (não encerra avisos do card 6).
  */
-function encerrarProjecaoMidiaApresentacaoNoControlador() {
+async function encerrarProjecaoMidiaApresentacaoNoControlador() {
   const eraVideo = audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
   if (eraVideo) {
     pararAudioLocalApresentacao();
   } else {
     pararAudioServidorPlayback();
   }
+
+  const alvoMidia =
+    ultimoConteudoProjetadoModoUnificado?.payload?.alvoProjecao ||
+    (apresentacaoMidiaProjetadaId ? obterAlvoProjecaoModoApresentacao() : null);
+  const alvoAviso =
+    apresentacaoAvisoCard6Ativo
+      ? ultimoPayloadAvisoCard6?.alvoProjecao || obterAlvoProjecaoAvisoCard6()
+      : null;
+
   apresentacaoMidiaProjetadaId = null;
-  apresentacaoAvisoCard6Ativo = false;
   ultimoConteudoProjetadoModoUnificado = null;
-  ultimoPayloadAvisoCard6 = null;
-  try {
-    localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  void emitirEncerrarApresentacaoPublicoAoServidor();
-  projecao.enviar('encerrar_projecao');
   apresentacaoAudioAtualId = null;
   audioStateRemoto = { ...audioStateRemoto, playing: false, currentTime: 0, duration: 0, name: '' };
+
+  const canais = canaisParaEncerrarConteudoApresentacao(alvoMidia, alvoAviso);
+  if (canais.length) {
+    await encerrarCanaisApresentacaoNoServidor(canais);
+  }
+
+  if (!apresentacaoAvisoCard6Ativo) {
+    try {
+      localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
+    } catch (_) {
+  // intencional — erro ignorado
+}
+    estadoServidor = {
+      tipo: null,
+      titulo: '',
+      linhas: [],
+      estrofeIndex: 0,
+      totalEstrofes: 0,
+      telaLimpa: true,
+      blackout: false,
+      slidePretoFinal: false,
+    };
+  }
+
   try {
     atualizarUiPlayerAudioRemoto();
   } catch (_) {
@@ -3997,25 +4053,70 @@ function encerrarProjecaoMidiaApresentacaoNoControlador() {
   } catch (_) {
   // intencional — erro ignorado
 }
-  estadoServidor = {
-    tipo: null,
-    titulo: '',
-    linhas: [],
-    estrofeIndex: 0,
-    totalEstrofes: 0,
-    telaLimpa: true,
-    blackout: false,
-    slidePretoFinal: false,
-  };
+  atualizarFeedbackProjecaoApresentacaoUi();
+}
+
+/** Encerra só o aviso do card 6; a mídia do cabeçalho continua no ar. */
+async function encerrarAvisoCard6NoControlador() {
+  if (!apresentacaoAvisoCard6Ativo) return;
+
+  const alvoAviso = ultimoPayloadAvisoCard6?.alvoProjecao || obterAlvoProjecaoAvisoCard6();
+  const alvoMidia =
+    apresentacaoMidiaProjetadaId
+      ? ultimoConteudoProjetadoModoUnificado?.payload?.alvoProjecao ||
+        obterAlvoProjecaoModoApresentacao()
+      : null;
+
+  apresentacaoAvisoCard6Ativo = false;
+  ultimoPayloadAvisoCard6 = null;
+
+  const canais = canaisParaEncerrarConteudoApresentacao(alvoAviso, alvoMidia);
+  if (canais.length) {
+    await encerrarCanaisApresentacaoNoServidor(canais);
+  }
+
+  if (!apresentacaoMidiaProjetadaId) {
+    try {
+      localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
+    } catch (_) {
+  // intencional — erro ignorado
+}
+  }
+
+  atualizarFeedbackProjecaoApresentacaoUi();
 }
 
 /**
- * Encerra projeção, «Monitor» → Desativado, modo slide → Público M2 + Ministrante M3.
+ * Cabeçalho «Encerrar projeção» no Modo Mídias: só mídia + rota do cabeçalho → Desativado.
+ */
+async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
+  if (!ehModoApresentacaoOperador()) return;
+  await encerrarProjecaoMidiaApresentacaoNoControlador();
+  rotasPorModo.apresentacao = rotaDesativada();
+  marcarRotaLiveNoDom(false);
+  if (!apresentacaoAvisoCard6Ativo) {
+    rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
+    salvarRotasPorModoNoStorage();
+  }
+  atualizarFeedbackProjecaoApresentacaoUi({
+    mensagemIdle: apresentacaoAvisoCard6Ativo
+      ? 'Mídia encerrada. Aviso continua no ar.'
+      : 'Projeção de mídia encerrada. «Monitor» em Desativado.',
+  });
+  aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
+  atualizarPreviewOperador();
+}
+
+/**
+ * Encerra mídia e aviso, repõe rotas (ex.: sair do modo ou encerrar tudo).
  */
 async function encerrarProjecaoModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
-  encerrarProjecaoMidiaApresentacaoNoControlador();
-  apresentacaoCard6MonitorIndependente = false;
+  if (apresentacaoAvisoCard6Ativo) {
+    await encerrarAvisoCard6NoControlador();
+  }
+  await encerrarProjecaoMidiaApresentacaoNoControlador();
   rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
   rotasPorModo.apresentacaoAviso = rotaDesativada();
   rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
@@ -6005,18 +6106,7 @@ function normalizarItemApresentacao(raw) {
 }
 
 async function encerrarModoApresentacaoNoTelao() {
-  await emitirEncerrarApresentacaoPublicoAoServidor();
-  try {
-    localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  if (audioStateRemoto.mediaKind === 'video') {
-    pararAudioLocalApresentacao();
-  }
-  apresentacaoMidiaProjetadaId = null;
-  renderGridApresentacao();
-  atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Apresentação encerrada no telão.' });
+  await encerrarProjecaoModoApresentacao();
 }
 
 function coletarEstadoModoApresentacaoAtual() {
@@ -13834,7 +13924,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     } else if (modo === 'apresentacao') {
       const a = normalizarRota(rotasPorModo.apresentacao);
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
-        encerrarProjecaoMidiaApresentacaoNoControlador();
+        void encerrarProjecaoMidiaApresentacaoNoControlador();
         rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
         try {
           atualizarFeedbackProjecaoApresentacaoUi({
@@ -13880,9 +13970,10 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
 
   rotasPorModo.slides = sanitizarRotaProjecao(rotasPorModo.slides, monitoresServidorCache);
   rotasPorModo.apresentacao = sanitizarRotaProjecao(rotasPorModo.apresentacao, monitoresServidorCache);
-  if (modo === 'apresentacao' && !apresentacaoCard6MonitorIndependente) {
-    sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
-  }
+  rotasPorModo.apresentacaoAviso = sanitizarRotaProjecao(
+    rotasPorModo.apresentacaoAviso,
+    monitoresServidorCache
+  );
   if (modo === 'biblia') {
     rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
   }
@@ -18867,7 +18958,7 @@ document.getElementById('apresentacao-encerrar')?.addEventListener('click', () =
 });
 document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () => {
   if (ehModoApresentacaoOperador()) {
-    void encerrarProjecaoModoApresentacao();
+    void encerrarProjecaoMidiaCabecalhoModoApresentacao();
   } else if (ehModoBibliaOperador()) {
     encerrarProjecaoModoBiblia();
   } else if (ehModoSlidesOperador()) {
