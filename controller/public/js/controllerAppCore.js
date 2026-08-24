@@ -7272,6 +7272,22 @@ function ativarCultoNaUiParaImportacaoCodigo(cultoDestino) {
 }
 
 let modalImportarTimerAutoFechar = null;
+/**
+ * Enquanto a importação por código está em andamento (spinner), o modal não pode
+ * ser dispensado por clique no escuro nem por Escape — só fecha no fim (sucesso/
+ * erro com botões) ou por chamada explícita a `fecharAppDialog` no fluxo.
+ */
+let appImportarBloqueadoFechar = false;
+
+function liberarBloqueioFecharImportPlaylist() {
+  appImportarBloqueadoFechar = false;
+  appDialogFecharNoBackdrop = true;
+}
+
+function bloquearFecharImportPlaylistEmAndamento() {
+  appImportarBloqueadoFechar = true;
+  appDialogFecharNoBackdrop = false;
+}
 
 function importarPlaylist() {
   abrirModalImportarPlaylistInput('');
@@ -7287,6 +7303,7 @@ function abrirModalImportarPlaylistInput(valorInicial = '') {
   const cancel = document.getElementById('app-dialog-cancel');
   if (!ov || !body || !head || !ok || !cancel) return;
   clearTimeout(modalImportarTimerAutoFechar);
+  liberarBloqueioFecharImportPlaylist();
   head.textContent = 'Importar Playlist';
   body.style.whiteSpace = 'normal';
   body.innerHTML = '';
@@ -7355,6 +7372,7 @@ function abrirModalImportarPlaylistInput(valorInicial = '') {
 
 /** Estado 2 — carregando (mesmo padrão visual do modal do «C»). */
 function modalImportarPlaylistLoading(wrap, texto = 'Importando playlist...') {
+  bloquearFecharImportPlaylistEmAndamento();
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   if (ok) ok.style.display = 'none';
@@ -7379,6 +7397,7 @@ function modalImportarPlaylistErro(wrap, msg, codigoAnterior) {
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   clearTimeout(modalImportarTimerAutoFechar);
+  liberarBloqueioFecharImportPlaylist();
   if (wrap) {
     wrap.innerHTML = '';
     const err = document.createElement('div');
@@ -7400,6 +7419,7 @@ function modalImportarPlaylistErro(wrap, msg, codigoAnterior) {
 
 /** Estado 3b — sucesso. Mostra confirmação + botão «Fechar»; auto-fecha em casos simples. */
 function modalImportarPlaylistSucesso(wrap, msg, autoFechar = true) {
+  liberarBloqueioFecharImportPlaylist();
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   if (wrap) {
@@ -19242,6 +19262,7 @@ function fecharAppDialog(resultado) {
   if (appImportarResolver) {
     const r = appImportarResolver;
     appImportarResolver = null;
+    liberarBloqueioFecharImportPlaylist();
     clearTimeout(modalImportarTimerAutoFechar);
     if (body) {
       body.innerHTML = '';
@@ -21325,6 +21346,8 @@ document.addEventListener('keydown', (e) => {
     const appDialog = document.getElementById('app-dialog-overlay');
     if (appDialog && appDialog.classList.contains('aberto')) {
       e.preventDefault();
+      /* Importação em andamento: Escape não dispensa o spinner. */
+      if (appImportarBloqueadoFechar) return;
       fecharAppDialog(false);
       return;
     }
