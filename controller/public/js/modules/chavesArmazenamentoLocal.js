@@ -47,6 +47,8 @@ export const LS_PLAYLIST_TEMAS = 'lyra_playlist_temas_v1';
 export const LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS = 'lyra_playlist_secoes_tema_recolhidas_v1';
 /** Cultos em que o usuário removeu ABERTURA da playlist (não reinserir automaticamente). */
 export const LS_PLAYLIST_ABERTURA_REMOVIDA = 'lyra_playlist_abertura_removida_v1';
+/** Ministrante padrão por culto (herdado por músicas novas na playlist). */
+export const LS_PLAYLIST_MINISTRANTE_PADRAO = 'lyra_playlist_ministrante_padrao_v1';
 
 export const PLAYLIST_TIPO_MARCADOR_TEMA = 'marcador_tema';
 

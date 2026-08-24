@@ -53,6 +53,7 @@ import {
   LS_PLAYLIST_TEMAS,
   LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS,
   LS_PLAYLIST_ABERTURA_REMOVIDA,
+  LS_PLAYLIST_MINISTRANTE_PADRAO,
   TEMA_PADRAO_ABERTURA,
   PLAYLIST_TIPO_MARCADOR_TEMA,
   LS_COPIAS_LOCAIS,
@@ -99,6 +100,8 @@ import {
   excluirMinistranteNoServidor,
   buscarTomMemoria,
   limparMinistranteDasPlaylists,
+  limparMinistrantePadraoPorCulto,
+  normalizarMinistrantePadraoPorCulto,
   obterCacheMinistrantes,
   normalizarMinistranteIdPlaylist,
   normalizarTomPlaylist,
@@ -4651,11 +4654,13 @@ function excluirCultoManualPorId(cid) {
   delete temasPorCulto[cid];
   delete temaSelecionadoPorCulto[cid];
   delete aberturaRemovidaPorCulto[cid];
+  delete ministrantePadraoPorCulto[cid];
   limparSecoesTemaRecolhidasDoCulto(cid);
   savePlaylists();
   saveTemasPorCulto();
   saveTemaSelecionadoPorCulto();
   saveAberturaRemovidaPorCulto();
+  saveMinistrantePadraoPorCulto();
   if (cultoId === cid) {
     cultoId = '';
     localStorage.setItem(LS_CULTO, '');
@@ -6707,6 +6712,92 @@ function ordenarTemasLista(arr) {
 
 let aberturaRemovidaPorCulto = {};
 
+/** Ministrante padrão por culto — herdado por músicas novas na playlist. */
+let ministrantePadraoPorCulto = {};
+
+function loadMinistrantePadraoPorCulto() {
+  try {
+    const raw = localStorage.getItem(LS_PLAYLIST_MINISTRANTE_PADRAO);
+    if (!raw) return {};
+    return normalizarMinistrantePadraoPorCulto(JSON.parse(raw));
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveMinistrantePadraoPorCulto() {
+  try {
+    ministrantePadraoPorCulto = normalizarMinistrantePadraoPorCulto(ministrantePadraoPorCulto);
+    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(ministrantePadraoPorCulto || {}));
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+  marcarBancoCompartilhadoAlterado();
+}
+
+function setMinistrantePadraoCulto(cid, ministranteId) {
+  const id = String(cid || '').trim();
+  if (!id) return;
+  const mid = normalizarMinistranteIdPlaylist(ministranteId);
+  if (mid) ministrantePadraoPorCulto[id] = mid;
+  else delete ministrantePadraoPorCulto[id];
+  saveMinistrantePadraoPorCulto();
+}
+
+/**
+ * Ministrante padrão do culto. Se ainda não estiver gravado, infere quando todas as
+ * músicas existentes partilham o mesmo ministrante (playlists já configuradas antes
+ * desta funcionalidade).
+ */
+function getMinistrantePadraoCulto(cid) {
+  const id = String(cid || '').trim();
+  if (!id) return null;
+  const stored = normalizarMinistranteIdPlaylist(ministrantePadraoPorCulto[id]);
+  if (stored) return stored;
+  const pl = playlists[id];
+  if (!Array.isArray(pl)) return null;
+  let unico = null;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    const mid = normalizarMinistranteIdPlaylist(it.ministranteId);
+    if (!mid) return null;
+    if (unico == null) unico = mid;
+    else if (unico !== mid) return null;
+  }
+  if (unico) {
+    ministrantePadraoPorCulto[id] = unico;
+    saveMinistrantePadraoPorCulto();
+  }
+  return unico;
+}
+
+/** Ministrante + tom para uma música recém-adicionada à playlist. */
+async function camposMinistranteTomParaNovaMusicaNaPlaylist(cid, meta) {
+  const fromMeta = normalizarMinistranteIdPlaylist(meta?.ministranteId);
+  if (fromMeta) {
+    return {
+      ministranteId: fromMeta,
+      tom: normalizarTomPlaylist(meta?.tom),
+    };
+  }
+  const padrao = getMinistrantePadraoCulto(cid);
+  if (!padrao) return { ministranteId: null, tom: '' };
+  let tom = '';
+  try {
+    tom =
+      (await buscarTomMemoria(
+        getControllerApiBase(),
+        padrao,
+        Number(meta?.id),
+        meta?.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        meta?.titulo
+      )) || '';
+  } catch (_) {
+    // intencional — memória indisponível; ministrante sem tom
+  }
+  return { ministranteId: padrao, tom: normalizarTomPlaylist(tom) };
+}
+
 function loadAberturaRemovidaPorCulto() {
   try {
     const raw = localStorage.getItem(LS_PLAYLIST_ABERTURA_REMOVIDA);
@@ -7801,7 +7892,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
           if (Number.isFinite(idExistente) && idExistente > 0) {
             const rootId = Number(nova.existente.rootId || idExistente);
             const mt = await aplicarMinistranteTomDoShareNaPlaylistMeta(m, rootId, 'user');
-            addMusicaNaPlaylistParaCulto(cultoDestino, {
+            await addMusicaNaPlaylistParaCulto(cultoDestino, {
               id: rootId,
               titulo: nova.existente.titulo || m.titulo,
               artista: nova.existente.artista || m.artista || '',
@@ -7829,7 +7920,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
       const rotuloOrigem = String(m.rotulo || '').trim();
       const idParaTom = nova.copyImportada ? Number(nova.id) : rootId;
       const mt = await aplicarMinistranteTomDoShareNaPlaylistMeta(m, idParaTom, 'user');
-      addMusicaNaPlaylistParaCulto(cultoDestino, {
+      await addMusicaNaPlaylistParaCulto(cultoDestino, {
         id: rootId,
         titulo: m.titulo,
         artista: m.artista || '',
@@ -8088,6 +8179,10 @@ function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpda
     temasPorCulto: temasPorCulto && typeof temasPorCulto === 'object' ? temasPorCulto : {},
     aberturaRemovidaPorCulto:
       aberturaRemovidaPorCulto && typeof aberturaRemovidaPorCulto === 'object' ? aberturaRemovidaPorCulto : {},
+    ministrantePadraoPorCulto:
+      ministrantePadraoPorCulto && typeof ministrantePadraoPorCulto === 'object'
+        ? ministrantePadraoPorCulto
+        : {},
   };
   if (incluirPlaylists) payload.playlists = playlists && typeof playlists === 'object' ? playlists : {};
   if (!preservarUpdatedAt && sharedBancoLocalUpdatedAt) payload.updatedAt = sharedBancoLocalUpdatedAt;
@@ -8164,6 +8259,7 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
     !Array.isArray(src.aberturaRemovidaPorCulto)
       ? src.aberturaRemovidaPorCulto
       : {};
+  ministrantePadraoPorCulto = normalizarMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto);
 
   try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists)); } catch (_) {
     // intencional — erro ignorado
@@ -8176,6 +8272,11 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
   }
   try {
     localStorage.setItem(LS_PLAYLIST_ABERTURA_REMOVIDA, JSON.stringify(aberturaRemovidaPorCulto || {}));
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+  try {
+    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(ministrantePadraoPorCulto || {}));
   } catch (_) {
     // intencional — erro ignorado
   }
@@ -9124,6 +9225,7 @@ function limparMinistranteTomDeTodaPlaylist() {
     }
   }
   if (!mudou) return;
+  setMinistrantePadraoCulto(cultoId, null);
   savePlaylists();
   renderPlaylist();
   refrescarAberturaM3SeMusicaAtivaNaPlaylist();
@@ -9218,12 +9320,17 @@ async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
       { fecharNoBackdrop: false }
     );
     if (ok) {
+      setMinistrantePadraoCulto(cultoId, novoId);
       await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
       savePlaylists();
       renderPlaylist();
       refrescarAberturaM3SeMusicaAtivaNaPlaylist();
       return;
     }
+  } else if (novoId && ehMusica1) {
+    if (contarMusicasNaPlaylist(pl) <= 1) setMinistrantePadraoCulto(cultoId, novoId);
+  } else if (!novoId && ehMusica1) {
+    setMinistrantePadraoCulto(cultoId, null);
   }
 
   savePlaylists();
@@ -9360,6 +9467,7 @@ async function onCfgMinistranteExcluir(id, nome) {
   try {
     await excluirMinistranteNoServidor(getControllerApiBase(), id);
     if (limparMinistranteDasPlaylists(playlists, id)) savePlaylists();
+    if (limparMinistrantePadraoPorCulto(ministrantePadraoPorCulto, id)) saveMinistrantePadraoPorCulto();
     await renderListaCfgMinistrantes();
     renderPlaylist();
   } catch (e) {
@@ -9976,6 +10084,11 @@ async function addMusicaNaPlaylist(meta) {
     }
   }
   garantirTemaNoCatalogoAtual(tema);
+  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(cultoId, {
+    id: idNum,
+    titulo: tituloPl,
+    bancoFonte,
+  });
   const novoItem = {
     id: meta.id,
     titulo: tituloPl,
@@ -9984,8 +10097,8 @@ async function addMusicaNaPlaylist(meta) {
     versaoLocalId,
     versaoRotulo,
     bancoFonte,
-    ministranteId: null,
-    tom: '',
+    ministranteId: mt.ministranteId,
+    tom: mt.tom,
   };
   if (temMarcadores) {
     // Insere no fim do bloco do tema escolhido (posição correta na playlist plana).
@@ -9998,7 +10111,7 @@ async function addMusicaNaPlaylist(meta) {
 }
 
 /** Adiciona ao culto indicado (sem mudar o culto atualmente selecionado até `onCultoChange`). */
-function addMusicaNaPlaylistParaCulto(cid, meta) {
+async function addMusicaNaPlaylistParaCulto(cid, meta) {
   if (!cid || meta == null || meta.id == null) return;
   const pl = getPlaylist(cid);
   const vid = meta.versaoLocalId != null && String(meta.versaoLocalId).trim() ? String(meta.versaoLocalId).trim() : null;
@@ -10014,6 +10127,12 @@ function addMusicaNaPlaylistParaCulto(cid, meta) {
     temasPorCulto[cid] = normalizarListaTemas([...(temasPorCulto[cid] || []), tema]);
     saveTemasPorCulto();
   }
+  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(cid, {
+    ...meta,
+    id: meta.id,
+    bancoFonte: bfAdd,
+    titulo: meta.titulo,
+  });
   pl.push({
     id: meta.id,
     titulo: meta.titulo,
@@ -10022,8 +10141,8 @@ function addMusicaNaPlaylistParaCulto(cid, meta) {
     versaoLocalId: vid,
     versaoRotulo: String(meta.versaoRotulo || '').trim(),
     bancoFonte: bfAdd,
-    ministranteId: normalizarMinistranteIdPlaylist(meta.ministranteId),
-    tom: normalizarTomPlaylist(meta.tom),
+    ministranteId: mt.ministranteId,
+    tom: mt.tom,
   });
 }
 
@@ -10044,7 +10163,7 @@ async function processarMusicasSincronizadasPayload(payload) {
   const semCulto = [];
   for (const m of payload.musicas) {
     const cid = m.cultoId != null ? String(m.cultoId).trim() : '';
-    if (cid) addMusicaNaPlaylistParaCulto(cid, m);
+    if (cid) await addMusicaNaPlaylistParaCulto(cid, m);
     else semCulto.push(m);
   }
 
@@ -10128,16 +10247,20 @@ function confirmarSyncPlaylistModal() {
     fecharModalNovasMusicasSync();
     return;
   }
-  syncPlaylistModalPayload.forEach((m) => addMusicaNaPlaylistParaCulto(cid, m));
-  savePlaylists();
-  const mainSel = document.getElementById('culto-sel');
-  if (mainSel) {
-    mainSel.value = cid;
-    onCultoChange();
-  } else {
-    renderPlaylist();
-  }
-  fecharModalNovasMusicasSync();
+  void (async () => {
+    for (const m of syncPlaylistModalPayload) {
+      await addMusicaNaPlaylistParaCulto(cid, m);
+    }
+    savePlaylists();
+    const mainSel = document.getElementById('culto-sel');
+    if (mainSel) {
+      mainSel.value = cid;
+      onCultoChange();
+    } else {
+      renderPlaylist();
+    }
+    fecharModalNovasMusicasSync();
+  })();
 }
 
 function configurarSeletorTemaPlaylist() {
@@ -14742,6 +14865,7 @@ socket.on('connect', async () => {
     temasPorCulto = loadTemasPorCulto();
     temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
     aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
+    ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
     /* Fecha Ajustes sem perguntar por alterações por salvar: a ligação não descarta o
        rascunho (`cfgDirtyCtrl` mantém-se). `fecharCfgModal()` pediria confirmação e
        atrapalhava o feedback de sucesso. */
@@ -18725,6 +18849,7 @@ try {
   temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
   temasPorCulto = loadTemasPorCulto();
   aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
+  ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
   migrarPlaylistsCultosAntigos();
   carregarEstadoModoApresentacaoDoStorage();
   const avisoCard6CfgSalva = carregarAvisoCard6CfgDoStorage();

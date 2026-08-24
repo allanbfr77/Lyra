@@ -239,6 +239,7 @@ function normalizarSnapshotCompartilhado(snapshot, paths, opts = {}) {
       cultosManuais: src.cultosManuais,
       temasPorCulto: src.temasPorCulto,
       aberturaRemovidaPorCulto: src.aberturaRemovidaPorCulto,
+      ministrantePadraoPorCulto: src.ministrantePadraoPorCulto,
     },
     {
       fallbackUpdatedAt:
@@ -252,6 +253,7 @@ function normalizarSnapshotCompartilhado(snapshot, paths, opts = {}) {
     cultosManuais: meta.cultosManuais,
     temasPorCulto: meta.temasPorCulto,
     aberturaRemovidaPorCulto: meta.aberturaRemovidaPorCulto,
+    ministrantePadraoPorCulto: meta.ministrantePadraoPorCulto,
   };
   /* Snapshots antigos sem estes campos: não forçar [] (evita apagar cadastro local). */
   if (Array.isArray(src.ministrantes)) {
@@ -271,6 +273,7 @@ function montarSnapshotCompartilhadoLocal(paths) {
     cultosManuais: meta.cultosManuais,
     temasPorCulto: meta.temasPorCulto,
     aberturaRemovidaPorCulto: meta.aberturaRemovidaPorCulto,
+    ministrantePadraoPorCulto: meta.ministrantePadraoPorCulto,
     ministrantes: listarMinistrantesParaSync(),
     tomMemoria: listarTomMemoriaParaSync(),
     tomPadrao: listarTomPadraoParaSync(),
@@ -898,6 +901,7 @@ async function iniciarServidorController(ctx, paths) {
           cultosManuais: body.cultosManuais,
           temasPorCulto: body.temasPorCulto,
           aberturaRemovidaPorCulto: body.aberturaRemovidaPorCulto,
+          ministrantePadraoPorCulto: body.ministrantePadraoPorCulto,
         },
         {
           fallbackUpdatedAt: metaAtual.updatedAt || new Date().toISOString(),
@@ -950,6 +954,7 @@ async function iniciarServidorController(ctx, paths) {
         cultosManuais: incoming.cultosManuais,
         temasPorCulto: incoming.temasPorCulto,
         aberturaRemovidaPorCulto: incoming.aberturaRemovidaPorCulto,
+        ministrantePadraoPorCulto: incoming.ministrantePadraoPorCulto,
       },
       { fallbackUpdatedAt: new Date().toISOString() }
     );

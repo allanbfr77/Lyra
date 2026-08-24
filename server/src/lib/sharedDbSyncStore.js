@@ -270,6 +270,23 @@ function normalizeAberturaRemovidaPorCulto(aberturaRemovidaPorCulto) {
   return out;
 }
 
+function normalizeMinistrantePadraoPorCulto(ministrantePadraoPorCulto) {
+  const src =
+    ministrantePadraoPorCulto &&
+    typeof ministrantePadraoPorCulto === 'object' &&
+    !Array.isArray(ministrantePadraoPorCulto)
+      ? ministrantePadraoPorCulto
+      : {};
+  const out = {};
+  for (const [cultoId, val] of Object.entries(src)) {
+    const id = String(cultoId || '').trim();
+    const mid = Number(val);
+    if (!id || !Number.isFinite(mid) || mid <= 0) continue;
+    out[id] = Math.trunc(mid);
+  }
+  return out;
+}
+
 function normalizeSharedDbSnapshot(snapshot, opts = {}) {
   const src = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {};
   const out = {
@@ -280,6 +297,7 @@ function normalizeSharedDbSnapshot(snapshot, opts = {}) {
     cultosManuais: normalizeCultosManuais(src.cultosManuais),
     temasPorCulto: normalizeTemasPorCulto(src.temasPorCulto),
     aberturaRemovidaPorCulto: normalizeAberturaRemovidaPorCulto(src.aberturaRemovidaPorCulto),
+    ministrantePadraoPorCulto: normalizeMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto),
   };
   if (Array.isArray(src.ministrantes)) {
     out.ministrantes = normalizeMinistrantes(src.ministrantes);

@@ -309,3 +309,39 @@ export function limparMinistranteDasPlaylists(playlists, ministranteId) {
   });
   return mudou;
 }
+
+/**
+ * Mapa culto → ministranteId (padrão da playlist para músicas novas).
+ * @param {object} map
+ */
+export function normalizarMinistrantePadraoPorCulto(map) {
+  const src = map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+  const out = {};
+  for (const [cultoId, val] of Object.entries(src)) {
+    const cid = String(cultoId || '').trim();
+    const mid = normalizarMinistranteIdPlaylist(val);
+    if (cid && mid) out[cid] = mid;
+  }
+  return out;
+}
+
+/**
+ * Remove referências ao ministrante excluído do cadastro.
+ * @param {Record<string, number>} ministrantePadraoPorCulto
+ * @param {number} ministranteId
+ * @returns {boolean}
+ */
+export function limparMinistrantePadraoPorCulto(ministrantePadraoPorCulto, ministranteId) {
+  const id = Number(ministranteId);
+  if (!Number.isFinite(id) || !ministrantePadraoPorCulto || typeof ministrantePadraoPorCulto !== 'object') {
+    return false;
+  }
+  let mudou = false;
+  for (const [cid, val] of Object.entries(ministrantePadraoPorCulto)) {
+    if (Number(val) === id) {
+      delete ministrantePadraoPorCulto[cid];
+      mudou = true;
+    }
+  }
+  return mudou;
+}
