@@ -279,6 +279,28 @@ test('CifraClub Next.js (divs sem p): extrai letra e ignora [Intro]/acordes', ()
   assert.ok(!estrofes.some((e) => /^\[Intro\]/.test(e)));
 });
 
+test('CifraClub Next.js: og:title com "(letra da música)" não contamina o artista', () => {
+  const html = `<!doctype html><html><head>
+<meta property="og:title" content="Os Sonhos de Deus - Gabriela Rocha (letra da música) - Cifra Club"/>
+</head><body></body></html>`;
+  const pa = cifra.tituloArtistaDoHtmlCifra(html);
+  assert.equal(pa.titulo, 'Os Sonhos de Deus');
+  assert.equal(pa.artista, 'Gabriela Rocha');
+});
+
+test('CifraClub Next.js: par h1/h2 visível tem prioridade sobre og:title', () => {
+  const html = `<!doctype html><html><head>
+<meta property="og:title" content="Título errado - Artista errado (letra da música) - Cifra Club"/>
+</head><body>
+<h2 class="u-srOnly">Menu principal</h2>
+<h1 class="_5QAC sKA9">Os Sonhos de Deus</h1>
+<h2 class="_5QAC avtl1">Gabriela Rocha</h2>
+</body></html>`;
+  const pa = cifra.tituloArtistaDoHtmlCifra(html);
+  assert.equal(pa.titulo, 'Os Sonhos de Deus');
+  assert.equal(pa.artista, 'Gabriela Rocha');
+});
+
 test('REGRESSÃO: não cai na meta description quando o HTML tem a letra', () => {
   // O bug: a meta description traz só as 4 primeiras linhas. Como vinha
   // não-vazia, a cadeia parava nela e o resultado era uma música de 4 linhas.

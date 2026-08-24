@@ -838,19 +838,49 @@ function normalizarEstrofesComMaxLinhas(estrofes, maxLinhasPorSlide = 4) {
   return fatiarLinhasEmSlides(todasLinhas, maxLinhas, todasLinhas.length);
 }
 
+/** Remove sufixos de navegação do CifraClub em título/artista (ex.: "(letra da música)"). */
+function limparRotuloMetadadoCifra(texto) {
+  return String(texto || '')
+    .replace(/\s*\(\s*letra da m[uú]sica\s*\)/gi, ' ')
+    .replace(/\s*\(\s*cifra\s*\)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function textoDeHeadingHtml(fragmento) {
+  return limparRotuloMetadadoCifra(
+    decodeHtmlEntidades(String(fragmento || '').replace(/<[^>]+>/g, '')).trim()
+  );
+}
+
 function tituloArtistaDoHtmlCifra(html) {
   let titulo = '';
   let artista = '';
-  const h1 = html.match(/<h1[^>]*class="[^"]*t1[^"]*"[^>]*>([\s\S]*?)<\/h1>/i);
-  const h2 = html.match(/<h2[^>]*class="[^"]*t3[^"]*"[^>]*>([\s\S]*?)<\/h2>/i);
-  if (h1) titulo = decodeHtmlEntidades(h1[1].replace(/<[^>]+>/g, '')).trim();
-  if (h2) artista = decodeHtmlEntidades(h2[1].replace(/<[^>]+>/g, '')).trim();
 
-  // Next.js: h1.t1/h2.t3 sumiram; og:title ainda traz "Música - Artista - Cifra Club".
+  // Layout clássico (classes t1/t3).
+  const h1Legacy = html.match(/<h1[^>]*class="[^"]*t1[^"]*"[^>]*>([\s\S]*?)<\/h1>/i);
+  const h2Legacy = html.match(/<h2[^>]*class="[^"]*t3[^"]*"[^>]*>([\s\S]*?)<\/h2>/i);
+  if (h1Legacy) titulo = textoDeHeadingHtml(h1Legacy[1]);
+  if (h2Legacy) artista = textoDeHeadingHtml(h2Legacy[1]);
+
+  // Next.js: par h1+h2 visíveis consecutivos (sem u-srOnly); hashes de classe mudam a cada deploy.
+  if (!titulo || !artista) {
+    const par = html.match(
+      /<h1(?![^>]*\bu-srOnly\b)[^>]*>([\s\S]*?)<\/h1>\s*<h2(?![^>]*\bu-srOnly\b)[^>]*>([\s\S]*?)<\/h2>/i
+    );
+    if (par) {
+      if (!titulo) titulo = textoDeHeadingHtml(par[1]);
+      if (!artista) artista = textoDeHeadingHtml(par[2]);
+    }
+  }
+
+  // og:title — "Música - Artista - Cifra Club" (às vezes com "(letra da música)" no artista).
   if (!titulo || !artista) {
     const og = metaTagContent(html, { property: 'og:title' }) || metaTagContent(html, { name: 'title' });
     if (og) {
-      const limpo = og.replace(/\s*[-–]\s*Cifra Club\s*$/i, '').trim();
+      const limpo = limparRotuloMetadadoCifra(
+        og.replace(/\s*[-–]\s*Cifra Club\s*$/i, '').trim()
+      );
       const parts = limpo.split(/\s[-–]\s/);
       if (parts.length >= 2) {
         if (!titulo) titulo = parts[0].trim();
@@ -860,6 +890,9 @@ function tituloArtistaDoHtmlCifra(html) {
       }
     }
   }
+
+  titulo = limparRotuloMetadadoCifra(titulo);
+  artista = limparRotuloMetadadoCifra(artista);
   return { titulo, artista };
 }
 
@@ -1136,6 +1169,8 @@ module.exports = {
   estrofesDePaginaLetrasMusHtml,
   estrofesDeTextoLetrasMetaEOg,
   tituloArtistaDoScriptPageArgsLetras,
+  tituloArtistaDoHtmlCifra,
+  limparRotuloMetadadoCifra,
   fetchHtmlLetrasMus,
   tentarLetraLetrasViaIndice,
   buscarLetraLocal,
