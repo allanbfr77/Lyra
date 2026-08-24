@@ -5551,6 +5551,7 @@
       flex-direction: column;
       min-height: 0;
       align-self: stretch;
+      overflow: visible;
     }
     .ap-card.ap-card--aviso .ap-card-num {
       z-index: 10;
@@ -5561,19 +5562,15 @@
       flex: 1;
       min-height: 0;
       height: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
       margin-top: 4px;
-      padding: 42px 10px 10px;
       box-sizing: border-box;
       width: 100%;
     }
     .ap-card6-aviso-textarea {
       flex: 1 1 0;
-      height: 100%;
       width: 100%;
       min-height: 0;
+      height: auto;
       resize: none;
       box-sizing: border-box;
       padding: 10px 12px;
@@ -5598,15 +5595,58 @@
       max-width: min(100%, 280px);
       margin: 0 auto;
     }
-    .ap-card6-actions {
+    .ap-card6-footer {
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: center;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 6px;
       width: 100%;
       flex: 0 0 auto;
-      margin-top: 0;
-      padding-top: 0;
+      margin: 0 0 8px;
+      padding: 0;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 12;
+    }
+    .ap-card6-footer .route-dd--card6-aviso,
+    .ap-card6-footer .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 32px;
+    }
+    .ap-card6-footer .route-dd--card6-aviso {
+      max-width: none;
+    }
+    .ap-card6-footer .route-dd--card6-aviso.route-dd-open {
+      z-index: 30001;
+    }
+    .ap-card6-footer .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 8px;
+      white-space: nowrap;
+      justify-content: center;
+    }
+    .route-dd--card6-aviso {
+      width: 100%;
+      max-width: 100%;
+    }
+    .route-dd--card6-aviso .route-dd-btn {
+      width: 100%;
+      min-height: 32px;
+      font-size: 11px;
+      padding: 6px 8px;
+    }
+    .route-dd--card6-aviso .route-dd-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .route-dd--card6-aviso .route-dd-menu {
+      z-index: 30001;
+      max-height: min(240px, 40vh);
+      overflow-y: auto;
     }
     .ap-card.ap-card--video {
       background: color-mix(in srgb, var(--surface) 92%, #0a0a12);
@@ -5803,6 +5843,19 @@
     .ap-card-body.drag-over {
       outline: 2px dashed var(--accent);
       outline-offset: -8px;
+    }
+    /* Card 6 — depois de `.ap-card-body` para vencer grid/centro dos outros cards */
+    .ap-card-body.ap-card-body--aviso {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      place-items: stretch;
+      text-align: left;
+      cursor: default;
+      padding: 42px 10px 8px;
+      gap: 0;
+      overflow: visible;
     }
     .ap-card-plus {
       font-size: 42px;

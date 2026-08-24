@@ -49,6 +49,26 @@ function encerrarCamadaApresentacao(ctx) {
 }
 
 /**
+ * Encerra só um canal da camada de apresentação (público ou ministrante).
+ * Permite mídia num monitor e aviso noutro ao mesmo tempo.
+ * @param {object} ctx
+ * @param {'publico'|'ministrante'|'ambos'|'live'|string} alvo
+ */
+function encerrarCamadaApresentacaoAlvo(ctx, alvo) {
+  const a = String(alvo || 'ambos').toLowerCase();
+  if (a === 'publico' || a === 'live') {
+    ctx.estadoPublicoOverride = null;
+    if (a === 'live') ctx.projecaoLiveAtiva = false;
+    return;
+  }
+  if (a === 'ministrante') {
+    ctx.ministranteApresentacaoOverride = null;
+    return;
+  }
+  encerrarCamadaApresentacao(ctx);
+}
+
+/**
  * Encerra projeção de slides/música em `estadoAtual` sem tocar Bíblia nem apresentação.
  * @param {object} ctx
  */
@@ -153,6 +173,7 @@ module.exports = {
   normalizarModoEncerrar,
   estadoOciosoMinistrante,
   encerrarCamadaApresentacao,
+  encerrarCamadaApresentacaoAlvo,
   encerrarCamadaSlides,
   encerrarCamadaBiblia,
   encerrarTodasCamadas,

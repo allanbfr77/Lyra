@@ -451,9 +451,9 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  expressApp.post('/api/comando/encerrar_apresentacao_publico', (_req, res) => {
+  expressApp.post('/api/comando/encerrar_apresentacao_publico', (req, res) => {
     try {
-      difundir(null, aplicador.aplicar('encerrar_apresentacao_publico').eventos);
+      difundir(null, aplicador.aplicar('encerrar_apresentacao_publico', req.body || {}).eventos);
       res.json({ ok: true });
     } catch (e) {
       logError('post-encerrar_apresentacao_publico', e);

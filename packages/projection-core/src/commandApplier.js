@@ -593,10 +593,23 @@ function criarAplicadorDeComandos(deps) {
       const pubOv = estadoPublicoOverrideDePayloadApresentacao(state.estadoAtual, pl);
       const minOv = ministranteOverrideDePayloadApresentacao(pl);
 
-      state.estadoPublicoOverride =
-        (alvo === 'publico' || alvo === 'ambos' || alvo === 'live') && pubOv != null ? pubOv : null;
-      state.ministranteApresentacaoOverride =
-        (alvo === 'ministrante' || alvo === 'ambos') && minOv != null ? minOv : null;
+      /* Só o canal pedido é actualizado — o outro fica intacto. Sem isto, mídia no
+         público e aviso no ministrante (monitores diferentes) não convivem: o segundo
+         `exibir_apresentacao` apagava o override do primeiro. */
+      if (alvo === 'live') {
+        if (pubOv != null) state.estadoPublicoOverride = pubOv;
+        state.ministranteApresentacaoOverride = null;
+      } else if (alvo === 'publico') {
+        if (pubOv != null) state.estadoPublicoOverride = pubOv;
+      } else if (alvo === 'ministrante') {
+        if (minOv != null) state.ministranteApresentacaoOverride = minOv;
+      } else if (alvo === 'ambos') {
+        if (pubOv != null) state.estadoPublicoOverride = pubOv;
+        if (minOv != null) state.ministranteApresentacaoOverride = minOv;
+      } else {
+        state.estadoPublicoOverride = null;
+        state.ministranteApresentacaoOverride = null;
+      }
 
       engine.garantirTelasAbertasParaProjecao();
       const { estadoPublico } = engine.render({ estado: state.estadoAtual });
@@ -694,10 +707,23 @@ function criarAplicadorDeComandos(deps) {
       return [evEstado(estadoPublico), evBibliaObs()];
     },
 
-    /** Retira a apresentação dos dois canais, deixando ver o que está por baixo. */
-    encerrar_apresentacao_publico() {
-      state.projecaoLiveAtiva = false;
-      projectionEncerrar.encerrarCamadaApresentacao(state);
+    /**
+     * Retira a apresentação de um ou de ambos os canais.
+     * @param {object} [dados]
+     * @param {string} [dados.alvoProjecao] `publico` | `ministrante` | `ambos` (omitido = ambos)
+     */
+    encerrar_apresentacao_publico(dados) {
+      const pl = dados && typeof dados === 'object' ? dados : {};
+      const alvo = pl.alvoProjecao != null ? String(pl.alvoProjecao).toLowerCase() : 'ambos';
+      if (alvo === 'ambos' || alvo === 'desativado' || alvo === 'tudo') {
+        state.projecaoLiveAtiva = false;
+        projectionEncerrar.encerrarCamadaApresentacao(state);
+      } else {
+        projectionEncerrar.encerrarCamadaApresentacaoAlvo(state, alvo);
+        if (!state.estadoPublicoOverride && !state.ministranteApresentacaoOverride) {
+          state.projecaoLiveAtiva = false;
+        }
+      }
       engine.garantirTelasAbertasParaProjecao();
       const { estadoPublico } = engine.render({ estado: state.estadoAtual });
       return [evEstado(estadoPublico), evBibliaObs()];

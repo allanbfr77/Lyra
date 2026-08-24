@@ -627,6 +627,41 @@ test('exibir_apresentacao trata pdf como iframe e aviso como texto', () => {
   assert.deepEqual(state.estadoPublicoOverride.linhas, ['linha 1', 'linha 2']);
 });
 
+test('exibir_apresentacao com alvo parcial preserva o canal oposto', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+
+  aplicador.aplicar('exibir_apresentacao', {
+    kind: 'image',
+    src: 'file:///slide.png',
+    alvoProjecao: 'publico',
+  });
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(state.ministranteApresentacaoOverride, null);
+
+  aplicador.aplicar('exibir_apresentacao', {
+    kind: 'aviso',
+    texto: 'Aviso no M2',
+    alvoProjecao: 'ministrante',
+  });
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'aviso');
+  assert.deepEqual(state.ministranteApresentacaoOverride.linhas, ['Aviso no M2']);
+});
+
+test('encerrar_apresentacao_publico com alvo parcial mantém o outro canal', () => {
+  const state = estadoFalso({
+    estadoPublicoOverride: { tipo: 'apresentacao', apresentacao: { kind: 'image', src: 'a.png' } },
+    ministranteApresentacaoOverride: { modo: 'aviso', linhas: ['x'] },
+  });
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('encerrar_apresentacao_publico', {
+    alvoProjecao: 'ministrante',
+  });
+
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});
+
 test('exibir_apresentacao sem src não cria override', () => {
   const state = estadoFalso();
   criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_apresentacao', {

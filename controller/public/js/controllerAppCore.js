@@ -70,7 +70,6 @@ import {
   LS_FILTRO_ARTISTA,
   LS_FILTRO_LETRA,
   LS_BANCO_SQLITE_LISTA_ABERTA,
-  ID_PROJECAO_AVISO_CARD6,
   SVG_PLAYLIST_SECAO_EXPANDIR,
   SVG_PLAYLIST_SECAO_RECOLHER,
   LS_DARK_CTRL,
@@ -403,6 +402,7 @@ function carregarRotasPorModoDoStorage() {
   // intencional — erro ignorado
 }
   rotasPorModo.apresentacao = rotaDesativada();
+  rotasPorModo.apresentacaoAviso = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
 }
 
@@ -548,6 +548,7 @@ function rotaLiveSelecionadaNaUi() {
  */
 function hayProjecaoMidiaApresentacaoAtiva() {
   if (apresentacaoMidiaProjetadaId) return true;
+  if (apresentacaoAvisoCard6Ativo) return true;
   if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
@@ -803,7 +804,7 @@ function desfazerConflitoSlidesComRotaApresentacao(rotaApresentacao) {
  */
 let ultimoConteudoProjetadoModoUnificado = null;
 
-function emitirApresentacao(payload) {
+function emitirApresentacao(payload, opts = {}) {
   const pl = payload && typeof payload === 'object' ? payload : {};
   const ip = getServidorProjeccaoIp();
 
@@ -838,7 +839,9 @@ function emitirApresentacao(payload) {
       } catch (_) {
   // intencional — erro ignorado
 }
-      ultimoConteudoProjetadoModoUnificado = { tipo: 'apresentacao', payload: pl };
+      if (!opts.naoSubstituirUltimoUnificado) {
+        ultimoConteudoProjetadoModoUnificado = { tipo: 'apresentacao', payload: pl };
+      }
       return true;
     })
     .catch((e) => {
@@ -850,15 +853,21 @@ function emitirApresentacao(payload) {
     });
 }
 
-async function emitirEncerrarApresentacaoPublicoAoServidor() {
-  if (projecao.enviar('encerrar_apresentacao_publico')) return true;
+async function emitirEncerrarApresentacaoPublicoAoServidor(alvoProjecao) {
+  const body =
+    alvoProjecao != null && String(alvoProjecao).trim()
+      ? JSON.stringify({ alvoProjecao: String(alvoProjecao).trim() })
+      : '{}';
+  if (projecao.enviar('encerrar_apresentacao_publico', alvoProjecao != null ? { alvoProjecao } : undefined)) {
+    return true;
+  }
   const ip = hostProjecao();
   if (!ip) return false;
   try {
     const r = await fetch(`http://${ip}:5510/api/comando/encerrar_apresentacao_publico`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{}',
+      body,
     });
     return r.ok;
   } catch (_) {
@@ -882,6 +891,191 @@ function obterAlvoProjecaoModoApresentacao() {
 
 function obterAlvoProjecaoModoBiblia() {
   return obterAlvoProjecaoDeRota(rotasPorModo.biblia);
+}
+
+/** Card 6: monitor independente do cabeçalho «Monitor» (mídias). */
+let apresentacaoCard6MonitorIndependente = false;
+/** Aviso do card 6 ainda no telão (pode coexistir com mídia noutro monitor). */
+let apresentacaoAvisoCard6Ativo = false;
+/** Último payload de aviso — reenvio ao mudar o seletor do card 6. */
+let ultimoPayloadAvisoCard6 = null;
+
+function rotasApresentacaoCard6SaoIguais(a, b) {
+  const x = normalizarRota(a);
+  const y = normalizarRota(b);
+  return !!x.live === !!y.live && x.publicoIndex === y.publicoIndex && x.ministranteIndex === y.ministranteIndex;
+}
+
+function obterRotaAvisoCard6() {
+  if (!apresentacaoCard6MonitorIndependente) {
+    return normalizarRota(rotasPorModo.apresentacao);
+  }
+  return normalizarRota(rotasPorModo.apresentacaoAviso);
+}
+
+function obterAlvoProjecaoAvisoCard6() {
+  return obterAlvoProjecaoDeRota(obterRotaAvisoCard6());
+}
+
+function monitoresAvisoCard6CobremAlvo(alvo) {
+  return monitoresRotaCobremAlvo(obterRotaAvisoCard6(), alvo);
+}
+
+function mensagemAlvoInvalidoAvisoCard6(alvo) {
+  return mensagemAlvoInvalidoMonitor(alvo, 'avisos (card 6)');
+}
+
+/**
+ * Rota `apresentacao` enviada ao servidor quando mídia e avisos usam monitores distintos.
+ * Cada índice vem da rota que activa esse canal; a mídia tem prioridade no público.
+ */
+function mesclarRotasApresentacaoMidiaEAviso(rotaMidia, rotaAviso) {
+  const m = normalizarRota(rotaMidia);
+  const a = normalizarRota(rotaAviso);
+  if (m.live) return { ...m };
+  if (a.live) return { ...a };
+  return normalizarRota({
+    publicoIndex: m.publicoIndex >= 0 ? m.publicoIndex : a.publicoIndex,
+    ministranteIndex: m.ministranteIndex >= 0 ? m.ministranteIndex : a.ministranteIndex,
+    live: false,
+  });
+}
+
+function obterRotaApresentacaoParaServidor() {
+  const midia = normalizarRota(rotasPorModo.apresentacao);
+  if (!apresentacaoCard6MonitorIndependente) return midia;
+  const aviso = normalizarRota(rotasPorModo.apresentacaoAviso);
+  if (rotasApresentacaoCard6SaoIguais(midia, aviso)) return midia;
+  return mesclarRotasApresentacaoMidiaEAviso(midia, aviso);
+}
+
+function sincronizarLigacaoMonitorAvisoCard6ComCabecalho() {
+  if (apresentacaoCard6MonitorIndependente) return;
+  rotasPorModo.apresentacaoAviso = { ...normalizarRota(rotasPorModo.apresentacao) };
+}
+
+function aplicarSelecaoMonitorAvisoCard6(opcao) {
+  const o = opcao && typeof opcao === 'object' ? opcao : {};
+  const nova = normalizarRota({
+    publicoIndex: o.pub ?? -1,
+    ministranteIndex: o.min ?? -1,
+    live: !!o.live,
+  });
+  const cabecalho = normalizarRota(rotasPorModo.apresentacao);
+  apresentacaoCard6MonitorIndependente = !rotasApresentacaoCard6SaoIguais(nova, cabecalho);
+  rotasPorModo.apresentacaoAviso = nova;
+}
+
+async function reemitirAvisoCard6AposMudancaDeRota() {
+  if (!apresentacaoAvisoCard6Ativo || !ultimoPayloadAvisoCard6) return;
+  const alvo = obterAlvoProjecaoAvisoCard6();
+  if (!monitoresAvisoCard6CobremAlvo(alvo)) return;
+  await new Promise((r) => setTimeout(r, ATRASO_REENVIO_APOS_ROTA_MS));
+  const payload = { ...ultimoPayloadAvisoCard6, alvoProjecao: alvo };
+  const ok = await emitirApresentacao(payload, { naoSubstituirUltimoUnificado: true });
+  if (ok) {
+    ultimoPayloadAvisoCard6 = payload;
+    atualizarFeedbackProjecaoApresentacaoUi();
+  }
+}
+
+function rotuloSeletorMonitorAvisoCard6() {
+  sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
+  const rota = obterRotaAvisoCard6();
+  const lista = monitoresServidorCache;
+  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
+  const rLive = !!rota.live;
+  let pub = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.publicoIndex);
+  let min = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.ministranteIndex);
+  pub = sanitizarIndiceMonitorProjecao(pub, lista);
+  min = sanitizarIndiceMonitorProjecao(min, lista);
+  const combina = (o) => !!o.live === rLive && (o.live || (o.pub === pub && o.min === min));
+  const preset = opcoes.find(combina);
+  if (preset) return preset.label;
+  return rotuloRotaApresentacaoForaDoPreset({ publicoIndex: pub, ministranteIndex: min, live: rLive }, lista);
+}
+
+function criarSeletorMonitorAvisoCard6() {
+  const dd = document.createElement('div');
+  dd.className = 'route-dd route-dd--card6-aviso';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'route-dd-btn';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-label', 'Monitor para avisos');
+  const rotulo = rotuloSeletorMonitorAvisoCard6();
+  btn.title = apresentacaoCard6MonitorIndependente
+    ? 'Monitor exclusivo para avisos — independente do «Monitor» do cabeçalho (mídias)'
+    : 'Igual ao «Monitor» do cabeçalho — escolha outro destino aqui para projetar avisos noutro ecrã';
+  const spanLbl = document.createElement('span');
+  spanLbl.className = 'route-dd-label';
+  spanLbl.textContent = rotulo;
+  const caret = document.createElement('span');
+  caret.className = 'route-dd-caret';
+  caret.setAttribute('aria-hidden', 'true');
+  caret.textContent = '▾';
+  btn.appendChild(spanLbl);
+  btn.appendChild(caret);
+
+  const menu = document.createElement('ul');
+  menu.className = 'route-dd-menu';
+  menu.setAttribute('role', 'listbox');
+  menu.hidden = true;
+
+  const lista = monitoresServidorCache;
+  const rotaAtual = obterRotaAvisoCard6();
+  const rLive = !!rotaAtual.live;
+  let pubA = rLive ? -1 : indiceRoteamentoMonitorNaUi(rotaAtual.publicoIndex);
+  let minA = rLive ? -1 : indiceRoteamentoMonitorNaUi(rotaAtual.ministranteIndex);
+  pubA = sanitizarIndiceMonitorProjecao(pubA, lista);
+  minA = sanitizarIndiceMonitorProjecao(minA, lista);
+  const combinaAtual = (o) => !!o.live === rLive && (o.live || (o.pub === pubA && o.min === minA));
+
+  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
+  opcoes.forEach((o) => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'presentation');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'route-dd-item';
+    b.dataset.apOp = o.key;
+    b.textContent = o.label;
+    b.setAttribute('aria-selected', combinaAtual(o) ? 'true' : 'false');
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      dd.classList.remove('route-dd-open');
+      aplicarSelecaoMonitorAvisoCard6({ pub: o.pub, min: o.min, live: o.live });
+      spanLbl.textContent = o.label;
+      menu.querySelectorAll('.route-dd-item').forEach((ib) => {
+        ib.setAttribute('aria-selected', ib.dataset.apOp === o.key ? 'true' : 'false');
+      });
+      salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false })
+        .then(() => reemitirAvisoCard6AposMudancaDeRota())
+        .catch(() => {});
+    });
+    li.appendChild(b);
+    menu.appendChild(li);
+  });
+
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const aberto = !menu.hidden;
+    document.querySelectorAll('.route-dd-open').forEach((el) => el.classList.remove('route-dd-open'));
+    document.querySelectorAll('.route-dd-menu').forEach((el) => {
+      el.hidden = true;
+    });
+    menu.hidden = aberto;
+    dd.classList.toggle('route-dd-open', !aberto);
+    btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
+  });
+
+  dd.appendChild(btn);
+  dd.appendChild(menu);
+  return dd;
 }
 
 /**
@@ -925,6 +1119,10 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
   if (guardado.tipo === 'apresentacao') {
     if (!apresentacaoMidiaProjetadaId) return;
     await emitirApresentacao({ ...guardado.payload, alvoProjecao: alvo });
+    if (!apresentacaoCard6MonitorIndependente && apresentacaoAvisoCard6Ativo) {
+      sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
+      await reemitirAvisoCard6AposMudancaDeRota();
+    }
     return;
   }
 
@@ -1238,21 +1436,24 @@ function atualizarPillProjecaoNav(info = {}) {
  */
 function atualizarFeedbackProjecaoApresentacaoUi() {
   const id = apresentacaoMidiaProjetadaId;
-  if (!id) {
+  const avisoAtivo = apresentacaoAvisoCard6Ativo;
+  if (!id && !avisoAtivo) {
     atualizarPillProjecaoNav({ ativo: false });
     renderGridApresentacao();
     return;
   }
-  const item =
-    (apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
-    (apresentacaoCards || []).find((x) => x && x.id === id) ||
-    null;
   let rawNome;
-  if (id === ID_PROJECAO_AVISO_CARD6) {
-    const linha = String(apresentacaoCard6Texto || '').split(/\r\n|\r|\n/).find((l) => String(l).trim()) || 'Aviso';
+  if (avisoAtivo && !id) {
+    const linha =
+      String(apresentacaoCard6Texto || '').split(/\r\n|\r|\n/).find((l) => String(l).trim()) || 'Aviso';
     rawNome = linha.slice(0, 56);
   } else {
+    const item =
+      (apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
+      (apresentacaoCards || []).find((x) => x && x.id === id) ||
+      null;
     rawNome = String(item?.name || 'arquivo');
+    if (avisoAtivo) rawNome = `${rawNome} + aviso`;
   }
   atualizarPillProjecaoNav({ ativo: true, nome: rawNome });
   renderGridApresentacao();
@@ -1268,18 +1469,21 @@ function montarPayloadAvisoCard6Atual(alvo) {
 }
 
 async function atualizarAvisoCard6AoVivo() {
-  if (apresentacaoMidiaProjetadaId !== ID_PROJECAO_AVISO_CARD6) return;
-  const alvo = obterAlvoProjecaoModoApresentacao();
-  if (!monitoresApresentacaoCobremAlvo(alvo)) return;
+  if (!apresentacaoAvisoCard6Ativo) return;
+  const alvo = obterAlvoProjecaoAvisoCard6();
+  if (!monitoresAvisoCard6CobremAlvo(alvo)) return;
   const payload = montarPayloadAvisoCard6Atual(alvo);
   if (!payload.texto) return;
-  const ok = await emitirApresentacao(payload);
-  if (ok) atualizarFeedbackProjecaoApresentacaoUi();
+  const ok = await emitirApresentacao(payload, { naoSubstituirUltimoUnificado: true });
+  if (ok) {
+    ultimoPayloadAvisoCard6 = payload;
+    atualizarFeedbackProjecaoApresentacaoUi();
+  }
 }
 
 function agendarAtualizacaoAvisoCard6AoVivo() {
   if (syncApresentacaoAvisoLiveTimer) clearTimeout(syncApresentacaoAvisoLiveTimer);
-  if (apresentacaoMidiaProjetadaId !== ID_PROJECAO_AVISO_CARD6) return;
+  if (!apresentacaoAvisoCard6Ativo) return;
   syncApresentacaoAvisoLiveTimer = setTimeout(() => {
     syncApresentacaoAvisoLiveTimer = null;
     void atualizarAvisoCard6AoVivo();
@@ -1292,14 +1496,22 @@ async function projetarAvisoCard6() {
     alert('Digite um aviso no card 6 antes de projetar.');
     return;
   }
-  const alvo = obterAlvoProjecaoModoApresentacao();
-  if (!monitoresApresentacaoCobremAlvo(alvo)) {
-    alert(mensagemAlvoInvalidoApresentacao(alvo));
+  sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
+  const alvo = obterAlvoProjecaoAvisoCard6();
+  if (!monitoresAvisoCard6CobremAlvo(alvo)) {
+    alert(mensagemAlvoInvalidoAvisoCard6(alvo));
     return;
   }
-  const ok = await emitirApresentacao(montarPayloadAvisoCard6Atual(alvo));
+  if (apresentacaoCard6MonitorIndependente) {
+    await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
+  }
+  const payload = montarPayloadAvisoCard6Atual(alvo);
+  const ok = await emitirApresentacao(payload, {
+    naoSubstituirUltimoUnificado: !!apresentacaoMidiaProjetadaId,
+  });
   if (!ok) return;
-  apresentacaoMidiaProjetadaId = ID_PROJECAO_AVISO_CARD6;
+  apresentacaoAvisoCard6Ativo = true;
+  ultimoPayloadAvisoCard6 = payload;
   atualizarFeedbackProjecaoApresentacaoUi();
 }
 
@@ -3364,7 +3576,7 @@ function renderGridApresentacao() {
   card6.dataset.apCardIdx = '5';
   card6.className = 'ap-card ap-card--aviso';
   card6.title = 'Clique para selecionar o card · duplo clique fora do texto para projetar';
-  if (apresentacaoMidiaProjetadaId === ID_PROJECAO_AVISO_CARD6) card6.classList.add('ap-card--projetando');
+  if (apresentacaoAvisoCard6Ativo) card6.classList.add('ap-card--projetando');
   const num6 = document.createElement('span');
   num6.className = 'ap-card-num';
   num6.textContent = 'CARD 6 — AVISOS';
@@ -3393,6 +3605,7 @@ function renderGridApresentacao() {
   });
   card6.addEventListener('click', (ev) => {
     if (ev.target === ta || (ta && ta.contains(ev.target))) return;
+    if (ev.target.closest('.ap-card6-footer')) return;
     if (ev.target.closest('button')) return;
     if (ev.detail >= 2) return;
     clearTimeout(apresentacaoCardUiClickTimer);
@@ -3403,6 +3616,7 @@ function renderGridApresentacao() {
   });
   card6.addEventListener('dblclick', (ev) => {
     if (ev.target === ta || (ta && ta.contains(ev.target))) return;
+    if (ev.target.closest('.ap-card6-footer')) return;
     if (ev.target.closest('button')) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -3410,21 +3624,23 @@ function renderGridApresentacao() {
     apresentacaoCardUiClickTimer = null;
     projetarAvisoCard6();
   });
-  if (apresentacaoMidiaProjetadaId === ID_PROJECAO_AVISO_CARD6) {
+  if (apresentacaoAvisoCard6Ativo) {
     const live = document.createElement('div');
     live.className = 'ap-card-live-pill';
     live.textContent = 'AO VIVO';
     live.setAttribute('aria-hidden', 'true');
     body6.appendChild(live);
   }
-  body6.appendChild(ta);
-  const rowBtns = document.createElement('div');
-  rowBtns.className = 'ap-card6-actions';
+  const footer6 = document.createElement('div');
+  footer6.className = 'ap-card6-footer';
+  footer6.appendChild(criarSeletorMonitorAvisoCard6());
   const btnProjCard6 = document.createElement('button');
   btnProjCard6.type = 'button';
   btnProjCard6.className = 'btn sm primary';
   btnProjCard6.textContent = 'Projetar';
-  btnProjCard6.title = 'Projeta o aviso nos monitores definidos em «Monitor» no cabeçalho';
+  btnProjCard6.title = apresentacaoCard6MonitorIndependente
+    ? 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)'
+    : 'Projeta o aviso no mesmo destino do «Monitor» do cabeçalho';
   btnProjCard6.addEventListener('click', (ev) => {
     ev.stopPropagation();
     projetarAvisoCard6();
@@ -3439,9 +3655,10 @@ function renderGridApresentacao() {
     salvarEstadoModoApresentacaoNoStorage();
     renderGridApresentacao();
   });
-  rowBtns.appendChild(btnProjCard6);
-  rowBtns.appendChild(btnLimparTxt);
-  body6.appendChild(rowBtns);
+  footer6.appendChild(btnProjCard6);
+  footer6.appendChild(btnLimparTxt);
+  body6.appendChild(footer6);
+  body6.appendChild(ta);
   card6.appendChild(num6);
   card6.appendChild(body6);
   grid.appendChild(card6);
@@ -3512,6 +3729,8 @@ function abrirMenuModoApresentacao() {
       rotasPorModo.apresentacao = rotaDesativada();
       marcarRotaLiveNoDom(false);
     }
+    apresentacaoCard6MonitorIndependente = false;
+    sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
     aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
     apresentacaoCardSelecionadoIdx = null;
     renderGridApresentacao();
@@ -3756,7 +3975,9 @@ function encerrarProjecaoMidiaApresentacaoNoControlador() {
     pararAudioServidorPlayback();
   }
   apresentacaoMidiaProjetadaId = null;
+  apresentacaoAvisoCard6Ativo = false;
   ultimoConteudoProjetadoModoUnificado = null;
+  ultimoPayloadAvisoCard6 = null;
   try {
     localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
   } catch (_) {
@@ -3794,7 +4015,9 @@ function encerrarProjecaoMidiaApresentacaoNoControlador() {
 async function encerrarProjecaoModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
   encerrarProjecaoMidiaApresentacaoNoControlador();
+  apresentacaoCard6MonitorIndependente = false;
   rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
+  rotasPorModo.apresentacaoAviso = rotaDesativada();
   rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
   salvarRotasPorModoNoStorage();
   atualizarFeedbackProjecaoApresentacaoUi({
@@ -5682,6 +5905,7 @@ let rotasPorModo = {
   completo: { publicoIndex: -1, ministranteIndex: -1 },
   slides: { publicoIndex: -1, ministranteIndex: -1 },
   apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+  apresentacaoAviso: { publicoIndex: -1, ministranteIndex: -1 },
   biblia: { publicoIndex: -1, ministranteIndex: -1 },
 };
 let musicaAtiva = null;
@@ -13656,6 +13880,9 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
 
   rotasPorModo.slides = sanitizarRotaProjecao(rotasPorModo.slides, monitoresServidorCache);
   rotasPorModo.apresentacao = sanitizarRotaProjecao(rotasPorModo.apresentacao, monitoresServidorCache);
+  if (modo === 'apresentacao' && !apresentacaoCard6MonitorIndependente) {
+    sincronizarLigacaoMonitorAvisoCard6ComCabecalho();
+  }
   if (modo === 'biblia') {
     rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
   }
@@ -13667,7 +13894,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const payloadDual = {
     version: 2,
     slides: normalizarRota(rotasPorModo.slides),
-    apresentacao: normalizarRota(rotasPorModo.apresentacao),
+    apresentacao: obterRotaApresentacaoParaServidor(),
   };
   if (
     !Number.isFinite(payloadDual.slides.publicoIndex) ||
@@ -14243,15 +14470,23 @@ function aoReceberEstadoDaProjecao(estado) {
   atualizarBtnModoApresentacao();
   agendarRepinturaCompositorAposEstadoServidor();
   try {
-    if (ehModoApresentacaoOperador() && apresentacaoMidiaProjetadaId) {
+    if (ehModoApresentacaoOperador() && (apresentacaoMidiaProjetadaId || apresentacaoAvisoCard6Ativo)) {
       const tip = estado && estado.tipo;
       const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
-      const aindaProjecaoApresentacao =
+      const pubAp =
         tip === 'apresentacao' ||
-        (tip === 'aviso' && apresentacaoMidiaProjetadaId === ID_PROJECAO_AVISO_CARD6) ||
+        (tip === 'aviso' && apresentacaoAvisoCard6Ativo) ||
         minAp;
-      if (!aindaProjecaoApresentacao) {
+      if (apresentacaoMidiaProjetadaId && !pubAp && tip !== 'apresentacao') {
         apresentacaoMidiaProjetadaId = null;
+      }
+      if (apresentacaoAvisoCard6Ativo && tip !== 'aviso' && !minAp) {
+        apresentacaoAvisoCard6Ativo = false;
+        ultimoPayloadAvisoCard6 = null;
+      }
+      if (!apresentacaoMidiaProjetadaId && !apresentacaoAvisoCard6Ativo) {
+        atualizarFeedbackProjecaoApresentacaoUi();
+      } else {
         atualizarFeedbackProjecaoApresentacaoUi();
       }
     }
