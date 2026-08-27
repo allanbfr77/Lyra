@@ -1671,6 +1671,39 @@ function createProjectionEngine(paths, deps) {
     });
   }
 
+  /**
+   * Move uma janela já existente para outro monitor sem a destruir.
+   *
+   * Ordem: ocultar → assentar (fullscreen enquanto oculta) → mostrar. O fundo preto
+   * cobre o desktop durante o salto; `substituirJanelaNoMonitor` ficava a carregar HTML
+   * de novo e piscava em branco.
+   *
+   * Não se trocam janelas entre público e ministrante: cada papel carrega uma página
+   * diferente (`display.html` vs `display-operator.html`). Trocar as BrowserWindow no
+   * registo deixava a Contagem no M3 a falar com a página do operador — tela preta.
+   *
+   * @returns {boolean} true se a janela ficou no destino
+   */
+  function moverJanelaRoleEntreMonitores(entrada, displayIndex, opts = {}) {
+    const displays = obterDisplaysOrdenados();
+    const d = displays[displayIndex];
+    const win = entrada?.win;
+    if (!d || !win || win.isDestroyed()) return false;
+    const mostrar = opts.mostrar !== false;
+    try {
+      cancelarTrocaPendente(entrada);
+      if (win.isVisible()) win.hide();
+      entrada.ocultoParaRelogio = false;
+      marcarOcultoParaRelogio(win, false);
+      assentarJanelaOcultaNoDisplay(win, d);
+      entrada.index = displayIndex;
+      if (mostrar) win.show();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function sincronizarJanelaRole(role, displayIndex, abrirFn, labelFn, next) {
     const entradas = obterEntradasPorRole(role);
 
@@ -1732,10 +1765,26 @@ function createProjectionEngine(paths, deps) {
 }
         }
       } else if (principal.index !== displayIndex) {
-        /* Esperar pela troca antes de seguir: as etapas seguintes decidem escudo e relógio
-           a partir de quem ocupa o quê, e corriam com o registo ainda a apontar ao monitor
-           antigo. `substituirJanelaNoMonitor` garante que o callback corre sempre — na
-           troca, na desistência e no timeout. */
+        const idxOrigem = principal.index;
+        /* Destino ocupado por outro papel: estacionar o ocupante no monitor de origem
+           (oculto) e só depois trazer a janela deste papel — mantém o HTML certo em
+           cada role (Contagem no M3 precisa de `display.html`, não da página do operador). */
+        const ocupante = registro.todas().find(
+          (e) =>
+            e &&
+            e !== principal &&
+            (e.role === 'publico' || e.role === 'ministrante') &&
+            e.win &&
+            !e.win.isDestroyed() &&
+            e.index === displayIndex
+        );
+        if (ocupante) {
+          moverJanelaRoleEntreMonitores(ocupante, idxOrigem, { mostrar: false });
+        }
+        if (moverJanelaRoleEntreMonitores(principal, displayIndex)) {
+          if (typeof next === 'function') next();
+          return;
+        }
         substituirJanelaNoMonitor(principal, displayIndex, abrirFn, labelFn, next);
         return;
       } else if (!janelaCobreODisplay(principal, displayIndex, obterDisplaysOrdenados())) {

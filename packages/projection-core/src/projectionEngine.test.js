@@ -416,6 +416,95 @@ test('contagem no alvo «ambos»: M3 fica activo e não revela o relógio', () =
   assert.ok(ultimo.contagem, 'payload leva a contagem ao M3');
 });
 
+test('pin de Contagem move a janela público sem trocar HTML (evita tela preta no M3)', () => {
+  /* Público e ministrante carregam páginas diferentes. Trocar as BrowserWindow no
+     registo fazia a Contagem «só no M3» pintar na página do operador → tela preta.
+     O pin deve levar a janela `publico` (display.html) ao monitor da Contagem. */
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-contagem-move-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  const routingBase = {
+    version: 2,
+    slides: { publicoIndex: 1, ministranteIndex: 2 },
+    apresentacao: { publicoIndex: 1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  };
+  fs.writeFileSync(routingPath, JSON.stringify(routingBase));
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [1, 2] }));
+
+  let janelasCriadas = 0;
+  const state = armazemDeProjecao();
+  state.displayConfig.clock = { showClock: false, monitorRelogio: 'ministrante' };
+  const engine = createProjectionEngine(
+    {
+      displayRoutingPath: () => routingPath,
+      displaySettingsPath: () => settingsPath,
+    },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
+      BrowserWindow: function (opts) {
+        janelasCriadas += 1;
+        return janelaFalsa(opts);
+      },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+
+  engine.abrirTelasConfiguradas();
+  const antes = engine.janelasDeProjecao().filter(
+    (e) => e.role === 'publico' || e.role === 'ministrante'
+  );
+  const winPub = antes.find((e) => e.role === 'publico')?.win;
+  const winMin = antes.find((e) => e.role === 'ministrante')?.win;
+  assert.ok(winPub && winMin, 'precisa de público e ministrante abertos');
+  assert.strictEqual(antes.find((e) => e.role === 'publico').index, 1);
+  assert.strictEqual(antes.find((e) => e.role === 'ministrante').index, 2);
+  const criadasAntesDoPin = janelasCriadas;
+
+  /* Contagem no M3 + Bíblia no M2: público vai ao M3, ministrante fica no M2. */
+  fs.writeFileSync(
+    routingPath,
+    JSON.stringify({
+      ...routingBase,
+      contagem: { publicoIndex: 2, ministranteIndex: -1 },
+    })
+  );
+  engine.garantirTelasAbertasParaProjecao();
+
+  const depois = engine.janelasDeProjecao().filter(
+    (e) => e.role === 'publico' || e.role === 'ministrante'
+  );
+  const pub = depois.find((e) => e.role === 'publico');
+  const min = depois.find((e) => e.role === 'ministrante');
+  assert.ok(pub && min, 'ambos os papéis continuam no registo');
+  assert.strictEqual(pub.index, 2, 'Contagem fica no M3');
+  assert.strictEqual(min.index, 1, 'Bíblia/slides ficam no M2 como ministrante');
+  assert.strictEqual(
+    pub.win,
+    winPub,
+    'a Contagem no M3 usa a janela público (display.html), não a do operador'
+  );
+  assert.strictEqual(min.win, winMin, 'a janela ministrante continua a ser a mesma');
+  assert.ok(!winPub.destruida && !winMin.destruida, 'nenhuma janela de conteúdo foi destruída');
+  assert.strictEqual(
+    janelasCriadas,
+    criadasAntesDoPin,
+    'pin de Contagem não pode abrir BrowserWindow novas (flash do load HTML)'
+  );
+});
+
 /**
  * Guarda do monitor do operador.
  *
