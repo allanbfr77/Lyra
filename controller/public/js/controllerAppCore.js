@@ -147,6 +147,7 @@ import {
   AJUSTE_CONTAGEM_MS,
   LS_CONTAGEM_CFG,
   LS_CONTAGEM_ALVO,
+  LS_CONTAGEM_MONITOR,
   LS_CONTAGEM_ULTIMO_TEMPO,
   clonarCfgContagemPadrao,
   normalizarCfgContagem,
@@ -1205,7 +1206,8 @@ function normalizarCfgAvisoCard6(raw) {
   const cfg = raw && typeof raw === 'object' ? raw : {};
   const fontSize = Number(cfg.fontSize);
   if (Number.isFinite(fontSize)) {
-    base.fontSize = Math.min(15, Math.max(2.2, fontSize));
+    /* Até 40 vh: palavra curta (ex. «ORAÇÃO») de ponta a ponta numa TV 42" 16:9. */
+    base.fontSize = Math.min(40, Math.max(2.2, fontSize));
   }
   base.textColor = normalizarCorHexCard6Aviso(cfg.textColor, base.textColor);
   base.backgroundColor = normalizarCorHexCard6Aviso(cfg.backgroundColor, base.backgroundColor);
@@ -6013,6 +6015,8 @@ let rotasPorModo = {
   apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
   apresentacaoAviso: { publicoIndex: -1, ministranteIndex: -1 },
   biblia: { publicoIndex: -1, ministranteIndex: -1 },
+  /* Pin exclusivo do Contador — nunca partilha com o seletor do cabeçalho. */
+  contagem: { publicoIndex: -1, ministranteIndex: -1 },
 };
 let musicaAtiva = null;
 /** `user` — SQLite do servidor · `catalog` — `catalog.db` somente leitura (mesmo `id` pode existir nos dois). */
@@ -14117,6 +14121,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     rotasPorModo.apresentacaoAviso,
     monitoresServidorCache
   );
+  rotasPorModo.contagem = sanitizarRotaProjecao(rotasPorModo.contagem, monitoresServidorCache);
   if (modo === 'biblia') {
     rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
   }
@@ -14129,6 +14134,9 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     version: 2,
     slides: normalizarRota(rotasPorModo.slides),
     apresentacao: obterRotaApresentacaoParaServidor(),
+    /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
+       a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
+    contagem: rotaContagemParaServidor(),
   };
   if (
     !Number.isFinite(payloadDual.slides.publicoIndex) ||
@@ -21727,6 +21735,7 @@ async function enviarComandoContagem(payload, opts = {}) {
     if (r.status === 400) {
       contagemEstadoPainel = estadoContagemVazio();
       renderPainelContagem();
+      void salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
       return false;
     }
     throw new Error(`HTTP ${r.status}`);
@@ -21882,28 +21891,16 @@ function lerCampoContagem(qual) {
 }
 
 /**
- * Onde é que o telão está, agora, segundo o cabeçalho.
+ * Onde a Contagem está a ir — só o monitor do próprio Contador.
  *
- * Lê o seletor de rota tal como o operador o vê, e não `rotasPorModo.apresentacao` como
- * na primeira versão: a contagem pode ser aberta de qualquer modo, e cada modo tem a sua
- * rota. Perguntar sempre pela do modo Mídias fazia o aviso aparecer com o telão ligado —
- * ou calar-se com ele desligado, que é pior.
+ * Não lê o seletor do cabeçalho nem a rota do modo aberto (Bíblia, Slides, Mídias).
+ * Cada modo controla o seu monitor; a Contagem não reage aos dos outros.
  *
- * @returns {{ estado: 'ok'|'sem-monitor'|'live', rotulo: string }}
- *   `rotulo` é o nome que o seletor tem no modo actual («Público» nos Slides, «Monitor»
- *   nos modos Bíblia e Mídias) — dizer o nome errado ao operador é pior do que não dizer.
+ * @returns {{ estado: 'ok'|'sem-monitor', rotulo?: string }}
  */
 function situacaoRotaContagem() {
-  let rota = null;
-  try {
-    rota = rotaSelecionadaNaUi();
-  } catch (_) {
-    rota = null;
-  }
-  /* Sem seletor no DOM não há nada de útil a dizer — melhor calar do que alarmar. */
-  if (!rota) return { estado: 'ok' };
-  if (rota.live) return { estado: 'live' };
-  return { estado: rota.publicoIndex >= 0 ? 'ok' : 'sem-monitor' };
+  const r = normalizarRota(rotasPorModo.contagem);
+  return { estado: r.publicoIndex >= 0 ? 'ok' : 'sem-monitor' };
 }
 
 function atualizarAlertaRotaContagem() {
@@ -21916,19 +21913,15 @@ function atualizarAlertaRotaContagem() {
   if (estado === 'ok') return;
 
   texto.textContent =
-    estado === 'live'
-      ? 'O destino agora é «Live — OBS», que não usa monitor físico. A contagem não é ' +
-        'enviada ao OBS de propósito: aquelas fontes são para letra e versículo, e um ' +
-        'relógio a piscar por cima da transmissão não é o que se quer. Escolha um monitor ' +
-        'abaixo para a contagem aparecer.'
-      : 'Nenhum monitor está a receber o telão — escolha um abaixo.';
+    'Nenhum monitor está seleccionado para a contagem — escolha um abaixo. ' +
+    'Este seletor é só do Contador e não altera o monitor da Bíblia, dos Slides ou das Mídias.';
 }
 
 /**
  * Para onde a contagem é enviada: só o telão, ou telão e monitor do ministrante.
  *
  * Preferência de uso, não de hardware — por isso persiste como a aparência, e não como a
- * rota (que é de sessão). É sanitizada na leitura: um «ambos» guardado num culto com dois
+ * rota dos outros modos. É sanitizada na leitura: um «ambos» guardado num culto com dois
  * monitores não pode sobreviver a um culto onde só há um.
  */
 let contagemAlvoPainel = 'publico';
@@ -21953,54 +21946,74 @@ function salvarAlvoContagemNoStorage() {
 }
 }
 
+function carregarRotaContagemDoStorage() {
+  try {
+    const raw = localStorage.getItem(LS_CONTAGEM_MONITOR);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (!p || typeof p !== 'object') return;
+    rotasPorModo.contagem = normalizarRota(p);
+  } catch (_) {
+    rotasPorModo.contagem = rotaDesativada();
+  }
+}
+
+function salvarRotaContagemNoStorage() {
+  try {
+    localStorage.setItem(LS_CONTAGEM_MONITOR, JSON.stringify(normalizarRota(rotasPorModo.contagem)));
+  } catch (_) {
+  // intencional — erro ignorado
+}
+}
+
 /**
- * Escolha do monitor do telão, feita de dentro do painel da contagem.
+ * Pin enviado ao servidor: só com a Contagem no ar.
  *
- * ## Porquê um seletor próprio, e o que ele NÃO reimplementa
+ * Parada, o pin fica a −1 para não roubar monitores aos outros modos. A escolha do
+ * operador continua em `rotasPorModo.contagem` / localStorage para a próxima vez.
+ */
+function rotaContagemParaServidor() {
+  if (!contagemEstadoPainel || !contagemEstadoPainel.noAr) {
+    return { publicoIndex: -1, ministranteIndex: -1 };
+  }
+  const c = sanitizarRotaProjecao(normalizarRota(rotasPorModo.contagem), monitoresServidorCache);
+  if (contagemAlvoPainel === 'ambos') {
+    const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(monitoresServidorCache);
+    return {
+      publicoIndex: c.publicoIndex >= 0 ? c.publicoIndex : iPub,
+      ministranteIndex: c.ministranteIndex >= 0 ? c.ministranteIndex : iMin,
+    };
+  }
+  return { publicoIndex: c.publicoIndex, ministranteIndex: -1 };
+}
+
+/**
+ * Escolha do monitor da Contagem — só dela, sem tocar no cabeçalho nem noutros modos.
  *
- * As duas tentativas anteriores mandavam o operador ao dropdown do cabeçalho — fechando o
- * painel, ou abrindo o menu por cima dele. Nenhuma servia: o dropdown muda de forma
- * conforme o modo (nos modos Bíblia e Mídias oferece «Público / Ministrante / Ambos /
- * Live», não uma lista de monitores), e num modo de Slides sem segundo monitor chega a
- * ficar desativado. Depender dele significava depender do modo em que o operador estava —
- * e a contagem abre de qualquer um.
+ * ## Porquê um seletor próprio
  *
- * O que se desenha aqui é a MESMA lista, com os MESMOS rótulos
- * (`listaMonitoresParaProjecao`, `montarLabelMonitor`, `montarTitleMonitor`), apresentada
- * como botões em vez de menu. E a escolha continua a ser aplicada pelo caminho de sempre:
- * escreve no seletor do cabeçalho e chama `salvarRoteamentoTelasNoServidor`, que é quem
- * conhece as regras por modo — conflito entre slides e mídia, o canal que a Bíblia
- * partilha com Mídias, o «Live». Nada disso é repetido aqui; repeti-lo seria como se
- * ganha um telão que fecha sozinho a meio do culto.
+ * As tentativas que escreviam no dropdown do cabeçalho faziam a Contagem herdar a rota
+ * do modo aberto: abrir a Bíblia no M2 ou Live «movia» a Contagem ou mostrava o aviso
+ * vermelho. O Contador tem de ignorar por completo o monitor dos outros modos.
  *
  * @param {object} opcao Uma entrada de `opcoesMonitorContagem()`.
  */
 async function definirMonitorDoTelaoDaContagem(opcao) {
   const o = opcao && typeof opcao === 'object' ? opcao : {};
-  const hidPub = document.getElementById('route-publico');
-  const hidMin = document.getElementById('route-ministrante');
-  if (!hidPub) return;
 
-  hidPub.value = String(o.publicoIndex ?? -1);
-  /* Só «Ambos» reclama o canal do ministrante. As outras opções não lhe tocam: em modo
-     Slides é lá que está a letra do palco, e roubá-la para pôr uma contagem que o operador
-     não pediu seria uma surpresa cara. */
-  if (hidMin && Number.isFinite(o.ministranteIndex)) hidMin.value = String(o.ministranteIndex);
-  /* Sair do «Live — OBS»: é o `dataset` que `rotaLiveSelecionadaNaUi` lê, e deixá-lo para
-     trás faria a rota gravada continuar sem monitor nenhum. */
-  delete hidPub.dataset.live;
-
+  rotasPorModo.contagem = normalizarRota({
+    publicoIndex: o.publicoIndex ?? -1,
+    ministranteIndex: Number.isFinite(o.ministranteIndex) ? o.ministranteIndex : -1,
+    live: false,
+  });
   contagemAlvoPainel = normalizarAlvoContagemPainel(o.alvo);
   salvarAlvoContagemNoStorage();
+  salvarRotaContagemNoStorage();
 
-  atualizarEstiloRotasDesativadas();
-  await salvarRoteamentoTelasNoServidor();
-  /* Redesenha o cabeçalho a partir da rota já gravada, para o dropdown de lá acompanhar a
-     escolha feita aqui. Sem sincronizar de novo — acabou de ser gravada. */
-  await aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
+  /* Propaga o pin (ou limpa-o se a Contagem não está no ar) sem alterar seletores
+     de Bíblia/Slides/Mídias na UI. */
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 
-  /* Contagem já no ar: um comando de aparência leva o alvo novo ao host sem lhe tocar no
-     tempo — é como o operador tira a contagem do palco (ou a põe lá) a meio. */
   if (contagemEstadoPainel && contagemEstadoPainel.noAr) {
     void enviarComandoContagem(comandoAparenciaContagem(contagemCfg), { silencioso: true });
   }
@@ -22009,24 +22022,14 @@ async function definirMonitorDoTelaoDaContagem(opcao) {
   renderPainelContagem();
 }
 
-/** Índice do monitor que está a receber o telão agora, ou `-1`. */
+/** Índice do monitor escolhido no painel do Contador, ou `-1`. */
 function indiceMonitorPublicoAtual() {
-  let rota = null;
-  try {
-    rota = rotaSelecionadaNaUi();
-  } catch (_) {
-    rota = null;
-  }
-  if (!rota || rota.live) return -1;
-  return Number.isFinite(rota.publicoIndex) ? rota.publicoIndex : -1;
+  const r = normalizarRota(rotasPorModo.contagem);
+  return Number.isFinite(r.publicoIndex) ? r.publicoIndex : -1;
 }
 
 /**
- * Qual opção do seletor está em vigor.
- *
- * «Ambos» não é só uma rota — é rota mais alvo. Um modo de Slides com telão e ministrante
- * ligados tem exactamente a mesma rota que «Ambos» e não deve aparecer destacado como tal:
- * a letra continua no palco, e a contagem só lá vai se o operador a mandar.
+ * Qual opção do seletor está em vigor — só a preferência do Contador.
  */
 function chaveMonitorSelecionadoContagem() {
   const pub = indiceMonitorPublicoAtual();
@@ -22242,12 +22245,29 @@ async function iniciarContagemDoPainel() {
     alert('A contagem precisa de pelo menos um segundo.');
     return;
   }
+  if (situacaoRotaContagem().estado !== 'ok') {
+    alert('Escolha um monitor para a contagem antes de iniciar.');
+    return;
+  }
   salvarUltimoTempoContagem(ms);
+  /* Marca noAr antes do pin: `rotaContagemParaServidor` só envia monitores com Contagem activa. */
+  contagemEstadoPainel = ancorarContagem(
+    { rodando: true, restanteMs: ms, duracaoMs: ms },
+    agoraPainelMs()
+  );
+  contagemRestanteUltimoTick = restanteLocalMs(contagemEstadoPainel, agoraPainelMs());
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
   const ok = await enviarComandoContagem(comandoIniciarContagem(ms, contagemCfg));
-  if (!ok) return;
-  /* O host devolve só `{ok:true}`; o estado do painel arranca do que ele próprio pediu.
-     Divergências reais chegam pelo evento `estado`, que reancoram isto. */
-  registarContagemNoAr({ rodando: true, restanteMs: ms, duracaoMs: ms });
+  if (!ok) {
+    contagemEstadoPainel = estadoContagemVazio();
+    contagemRestanteUltimoTick = 0;
+    void salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
+    renderPainelContagem();
+    garantirTickPainelContagem();
+    return;
+  }
+  renderPainelContagem();
+  garantirTickPainelContagem();
 }
 
 async function alternarPausaContagemDoPainel() {
@@ -22296,6 +22316,8 @@ async function encerrarContagemDoPainel() {
   contagemRestanteUltimoTick = 0;
   renderPainelContagem();
   garantirTickPainelContagem();
+  /* Liberta o pin para os outros modos voltarem a mandar sozinhos nos monitores. */
+  void salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 }
 
 // ── Arranque ──────────────────────────────────────────────────────────────
@@ -22303,6 +22325,7 @@ async function encerrarContagemDoPainel() {
 (function iniciarContagemRegressivaPainel() {
   carregarContagemCfgDoStorage();
   carregarAlvoContagemDoStorage();
+  carregarRotaContagemDoStorage();
 
   const presets = document.getElementById('contagem-presets');
   if (presets) {
@@ -22395,6 +22418,8 @@ async function encerrarContagemDoPainel() {
       contagemRestanteUltimoTick = 0;
       renderPainelContagem();
       garantirTickPainelContagem();
+      /* Contagem encerrou (ESC, outro operador, ao zerar): liberta o pin. */
+      void salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
     }
   });
 

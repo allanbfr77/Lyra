@@ -73,13 +73,16 @@ function estadoBibliaParaObs(state) {
     Array.isArray(e.linhas) &&
     e.linhas.some((l) => String(l == null ? '' : l).length > 0);
   const ov = state.estadoPublicoOverride;
+  /*
+   * Contagem é de sala, não de transmissão: não pode calar o overlay de Bíblia do OBS.
+   * Com Live activo (ou Bíblia noutro monitor) o versículo tem de chegar ao `/obs/biblia`
+   * enquanto a contagem continua no monitor físico que o Contador escolheu.
+   * Aviso/mídia no telão continuam a cobrir o OBS — aí o público da sala já não vê Bíblia.
+   */
   const apresentacaoCobrePublico =
     !!ov &&
     typeof ov === 'object' &&
-    (ov.tipo === 'apresentacao' ||
-      ov.tipo === 'aviso' ||
-      ov.tipo === 'contagem' ||
-      !!ov.apresentacao);
+    (ov.tipo === 'apresentacao' || ov.tipo === 'aviso' || !!ov.apresentacao);
   if (!ehBiblia || apresentacaoCobrePublico) {
     return { tipo: null, titulo: '', linhas: [], telaLimpa: true, blackout: false, slidePretoFinal: false };
   }
@@ -165,8 +168,9 @@ function estadoPublicoOverrideDePayloadApresentacao(estadoAtual, payload) {
  * Reaproveita a camada da apresentação em vez de inventar uma terceira: a pergunta que o
  * telão faz é «há algo por cima dos slides?», e a contagem responde sim exactamente como
  * um aviso responde. Ganha de borla tudo o que essa camada já sabe fazer — o ESC que a
- * encerra, o blackout que a apaga sem a perder, o OBS de Bíblia que se cala enquanto ela
- * está no ar, o telão que reabre com ela ao ligar um monitor a meio.
+ * encerra, o blackout que a apaga sem a perder, o telão que reabre com ela ao ligar um
+ * monitor a meio. O OBS de Bíblia, esse, NÃO se cala: a contagem é de sala e convive com
+ * versículo em Live/outro monitor.
  *
  * `blackout` do estado por baixo é preservado pela mesma razão que no aviso: o operador
  * que apagou o telão não quer que uma contagem o acenda.
@@ -544,14 +548,42 @@ function criarAplicadorDeComandos(deps) {
       };
 
       const vaiAoPublico = alvo === 'publico' || alvo === 'ambos' || alvo === 'live';
-      /* `estadoPublicoOcioso()` já é, campo a campo, o literal de tela limpa que estava
-         escrito à mão no handler. */
-      state.estadoPublicoOverride = vaiAoPublico ? null : projectionPayloads.estadoPublicoOcioso();
-
       const vaiAoMinistrante = alvo === 'ministrante' || alvo === 'ambos';
-      state.ministranteApresentacaoOverride = vaiAoMinistrante
-        ? null
-        : { modo: 'biblia', titulo: '', atual: '', proximo: '', telaLimpa: true };
+      /*
+       * Contagem no ar: cada modo só mexe no seu monitor. A Bíblia escreve `estadoAtual`
+       * (e o OBS); não pode apagar o override da contagem nem o do ministrante quando a
+       * contagem também lá está («ambos»). Sem isto, abrir a Bíblia no M2/Live derrubava
+       * a contagem que corria no M3.
+       */
+      const contagemNoPublico =
+        !!(state.contagem) &&
+        !!(state.estadoPublicoOverride && state.estadoPublicoOverride.tipo === 'contagem');
+      const contagemNoMinistrante =
+        contagemNoPublico && String(state.contagemAlvo || '').toLowerCase() === 'ambos';
+
+      if (!contagemNoPublico) {
+        /* `estadoPublicoOcioso()` já é, campo a campo, o literal de tela limpa que estava
+           escrito à mão no handler. */
+        state.estadoPublicoOverride = vaiAoPublico ? null : projectionPayloads.estadoPublicoOcioso();
+      }
+
+      if (!contagemNoMinistrante) {
+        if (vaiAoMinistrante) {
+          state.ministranteApresentacaoOverride = null;
+        } else if (contagemNoPublico && vaiAoPublico) {
+          /* Contagem cobre o telão dela; o monitor da Bíblia (outro índice no pin dual)
+             usa o canal ministrante com o versículo de `estadoAtual` — não tela limpa. */
+          state.ministranteApresentacaoOverride = null;
+        } else {
+          state.ministranteApresentacaoOverride = {
+            modo: 'biblia',
+            titulo: '',
+            atual: '',
+            proximo: '',
+            telaLimpa: true,
+          };
+        }
+      }
 
       /*
        * A partir daqui é tudo camada física — e nada dela é pré-requisito do OBS.

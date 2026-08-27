@@ -23,6 +23,7 @@ function normalizarRoteamentoDual(data) {
       version: 2,
       slides: { publicoIndex: -1, ministranteIndex: -1 },
       apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+      contagem: { publicoIndex: -1, ministranteIndex: -1 },
     };
   }
   if (data.version === 2 && data.slides && data.apresentacao) {
@@ -30,6 +31,8 @@ function normalizarRoteamentoDual(data) {
       version: 2,
       slides: normalizarRotaDisplay(data.slides),
       apresentacao: normalizarRotaDisplay(data.apresentacao),
+      /* Pin exclusivo do Contador — independente de slides/Bíblia/Mídias. */
+      contagem: normalizarRotaDisplay(data.contagem),
     };
   }
   const legacy = normalizarRotaDisplay(data);
@@ -37,13 +40,55 @@ function normalizarRoteamentoDual(data) {
     version: 2,
     slides: { ...legacy },
     apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
   };
 }
 
+/**
+ * Índices efectivos das janelas de projeção.
+ *
+ * Com pin de Contagem activo, o Contador fica no seu monitor e a Bíblia/Mídias no
+ * delas — sem um comer o outro. Sem pin, mantém-se a regra antiga (apresentação
+ * substitui o slide no mesmo canal).
+ */
 function indicesJanelasProjecaoDeRoteamentoDual(dual) {
   const d = normalizarRoteamentoDual(dual);
   const s = d.slides;
   const a = d.apresentacao;
+  const c = d.contagem;
+
+  if (c.publicoIndex >= 0 || c.ministranteIndex >= 0) {
+    let publicoIndex = c.publicoIndex >= 0 ? c.publicoIndex : s.publicoIndex;
+    let ministranteIndex = c.ministranteIndex >= 0 ? c.ministranteIndex : -1;
+
+    /* Bíblia/Mídias noutro monitor físico: manter essa janela aberta. Se a Contagem
+       não reclamou o canal do ministrante («só telão»), usa-o para o outro modo. */
+    if (c.ministranteIndex < 0) {
+      const outroPub = a.publicoIndex;
+      const outroMin = a.ministranteIndex;
+      if (outroPub >= 0 && outroPub !== publicoIndex) {
+        ministranteIndex = outroPub;
+      } else if (outroMin >= 0 && outroMin !== publicoIndex) {
+        ministranteIndex = outroMin;
+      } else if (
+        ministranteIndex < 0 &&
+        s.ministranteIndex >= 0 &&
+        s.ministranteIndex !== publicoIndex
+      ) {
+        ministranteIndex = s.ministranteIndex;
+      }
+    }
+
+    /* Sem pin no público da Contagem mas com pin no ministrante (raro): público segue
+       a regra clássica, ministrante fica com a Contagem. */
+    if (c.publicoIndex < 0) {
+      publicoIndex = a.publicoIndex >= 0 ? a.publicoIndex : s.publicoIndex;
+      ministranteIndex = c.ministranteIndex;
+    }
+
+    return { publicoIndex, ministranteIndex };
+  }
+
   return {
     publicoIndex: a.publicoIndex >= 0 ? a.publicoIndex : s.publicoIndex,
     ministranteIndex: a.ministranteIndex >= 0 ? a.ministranteIndex : s.ministranteIndex,
@@ -74,11 +119,14 @@ function saveDisplayRouting(displayRoutingPathFn, body) {
   let next;
   if (b.version === 2 && b.slides && b.apresentacao) {
     next = normalizarRoteamentoDual(b);
+    /* PUT sem `contagem` não apaga o pin — senão mudar a Bíblia derrubava o Contador. */
+    if (!b.contagem) next.contagem = { ...atual.contagem };
   } else if (b.publicoIndex !== undefined || b.ministranteIndex !== undefined) {
     next = {
       version: 2,
       slides: normalizarRotaDisplay(b),
       apresentacao: { ...atual.apresentacao },
+      contagem: { ...atual.contagem },
     };
   } else {
     next = atual;

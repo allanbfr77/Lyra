@@ -1167,15 +1167,56 @@ test('encerrar a apresentação leva a contagem junto — é a mesma camada', ()
   assert.equal(state.contagem, null);
 });
 
-test('contagem no ar cala o overlay de Bíblia do OBS', () => {
-  /* Mesma regra do aviso: o que cobre o telão cobre o overlay. */
+test('contagem no ar não cala o overlay de Bíblia do OBS', () => {
+  /* Contagem é de sala: o OBS continua a poder mostrar o versículo (Live/outro monitor). */
   const { state, aplicador } = aplicadorComContagem({ estadoAtual: versiculoProjetado() });
   assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
 
   aplicador.aplicar('exibir_contagem', { minutos: 5 });
-  assert.equal(estadoBibliaParaObs(state).tipo, null);
+  assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
 
   aplicador.aplicar('encerrar_contagem');
+  assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
+});
+
+test('exibir_versiculo com contagem no ar preserva a contagem e alimenta o OBS', () => {
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
+
+  const { eventos } = aplicador.aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao: 'live',
+  });
+
+  assert.equal(state.contagem != null, true, 'a contagem interna continua');
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem', 'override da contagem intacto');
+  assert.equal(state.estadoAtual.tipo, 'biblia');
+  assert.equal(state.projecaoLiveAtiva, true);
+
+  const obs = eventos.find((e) => e.nome === 'estado_biblia_obs');
+  assert.equal(obs.dados.tipo, 'biblia');
+  assert.deepEqual(obs.dados.linhas, ['Porque Deus amou o mundo']);
+});
+
+test('exibir_versiculo no público com contagem no ar não apaga a contagem', () => {
+  const { state, aplicador } = aplicadorComContagem();
+  aplicador.aplicar('exibir_contagem', { minutos: 5 });
+
+  aplicador.aplicar('exibir_versiculo', {
+    livro: 'Salmos',
+    capitulo: '23',
+    versiculo: '1',
+    texto: 'O Senhor é o meu pastor',
+    alvoProjecao: 'publico',
+  });
+
+  assert.equal(state.estadoPublicoOverride.tipo, 'contagem');
+  assert.equal(state.estadoAtual.tipo, 'biblia');
   assert.equal(estadoBibliaParaObs(state).tipo, 'biblia');
 });
 
@@ -1205,7 +1246,7 @@ test('a contagem não chega a nenhum overlay do OBS', () => {
   assert.notEqual(pub.tipo, 'musica');
   assert.notEqual(pub.tipo, 'aviso');
 
-  /* `/obs/biblia`: a contagem cobre o telão, portanto cala o versículo. */
+  /* Sem versículo por baixo, o overlay de Bíblia continua limpo. */
   assert.equal(estadoBibliaParaObs(state).tipo, null);
 });
 

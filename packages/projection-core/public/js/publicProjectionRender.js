@@ -124,7 +124,7 @@ function attachPublicProjectionRender(ctx) {
     const cfg = raw && typeof raw === 'object' ? raw : {};
     const fontSize = Number(cfg.fontSize);
     return {
-      fontSize: Number.isFinite(fontSize) ? Math.min(15, Math.max(2.2, fontSize)) : 5.5,
+      fontSize: Number.isFinite(fontSize) ? Math.min(40, Math.max(2.2, fontSize)) : 5.5,
       textColor: normalizarCorHexAviso(cfg.textColor, '#ffffff'),
       backgroundColor: normalizarCorHexAviso(cfg.backgroundColor, '#000000'),
       transparentBackground: cfg.transparentBackground === true,
@@ -139,24 +139,29 @@ function attachPublicProjectionRender(ctx) {
 
   function resolverCfgDisplayParaAviso(baseCfg, rawAvisoCfg) {
     const base = baseCfg && typeof baseCfg === 'object' ? baseCfg : {};
-    const publico = base.publico && typeof base.publico === 'object' ? base.publico : {};
     const aviso = normalizarCfgAviso(rawAvisoCfg);
     return {
       ...base,
       posX: 'center',
       posY: aviso.verticalPosition,
       publico: {
-        ...publico,
+        /* Não espalhar `publico` dos slides: autoFit/letterSpacing de lá capavam o
+           tamanho do aviso e o slider de Ajustes «aumentava» sem o texto crescer. */
         fontFamily: 'CMG Sans, sans-serif',
         fontSize: aviso.fontSize,
-        /* Teto do Aviso (Ajustes › Aviso); slides/bíblia continuam no padrão 9. */
-        fontSizeMaxVh: 15,
+        /* Teto do Aviso (Ajustes › Avisos); slides/bíblia continuam no padrão 9.
+           40 vh cobre palavra curta de ponta a ponta numa TV 42" 16:9. */
+        fontSizeMaxVh: 40,
         negrito: true,
         italico: aviso.italic,
         maiusculo: false,
         textColor: aviso.textColor,
         wrapLongLines: aviso.wrapLongLines,
+        /* O slider de Ajustes é a verdade: sem autoajuste a encolher o texto. */
+        autoFitLongLines: false,
+        exactFontSize: true,
         textAlign: 'center',
+        letterSpacing: 0,
       },
     };
   }

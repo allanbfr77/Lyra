@@ -255,6 +255,8 @@ export const LS_CONTAGEM_CFG = 'lyra_contagem_cfg_v1';
 
 /** Telão só, ou telão e monitor do ministrante. Preferência de uso, não de hardware. */
 export const LS_CONTAGEM_ALVO = 'lyra_contagem_alvo_v1';
+/** Monitor escolhido no painel do Contador — independente da rota dos outros modos. */
+export const LS_CONTAGEM_MONITOR = 'lyra_contagem_monitor_v1';
 /** Chave do `localStorage` com o último tempo digitado (não com o tempo a correr). */
 export const LS_CONTAGEM_ULTIMO_TEMPO = 'lyra_contagem_ultimo_tempo_v1';
 

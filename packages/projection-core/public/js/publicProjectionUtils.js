@@ -7,7 +7,7 @@
  *  - Validação de números
  *  - Cálculo da área útil do container
  *  - Renderização de linhas de texto como spans estilizados
- *  - Tamanho em vh (2.2–9 nos slides; aviso até 15 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
+ *  - Tamanho em vh (2.2–9 nos slides; aviso até 40 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
  *  - Autoajuste horizontal (mesma regra que `display-operator.html`)
  *  - Aplicação imediata de wrap de texto
  *
@@ -45,8 +45,8 @@ function attachPublicProjectionUtils(ctx) {
   /**
    * Escala vh do telão público.
    *
-   * Teto por omissão: 9 (slides / bíblia). O aviso pode pedir até 15 via
-   * `pb.fontSizeMaxVh` — sem isso, valores 10–15 cairiam no ramo legado 2–40 e
+   * Teto por omissão: 9 (slides / bíblia). O aviso pode pedir até 40 via
+   * `pb.fontSizeMaxVh` — sem isso, valores acima de 9 cairiam no ramo legado 2–40 e
    * seriam remapeados para ~3–5 vh, e o seletor «aumentava» sem o texto crescer.
    */
   function fontSizeVhPublico(pb) {
@@ -205,24 +205,30 @@ function attachPublicProjectionUtils(ctx) {
   // Tecnica igual ao Holyrics: vh como unidade base + medidor invisivel
 
   /**
-   * Aplica `font-size` em vh (teto 9 nos slides; aviso pode ir a 15 via
+   * Aplica `font-size` em vh (teto 9 nos slides; aviso pode ir a 40 via
    * `fontSizeMaxVh`) e, se o autoajuste estiver activo (mesma regra
    * que `display-operator.html`: sem wrap → sempre ajusta; com wrap → só se
    * `autoFitLongLines`), reduz até a linha caber na largura útil.
+   *
+   * Aviso (`exactFontSize`): o valor de Ajustes aplica-se tal qual — sem encolher.
+   * Sem isto, com «quebra de linha» desligada o autoajuste travava por volta de
+   * ~17 vh (largura da palavra) e o slider 17→40 não mudava nada no ecrã.
    */
   function aplicarFontSize(cfg) {
     const elLetras = getElLetras();
     if (!elLetras) return;
 
     const pb = cfg.publico || {};
-    const wrap = pb.wrapLongLines === true;
-    const autoFit = wrap ? pb.autoFitLongLines === true : true;
-    const usarMaiusculas = pb.maiusculo !== false;
-
     const baseVh = fontSizeVhPublico(pb);
     elLetras.style.fontSize = `${baseVh}vh`;
 
+    if (pb.exactFontSize === true) return;
+
+    const wrap = pb.wrapLongLines === true;
+    const autoFit = wrap ? pb.autoFitLongLines === true : true;
     if (!autoFit) return;
+
+    const usarMaiusculas = pb.maiusculo !== false;
 
     const linhas = [];
     elLetras.querySelectorAll('.linha-texto').forEach((span) => {

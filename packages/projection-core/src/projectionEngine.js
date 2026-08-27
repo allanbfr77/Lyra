@@ -409,7 +409,12 @@ function createProjectionEngine(paths, deps) {
   function atualizarDisplays(estado) {
     const payload = projectionPayloads.clonePayloadSafe(estado);
     const payloadPublico = projectionPayloads.payloadPublicoAtual(payload, state.estadoPublicoOverride);
-    const payloadPublicoJanelas = state.projecaoLiveAtiva ? estadoOciosoPublico() : payloadPublico;
+    /* Live manda o telão ao preto para a transmissão ser o OBS — excepto com contagem
+       no ar: a contagem é de sala e continua no monitor que o Contador escolheu, sem
+       reagir ao destino Live/OBS da Bíblia. */
+    const contagemNoPublico = !!(payloadPublico && payloadPublico.tipo === 'contagem');
+    const payloadPublicoJanelas =
+      state.projecaoLiveAtiva && !contagemNoPublico ? estadoOciosoPublico() : payloadPublico;
 
     const telasPublicas = registro.porRole('publico');
     telasPublicas.forEach((entry) => {
@@ -429,7 +434,10 @@ function createProjectionEngine(paths, deps) {
 
   function atualizarDisplayMinistrante(estado) {
     let payload;
-    if (state.projecaoLiveAtiva) {
+    const contagemNoMin =
+      !!(state.ministranteApresentacaoOverride &&
+        state.ministranteApresentacaoOverride.modo === 'contagem');
+    if (state.projecaoLiveAtiva && !contagemNoMin) {
       payload = estadoOciosoMinistrante();
     } else if (state.ministranteApresentacaoOverride) {
       try {
@@ -508,8 +516,12 @@ function createProjectionEngine(paths, deps) {
   }
 
   function hayProjecaoAtivaPublica() {
-    if (state.projecaoLiveAtiva) return false;
     const st = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
+    /* Live sem contagem: monitores físicos ficam ociosos. Com contagem no ar, o monitor
+       do Contador continua activo — Live é só da Bíblia/OBS, não da contagem. */
+    if (state.projecaoLiveAtiva) {
+      return !!(st && st.tipo === 'contagem' && st.contagem);
+    }
     if (!st || typeof st !== 'object') return false;
     if (st.blackout || st.slidePretoFinal) return true;
     if (st.telaLimpa) return false;
@@ -526,7 +538,10 @@ function createProjectionEngine(paths, deps) {
   }
 
   function hayProjecaoAtivaMinistrante() {
-    if (state.projecaoLiveAtiva) return false;
+    if (state.projecaoLiveAtiva) {
+      const ov = state.ministranteApresentacaoOverride;
+      return !!(ov && ov.modo === 'contagem' && ov.contagem);
+    }
     /* Slide preto / blackout: projeção activa (tela preta vazia) — não revelar o relógio. */
     const stPub = state.estadoAtual;
     if (stPub && typeof stPub === 'object' && (stPub.blackout || stPub.slidePretoFinal)) {
