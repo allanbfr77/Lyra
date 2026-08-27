@@ -60,8 +60,12 @@ const windowsApi = createWindowsApi(ctx, paths, {
   WINDOW_TITLE,
   /* Tradução evento-do-motor → transporte. É o Server que conhece Socket.io, não o motor.
      Lazy de propósito: `ctx.io` só existe depois de `iniciarServidor`. */
-  onProjecaoEncerrada: ({ estadoPublico }) => {
-    if (ctx.io) ctx.io.emit('estado', estadoPublico);
+  onProjecaoEncerrada: ({ estadoPublico, estadoBibliaObs }) => {
+    if (!ctx.io) return;
+    ctx.io.emit('estado', estadoPublico);
+    /* ESC na Bíblia (ou Contagem por cima dela) tem de actualizar o Browser Source
+       `/obs/biblia` — esse overlay só ouve `estado_biblia_obs`, não `estado`. */
+    if (estadoBibliaObs) ctx.io.emit('estado_biblia_obs', estadoBibliaObs);
   },
   /* No Server, "operador ligado" = há um painel controlador com socket registrado. */
   haOperadorConectado: () => !!ctx.controladorSocketId,

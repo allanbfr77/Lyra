@@ -8,6 +8,10 @@ const projectionEncerrar = require('./projectionEncerrar');
 const displayConfigModo = require('./displayConfigModo');
 const { getOrderedDisplays } = require('./monitorsList');
 const { createWindowRegistry } = require('./windowRegistry');
+/* Lazy no ESC: evita ciclo de carga com commandApplier (que recebe o engine injectado). */
+function estadoBibliaParaObsEsc(state) {
+  return require('./commandApplier').estadoBibliaParaObs(state);
+}
 
 const { indicesJanelasProjecaoDeRoteamentoDual } = displayRoutingMod;
 
@@ -703,26 +707,48 @@ function createProjectionEngine(paths, deps) {
     atualizarLoopTopoAbsolutoProjecao();
   }
 
+  /**
+   * ESC numa janela física: encerra a camada que essa janela está a mostrar.
+   *
+   * Antes só tratava Slides — Bíblia e Contagem/aviso eram detectadas por
+   * `inferirModoEncerrarPorCanalJanela` e depois ignoradas (`return` cedo). O operador
+   * carregava ESC no telão e nada acontecia. Agora aplica o modo inferido (slides,
+   * bíblia ou apresentação/contagem) e avisa o host com estado + overlay OBS.
+   *
+   * @param {'publico'|'ministrante'|string} [canal]
+   */
   function encerrarProjecaoPorEsc(canal) {
     const canais = {
       apresentacaoDominaPublico: true,
       apresentacaoDominaMinistrante: !!state.ministranteApresentacaoOverride,
     };
     const modo = projectionEncerrar.inferirModoEncerrarPorCanalJanela(state, canal, canais);
-    if (modo !== projectionEncerrar.MODO_SLIDES) return;
 
-    projectionEncerrar.encerrarCamadaSlides(state);
+    if (modo === projectionEncerrar.MODO_BIBLIA || modo === projectionEncerrar.MODO_TUDO) {
+      state.projecaoLiveAtiva = false;
+    }
+
+    projectionEncerrar.aplicarEncerrarProjecaoModo(state, modo, canais);
     state.estadoMinistrante = snapshotMinistranteAtual();
     atualizarDisplays(state.estadoAtual);
     atualizarDisplayMinistrante(state.estadoMinistrante);
 
     if (state.windowControl && !state.windowControl.isDestroyed()) {
-      state.windowControl.webContents.send('telas_projecao_encerradas_esc');
+      try {
+        state.windowControl.webContents.send('telas_projecao_encerradas_esc', { modo });
+      } catch (_) {
+        // intencional — erro ignorado
+      }
     }
 
     /* O motor não conhece Socket.io: avisa o host, que decide como propagar
-       (no Server, `io.emit('estado', …)`; no modo local, nada). */
-    onProjecaoEncerrada({ canal: canal ?? null, estadoPublico: estadoPublicoParaSocketsOuApi() });
+       (no Server, `io.emit`; no modo local, difundir ao painel). */
+    onProjecaoEncerrada({
+      canal: canal ?? null,
+      modo,
+      estadoPublico: estadoPublicoParaSocketsOuApi(),
+      estadoBibliaObs: estadoBibliaParaObsEsc(state),
+    });
   }
 
   /**

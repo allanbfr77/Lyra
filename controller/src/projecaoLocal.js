@@ -614,10 +614,15 @@ function criarProjecaoLocal(deps) {
       onProjecaoEncerrada: (ev) => {
         /* ESC numa janela física encerra a projeção. Quem carregou já vê o resultado nas
            telas; o painel e os clientes de rede precisam de saber que aconteceu. */
-        difundir(
-          [{ nome: 'estado', dados: ev?.estadoPublico, alcance: 'todos' }],
-          null
-        );
+        const eventos = [{ nome: 'estado', dados: ev?.estadoPublico, alcance: 'todos' }];
+        if (ev?.estadoBibliaObs) {
+          eventos.push({
+            nome: 'estado_biblia_obs',
+            dados: ev.estadoBibliaObs,
+            alcance: 'todos',
+          });
+        }
+        difundir(eventos, null);
       },
       /* Sem Servidor não há «operador conectado» noutra máquina: o operador é quem está
          a olhar para este painel. */

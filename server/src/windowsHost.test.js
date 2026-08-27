@@ -256,12 +256,28 @@ test('encerrar por Esc avisa o host (e o motor não toca em transporte)', () => 
   assert.strictEqual(ctx.estadoAtual.telaLimpa, true);
 });
 
-test('Esc num modo que não é slides não avisa o host', () => {
-  // Override de apresentação: `inferirModoEncerrarPorCanalJanela` sai antes de encerrar.
+test('Esc na Bíblia no ministrante encerra e avisa o host', () => {
+  // Antes: só slides eram encerrados por ESC — Bíblia/apresentação saíam cedo sem aviso.
+  const { ctx, eventos, api } = montar();
+  ctx.estadoAtual = {
+    tipo: 'biblia',
+    titulo: 'Salmos 23:1',
+    linhas: ['O Senhor é o meu pastor'],
+    telaLimpa: false,
+  };
+  api.encerrarProjecaoPorEsc('ministrante');
+  assert.strictEqual(eventos.length, 1, 'host deve ser avisado');
+  assert.strictEqual(eventos[0].modo, 'biblia');
+  assert.strictEqual(ctx.estadoAtual.telaLimpa, true);
+});
+
+test('Esc com override de apresentação encerra essa camada', () => {
   const { ctx, eventos, api } = montar();
   ctx.ministranteApresentacaoOverride = { modo: 'apresentacao', apresentacao: { src: '/tmp/a.png' } };
   api.encerrarProjecaoPorEsc('ministrante');
-  assert.strictEqual(eventos.length, 0, 'sem encerramento, sem aviso ao host');
+  assert.strictEqual(eventos.length, 1, 'host deve ser avisado');
+  assert.strictEqual(eventos[0].modo, 'apresentacao');
+  assert.equal(ctx.ministranteApresentacaoOverride, null);
 });
 
 /* Nota: o RESULTADO da decisão (fechar tudo vs manter em preto) depende do roteamento de

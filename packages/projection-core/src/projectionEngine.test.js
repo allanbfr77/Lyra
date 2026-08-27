@@ -126,7 +126,41 @@ test('renderiza o estado do armazém nas janelas', () => {
   assert.ok(Array.isArray(engine.janelasDeProjecao()));
 });
 
-test('encerrar por Esc avisa o host em vez de falar com a rede', () => {
+test('Esc na Bíblia encerra a camada e avisa o host', () => {
+  const { state, eventos, engine } = montar();
+  state.estadoAtual = {
+    tipo: 'biblia',
+    titulo: 'João 3:16',
+    linhas: ['Porque Deus amou o mundo'],
+    telaLimpa: false,
+    blackout: false,
+    slidePretoFinal: false,
+  };
+
+  engine.encerrarProjecaoPorEsc('publico');
+
+  assert.strictEqual(eventos.length, 1);
+  assert.strictEqual(eventos[0].modo, 'biblia');
+  assert.ok(eventos[0].estadoBibliaObs);
+  assert.strictEqual(eventos[0].estadoBibliaObs.tipo, null, 'OBS de Bíblia fica limpo');
+  assert.strictEqual(state.estadoAtual.telaLimpa, true);
+  assert.notEqual(state.estadoAtual.tipo, 'biblia');
+});
+
+test('Esc na Contagem (camada apresentação) encerra e avisa o host', () => {
+  const { state, eventos, engine } = montar();
+  state.estadoPublicoOverride = { tipo: 'contagem', contagem: { restanteMs: 60_000 } };
+  state.contagem = { restanteMs: 60_000, rodando: true };
+
+  engine.encerrarProjecaoPorEsc('publico');
+
+  assert.strictEqual(eventos.length, 1);
+  assert.strictEqual(eventos[0].modo, 'apresentacao');
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.contagem, null);
+});
+
+test('Esc em slides continua a avisar o host', () => {
   const { state, eventos, engine } = montar();
   engine.encerrarProjecaoPorEsc('publico');
   assert.strictEqual(eventos.length, 1);

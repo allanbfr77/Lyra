@@ -307,7 +307,7 @@ passo('desligarProjecaoLive', () => { ctx.projecaoLiveAtiva = false; });
 
 // 8. Encerrar por Esc — o caminho que ESCREVE no ctx e emite no io.
 //    Volta para 'musica' sem overrides: é a única combinação que cai em MODO_SLIDES
-//    (com tipo 'biblia' ou override de apresentação, encerrarProjecaoPorEsc retorna cedo).
+//    ESC encerra a camada activa (slides, bíblia ou apresentação/contagem).
 passo('voltarParaSlidesPuro', () => {
   ctx.estadoAtual = { ...ctx.estadoAtual, tipo: 'musica', titulo: 'Hino de Teste', linhas: ['linha um'] };
   ctx.estadoPublicoOverride = null;

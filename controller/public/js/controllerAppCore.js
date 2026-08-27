@@ -14707,6 +14707,29 @@ function aoReceberEstadoDaProjecao(estado) {
 
   estadoServidor = estado;
   sincronizarEstrofeAtiva(estado);
+  /*
+   * ESC no telão (ou outro controlador) encerrou a Bíblia: o marcador local tem de
+   * acompanhar, senão o card fica «projetado» e o próximo ESC no painel parece falhar.
+   * Contagem/aviso/mídia por cima NÃO contam como «Bíblia encerrada» — o versículo
+   * continua por baixo e o marcador fica.
+   */
+  try {
+    if (bibliaParteProjetadaChave != null) {
+      const tip = estado && estado.tipo;
+      const camadaPorCima =
+        tip === 'contagem' || tip === 'apresentacao' || tip === 'aviso';
+      const bibliaNoAr =
+        tip === 'biblia' &&
+        !estado.telaLimpa &&
+        Array.isArray(estado.linhas) &&
+        estado.linhas.some((l) => String(l == null ? '' : l).length > 0);
+      if (!camadaPorCima && !bibliaNoAr) {
+        bibliaLimparProjecaoOperador();
+      }
+    }
+  } catch (_) {
+    // intencional — erro ignorado
+  }
   atualizarPreviewOperador();
   atualizarIndicadorProjecaoLiveUi();
   atualizarBtnModoApresentacao();
@@ -18774,10 +18797,10 @@ document.addEventListener('keydown', (e) => {
    * clique num versículo, que tira o foco do campo. `bibliaTratarKeydownModo` também não
    * salvava: para Escape ele só fecha o popup e, fora disso, devolve `false`.
    *
-   * Precedência: popup aberto → encerrar a projeção activa → deixar o campo tratar.
-   * Encerrar ganha ao campo de propósito: é a tecla de pânico durante o culto, e o campo
-   * tem outras saídas. Sem projeção activa não há nada a encerrar, e o Escape volta a ser
-   * do campo (limpar, desfocar).
+   * Precedência: popup aberto → painel Contagem / Ajustes abertos → encerrar a projeção
+   * activa → deixar o campo tratar. Encerrar ganha ao campo de propósito: é a tecla de
+   * pânico durante o culto, e o campo tem outras saídas. Sem projeção activa não há nada
+   * a encerrar, e o Escape volta a ser do campo (limpar, desfocar).
    */
   if (
     e.key === 'Escape' &&
@@ -18786,6 +18809,9 @@ document.addEventListener('keydown', (e) => {
       e.target.tagName === 'SELECT') &&
     !ehModoApresentacaoOperador()
   ) {
+    /* Painel Contagem / Ajustes por cima: não encerrar a Bíblia por baixo. */
+    if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return;
+    if (document.getElementById('cfg-modal-overlay-ctrl')?.classList.contains('aberto')) return;
     if (ehModoBibliaOperador()) {
       if (bibliaNavPopupAberto()) {
         e.preventDefault();
@@ -18845,12 +18871,22 @@ document.addEventListener('keydown', (e) => {
     }
   } else if (e.key === 'Escape') {
     if (ehModoApresentacaoOperador()) return;
+    /* Contagem / Ajustes abertos: o ESC fecha só essa UI — não a Bíblia por baixo. */
+    if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return;
+    if (document.getElementById('cfg-modal-overlay-ctrl')?.classList.contains('aberto')) return;
     if (ehModoBibliaOperador()) {
       const popup = document.getElementById('biblia-nav-popup');
       if (popup && !popup.classList.contains('oculto')) {
         e.preventDefault();
         bibliaNavPopupFechar();
-      } else {
+      } else if (
+        bibliaParteProjetadaChave != null ||
+        (estadoServidor &&
+          estadoServidor.tipo === 'biblia' &&
+          !estadoServidor.telaLimpa &&
+          Array.isArray(estadoServidor.linhas) &&
+          estadoServidor.linhas.length)
+      ) {
         e.preventDefault();
         encerrarProjecaoModoBiblia();
       }
@@ -22394,6 +22430,7 @@ async function encerrarContagemDoPainel() {
     const modal = document.getElementById('contagem-backdrop');
     if (!modal?.classList.contains('aberto')) return;
     e.preventDefault();
+    e.stopImmediatePropagation();
     /* Com o painel aberto e o menu de rota por cima, o primeiro ESC fecha o menu — fechar
        o painel por baixo deixaria o menu órfão no cabeçalho. */
     if (document.querySelector('.route-dd.route-dd-open')) {
@@ -22401,7 +22438,7 @@ async function encerrarContagemDoPainel() {
       return;
     }
     fecharPainelContagem();
-  });
+  }, true);
 
   /*
    * O host é a fonte de verdade: se outro operador (ou o ESC de uma janela de projeção)
