@@ -4665,7 +4665,6 @@ function excluirCultoManualPorId(cid) {
   saveMinistrantePadraoPorCulto();
   if (cultoId === cid) {
     cultoId = '';
-    localStorage.setItem(LS_CULTO, '');
   }
   initCultoSelect();
   onCultoChange();
@@ -4700,7 +4699,6 @@ function adicionarCultosManuaisNaData(dt) {
   });
   if (playlistMudou) savePlaylists();
   cultoId = aInserir[0].id;
-  localStorage.setItem(LS_CULTO, cultoId);
   initCultoSelect();
   setCultoSelecionadoNaUi(cultoId);
   onCultoChange();
@@ -4823,6 +4821,16 @@ function fecharCultoDropdown() {
   wrap.classList.remove('open');
   menu.hidden = true;
   btn.setAttribute('aria-expanded', 'false');
+}
+
+/** Culto do dia não persiste entre sessões — sempre recomeça em «Selecione o dia do culto...». */
+function limparCultoSelecionadoPersistido() {
+  try {
+    localStorage.setItem(LS_CULTO, '');
+    localStorage.removeItem(LS_CULTO_LEGACY);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 }
 
 function setCultoSelecionadoNaUi(value) {
@@ -7265,11 +7273,6 @@ function ativarCultoNaUiParaImportacaoCodigo(cultoDestino) {
   const cid = String(cultoDestino || '').trim();
   if (!cid) return;
   cultoId = cid;
-  try {
-    localStorage.setItem(LS_CULTO, cultoId);
-  } catch (_) {
-  // intencional — erro ignorado
-}
   initCultoSelect();
   setCultoSelecionadoNaUi(cultoId);
   onCultoChange();
@@ -9087,7 +9090,6 @@ function initCultoSelect() {
   lista.forEach((c) => {
     mkItem(c.id, c.label, cultoIdEhManual(c.id));
   });
-  cultoId = readLsMigrate(LS_CULTO, LS_CULTO_LEGACY);
   if (!lista.some((c) => c.id === cultoId)) {
     cultoId = '';
   }
@@ -9097,7 +9099,6 @@ function initCultoSelect() {
 function onCultoChange() {
   cultoId = document.getElementById('culto-sel')?.value || '';
   setCultoSelecionadoNaUi(cultoId);
-  localStorage.setItem(LS_CULTO, cultoId);
   if (cultoId) {
     garantirAberturaNoCatalogoCulto(cultoId);
     if (garantirMarcadorAberturaNaPlaylist(cultoId)) savePlaylists();
@@ -16641,8 +16642,8 @@ function direcaoTeclaPassadorSlides(tecla, code) {
 }
 
 /**
- * Modo slides + passador: avançar/voltar slide e projetar no telão (socket ligado),
- * como no PowerPoint — não exige duplo clique no chip.
+ * Modo slides + passador: avançar/voltar slide. Só envia ao telão depois que a projeção
+ * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só prévia.
  */
 function navegarEstrofePassadorSlides(direcao) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
@@ -16656,12 +16657,10 @@ function navegarEstrofePassadorSlides(direcao) {
   if (base < 0 && direcao > 0) prox = 0;
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
   if (prox === estrofeAtiva && projecaoMusicaEmitidaNoServidor) return;
-  if (projecao.pronta()) {
-    emitirEstrofeAoServidor(prox);
-    exibirEstrofe(prox);
-    return;
-  }
   exibirEstrofe(prox);
+  if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
+    emitirEstrofeAoServidor(prox);
+  }
 }
 
 /** Comando de voz / atalho: projeta estrofe no índice dado (0 … N, N = tela preta). */
@@ -18848,7 +18847,16 @@ document.addEventListener('keydown', (e) => {
   if (dirPassador !== 0) {
     e.preventDefault();
     if (ehModoSlidesOperador()) {
-      navegarEstrofePassadorSlides(dirPassador);
+      if (
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowDown' ||
+        e.key === 'ArrowLeft' ||
+        e.key === 'ArrowUp'
+      ) {
+        navegarEstrofePorSeta(e.key);
+      } else {
+        navegarEstrofePassadorSlides(dirPassador);
+      }
     } else if (
       e.key === 'ArrowRight' ||
       e.key === 'ArrowDown' ||
@@ -18931,6 +18939,8 @@ try {
   });
   setupApAudioDropdown();
   setupApFilesDropdown();
+  limparCultoSelecionadoPersistido();
+  cultoId = '';
   initCultoSelect();
   if (cultoId) {
     garantirAberturaNoCatalogoCulto(cultoId);
@@ -18982,6 +18992,7 @@ try {
 }
 
 window.addEventListener('beforeunload', () => {
+  limparCultoSelecionadoPersistido();
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
   const ip = hostProjecao();
