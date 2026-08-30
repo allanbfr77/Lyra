@@ -187,6 +187,37 @@ function aplicarTopoAbsolutoProjecao(win, opts = {}) {
 }
 
 /**
+ * Mostra uma janela de projeção **sem lhe dar o foco do teclado**.
+ *
+ * `show()` no Electron mostra E foca. Numa janela de projeção isso tira o teclado ao
+ * painel do operador: as setas do Modo Slides deixam de chegar ao renderer — o listener
+ * está no `document` do painel, e um painel sem foco do SO não recebe `keydown` nenhum —
+ * e só um clique devolve o controlo. Era o que acontecia a cada nascimento de janela, a
+ * cada troca de monitor e a cada volta do relógio de ocioso ao conteúdo.
+ *
+ * Nenhuma destas janelas é interface: o `focusable: false` do chão (`abrirJanelaFundo`)
+ * já dizia o mesmo por outras palavras, mas só ali.
+ *
+ * E `focusable: false` NÃO serve para as restantes: o ESC que encerra a projeção a partir
+ * da janela física vive num `before-input-event`, que só dispara na janela focada — torná-la
+ * não-focável matava esse atalho. Com `showInactive()` a janela continua focável se o
+ * operador clicar nela; deixa apenas de tomar o foco sozinha.
+ *
+ * O ramo `show()` é recuo para uma versão de Electron sem `showInactive` — nunca pior do
+ * que o comportamento actual.
+ *
+ * @param {import('electron').BrowserWindow} win
+ */
+function mostrarJanelaProjecaoSemFoco(win) {
+  if (!win || win.isDestroyed()) return;
+  if (typeof win.showInactive === 'function') {
+    win.showInactive();
+    return;
+  }
+  win.show();
+}
+
+/**
  * Opções comuns das janelas de projeção (telão / ministrante).
  * @param {object} display Entrada de `getOrderedDisplays(screen)`.
  * @param {string} title
@@ -639,7 +670,7 @@ function createProjectionEngine(paths, deps) {
         marcarOcultoParaRelogio(win, false);
         try {
           if (!win.isVisible()) {
-            win.show();
+            mostrarJanelaProjecaoSemFoco(win);
             win.setFullScreen(true);
             aplicarTopoAbsolutoProjecao(win);
           }
@@ -787,7 +818,7 @@ function createProjectionEngine(paths, deps) {
   // intencional — erro ignorado
 }
       aplicarTopoAbsolutoProjecao(win);
-      try { win.show(); } catch (_) {
+      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
   // intencional — erro ignorado
 }
       atualizarLoopTopoAbsolutoProjecao();
@@ -813,7 +844,7 @@ function createProjectionEngine(paths, deps) {
       try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
-      try { win.show(); } catch (_) {
+      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
   // intencional — erro ignorado
 }
     });
@@ -1059,7 +1090,7 @@ function createProjectionEngine(paths, deps) {
       try { win.setFullScreen(true); } catch (_) {
   // intencional — erro ignorado
 }
-      try { win.show(); } catch (_) {
+      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
   // intencional — erro ignorado
 }
     });
@@ -1300,7 +1331,7 @@ function createProjectionEngine(paths, deps) {
         /* Guardado: sem isto era um `SetWindowPos(HWND_NOTOPMOST)` por tick de slider,
            numa janela que já está em `false` desde `finalizarJanelaRelogioNativa`. */
         definirNivelTopo(win, false);
-        if (!win.isVisible()) win.show();
+        if (!win.isVisible()) mostrarJanelaProjecaoSemFoco(win);
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1605,7 +1636,7 @@ function createProjectionEngine(paths, deps) {
         /* Fullscreen e topo ANTES do `show()`: mostrar primeiro e entrar em fullscreen
            depois faz a janela aparecer um instante como janela normal. */
         finalizarJanelaProjecaoNativa(novoWin);
-        if (!novoWin.isVisible()) novoWin.show();
+        if (!novoWin.isVisible()) mostrarJanelaProjecaoSemFoco(novoWin);
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1663,7 +1694,7 @@ function createProjectionEngine(paths, deps) {
            marca está limpa e nada muda; é no disparo tardio, já depois de a cadeia ter
            escondido a janela, que ela evita a regressão. */
         finalizarJanelaProjecaoNativa(win);
-        if (!win.isVisible() && !ocultoParaRelogio(win)) win.show();
+        if (!win.isVisible() && !ocultoParaRelogio(win)) mostrarJanelaProjecaoSemFoco(win);
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1697,7 +1728,7 @@ function createProjectionEngine(paths, deps) {
       marcarOcultoParaRelogio(win, false);
       assentarJanelaOcultaNoDisplay(win, d);
       entrada.index = displayIndex;
-      if (mostrar) win.show();
+      if (mostrar) mostrarJanelaProjecaoSemFoco(win);
       return true;
     } catch (_) {
       return false;
@@ -1758,7 +1789,7 @@ function createProjectionEngine(paths, deps) {
             principal.ocultoParaRelogio = false;
             marcarOcultoParaRelogio(principal.win, false);
             assentarJanelaOcultaNoDisplay(principal.win, d);
-            principal.win.show();
+            mostrarJanelaProjecaoSemFoco(principal.win);
             principal.index = displayIndex;
           } catch (_) {
   // intencional — erro ignorado
@@ -1836,7 +1867,7 @@ function createProjectionEngine(paths, deps) {
               entry.ocultoParaRelogio = false;
               marcarOcultoParaRelogio(entry.win, false);
               assentarJanelaOcultaNoDisplay(entry.win, d);
-              entry.win.show();
+              mostrarJanelaProjecaoSemFoco(entry.win);
             } catch (_) {
   // intencional — erro ignorado
 }

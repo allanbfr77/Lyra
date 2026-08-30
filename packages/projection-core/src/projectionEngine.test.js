@@ -46,7 +46,12 @@ function janelaFalsa(opts = {}) {
     setBackgroundColor: () => {}, setAlwaysOnTop: () => {}, moveTop: () => {},
     setFullScreen: (b) => { win.fullscreen = !!b; },
     setBounds: (b) => { win.bounds = { ...win.bounds, ...b }; },
-    show: () => { win.visivel = true; }, hide: () => { win.visivel = false; },
+    show: () => { win.visivel = true; win.focouAoMostrar = true; },
+    /* O motor tem de usar SEMPRE esta: `show()` do Electron mostra e foca, e uma janela de
+       projeção a tomar o foco tira o teclado ao painel do operador. `focouAoMostrar` fica
+       aqui para o teste abaixo poder afirmar que o caminho focante nunca é tomado. */
+    showInactive: () => { win.visivel = true; win.mostrouSemFoco = true; },
+    hide: () => { win.visivel = false; },
     setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {},
     setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {},
     loadFile: (f) => win.paginas.push(f), loadURL: () => {},
@@ -255,6 +260,81 @@ test('dois motores no mesmo processo não partilham estado', () => {
   a.engine.sincronizarJanelasRelogio();
   assert.ok(a.engine.janelasDeProjecao().length > 0);
   assert.strictEqual(b.engine.janelasDeProjecao().length, 0);
+});
+
+test('janela de projeção nunca toma o foco do teclado ao ser mostrada', () => {
+  /*
+   * Regressão do teclado do Modo Slides. `show()` do Electron mostra E foca; uma janela de
+   * projeção a focar-se tira o foco do SO ao painel do operador, e o listener de setas vive
+   * no `document` do painel — sem foco, nenhum `keydown` chega e só um clique devolve o
+   * controlo. O motor tem de revelar as suas janelas por `showInactive()`, sempre.
+   *
+   * A janela falsa distingue os dois caminhos: `show()` marca `focouAoMostrar`,
+   * `showInactive()` marca `mostrouSemFoco`. O teste exige as duas coisas — que o caminho
+   * focante nunca corra, e que o outro tenha corrido de facto (senão passaria por vazio).
+   */
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-foco-teclado-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  const escreverRota = (publicoIndex, ministranteIndex) =>
+    fs.writeFileSync(
+      routingPath,
+      JSON.stringify({
+        version: 2,
+        slides: { publicoIndex, ministranteIndex },
+        apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+      })
+    );
+  escreverRota(1, 2);
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [1, 2] }));
+
+  const engine = createProjectionEngine(
+    {
+      displayRoutingPath: () => routingPath,
+      displaySettingsPath: () => settingsPath,
+    },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
+      BrowserWindow: function (opts) { return janelaFalsa(opts); },
+      state: armazemDeProjecao(),
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+
+  engine.abrirTelasConfiguradas();
+  /* Telão desativado e reactivado: é o caminho que reexibe uma janela já existente —
+     o mesmo do relógio de ocioso a devolver o conteúdo ao monitor. */
+  escreverRota(-1, 2);
+  engine.garantirTelasAbertasParaProjecao();
+  escreverRota(1, 2);
+  engine.garantirTelasAbertasParaProjecao();
+  /* E a troca de monitor pelo seletor. */
+  escreverRota(2, 1);
+  engine.garantirTelasAbertasParaProjecao();
+
+  const abertas = engine.janelasDeProjecao();
+  assert.ok(abertas.length > 0, 'o cenário tem de abrir janelas');
+  const focadas = abertas.filter((e) => e.win.focouAoMostrar).map((e) => e.role);
+  assert.deepStrictEqual(
+    focadas,
+    [],
+    `janela de projeção roubou o foco ao painel: ${focadas.join(', ')}`
+  );
+  assert.ok(
+    abertas.some((e) => e.win.mostrouSemFoco),
+    'nenhuma janela chegou a ser mostrada — o teste não provaria nada'
+  );
 });
 
 test('slide preto final: ministrante fica activo (tela preta) e não revela o relógio', () => {
