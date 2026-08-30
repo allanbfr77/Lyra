@@ -338,13 +338,16 @@ test('REGRESSÃO: muitas estrofes de 1 linha respeitam linhas por slide', () => 
     'Nós queremos Te ouvir',
     'Nós queremos Te ouvir',
   ];
+  // Linha longa agora é quebrada em fragmentos curtos (formato do banco
+  // offline), então a contagem final pode passar de 8; o que não pode voltar
+  // é um slide por verso, nem slide acima do máximo de linhas.
   const slides4 = cifra.normalizarEstrofesComMaxLinhas(umaPorLinha, 4);
-  assert.equal(slides4.length, 2, '8 linhas / 4 = 2 slides');
-  assert.equal(slides4[0].split('\n').length, 4);
-  assert.equal(slides4[1].split('\n').length, 4);
+  assert.ok(slides4.length <= 3, `acumulou mal: ${slides4.length} slides`);
+  for (const slide of slides4) assert.ok(slide.split('\n').length <= 4);
 
   const slides2 = cifra.normalizarEstrofesComMaxLinhas(umaPorLinha, 2);
-  assert.equal(slides2.length, 4, '8 linhas / 2 = 4 slides');
+  assert.ok(slides2.length <= 5, `acumulou mal: ${slides2.length} slides`);
+  for (const slide of slides2) assert.ok(slide.split('\n').length <= 2);
 });
 
 test('Letras.mus.br: extrai via lyric-original e prefere a página à og:description', () => {
