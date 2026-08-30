@@ -74,6 +74,47 @@ function payloadPublicoAtual(baseEstado, estadoPublicoOverride, opts = {}) {
 }
 
 /**
+ * Versículo no ar **apenas no canal do ministrante**.
+ *
+ * O evento `estado` transporta o payload do canal PÚBLICO. Com o alvo «ministrante»
+ * (M3), `exibir_versiculo` põe `estadoPublicoOverride = estadoPublicoOcioso()` — uma tela
+ * limpa no canal que não é alvo, para ele não continuar a mostrar o que lá estava. O
+ * versículo fica só em `estadoAtual` e chega ao M3 pelo snapshot do ministrante, sem
+ * passar por esta difusão.
+ *
+ * Resultado: o controlador recebia `{ tipo: null, telaLimpa: true }` — indistinguível de
+ * «nada projetado». Concluía que a Bíblia tinha sido encerrada, apagava o marcador verde
+ * e `bibliaParteProjetadaChave`, e com isso o ESC deixava de encontrar projeção para
+ * encerrar. No M2 nada disto acontecia, porque aí não há override e o versículo viaja no
+ * próprio payload.
+ *
+ * Esta bandeira é o que falta dizer ao controlador: «o público está limpo de propósito, e
+ * há versículo no ar noutro canal».
+ *
+ * A forma do override é a mesma que `projectionEncerrar.limparOverridePublicoBibliaSomenteMinistrante`
+ * já reconhece — tipo nulo, tela limpa, sem apresentação. Uma camada COM conteúdo (mídia,
+ * aviso, contagem) não conta: aí o controlador já sabe que tem algo por cima.
+ *
+ * @param {object|null} estadoAtual
+ * @param {object|null} estadoPublicoOverride
+ * @returns {boolean}
+ */
+function bibliaAtivaSomenteNoMinistrante(estadoAtual, estadoPublicoOverride) {
+  const base = estadoAtual;
+  if (!base || typeof base !== 'object') return false;
+  if (base.tipo !== 'biblia' || base.telaLimpa) return false;
+  const temTexto =
+    Array.isArray(base.linhas) &&
+    base.linhas.some((l) => String(l == null ? '' : l).trim().length > 0);
+  if (!temTexto) return false;
+
+  const ov = estadoPublicoOverride;
+  /* Sem override o versículo já vai no payload público — o controlador vê-o lá. */
+  if (!ov || typeof ov !== 'object') return false;
+  return ov.tipo == null && !!ov.telaLimpa && !ov.apresentacao;
+}
+
+/**
  * @param {object} estadoAtual
  * @param {object | null} estadoPublicoOverride
  * @param {object | null} ministranteApresentacaoOverride
@@ -82,6 +123,10 @@ function estadoPublicoParaSocketsOuApi(estadoAtual, estadoPublicoOverride, minis
   const out = payloadPublicoAtual(estadoAtual, estadoPublicoOverride);
   if (out && typeof out === 'object') {
     out.projecaoMinistranteApresentacao = !!ministranteApresentacaoOverride;
+    out.projecaoBibliaMinistrante = bibliaAtivaSomenteNoMinistrante(
+      estadoAtual,
+      estadoPublicoOverride
+    );
   }
   return out;
 }
@@ -265,6 +310,7 @@ module.exports = {
   clonePayloadSafe,
   carimbarContagemNoPayload,
   payloadPublicoAtual,
+  bibliaAtivaSomenteNoMinistrante,
   estadoPublicoParaSocketsOuApi,
   estadoPublicoOcioso,
   linhasProximoParaMusica,

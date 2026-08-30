@@ -667,6 +667,96 @@ test('exibir_apresentacao com alvo parcial preserva o canal oposto', () => {
   assert.deepEqual(state.ministranteApresentacaoOverride.linhas, ['Aviso no M2']);
 });
 
+/** O que o controlador recebe no evento `estado` — igual ao que o motor difunde. */
+function difusaoParaOControlador(state) {
+  return projectionPayloads.estadoPublicoParaSocketsOuApi(
+    state.estadoAtual,
+    state.estadoPublicoOverride,
+    state.ministranteApresentacaoOverride
+  );
+}
+
+test('versículo só no ministrante (M3) anuncia-se ao controlador como projeção activa', () => {
+  /*
+   * Regressão do marcador verde e do ESC no Modo Bíblia. Com o alvo «Ministrante — M3»
+   * o canal público leva uma tela limpa de propósito e o versículo fica em `estadoAtual`,
+   * fora desta difusão. O controlador via `{ tipo: null, telaLimpa: true }`, concluía
+   * «Bíblia encerrada», apagava o marcador e perdia o estado de que o ESC precisa.
+   */
+  const state = estadoFalso();
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao: 'ministrante',
+  });
+
+  const difusao = difusaoParaOControlador(state);
+  assert.equal(difusao.telaLimpa, true, 'o telão fica mesmo limpo — isso não muda');
+  assert.equal(
+    difusao.projecaoBibliaMinistrante,
+    true,
+    'o controlador tem de saber que há versículo no ar no M3'
+  );
+});
+
+test('versículo no telão (M2) não liga a bandeira do ministrante', () => {
+  const state = estadoFalso();
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao: 'publico',
+  });
+
+  const difusao = difusaoParaOControlador(state);
+  assert.equal(difusao.tipo, 'biblia', 'no M2 o versículo viaja no próprio payload');
+  assert.equal(difusao.projecaoBibliaMinistrante, false);
+});
+
+test('encerrar a Bíblia apaga a bandeira do ministrante', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  aplicador.aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao: 'ministrante',
+  });
+  assert.equal(difusaoParaOControlador(state).projecaoBibliaMinistrante, true);
+
+  aplicador.aplicar('encerrar_projecao_biblia');
+  assert.equal(
+    difusaoParaOControlador(state).projecaoBibliaMinistrante,
+    false,
+    'sem versículo no ar a bandeira tem de cair, ou o marcador ficava preso'
+  );
+});
+
+test('uma camada com conteúdo por cima do telão não conta como Bíblia só no M3', () => {
+  /* A bandeira lê o override de tela limpa. Uma mídia ou um aviso no telão são outra
+     coisa — o controlador já sabe tratá-los, e confundi-los prenderia o marcador. */
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  aplicador.aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao: 'ministrante',
+  });
+  aplicador.aplicar('exibir_apresentacao', {
+    kind: 'image',
+    src: 'file:///foto.png',
+    alvoProjecao: 'publico',
+  });
+
+  assert.equal(difusaoParaOControlador(state).projecaoBibliaMinistrante, false);
+});
+
 test('trocar o monitor da mesma mídia liberta o canal anterior (M2 → M3 → M2)', () => {
   const state = estadoFalso();
   const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });

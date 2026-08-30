@@ -584,6 +584,7 @@ function hayProjecaoAtivaModoBibliaOuApresentacao() {
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
+  if (e.projecaoBibliaMinistrante) return true;
   if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
   return false;
 }
@@ -14747,11 +14748,16 @@ function aoReceberEstadoDaProjecao(estado) {
       const tip = estado && estado.tipo;
       const camadaPorCima =
         tip === 'contagem' || tip === 'apresentacao' || tip === 'aviso';
+      /* `projecaoBibliaMinistrante`: com o alvo «Ministrante — M3» o canal público leva
+         uma tela limpa de propósito, e o versículo viaja fora desta difusão. Sem ler a
+         bandeira, o eco parecia dizer «Bíblia encerrada» e apagava o marcador verde — e
+         com ele o estado de que o ESC precisa. Ver `projectionPayloads`. */
       const bibliaNoAr =
-        tip === 'biblia' &&
-        !estado.telaLimpa &&
-        Array.isArray(estado.linhas) &&
-        estado.linhas.some((l) => String(l == null ? '' : l).length > 0);
+        !!estado.projecaoBibliaMinistrante ||
+        (tip === 'biblia' &&
+          !estado.telaLimpa &&
+          Array.isArray(estado.linhas) &&
+          estado.linhas.some((l) => String(l == null ? '' : l).length > 0));
       if (!camadaPorCima && !bibliaNoAr) {
         bibliaLimparProjecaoOperador();
       }
@@ -18917,6 +18923,7 @@ document.addEventListener('keydown', (e) => {
         bibliaNavPopupFechar();
       } else if (
         bibliaParteProjetadaChave != null ||
+        (estadoServidor && estadoServidor.projecaoBibliaMinistrante) ||
         (estadoServidor &&
           estadoServidor.tipo === 'biblia' &&
           !estadoServidor.telaLimpa &&
