@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const REPO_ROOT = path.join(__dirname, '..');
+
 function requireBetterSqlite3() {
   const attempts = [];
 
@@ -18,22 +20,21 @@ function requireBetterSqlite3() {
   };
 
   const root = tryLoad('raiz do projeto (node_modules)', () => {
-    // Prefer the root install (recommended for running this tool)
-    // eslint-disable-next-line global-require
-    return require('better-sqlite3');
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    return require(path.join(REPO_ROOT, 'node_modules', 'better-sqlite3'));
   });
   if (root) return root;
 
   const server = tryLoad('server/node_modules', () => {
     // CI/release: server costuma ter prebuilt para Node 20+ no Windows.
     // eslint-disable-next-line global-require, import/no-dynamic-require
-    return require(path.join(process.cwd(), 'server', 'node_modules', 'better-sqlite3'));
+    return require(path.join(REPO_ROOT, 'server', 'node_modules', 'better-sqlite3'));
   });
   if (server) return server;
 
   const controller = tryLoad('controller/node_modules', () => {
     // eslint-disable-next-line global-require, import/no-dynamic-require
-    return require(path.join(process.cwd(), 'controller', 'node_modules', 'better-sqlite3'));
+    return require(path.join(REPO_ROOT, 'controller', 'node_modules', 'better-sqlite3'));
   });
   if (controller) return controller;
 
