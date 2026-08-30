@@ -172,6 +172,11 @@ function replaceCatalogDb(tempPath) {
 }
 
 function main() {
+  if (process.env.LYRA_SKIP_CATALOG_BUILD === '1') {
+    console.log('⏭  LYRA_SKIP_CATALOG_BUILD=1 — mantendo catalog.db do repositório.');
+    return;
+  }
+
   console.log('📂 Pasta de letras (.txt):', LETRAS_FOLDER);
   // Gera em arquivo temporário para não falhar se o .db estiver aberto no Electron
   const tempDb = `${OUTPUT_DB}.tmp`;

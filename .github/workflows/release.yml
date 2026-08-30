@@ -42,6 +42,10 @@ jobs:
         run: npm ci
         working-directory: server
 
+      - name: Ajustar better-sqlite3 para o Node do runner
+        run: npm rebuild better-sqlite3 --build-from-source=false
+        working-directory: server
+
       - name: Instalar dependências (controlador)
         run: npm ci --ignore-scripts
         working-directory: controller
@@ -53,7 +57,7 @@ jobs:
           npm version $version --no-git-tag-version --allow-same-version --prefix controller
 
       - name: Gerar catálogo
-        run: npm run catalog:build --prefix controller
+        run: node tools/gerar-catalog.js
 
       - name: Compilar instalador do Controlador
         env:
