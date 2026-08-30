@@ -1765,36 +1765,160 @@
       text-overflow: ellipsis;
     }
 
+    /*
+      Os ↑↓✕ aparecem ao apontar o CANTO DIREITO da linha, não a linha inteira.
+
+      Com a linha toda a servir de gatilho, bastava passar o rato pela playlist para os
+      controlos piscarem em cada linha por onde se passava — ruído constante numa lista
+      que se percorre com os olhos muito mais vezes do que se reordena. A zona sensível
+      passa a ser a própria caixa dos botões, que no modo Home já é uma coluna reservada
+      de 112 px (`align-self: stretch` dá-lhe a altura toda da linha, para o alvo ser a
+      faixa direita inteira e não só a fita de 26 px ao meio).
+
+      A caixa continua a apanhar o rato mesmo invisível (`pointer-events: auto`), mas os
+      botões lá dentro só ficam clicáveis quando ela está à vista: sem isso havia um
+      `✕` transparente à espera de um clique distraído. `pointer-events` herda-se, por
+      isso basta ligá-la nos filhos directos — a pastilha passa-a às setas.
+    */
     .playlist-row .playlist-btns {
       display: flex;
-      gap: 4px;
+      gap: 6px;
+      align-items: center;
+      align-self: stretch;
       flex-shrink: 0;
       width: 112px;
       justify-content: flex-end;
       box-sizing: border-box;
       opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.14s ease;
+      pointer-events: auto;
+      transform: translateX(4px);
+      transition: opacity 0.14s ease, transform 0.14s ease;
     }
+
+    .playlist-row .playlist-btns > * {
+      pointer-events: none;
+    }
+
+    /*
+      Par ↑↓ como controlo segmentado: uma pastilha, um traço fino a separar os dois
+      sentidos. A dupla pertence à mesma ação (mudar de lugar) e passa a ler-se como
+      tal — o `✕`, que é destrutivo, fica visivelmente à parte.
+    */
+    .playlist-row .playlist-btns .pl-mover {
+      display: inline-flex;
+      align-items: stretch;
+      flex-shrink: 0;
+      border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface2) 60%, var(--surface));
+      overflow: hidden;
+    }
+
+    .playlist-row .playlist-btns .pl-btn-mover {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: transparent;
+      /* Um pouco acima do `--text-dim`: as setas são das acções mais usadas da linha e
+         no cinzento das legendas quase não se viam sobre a pastilha. */
+      color: color-mix(in srgb, var(--text-dim) 62%, var(--text) 38%);
+      cursor: pointer;
+      transition: background 0.14s ease, color 0.14s ease, transform 0.1s ease;
+    }
+
+    .playlist-row .playlist-btns .pl-btn-mover + .pl-btn-mover {
+      border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    }
+
+    .playlist-row .playlist-btns .pl-btn-mover svg {
+      display: block;
+      pointer-events: none;
+    }
+
+    .playlist-row .playlist-btns .pl-btn-mover:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 20%, transparent);
+      color: var(--accent);
+    }
+
+    /* O empurrão de 1 px no sentido do movimento é o único feedback que o rato tem
+       antes de a linha começar a deslizar. */
+    .playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled) { transform: translateY(-1px); }
+    .playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) { transform: translateY(1px); }
+
+    .playlist-row .playlist-btns .pl-btn-mover:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      color: var(--accent);
+    }
+
+    /* Topo da lista, fim da lista, ou vizinho é cabeçalho de tema: sem para onde ir. */
+    .playlist-row .playlist-btns .pl-btn-mover:disabled {
+      opacity: 0.26;
+      cursor: default;
+      background: transparent;
+    }
+
+    /*
+      `✕` na mesma caixa quadrada das setas — as três ações alinham pelo centro.
+
+      Em repouso fica neutro, não vermelho: com a moldura vermelha permanente, a acção
+      destrutiva era a mais gritante da linha, e a que se usa a toda a hora (reordenar)
+      a mais apagada. O vermelho aparece ao passar por cima — a tempo de avisar, e só a
+      quem já está a apontar para ele.
+    */
+    .playlist-row .playlist-btns .pl-btn-remover {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      border-radius: 7px;
+      border-color: color-mix(in srgb, var(--border) 85%, transparent);
+      color: var(--text-dim);
+    }
+
+    .playlist-row .playlist-btns .pl-btn-remover:hover,
+    .playlist-row .playlist-btns .pl-btn-remover:focus-visible {
+      border-color: var(--red);
+      background: var(--red);
+      color: #fff;
+    }
+
+    .playlist-row .playlist-btns .pl-btn-remover svg { display: block; }
 
     .playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom {
       color: var(--text-dim);
-      min-width: 26px;
       /* O `.btn` base alinha texto; este leva um SVG e precisa de o centrar à mão, senão
          a seta assenta na linha de base e fica um par de pixels abaixo do ↑ ↓ ✕ ao lado. */
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 6px 8px;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      border-radius: 7px;
     }
     .playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom:hover {
       color: var(--text);
       border-color: color-mix(in srgb, var(--border) 50%, var(--text) 25%);
     }
 
-    .playlist-row:hover .playlist-btns,
-    .playlist-row:focus-within .playlist-btns {
+    .playlist-row .playlist-btns:hover,
+    .playlist-row .playlist-btns:focus-within {
       opacity: 1;
+      transform: translateX(0);
+    }
+
+    .playlist-row .playlist-btns:hover > *,
+    .playlist-row .playlist-btns:focus-within > * {
       pointer-events: auto;
     }
 
@@ -1815,21 +1939,87 @@
       padding-right: 8px;
     }
 
-    @keyframes playlist-row-flash-move {
-      0% {
-        box-shadow: 0 0 0 1px rgba(166, 124, 45, 0);
-      }
-      40% {
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent);
-        background: color-mix(in srgb, var(--surface2) 72%, var(--accent) 20%);
-      }
-      100% {
-        box-shadow: 0 0 0 1px rgba(166, 124, 45, 0);
-      }
+    /*
+      Feedback da mudança de posição.
+
+      O deslize das duas linhas é feito em JS (FLIP: mede antes, mede depois, anima a
+      diferença) — aqui fica só o realce que diz QUAL música mudou. O realce é pintado
+      numa camada `::after` por cima da linha, e não no `background`: a linha da música
+      activa tem fundo próprio (e uma barra em `::before`), e animar o `background`
+      apagava esse estado durante meio segundo.
+
+      Duas intensidades: a música que o utilizador mandou mover recebe o realce cheio e
+      um anel; a que foi empurrada para o lugar dela recebe um terço disso — chega para
+      se perceber que as duas trocaram, sem competir com a que interessa.
+    */
+    @keyframes playlist-row-move-glow {
+      0% { opacity: 0.02; }
+      22% { opacity: 0.17; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes playlist-row-move-glow-vizinho {
+      0% { opacity: 0.01; }
+      22% { opacity: 0.07; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes playlist-row-move-ring {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+      30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 34%, transparent); }
+      100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+    }
+
+    .playlist-row.playlist-row--flash-move::after,
+    .playlist-row.playlist-row--flash-swap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--accent);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .playlist-row.playlist-row--flash-move::after {
+      animation: playlist-row-move-glow 0.62s ease-out;
+    }
+
+    .playlist-row.playlist-row--flash-swap::after {
+      animation: playlist-row-move-glow-vizinho 0.62s ease-out;
     }
 
     .playlist-row.playlist-row--flash-move {
-      animation: playlist-row-flash-move 0.55s ease;
+      animation: playlist-row-move-ring 0.62s ease-out;
+      border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
+    }
+
+    /* Enquanto desliza, a linha em movimento passa por cima da outra. */
+    .playlist-row.playlist-row--a-mover {
+      z-index: 3;
+    }
+
+    .playlist-row.playlist-row--a-deslocar {
+      z-index: 2;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .playlist-row .playlist-btns,
+      .playlist-row .playlist-btns .pl-btn-mover {
+        transition: none;
+      }
+      .playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled),
+      .playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) {
+        transform: none;
+      }
+      /* Sem deslize (o JS já o dispensa) — o realce fica, mais demorado, porque é ele
+         que responde à pergunta «qual música é que mudou de lugar?». */
+      .playlist-row.playlist-row--flash-move::after,
+      .playlist-row.playlist-row--flash-swap::after,
+      .playlist-row.playlist-row--flash-move {
+        animation-duration: 0.9s;
+        animation-timing-function: ease-out;
+      }
     }
 
     .playlist-row-tema-chip {
@@ -5115,10 +5305,18 @@
       border-radius: 6px;
       background: color-mix(in srgb, var(--surface2) 88%, #000000 12%);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      /*
+        Sem isto a faixa herda os 112 px reservados no modo Home. Como está posicionada
+        pela direita, essa largura a mais não empurra os botões — estica a placa escura
+        (e a sombra) uns 50 px para dentro do título, e era ela, não os botões, que
+        tapava o texto. `auto` faz a placa medir exactamente o que lá está dentro.
+      */
+      width: auto;
     }
 
     /* ↑ ↓ ✕ compactos — não competem com o título agora que a fonte da lista subiu. */
-    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .btn.sm {
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .btn.sm,
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover {
       padding: 0;
       width: 18px;
       height: 18px;
@@ -5130,6 +5328,55 @@
       line-height: 1;
       letter-spacing: 0;
       border-radius: 4px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-mover {
+      border-radius: 5px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover {
+      border-radius: 0;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover svg {
+      width: 11px;
+      height: 11px;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-remover svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    /*
+      A faixa ↑↓✕ flutua por cima da linha (ver acima: numa coluna de 230 px não pode
+      reservar largura em permanência). Só que «por cima» era mesmo por cima do título —
+      «3. Que Ele Cre▮▮▮» com os botões colados ao texto, ilegível justamente na linha
+      que se está a apontar.
+
+      A correção é dar ao título, e só enquanto a faixa está à vista, um recuo à direita
+      do tamanho dela: o título volta a terminar em reticências antes dos botões, em vez
+      de desaparecer debaixo deles. Fora do hover o recuo desaparece e o título usa a
+      largura toda — que é o que interessa nas outras linhas.
+
+      62 px é a largura medida da faixa: 18+18 (setas) + 2 (bordas da pastilha) + 2 (folga
+      interna) + 18 (✕) + 4 (padding da faixa). A folga entre as reticências e o primeiro
+      botão sai de graça — são os 8 px de padding da linha menos os 3 px a que a faixa
+      está da borda direita, 5 px medidos.
+    */
+    body.app-mod-slides .panel-playlist .playlist-row .tit {
+      transition: padding-right 0.14s ease;
+    }
+
+    body.app-mod-slides .panel-playlist .playlist-row:has(.playlist-btns:hover) .tit,
+    body.app-mod-slides .panel-playlist .playlist-row:has(.playlist-btns:focus-within) .tit {
+      padding-right: 62px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body.app-mod-slides .panel-playlist .playlist-row .tit {
+        transition: none;
+      }
     }
 
     body.app-mod-slides .centro-col-letras {
@@ -8765,6 +9012,37 @@
     .route-dd.route-dd--live-projetando .route-dd-btn {
       border-color: #e85d04;
       box-shadow: 0 0 0 1px color-mix(in srgb, #e85d04 40%, transparent);
+    }
+
+    /*
+      Modo Bíblia: o seletor de Live volta ao aspeto neutro dos outros seletores.
+
+      Pelo mesmo motivo que o selo «● LIVE → OBS» saiu daqui — o botão já diz «Live — OBS»
+      por extenso, e o versículo no ar é a confirmação de que está a sair. O laranja
+      (tinta ao escolher a rota, anel enquanto projeta) era um alarme permanente para um
+      estado normal de culto, no canto do cabeçalho que o operador nunca deixa de ver.
+
+      Nos modos Apresentação e Slides fica como estava: ali a saída Live pode estar ativa
+      com o operador a olhar para outro lado.
+    */
+    body.app-mod-biblia .route-dd.route-dd--rota-live .route-dd-btn,
+    body.app-mod-biblia .route-dd.route-dd--live-projetando .route-dd-btn {
+      border-color: var(--border);
+      background: var(--surface2);
+      box-shadow: none;
+    }
+
+    /* Repostas a seguir porque a regra acima, mais específica que `.route-dd-btn:hover`
+       e que `.route-dd-open .route-dd-btn`, apagava também o realce de apontar e o de
+       ter o menu aberto — que não têm nada a ver com a rota Live. */
+    body.app-mod-biblia .route-dd.route-dd--rota-live .route-dd-btn:hover,
+    body.app-mod-biblia .route-dd.route-dd--live-projetando .route-dd-btn:hover {
+      border-color: var(--accent2);
+    }
+
+    body.app-mod-biblia .route-dd.route-dd-open.route-dd--rota-live .route-dd-btn,
+    body.app-mod-biblia .route-dd.route-dd-open.route-dd--live-projetando .route-dd-btn {
+      border-color: var(--accent);
     }
     .indicador-live-obs.oculto { display: none; }
     .indicador-live-obs {

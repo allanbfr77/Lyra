@@ -89,6 +89,67 @@ export function htmlSelectTom(tomAtual) {
  * desenhados, e um ícone que destoasse dos vizinhos chamaria mais atenção do que a ação
  * merece — ela é rara, e é destrutiva.
  */
+/*
+ * Setas de reordenação — chevrons de traço, no mesmo desenho dos restantes ícones do
+ * painel (`currentColor`, 2 px de traço, pontas arredondadas). O `↑ ↓` em texto herdava
+ * a métrica da fonte e assentava na linha de base: a seta ficava fora do centro do botão
+ * e mudava de tamanho com a escala tipográfica. O SVG fica sempre centrado e do tamanho
+ * que o botão pedir.
+ */
+const SVG_MOVER_CIMA =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
+  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="m6 14 6-6 6 6"/></svg>';
+
+const SVG_MOVER_BAIXO =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
+  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="m6 10 6 6 6-6"/></svg>';
+
+const SVG_REMOVER_LINHA =
+  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+/**
+ * Par ↑↓ como um único controlo segmentado.
+ *
+ * Os dois botões pertencem à mesma ação — mudar a música de lugar — e separá-los com a
+ * mesma folga que os separava de «remover» fazia com que a linha lesse três ações soltas
+ * em vez de uma dupla e um `✕`. Juntos numa pastilha, com um traço fino entre eles, a
+ * dupla lê-se como um só comando de dois sentidos, e o `✕` (destrutivo) fica claramente
+ * à parte.
+ *
+ * Quando não há para onde ir — topo da playlist, fundo, ou o vizinho é um cabeçalho de
+ * tema — o botão vem `disabled` em vez de silenciosamente não fazer nada ao clique.
+ *
+ * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
+ */
+export function htmlBotoesMoverPlaylist(opts = {}) {
+  const podeSubir = opts.podeSubir !== false;
+  const podeDescer = opts.podeDescer !== false;
+  const attrSubir = podeSubir ? '' : ' disabled aria-disabled="true"';
+  const attrDescer = podeDescer ? '' : ' disabled aria-disabled="true"';
+  const tSubir = podeSubir ? 'Subir uma posição' : 'Já está no topo';
+  const tDescer = podeDescer ? 'Descer uma posição' : 'Já está no fim';
+  return (
+    '<div class="pl-mover" role="group" aria-label="Reordenar esta música na playlist">' +
+    `<button class="pl-btn-mover pl-btn-subir" type="button" title="${tSubir}" aria-label="Mover para cima"${attrSubir}>${SVG_MOVER_CIMA}</button>` +
+    `<button class="pl-btn-mover pl-btn-descer" type="button" title="${tDescer}" aria-label="Mover para baixo"${attrDescer}>${SVG_MOVER_BAIXO}</button>` +
+    '</div>'
+  );
+}
+
+/** `✕` da linha da playlist — ícone, para casar com as setas ao lado. */
+function htmlBotaoRemoverLinhaPlaylist() {
+  return (
+    '<button class="btn sm danger pl-btn-remover" type="button" ' +
+    'title="Remover esta música da playlist" aria-label="Remover da playlist">' +
+    SVG_REMOVER_LINHA +
+    '</button>'
+  );
+}
+
 const SVG_LIMPAR_MESTRE =
   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -99,7 +160,7 @@ const SVG_LIMPAR_MESTRE =
  * @param {number} songNum
  * @param {string} rotuloVersaoHtml já escapado / sufixo pronto
  * @param {(s: string) => string} escapeHtml
- * @param {{ mostrarLimparMestre?: boolean }} [opts]
+ * @param {{ mostrarLimparMestre?: boolean, podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
 export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
   const artista = String(item?.artista || '').trim();
@@ -128,9 +189,8 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
         <div class="playlist-btns">
           ${btnLimparMestre}
-          <button class="btn sm pl-btn-subir" type="button" title="Subir">↑</button>
-          <button class="btn sm pl-btn-descer" type="button" title="Descer">↓</button>
-          <button class="btn sm danger pl-btn-remover" type="button" title="Remover">✕</button>
+          ${htmlBotoesMoverPlaylist(opts)}
+          ${htmlBotaoRemoverLinhaPlaylist()}
         </div>
       </div>`;
 }
@@ -138,17 +198,17 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
 /**
  * Linha compacta da playlist (modo Slide): só título + artista + botões.
  * Ministrante/Tom ficam exclusivos do modo Home.
+ * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
-export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml) {
+export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
   return `
       <div class="tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
       ${artista ? `<div class="mini" title="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
       <div class="playlist-btns">
-        <button class="btn sm pl-btn-subir" type="button" title="Subir">↑</button>
-        <button class="btn sm pl-btn-descer" type="button" title="Descer">↓</button>
-        <button class="btn sm danger pl-btn-remover" type="button" title="Remover">✕</button>
+        ${htmlBotoesMoverPlaylist(opts)}
+        ${htmlBotaoRemoverLinhaPlaylist()}
       </div>`;
 }
 

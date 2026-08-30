@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Prévia — playlist modo slides</title>
+<style>
+  :root{
+    --surface:#232328; --surface2:#2e2e35; --border:#3f3f48;
+    --accent:#c49a3a; --text:#e8e5e0; --text-dim:#9a9690; --red:#d9534f;
+    --font-ui:'Segoe UI',system-ui,-apple-system,sans-serif;
+    --fs-body-base:14px; --fs-caption-base:12px; --fs-text-base:14px;
+    --fw-semibold:600;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#17171b;color:var(--text);font-family:var(--font-ui);padding:24px;display:flex;gap:40px}
+  .col{width:230px}
+  .cap{font-size:11px;color:var(--text-dim);margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em}
+  .panel-playlist{width:230px;background:var(--surface);border:1px solid #35353d;border-radius:8px;overflow:hidden}
+  .playlist-list{padding:6px}
+  .playlist-row{position:relative;padding:6px 8px;margin-bottom:4px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:6px;cursor:pointer}
+  .playlist-row.ativo{border-color:var(--accent);box-shadow:0 0 0 1px rgba(166,124,45,.28);
+    background:color-mix(in srgb,var(--surface2) 84%,var(--accent) 16%);padding-left:10px}
+  .playlist-row.ativo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:6px 0 0 6px;background:var(--accent)}
+  .playlist-row .tit{font-size:14.5px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .playlist-row .mini{margin-top:3px;font-size:13px;line-height:1.25;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn{font-family:var(--font-ui);font-size:var(--fs-body-base);font-weight:var(--fw-semibold);padding:6px 14px;
+    border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;border-radius:4px}
+  .btn.sm{padding:4px 8px;font-size:var(--fs-caption-base)}
+  .btn.danger{border-color:var(--red);color:var(--red)}
+
+  .playlist-row .playlist-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;width:112px;
+    justify-content:flex-end;opacity:0;pointer-events:none;transform:translateX(4px);
+    transition:opacity .14s ease,transform .14s ease}
+  .playlist-row.hov .playlist-btns{opacity:1;pointer-events:auto;transform:translateX(0)}
+  .playlist-row .playlist-btns .pl-mover{display:inline-flex;align-items:stretch;flex-shrink:0;
+    border:1px solid color-mix(in srgb,var(--border) 85%,transparent);border-radius:7px;
+    background:color-mix(in srgb,var(--surface2) 60%,var(--surface));overflow:hidden}
+  .playlist-row .playlist-btns .pl-btn-mover{display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;padding:0;border:0;background:transparent;
+    color:color-mix(in srgb,var(--text-dim) 62%,var(--text) 38%);cursor:pointer}
+  .playlist-row .playlist-btns .pl-btn-mover + .pl-btn-mover{border-left:1px solid color-mix(in srgb,var(--border) 75%,transparent)}
+  .playlist-row .playlist-btns .pl-btn-mover svg{display:block}
+  .playlist-row .playlist-btns .pl-btn-mover:disabled{opacity:.26}
+  .playlist-row .playlist-btns .pl-btn-remover{display:inline-flex;align-items:center;justify-content:center;
+    width:26px;height:26px;min-width:26px;padding:0;border-radius:7px;
+    border-color:color-mix(in srgb,var(--border) 85%,transparent);color:var(--text-dim)}
+  .playlist-row .playlist-btns .pl-btn-remover svg{display:block}
+
+  /* --- modo slides --- */
+  /* Antes: a faixa herdava os 112px reservados no modo Home — a placa escura entrava
+     ~50px pelo título adentro. Corrigido: width:auto (só a largura dos botões). */
+  .slides .playlist-row .playlist-btns{position:absolute;top:3px;right:3px;z-index:2;gap:2px;padding:2px;
+    border-radius:6px;background:color-mix(in srgb,var(--surface2) 88%,#000 12%);box-shadow:0 2px 8px rgba(0,0,0,.45);width:112px}
+  .corrigido .playlist-row .playlist-btns{width:auto}
+  .slides .playlist-row .playlist-btns .btn.sm,
+  .slides .playlist-row .playlist-btns .pl-btn-mover{padding:0;width:18px;height:18px;min-width:18px;
+    display:inline-flex;align-items:center;justify-content:center;font-size:9px;line-height:1;border-radius:4px}
+  .slides .playlist-row .playlist-btns .pl-mover{border-radius:5px}
+  .slides .playlist-row .playlist-btns .pl-btn-mover{border-radius:0}
+  .slides .playlist-row .playlist-btns .pl-btn-mover svg{width:11px;height:11px}
+  .slides .playlist-row .playlist-btns .pl-btn-remover svg{width:10px;height:10px}
+
+  /* CORREÇÃO */
+  .corrigido .playlist-row .tit{transition:padding-right .14s ease}
+  .corrigido .playlist-row.hov .tit{padding-right:62px}
+  .corrigido .playlist-row.ativo.hov .tit{padding-right:0}
+</style>
+</head>
+<body>
+<div class="col">
+  <p class="cap">Antes (título tapado)</p>
+  <div class="panel-playlist slides" id="p1"></div>
+</div>
+<div class="col">
+  <p class="cap">Corrigido</p>
+  <div class="panel-playlist slides corrigido" id="p2"></div>
+</div>
+<script>
+const UP='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></svg>';
+const DOWN='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"/></svg>';
+const X='<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const M=[['A Casa é Sua','Casa Worship'],['Oceanos','Ana Nóbrega'],['Que Ele Cresça em Mim','Deigma Marques'],['Sou Casa','Elizeu Alves'],['Eu Só Quero Tua Presença','Theo Rubia']];
+for(const id of ['p1','p2']){
+  const el=document.getElementById(id);
+  el.innerHTML='<div class="playlist-list">'+M.map((m,i)=>`
+    <div class="playlist-row${i===0?' ativo':''}${i===2?' hov':''}">
+      <div class="tit">${i+1}. ${m[0]}</div>
+      <div class="mini">${m[1]}</div>
+      <div class="playlist-btns">
+        <div class="pl-mover">
+          <button class="pl-btn-mover pl-btn-subir" ${i===0?'disabled':''}>${UP}</button>
+          <button class="pl-btn-mover pl-btn-descer" ${i===M.length-1?'disabled':''}>${DOWN}</button>
+        </div>
+        <button class="btn sm danger pl-btn-remover">${X}</button>
+      </div>
+    </div>`).join('')+'</div>';
+}
+</script>
+</body>
+</html>

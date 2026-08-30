@@ -624,9 +624,20 @@ function atualizarIndicadorProjecaoLiveUi() {
     liveSel &&
     hayProjecaoAtivaNoServidor() &&
     !!(estadoServidor && estadoServidor.projecaoLive);
+  /*
+     O selo «● LIVE → OBS» não aparece no modo Bíblia.
+
+     Ali ele não acrescenta nada: o seletor ao lado já diz «Live — OBS», ganha o contorno
+     laranja enquanto a projeção corre, e o próprio versículo no ar é a confirmação de que
+     está a sair. Três avisos da mesma coisa, um deles a pulsar, num canto do cabeçalho que
+     o operador tem debaixo dos olhos durante o culto inteiro.
+
+     No modo Apresentação continua: lá o que está no ar é mídia, que pode estar a tocar sem
+     o operador a ver, e o selo é o único sinal de que a saída Live está mesmo ativa. */
+  const mostrarSelo = projetando && !ehModoBibliaOperador();
   if (el) {
-    el.classList.toggle('oculto', !projetando);
-    el.classList.toggle('indicador-live-obs--ativo', projetando);
+    el.classList.toggle('oculto', !mostrarSelo);
+    el.classList.toggle('indicador-live-obs--ativo', mostrarSelo);
   }
   if (wrap) {
     wrap.classList.toggle('route-dd--live-projetando', projetando);
@@ -9422,14 +9433,49 @@ function atualizarCabecalhoColunasPlaylist(temMusicas) {
   head.hidden = !temMusicas || !cultoId || ehModoSlidesOperador();
 }
 
-/** HTML da linha da playlist: Home com Ministrante/Tom; Slide compacto como antes. */
-function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao) {
+/**
+ * A troca com o vizinho é possível nesta direção?
+ *
+ * Mesma condição que `movePlItem` aplica antes de trocar — aqui só para a linha poder
+ * mostrar o botão desactivado em vez de o oferecer e depois não fazer nada. Um cabeçalho
+ * de tema no caminho conta como fim de linha: as músicas não saltam de bloco pelas setas.
+ *
+ * @param {any[]} pl
+ * @param {number} idx
+ * @param {-1|1} dir
+ */
+function podeMoverItemPlaylist(pl, idx, dir) {
+  if (!Array.isArray(pl)) return false;
+  const j = idx + dir;
+  if (j < 0 || j >= pl.length) return false;
+  if (ehMarcadorTemaPlaylist(pl[idx]) || ehMarcadorTemaPlaylist(pl[j])) return false;
+  return true;
+}
+
+/** `{ podeSubir, podeDescer }` da linha `idx` — para os botões ↑↓ da playlist. */
+function estadoBotoesMoverPlaylist(pl, idx) {
+  return {
+    podeSubir: podeMoverItemPlaylist(pl, idx, -1),
+    podeDescer: podeMoverItemPlaylist(pl, idx, 1),
+  };
+}
+
+/**
+ * HTML da linha da playlist: Home com Ministrante/Tom; Slide compacto como antes.
+ * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
+ */
+function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao, opts = {}) {
+  const mover = {
+    podeSubir: opts.podeSubir !== false,
+    podeDescer: opts.podeDescer !== false,
+  };
   if (ehModoSlidesOperador()) {
-    return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml);
+    return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml, mover);
   }
   return htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersao, escapeHtml, {
     /* Só na música 1: limpar mestre (toda a playlist). */
     mostrarLimparMestre: Number(songNum) === 1,
+    ...mover,
   });
 }
 
@@ -9693,7 +9739,12 @@ function renderPlaylistItensComMarcadores(el, pl) {
     row.dataset.plIdx = String(idxPl);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.innerHTML = htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao);
+    row.innerHTML = htmlLinhaPlaylistModoAtual(
+      item,
+      songNum,
+      rotuloVersao,
+      estadoBotoesMoverPlaylist(pl, idxPl)
+    );
     ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl);
     songAppendParent.appendChild(row);
   };
@@ -9840,11 +9891,149 @@ function renderPlaylist() {
     row.dataset.plIdx = String(idx);
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
-    row.innerHTML = htmlLinhaPlaylistModoAtual(item, nLista, rotuloVersao);
+    row.innerHTML = htmlLinhaPlaylistModoAtual(
+      item,
+      nLista,
+      rotuloVersao,
+      estadoBotoesMoverPlaylist(pl, idx)
+    );
     ligarBotoesESeletoresLinhaPlaylist(row, item, idx);
     songAppendParent.appendChild(row);
   }
   garantirMusicaAtivaVisivelNaPlaylist();
+}
+
+const PLAYLIST_MOVE_DUR_MS = 260;
+const PLAYLIST_MOVE_FLASH_MS = 640;
+/* Curva com travagem no fim: arranca depressa e assenta devagar, que é como se lê um
+   objecto a cair no lugar. Linear parecia um salto; `ease` parecia lento a arrancar. */
+const PLAYLIST_MOVE_EASING = 'cubic-bezier(0.22, 0.68, 0.28, 1)';
+
+function preferenciaMovimentoReduzido() {
+  try {
+    return typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Topo de cada linha no espaço de conteúdo da lista (soma do scroll), não no ecrã.
+ *
+ * Medir em coordenadas de ecrã dava deltas errados sempre que o `scrollIntoView` a seguir
+ * mexia no scroll a meio da animação; descontando o `scrollTop` a medida deixa de
+ * depender de onde a lista está a ser vista.
+ *
+ * @returns {Map<string, number>} índice na playlist → topo
+ */
+function medirPosicoesLinhasPlaylist() {
+  const mapa = new Map();
+  const lista = document.getElementById('playlist-list');
+  if (!lista) return mapa;
+  const base = lista.getBoundingClientRect().top - lista.scrollTop;
+  lista.querySelectorAll('.playlist-row[data-pl-idx]').forEach((r) => {
+    mapa.set(String(r.dataset.plIdx), r.getBoundingClientRect().top - base);
+  });
+  return mapa;
+}
+
+/** Aplica uma classe de realce reiniciando a animação mesmo em cliques seguidos. */
+function realcarLinhaPlaylist(el, classe) {
+  if (!el) return;
+  el.classList.remove(classe);
+  void el.offsetWidth; /* reinicia a animação: sem isto, dois cliques rápidos não piscam */
+  el.classList.add(classe);
+  setTimeout(() => el.classList.remove(classe), PLAYLIST_MOVE_FLASH_MS);
+}
+
+/**
+ * Desliza as duas linhas trocadas entre a posição antiga e a nova (técnica FLIP).
+ *
+ * A lista é reconstruída do zero a cada `renderPlaylist()`, por isso não há elemento
+ * para animar «de A para B»: o que se faz é medir onde as linhas estavam, deixar o
+ * render pô-las já no sítio certo, e devolvê-las visualmente ao ponto de partida com um
+ * `translateY` que depois se desfaz. O utilizador vê o movimento; o DOM nunca esteve
+ * numa posição intermédia.
+ *
+ * @param {Map<string, number>} posAntes medições feitas ANTES de reordenar
+ * @param {Map<string, string>} novoParaAntigo índice novo → índice antigo
+ * @param {number} idxMovido
+ * @param {number} idxDeslocado
+ */
+function animarReordenacaoPlaylist(posAntes, novoParaAntigo, idxMovido, idxDeslocado) {
+  const lista = document.getElementById('playlist-list');
+  if (!lista) return;
+  const linhaMovida = lista.querySelector(`.playlist-row[data-pl-idx="${idxMovido}"]`);
+  const linhaDeslocada = lista.querySelector(`.playlist-row[data-pl-idx="${idxDeslocado}"]`);
+  const reduzido = preferenciaMovimentoReduzido();
+
+  if (!reduzido) {
+    const posDepois = medirPosicoesLinhasPlaylist();
+    const emMovimento = [];
+    novoParaAntigo.forEach((idxAntigo, idxNovo) => {
+      const el = lista.querySelector(`.playlist-row[data-pl-idx="${idxNovo}"]`);
+      const antes = posAntes.get(String(idxAntigo));
+      const depois = posDepois.get(String(idxNovo));
+      if (!el || antes == null || depois == null) return;
+      const delta = antes - depois;
+      /* Secção de tema recolhida, linha fora do DOM, troca sem deslocação: nada a animar. */
+      if (!Number.isFinite(delta) || Math.abs(delta) < 0.5) return;
+      el.classList.add(el === linhaMovida ? 'playlist-row--a-mover' : 'playlist-row--a-deslocar');
+      el.style.willChange = 'transform';
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${delta}px)`;
+      emMovimento.push(el);
+    });
+
+    if (emMovimento.length) {
+      void lista.offsetWidth; /* fixa o ponto de partida antes de ligar a transição */
+      requestAnimationFrame(() => {
+        emMovimento.forEach((el) => {
+          el.style.transition = `transform ${PLAYLIST_MOVE_DUR_MS}ms ${PLAYLIST_MOVE_EASING}`;
+          el.style.transform = 'translateY(0)';
+        });
+      });
+      setTimeout(() => {
+        emMovimento.forEach((el) => {
+          el.style.transition = '';
+          el.style.transform = '';
+          el.style.willChange = '';
+          el.classList.remove('playlist-row--a-mover', 'playlist-row--a-deslocar');
+        });
+      }, PLAYLIST_MOVE_DUR_MS + 80);
+    }
+  }
+
+  realcarLinhaPlaylist(linhaMovida, 'playlist-row--flash-move');
+  realcarLinhaPlaylist(linhaDeslocada, 'playlist-row--flash-swap');
+  if (linhaMovida) {
+    linhaMovida.scrollIntoView({ block: 'nearest', behavior: reduzido ? 'auto' : 'smooth' });
+  }
+}
+
+/**
+ * Devolve o foco ao mesmo botão, agora na nova linha.
+ *
+ * O `renderPlaylist()` deita fora o botão que foi clicado, e com ele o foco e o hover —
+ * quem quisesse subir uma música três lugares tinha de voltar a apontar a cada clique.
+ * Se o botão do sentido pedido ficou desactivado (chegou ao topo/fim), o foco vai para o
+ * do sentido oposto, que continua a fazer sentido.
+ *
+ * @param {number} idxDestino
+ * @param {-1|1} dir
+ */
+function restaurarFocoBotaoMoverPlaylist(idxDestino, dir) {
+  const lista = document.getElementById('playlist-list');
+  if (!lista) return;
+  const row = lista.querySelector(`.playlist-row[data-pl-idx="${idxDestino}"]`);
+  if (!row) return;
+  const preferido = dir < 0 ? '.pl-btn-subir' : '.pl-btn-descer';
+  const alternativo = dir < 0 ? '.pl-btn-descer' : '.pl-btn-subir';
+  const alvo =
+    row.querySelector(`${preferido}:not(:disabled)`) ||
+    row.querySelector(`${alternativo}:not(:disabled)`);
+  if (alvo) alvo.focus({ preventScroll: true });
 }
 
 function movePlItem(idx, dir) {
@@ -9852,17 +10041,28 @@ function movePlItem(idx, dir) {
   const j = idx + dir;
   if (j < 0 || j >= pl.length) return;
   if (ehMarcadorTemaPlaylist(pl[idx]) || ehMarcadorTemaPlaylist(pl[j])) return;
+
+  /* O foco só se devolve a quem o tinha: um clique noutro sítio da app não deve fazer o
+     cursor saltar para dentro da playlist. */
+  const focoNosBotoes = (() => {
+    try {
+      return !!document.activeElement?.closest?.('#playlist-list .playlist-btns');
+    } catch (_) {
+      return false;
+    }
+  })();
+
+  const posAntes = medirPosicoesLinhasPlaylist();
   [pl[idx], pl[j]] = [pl[j], pl[idx]];
   savePlaylists();
-  const novoIdx = idx + dir;
   renderPlaylist();
-  requestAnimationFrame(() => {
-    const row = document.querySelector(`#playlist-list .playlist-row[data-pl-idx="${novoIdx}"]`);
-    if (!row) return;
-    row.classList.add('playlist-row--flash-move');
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    setTimeout(() => row.classList.remove('playlist-row--flash-move'), 600);
-  });
+
+  const novoParaAntigo = new Map([
+    [String(j), String(idx)],
+    [String(idx), String(j)],
+  ]);
+  animarReordenacaoPlaylist(posAntes, novoParaAntigo, j, idx);
+  if (focoNosBotoes) restaurarFocoBotaoMoverPlaylist(j, dir);
 }
 
 function removePlItem(idx) {

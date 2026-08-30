@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prévia — Setas de movimentação da playlist (aplicado)</title>
+<style>
+  :root{
+    --surface:#232328; --surface2:#2e2e35; --border:#3f3f48;
+    --accent:#c49a3a; --text:#e8e5e0; --text-dim:#9a9690; --red:#d9534f;
+    --font-ui:'Segoe UI',system-ui,-apple-system,sans-serif;
+    --fs-body-base:14px; --fs-caption-base:12px; --fs-label-base:12px;
+    --fw-semibold:600; --fw-bold:700; --on-accent:#1a1612;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#17171b;color:var(--text);font-family:var(--font-ui);padding:28px}
+  h1{font-size:18px;font-weight:600;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--text-dim);margin:0 0 22px;max-width:760px;line-height:1.5}
+  .cap{font-size:11px;color:var(--text-dim);margin:24px 0 8px;text-transform:uppercase;letter-spacing:.08em}
+  .grid{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+  .painel{width:520px;background:var(--surface);border:1px solid #35353d;border-radius:10px;padding:0 0 8px;overflow:hidden}
+  .nota{font-size:12px;color:var(--text-dim);line-height:1.6;max-width:360px}
+  .nota b{color:var(--text);font-weight:600}
+  .nota ul{margin:8px 0 0;padding-left:18px}
+  .nota li{margin-bottom:7px}
+
+  /* ── CSS real copiado do controller.html ─────────────────────────── */
+  .playlist-cols-head{
+    display:grid;grid-template-columns:minmax(0,1fr) 128px 84px 112px;gap:6px;align-items:center;
+    padding:10px 10px 6px;margin:0 8px;font-family:var(--font-ui);font-size:9px;font-weight:600;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);border-bottom:1px solid var(--border);
+  }
+  .playlist-cols-head span:last-child{visibility:hidden}
+  .playlist-list{padding:8px;overflow-y:auto;max-height:340px;scroll-padding-block:12px}
+  .playlist-row{position:relative;padding:8px 10px;margin-bottom:6px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:border-color .15s,background .15s}
+  .playlist-row:hover{border-color:var(--accent)}
+  .playlist-row.ativo{border-color:var(--accent);box-shadow:0 0 0 1px rgba(166,124,45,.28);
+    background:color-mix(in srgb,var(--surface2) 84%,var(--accent) 16%);padding-left:14px}
+  .playlist-row.ativo::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:6px 0 0 6px;background:var(--accent)}
+  .playlist-row-cols{display:grid;grid-template-columns:minmax(0,1fr) 128px 84px 112px;gap:6px;align-items:center;width:100%;min-width:0}
+  .pl-col{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pl-col-meta{display:flex;flex-direction:column;gap:2px;min-width:0;overflow:hidden;white-space:normal}
+  .pl-col-titulo{font-size:15px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+  .pl-col-artista{font-size:12.5px;font-weight:500;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-sel{width:100%;max-width:100%;box-sizing:border-box;font-family:var(--font-ui);font-size:var(--fs-label-base);
+    font-weight:500;padding:4px 3px;border:1px solid color-mix(in srgb,var(--border) 70%,transparent);
+    border-radius:4px;background:transparent;color:var(--text-dim);cursor:pointer;color-scheme:dark}
+  .btn{font-family:var(--font-ui);font-size:var(--fs-body-base);font-weight:var(--fw-semibold);padding:6px 14px;
+    border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;border-radius:4px;transition:all .2s}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.sm{padding:4px 8px;font-size:var(--fs-caption-base);font-weight:var(--fw-semibold)}
+  .btn.danger{border-color:var(--red);color:var(--red)}
+  .btn.danger:hover{background:var(--red);color:#fff}
+
+  .playlist-row .playlist-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;width:112px;
+    justify-content:flex-end;box-sizing:border-box;opacity:0;pointer-events:none;transform:translateX(4px);
+    transition:opacity .14s ease,transform .14s ease}
+  .playlist-row:hover .playlist-btns,.playlist-row:focus-within .playlist-btns{opacity:1;pointer-events:auto;transform:translateX(0)}
+  .painel.mostrar-btns .playlist-btns{opacity:1;pointer-events:auto;transform:translateX(0)}
+
+  .playlist-row .playlist-btns .pl-mover{display:inline-flex;align-items:stretch;flex-shrink:0;
+    border:1px solid color-mix(in srgb,var(--border) 85%,transparent);border-radius:7px;
+    background:color-mix(in srgb,var(--surface2) 60%,var(--surface));overflow:hidden}
+  .playlist-row .playlist-btns .pl-btn-mover{display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;padding:0;margin:0;border:0;background:transparent;color:color-mix(in srgb,var(--text-dim) 62%,var(--text) 38%);cursor:pointer;
+    transition:background .14s ease,color .14s ease,transform .1s ease}
+  .playlist-row .playlist-btns .pl-btn-mover + .pl-btn-mover{border-left:1px solid color-mix(in srgb,var(--border) 75%,transparent)}
+  .playlist-row .playlist-btns .pl-btn-mover svg{display:block;pointer-events:none}
+  .playlist-row .playlist-btns .pl-btn-mover:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}
+  .playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled){transform:translateY(-1px)}
+  .playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled){transform:translateY(1px)}
+  .playlist-row .playlist-btns .pl-btn-mover:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;color:var(--accent)}
+  .playlist-row .playlist-btns .pl-btn-mover:disabled{opacity:.26;cursor:default;background:transparent}
+  .playlist-row .playlist-btns .pl-btn-remover{display:inline-flex;align-items:center;justify-content:center;
+    width:26px;height:26px;min-width:26px;padding:0;border-radius:7px;
+    border-color:color-mix(in srgb,var(--border) 85%,transparent);color:var(--text-dim)}
+  .playlist-row .playlist-btns .pl-btn-remover:hover,.playlist-row .playlist-btns .pl-btn-remover:focus-visible{border-color:var(--red);background:var(--red);color:#fff}
+  .playlist-row .playlist-btns .pl-btn-remover svg{display:block}
+  .playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom{color:var(--text-dim);display:inline-flex;
+    align-items:center;justify-content:center;width:26px;height:26px;min-width:26px;padding:0;border-radius:7px}
+
+  @keyframes playlist-row-move-glow{0%{opacity:.02}22%{opacity:.17}100%{opacity:0}}
+  @keyframes playlist-row-move-glow-vizinho{0%{opacity:.01}22%{opacity:.07}100%{opacity:0}}
+  @keyframes playlist-row-move-ring{
+    0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}
+    30%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 34%,transparent)}
+    100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 0%,transparent)}}
+  .playlist-row.playlist-row--flash-move::after,.playlist-row.playlist-row--flash-swap::after{
+    content:'';position:absolute;inset:0;border-radius:inherit;background:var(--accent);pointer-events:none;opacity:0}
+  .playlist-row.playlist-row--flash-move::after{animation:playlist-row-move-glow .62s ease-out}
+  .playlist-row.playlist-row--flash-swap::after{animation:playlist-row-move-glow-vizinho .62s ease-out}
+  .playlist-row.playlist-row--flash-move{animation:playlist-row-move-ring .62s ease-out;
+    border-color:color-mix(in srgb,var(--border) 40%,var(--accent) 60%)}
+  .playlist-row.playlist-row--a-mover{z-index:3}
+  .playlist-row.playlist-row--a-deslocar{z-index:2}
+
+  /* Antes (para comparação) */
+  .antes .playlist-btns{gap:4px}
+  .antes .playlist-btns .btn.sm{padding:4px 8px}
+</style>
+</head>
+<body>
+<h1>Setas de movimentação da playlist</h1>
+<p class="sub">À esquerda, como estava: três botões soltos com <code>↑ ↓ ✕</code> em texto. À direita, aplicado: as duas setas passam a um par segmentado com chevrons SVG, o <code>✕</code> vira ícone na mesma caixa quadrada, e quem não tem para onde ir aparece desactivado. Clique nas setas da direita para ver o deslize.</p>
+
+<div class="grid">
+  <div>
+    <div class="cap">Antes</div>
+    <div class="painel antes mostrar-btns">
+      <div class="playlist-cols-head"><span>Música</span><span>Ministrante</span><span>Tom</span><span>·</span></div>
+      <div class="playlist-list" id="lista-antes"></div>
+    </div>
+  </div>
+  <div>
+    <div class="cap">Aplicado</div>
+    <div class="painel mostrar-btns">
+      <div class="playlist-cols-head"><span>Música</span><span>Ministrante</span><span>Tom</span><span>·</span></div>
+      <div class="playlist-list" id="lista-depois"></div>
+    </div>
+    <p class="nota" style="margin-top:14px">
+      <b>O que mudou</b>
+      <ul>
+        <li><b>Só aparecem no canto direito da linha.</b> A zona sensível é a própria coluna dos botões (112&nbsp;px, altura toda da linha); passar o rato pelo título ou pelos selectores não faz nada. Enquanto invisíveis, os botões não recebem cliques.</li>
+        <li>As setas pertencem à mesma acção — ficam numa pastilha só, com um traço a separar os sentidos. O <code>✕</code>, destrutivo, fica à parte.</li>
+        <li>Chevrons SVG em vez de <code>↑ ↓</code>: sempre centrados, sem herdar a linha de base da fonte.</li>
+        <li>Topo, fim ou cabeçalho de tema no caminho ⇒ botão <b>desactivado</b>, em vez de um clique que não faz nada.</li>
+        <li>Ao mover, as duas linhas <b>deslizam</b> uma pela outra (260 ms); a movida fica com realce cheio e anel, a deslocada com um terço disso.</li>
+        <li>O foco volta ao mesmo botão na nova linha — dá para subir uma música vários lugares sem voltar a apontar.</li>
+      </ul>
+    </p>
+  </div>
+</div>
+
+<script>
+const SVG_UP='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></svg>';
+const SVG_DOWN='<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"/></svg>';
+const SVG_X='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const SVG_RESET='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+
+const MUSICAS=[
+  {t:'Mil Graus de Glória',a:'Fernandinho',m:'ANA CLARA',k:'G'},
+  {t:'Grande é o Senhor',a:'Adhemar de Campos',m:'ANA CLARA',k:'D'},
+  {t:'Tu és Santo',a:'Diante do Trono',m:'PEDRO LIMA',k:'A'},
+  {t:'Nada Além do Sangue',a:'Fernandinho',m:'ANA CLARA',k:'Em'},
+  {t:'Ousado Amor',a:'Isaias Saad',m:'PEDRO LIMA',k:'C'},
+];
+let ordem=[0,1,2,3,4];
+const ATIVA=2;
+
+function selects(m,k){
+  return `<div class="pl-col pl-col-ministrante"><select class="pl-sel"><option>${m}</option></select></div>
+          <div class="pl-col pl-col-tom"><select class="pl-sel"><option>${k}</option></select></div>`;
+}
+
+function render(alvo,novo){
+  const el=document.getElementById(alvo==='antes'?'lista-antes':'lista-depois');
+  el.innerHTML='';
+  ordem.forEach((id,i)=>{
+    const s=MUSICAS[id];
+    const row=document.createElement('div');
+    row.className='playlist-row'+(id===ATIVA?' ativo':'');
+    row.dataset.plIdx=String(i);
+    const podeSubir=i>0, podeDescer=i<ordem.length-1;
+    const limpar=i===0?`<button class="btn sm pl-btn-limpar-mestre-min-tom" title="Limpar ministrante e tom de todas">${SVG_RESET}</button>`:'';
+    const btns = alvo==='antes'
+      ? `${i===0?'<button class="btn sm pl-btn-limpar-mestre-min-tom" style="width:auto;padding:6px 8px">'+SVG_RESET+'</button>':''}
+         <button class="btn sm pl-btn-subir">↑</button>
+         <button class="btn sm pl-btn-descer">↓</button>
+         <button class="btn sm danger pl-btn-remover">✕</button>`
+      : `${limpar}
+         <div class="pl-mover" role="group" aria-label="Reordenar">
+           <button class="pl-btn-mover pl-btn-subir" title="${podeSubir?'Subir uma posição':'Já está no topo'}" ${podeSubir?'':'disabled'}>${SVG_UP}</button>
+           <button class="pl-btn-mover pl-btn-descer" title="${podeDescer?'Descer uma posição':'Já está no fim'}" ${podeDescer?'':'disabled'}>${SVG_DOWN}</button>
+         </div>
+         <button class="btn sm danger pl-btn-remover" title="Remover">${SVG_X}</button>`;
+    row.innerHTML=`<div class="playlist-row-cols">
+      <div class="pl-col pl-col-meta">
+        <div class="pl-col-titulo">${i+1}. ${s.t}</div>
+        <div class="pl-col-artista">${s.a}</div>
+      </div>
+      ${selects(s.m,s.k)}
+      <div class="playlist-btns">${btns}</div>
+    </div>`;
+    if(alvo!=='antes'){
+      row.querySelector('.pl-btn-subir').onclick=(e)=>{e.stopPropagation();mover(i,-1);};
+      row.querySelector('.pl-btn-descer').onclick=(e)=>{e.stopPropagation();mover(i,1);};
+    }
+    el.appendChild(row);
+  });
+}
+
+function medir(){
+  const lista=document.getElementById('lista-depois');
+  const mapa=new Map();
+  const base=lista.getBoundingClientRect().top-lista.scrollTop;
+  lista.querySelectorAll('.playlist-row[data-pl-idx]').forEach(r=>{
+    mapa.set(String(r.dataset.plIdx),r.getBoundingClientRect().top-base);
+  });
+  return mapa;
+}
+
+function realcar(el,cls){
+  if(!el)return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  setTimeout(()=>el.classList.remove(cls),640);
+}
+
+function mover(i,dir){
+  const j=i+dir; if(j<0||j>=ordem.length)return;
+  const foco=!!document.activeElement?.closest?.('.playlist-btns');
+  const antes=medir();
+  [ordem[i],ordem[j]]=[ordem[j],ordem[i]];
+  render('depois');
+  const lista=document.getElementById('lista-depois');
+  const movida=lista.querySelector(`.playlist-row[data-pl-idx="${j}"]`);
+  const deslocada=lista.querySelector(`.playlist-row[data-pl-idx="${i}"]`);
+  const depois=medir();
+  const anim=[];
+  new Map([[String(j),String(i)],[String(i),String(j)]]).forEach((old,novo)=>{
+    const el=lista.querySelector(`.playlist-row[data-pl-idx="${novo}"]`);
+    const a=antes.get(old), d=depois.get(novo);
+    if(!el||a==null||d==null)return;
+    const delta=a-d; if(Math.abs(delta)<.5)return;
+    el.classList.add(el===movida?'playlist-row--a-mover':'playlist-row--a-deslocar');
+    el.style.willChange='transform'; el.style.transition='none';
+    el.style.transform=`translateY(${delta}px)`;
+    anim.push(el);
+  });
+  if(anim.length){
+    void lista.offsetWidth;
+    requestAnimationFrame(()=>{anim.forEach(el=>{
+      el.style.transition='transform 260ms cubic-bezier(0.22,0.68,0.28,1)';
+      el.style.transform='translateY(0)';});});
+    setTimeout(()=>anim.forEach(el=>{el.style.transition='';el.style.transform='';el.style.willChange='';
+      el.classList.remove('playlist-row--a-mover','playlist-row--a-deslocar');}),340);
+  }
+  realcar(movida,'playlist-row--flash-move');
+  realcar(deslocada,'playlist-row--flash-swap');
+  if(foco){
+    const pref=dir<0?'.pl-btn-subir':'.pl-btn-descer', alt=dir<0?'.pl-btn-descer':'.pl-btn-subir';
+    const alvo=movida?.querySelector(`${pref}:not(:disabled)`)||movida?.querySelector(`${alt}:not(:disabled)`);
+    alvo?.focus({preventScroll:true});
+  }
+}
+
+render('antes'); render('depois');
+</script>
+</body>
+</html>
