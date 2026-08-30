@@ -222,6 +222,31 @@ function ministranteOverrideDeContagem(estadoContagem) {
   return { modo: 'contagem', telaLimpa: false, contagem: estadoContagem };
 }
 
+/**
+ * Identidade do conteúdo de um override de apresentação — o que permite reconhecer que
+ * dois canais estão a mostrar a MESMA mídia (ou o mesmo aviso), e não dois conteúdos
+ * diferentes que por acaso convivem.
+ *
+ * Só olha para o que identifica a peça (kind + src, ou o texto do aviso). A contagem
+ * regressiva devolve `null` de propósito: vive na mesma camada, mas nunca é «a mesma
+ * coisa» que uma mídia, e não pode ser libertada por causa dela.
+ *
+ * @param {object|null} ov `estadoPublicoOverride` ou `ministranteApresentacaoOverride`
+ * @returns {string|null}
+ */
+function identidadeConteudoApresentacao(ov) {
+  if (!ov || typeof ov !== 'object') return null;
+  const tipo = String(ov.tipo || ov.modo || '').toLowerCase();
+  if (tipo === 'apresentacao') {
+    const src = String(ov.apresentacao?.src || '').trim();
+    return src ? `midia:${String(ov.apresentacao?.kind || '')}:${src}` : null;
+  }
+  if (tipo === 'aviso') {
+    return `aviso:${(Array.isArray(ov.linhas) ? ov.linhas : []).join('\n')}`;
+  }
+  return null;
+}
+
 /** Payload equivalente para `display-operator.html` (`modo` + dados). */
 function ministranteOverrideDePayloadApresentacao(payload) {
   const pl = payload && typeof payload === 'object' ? payload : {};
@@ -629,12 +654,47 @@ function criarAplicadorDeComandos(deps) {
       /* Só o canal pedido é actualizado — o outro fica intacto. Sem isto, mídia no
          público e aviso no ministrante (monitores diferentes) não convivem: o segundo
          `exibir_apresentacao` apagava o override do primeiro. */
+
+      /*
+       * ... mas «intacto» não pode incluir o canal que ESTA mídia acabou de deixar.
+       *
+       * O seletor de monitor do Modo Mídias não move uma janela: troca o canal de
+       * destino do conteúdo (Monitor 2 = público, Monitor 3 = ministrante). Trocar M2 →
+       * M3 → M2 escrevia a mesma imagem no canal novo e deixava-a registada no antigo, e
+       * o motor mantém a janela do ministrante aberta no monitor de recurso mesmo com a
+       * rota a −1 (`resolverIndiceJanelaPersistenteMinistrante`) — a imagem ficava a
+       * projetar nos dois monitores ao mesmo tempo. O «Encerrar» seguinte, que só conhece
+       * o alvo actual, libertava o M2 e deixava o M3 preso.
+       *
+       * Libertar o canal oposto SÓ quando ele mostra este mesmo conteúdo é o que conserta
+       * isso sem desfazer a regra acima: mídia num monitor e aviso do card 6 noutro
+       * continuam a conviver, porque são conteúdos diferentes.
+       */
+      const identidadeNova =
+        identidadeConteudoApresentacao(pubOv) || identidadeConteudoApresentacao(minOv);
+      const libertarCanalOposto = (canal) => {
+        if (!identidadeNova) return;
+        if (canal === 'publico') {
+          if (identidadeConteudoApresentacao(state.estadoPublicoOverride) === identidadeNova) {
+            state.estadoPublicoOverride = null;
+          }
+          return;
+        }
+        if (
+          identidadeConteudoApresentacao(state.ministranteApresentacaoOverride) === identidadeNova
+        ) {
+          state.ministranteApresentacaoOverride = null;
+        }
+      };
+
       if (alvo === 'live') {
         if (pubOv != null) state.estadoPublicoOverride = pubOv;
         state.ministranteApresentacaoOverride = null;
       } else if (alvo === 'publico') {
+        libertarCanalOposto('ministrante');
         if (pubOv != null) state.estadoPublicoOverride = pubOv;
       } else if (alvo === 'ministrante') {
+        libertarCanalOposto('publico');
         if (minOv != null) state.ministranteApresentacaoOverride = minOv;
       } else if (alvo === 'ambos') {
         if (pubOv != null) state.estadoPublicoOverride = pubOv;

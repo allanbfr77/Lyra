@@ -667,6 +667,65 @@ test('exibir_apresentacao com alvo parcial preserva o canal oposto', () => {
   assert.deepEqual(state.ministranteApresentacaoOverride.linhas, ['Aviso no M2']);
 });
 
+test('trocar o monitor da mesma mídia liberta o canal anterior (M2 → M3 → M2)', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  const midia = { kind: 'image', src: 'file:///foto.png', name: 'foto.png' };
+
+  aplicador.aplicar('exibir_apresentacao', { ...midia, alvoProjecao: 'publico' });
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(state.ministranteApresentacaoOverride, null);
+
+  aplicador.aplicar('exibir_apresentacao', { ...midia, alvoProjecao: 'ministrante' });
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'apresentacao');
+  assert.equal(state.estadoPublicoOverride, null, 'M2 tem de largar a mídia ao ir para o M3');
+
+  aplicador.aplicar('exibir_apresentacao', { ...midia, alvoProjecao: 'publico' });
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(
+    state.ministranteApresentacaoOverride,
+    null,
+    'a mídia não pode ficar presa no M3 depois de voltar ao M2'
+  );
+
+  /* E o «Encerrar», que só conhece o alvo actual, passa a limpar tudo o que resta. */
+  aplicador.aplicar('encerrar_apresentacao_publico', { alvoProjecao: 'publico' });
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});
+
+test('mover a mídia de canal não apaga o aviso do card 6 que está no outro monitor', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+
+  aplicador.aplicar('exibir_apresentacao', {
+    kind: 'aviso',
+    texto: 'ORAÇÃO',
+    alvoProjecao: 'publico',
+  });
+  aplicador.aplicar('exibir_apresentacao', {
+    kind: 'image',
+    src: 'file:///foto.png',
+    alvoProjecao: 'ministrante',
+  });
+
+  assert.equal(state.estadoPublicoOverride.tipo, 'aviso');
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'apresentacao');
+});
+
+test('a contagem no ministrante sobrevive a uma mídia projetada no telão', () => {
+  const state = estadoFalso({
+    ministranteApresentacaoOverride: { modo: 'contagem', telaLimpa: false, contagem: { alvoEm: 1 } },
+  });
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_apresentacao', {
+    kind: 'image',
+    src: 'file:///foto.png',
+    alvoProjecao: 'publico',
+  });
+
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'contagem');
+});
+
 test('encerrar_apresentacao_publico com alvo parcial mantém o outro canal', () => {
   const state = estadoFalso({
     estadoPublicoOverride: { tipo: 'apresentacao', apresentacao: { kind: 'image', src: 'a.png' } },
