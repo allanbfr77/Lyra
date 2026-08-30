@@ -1010,7 +1010,7 @@ async function reemitirAvisoCard6AposMudancaDeRota() {
 function rotuloSeletorMonitorAvisoCard6() {
   const rota = obterRotaAvisoCard6();
   const lista = monitoresServidorCache;
-  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
+  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista, { incluirLive: false });
   const rLive = !!rota.live;
   let pub = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.publicoIndex);
   let min = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.ministranteIndex);
@@ -1059,7 +1059,7 @@ function criarSeletorMonitorAvisoCard6() {
   minA = sanitizarIndiceMonitorProjecao(minA, lista);
   const combinaAtual = (o) => !!o.live === rLive && (o.live || (o.pub === pubA && o.min === minA));
 
-  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
+  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista, { incluirLive: false });
   opcoes.forEach((o) => {
     const li = document.createElement('li');
     li.setAttribute('role', 'presentation');
@@ -1350,11 +1350,33 @@ function rotaSlidesAoEntrarNoModo() {
     : base;
 }
 
-/** Opções do seletor «Monitor» (apresentação / Bíblia): inclui Live → OBS. */
-function opcoesRoteamentoUnificadoModoApresentacao(lista) {
+/**
+ * Opções do seletor «Monitor» dos modos de seletor unificado.
+ *
+ * `incluirLive` existe porque o destino «Live — OBS» não serve os três seletores da
+ * mesma maneira. Na Bíblia o OBS é um destino legítimo: o versículo é texto, e o
+ * `display-routing` sabe entregá-lo ao overlay sem monitor físico nenhum. Nas Mídias e
+ * nos Avisos do card 6 não é: a mídia é servida às janelas de projeção, e escolher Live
+ * ali só produzia uma saída sem tela — nada a projetar e nada a ver.
+ *
+ * @param {Array} lista Monitores conhecidos do servidor.
+ * @param {{ incluirLive?: boolean }} [opts] `incluirLive: false` omite «Live — OBS».
+ */
+/**
+ * O seletor do cabeçalho é partilhado pela Bíblia e pelas Mídias; só a Bíblia tem OBS.
+ * @returns {{ incluirLive: boolean }}
+ */
+function opcoesSeletorCabecalhoDoModoAtual() {
+  return { incluirLive: modoRoteamentoAtual() !== 'apresentacao' };
+}
+
+function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
+  const incluirLive = opts.incluirLive !== false;
   const out = [];
   out.push({ key: 'des', label: 'Desativado', pub: -1, min: -1, live: false });
-  out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
+  if (incluirLive) {
+    out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
+  }
   const sec = listaMonitoresParaProjecao(lista);
   if (!sec.length) return out;
   const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(lista);
@@ -5670,7 +5692,10 @@ function renderRoteamentoTelas(monitores, routing) {
       hidMin.value = '-1';
       dispPub.textContent = 'Desativado';
       dispMin.textContent = 'Desativado';
-      const op0 = opcoesRoteamentoUnificadoModoApresentacao(lista);
+      const op0 = opcoesRoteamentoUnificadoModoApresentacao(
+        lista,
+        opcoesSeletorCabecalhoDoModoAtual()
+      );
       menuPub.innerHTML = '';
       op0.forEach((o) => {
         const li = document.createElement('li');
@@ -5712,7 +5737,10 @@ function renderRoteamentoTelas(monitores, routing) {
     min = sanitizarIndiceMonitorProjecao(min, lista);
     marcarRotaLiveNoDom(rLive);
 
-    const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista);
+    const opcoes = opcoesRoteamentoUnificadoModoApresentacao(
+      lista,
+      opcoesSeletorCabecalhoDoModoAtual()
+    );
     const combina = (o) => !!o.live === rLive && (o.live || (o.pub === pub && o.min === min));
     const preset = opcoes.find(combina);
     const rotuloBtn = preset
