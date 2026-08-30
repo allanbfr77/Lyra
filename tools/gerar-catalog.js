@@ -25,11 +25,17 @@ function requireBetterSqlite3() {
   if (root) return root;
 
   const server = tryLoad('server/node_modules', () => {
-    // Fallback: many Lyra installs already have it under server/
+    // CI/release: server costuma ter prebuilt para Node 20+ no Windows.
     // eslint-disable-next-line global-require, import/no-dynamic-require
     return require(path.join(process.cwd(), 'server', 'node_modules', 'better-sqlite3'));
   });
   if (server) return server;
+
+  const controller = tryLoad('controller/node_modules', () => {
+    // eslint-disable-next-line global-require, import/no-dynamic-require
+    return require(path.join(process.cwd(), 'controller', 'node_modules', 'better-sqlite3'));
+  });
+  if (controller) return controller;
 
   const nodeVersion = process.version;
   const lines = [
@@ -38,18 +44,18 @@ function requireBetterSqlite3() {
     `Node atual: ${nodeVersion}`,
     '',
     'Causas mais comuns:',
-    '- Você não tem "better-sqlite3" instalado na raiz do projeto, OU',
-    '- O "better-sqlite3" existente foi compilado para outra versão do Node (erro de NODE_MODULE_VERSION).',
+    '- Nenhuma pasta do monorepo tem "better-sqlite3" instalado (raiz, server ou controller), OU',
+    '- O módulo existente foi compilado para outra versão do Node (erro de NODE_MODULE_VERSION).',
     '',
     'Como resolver (escolha UMA opção):',
-    '1) Instalar/compilar para o seu Node atual (recomendado para este script):',
+    '1) Instalar dependências do servidor (prebuilt no Windows/CI):',
+    '   npm ci --prefix server',
+    '',
+    '2) Instalar/compilar na raiz do projeto (dev local):',
     '   npm install better-sqlite3',
     '',
-    '2) Recompilar o better-sqlite3 existente:',
+    '3) Recompilar o better-sqlite3 existente:',
     '   npm rebuild better-sqlite3',
-    '',
-    '3) Rodar o script com uma versão de Node compatível com o módulo já instalado (ex.: Node 20):',
-    '   (use nvm-windows ou instale o Node 20 e rode novamente)',
     '',
     'Detalhes das tentativas:',
     ...attempts.map((a) => `- ${a.where}: ${a.error && a.error.message ? a.error.message : String(a.error)}`),
