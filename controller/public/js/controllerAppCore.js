@@ -9991,7 +9991,21 @@ async function copiarNomesMusicasPlaylist() {
   }
 }
 
+/**
+ * Desenha a playlist do culto e, a seguir, sincroniza a biblioteca à esquerda.
+ *
+ * A biblioteca esmaece as músicas que já estão neste culto; esse estado só pode
+ * mudar quando a playlist muda, e todas as alterações passam por aqui. Fica um
+ * invólucro (e não uma chamada no fim de `renderPlaylistPainel`) porque essa
+ * função tem vários `return` pelo meio — no culto vazio, no culto por escolher —
+ * e a sincronização tem de acontecer também nesses caminhos.
+ */
 function renderPlaylist() {
+  renderPlaylistPainel();
+  atualizarEstadoAdicionadasListaLocal();
+}
+
+function renderPlaylistPainel() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
   agendarAlinhamentoAvisoCentral();
@@ -16302,15 +16316,272 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
   });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   BIBLIOTECA DE MÚSICAS — lista do banco SQLite (painel esquerdo)
+
+   Lista de varredura. O operador percorre-a a preparar o culto e, por vezes,
+   ao vivo no meio dele: conta quantos títulos cabem sem rolar e com que
+   rapidez o olho encontra um.
+
+   O que mudou no desenho, e porquê:
+
+   · Em repouso a linha não tem nada à direita. O disco dourado que existia em
+     cada linha desenhava uma coluna de peso à direita dos títulos, obrigava a
+     linha a ter a altura do botão e, por estar em todas as linhas, não
+     distinguia nenhuma. Sobra um «+» simples, que nasce só na linha sob o
+     cursor ou com o foco de teclado, e aí diz alguma coisa.
+
+   · O que a linha FAZ não mudou. Clicar continua a abrir a música no centro;
+     adicionar à playlist continua a ser o «+» e continua a passar por
+     `addMusicaNaPlaylist`, com os mesmos argumentos de sempre. Isto é uma
+     mudança de apresentação.
+
+   · Enter na linha com foco adiciona — é o equivalente de teclado ao «+» que
+     aparece nessa mesma linha. Ctrl+Enter abre, que é o equivalente ao clique;
+     sem ele o teclado não chegaria a uma acção que o rato tem. O atalho está no
+     `title` da linha, já que o «+» deixou de o anunciar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BIB_SVG_MAIS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const BIB_SVG_VISTO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>';
+
+/**
+ * Letra do separador alfabético de um título.
+ *
+ * Acentos são dobrados para a letra base — «Águas» pertence ao grupo A, e não a
+ * um grupo «Á» com uma música lá dentro. Números e símbolos caem todos em «#».
+ *
+ * Artigos iniciais («A», «O», «Uma»…) NÃO são ignorados: o banco ordena por
+ * `titulo COLLATE NOCASE` e mostra «A Ele a Glória» em A. Saltar o artigo aqui
+ * poria a música debaixo de G com o «A» à vista, que é pior do que a ordem
+ * simples. Se um dia o banco passar a ordenar sem artigos, é aqui que se muda.
+ */
+function bibLetraDeAgrupamento(titulo) {
+  const c = String(titulo || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .charAt(0)
+    .toUpperCase();
+  return /[A-Z]/.test(c) ? c : '#';
+}
+
+/** Chave de identidade de uma música na playlist: mesmo id E mesma origem. */
+function bibChaveMusica(id, bancoFonte) {
+  return `${bancoFonte === 'catalog' ? 'catalog' : 'user'}:${Number(id)}`;
+}
+
+/**
+ * Músicas do culto atual, para esmaecer as linhas correspondentes.
+ *
+ * Ignora a versão de propósito: a linha da biblioteca representa a música, e o
+ * operador quer saber «esta já entrou?», não «esta versão exacta já entrou?».
+ * A verificação fina (mesma versão) continua onde sempre esteve, dentro de
+ * `addMusicaNaPlaylist` — o esmaecido é um aviso, não um bloqueio.
+ */
+function bibConjuntoMusicasNaPlaylist() {
+  const set = new Set();
+  if (!cultoId) return set;
+  for (const it of getPlaylist(cultoId)) {
+    if (ehMarcadorTemaPlaylist(it)) continue;
+    set.add(bibChaveMusica(it.id, it.bancoFonte));
+  }
+  return set;
+}
+
+/** Rótulo lido em voz alta pelo leitor de ecrã. O estado nunca depende só da cor. */
+function bibRotuloAcessivel(m, jaAdicionada) {
+  const partes = [String(m.titulo || 'Sem título')];
+  if (m.artista) partes.push(`de ${m.artista}`);
+  if (jaAdicionada) partes.push('já na playlist deste culto');
+  return partes.join(', ') + '.';
+}
+
+/**
+ * Passa o foco (e o tabindex móvel) para uma linha.
+ *
+ * `tabindex` móvel e não `0` em todas: com o Tab, a biblioteca é UMA paragem,
+ * não uma paragem por música. Dentro dela navega-se com as setas.
+ */
+function bibFocarLinha(linha) {
+  if (!linha) return;
+  const el = document.getElementById('lista');
+  if (el) el.querySelectorAll('.item').forEach((x) => x.setAttribute('tabindex', '-1'));
+  linha.setAttribute('tabindex', '0');
+  linha.focus({ preventScroll: true });
+  linha.scrollIntoView({ block: 'nearest' });
+}
+
+/** Música (do último render) que a linha representa. */
+function bibMusicaDaLinha(linha) {
+  const i = Number(linha?.dataset?.bibIdx);
+  return Number.isInteger(i) ? listaLocalRenderizada[i] : null;
+}
+
+/** Adiciona à playlist do culto. Mesma API de sempre — só o gatilho é novo. */
+function bibAdicionarLinha(linha) {
+  const m = bibMusicaDaLinha(linha);
+  if (!m) return;
+  return addMusicaNaPlaylist({
+    id: m.id,
+    titulo: m.titulo,
+    artista: m.artista,
+    bancoFonte: linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+  });
+}
+
+function bibLimparBusca() {
+  const busca = document.getElementById('busca');
+  if (!busca || !busca.value) return false;
+  busca.value = '';
+  filtrar();
+  return true;
+}
+
+/**
+ * Teclado da lista, delegado no contentor (sobrevive a cada re-render).
+ *
+ * ↑/↓ movem a seleção e rolam o item para a área visível; Enter adiciona;
+ * Ctrl/⌘+Enter abre; Esc limpa a busca; qualquer carácter atira o foco para a
+ * busca e escreve-o lá — quem começa a escrever quer filtrar, não navegar.
+ */
+function bibTeclasLista(ev) {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  const linhas = Array.from(el.querySelectorAll('.item'));
+  const atual = ev.target instanceof Element ? ev.target.closest('.item') : null;
+  const i = atual ? linhas.indexOf(atual) : -1;
+
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    if (!linhas.length) return;
+    ev.preventDefault();
+    const passo = ev.key === 'ArrowDown' ? 1 : -1;
+    const alvo = i === -1 ? (passo === 1 ? 0 : linhas.length - 1) : i + passo;
+    bibFocarLinha(linhas[Math.max(0, Math.min(linhas.length - 1, alvo))]);
+    return;
+  }
+  if (ev.key === 'Home' || ev.key === 'End') {
+    if (!linhas.length) return;
+    ev.preventDefault();
+    bibFocarLinha(ev.key === 'Home' ? linhas[0] : linhas[linhas.length - 1]);
+    return;
+  }
+  if (ev.key === 'Enter') {
+    if (!atual) return;
+    ev.preventDefault();
+    if (ev.ctrlKey || ev.metaKey) {
+      selecionarMusicaDoBanco(bibMusicaDaLinha(atual)?.id, {
+        fonte: atual.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+        preferirCopia: true,
+      });
+    } else {
+      bibAdicionarLinha(atual);
+    }
+    return;
+  }
+  if (ev.key === 'Escape') {
+    if (bibLimparBusca()) ev.preventDefault();
+    return;
+  }
+  if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    const busca = document.getElementById('busca');
+    if (!busca) return;
+    ev.preventDefault();
+    busca.focus();
+    busca.value += ev.key;
+    filtrar();
+  }
+}
+
+/** Esc na busca limpa-a; ↓ na busca entra na lista (caminho de volta do atalho acima). */
+function bibTeclasBusca(ev) {
+  if (ev.key === 'Escape') {
+    if (bibLimparBusca()) ev.preventDefault();
+    return;
+  }
+  if (ev.key === 'ArrowDown') {
+    const primeira = document.querySelector('#lista .item');
+    if (!primeira) return;
+    ev.preventDefault();
+    bibFocarLinha(primeira);
+  }
+}
+
+/** Liga os ouvintes de teclado uma única vez (os elementos não são recriados). */
+function bibGarantirTeclado() {
+  const el = document.getElementById('lista');
+  if (el && !el.dataset.bibTeclado) {
+    el.dataset.bibTeclado = '1';
+    el.addEventListener('keydown', bibTeclasLista);
+  }
+  const busca = document.getElementById('busca');
+  if (busca && !busca.dataset.bibTeclado) {
+    busca.dataset.bibTeclado = '1';
+    busca.addEventListener('keydown', bibTeclasBusca);
+  }
+}
+
+/**
+ * Reaplica o estado «já adicionada» sem reconstruir a lista.
+ *
+ * Reconstruir a cada mexida na playlist perderia o foco de teclado a meio de
+ * uma varredura — e é precisamente durante a montagem da playlist que a lista
+ * está a ser varrida.
+ */
+function atualizarEstadoAdicionadasListaLocal() {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  const naPlaylist = bibConjuntoMusicasNaPlaylist();
+  el.querySelectorAll('.item').forEach((linha) => {
+    const m = bibMusicaDaLinha(linha);
+    if (!m) return;
+    const ja = naPlaylist.has(bibChaveMusica(m.id, linha.dataset.bibFonte));
+    linha.classList.toggle('bib-ja-add', ja);
+    linha.setAttribute('aria-selected', ja ? 'true' : 'false');
+    linha.setAttribute('aria-label', bibRotuloAcessivel(m, ja));
+  });
+}
+
 function renderizarListaLocal(lista) {
   const el = document.getElementById('lista');
   if (!el) return;
-  listaLocalRenderizada = Array.isArray(lista) ? lista : [];
-  el.innerHTML = '';
 
-  listaLocalRenderizada.forEach((m) => {
-    const div = document.createElement('div');
+  /* Ordenação no cliente para que os grupos fiquem contíguos: o banco ordena por
+     `titulo COLLATE NOCASE`, que só dobra ASCII e atira «Águas» para depois de
+     «Zelo» — com separadores, isso abriria um segundo grupo «A» no fim da lista.
+     `localeCompare` em pt-BR com `sensitivity: 'base'` põe A e Á lado a lado. */
+  listaLocalRenderizada = (Array.isArray(lista) ? lista.slice() : []).sort((a, b) =>
+    String(a.titulo || '').localeCompare(String(b.titulo || ''), 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true,
+    })
+  );
+
+  el.innerHTML = '';
+  const naPlaylist = bibConjuntoMusicasNaPlaylist();
+  let grupoAtual = null;
+  let letraAtual = null;
+  let primeiraLinha = null;
+  let linhaAtiva = null;
+
+  listaLocalRenderizada.forEach((m, idx) => {
     const rowFonte = m.fonte === 'catalog' ? 'catalog' : 'user';
+
+    const letra = bibLetraDeAgrupamento(m.titulo);
+    if (letra !== letraAtual) {
+      letraAtual = letra;
+      grupoAtual = document.createElement('div');
+      grupoAtual.className = 'bib-grupo';
+      grupoAtual.setAttribute('role', 'group');
+      grupoAtual.setAttribute('aria-label', `Músicas com ${letra}`);
+      const cab = document.createElement('div');
+      cab.className = 'bib-grupo-letra';
+      cab.setAttribute('aria-hidden', 'true');
+      cab.textContent = letra;
+      grupoAtual.appendChild(cab);
+      el.appendChild(grupoAtual);
+    }
+
     /* Compara pelo root: a lista mostra os ORIGINAIS, mas o que está carregado
        normalmente é a cópia editável — a linha tem de continuar destacada. */
     const idAtivoNaLista =
@@ -16319,30 +16590,58 @@ function renderizarListaLocal(lista) {
       !!musicaAtiva &&
       idAtivoNaLista === Number(m.id) &&
       (musicaBancoFonte === 'catalog' ? 'catalog' : 'user') === rowFonte;
-    div.className = 'item' + (ativo ? ' ativo' : '');
-    div.innerHTML = `
-      <div>
-        <div class="titulo">${escapeHtml(m.titulo)}</div>
-        ${m.artista ? `<div class="sub">${escapeHtml(m.artista)}</div>` : ''}
-      </div>
-      <div class="item-acoes-banco">
-        <button type="button" class="btn sm btn-playlist-plus" title="Adicionar à playlist do culto">+</button>
-      </div>
-    `;
+    const jaAdicionada = naPlaylist.has(bibChaveMusica(m.id, rowFonte));
 
-    const btnAdd = div.querySelector('.btn-playlist-plus');
-    if (btnAdd) {
-      btnAdd.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        await addMusicaNaPlaylist({
-          id: m.id,
-          titulo: m.titulo,
-          artista: m.artista,
-          bancoFonte: rowFonte,
-        });
-      });
+    const div = document.createElement('div');
+    div.className = 'item' + (ativo ? ' ativo' : '') + (jaAdicionada ? ' bib-ja-add' : '');
+    div.dataset.bibIdx = String(idx);
+    div.dataset.bibFonte = rowFonte;
+    /* `option` dentro de um `listbox` multi-selecionável: «selecionado» aqui quer
+       dizer «está na playlist deste culto». O cursor do teclado não é o
+       `aria-selected` — é o foco real, que o leitor de ecrã já anuncia. */
+    div.setAttribute('role', 'option');
+    div.setAttribute('tabindex', '-1');
+    div.setAttribute('aria-selected', jaAdicionada ? 'true' : 'false');
+    div.setAttribute('aria-label', bibRotuloAcessivel(m, jaAdicionada));
+    div.title = 'Clique (ou Ctrl+Enter) abre · «+» ou Enter adiciona à playlist';
+
+    const meta = document.createElement('div');
+    const tit = document.createElement('div');
+    tit.className = 'titulo';
+    tit.textContent = m.titulo || '';
+    meta.appendChild(tit);
+    if (m.artista) {
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      sub.textContent = m.artista;
+      meta.appendChild(sub);
     }
+
+    const acoes = document.createElement('div');
+    acoes.className = 'item-acoes-banco';
+    /* Sem `<button>`: um `option` não pode conter controlos focáveis sem partir a
+       semântica do listbox. Para o rato é um alvo de clique; para o teclado o
+       equivalente é o Enter. */
+    const add = document.createElement('span');
+    add.className = 'bib-add';
+    add.setAttribute('aria-hidden', 'true');
+    add.innerHTML = BIB_SVG_MAIS;
+    const visto = document.createElement('span');
+    visto.className = 'bib-check';
+    visto.setAttribute('aria-hidden', 'true');
+    visto.innerHTML = BIB_SVG_VISTO;
+    acoes.appendChild(add);
+    acoes.appendChild(visto);
+
+    div.appendChild(meta);
+    div.appendChild(acoes);
+
+    add.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      await bibAdicionarLinha(div);
+    });
+
     /* Só músicas do utilizador têm menu: as do catálogo não podem ser apagadas, e um menu
        com uma única acção indisponível não diz mais do que menu nenhum. */
     if (rowFonte === 'user') {
@@ -16358,9 +16657,23 @@ function renderizarListaLocal(lista) {
          acessível pelo chip «Original» da barra de versões. */
       selecionarMusicaDoBanco(m.id, { fonte: rowFonte, preferirCopia: true });
     });
+    /* Clicar traz o cursor do teclado para a linha: rato e setas partilham a
+       mesma seleção, em vez de haver duas a competir. */
+    div.addEventListener('mousedown', () => {
+      el.querySelectorAll('.item').forEach((x) => x.setAttribute('tabindex', '-1'));
+      div.setAttribute('tabindex', '0');
+    });
 
-    el.appendChild(div);
+    grupoAtual.appendChild(div);
+    if (!primeiraLinha) primeiraLinha = div;
+    if (ativo && !linhaAtiva) linhaAtiva = div;
   });
+
+  /* Uma única linha entra no Tab: a carregada, se estiver à vista; senão a primeira. */
+  const entrada = linhaAtiva || primeiraLinha;
+  if (entrada) entrada.setAttribute('tabindex', '0');
+
+  bibGarantirTeclado();
 }
 
 function filtrar() {

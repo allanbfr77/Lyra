@@ -79,6 +79,26 @@
       --yellow: #c48800;
       --on-accent: #1a1612;
 
+      /* ── Biblioteca de músicas (painel esquerdo, secção SQLite) ──
+         Tons próprios da lista, e não os genéricos do painel, porque esta lista é
+         de varredura: o operador percorre dezenas de títulos, às vezes ao vivo. O
+         contrato aqui é contraste do TÍTULO e silêncio em tudo o resto.
+
+         A lista assenta no fundo normal do painel (`--surface`); é contra ele que
+         todos os tons abaixo foram medidos, acima de 4.5:1.
+
+         Não há aqui corpo nem cor de título/artista em repouso: isso vem das
+         regras `.item` partilhadas com o banco offline. Estas variáveis são só os
+         ESTADOS que a biblioteca acrescenta. */
+      --bib-hover-bg: #ebe8e2;
+      --bib-titulo-hover: #000000;
+      --bib-ouro: var(--accent2);
+      --bib-add-titulo: #737373;
+      --bib-add-artista: #737373;
+      --bib-letra-cab: #6b6b6b;
+      --bib-busca-bg: #f2efe9;
+      --bib-busca-ico: #6b6b6b;
+
       /* ── Colunas da linha da playlist (partilhadas com o cabeçalho «TONS») ── */
       --pl-col-tom-w: 84px;
       --pl-col-btns-w: 112px;
@@ -4305,40 +4325,9 @@
       flex-shrink: 0;
     }
 
-    .btn.btn-playlist-plus {
-      width: 34px;
-      height: 34px;
-      min-width: 34px;
-      padding: 0;
-      border-radius: 50%;
-      font-size: 21px;
-      font-weight: 700;
-      line-height: 1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: #14100a;
-      background: linear-gradient(145deg, rgba(166, 124, 45, 0.95), rgba(120, 85, 28, 0.98));
-      border: 1px solid rgba(200, 169, 110, 0.35);
-      box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.28),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
-      opacity: 0.95;
-      transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
-    }
-
-    .btn.btn-playlist-plus:hover {
-      opacity: 1;
-      transform: scale(1.06);
-      box-shadow:
-        0 3px 12px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    }
-
-    .item:hover .btn-playlist-plus {
-      opacity: 1;
-      color: #fff0cf;
-    }
+    /* O disco dourado que vivia aqui (`.btn-playlist-plus`, 30px, `--accent` sólido)
+       foi removido com a refatoração da biblioteca: ver o bloco «BIBLIOTECA DE
+       MÚSICAS» mais abaixo. Nenhuma lista o usa. */
 
     /* Linha cujo «Excluir música» está à espera de confirmação no modal: sem a lixeira
        na linha, é este realce que diz sobre qual música o modal está a perguntar. */
@@ -4346,6 +4335,195 @@
     .item.confirmando-exclusao:hover {
       border-left-color: var(--red);
       background: rgba(176, 48, 40, 0.16);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BIBLIOTECA DE MÚSICAS — lista do banco SQLite (painel esquerdo)
+
+       Lista de varredura, não de vitrine. O operador percorre-a durante a
+       preparação e, por vezes, ao vivo no meio do culto: o que conta é quantos
+       títulos cabem sem rolar e com que rapidez o olho encontra um deles.
+
+       Por isso a linha em repouso não tem NADA à direita. O disco dourado que
+       existia em cada linha desenhava uma segunda coluna de peso à direita,
+       forçava a altura da linha e, por estar em todas, não distinguia nenhuma —
+       dourado em todo o lado é dourado em lado nenhum. Sobra um «+» simples, que
+       nasce só na linha sob o cursor ou com o foco, e aí sim significa alguma
+       coisa: «é esta».
+
+       O dourado (`--bib-ouro`) só aparece em dois sítios: a barra da linha ativa
+       (hover / foco de teclado / música carregada) e o visto das já adicionadas.
+
+       Tudo aqui está limitado a `.lista-sqlite` — a classe `.item` é partilhada
+       com a lista de resultados da internet, que mantém o desenho antigo.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* A secção não pinta fundo: fica no `--surface` do painel, como o resto do
+       sistema. Os tons de texto são medidos contra esse fundo (ver `--bib-*`). */
+
+    /* Margem negativa = a faixa de realce da linha atravessa o painel de ponta a
+       ponta, em vez de flutuar dentro do padding da secção. */
+    .lista-sqlite {
+      padding: 2px 0 6px;
+      margin: 0 -8px 0 -16px;
+    }
+
+    /* ── Separador alfabético ── */
+    /* Mesmo corpo do artista (`--fs-text-base`) e mesmo peso do título
+       (`--fw-semibold`): o separador é um par das linhas que organiza, não um
+       sussurro. O que o mantém no seu lugar — organizar, não competir — é a cor
+       mais recuada, o `letter-spacing` e o ar por cima, não um corpo menor. */
+    .bib-grupo-letra {
+      font-size: var(--fs-text-base);
+      font-weight: var(--fw-semibold);
+      line-height: 1.4;
+      letter-spacing: 0.08em;
+      color: var(--bib-letra-cab);
+      padding: 0 14px;
+      margin-top: 14px;
+      user-select: none;
+    }
+    /* O primeiro separador não precisa de folga: já tem o campo de busca acima. */
+    .lista-sqlite > .bib-grupo:first-child > .bib-grupo-letra {
+      margin-top: 2px;
+    }
+
+    /* ── Linha ── */
+    .lista-sqlite .item {
+      padding: 7px 14px;
+      gap: 10px;
+      border-left: 2px solid transparent;
+      border-radius: 0;
+      align-items: center;
+      transition: background 0.12s ease, border-left-color 0.12s ease, color 0.12s ease;
+    }
+    /* Densidade: sem a folga entre cards das outras listas. */
+    .lista-sqlite .item + .item { margin-top: 0; }
+
+    /* Título e artista NÃO são redefinidos aqui de propósito: caem nas regras
+       `.item .titulo` / `.item .sub` mais acima, as mesmas que desenham os
+       resultados do banco offline e do Cifra Club. Uma lista de músicas tem de
+       ter um aspecto só, e a única forma de garantir isso é não haver aqui um
+       segundo conjunto de tamanhos e pesos a divergir com o tempo. Se o padrão
+       das listas mudar, muda lá e a biblioteca acompanha.
+
+       A biblioteca só acrescenta ESTADO (realce, esmaecido, dourado), nunca
+       tipografia. */
+
+    /* ── Repouso → hover / foco ──
+       O foco de teclado usa exatamente o mesmo visual do rato: quem varre com as
+       setas tem de ver o mesmo que quem varre com o cursor, ou são duas listas
+       diferentes. `.ativo` (música carregada no centro) entra na mesma regra. */
+    .lista-sqlite .item:hover,
+    .lista-sqlite .item:focus,
+    .lista-sqlite .item:focus-visible,
+    .lista-sqlite .item.ativo {
+      background: var(--bib-hover-bg);
+      border-left-color: var(--bib-ouro);
+      box-shadow: none;
+      outline: none;
+    }
+    .lista-sqlite .item:hover .titulo,
+    .lista-sqlite .item:focus .titulo,
+    .lista-sqlite .item.ativo .titulo,
+    .lista-sqlite .item.bib-ja-add:hover .titulo,
+    .lista-sqlite .item.bib-ja-add:focus .titulo {
+      color: var(--bib-titulo-hover);
+    }
+    /* O «+» e o rótulo «Enter» não existem em repouso — nascem com o realce. */
+    .lista-sqlite .item:hover .bib-add,
+    .lista-sqlite .item:focus .bib-add {
+      display: inline-flex;
+    }
+
+    /* ── Já adicionada ao culto ──
+       Sem fundo e sem preenchimento: a linha continua clicável e legível, apenas
+       recua. Quem carrega o estado é a queda do título; o visto (e o
+       `aria-selected` no HTML) garantem que não depende só da cor. */
+    .lista-sqlite .item.bib-ja-add .titulo {
+      color: var(--bib-add-titulo);
+    }
+    .lista-sqlite .item.bib-ja-add .sub {
+      color: var(--bib-add-artista);
+    }
+    .lista-sqlite .item.bib-ja-add .bib-check {
+      display: inline-flex;
+    }
+
+    /* ── Coluna direita: só existe quando há algo para mostrar ── */
+    .lista-sqlite .item-acoes-banco {
+      gap: 6px;
+    }
+    .bib-add,
+    .bib-check {
+      display: none;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--bib-ouro);
+    }
+    /* Só o «+», sem rótulo: numa lista de varredura o glifo que aparece na linha
+       sob o cursor já diz o que faz, e a palavra ao lado era ruído repetido. */
+    .bib-add {
+      cursor: pointer;
+      background: none;
+      border: 0;
+      padding: 0;
+    }
+    .bib-add svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+    .bib-check svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    /* Numa linha já adicionada o «+» daria a entender que dá para adicionar outra
+       vez; fica só o visto. */
+    .lista-sqlite .item.bib-ja-add .bib-add {
+      display: none;
+    }
+
+    /* Realce vermelho da confirmação de exclusão: tem de vencer o hover acima,
+       que é da mesma especificidade e vem antes. */
+    .lista-sqlite .item.confirmando-exclusao,
+    .lista-sqlite .item.confirmando-exclusao:hover,
+    .lista-sqlite .item.confirmando-exclusao:focus {
+      border-left-color: var(--red);
+      background: rgba(176, 48, 40, 0.16);
+    }
+
+    /* ── Campo de busca (fixo, fora da área de rolagem) ── */
+    .banco-busca-local-wrap {
+      position: relative;
+    }
+    .bib-busca-lupa {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 15px;
+      height: 15px;
+      color: var(--bib-busca-ico);
+      pointer-events: none;
+    }
+    #busca.search-box {
+      background: var(--bib-busca-bg);
+      border-color: transparent;
+      border-radius: 6px;
+      padding: 7px 10px 7px 31px;
+      font-size: 13px;
+    }
+    #busca.search-box:focus {
+      border-color: var(--bib-ouro);
     }
     .btn-estrofe-quick {
       opacity: 0.3;
@@ -7279,6 +7457,35 @@
       --yellow: #d4a017;
       --on-accent: #1a1612;
 
+      /* ── Biblioteca de músicas (painel esquerdo, secção SQLite) ──
+         Este é o tema de referência do desenho da lista.
+
+         A lista NÃO tem fundo próprio: assenta no `--surface` do painel (#232328),
+         como o resto do sistema. É contra esse fundo — e não contra um poço mais
+         escuro — que os contrastes abaixo estão medidos, e é por isso que os tons
+         esmaecidos são mais claros do que um fundo #141414 pediria: sobre #232328
+         o piso de 4.5:1 só é atingido a partir de ~#8a8a8a.
+
+           · título de já adicionada   #999999 → 5.56:1
+           · letra do separador        #a4a09a → 6.36:1
+
+         Título e artista em repouso não estão aqui: vêm das regras `.item`
+         partilhadas com o banco offline. Estas variáveis são só os ESTADOS que a
+         biblioteca acrescenta ao padrão.
+
+         O esmaecimento da linha já adicionada continua legível porque quem cai é o
+         TÍTULO; o artista já está perto do piso e não tem para onde descer sem
+         furar o contraste. */
+      --bib-hover-bg: #33333b;
+      --bib-titulo-hover: #ffffff;
+      --bib-ouro: #c9a227;
+      --bib-add-titulo: #999999;
+      --bib-add-artista: #909090;
+      --bib-letra-cab: #a4a09a;
+      /* Campo de busca mais fundo que o painel: é o que o faz ler como entrada. */
+      --bib-busca-bg: #1b1b1f;
+      --bib-busca-ico: #7a7a7a;
+
       /* ── Barras de rolagem das listas de resultados (tema escuro) ──
          Calha neutra e quase invisível (#4a4a4a sutil); polegar com dourado
          dessaturado (versão escura do accent) — identidade Lyra sem chamar atenção. */
@@ -9830,13 +10037,15 @@
           </button>
         </div>
         <div class="banco-busca-local-wrap" id="banco-busca-local-wrap">
-          <input type="text" class="search-box" id="busca" placeholder="Filtrar o banco local…" oninput="filtrar()">
+          <svg class="bib-busca-lupa" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+          <label class="sr-only" for="busca">Buscar música ou letra na biblioteca</label>
+          <input type="text" class="search-box" id="busca" placeholder="Buscar música ou letra" autocomplete="off" oninput="filtrar()">
         </div>
         <div class="banco-sqlite-lista-recolhida-aviso" id="banco-sqlite-lista-recolhida-aviso" hidden role="status">
           <span class="banco-sqlite-lista-recolhida-aviso-icone" aria-hidden="true">▸</span>
           <span>Lista de músicas recolhida. Clique na seta ao lado do título para expandir.</span>
         </div>
-        <div class="lista-sqlite" id="lista" role="list"></div>
+        <div class="lista-sqlite" id="lista" role="listbox" aria-multiselectable="true" aria-label="Biblioteca de músicas"></div>
       </section>
     </div>
   </aside>
