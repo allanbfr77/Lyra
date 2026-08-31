@@ -95,9 +95,19 @@
       --bib-ouro: var(--accent2);
       --bib-add-titulo: #737373;
       --bib-add-artista: #737373;
-      --bib-letra-cab: #6b6b6b;
+      --bib-letra-cab: var(--accent2);
       --bib-busca-bg: #f2efe9;
       --bib-busca-ico: #6b6b6b;
+
+      /* ── Geometria partilhada pelas duas listas do painel do banco ──
+         O painel mostra duas listas de músicas uma por cima da outra: os
+         resultados da pesquisa (banco offline / Cifra Club) e a biblioteca. São
+         listas diferentes, mas o olho lê-as como uma coluna só — qualquer
+         diferença de recuo ou de altura de botão aparece como desalinhamento,
+         não como distinção. Daí uma única fonte para os três números. */
+      --banco-lista-pad-x: 14px;
+      --banco-btn-h: 30px;
+      --banco-btn-min-w: 86px;
 
       /* ── Colunas da linha da playlist (partilhadas com o cabeçalho «TONS») ── */
       --pl-col-tom-w: 84px;
@@ -4011,12 +4021,18 @@
       padding: 0 0 8px;
     }
 
+    /* Um recuo só para tudo o que vive no painel do banco — título, seletor,
+       filtros, barra de busca, botões e as duas listas. Antes era 16px à
+       esquerda e 8px à direita, e as listas somavam ainda o padding das próprias
+       linhas: o texto das músicas caía uns pixels à direita de tudo o resto e o
+       «Buscar» acabava 6px depois do «Ver letra». Com um valor só, todas as
+       arestas assentam na mesma vertical dos dois lados. */
     .banco-secao-internet,
     .banco-secao-sqlite {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 0 8px 0 16px;
+      padding: 0 var(--banco-lista-pad-x);
     }
 
     /* Cabeçalho fixo: mantém a altura natural, nunca é comprimido nem rola.
@@ -4067,14 +4083,17 @@
       flex: 0 0 auto;
     }
 
+    /* Mesma régua da biblioteca: margem negativa a anular o padding da secção,
+       para que as linhas comecem no `--banco-lista-pad-x` da beira do painel e
+       não no padding da secção somado ao da linha. Era isto que punha «Galileu»
+       recuado em relação às músicas da biblioteca logo abaixo. */
     .lista-internet {
       flex: none;
       max-height: min(28vh, 240px);
       overflow-y: auto;
       overflow-x: hidden;
-      /* Folga à direita: os cards não encostam na barra de rolagem. */
-      padding: 2px 8px 4px 0;
-      margin: 0;
+      padding: 2px 0 4px;
+      margin: 0 calc(-1 * var(--banco-lista-pad-x));
     }
 
     /* Mais respiro entre cards de resultado (espaço recuperado do badge de fonte).
@@ -4109,7 +4128,26 @@
     .busca-letras-row2 {
       display: flex;
       gap: 8px;
-      align-items: stretch;
+      align-items: center;
+    }
+
+    /* «Buscar» (barra de pesquisa) e «Ver letra» (linha de resultado) ficam a
+       poucos pixels um do outro na vertical e são o mesmo tipo de acção. Antes
+       divergiam por acidente: o `align-items: stretch` da barra esticava o
+       «Buscar» à altura do campo, enquanto o «Ver letra» ficava na altura
+       natural de um `.btn.sm` — dois botões primários com alturas diferentes na
+       mesma coluna. Agora partilham altura, largura mínima e centragem, e o
+       recuo comum das listas põe as arestas direitas na mesma vertical. */
+    .busca-letras-row2 .btn.sm.primary,
+    .btn-import-letras {
+      height: var(--banco-btn-h);
+      min-width: var(--banco-btn-min-w);
+      padding: 0 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      align-self: center;
+      flex-shrink: 0;
     }
 
     .busca-letras-row2 .search-box { flex: 1; min-width: 0; }
@@ -4126,6 +4164,9 @@
     .search-box-limpavel .search-box {
       padding-right: 26px;
       font-size: 13px;
+      /* Mesma altura do «Buscar» ao lado: sem isto, campo e botão só coincidiam
+         por acaso, através do `stretch` que foi removido acima. */
+      height: var(--banco-btn-h);
     }
     .search-box-limpar {
       position: absolute;
@@ -4159,20 +4200,34 @@
       margin: 0;
     }
 
+    /* Recuo e padding vertical iguais aos da biblioteca (ver o bloco «BIBLIOTECA
+       DE MÚSICAS»): as duas listas ficam na mesma coluna de texto. A folga de
+       6px entre resultados fica — são poucos e é ela que os separa como conjunto
+       à parte, sem afetar o alinhamento, que é horizontal. */
+    .lista-internet .item {
+      padding: 7px var(--banco-lista-pad-x);
+      /* 2px como na biblioteca: com os 3px genéricos, o texto dos resultados
+         começava 1px à direita do da biblioteca. */
+      border-left-width: 2px;
+      border-radius: 0;
+    }
+
     .item--letras {
       grid-template-columns: 1fr auto;
-      align-items: start;
+      align-items: center;
     }
 
     .item-letras-meta {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      /* Sem folga entre título e artista: na biblioteca eles encostam-se pelo
+         line-height, e eram estes 4px que faziam a linha do resultado ficar 4px
+         mais alta do que as da lista logo abaixo. */
+      gap: 0;
       min-width: 0;
     }
 
     .btn-import-letras {
-      align-self: center;
       white-space: nowrap;
     }
 
@@ -4351,8 +4406,11 @@
        nasce só na linha sob o cursor ou com o foco, e aí sim significa alguma
        coisa: «é esta».
 
-       O dourado (`--bib-ouro`) só aparece em dois sítios: a barra da linha ativa
-       (hover / foco de teclado / música carregada) e o visto das já adicionadas.
+       O dourado (`--bib-ouro`) aparece em três sítios, todos eles a marcar algo:
+       a barra da linha ativa (hover / foco de teclado / música carregada), o
+       visto das já adicionadas e a letra dos separadores. Em mais nenhum — em
+       especial, nunca numa linha em repouso, que foi o que motivou tirar daqui o
+       disco dourado que existia em todas elas.
 
        Tudo aqui está limitado a `.lista-sqlite` — a classe `.item` é partilhada
        com a lista de resultados da internet, que mantém o desenho antigo.
@@ -4365,23 +4423,43 @@
        ponta, em vez de flutuar dentro do padding da secção. */
     .lista-sqlite {
       padding: 2px 0 6px;
-      margin: 0 -8px 0 -16px;
+      margin: 0 calc(-1 * var(--banco-lista-pad-x));
     }
 
     /* ── Separador alfabético ── */
-    /* Mesmo corpo do artista (`--fs-text-base`) e mesmo peso do título
-       (`--fw-semibold`): o separador é um par das linhas que organiza, não um
-       sussurro. O que o mantém no seu lugar — organizar, não competir — é a cor
-       mais recuada, o `letter-spacing` e o ar por cima, não um corpo menor. */
+    /* Separador alfabético.
+
+       Corpo do artista e peso do título: um par das linhas que organiza, não um
+       sussurro. A identidade vem do dourado da marca e do filete que sai da
+       letra e se apaga à direita — é o filete que faz a letra ler-se como
+       marcador da lista em vez de um carácter solto a pairar.
+
+       Dourado sem competir com os títulos: o branco dos títulos tem 13:1 contra
+       o fundo e o dourado 6.6:1, ou seja, metade do contraste. O olho encontra
+       primeiro a música e só depois a letra — que é a ordem certa numa lista que
+       se varre à procura de um título. */
     .bib-grupo-letra {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: var(--fs-text-base);
       font-weight: var(--fw-semibold);
       line-height: 1.4;
       letter-spacing: 0.08em;
       color: var(--bib-letra-cab);
-      padding: 0 14px;
+      padding: 0 var(--banco-lista-pad-x);
       margin-top: 14px;
       user-select: none;
+    }
+    .bib-grupo-letra::after {
+      content: '';
+      flex: 1 1 auto;
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--bib-ouro) 45%, transparent),
+        transparent 70%
+      );
     }
     /* O primeiro separador não precisa de folga: já tem o campo de busca acima. */
     .lista-sqlite > .bib-grupo:first-child > .bib-grupo-letra {
@@ -4390,7 +4468,7 @@
 
     /* ── Linha ── */
     .lista-sqlite .item {
-      padding: 7px 14px;
+      padding: 7px var(--banco-lista-pad-x);
       gap: 10px;
       border-left: 2px solid transparent;
       border-radius: 0;
@@ -7481,7 +7559,7 @@
       --bib-ouro: #c9a227;
       --bib-add-titulo: #999999;
       --bib-add-artista: #909090;
-      --bib-letra-cab: #a4a09a;
+      --bib-letra-cab: #c9a227;
       /* Campo de busca mais fundo que o painel: é o que o faz ler como entrada. */
       --bib-busca-bg: #1b1b1f;
       --bib-busca-ico: #7a7a7a;
