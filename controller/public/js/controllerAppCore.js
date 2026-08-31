@@ -19845,6 +19845,30 @@ async function bibliaEscolherFundo(input) {
   input.value = '';
 }
 
+/**
+ * A Home só assume o ESC quando não há nada por cima dela.
+ *
+ * Antes desta tecla, o ESC na Home não fazia nada, e por isso pertencia sempre a quem
+ * estivesse aberto — um modal, um menu de contexto, um dropdown. Continua a pertencer:
+ * largar a música por baixo enquanto se fecha outra coisa seria um segundo efeito que
+ * ninguém pediu, e no meio de um culto é o pior tipo de surpresa.
+ *
+ * Os modais resolvem-se sem lista de ids para manter: qualquer backdrop cobre a barra
+ * central, portanto basta perguntar ao documento quem está no ponto do botão — se a
+ * resposta não for o próprio botão, há camada por cima. Já os menus pequenos não o
+ * cobrem, e esses são verificados pelo estado de abertura que cada um usa.
+ */
+function escDaHomePertenceAoSair(btn) {
+  const menuAberto = document.querySelector(
+    '.menu-flutuante:not([hidden]), .culto-dd-menu:not([hidden]), .playlist-tema-dd-menu:not([hidden]), .route-dd.route-dd-open'
+  );
+  if (menuAberto) return false;
+  const r = btn.getBoundingClientRect();
+  if (!r.width || !r.height) return false;
+  const topo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return !!topo && btn.contains(topo);
+}
+
 document.addEventListener('keydown', (e) => {
   const musicaExcBd = document.getElementById('musica-excluir-backdrop');
   if (musicaExcBd && !musicaExcBd.hidden && e.key === 'Escape') {
@@ -19995,6 +20019,27 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       slidesRailUserRecolhido = true;
       encerrarProjecaoDoControlador({ limparMusica: true });
+      return;
+    }
+    /*
+     * Home: o ESC é o botão «Sair» da barra central, e não uma segunda via para o
+     * mesmo fim. Aciona-se o próprio botão (`.click()`) em vez de repetir aqui a
+     * chamada a `encerrarProjecaoDoControlador`: assim as duas entradas partilham
+     * literalmente o mesmo caminho — se o «Sair» mudar de ação, o ESC muda com ele.
+     *
+     * A visibilidade do botão é a condição de existir ação: `atualizarToolbarAcoes`
+     * esconde-o sem música carregada e durante a edição visual, e nesses estados não há
+     * nada para encerrar — o ESC fica livre para quem o queira (campos, menus).
+     */
+    const btnSairCentral = document.getElementById('btn-sair-projecao');
+    if (
+      btnSairCentral &&
+      !btnSairCentral.disabled &&
+      btnSairCentral.offsetParent !== null &&
+      escDaHomePertenceAoSair(btnSairCentral)
+    ) {
+      e.preventDefault();
+      btnSairCentral.click();
     }
   } else if (e.key === 'F10') {
     e.preventDefault();
