@@ -16336,10 +16336,10 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
      `addMusicaNaPlaylist`, com os mesmos argumentos de sempre. Isto é uma
      mudança de apresentação.
 
-   · Enter na linha com foco adiciona — é o equivalente de teclado ao «+» que
-     aparece nessa mesma linha. Ctrl+Enter abre, que é o equivalente ao clique;
-     sem ele o teclado não chegaria a uma acção que o rato tem. O atalho está no
-     `title` da linha, já que o «+» deixou de o anunciar.
+   · Enter adiciona a linha ATIVA, e ativa é tanto a que tem o foco de teclado
+     como a que está sob o cursor — as duas mostram o «+», por isso as duas têm
+     de responder ao Enter. Ctrl+Enter abre, que é o equivalente ao clique; sem
+     ele o teclado não chegaria a uma acção que o rato tem.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const BIB_SVG_MAIS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
@@ -16507,12 +16507,63 @@ function bibTeclasBusca(ev) {
   }
 }
 
-/** Liga os ouvintes de teclado uma única vez (os elementos não são recriados). */
+/**
+ * Linha sobre a qual o rato está pousado, ou `null`.
+ *
+ * O «+» aparece no HOVER, mas o Enter só chegava a quem tivesse o FOCO de
+ * teclado — e pousar o rato numa linha não lhe dá foco. Resultado: a linha
+ * mostrava o «+» e prometia o Enter, e o Enter não fazia nada. Guardar aqui a
+ * linha sob o cursor é o que faz o Enter valer para o que o operador está a ver.
+ */
+let bibLinhaSobCursor = null;
+
+/**
+ * Enter fora da lista: age sobre a linha sob o cursor.
+ *
+ * Vive no `document` porque o rato não dá foco a nada — não há elemento onde
+ * pendurar o ouvinte. Daí as guardas serem generosas: só age se ninguém estiver
+ * a escrever, se não houver modal aberto, se nenhum outro tratador já tiver
+ * consumido a tecla, e se o foco não estiver dentro da própria lista (nesse caso
+ * é `bibTeclasLista` que manda, e agir aqui adicionaria duas vezes).
+ */
+function bibEnterGlobal(ev) {
+  if (ev.key !== 'Enter' || ev.altKey || ev.shiftKey) return;
+  if (ev.defaultPrevented) return;
+  if (!bibLinhaSobCursor || !bibLinhaSobCursor.isConnected) return;
+
+  const alvo = ev.target;
+  if (alvo instanceof Element) {
+    if (alvo.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+    if (alvo.closest('#lista')) return;
+  }
+  if (document.activeElement instanceof Element && document.activeElement.closest('#lista')) return;
+  if (document.querySelector('.cfg-modal-overlay.aberto, .lyra-menu-modal-overlay.aberto')) return;
+
+  ev.preventDefault();
+  if (ev.ctrlKey || ev.metaKey) {
+    selecionarMusicaDoBanco(bibMusicaDaLinha(bibLinhaSobCursor)?.id, {
+      fonte: bibLinhaSobCursor.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+      preferirCopia: true,
+    });
+  } else {
+    bibAdicionarLinha(bibLinhaSobCursor);
+  }
+}
+
+/** Liga os ouvintes uma única vez (os contentores não são recriados). */
 function bibGarantirTeclado() {
   const el = document.getElementById('lista');
   if (el && !el.dataset.bibTeclado) {
     el.dataset.bibTeclado = '1';
     el.addEventListener('keydown', bibTeclasLista);
+    /* Delegado no contentor: as linhas são recriadas a cada render. */
+    el.addEventListener('mouseover', (ev) => {
+      bibLinhaSobCursor = ev.target instanceof Element ? ev.target.closest('.item') : null;
+    });
+    el.addEventListener('mouseleave', () => {
+      bibLinhaSobCursor = null;
+    });
+    document.addEventListener('keydown', bibEnterGlobal);
   }
   const busca = document.getElementById('busca');
   if (busca && !busca.dataset.bibTeclado) {
@@ -16556,6 +16607,15 @@ function renderizarListaLocal(lista) {
       numeric: true,
     })
   );
+
+  /* Quem tinha o foco antes de reconstruir. `selecionarMusicaDoBanco` chama
+     `refreshListaBanco()`, que passa por aqui: sem isto, clicar numa música
+     apagava a linha focada e o Enter a seguir não encontrava linha nenhuma. */
+  const focoAnterior = document.activeElement;
+  const linhaFocada = focoAnterior instanceof Element ? focoAnterior.closest('#lista .item') : null;
+  const chaveFocada = linhaFocada
+    ? bibChaveMusica(bibMusicaDaLinha(linhaFocada)?.id, linhaFocada.dataset.bibFonte)
+    : null;
 
   el.innerHTML = '';
   const naPlaylist = bibConjuntoMusicasNaPlaylist();
@@ -16603,7 +16663,8 @@ function renderizarListaLocal(lista) {
     div.setAttribute('tabindex', '-1');
     div.setAttribute('aria-selected', jaAdicionada ? 'true' : 'false');
     div.setAttribute('aria-label', bibRotuloAcessivel(m, jaAdicionada));
-    div.title = 'Clique (ou Ctrl+Enter) abre · «+» ou Enter adiciona à playlist';
+    div.title =
+      'Clique para abrir a música. Pressione Enter ou clique em + para adicionar à playlist.';
 
     const meta = document.createElement('div');
     const tit = document.createElement('div');
@@ -16672,6 +16733,14 @@ function renderizarListaLocal(lista) {
   /* Uma única linha entra no Tab: a carregada, se estiver à vista; senão a primeira. */
   const entrada = linhaAtiva || primeiraLinha;
   if (entrada) entrada.setAttribute('tabindex', '0');
+
+  /* Devolve o foco à mesma música, se ela sobreviveu ao filtro. */
+  if (chaveFocada) {
+    const volta = Array.from(el.querySelectorAll('.item')).find(
+      (l) => bibChaveMusica(bibMusicaDaLinha(l)?.id, l.dataset.bibFonte) === chaveFocada
+    );
+    if (volta) bibFocarLinha(volta);
+  }
 
   bibGarantirTeclado();
 }

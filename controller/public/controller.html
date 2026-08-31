@@ -95,7 +95,7 @@
       --bib-ouro: var(--accent2);
       --bib-add-titulo: #737373;
       --bib-add-artista: #737373;
-      --bib-letra-cab: var(--accent2);
+      --bib-letra-cab: #857048;
       --bib-busca-bg: #f2efe9;
       --bib-busca-ico: #6b6b6b;
 
@@ -111,6 +111,11 @@
       /* Recuo do cartão de realce dentro da linha. O vertical é metade do
          respiro entre cartões: duas linhas seguidas realçadas ficam separadas
          pelo dobro deste valor. */
+      /* Respiro entre botões da barra de ações da coluna central. Um valor só:
+         a fila e os subgrupos lá dentro (setas, «Sair») têm de respirar igual,
+         ou os subgrupos leem-se como agrupamentos que não existem. */
+      --toolbar-btn-gap: 8px;
+
       --banco-card-inset-y: 3px;
       --banco-card-inset-x: 4px;
       --banco-card-raio: 6px;
@@ -120,11 +125,21 @@
       --pl-col-btns-w: 112px;
       --pl-cols-gap: 6px;
 
-      /* ── Barras de rolagem das listas de resultados (tema claro) ──
-         Calha quase invisível; polegar com dourado discreto da marca. */
-      --scroll-track: color-mix(in srgb, var(--bg) 92%, #c8c4bc);
-      --scroll-thumb: color-mix(in srgb, var(--accent) 48%, #8a8478);
-      --scroll-thumb-hover: color-mix(in srgb, var(--accent) 72%, #6e685c);
+      /* ── Barras de rolagem das listas do painel do banco ──
+         Neutras, no mesmo `--border` que já pinta o polegar das outras barras do
+         programa (`.playlist-list`, `.estrofes-slide-editor`, `.slides-grid`).
+
+         Tinham dourado da marca, e isso era uma leitura errada da hierarquia: a
+         barra de rolagem não diz nada sobre o conteúdo, é só o mecanismo de o
+         percorrer. Com o dourado reservado ao que marca posição, sobra uma escala
+         legível — dourado forte é «está aqui», dourado fraco é rótulo, neutro é
+         interface.
+
+         Definidas uma vez só: `--border` já muda com o tema, portanto não é
+         preciso repetir isto no bloco escuro. */
+      --scroll-track: transparent;
+      --scroll-thumb: var(--border);
+      --scroll-thumb-hover: color-mix(in srgb, var(--border) 72%, var(--text));
 
       /* ── Dock de navegação — geometria (partilhada pelos dois temas) ── */
       --nav-dur: 0.18s;
@@ -2687,7 +2702,7 @@
     .centro-toolbar-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: var(--toolbar-btn-gap);
       align-items: center;
     }
 
@@ -2699,17 +2714,22 @@
 
     /* Grupo fixo à direita: navegação (setas) + Sair. O resto da barra fica à
        esquerda; o `margin-left:auto` empurra este grupo para a borda direita. */
+    /* `margin-left: auto` empurra este grupo para a direita — esse vazio é
+       intencional e é o que separa navegação de edição. Já o respiro DENTRO do
+       grupo é o mesmo da fila: com os 2px que aqui estavam, o «Sair» ficava mais
+       perto da seta «próxima» (2px) do que as duas setas estavam uma da outra
+       (8px), e o olho agrupava «seta + Sair» em vez de «par de setas». */
     .centro-toolbar-acoes .centro-toolbar-direita {
       margin-left: auto;
       display: flex;
       align-items: center;
-      gap: 2px;
+      gap: var(--toolbar-btn-gap);
     }
     /* As duas setas mantêm o espaço normal entre si; o grupo é que fica perto do Sair. */
     .centro-toolbar-acoes .nav-setas {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--toolbar-btn-gap);
     }
 
     /**
@@ -2841,16 +2861,21 @@
       border-radius: 1px;
     }
 
-    /* Dentro do cluster de visualização, o toggle fica colado às setas. */
-    .centro-toolbar-acoes #btn-seta-anterior,
-    .centro-toolbar-acoes #btn-seta-proxima {
-      margin-left: -3px;
-    }
+    /* Aqui viviam duas margens que passavam por cima do `gap` da fila e eram a
+       causa real do desencontro no grupo da direita: `-3px` a colar as setas uma
+       à outra e `+22px` a afastar o SAIR delas. Somadas ao `gap`, davam ~5px
+       entre as setas e ~24px antes do SAIR — o grupo lia-se desequilibrado, e
+       mexer no `gap` não resolvia nada porque as margens continuavam a mandar.
 
-    /* SAIR isolado do grupo de navegação (reduz clique acidental nas setas). */
-    .centro-toolbar-acoes #btn-sair-projecao {
-      margin-left: 22px;
-    }
+       O `+22px` tinha uma razão: afastar o SAIR das setas reduz o clique errado
+       num botão que limpa a projeção a meio do culto. Essa proteção passa a vir
+       de onde já vinha na verdade — o SAIR é o único botão da fila com estilo
+       `danger`, neutro em repouso e vermelho no hover — e não de um buraco que
+       destoa do resto da barra.
+
+       Se o afastamento voltar a fazer falta, o padrão desta barra para separar
+       grupos sem abrir buracos é o `.toolbar-sep` (o filete vertical de 1px já
+       usado entre os outros clusters), e não uma margem solta. */
 
     .edit-field-titulo {
       flex: 1;
@@ -4461,15 +4486,15 @@
     /* ── Separador alfabético ── */
     /* Separador alfabético.
 
-       Corpo do artista e peso do título: um par das linhas que organiza, não um
-       sussurro. A identidade vem do dourado da marca e do filete que sai da
-       letra e se apaga à direita — é o filete que faz a letra ler-se como
-       marcador da lista em vez de um carácter solto a pairar.
+       A letra é navegação: diz onde se está na ordem alfabética e mais nada. Por
+       isso leva um dourado RECUADO — a marca puxada para o cinza — e não o
+       dourado cheio da barra da linha ativa. É a escala de leitura do painel:
+       dourado forte marca posição («é esta música»), dourado fraco rotula
+       («começa aqui o A»), neutro é só mecanismo (a barra de rolagem).
 
-       Dourado sem competir com os títulos: o branco dos títulos tem 13:1 contra
-       o fundo e o dourado 6.6:1, ou seja, metade do contraste. O olho encontra
-       primeiro a música e só depois a letra — que é a ordem certa numa lista que
-       se varre à procura de um título. */
+       O que dá presença à letra não é a saturação, é o filete que sai dela e se
+       apaga à direita — sem ele fica um carácter solto a pairar. Por isso o tom
+       pôde recuar sem a letra desaparecer. */
     .bib-grupo-letra {
       display: flex;
       align-items: center;
@@ -4489,7 +4514,7 @@
       height: 1px;
       background: linear-gradient(
         to right,
-        color-mix(in srgb, var(--bib-ouro) 45%, transparent),
+        color-mix(in srgb, var(--bib-letra-cab) 42%, transparent),
         transparent 70%
       );
     }
@@ -7646,17 +7671,10 @@
       --bib-ouro: #c9a227;
       --bib-add-titulo: #999999;
       --bib-add-artista: #909090;
-      --bib-letra-cab: #c9a227;
+      --bib-letra-cab: #b49d56;
       /* Campo de busca mais fundo que o painel: é o que o faz ler como entrada. */
       --bib-busca-bg: #1b1b1f;
       --bib-busca-ico: #7a7a7a;
-
-      /* ── Barras de rolagem das listas de resultados (tema escuro) ──
-         Calha neutra e quase invisível (#4a4a4a sutil); polegar com dourado
-         dessaturado (versão escura do accent) — identidade Lyra sem chamar atenção. */
-      --scroll-track: color-mix(in srgb, var(--bg) 88%, #4a4a4a);
-      --scroll-thumb: color-mix(in srgb, var(--accent) 42%, #4a4a4a);
-      --scroll-thumb-hover: color-mix(in srgb, var(--accent) 62%, #5a5a5a);
 
       /* ── Dock de navegação — cores (tema escuro) ── */
       --nav-dock-bg: color-mix(in srgb, var(--surface) 82%, #000);
