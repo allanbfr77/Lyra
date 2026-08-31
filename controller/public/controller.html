@@ -79,6 +79,11 @@
       --yellow: #c48800;
       --on-accent: #1a1612;
 
+      /* ── Barras de rolagem das listas de resultados (tema claro) ── */
+      --scroll-track: #e6e1d7;
+      --scroll-thumb: #988d79;
+      --scroll-thumb-hover: var(--accent);
+
       /* ── Dock de navegação — geometria (partilhada pelos dois temas) ── */
       --nav-dur: 0.18s;
       --nav-gap: 4px;
@@ -956,7 +961,7 @@
       position: relative;
       z-index: 0;
       display: grid;
-      grid-template-columns: minmax(232px, 300px) minmax(0, 1fr) minmax(360px, 540px);
+      grid-template-columns: minmax(272px, 352px) minmax(0, 1fr) minmax(360px, 540px);
       grid-template-rows: minmax(0, 1fr);
       min-height: 0;
       height: 100%;
@@ -3816,7 +3821,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding: 0 12px 0 16px;
+      padding: 0 8px 0 16px;
     }
 
     /* Cabeçalho fixo: mantém a altura natural, nunca é comprimido nem rola.
@@ -3872,15 +3877,17 @@
       max-height: min(28vh, 240px);
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 2px 0 4px;
+      /* Folga à direita: os cards não encostam na barra de rolagem. */
+      padding: 2px 8px 4px 0;
       margin: 0;
     }
 
-    .lista-internet::-webkit-scrollbar { width: 3px; }
-    .lista-internet::-webkit-scrollbar-thumb { background: var(--border); }
-
-    /* Mais respiro entre cards de resultado (espaço recuperado do badge de fonte). */
-    .lista-internet .item + .item { margin-top: 6px; }
+    /* Mais respiro entre cards de resultado (espaço recuperado do badge de fonte).
+       Vale para as três listas: sem esta folga, o realce de «hover» encosta no
+       da música selecionada logo acima/abaixo e os dois cards viram um bloco só. */
+    .lista-internet .item + .item,
+    .lista-sqlite .item + .item,
+    .lista .item + .item { margin-top: 6px; }
 
     /* Linha única de contexto acima da lista: "X resultados encontrados". */
     .lista-internet-contagem {
@@ -3899,12 +3906,10 @@
       overflow-y: auto;
       overflow-x: hidden;
       max-height: none;
-      padding: 2px 0 4px;
+      /* Folga à direita: os cards não encostam na barra de rolagem. */
+      padding: 2px 8px 4px 0;
       margin: 0;
     }
-
-    .lista-sqlite::-webkit-scrollbar { width: 3px; }
-    .lista-sqlite::-webkit-scrollbar-thumb { background: var(--border); }
 
     .busca-letras-row2 {
       display: flex;
@@ -4001,8 +4006,80 @@
       padding: 8px 12px 8px 16px;
     }
 
-    .lista::-webkit-scrollbar { width: 3px; }
-    .lista::-webkit-scrollbar-thumb { background: var(--border); }
+    /* ─────────────────────────────────────────────────────────────────────────
+       Barras de rolagem das listas de resultados de busca.
+
+       Antes eram de 3px na cor da borda: praticamente invisíveis, e o utilizador
+       não percebia que havia mais músicas abaixo da área visível. Agora a calha
+       (track) e o polegar (thumb) ficam evidentes sempre que a lista tem mais
+       resultados do que cabe no espaço — e continuam ocultos quando não há
+       rolagem, porque `overflow-y: auto` só desenha a barra quando é preciso.
+
+       Vale para os três sítios onde se listam músicas no painel esquerdo:
+         · .lista-internet → busca em qualquer banco (Banco Offline / CifraClub /
+           Letras.mus.br), conforme o seletor «Fonte da pesquisa»;
+         · .lista-sqlite   → «Banco de Dados SQLite» (banco local do programa);
+         · .lista          → regra genérica das listas do painel.
+       ───────────────────────────────────────────────────────────────────────── */
+    .lista-internet,
+    .lista-sqlite,
+    .lista {
+      /* Firefox */
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+    }
+
+    .lista-internet::-webkit-scrollbar,
+    .lista-sqlite::-webkit-scrollbar,
+    .lista::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    /* Sem as setinhas de topo/base: só calha + polegar, mais limpo. */
+    .lista-internet::-webkit-scrollbar-button,
+    .lista-sqlite::-webkit-scrollbar-button,
+    .lista::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    .lista-internet::-webkit-scrollbar-track,
+    .lista-sqlite::-webkit-scrollbar-track,
+    .lista::-webkit-scrollbar-track {
+      background: var(--scroll-track);
+      border-radius: 8px;
+      margin: 2px 0;
+    }
+
+    /* `border` transparente + `background-clip` = polegar de ~8px centrado numa
+       calha de 12px, sem precisar de elementos extra no HTML. */
+    .lista-internet::-webkit-scrollbar-thumb,
+    .lista-sqlite::-webkit-scrollbar-thumb,
+    .lista::-webkit-scrollbar-thumb {
+      background: var(--scroll-thumb);
+      background-clip: padding-box;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      /* Garante que o polegar continua visível mesmo com listas muito longas. */
+      min-height: 36px;
+    }
+
+    .lista-internet::-webkit-scrollbar-thumb:hover,
+    .lista-sqlite::-webkit-scrollbar-thumb:hover,
+    .lista::-webkit-scrollbar-thumb:hover,
+    .lista-internet::-webkit-scrollbar-thumb:active,
+    .lista-sqlite::-webkit-scrollbar-thumb:active,
+    .lista::-webkit-scrollbar-thumb:active {
+      background: var(--scroll-thumb-hover);
+      background-clip: padding-box;
+    }
+
+    .lista-internet::-webkit-scrollbar-corner,
+    .lista-sqlite::-webkit-scrollbar-corner,
+    .lista::-webkit-scrollbar-corner {
+      background: transparent;
+    }
 
     .item {
       padding: 8px 12px;
@@ -7091,6 +7168,11 @@
       --red: #d9534f;
       --yellow: #d4a017;
       --on-accent: #1a1612;
+
+      /* ── Barras de rolagem das listas de resultados (tema escuro) ── */
+      --scroll-track: #2b2b32;
+      --scroll-thumb: #6c6c7b;
+      --scroll-thumb-hover: var(--accent);
 
       /* ── Dock de navegação — cores (tema escuro) ── */
       --nav-dock-bg: color-mix(in srgb, var(--surface) 82%, #000);
