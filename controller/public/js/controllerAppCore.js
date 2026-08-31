@@ -76,6 +76,7 @@ import {
   LS_DARK_CTRL,
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
+import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import { criarReconhecimentoVozBiblia } from './modules/reconhecimentoVozBiblia.js';
@@ -226,8 +227,7 @@ function liberarBloqueioUiModos() {
       const el = document.getElementById(id);
       if (el) el.hidden = true;
     });
-    const ctxMenu = document.getElementById('slides-strip-context-menu');
-    if (ctxMenu) ctxMenu.hidden = true;
+    fecharMenuFlutuanteAberto();
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -8336,7 +8336,7 @@ function renderSeletorTemasPlaylist() {
       }
       // A lista fecha para o menu de ações não tapar os nomes dos outros temas.
       fecharDropdownTemaPlaylist();
-      abrirMenuContextoTemaPlaylist(t);
+      abrirMenuContextoTemaPlaylist(ev.clientX, ev.clientY, t);
     });
   });
   aplicarSelecaoTemaNaUi(preferido || '');
@@ -9016,8 +9016,8 @@ let musicaExcluirPendente = null;
 function fecharModalExcluirMusica() {
   musicaExcluirPendente = null;
   document
-    .querySelectorAll('.btn-banco-remover.confirmando')
-    .forEach((b) => b.classList.remove('confirmando'));
+    .querySelectorAll('.item.confirmando-exclusao')
+    .forEach((el) => el.classList.remove('confirmando-exclusao'));
   const bd = document.getElementById('musica-excluir-backdrop');
   if (bd) {
     bd.hidden = true;
@@ -10762,62 +10762,53 @@ function confirmarSyncPlaylistModal() {
   })();
 }
 
-/** Tema sobre o qual o menu de contexto foi aberto (botão direito na lista de temas). */
-let temaMenuContextoAtual = '';
+/*
+  Ícones dos menus flutuantes. Markup estático — é o que `menuFlutuante.js` aceita em
+  `svg`, e a razão por que nunca pode receber texto de fora do código.
+*/
+const SVG_MENU_INSERIR =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>';
+const SVG_MENU_EDITAR =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const SVG_MENU_EXCLUIR =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+const SVG_MENU_DUPLICAR =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+
+const menuContextoTemaPlaylist = criarMenuFlutuante({
+  id: 'playlist-tema-ctx-menu',
+  rotuloAria: 'Ações do tema',
+});
 
 function fecharMenuContextoTemaPlaylist() {
-  const m = document.getElementById('playlist-tema-ctx-menu');
-  if (m) m.hidden = true;
-  temaMenuContextoAtual = '';
+  menuContextoTemaPlaylist.fechar();
 }
 
-/** Mede o menu visível sem flash na tela (offsetWidth é estável com max-width no CSS). */
-function medirMenuContextoTemaPlaylist(menu) {
-  const prev = {
-    hidden: menu.hidden,
-    visibility: menu.style.visibility,
-    left: menu.style.left,
-    top: menu.style.top,
-  };
-  menu.hidden = false;
-  menu.style.visibility = 'hidden';
-  menu.style.left = '0';
-  menu.style.top = '0';
-  const width = menu.offsetWidth;
-  const height = menu.offsetHeight;
-  menu.style.visibility = prev.visibility;
-  menu.style.left = prev.left;
-  menu.style.top = prev.top;
-  menu.hidden = prev.hidden;
-  return { width, height };
-}
-
-/**
- * Abre o menu numa posição fixa: logo abaixo do dropdown «TEMA NA PLAYLIST», alinhado
- * à esquerda dele. Não depende do item clicado — só o conteúdo do menu é que muda.
- */
-function abrirMenuContextoTemaPlaylist(tema) {
-  const menu = document.getElementById('playlist-tema-ctx-menu');
-  const titulo = document.getElementById('playlist-tema-ctx-titulo');
-  const anchor =
-    document.getElementById('playlist-tema-dd-btn') || document.getElementById('playlist-tema-dd');
-  if (!menu || !anchor) return;
-  temaMenuContextoAtual = normalizarTemaPlaylist(tema);
-  if (!temaMenuContextoAtual) return;
-  if (titulo) titulo.textContent = temaMenuContextoAtual;
-
-  const { width: menuW, height: menuH } = medirMenuContextoTemaPlaylist(menu);
-  const anchorRect = anchor.getBoundingClientRect();
-  const pad = 8;
-  const gap = 10;
-
-  /* Recuo mínimo apenas para o menu não ser cortado pela borda da janela. */
-  const x = Math.max(pad, Math.min(anchorRect.left, window.innerWidth - pad - menuW));
-  const y = Math.max(pad, Math.min(anchorRect.bottom + gap, window.innerHeight - pad - menuH));
-
-  menu.hidden = false;
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
+/** Abre as ações do tema no ponto onde o operador clicou com o botão direito. */
+function abrirMenuContextoTemaPlaylist(clientX, clientY, tema) {
+  const t = normalizarTemaPlaylist(tema);
+  if (!t) return;
+  menuContextoTemaPlaylist.abrirNoPonto(clientX, clientY, {
+    titulo: t,
+    itens: [
+      {
+        rotulo: 'Inserir na playlist',
+        svg: SVG_MENU_INSERIR,
+        aoEscolher: () => inserirTemaNaPlaylistAtual(t),
+      },
+      {
+        rotulo: 'Editar nome',
+        svg: SVG_MENU_EDITAR,
+        aoEscolher: () => renomearTemaPeloMenuContexto(t).catch(() => {}),
+      },
+      {
+        rotulo: 'Excluir tema',
+        svg: SVG_MENU_EXCLUIR,
+        variante: 'perigo',
+        aoEscolher: () => excluirTemaPeloMenuContexto(t).catch(() => {}),
+      },
+    ],
+  });
 }
 
 /** Insere o tema no fim da playlist do culto; novas músicas passam a entrar nesse bloco. */
@@ -10878,45 +10869,6 @@ async function excluirTemaPeloMenuContexto(tema) {
   renderPlaylist();
 }
 
-function configurarMenuContextoTemaPlaylist() {
-  const menu = document.getElementById('playlist-tema-ctx-menu');
-  if (!menu) return;
-
-  document.getElementById('playlist-tema-ctx-inserir')?.addEventListener('click', () => {
-    const t = temaMenuContextoAtual;
-    fecharMenuContextoTemaPlaylist();
-    fecharDropdownTemaPlaylist();
-    inserirTemaNaPlaylistAtual(t);
-  });
-
-  document.getElementById('playlist-tema-ctx-renomear')?.addEventListener('click', () => {
-    const t = temaMenuContextoAtual;
-    fecharMenuContextoTemaPlaylist();
-    fecharDropdownTemaPlaylist();
-    renomearTemaPeloMenuContexto(t).catch(() => {});
-  });
-
-  document.getElementById('playlist-tema-ctx-excluir')?.addEventListener('click', () => {
-    const t = temaMenuContextoAtual;
-    fecharMenuContextoTemaPlaylist();
-    fecharDropdownTemaPlaylist();
-    excluirTemaPeloMenuContexto(t).catch(() => {});
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!menu.hidden && !menu.contains(e.target)) fecharMenuContextoTemaPlaylist();
-  });
-  // Outro botão direito fora do menu fecha o que estava aberto (o handler do item reabre em seguida).
-  document.addEventListener('contextmenu', (e) => {
-    if (!menu.hidden && !menu.contains(e.target)) fecharMenuContextoTemaPlaylist();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !menu.hidden) fecharMenuContextoTemaPlaylist();
-  });
-  window.addEventListener('resize', () => fecharMenuContextoTemaPlaylist());
-  window.addEventListener('blur', () => fecharMenuContextoTemaPlaylist());
-}
-
 function configurarSeletorTemaPlaylist() {
   const sel = document.getElementById('playlist-tema-sel');
   const btnAdd = document.getElementById('playlist-tema-add');
@@ -10924,7 +10876,6 @@ function configurarSeletorTemaPlaylist() {
   if (!sel || !btnAdd || !btnAplicar) return;
 
   setupDropdownTemaPlaylist();
-  configurarMenuContextoTemaPlaylist();
   configurarSeletorMinistranteCulto();
 
   btnAplicar.addEventListener('click', () => {
@@ -12142,35 +12093,28 @@ function renderSlidesStrip() {
   }
 }
 
-let slidesStripCtxSlideIndex = null;
 let slideQuickEditIndex = null;
 
+const menuContextoSlideStrip = criarMenuFlutuante({
+  id: 'slides-strip-context-menu',
+  rotuloAria: 'Ações do slide',
+});
+
 function fecharMenuContextoSlideStrip() {
-  const m = document.getElementById('slides-strip-context-menu');
-  if (m) {
-    m.hidden = true;
-    slidesStripCtxSlideIndex = null;
-  }
+  menuContextoSlideStrip.fechar();
 }
 
 function abrirMenuContextoSlideStrip(clientX, clientY, slideIndex) {
-  fecharMenuContextoSlideStrip();
-  slidesStripCtxSlideIndex = slideIndex;
-  const menu = document.getElementById('slides-strip-context-menu');
-  if (!menu) return;
-  menu.hidden = false;
-  menu.style.left = '-9999px';
-  menu.style.top = '0';
-  const rect = menu.getBoundingClientRect();
-  const pad = 8;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  let x = clientX;
-  let y = clientY;
-  if (x + rect.width + pad > vw) x = Math.max(pad, vw - rect.width - pad);
-  if (y + rect.height + pad > vh) y = Math.max(pad, vh - rect.height - pad);
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
+  if (!(slideIndex >= 0)) return;
+  menuContextoSlideStrip.abrirNoPonto(clientX, clientY, {
+    itens: [
+      {
+        rotulo: 'Edição rápida deste slide…',
+        svg: SVG_MENU_EDITAR,
+        aoEscolher: () => abrirSlideQuickEditModal(slideIndex),
+      },
+    ],
+  });
 }
 
 function fecharSlideQuickEditModal() {
@@ -12273,20 +12217,8 @@ function excluirSlideEdicaoRapida() {
 }
 
 function setupSlidesStripContextMenuEEdicaoRapida() {
-  const menu = document.getElementById('slides-strip-context-menu');
   const bd = document.getElementById('slide-quick-edit-backdrop');
   const delBd = document.getElementById('slide-delete-confirm-backdrop');
-  document.getElementById('slides-strip-ctx-edit')?.addEventListener('click', () => {
-    const i = slidesStripCtxSlideIndex;
-    fecharMenuContextoSlideStrip();
-    if (i !== null && i >= 0) abrirSlideQuickEditModal(i);
-  });
-  document.addEventListener('click', (e) => {
-    if (menu && !menu.hidden && !menu.contains(e.target)) fecharMenuContextoSlideStrip();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && menu && !menu.hidden) fecharMenuContextoSlideStrip();
-  });
   document.getElementById('slide-quick-edit-cancel')?.addEventListener('click', () => fecharSlideQuickEditModal());
   document.getElementById('slide-quick-edit-save')?.addEventListener('click', () => confirmarSlideQuickEdit());
   document.getElementById('slide-quick-edit-delete')?.addEventListener('click', () => excluirSlideEdicaoRapida());
@@ -16215,6 +16147,161 @@ function renderizarListaInternet(lista) {
   });
 }
 
+const menuContextoMusicaBanco = criarMenuFlutuante({
+  id: 'musica-banco-ctx-menu',
+  rotuloAria: 'Ações da música',
+});
+
+/**
+ * Título livre para a duplicata, a partir do da música original.
+ *
+ * O sufixo não é enfeite: o banco recusa (409) uma música nova cujo título e artista
+ * batam com uma existente, e é ele que faz a duplicata passar essa checagem. Duplicar
+ * duas vezes a mesma música dá «(cópia)» e depois «(cópia 2)» — sem o contador, a segunda
+ * colidiria com a primeira.
+ *
+ * @param {string} tituloOriginal
+ */
+function tituloParaDuplicataMusica(tituloOriginal) {
+  const base = String(tituloOriginal || '').trim() || 'Música';
+  const jaExiste = (t) => {
+    const alvo = t.toLocaleLowerCase('pt-BR');
+    return todasMusicas.some(
+      (m) => String(m.titulo || '').trim().toLocaleLowerCase('pt-BR') === alvo
+    );
+  };
+  const candidato = `${base} (cópia)`;
+  if (!jaExiste(candidato)) return candidato;
+  for (let n = 2; n <= 99; n++) {
+    const t = `${base} (cópia ${n})`;
+    if (!jaExiste(t)) return t;
+  }
+  return `${base} (cópia ${Date.now()})`;
+}
+
+/**
+ * Duplica a música como **entrada independente** na lista do banco, e abre-a.
+ *
+ * Não confundir com «nova versão» (chip da barra de versões): essa nasce dentro da mesma
+ * família `root_id` e não aparece na lista. Aqui o operador quer partir de um arranjo
+ * existente para montar outro sem mexer no primeiro, logo o que serve é uma música nova.
+ *
+ * O conteúdo copiado é o da **cópia editável**, não o do original imutável: é a cópia que
+ * a lista abre ao clique e onde as edições do operador estão — duplicar o original
+ * devolveria a letra de antes das alterações dele.
+ *
+ * @param {{id: number, titulo: string, artista?: string}} musica
+ */
+async function duplicarMusicaDoBanco(musica) {
+  try {
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/${musica.id}`);
+    if (!res.ok) throw new Error(`Falha ao ler a música (HTTP ${res.status}).`);
+    let base = await res.json();
+
+    if (Number(base.is_immutable) === 1) {
+      const copiaId = await garantirCopiaPadraoServidor(base.id ?? musica.id);
+      if (Number.isFinite(copiaId)) {
+        const resCopia = await fetch(`${getControllerApiBase()}/api/musicas/${copiaId}`);
+        if (resCopia.ok) base = await resCopia.json();
+      }
+    }
+
+    const estrofes = (Array.isArray(base.estrofes) ? base.estrofes : [])
+      .map((s) => String(s ?? ''))
+      .filter((s) => s.trim().length > 0);
+    if (!estrofes.length) {
+      appAlert('Esta música não tem estrofes para duplicar.', 'Duplicar música');
+      return;
+    }
+
+    const titulo = tituloParaDuplicataMusica(base.titulo || musica.titulo);
+    const resNova = await fetch(`${getControllerApiBase()}/api/musicas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titulo, artista: base.artista || '', estrofes }),
+    });
+    const data = await resNova.json().catch(() => ({}));
+    /* 409 aqui significa que o título escolhido bateu com uma música existente apesar do
+       sufixo. Sem `decisaoDuplicidade` o banco não gravou nada, então é só avisar. */
+    if (resNova.status === 409 && data.duplicado) {
+      appAlert(
+        `Já existe uma música chamada «${titulo}» no banco. Renomeie-a e duplique outra vez.`,
+        'Duplicar música'
+      );
+      return;
+    }
+    if (!resNova.ok) throw new Error(data.erro || `Erro HTTP ${resNova.status}`);
+
+    await carregarMusicas();
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
+  } catch (e) {
+    appAlert(e?.message || 'Não foi possível duplicar a música.', 'Duplicar música');
+  }
+}
+
+/**
+ * Ações de uma música do banco, no ponto do clique direito.
+ *
+ * Só para músicas do utilizador (`fonte: 'user'`) — daí o `'user'` fixo nas chamadas.
+ * Editar, duplicar e excluir não têm sentido no catálogo, que é só-leitura, e por isso as
+ * linhas de catálogo não chegam a abrir este menu.
+ *
+ * Excluir vive aqui, e não num botão na linha, porque é destrutivo e raro: uma lixeira em
+ * cada linha, ao lado do «+» que se usa a toda a hora, é um clique errado à espera de
+ * acontecer no meio de um culto. A confirmação continua a ser o modal de sempre.
+ *
+ * @param {number} clientX
+ * @param {number} clientY
+ * @param {{id: number, titulo: string, artista?: string}} musica
+ * @param {HTMLElement} linhaEl Linha a realçar enquanto o modal de exclusão está aberto.
+ */
+function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
+  menuContextoMusicaBanco.abrirNoPonto(clientX, clientY, {
+    titulo: musica.titulo || '',
+    itens: [
+      {
+        rotulo: 'Editar música',
+        svg: SVG_MENU_EDITAR,
+        /* Carregar primeiro: o modo de edição opera sobre `musicaAtiva`, e entrar nele
+           sem a música carregada não faria nada. */
+        aoEscolher: async () => {
+          const ok = await selecionarMusicaDoBanco(musica.id, {
+            fonte: 'user',
+            preferirCopia: true,
+          });
+          if (ok) entrarModoEdicao();
+        },
+      },
+      {
+        rotulo: 'Adicionar à playlist',
+        svg: SVG_MENU_INSERIR,
+        aoEscolher: () =>
+          addMusicaNaPlaylist({
+            id: musica.id,
+            titulo: musica.titulo,
+            artista: musica.artista,
+            bancoFonte: 'user',
+          }),
+      },
+      {
+        rotulo: 'Duplicar música',
+        svg: SVG_MENU_DUPLICAR,
+        aoEscolher: () => duplicarMusicaDoBanco(musica),
+      },
+      {
+        rotulo: 'Excluir música',
+        svg: SVG_MENU_EXCLUIR,
+        variante: 'perigo',
+        separadorAntes: true,
+        aoEscolher: () => {
+          linhaEl.classList.add('confirmando-exclusao');
+          solicitarRemoverMusicaDoBancoServidor(musica.id, musica.titulo);
+        },
+      },
+    ],
+  });
+}
+
 function renderizarListaLocal(lista) {
   const el = document.getElementById('lista');
   if (!el) return;
@@ -16240,7 +16327,6 @@ function renderizarListaLocal(lista) {
       </div>
       <div class="item-acoes-banco">
         <button type="button" class="btn sm btn-playlist-plus" title="Adicionar à playlist do culto">+</button>
-        <button type="button" class="btn sm danger btn-banco-remover" title="Remover do banco neste servidor">🗑</button>
       </div>
     `;
 
@@ -16257,17 +16343,13 @@ function renderizarListaLocal(lista) {
         });
       });
     }
-    const btnRm = div.querySelector('.btn-banco-remover');
-    if (rowFonte === 'catalog') {
-      btnRm.style.display = 'none';
-      btnRm.disabled = true;
-    } else if (btnRm) {
-      btnRm.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Estado de confirmação: só aqui a lixeira fica vermelha de forma persistente.
-        btnRm.classList.add('confirmando');
-        solicitarRemoverMusicaDoBancoServidor(m.id, m.titulo);
+    /* Só músicas do utilizador têm menu: as do catálogo não podem ser apagadas, e um menu
+       com uma única acção indisponível não diz mais do que menu nenhum. */
+    if (rowFonte === 'user') {
+      div.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        abrirMenuContextoMusicaBanco(ev.clientX, ev.clientY, m, div);
       });
     }
     div.addEventListener('click', (ev) => {
