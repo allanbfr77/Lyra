@@ -10343,30 +10343,43 @@ function posicaoDropTemaPlaylist(secao, clientY) {
  * é zona de largada — não só o cabeçalho — para o gesto perdoar imprecisão.
  */
 function configurarDragReordenarCabecalhoTemaPlaylist(row, secao, markerPlIdx) {
-  row.draggable = true;
   row.dataset.plMarcadorIdx = String(markerPlIdx);
   secao.dataset.plMarcadorIdx = String(markerPlIdx);
-  /* O tooltip vive no rótulo, que é a zona de arraste — não no card inteiro. */
-  const zonaArraste = row.querySelector('.playlist-tema-head-label');
-  if (zonaArraste) zonaArraste.title = 'Arrastar para reordenar este tema na playlist';
 
-  row.addEventListener('dragstart', (ev) => {
-    /* `draggable` fica no card (o fantasma arrastado é o card inteiro), mas o gesto só
-       nasce no rótulo: os cantos pertencem ao expandir/recolher e ao excluir. */
-    const alvo = ev.target instanceof HTMLElement ? ev.target : null;
-    if (!alvo || !alvo.closest('.playlist-tema-head-label')) {
-      ev.preventDefault();
-      return;
-    }
+  /*
+   * O `draggable` vive no rótulo, e não no card: os cantos do card pertencem ao expandir/
+   * recolher e ao excluir, e o gesto só deve nascer na faixa do meio.
+   *
+   * Deixá-lo no card e recusar o gesto quando `ev.target` não estivesse dentro do rótulo
+   * não funciona: no `dragstart`, o `target` é sempre o próprio elemento que tem
+   * `draggable` — nunca o filho onde o rato caiu. A condição dava sempre falso, o arraste
+   * morria num `preventDefault()`, e nenhum tema se conseguia reordenar. Marcar só o
+   * rótulo deixa a decisão ao browser, que é quem a sabe tomar. É também o que já se faz
+   * no editor de estrofes, onde o `draggable` está na alça e não na linha.
+   */
+  const zonaArraste = row.querySelector('.playlist-tema-head-label');
+  if (!zonaArraste) return;
+  zonaArraste.draggable = true;
+  zonaArraste.title = 'Arrastar para reordenar este tema na playlist';
+
+  zonaArraste.addEventListener('dragstart', (ev) => {
     arrastandoMarcadorTemaPlaylistIdx = markerPlIdx;
     ev.dataTransfer.setData(MIME_MARCADOR_TEMA_PLAYLIST, String(markerPlIdx));
     ev.dataTransfer.effectAllowed = 'move';
+    /* O que viaja é o bloco inteiro, por isso o fantasma é o card e não a faixa do
+       rótulo. Antes de esmaecer o card, senão é a versão apagada que fica sob o rato. */
+    try {
+      const r = row.getBoundingClientRect();
+      ev.dataTransfer.setDragImage(row, ev.clientX - r.left, ev.clientY - r.top);
+    } catch (_) {
+      // intencional — sem imagem própria o arraste continua a funcionar
+    }
     row.classList.add('playlist-tema-head-row--dragging');
     secao.classList.add('playlist-tema-section--arrastando');
     document.getElementById('playlist-list')?.classList.add('playlist-list--reordenando-tema');
   });
 
-  row.addEventListener('dragend', () => {
+  zonaArraste.addEventListener('dragend', () => {
     arrastandoMarcadorTemaPlaylistIdx = null;
     row.classList.remove('playlist-tema-head-row--dragging');
     secao.classList.remove('playlist-tema-section--arrastando');
@@ -13686,19 +13699,25 @@ function reaplicarAlturasEstrofesEditor() {
   });
 }
 
+/** Margem do aviso da playlist em `renderPlaylist()` — o alvo do alinhamento sai dela. */
+const PLAYLIST_AVISO_MARGEM_PX = 16;
+
 /*
- * Alinhamento vertical dos dois avisos de "nada selecionado".
+ * Alinhamento vertical do aviso "escolha uma música" com o aviso da coluna da playlist.
  *
  * A coluna central e a da playlist são irmãs na grelha, mas o topo da lista da playlist
  * fica muito mais abaixo (prévia + culto + ministrante + tema). Por isso o desvio não dá
  * para fixar no CSS: é medido aqui e devolvido em `--aviso-central-topo`.
+ *
+ * O alvo é a geometria da lista, não o elemento do aviso: assim o aviso central não salta
+ * quando a coluna da direita troca de aviso ou passa a mostrar músicas.
  */
 function alinharAvisoCentralComAvisoPlaylist() {
   const wrap = document.getElementById('estrofes-slide-editor');
   if (!wrap) return;
   const avisoCentral = wrap.querySelector('.placeholder-msg--escolha-musica');
-  const avisoPlaylist = document.querySelector('#playlist-list > .placeholder-msg');
-  if (!avisoCentral || !avisoPlaylist || !wrap.clientHeight) {
+  const lista = document.getElementById('playlist-list');
+  if (!avisoCentral || !lista || !wrap.clientHeight || !lista.clientHeight) {
     wrap.classList.remove('estrofes-slide-editor--vazio-alinhado');
     wrap.style.removeProperty('--aviso-central-topo');
     return;
@@ -13706,7 +13725,9 @@ function alinharAvisoCentralComAvisoPlaylist() {
   wrap.classList.add('estrofes-slide-editor--vazio-alinhado');
   /* Zerar antes de medir: o desvio tem de sair da posição sem recuo. */
   wrap.style.setProperty('--aviso-central-topo', '0px');
-  const bruto = avisoPlaylist.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+  const recuoTopoLista = parseFloat(getComputedStyle(lista).paddingTop) || 0;
+  const alvo = lista.getBoundingClientRect().top + recuoTopoLista + PLAYLIST_AVISO_MARGEM_PX;
+  const bruto = alvo - wrap.getBoundingClientRect().top;
   const limite = wrap.clientHeight - avisoCentral.offsetHeight;
   const desvio = Math.round(Math.max(0, Math.min(bruto, Math.max(0, limite))));
   wrap.style.setProperty('--aviso-central-topo', `${desvio}px`);

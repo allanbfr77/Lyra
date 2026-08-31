@@ -2346,12 +2346,13 @@
         · canto direito (.playlist-tema-head-zona-del) → revela o ✕, cursor normal.
       O card em si fica com o cursor normal para não sugerir arraste fora do rótulo.
     */
-    .playlist-tema-head-row,
-    .playlist-tema-head-row[draggable="true"] {
+    .playlist-tema-head-row {
       cursor: default;
     }
 
-    .playlist-tema-head-row[draggable="true"] .playlist-tema-head-label {
+    /* O `draggable` está no rótulo, não no card: é ele que responde pelo gesto e é nele
+       que a mão aparece. */
+    .playlist-tema-head-label[draggable="true"] {
       cursor: grab;
     }
 
@@ -2855,9 +2856,9 @@
     }
 
     /*
-      Sem música e sem culto os dois avisos aparecem juntos (centro + playlist). Centrado
-      na vertical, o aviso do centro caía bem acima do outro — aqui ele ancora no topo e
-      recebe o desvio medido por `alinharAvisoCentralComAvisoPlaylist()`.
+      Sem música o aviso do centro acompanha a linha do aviso da playlist, em vez de ficar
+      centrado na vertical (caía bem acima do outro). Ancora no topo e recebe o desvio
+      medido por `alinharAvisoCentralComAvisoPlaylist()` — igual com ou sem culto aberto.
     */
     .estrofes-slide-editor.estrofes-slide-editor--vazio-alinhado {
       align-items: flex-start;
