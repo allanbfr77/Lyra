@@ -79,6 +79,11 @@
       --yellow: #c48800;
       --on-accent: #1a1612;
 
+      /* ── Colunas da linha da playlist (partilhadas com o cabeçalho «TONS») ── */
+      --pl-col-tom-w: 84px;
+      --pl-col-btns-w: 112px;
+      --pl-cols-gap: 6px;
+
       /* ── Barras de rolagem das listas de resultados (tema claro) ── */
       --scroll-track: #e6e1d7;
       --scroll-thumb: #988d79;
@@ -1353,6 +1358,42 @@
        .panel-section-head que o empurra para lá, alinhado com o grupo S/C/I do «CULTO». */
     #playlist-lista-head {
       gap: 6px;
+      position: relative;
+    }
+
+    /*
+      Rótulo da coluna do tom, na mesma linha do título «PLAYLIST».
+
+      Fica em `position: absolute` porque o cabeçalho é um flex com
+      `space-between` (título à esquerda, botão de copiar à direita): em fluxo
+      normal não havia como o prender à coluna certa. O recuo à direita repete,
+      da direita para a esquerda, a geometria da linha da playlist —
+        8px  padding direito da .playlist-list
+      +  1px  borda direita da .playlist-row
+      + 10px  padding direito da .playlist-row
+      + coluna dos botões + gap da grelha (variáveis, partilhadas com a linha)
+      — e a largura é a mesma da coluna do tom, com o texto centrado por cima do
+      seletor. `top`/`bottom` repetem o padding vertical de .panel-section-head
+      para o texto ficar na mesma linha de base do título.
+    */
+    .playlist-lista-head-tons {
+      position: absolute;
+      top: 12px;
+      bottom: 8px;
+      right: calc(19px + var(--pl-col-btns-w) + var(--pl-cols-gap));
+      width: var(--pl-col-tom-w);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Só rótulo: nunca rouba o clique do botão de copiar nem da linha. */
+      pointer-events: none;
+      color: var(--text-dim);
+      opacity: 0.85;
+    }
+
+    /* Modo slides não tem coluna de tom (ver `.pl-col-tom`), logo não tem rótulo. */
+    body.app-mod-slides .playlist-lista-head-tons {
+      display: none !important;
     }
 
 
@@ -1839,8 +1880,8 @@
 
     .playlist-row-cols {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 84px 112px;
-      gap: 6px;
+      grid-template-columns: minmax(0, 1fr) var(--pl-col-tom-w) var(--pl-col-btns-w);
+      gap: var(--pl-cols-gap);
       align-items: center;
       width: 100%;
       min-width: 0;
@@ -9973,6 +10014,7 @@
     </div>
     <div class="panel-section-head" id="playlist-lista-head">
       <span class="playlist-lista-head-titulo">Playlist</span>
+      <span class="playlist-lista-head-tons" aria-hidden="true">Tons</span>
       <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
