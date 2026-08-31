@@ -2090,13 +2090,69 @@
       white-space: nowrap;
     }
 
+    /*
+      Grelha de duas colunas: pastilha do número à esquerda, título e artista empilhados
+      à direita. A pastilha atravessa as duas linhas e centra-se contra o bloco inteiro —
+      alinhada ao título, ficava a boiar no topo da linha.
+
+      `minmax(0, 1fr)` na coluna do texto é o que deixa o título encolher até às
+      reticências; sem isso a grelha adopta a largura do conteúdo e a linha transborda.
+    */
     .pl-col-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: 8px;
+      row-gap: 2px;
+      align-items: center;
       min-width: 0;
       overflow: hidden;
       white-space: normal;
+    }
+
+    .pl-col-meta > .pl-num-badge {
+      grid-row: 1 / span 2;
+    }
+
+    /*
+      Pastilha do número da música.
+
+      O desenho vem do numerador dos slides (`.estrofe-num-big`) — mesma família de
+      canto, mesma moldura discreta, mesmo dourado — mas as medidas são outras: ali a
+      pastilha vive num cartão largo, aqui numa coluna estreita onde cada pixel sai do
+      título. Daí 20px de altura em vez de 24, corpo 11.5 em vez de 13, e canto de 6
+      para acompanhar a caixa mais pequena.
+
+      `min-width` maior que a altura deixa o «10» e o «12» respirarem sem forçar dois
+      tamanhos de pastilha na mesma coluna; `tabular-nums` mantém os dígitos com a mesma
+      largura, para a coluna não dançar entre linhas.
+    */
+    .pl-num-badge {
+      flex-shrink: 0;
+      align-self: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 5px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--slide-font);
+      font-size: 11.5px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 12%);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface2) 84%, var(--surface));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Na linha seleccionada a pastilha acompanha o dourado do fundo em vez de ficar
+       como um remendo mais claro por cima dele. */
+    .playlist-row.ativo .pl-num-badge {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface2));
     }
 
     .pl-col-artista {
@@ -3118,7 +3174,7 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
       align-content: start;
-      align-items: start;
+      align-items: stretch;
       padding-right: 9px;
       margin-right: -3px;
       min-height: 0;
@@ -3528,7 +3584,7 @@
       padding: 6px 8px 8px 8px;
       display: flex;
       flex-direction: column;
-      align-self: start;
+      align-self: stretch;
       width: 100%;
       min-width: 0;
       box-sizing: border-box;
@@ -3645,7 +3701,7 @@
       overflow: visible;
       overflow-wrap: break-word;
       word-break: break-word;
-      flex-shrink: 0;
+      flex: 1 1 auto;
       align-self: stretch;
     }
 
@@ -4929,6 +4985,9 @@
       --slide-chip-snippet-px: var(--slide-chip-snippet-px-base);
       --slide-chip-snippet-lh: 1.42;
       --slide-chip-num-px: var(--slide-chip-num-px-base);
+      /* Altura rígida do cartão: o JS encolhe a fonte para caber AQUI. Sem isto a
+         linha (`auto`) crescia com o texto e o encaixe media um cartão já inchado. */
+      --slide-chip-h: calc(168px * var(--slide-chip-zoom, 1));
       background: var(--surface);
       border-top: 1px solid var(--border);
       padding: 14px 18px 16px;
@@ -5153,7 +5212,8 @@
       width: 100%;
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
-      grid-auto-rows: minmax(calc(168px * var(--slide-chip-zoom, 1)), auto);
+      --slide-chip-h: calc(168px * var(--slide-chip-zoom, 1));
+      grid-auto-rows: var(--slide-chip-h);
       align-content: start;
       gap: calc(10px * var(--slide-chip-zoom, 1)) calc(8px * var(--slide-chip-zoom, 1));
       overflow-x: hidden;
@@ -5162,9 +5222,9 @@
     }
 
     /*
-      As linhas seguem o conteúdo (`auto`), nunca esticam para preencher a altura —
-      com poucos slides os cartões ficariam enormes com o texto perdido no meio.
-      A grelha começa no topo e ganha scroll próprio quando não couber.
+      As linhas NÃO esticam para preencher a altura da faixa — com poucos slides os
+      cartões ficariam enormes, com o texto perdido no meio. Cada cartão tem altura
+      fixa (`--slide-chip-h`); o que não couber na grelha ganha scroll.
     */
     body.app-mod-slides .slides-grid {
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -5190,7 +5250,9 @@
     .slide-chip {
       width: 100%;
       min-width: 0;
-      min-height: calc(168px * var(--slide-chip-zoom, 1));
+      height: var(--slide-chip-h);
+      min-height: var(--slide-chip-h);
+      max-height: var(--slide-chip-h);
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -6164,6 +6226,28 @@
       font-size: 14.5px;
       font-weight: 700;
       line-height: 1.25;
+    }
+
+    /* Linha compacta do modo Slides: a pastilha à esquerda, título e artista à direita.
+       Aqui a coluna é ainda mais estreita, e a pastilha encolhe mais um passo. */
+    .pl-linha-simples {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .pl-linha-simples-txt {
+      min-width: 0;
+      flex: 1;
+    }
+
+    body.app-mod-slides .panel-playlist .pl-num-badge {
+      min-width: 20px;
+      height: 18px;
+      padding: 0 4px;
+      font-size: 11px;
+      border-radius: 5px;
     }
 
     /* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */

@@ -158,6 +158,29 @@ export function htmlBotoesMoverPlaylist(opts = {}) {
   );
 }
 
+/**
+ * Pastilha com o número da música na playlist.
+ *
+ * O número era texto corrido colado ao título («1. Grande é o Senhor»): lia-se como
+ * parte do nome, competia com ele pelas reticências e desalinhava-se de linha para
+ * linha assim que a lista passava dos nove. Numa pastilha, a coluna de números fica
+ * direita e o título começa todo no mesmo sítio.
+ *
+ * É deliberadamente uma função à parte da que numera os slides (`.estrofe-num-big`,
+ * no editor da coluna central): são duas contagens sem relação nenhuma — uma conta
+ * músicas do culto, a outra estrofes de uma música — e partilhar código aqui só criava
+ * um ponto onde mexer numa mexia na outra. O que se aproveitou foi o desenho, e mesmo
+ * esse redimensionado: a playlist tem menos largura para dar, e a pastilha dos slides
+ * (24px, corpo 13) aqui roubava o título.
+ *
+ * @param {number} n posição da música na playlist
+ */
+function htmlNumeroMusicaPlaylist(n) {
+  /* Sem `aria-hidden`: o número dizia a posição da música a quem ouve a lista, e era
+     isso que o antigo «1. » fazia. Mudou a caixa à volta, não a informação. */
+  return `<span class="pl-num-badge">${Number(n)}</span>`;
+}
+
 /** `✕` da linha da playlist — ícone, para casar com as setas ao lado. */
 function htmlBotaoRemoverLinhaPlaylist() {
   return (
@@ -200,7 +223,8 @@ export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, es
   return `
       <div class="playlist-row-cols">
         <div class="pl-col pl-col-meta">
-          <div class="pl-col-titulo tit" data-dica="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
+          ${htmlNumeroMusicaPlaylist(songNum)}
+          <div class="pl-col-titulo tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
           <div class="pl-col-artista"${artista ? ` data-dica="${escapeAttr(artista)}"` : ''}>${artista ? escapeHtml(artista) : '—'}</div>
         </div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
@@ -221,8 +245,13 @@ export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, e
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
   return `
-      <div class="tit" data-dica="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
-      ${artista ? `<div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
+      <div class="pl-linha-simples">
+        ${htmlNumeroMusicaPlaylist(songNum)}
+        <div class="pl-linha-simples-txt">
+          <div class="tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
+          ${artista ? `<div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
+        </div>
+      </div>
       <div class="playlist-btns">
         ${htmlBotoesMoverPlaylist(opts)}
         ${htmlBotaoRemoverLinhaPlaylist()}
