@@ -10174,6 +10174,11 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   row.appendChild(lab);
 
   if (idxMarcador != null && idxMarcador !== undefined) {
+    // O ✕ vive numa zona própria no canto direito: é o hover dela — e não o do card
+    // inteiro — que revela o botão, e é ela que separa a área de excluir da de arrastar.
+    const zonaDel = document.createElement('div');
+    zonaDel.className = 'playlist-tema-head-zona-del';
+
     const btnDel = document.createElement('button');
     btnDel.type = 'button';
     btnDel.className = 'btn sm danger playlist-tema-head-del';
@@ -10183,7 +10188,9 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
       e.stopPropagation();
       solicitarRemoverMarcadorTemaPlaylist(idxMarcador);
     };
-    row.appendChild(btnDel);
+
+    zonaDel.appendChild(btnDel);
+    row.appendChild(zonaDel);
   }
 
   const body = document.createElement('div');
@@ -10245,10 +10252,15 @@ function configurarDragReordenarCabecalhoTemaPlaylist(row, secao, markerPlIdx) {
   row.draggable = true;
   row.dataset.plMarcadorIdx = String(markerPlIdx);
   secao.dataset.plMarcadorIdx = String(markerPlIdx);
-  row.title = 'Arrastar para reordenar este tema na playlist';
+  /* O tooltip vive no rótulo, que é a zona de arraste — não no card inteiro. */
+  const zonaArraste = row.querySelector('.playlist-tema-head-label');
+  if (zonaArraste) zonaArraste.title = 'Arrastar para reordenar este tema na playlist';
 
   row.addEventListener('dragstart', (ev) => {
-    if (ev.target instanceof HTMLElement && ev.target.closest('button')) {
+    /* `draggable` fica no card (o fantasma arrastado é o card inteiro), mas o gesto só
+       nasce no rótulo: os cantos pertencem ao expandir/recolher e ao excluir. */
+    const alvo = ev.target instanceof HTMLElement ? ev.target : null;
+    if (!alvo || !alvo.closest('.playlist-tema-head-label')) {
       ev.preventDefault();
       return;
     }
