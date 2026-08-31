@@ -2919,6 +2919,20 @@
       font-weight: 700;
     }
 
+    /*
+      A barra de rolagem fica centrada na folga que já existe entre os cartões e a
+      borda da coluna, em vez de encostada aos cartões.
+
+      A calha do navegador desenha-se entre a borda e a caixa de padding: ficava com
+      6px do lado dos cartões (o `padding-right`) e 12px do lado de fora (o padding
+      da `.centro-split-musicas`), ou seja, colada aos slides. Repartindo os mesmos
+      18px de folga em 9 + 9, a barra centra-se.
+
+      O `margin-right` negativo compensa, à direita, exatamente o que o padding
+      cresceu: a caixa desloca-se 3px para fora, e por isso a área útil dos cartões
+      (largura e posição) fica igual à de antes — muda só onde a barra é pintada.
+      Nada aqui altera a largura da coluna nem cria espaço novo.
+    */
     .estrofes-slide-editor {
       flex: 1;
       overflow-y: auto;
@@ -2927,7 +2941,8 @@
       gap: 12px;
       align-content: start;
       align-items: start;
-      padding-right: 6px;
+      padding-right: 9px;
+      margin-right: -3px;
       min-height: 0;
     }
 
@@ -2938,6 +2953,9 @@
       justify-content: center;
       box-sizing: border-box;
       padding: 16px 12px;
+      /* Sem barra para centrar, o recuo negativo não tem razão de ser: o aviso
+         volta a ficar centrado na coluna inteira. */
+      margin-right: 0;
     }
 
     /*
