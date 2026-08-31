@@ -9516,29 +9516,91 @@ function refrescarAberturaM3SeMusicaAtivaNaPlaylist() {
 }
 
 /**
- * A troca com o vizinho é possível nesta direção?
+ * Tema do bloco onde a linha `idx` está — o do cabeçalho acima dela, não o `item.tema`.
  *
- * Mesma condição que `movePlItem` aplica antes de trocar — aqui só para a linha poder
- * mostrar o botão desactivado em vez de o oferecer e depois não fazer nada. Um cabeçalho
- * de tema no caminho conta como fim de linha: as músicas não saltam de bloco pelas setas.
+ * Os dois divergem: com marcadores, o cabeçalho manda, e `item.tema` de linhas antigas
+ * pode estar vazio ou desactualizado. Quem quer saber «em que tema esta música está»
+ * quer o que a lista mostra.
+ *
+ * Dar-lhe o índice de um cabeçalho devolve o tema do bloco ACIMA dele — andar para trás a
+ * partir de um marcador encontra o marcador anterior. É assim que se pergunta «para que
+ * tema é que esta seta me leva».
+ */
+function temaDoBlocoNaPlaylist(pl, idx) {
+  if (!Array.isArray(pl) || !pl[idx]) return '';
+  if (playlistPossuiMarcadoresTema(pl)) {
+    for (let i = idx - 1; i >= 0; i--) {
+      if (ehMarcadorTemaPlaylist(pl[i])) return normalizarTemaPlaylist(pl[i].tema) || '';
+    }
+    /* Antes do primeiro marcador não há cabeçalho de marcador: o render tira o rótulo do
+       `tema` da primeira linha, e aqui segue-se a mesma regra para os dois concordarem. */
+    return normalizarTemaPlaylist(pl[0]?.tema) || '';
+  }
+  return normalizarTemaPlaylist(pl[idx]?.tema) || '';
+}
+
+/**
+ * O que a seta ↑↓ faz nesta linha, nesta direção.
+ *
+ * Dentro do bloco, troca com a linha vizinha, como sempre fez. Na fronteira do tema, onde
+ * antes ficava cinzenta, passa a levar a música para o tema ao lado — para cima entra no
+ * fim do tema anterior, para baixo no início do seguinte. É o mesmo gesto: a música anda
+ * um lugar, e a fronteira do tema deixou de ser uma parede.
+ *
+ * `nada` fica para o topo e o fim da playlist, os únicos sítios onde realmente não há
+ * para onde ir.
  *
  * @param {any[]} pl
  * @param {number} idx
  * @param {-1|1} dir
+ * @returns {{ tipo: 'nada' } | { tipo: 'trocar' } | { tipo: 'tema', tema: string }}
  */
-function podeMoverItemPlaylist(pl, idx, dir) {
-  if (!Array.isArray(pl)) return false;
+function acaoSetaMoverPlaylist(pl, idx, dir) {
+  const NADA = { tipo: 'nada' };
+  if (!Array.isArray(pl)) return NADA;
+  const item = pl[idx];
+  if (!item || ehMarcadorTemaPlaylist(item)) return NADA;
   const j = idx + dir;
-  if (j < 0 || j >= pl.length) return false;
-  if (ehMarcadorTemaPlaylist(pl[idx]) || ehMarcadorTemaPlaylist(pl[j])) return false;
-  return true;
+  if (j < 0 || j >= pl.length) return NADA;
+  const vizinho = pl[j];
+
+  if (ehMarcadorTemaPlaylist(vizinho)) {
+    /* A subir, o destino é o bloco que acaba onde este cabeçalho começa. Se o cabeçalho é
+       a primeira linha da playlist, não há bloco acima dele — e uma música solta antes do
+       primeiro cabeçalho ganharia um segundo cabeçalho com o mesmo nome. */
+    if (dir < 0 && j === 0) return NADA;
+    const tema = dir > 0
+      ? normalizarTemaPlaylist(vizinho.tema) || ''
+      : temaDoBlocoNaPlaylist(pl, j);
+    return { tipo: 'tema', tema };
+  }
+
+  /* Playlists antigas não têm marcadores: ali a fronteira é a mudança de `tema` entre duas
+     linhas seguidas, e é a etiqueta — não a posição — que muda a música de bloco. */
+  if (!playlistPossuiMarcadoresTema(pl)) {
+    const temaVizinho = normalizarTemaPlaylist(vizinho.tema) || '';
+    if (temaVizinho !== (normalizarTemaPlaylist(item.tema) || '')) {
+      return { tipo: 'tema', tema: temaVizinho };
+    }
+  }
+  return { tipo: 'trocar' };
 }
 
-/** `{ podeSubir, podeDescer }` da linha `idx` — para os botões ↑↓ da playlist. */
+/**
+ * Estado dos botões ↑↓ da linha `idx`.
+ *
+ * `temaAcima`/`temaAbaixo` vêm preenchidos só quando a seta atravessa a fronteira do tema
+ * — é o que deixa o botão dizer «Mover para o tema «OFERTÓRIO»» em vez de «Descer uma
+ * posição», que seria verdade mas não a parte que interessa.
+ */
 function estadoBotoesMoverPlaylist(pl, idx) {
+  const cima = acaoSetaMoverPlaylist(pl, idx, -1);
+  const baixo = acaoSetaMoverPlaylist(pl, idx, 1);
   return {
-    podeSubir: podeMoverItemPlaylist(pl, idx, -1),
-    podeDescer: podeMoverItemPlaylist(pl, idx, 1),
+    podeSubir: cima.tipo !== 'nada',
+    podeDescer: baixo.tipo !== 'nada',
+    temaAcima: cima.tipo === 'tema' ? cima.tema || 'Sem tema' : '',
+    temaAbaixo: baixo.tipo === 'tema' ? baixo.tema || 'Sem tema' : '',
   };
 }
 
@@ -9551,6 +9613,8 @@ function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao, opts = {}) {
   const mover = {
     podeSubir: opts.podeSubir !== false,
     podeDescer: opts.podeDescer !== false,
+    temaAcima: opts.temaAcima || '',
+    temaAbaixo: opts.temaAbaixo || '',
   };
   if (ehModoSlidesOperador()) {
     return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml, mover);
@@ -10117,9 +10181,9 @@ function restaurarFocoBotaoMoverPlaylist(idxDestino, dir) {
 
 function movePlItem(idx, dir) {
   const pl = getPlaylist(cultoId);
+  const acao = acaoSetaMoverPlaylist(pl, idx, dir);
+  if (acao.tipo === 'nada') return;
   const j = idx + dir;
-  if (j < 0 || j >= pl.length) return;
-  if (ehMarcadorTemaPlaylist(pl[idx]) || ehMarcadorTemaPlaylist(pl[j])) return;
 
   /* O foco só se devolve a quem o tinha: um clique noutro sítio da app não deve fazer o
      cursor saltar para dentro da playlist. */
@@ -10132,7 +10196,36 @@ function movePlItem(idx, dir) {
   })();
 
   const posAntes = medirPosicoesLinhasPlaylist();
+
+  /* Bloco de destino recolhido engoliria a música à passagem — carregar na seta parecia
+     apagá-la. Abre-se o bloco, para ela chegar a um sítio onde se vê. */
+  if (acao.tipo === 'tema') {
+    definirSecaoTemaPlaylistRecolhida(String(cultoId || ''), acao.tema || 'Sem tema', false);
+  }
+
+  /*
+   * Playlist sem marcadores: o bloco de uma música é a sua etiqueta, e o vizinho é outra
+   * música. Trocar de lugar não a mudaria de tema — trocaria as duas de lugar e deixaria o
+   * bloco partido em dois. Aqui a música fica quieta no array e muda de etiqueta; é o
+   * cabeçalho que se desloca em volta dela.
+   */
+  if (acao.tipo === 'tema' && !ehMarcadorTemaPlaylist(pl[j])) {
+    pl[idx].tema = acao.tema;
+    savePlaylists();
+    renderPlaylist();
+    animarReordenacaoPlaylist(posAntes, new Map([[String(idx), String(idx)]]), idx, -1);
+    if (focoNosBotoes) restaurarFocoBotaoMoverPlaylist(idx, dir);
+    return;
+  }
+
+  /*
+   * Trocar com o cabeçalho é o que faz a música atravessar a fronteira, e dá de graça o
+   * lado certo do bloco: a subir salta para cima do cabeçalho e fica no fim do bloco
+   * anterior; a descer salta para baixo dele e fica no início do seguinte.
+   */
   [pl[idx], pl[j]] = [pl[j], pl[idx]];
+  /* A etiqueta acompanha o bloco novo, senão fica a apontar para o tema de onde saiu. */
+  if (acao.tipo === 'tema') pl[j].tema = acao.tema;
   savePlaylists();
   renderPlaylist();
 

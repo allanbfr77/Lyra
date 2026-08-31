@@ -2004,7 +2004,7 @@
       align-items: center;
       align-self: stretch;
       flex-shrink: 0;
-      width: 112px;
+      width: var(--pl-col-btns-w);
       justify-content: flex-end;
       box-sizing: border-box;
       opacity: 0;
@@ -2061,6 +2061,19 @@
     .playlist-row .playlist-btns .pl-btn-mover:hover:not(:disabled) {
       background: color-mix(in srgb, var(--accent) 20%, transparent);
       color: var(--accent);
+    }
+
+    /*
+      A seta que sai do bloco — a que passa a música para o tema ao lado — vem com um
+      toque do dourado da marca já em repouso.
+
+      É a mesma seta e o mesmo gesto, mas o resultado é outro: em vez de trocar de lugar
+      com a linha vizinha, atravessa a fronteira do tema. O `title` diz para onde vai; a
+      cor serve só para o dizer antes do hover, a quem estiver a olhar. Como a faixa de
+      botões só aparece na linha sob o rato, nunca há mais do que duas destas à vista.
+    */
+    .playlist-row .playlist-btns .pl-btn-mover--troca-tema:not(:disabled) {
+      color: color-mix(in srgb, var(--accent) 72%, var(--text-dim));
     }
 
     /* O empurrão de 1 px no sentido do movimento é o único feedback que o rato tem

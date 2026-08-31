@@ -121,22 +121,39 @@ const SVG_REMOVER_LINHA =
  * dupla lê-se como um só comando de dois sentidos, e o `✕` (destrutivo) fica claramente
  * à parte.
  *
- * Quando não há para onde ir — topo da playlist, fundo, ou o vizinho é um cabeçalho de
- * tema — o botão vem `disabled` em vez de silenciosamente não fazer nada ao clique.
+ * Na fronteira do bloco, a seta não morre: passa a música para o tema ao lado — para cima,
+ * entra no fim do tema anterior; para baixo, no início do seguinte. É a mesma seta e o
+ * mesmo gesto, e é o `title` que diz para onde vai, porque o ícone não consegue dizê-lo.
  *
- * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
+ * `disabled` fica reservado a quem realmente não tem para onde ir: o topo e o fim da
+ * playlist.
+ *
+ * @param {{ podeSubir?: boolean, podeDescer?: boolean, temaAcima?: string,
+ *           temaAbaixo?: string }} [opts] `temaAcima`/`temaAbaixo` preenchidos só quando a
+ *           seta atravessa a fronteira do tema.
  */
 export function htmlBotoesMoverPlaylist(opts = {}) {
   const podeSubir = opts.podeSubir !== false;
   const podeDescer = opts.podeDescer !== false;
   const attrSubir = podeSubir ? '' : ' disabled aria-disabled="true"';
   const attrDescer = podeDescer ? '' : ' disabled aria-disabled="true"';
-  const tSubir = podeSubir ? 'Subir uma posição' : 'Já está no topo';
-  const tDescer = podeDescer ? 'Descer uma posição' : 'Já está no fim';
+  const temaAcima = String(opts.temaAcima || '').trim();
+  const temaAbaixo = String(opts.temaAbaixo || '').trim();
+  const rotular = (pode, tema, dentro, semSaida) => {
+    if (!pode) return semSaida;
+    return tema ? `Mover para o tema «${tema}»` : dentro;
+  };
+  const tSubir = rotular(podeSubir, temaAcima, 'Subir uma posição', 'Já está no topo');
+  const tDescer = rotular(podeDescer, temaAbaixo, 'Descer uma posição', 'Já está no fim');
+  /* Uma seta que muda de tema é uma acção diferente da que reordena, e quem usa leitor de
+     ecrã só tem o `aria-label` para as distinguir. */
+  const aSubir = temaAcima ? `Mover para o tema ${temaAcima}` : 'Mover para cima';
+  const aDescer = temaAbaixo ? `Mover para o tema ${temaAbaixo}` : 'Mover para baixo';
+  const classe = (tema) => 'pl-btn-mover' + (tema ? ' pl-btn-mover--troca-tema' : '');
   return (
     '<div class="pl-mover" role="group" aria-label="Reordenar esta música na playlist">' +
-    `<button class="pl-btn-mover pl-btn-subir" type="button" title="${tSubir}" aria-label="Mover para cima"${attrSubir}>${SVG_MOVER_CIMA}</button>` +
-    `<button class="pl-btn-mover pl-btn-descer" type="button" title="${tDescer}" aria-label="Mover para baixo"${attrDescer}>${SVG_MOVER_BAIXO}</button>` +
+    `<button class="${classe(temaAcima)} pl-btn-subir" type="button" title="${escapeAttr(tSubir)}" aria-label="${escapeAttr(aSubir)}"${attrSubir}>${SVG_MOVER_CIMA}</button>` +
+    `<button class="${classe(temaAbaixo)} pl-btn-descer" type="button" title="${escapeAttr(tDescer)}" aria-label="${escapeAttr(aDescer)}"${attrDescer}>${SVG_MOVER_BAIXO}</button>` +
     '</div>'
   );
 }
@@ -161,7 +178,8 @@ const SVG_LIMPAR_MESTRE =
  * @param {number} songNum
  * @param {string} rotuloVersaoHtml já escapado / sufixo pronto
  * @param {(s: string) => string} escapeHtml
- * @param {{ mostrarLimparMestre?: boolean, podeSubir?: boolean, podeDescer?: boolean }} [opts]
+ * @param {{ mostrarLimparMestre?: boolean, podeSubir?: boolean, podeDescer?: boolean,
+ *           temaAcima?: string, temaAbaixo?: string }} [opts]
  */
 export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
   const artista = String(item?.artista || '').trim();
