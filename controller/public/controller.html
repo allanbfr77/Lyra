@@ -2101,7 +2101,9 @@
     .pl-col-meta {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
-      column-gap: 8px;
+      /* Respiro entre a pastilha e o texto: com menos folga, o número encostava-se ao
+         título e os dois liam-se como uma coisa só. */
+      column-gap: 11px;
       row-gap: 2px;
       align-items: center;
       min-width: 0;
@@ -6233,7 +6235,9 @@
     .pl-linha-simples {
       display: flex;
       align-items: center;
-      gap: 7px;
+      /* Mesmo respiro da Home, um pouco menor: a coluna do modo Slides é estreita e o
+         título precisa do que sobra. */
+      gap: 10px;
       min-width: 0;
     }
 

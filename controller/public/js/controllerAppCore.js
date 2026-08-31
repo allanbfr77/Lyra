@@ -6111,6 +6111,16 @@ let rotasPorModo = {
   contagem: { publicoIndex: -1, ministranteIndex: -1 },
 };
 let musicaAtiva = null;
+/**
+ * Destaque visual da Biblioteca — exclusivo em relação à Playlist.
+ * `{ id, fonte }` da linha clicada; `null` se nada estiver marcado à esquerda.
+ */
+let selecaoUiBiblioteca = null;
+/**
+ * Destaque visual da Playlist — exclusivo em relação à Biblioteca.
+ * `{ id, versaoLocalId, fonte }` do item clicado; `null` se nada estiver marcado à direita.
+ */
+let selecaoUiPlaylist = null;
 /** `user` — SQLite do servidor · `catalog` — `catalog.db` somente leitura (mesmo `id` pode existir nos dois). */
 let musicaBancoFonte = 'user';
 /** `null` = letra do servidor (original ou cópia com id próprio); id `c_*` = cópia legada em localStorage. */
@@ -9077,6 +9087,18 @@ async function executarRemoverMusicaDoBancoConfirmado() {
     removerMusicaDeTodasPlaylists(rootRemovido);
     removerCopiasLocaisDaMusica(rootRemovido);
     await carregarMusicas();
+    if (
+      selecaoUiBiblioteca &&
+      (Number(selecaoUiBiblioteca.id) === idNum || Number(selecaoUiBiblioteca.id) === rootRemovido)
+    ) {
+      selecaoUiBiblioteca = null;
+    }
+    if (
+      selecaoUiPlaylist &&
+      (Number(selecaoUiPlaylist.id) === idNum || Number(selecaoUiPlaylist.id) === rootRemovido)
+    ) {
+      selecaoUiPlaylist = null;
+    }
     const eraAtiva =
       musicaAtiva &&
       (Number(musicaAtiva.id) === idNum ||
@@ -9143,6 +9165,44 @@ function playlistItemMesmaVersaoQueAtiva(it) {
   return va === vb && itBf === curBf;
 }
 
+function aplicarSelecaoUiBiblioteca(id, fonte) {
+  const n = Number(id);
+  if (!Number.isFinite(n)) {
+    selecaoUiBiblioteca = null;
+    return;
+  }
+  selecaoUiBiblioteca = {
+    id: n,
+    fonte: fonte === 'catalog' ? 'catalog' : 'user',
+  };
+  selecaoUiPlaylist = null;
+}
+
+function aplicarSelecaoUiPlaylist(id, versaoLocalId, fonte) {
+  const n = Number(id);
+  if (!Number.isFinite(n)) {
+    selecaoUiPlaylist = null;
+    return;
+  }
+  selecaoUiPlaylist = {
+    id: n,
+    versaoLocalId: versaoLocalId ? String(versaoLocalId) : '',
+    fonte: fonte === 'catalog' ? 'catalog' : 'user',
+  };
+  selecaoUiBiblioteca = null;
+}
+
+function playlistItemMesmaVersaoQueSelecaoUi(it) {
+  if (!selecaoUiPlaylist || !it || ehMarcadorTemaPlaylist(it)) return false;
+  const itRoot = Number(it.id);
+  if (!Number.isFinite(itRoot) || itRoot !== Number(selecaoUiPlaylist.id)) return false;
+  const va = selecaoUiPlaylist.versaoLocalId ? String(selecaoUiPlaylist.versaoLocalId) : '';
+  const vb = it.versaoLocalId ? String(it.versaoLocalId) : '';
+  const itBf = it.bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const selBf = selecaoUiPlaylist.fonte === 'catalog' ? 'catalog' : 'user';
+  return va === vb && itBf === selBf;
+}
+
 /** Índice da próxima música real na playlist (salta marcadores de tema). -1 se não houver. */
 function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
   const lista = Array.isArray(pl) ? pl : [];
@@ -9182,12 +9242,25 @@ function playlistSelecaoVisivelNoModoAtual() {
 }
 
 /**
- * Seleção como a UI a mostra — usar para o destaque da linha e para decidir o clique.
- * Para lógica funcional (próxima música, deduplicação da playlist) usar
+ * Destaque da linha na Playlist — independente da Biblioteca e do que está no centro.
+ */
+function playlistItemDestacadoNaUi(it) {
+  return playlistItemMesmaVersaoQueSelecaoUi(it);
+}
+
+/**
+ * Clique na linha já carregada no centro e já marcada nesta coluna: segundo clique desmarca.
+ * Só desmarca se a seleção visual da Playlist for desta linha — senão um clique
+ * na Playlist após abrir a mesma música pela Biblioteca apagaria o centro.
+ * Para lógica funcional (próxima música, deduplicação) usar
  * `playlistItemMesmaVersaoQueAtiva`, que ignora o estado da faixa.
  */
 function playlistItemSelecionadoNaUi(it) {
-  return playlistSelecaoVisivelNoModoAtual() && playlistItemMesmaVersaoQueAtiva(it);
+  return (
+    playlistSelecaoVisivelNoModoAtual() &&
+    playlistItemMesmaVersaoQueAtiva(it) &&
+    playlistItemMesmaVersaoQueSelecaoUi(it)
+  );
 }
 
 /** Segundo clique na mesma linha da playlist: desmarca (como ESC no modo slides). */
@@ -9365,6 +9438,7 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
         habilitarFaixaModoSlides: true,
         versaoLocalId: item.versaoLocalId || undefined,
         fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        origemUi: 'playlist',
       });
     }, 300);
   });
@@ -9906,7 +9980,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
     row.className = classeLinhaPlaylist(
       songAppendParent,
       el,
-      playlistItemSelecionadoNaUi(item)
+      playlistItemDestacadoNaUi(item)
     );
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.innerHTML = htmlLinhaPlaylistModoAtual(
@@ -10074,7 +10148,7 @@ function renderPlaylistPainel() {
     row.className = classeLinhaPlaylist(
       songAppendParent,
       el,
-      playlistItemSelecionadoNaUi(item)
+      playlistItemDestacadoNaUi(item)
     );
     row.innerHTML = htmlLinhaPlaylistModoAtual(
       item,
@@ -15179,7 +15253,7 @@ function configurarModalPreviewLetras() {
     if (userId != null && fontePend === 'banco-local') {
       // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
       // o seu papel — limpa igual aos demais para manter o painel consistente.
-      await selecionarMusicaDoBanco(userId, { fonte: 'user', preferirCopia: true });
+      await selecionarMusicaDoBanco(userId, { fonte: 'user', preferirCopia: true, origemUi: 'biblioteca' });
       limparBuscaLetras();
     } else if (catalogId != null && fontePend === 'banco-local') {
       await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
@@ -15233,9 +15307,13 @@ async function playlistDuploCliqueIniciarProjecao(itemOuId) {
       habilitarFaixaModoSlides: true,
       versaoLocalId: item.versaoLocalId || undefined,
       fonte: itemBf === 'catalog' ? 'catalog' : 'user',
+      origemUi: 'playlist',
     });
   } else {
     faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+    aplicarSelecaoUiPlaylist(idNum, item.versaoLocalId, itemBf);
+    refreshListaBanco();
+    renderPlaylist();
     renderSlidesStrip();
   }
   slidesDockVisivel = true;
@@ -16322,7 +16400,7 @@ async function duplicarMusicaDoBanco(musica) {
     if (!resNova.ok) throw new Error(data.erro || `Erro HTTP ${resNova.status}`);
 
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
   } catch (e) {
     appAlert(e?.message || 'Não foi possível duplicar a música.', 'Duplicar música');
   }
@@ -16357,6 +16435,7 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
           const ok = await selecionarMusicaDoBanco(musica.id, {
             fonte: 'user',
             preferirCopia: true,
+            origemUi: 'biblioteca',
           });
           if (ok) entrarModoEdicao();
         },
@@ -16548,6 +16627,7 @@ function bibTeclasLista(ev) {
       selecionarMusicaDoBanco(bibMusicaDaLinha(atual)?.id, {
         fonte: atual.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
         preferirCopia: true,
+        origemUi: 'biblioteca',
       });
     } else {
       bibAdicionarLinha(atual);
@@ -16619,6 +16699,7 @@ function bibEnterGlobal(ev) {
     selecionarMusicaDoBanco(bibMusicaDaLinha(bibLinhaSobCursor)?.id, {
       fonte: bibLinhaSobCursor.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
       preferirCopia: true,
+      origemUi: 'biblioteca',
     });
   } else {
     bibAdicionarLinha(bibLinhaSobCursor);
@@ -16718,14 +16799,11 @@ function renderizarListaLocal(lista) {
       el.appendChild(grupoAtual);
     }
 
-    /* Compara pelo root: a lista mostra os ORIGINAIS, mas o que está carregado
-       normalmente é a cópia editável — a linha tem de continuar destacada. */
-    const idAtivoNaLista =
-      rowFonte === 'catalog' ? Number(musicaAtiva?.id) : Number(obterRootIdMusicaAtiva());
+    /* Destaque só desta coluna: seleção na Playlist zera `selecaoUiBiblioteca`. */
     const ativo =
-      !!musicaAtiva &&
-      idAtivoNaLista === Number(m.id) &&
-      (musicaBancoFonte === 'catalog' ? 'catalog' : 'user') === rowFonte;
+      !!selecaoUiBiblioteca &&
+      Number(selecaoUiBiblioteca.id) === Number(m.id) &&
+      selecaoUiBiblioteca.fonte === rowFonte;
     const jaAdicionada = naPlaylist.has(bibChaveMusica(m.id, rowFonte));
 
     const div = document.createElement('div');
@@ -16792,7 +16870,7 @@ function renderizarListaLocal(lista) {
       if (ev.target instanceof Element && ev.target.closest('.item-acoes-banco')) return;
       /* Clicar na lista abre a CÓPIA editável; o original fica preservado e
          acessível pelo chip «Original» da barra de versões. */
-      selecionarMusicaDoBanco(m.id, { fonte: rowFonte, preferirCopia: true });
+      selecionarMusicaDoBanco(m.id, { fonte: rowFonte, preferirCopia: true, origemUi: 'biblioteca' });
     });
     /* Clicar traz o cursor do teclado para a linha: rato e setas partilham a
        mesma seleção, em vez de haver duas a competir. */
@@ -17024,7 +17102,7 @@ async function usarMusicaExistenteDoBanco(data) {
     return;
   }
   await carregarMusicas();
-  await selecionarMusicaDoBanco(idExistente, { fonte: 'user', preferirCopia: true });
+  await selecionarMusicaDoBanco(idExistente, { fonte: 'user', preferirCopia: true, origemUi: 'biblioteca' });
   limparBuscaLetras();
 }
 
@@ -17053,7 +17131,7 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decis
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar.');
@@ -17080,7 +17158,7 @@ async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar do catálogo.');
@@ -17154,7 +17232,7 @@ async function salvarNovaMusicaManualNoServidor(decisaoDuplicidade = '') {
     }
     fecharModalNovaMusicaManual();
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true });
+    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
   } catch (e) {
     alert(e.message || 'Erro ao criar a música no banco local.');
   }
@@ -17515,6 +17593,8 @@ async function trocarVersaoMusicaCentral(copiaId) {
  *   cliques do usuário na lista do banco: o original fica preservado e as
  *   edições caem sempre na cópia. A playlist não usa isto — lá vale a versão
  *   que o item guardou.
+ * @param {'biblioteca'|'playlist'} [opts.origemUi] Coluna que disparou a
+ *   seleção. Essa coluna recebe o destaque; a outra é limpa.
  */
 async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
@@ -17585,6 +17665,22 @@ async function selecionarMusicaDoBanco(id, opts) {
     projecaoMusicaEmitidaNoServidor = false;
     bloqueioSincronizarEstrofeDoServidor = true;
 
+    const origemUi =
+      opts && opts.origemUi === 'playlist'
+        ? 'playlist'
+        : opts && opts.origemUi === 'biblioteca'
+          ? 'biblioteca'
+          : opts && opts.habilitarFaixaModoSlides
+            ? 'playlist'
+            : opts && opts.preferirCopia
+              ? 'biblioteca'
+              : null;
+    if (origemUi === 'playlist') {
+      aplicarSelecaoUiPlaylist(id, opts && opts.versaoLocalId, fonteBanco);
+    } else if (origemUi === 'biblioteca') {
+      aplicarSelecaoUiBiblioteca(id, fonteBanco);
+    }
+
     refreshListaBanco();
     renderPlaylist();
     renderEstrofesEditor();
@@ -17635,6 +17731,7 @@ async function projecaoProximaMusicaPlaylist() {
     versaoLocalId: next.versaoLocalId || undefined,
     fonte: next.bancoFonte === 'catalog' ? 'catalog' : 'user',
     pularConfirmacaoDescarte: true,
+    origemUi: 'playlist',
   });
   if (!ok || !musicaAtiva) return;
   /* Garante destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
@@ -18091,6 +18188,7 @@ function encerrarProjecaoDoControlador(opts = {}) {
     modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
     faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+    selecaoUiPlaylist = null;
   }
   estrofeAtiva = -1;
   slidesDockVisivel = ehModoSlidesOperador();
