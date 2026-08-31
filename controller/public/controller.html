@@ -2632,12 +2632,26 @@
       padding-right: 12px;
     }
 
+    /* A barra de ações fecha com uma divisória, e não só com espaço em branco:
+       o que vem por baixo (os cartões dos slides, ou o editor de letra completa)
+       é a área de trabalho, e os botões são o que se faz COM ela. Sem a linha, o
+       primeiro cartão de slide encostava-se aos botões e lia-se como mais um
+       elemento da barra.
+
+       Mesmo traço da divisória que já separa o cartão de título da fila de botões
+       (ver `.centro-toolbar-acoes`) — é o padrão desta coluna.
+
+       Mais folga por baixo do que por cima (16 contra 12): o espaço agrupa-se com
+       o que está mais perto, e a linha tem de pertencer à barra que fecha, não
+       aos slides que começam. */
     .centro-toolbar {
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+      margin-bottom: 16px;
     }
 
     .musica-toolbar-head-card {
