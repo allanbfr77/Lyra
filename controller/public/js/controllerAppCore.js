@@ -8280,6 +8280,16 @@ function renderSeletorTemasPlaylist() {
       if (!t) return;
       ev.preventDefault();
       ev.stopPropagation();
+      // Menu aberto para outro tema: a seleção anterior é limpa para o seletor não
+      // exibir um tema ativo diferente daquele que o menu está a manipular.
+      const selecionado = normalizarTemaPlaylist(sel.value) || getTemaSelecionadoAtual();
+      if (selecionado && selecionado !== t) {
+        setTemaSelecionadoAtual('');
+        aplicarSelecaoTemaNaUi('');
+        // Redesenha a lista para o placeholder sair de dentro dela (só entra quando
+        // há tema selecionado); `t` já está guardado, logo trocar os itens é seguro.
+        renderSeletorTemasPlaylist();
+      }
       // A lista fecha para o menu de ações não tapar os nomes dos outros temas.
       fecharDropdownTemaPlaylist();
       abrirMenuContextoTemaPlaylist(t);
