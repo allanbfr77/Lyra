@@ -160,30 +160,50 @@
       --nav-dur: 0.18s;
       --nav-gap: 4px;
       --nav-dock-pad: 6px;
-      --nav-dock-radius: 20px;
-      --nav-item-radius: 14px;
       --nav-item-w: 90px;
       --nav-item-h: 58px;
       --nav-icon-size: 20px;
-      /* Folga horizontal da cápsula à volta do ícone. */
-      --nav-capsula-px: 13px;
       /* Folga vertical entre a pílula e as bordas do cabeçalho. */
       --nav-dock-respiro: 13px;
 
-      /* ── Dock de navegação — cores (tema claro) ── */
-      --nav-dock-bg: color-mix(in srgb, var(--surface2) 72%, var(--surface));
-      --nav-dock-border: color-mix(in srgb, var(--border) 85%, transparent);
-      --nav-dock-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.35);
-      --nav-item-fg: color-mix(in srgb, var(--text) 58%, transparent);
       --nav-item-fg-hover: var(--text);
-      --nav-item-bg-hover: color-mix(in srgb, var(--text) 7%, transparent);
-      --nav-item-active-bg: var(--surface);
-      --nav-item-active-border: color-mix(in srgb, var(--border) 90%, transparent);
-      --nav-item-active-fg: var(--text);
-      --nav-item-active-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 14px -8px rgb(0 0 0 / 0.4);
       --nav-focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
-      /* Deriva de --text, por isso serve os dois temas sem redefinição. */
-      --nav-divisor: color-mix(in srgb, var(--text) 15%, transparent);
+
+      /*
+        ── Cor de cada secção da barra de navegação ──
+
+        Uma cor por secção, sem repetição: a cor é o que diz «estás aqui», e uma cor
+        repetida entre dois separadores deixa de dizer isso. Só entra no item ACTIVO —
+        ícone, legenda e o traço por baixo. Inactivo é sempre o mesmo cinza, seja qual
+        for a secção, senão a barra inteira acende e nada se destaca.
+
+        Estes são os tons do tema CLARO: os valores de referência foram desenhados
+        contra a barra escura e sobre o fundo claro (#f1eeea) ficavam entre 1.8:1 e
+        3.4:1 — ilegíveis. São os mesmos matizes escurecidos até passarem AA (≥4.5:1),
+        medidos um a um contra o fundo real da barra em cada tema. Os valores originais
+        estão no bloco `html.dark`, onde é contra o escuro que são medidos.
+
+        A Home é a excepção: no escuro é branco, e o equivalente aqui não é branco —
+        é o extremo oposto da mesma escala neutra, quase preto. Branco sobre um
+        cabeçalho claro não se veria.
+
+        Contraste medido contra o fundo do cabeçalho (texto pequeno, mínimo AA 4.5:1):
+          claro  home 16.08 · contador 5.29 · bíblia 5.22 · slide 5.19
+                 mídias 5.22 · voz 5.26 · ajustes 5.30
+      */
+      --nav-color-home: #1f1f1f;
+      --nav-color-contador: #8b6225;
+      --nav-color-biblia: #b24942;
+      --nav-color-slide: #257956;
+      --nav-color-midias: #735fa7;
+      --nav-color-voz: #ac4676;
+      --nav-color-ajustes: #317283;
+
+      /* Estado inactivo — igual nos dois temas (4.61:1 no claro, 3.15:1 no escuro). */
+      --nav-item-inativo: #6b6b6b;
+      /* Traço de secção activa. */
+      --nav-indicador-w: 20px;
+      --nav-indicador-h: 2px;
 
       /* ── Cores semânticas por modo (tema claro) ── */
       --mode-home: #8b7355;
@@ -349,6 +369,19 @@
        O <nav> é a "pílula": fundo, borda e sombra vêm de tokens que se
        adaptam a Light/Dark. Cada item é um único <button> com ícone + legenda,
        o que garante área de clique, foco e leitura por teclado coerentes. */
+    /*
+      Sem caixa à volta: os sete itens assentam directamente no cabeçalho.
+
+      A pílula fazia sentido quando o item seleccionado também era uma pílula — a de
+      fora agrupava, a de dentro apontava. Agora que o activo é só cor e um traço, a
+      moldura exterior ficou a desenhar uma fronteira que nada precisa: já há o
+      `border-bottom` do próprio cabeçalho a dizer onde a barra acaba, e uma segunda
+      linha por dentro dele era o mesmo limite dito duas vezes.
+
+      O `padding` da pílula sai, mas os tokens que o mediam ficam — é deles que a
+      altura do cabeçalho continua a ser calculada, e mexer aí deslocaria tudo o que
+      está à esquerda e à direita da barra.
+    */
     .hdr-icons-bar {
       grid-column: 2;
       justify-self: center;
@@ -357,26 +390,23 @@
       justify-content: center;
       gap: var(--nav-gap);
       padding: var(--nav-dock-pad);
-      border: 1px solid var(--nav-dock-border);
-      border-radius: var(--nav-dock-radius);
-      background: var(--nav-dock-bg);
-      box-shadow: var(--nav-dock-shadow);
+      border: 0;
+      background: none;
+      box-shadow: none;
       z-index: 2;
       pointer-events: none;
       max-width: 100%;
-      transition:
-        background var(--nav-dur) ease,
-        border-color var(--nav-dur) ease,
-        box-shadow var(--nav-dur) ease;
     }
     .hdr-icons-bar > .nav-grupo {
       pointer-events: auto;
     }
 
     /* Grupos semânticos: navegação | modos de operação | preferências.
-       Separados por uma divisória fina em vez de cards independentes — custa
-       ~4px de largura em vez de ~40px e mantém o cabeçalho a ler como uma
-       barra de comando única, não como mais uma fileira de painéis. */
+       Continuam a existir na marcação (é o que dá os `role="group"` e os rótulos a
+       quem usa leitor de ecrã), mas já não se vêem: o traço vertical que os separava
+       saiu, e ficou só a folga um pouco maior entre um grupo e o seguinte. Numa fila
+       de sete itens espaçados, essa folga chega — a linha era ruído a mais numa barra
+       que agora não tem linha nenhuma. */
     .nav-grupo {
       display: flex;
       align-items: stretch;
@@ -385,7 +415,6 @@
     .nav-grupo + .nav-grupo {
       margin-left: calc(var(--nav-gap) + 2px);
       padding-left: calc(var(--nav-gap) + 2px);
-      border-left: 1px solid var(--nav-divisor);
     }
 
     /* Indicador global de projeção (o que está no telão). NÃO faz parte do dock
@@ -593,23 +622,46 @@
       gap: 5px;
       width: var(--nav-item-w);
       min-height: var(--nav-item-h);
-      padding: 6px;
+      /* Mais recuo em baixo: é a faixa onde o traço da secção vive. O conteúdo
+         continua centrado no que sobra, e sem a cápsula do ícone há folga de sobra. */
+      padding: 6px 6px 12px;
+      /* Borda transparente mantida só para a caixa não mudar de tamanho entre
+         estados — nenhum estado a pinta. */
       border: 1px solid transparent;
-      border-radius: var(--nav-item-radius);
       background: transparent;
-      color: var(--nav-item-fg);
+      color: var(--nav-item-inativo);
       font-family: var(--font-ui);
       cursor: pointer;
       transition:
-        background var(--nav-dur) ease,
         color var(--nav-dur) ease,
-        border-color var(--nav-dur) ease,
-        box-shadow var(--nav-dur) ease,
         transform 0.12s ease;
     }
+
+    /*
+      Traço da secção activa.
+
+      Fora do fluxo (`absolute` sobre o `relative` do botão) para não empurrar o ícone
+      nem a legenda ao acender: entre activo e inactivo muda só a cor e a opacidade,
+      e a barra nunca salta ao trocar de separador. Em `::after` e não num elemento
+      próprio — não há nada para ler aqui, e assim os sete botões não ganham markup.
+    */
+    .hdr-btn-round::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 5px;
+      transform: translateX(-50%);
+      width: var(--nav-indicador-w);
+      height: var(--nav-indicador-h);
+      border-radius: 2px;
+      background: currentColor;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--nav-dur) ease;
+    }
+
     .hdr-btn-round:hover {
-      background: var(--nav-item-bg-hover);
-      color: var(--nav-item-fg-hover);
+      color: color-mix(in srgb, var(--nav-item-inativo) 55%, var(--text));
     }
     .hdr-btn-round:active { transform: scale(0.97); }
     .hdr-btn-round:focus-visible {
@@ -629,34 +681,94 @@
        Os modos recebem a classe `primary` do JS. A Home é activa por ausência
        de modo e resolve-se só em CSS: as classes `app-mod-*` são alteradas em
        muitos pontos do código, e assim o indicador nunca fica dessincronizado.
-       O ecrã activo ganha três pistas somadas: cápsula colorida atrás do ícone,
-       fundo subtil na tile e legenda em contraste pleno. */
+       A Voz entra pela sua própria classe de microfone ligado, que é o «activo»
+       dela — quem escreve essas classes continua a ser o mesmo código de sempre.
+
+       O item activo deixou de ser uma caixa: fica a cor da secção no ícone e na
+       legenda, mais o traço fino por baixo. Sem fundo, sem moldura, sem sombra —
+       numa barra de sete posições, sete caixas potenciais eram mais desenho do que
+       informação, e a cor sozinha já diz onde se está. */
     .hdr-btn-round.primary,
     body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
       .hdr-action--home .hdr-btn-round {
-      background: color-mix(in srgb, var(--nav-accent) 12%, var(--nav-item-active-bg));
-      border-color: color-mix(in srgb, var(--nav-accent) 42%, transparent);
-      color: var(--nav-item-active-fg);
-      box-shadow: var(--nav-item-active-shadow);
+      color: var(--nav-accent);
     }
-    .hdr-btn-round.primary svg,
+    .hdr-btn-round.primary::after,
     body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
-      .hdr-action--home .hdr-btn-round svg {
-      background: color-mix(in srgb, var(--nav-accent) 22%, transparent);
+      .hdr-action--home .hdr-btn-round::after {
       opacity: 1;
     }
     .hdr-btn-round.primary .hdr-btn-caption,
     body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
       .hdr-action--home .hdr-btn-caption {
-      font-weight: 700;
-      color: var(--nav-item-active-fg);
+      font-weight: 500;
+    }
+
+    /*
+      ── Voz: cor sim, traço não ──
+
+      A Voz não é um ecrã, é um interruptor de microfone: acende na sua cor enquanto
+      está ligada — informação real, e que a barra já dava pelo ponto verde — mas fica
+      sem o traço, porque o traço responde a «em que ecrã estou» e a resposta continua
+      a ser Home, Bíblia, Slide ou Mídias por baixo dela.
+    */
+    .hdr-btn-round.voz-mic--on,
+    .hdr-btn-round.voz-mic--ouvindo {
+      color: var(--nav-accent);
+    }
+    .hdr-btn-round.voz-mic--on .hdr-btn-caption,
+    .hdr-btn-round.voz-mic--ouvindo .hdr-btn-caption {
+      font-weight: 500;
+    }
+
+    /*
+      ── Painel aberto: o foco é todo dele ──
+
+      O Contador e os Ajustes abrem uma janela por cima do controlador. Enquanto ela
+      está à vista, é ela que tem o foco — e a barra passa a dizer só isso: o item do
+      painel acende por inteiro (cor e traço) e todos os outros voltam ao cinza, o
+      modo por baixo incluído.
+
+      Antes ficavam dois itens acesos ao mesmo tempo, o painel e o ecrã por trás dele,
+      e dois destaques simultâneos não são um destaque — o olho não sabe qual dos dois
+      responde à pergunta «onde estou agora».
+
+      Os dois estados leem-se do próprio modal (`:has`), sem classe nova nem código de
+      abertura e fecho a manter sincronizado. A especificidade faz o resto: a regra de
+      apagar traz um id do `:has` e por isso ganha a `.primary` e à regra da Home; a de
+      acender traz o mesmo id mais a classe do item, e ganha à de apagar.
+    */
+    body:has(#contagem-backdrop.aberto) .hdr-btn-round,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-btn-round {
+      color: var(--nav-item-inativo);
+    }
+    body:has(#contagem-backdrop.aberto) .hdr-btn-round::after,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-btn-round::after {
+      opacity: 0;
+    }
+    body:has(#contagem-backdrop.aberto) .hdr-btn-caption,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-btn-caption {
+      font-weight: 400;
+    }
+
+    body:has(#contagem-backdrop.aberto) .hdr-action--contagem .hdr-btn-round,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-round {
+      color: var(--nav-accent);
+    }
+    body:has(#contagem-backdrop.aberto) .hdr-action--contagem .hdr-btn-round::after,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-round::after {
+      opacity: 1;
+    }
+    body:has(#contagem-backdrop.aberto) .hdr-action--contagem .hdr-btn-caption,
+    body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-caption {
+      font-weight: 500;
     }
 
     .hdr-btn-caption {
       font-family: var(--font-ui);
       /* Segue o sistema de escala tipográfica do painel (--fs-caption-base). */
       font-size: var(--fs-caption-base);
-      font-weight: var(--fw-semibold);
+      font-weight: 400;
       line-height: 1.1;
       letter-spacing: 0.02em;
       text-transform: uppercase;
@@ -670,45 +782,35 @@
       user-select: none;
     }
 
-    /* O ícone assume a cor semântica do modo e vive dentro de uma cápsula que
-       só ganha fundo quando o item está seleccionado (ou sob o rato). */
+    /* O ícone segue a cor do botão — cinza em repouso, cor da secção quando activo.
+       Sem cápsula: a pílula à volta do ícone era metade do peso visual do estado
+       seleccionado, e é justamente o que sai neste desenho. */
     .hdr-btn-round svg {
       display: block;
       box-sizing: content-box;
       width: var(--nav-icon-size);
       height: var(--nav-icon-size);
-      padding: 3px var(--nav-capsula-px);
-      border-radius: 999px;
-      background: transparent;
       flex-shrink: 0;
       stroke: currentColor;
-      color: var(--nav-accent, currentColor);
-      opacity: 0.88;
-      transition:
-        background var(--nav-dur) ease,
-        opacity var(--nav-dur) ease,
-        color var(--nav-dur) ease;
-    }
-    .hdr-btn-round:hover svg,
-    .hdr-btn-round:focus-visible svg { opacity: 1; }
-    .hdr-btn-round:hover:not(.primary) svg {
-      background: color-mix(in srgb, var(--nav-accent) 10%, transparent);
+      color: inherit;
+      transition: color var(--nav-dur) ease;
     }
 
-    /* Cor semântica de cada modo — um único token por item. */
-    .hdr-action--home { --nav-accent: var(--mode-home); }
-    .hdr-action--apresentacao { --nav-accent: var(--mode-midias); }
-    .hdr-action--biblia { --nav-accent: var(--mode-biblia); }
-    .hdr-action--slides { --nav-accent: var(--mode-slide); }
-    .hdr-action--contagem { --nav-accent: var(--mode-contagem); }
-    .hdr-action--cfg { --nav-accent: var(--mode-cfg); }
-    .hdr-action--tema { --nav-accent: var(--mode-tema); }
-    .hdr-action--voz { --nav-accent: var(--mode-voz); }
+    /*
+      Cor de cada secção — um token por item, e nenhum hex nas regras acima.
 
-    /* A tile activa recebe um fio da cor do modo, sem depender de cor fixa. */
-    .hdr-btn-round.primary {
-      border-color: color-mix(in srgb, var(--nav-accent, var(--accent)) 55%, transparent);
-    }
+      Deixaram de vir dos `--mode-*`: aqueles são as cores semânticas do modo em toda
+      a aplicação (o painel da contagem usa `--mode-contagem`, por exemplo) e repetiam
+      matizes entre si. A barra precisa de sete cores distintas entre si, que é uma
+      exigência só dela — daí a paleta própria.
+    */
+    .hdr-action--home { --nav-accent: var(--nav-color-home); }
+    .hdr-action--contagem { --nav-accent: var(--nav-color-contador); }
+    .hdr-action--biblia { --nav-accent: var(--nav-color-biblia); }
+    .hdr-action--slides { --nav-accent: var(--nav-color-slide); }
+    .hdr-action--apresentacao { --nav-accent: var(--nav-color-midias); }
+    .hdr-action--voz { --nav-accent: var(--nav-color-voz); }
+    .hdr-action--cfg { --nav-accent: var(--nav-color-ajustes); }
 
     /* Ícone de tema: mostra sempre um só — lua no tema claro, sol no escuro.
        Especificidade alinhada com `.hdr-btn-round svg`, que define display:block. */
@@ -717,15 +819,20 @@
     html.dark .hdr-btn-round .ico-tema--lua { display: none; }
     html.dark .hdr-btn-round .ico-tema--sol { display: block; }
 
+    /* Ancorado ao canto superior direito do ícone (20px centrado no botão), e já não
+       à borda da cápsula que deixou de existir. Continua a ligar/desligar pelo mesmo
+       `voz-mic--on` de sempre, independente do estado activo. */
     .hdr-action--voz .hdr-voz-indicador {
       position: absolute;
-      top: 8px;
-      right: 12px;
+      top: 9px;
+      left: calc(50% + 5px);
+      right: auto;
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: var(--red);
-      border: 1.5px solid var(--nav-dock-bg);
+      /* Anel da cor do cabeçalho: é o que separa o ponto do ícone por baixo. */
+      border: 1.5px solid var(--surface);
       pointer-events: none;
       transition: background var(--nav-dur) ease, box-shadow var(--nav-dur) ease;
     }
@@ -748,7 +855,6 @@
         --nav-item-w: 78px;
         --nav-item-h: 54px;
         --nav-icon-size: 19px;
-        --nav-capsula-px: 11px;
         --nav-dock-respiro: 11px;
       }
       .hdr-icons-bar .hdr-btn-caption {
@@ -761,17 +867,14 @@
         --nav-item-w: 70px;
         --nav-item-h: 50px;
         --nav-icon-size: 18px;
-        --nav-capsula-px: 8px;
         --nav-gap: 2px;
-        --nav-dock-radius: 16px;
-        --nav-item-radius: 11px;
         --nav-dock-respiro: 10px;
       }
       .hdr-icons-bar .hdr-btn-caption {
         font-size: calc(var(--fs-caption-base) - 3px);
         letter-spacing: 0;
       }
-      .hdr-action--voz .hdr-voz-indicador { top: 5px; right: 8px; }
+      .hdr-action--voz .hdr-voz-indicador { top: 7px; left: calc(50% + 4px); }
     }
     @media (max-width: 760px) {
       .app-header {
@@ -803,6 +906,7 @@
       .hdr-icons-bar,
       .hdr-action,
       .hdr-btn-round,
+      .hdr-btn-round::after,
       .hdr-btn-round svg,
       .hdr-action--voz .hdr-voz-indicador {
         transition: none;
@@ -7955,18 +8059,32 @@
       --bib-busca-bg: #1b1b1f;
       --bib-busca-ico: #7a7a7a;
 
-      /* ── Dock de navegação — cores (tema escuro) ── */
-      --nav-dock-bg: color-mix(in srgb, var(--surface) 82%, #000);
-      --nav-dock-border: color-mix(in srgb, var(--border) 70%, transparent);
-      --nav-dock-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 28px -18px rgb(0 0 0 / 0.9);
-      --nav-item-fg: color-mix(in srgb, var(--text) 62%, transparent);
       --nav-item-fg-hover: var(--text);
-      --nav-item-bg-hover: color-mix(in srgb, var(--text) 10%, transparent);
-      --nav-item-active-bg: color-mix(in srgb, var(--surface2) 92%, var(--text));
-      --nav-item-active-border: color-mix(in srgb, var(--text) 14%, transparent);
-      --nav-item-active-fg: var(--text);
-      --nav-item-active-shadow: 0 1px 2px rgb(0 0 0 / 0.45), 0 8px 18px -10px rgb(0 0 0 / 0.8);
       --nav-focus-ring: color-mix(in srgb, var(--accent) 80%, transparent);
+
+      /*
+        ── Cor de cada secção (tema escuro) ──
+
+        Medidos contra o fundo real por trás da barra, que desde que a pílula saiu é o
+        do próprio cabeçalho (#232328) e não mais o fundo escuro que ela pintava:
+          home 15.64 · contador 7.25 · bíblia 4.52 · slide 7.42
+          mídias 5.18 · voz 4.90 · ajustes 6.81
+
+        A Home é branca — a secção de partida, e a única sem matiz próprio: o branco
+        é o que sobra quando se quer o item mais forte da fila sem lhe dar uma cor que
+        depois falte a outra secção.
+
+        A bíblia é a única que saiu do valor pedido: #D4574F dá 4.20:1 contra este
+        fundo, abaixo do mínimo AA para texto pequeno como o da legenda. Está clareada
+        10% — mesma cor à vista, agora acima da linha.
+      */
+      --nav-color-home: #ffffff;
+      --nav-color-contador: #E8A33E;
+      --nav-color-biblia: #d86861;
+      --nav-color-slide: #3EC98F;
+      --nav-color-midias: #A084E8;
+      --nav-color-voz: #E85FA0;
+      --nav-color-ajustes: #4FB8D4;
 
       /* ── Cores semânticas por modo (tema escuro — contraste elevado) ── */
       --mode-home: #bda487;
@@ -10355,17 +10473,6 @@
       </div>
     </div>
     <div class="nav-grupo nav-grupo--modos" role="group" aria-label="Modos de operação">
-      <div class="hdr-action hdr-action--biblia">
-        <button type="button" class="hdr-btn-round" id="btn-modo-biblia" onclick="alternarModoBiblia()" title="MODO BÍBLIA" aria-label="Modo Bíblia" aria-pressed="false">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 0 4 21.5z"/>
-            <path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/>
-            <path d="M12 6v6"/>
-            <path d="M9.5 8.5h5"/>
-          </svg>
-          <span class="hdr-btn-caption" aria-hidden="true">Bíblia</span>
-        </button>
-      </div>
       <div class="hdr-action hdr-action--contagem">
         <button type="button" class="hdr-btn-round" id="btn-modo-contagem" onclick="alternarPainelContagem()" title="CONTAGEM REGRESSIVA — tempo para o culto começar" aria-label="Contagem regressiva" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -10377,15 +10484,15 @@
           <span class="hdr-btn-caption" aria-hidden="true">Contador</span>
         </button>
       </div>
-      <div class="hdr-action hdr-action--apresentacao">
-        <button type="button" class="hdr-btn-round" id="btn-modo-apresentacao" onclick="abrirMenuModoApresentacao()" title="MODO MÍDIAS" aria-label="Modo mídias" aria-pressed="false">
+      <div class="hdr-action hdr-action--biblia">
+        <button type="button" class="hdr-btn-round" id="btn-modo-biblia" onclick="alternarModoBiblia()" title="MODO BÍBLIA" aria-label="Modo Bíblia" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <rect x="3" y="4" width="18" height="16" rx="3"/>
-            <circle cx="8.5" cy="9.5" r="1.6"/>
-            <path d="m4 17 4.5-4.5a2 2 0 0 1 2.8 0L16 17"/>
-            <path d="m14.5 14.5 1.6-1.6a2 2 0 0 1 2.8 0L21 15"/>
+            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 0 4 21.5z"/>
+            <path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/>
+            <path d="M12 6v6"/>
+            <path d="M9.5 8.5h5"/>
           </svg>
-          <span class="hdr-btn-caption" aria-hidden="true">Mídias</span>
+          <span class="hdr-btn-caption" aria-hidden="true">Bíblia</span>
         </button>
       </div>
       <div class="hdr-action hdr-action--slides">
@@ -10401,17 +10508,19 @@
           <span class="hdr-btn-caption" aria-hidden="true">Slide</span>
         </button>
       </div>
-    </div>
-    <div class="nav-grupo nav-grupo--app" role="group" aria-label="Preferências">
-      <div class="hdr-action hdr-action--cfg">
-        <button type="button" class="hdr-btn-round" id="btn-cfg-geral" onclick="abrirCfgModal()" title="Ajustes — conexão, telão, ministrante, bíblia, relógio e avisos" aria-label="Ajustes">
+      <div class="hdr-action hdr-action--apresentacao">
+        <button type="button" class="hdr-btn-round" id="btn-modo-apresentacao" onclick="abrirMenuModoApresentacao()" title="MODO MÍDIAS" aria-label="Modo mídias" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <rect x="3" y="4" width="18" height="16" rx="3"/>
+            <circle cx="8.5" cy="9.5" r="1.6"/>
+            <path d="m4 17 4.5-4.5a2 2 0 0 1 2.8 0L16 17"/>
+            <path d="m14.5 14.5 1.6-1.6a2 2 0 0 1 2.8 0L21 15"/>
           </svg>
-          <span class="hdr-btn-caption" aria-hidden="true">Ajustes</span>
+          <span class="hdr-btn-caption" aria-hidden="true">Mídias</span>
         </button>
       </div>
+    </div>
+    <div class="nav-grupo nav-grupo--app" role="group" aria-label="Preferências">
       <div class="hdr-action hdr-action--voz">
         <button type="button" class="hdr-btn-round voz-mic--off" id="btn-voz-slides-toggle" onclick="alternarVozSlides()" title="COMANDOS DE VOZ (MICROFONE)" aria-label="Comandos de voz" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -10421,6 +10530,15 @@
           </svg>
           <span class="hdr-voz-indicador" aria-hidden="true"></span>
           <span class="hdr-btn-caption" aria-hidden="true">Voz</span>
+        </button>
+      </div>
+      <div class="hdr-action hdr-action--cfg">
+        <button type="button" class="hdr-btn-round" id="btn-cfg-geral" onclick="abrirCfgModal()" title="Ajustes — conexão, telão, ministrante, bíblia, relógio e avisos" aria-label="Ajustes">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span class="hdr-btn-caption" aria-hidden="true">Ajustes</span>
         </button>
       </div>
     </div>
