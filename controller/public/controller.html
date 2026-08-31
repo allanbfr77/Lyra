@@ -108,6 +108,12 @@
       --banco-lista-pad-x: 14px;
       --banco-btn-h: 30px;
       --banco-btn-min-w: 86px;
+      /* Recuo do cartão de realce dentro da linha. O vertical é metade do
+         respiro entre cartões: duas linhas seguidas realçadas ficam separadas
+         pelo dobro deste valor. */
+      --banco-card-inset-y: 3px;
+      --banco-card-inset-x: 4px;
+      --banco-card-raio: 6px;
 
       /* ── Colunas da linha da playlist (partilhadas com o cabeçalho «TONS») ── */
       --pl-col-tom-w: 84px;
@@ -4204,12 +4210,24 @@
        DE MÚSICAS»): as duas listas ficam na mesma coluna de texto. A folga de
        6px entre resultados fica — são poucos e é ela que os separa como conjunto
        à parte, sem afetar o alinhamento, que é horizontal. */
+    /* Mesmo padding da biblioteca, incluindo a compensação do recuo do cartão de
+       realce (ver o bloco «BIBLIOTECA DE MÚSICAS»), para o texto das duas listas
+       cair na mesma vertical. */
     .lista-internet .item {
-      padding: 7px var(--banco-lista-pad-x);
-      /* 2px como na biblioteca: com os 3px genéricos, o texto dos resultados
-         começava 1px à direita do da biblioteca. */
-      border-left-width: 2px;
-      border-radius: 0;
+      padding: 7px var(--banco-lista-pad-x) 7px
+        calc(var(--banco-lista-pad-x) + var(--banco-card-inset-x) - 2px);
+    }
+    /* A folga entre resultados junta-se ao recuo do cartão; 3px chegam. */
+    .lista-internet .item + .item { margin-top: 3px; }
+
+    /* O realce dos resultados também é o cartão, não o fundo da linha — senão
+       duas listas alinhadas ao pixel voltavam a realçar de maneiras diferentes. */
+    .lista-internet .item:hover {
+      background: none;
+    }
+    .lista-internet .item:hover::before {
+      background: var(--bib-hover-bg);
+      border-left-color: var(--bib-ouro);
     }
 
     .item--letras {
@@ -4466,16 +4484,59 @@
       margin-top: 2px;
     }
 
-    /* ── Linha ── */
-    .lista-sqlite .item {
-      padding: 7px var(--banco-lista-pad-x);
+    /* ── Linha e cartão de realce ──────────────────────────────────────────
+       O realce NÃO é o fundo da linha: é um cartão desenhado num `::before`
+       recuado por dentro dela.
+
+       Antes era o fundo da própria linha, de beira a beira e sem folga entre
+       linhas — com a música selecionada e o cursor na de baixo, os dois realces
+       encostavam e liam-se como um bloco só a envolver as duas músicas.
+
+       Recuar por dentro em vez de afastar as linhas resolve isso sem custar
+       altura: as linhas continuam encostadas (a densidade é o ponto da lista),
+       mas cada realce fica com o seu contorno arredondado e sobra sempre o dobro
+       do recuo vertical de espaço morto entre dois realces vizinhos. Em repouso
+       não se vê cartão nenhum, portanto o respiro não gasta nada.
+
+       A barra dourada mudou-se para o cartão pela mesma razão: presa à borda da
+       linha, ficava um traço contínuo a atravessar as duas. */
+    .lista-sqlite .item,
+    .lista-internet .item {
+      position: relative;
       gap: 10px;
-      border-left: 2px solid transparent;
-      border-radius: 0;
       align-items: center;
-      transition: background 0.12s ease, border-left-color 0.12s ease, color 0.12s ease;
+      background: none;
+      border-left: 0;
+      border-radius: 0;
+      box-shadow: none;
     }
-    /* Densidade: sem a folga entre cards das outras listas. */
+    .lista-sqlite .item::before,
+    .lista-internet .item::before {
+      content: '';
+      position: absolute;
+      z-index: 0;
+      inset: var(--banco-card-inset-y) var(--banco-card-inset-x);
+      border-radius: var(--banco-card-raio);
+      border-left: 2px solid transparent;
+      background: transparent;
+      transition: background 0.12s ease, border-left-color 0.12s ease;
+      pointer-events: none;
+    }
+    /* O conteúdo fica por cima do cartão. */
+    .lista-sqlite .item > *,
+    .lista-internet .item > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .lista-sqlite .item {
+      /* O padding absorve o recuo do cartão para o texto não se mexer: o cartão
+         come `--banco-card-inset-x` e a sua borda esquerda mais 2px. */
+      padding: 7px var(--banco-lista-pad-x) 7px
+        calc(var(--banco-lista-pad-x) + var(--banco-card-inset-x) - 2px);
+      transition: color 0.12s ease;
+    }
+    /* Densidade: as linhas encostam-se: quem separa é o recuo do cartão. */
     .lista-sqlite .item + .item { margin-top: 0; }
 
     /* Título e artista NÃO são redefinidos aqui de propósito: caem nas regras
@@ -4496,10 +4557,21 @@
     .lista-sqlite .item:focus,
     .lista-sqlite .item:focus-visible,
     .lista-sqlite .item.ativo {
+      background: none;
+      outline: none;
+    }
+    .lista-sqlite .item:hover::before,
+    .lista-sqlite .item:focus::before,
+    .lista-sqlite .item:focus-visible::before,
+    .lista-sqlite .item.ativo::before {
       background: var(--bib-hover-bg);
       border-left-color: var(--bib-ouro);
-      box-shadow: none;
-      outline: none;
+    }
+    /* A música carregada no centro é um estado permanente, e não o sítio onde o
+       rato está de passagem: leva um anel do dourado, para se distinguir do
+       hover mesmo quando os dois cartões estão à vista ao mesmo tempo. */
+    .lista-sqlite .item.ativo::before {
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bib-ouro) 38%, transparent);
     }
     .lista-sqlite .item:hover .titulo,
     .lista-sqlite .item:focus .titulo,
@@ -4572,11 +4644,12 @@
 
     /* Realce vermelho da confirmação de exclusão: tem de vencer o hover acima,
        que é da mesma especificidade e vem antes. */
-    .lista-sqlite .item.confirmando-exclusao,
-    .lista-sqlite .item.confirmando-exclusao:hover,
-    .lista-sqlite .item.confirmando-exclusao:focus {
+    .lista-sqlite .item.confirmando-exclusao::before,
+    .lista-sqlite .item.confirmando-exclusao:hover::before,
+    .lista-sqlite .item.confirmando-exclusao:focus::before {
       border-left-color: var(--red);
       background: rgba(176, 48, 40, 0.16);
+      box-shadow: none;
     }
 
     /* ── Campo de busca (fixo, fora da área de rolagem) ── */
