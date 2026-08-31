@@ -8170,7 +8170,10 @@ function setupDropdownTemaPlaylist() {
   const menu = document.getElementById('playlist-tema-dd-menu');
   if (!wrap || !btn || !menu) return;
   btn.addEventListener('click', (e) => {
+    // `stopPropagation` impede o handler do documento de fechar o menu de contexto,
+    // por isso ele é fechado aqui — senão ficaria sobreposto ao seletor.
     e.stopPropagation();
+    fecharMenuContextoTemaPlaylist();
     const abrir = menu.hidden;
     fecharDropdownTemaPlaylist();
     if (abrir) {
@@ -10600,12 +10603,12 @@ function abrirMenuContextoTemaPlaylist(tema) {
 /** Insere o tema no fim da playlist do culto; novas músicas passam a entrar nesse bloco. */
 function inserirTemaNaPlaylistAtual(tema) {
   if (!cultoId) {
-    alert('Selecione primeiro o dia do culto.');
+    appAlert('Selecione primeiro o dia do culto para inserir o tema na playlist.', 'Inserir tema');
     return;
   }
   const t = normalizarTemaPlaylist(tema);
   if (!t) {
-    alert('Escolha um tema na lista antes de «Inserir».');
+    appAlert('Escolha um tema na lista antes de «Inserir».', 'Inserir tema');
     return;
   }
   if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(cultoId);
@@ -10618,11 +10621,9 @@ function inserirTemaNaPlaylistAtual(tema) {
   renderPlaylist();
 }
 
+/* O catálogo de temas é global (`temasPorCulto.__global__`), por isso criar, renomear e
+   excluir funcionam sem culto selecionado. Só «Inserir» precisa de um culto aberto. */
 async function renomearTemaPeloMenuContexto(tema) {
-  if (!cultoId) {
-    alert('Selecione primeiro o dia do culto.');
-    return;
-  }
   const atual = normalizarTemaPlaylist(tema);
   if (!atual) return;
   const novo = await appPrompt('Novo nome do tema:', {
@@ -10638,14 +10639,12 @@ async function renomearTemaPeloMenuContexto(tema) {
 }
 
 async function excluirTemaPeloMenuContexto(tema) {
-  if (!cultoId) {
-    alert('Selecione primeiro o dia do culto.');
-    return;
-  }
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
   const ok = await appConfirm(
-    `Excluir o tema «${t}»? Todas as músicas inseridas nesse tema serão removidas da playlist deste culto.`,
+    cultoId
+      ? `Excluir o tema «${t}»? Todas as músicas inseridas nesse tema serão removidas da playlist deste culto.`
+      : `Excluir o tema «${t}»? Ele sai da lista de temas disponíveis.`,
     'Excluir tema'
   );
   if (!ok) return;
