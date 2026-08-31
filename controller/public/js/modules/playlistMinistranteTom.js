@@ -200,8 +200,8 @@ export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, es
   return `
       <div class="playlist-row-cols">
         <div class="pl-col pl-col-meta">
-          <div class="pl-col-titulo tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
-          <div class="pl-col-artista"${artista ? ` title="${escapeAttr(artista)}"` : ''}>${artista ? escapeHtml(artista) : '—'}</div>
+          <div class="pl-col-titulo tit" data-dica="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
+          <div class="pl-col-artista"${artista ? ` data-dica="${escapeAttr(artista)}"` : ''}>${artista ? escapeHtml(artista) : '—'}</div>
         </div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
         <div class="playlist-btns">
@@ -221,8 +221,8 @@ export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, e
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
   return `
-      <div class="tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
-      ${artista ? `<div class="mini" title="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
+      <div class="tit" data-dica="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
+      ${artista ? `<div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
       <div class="playlist-btns">
         ${htmlBotoesMoverPlaylist(opts)}
         ${htmlBotaoRemoverLinhaPlaylist()}

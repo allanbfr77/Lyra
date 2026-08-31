@@ -91,6 +91,7 @@ import {
   normalizarCorComentarioMinistrante,
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
+import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
 import {
   htmlCorpoLinhaPlaylistComTom,
   htmlOpcoesMinistranteCulto,
@@ -9874,6 +9875,24 @@ function iniciarSyncPeriodicoTonsInvb() {
   }, 5 * 60 * 1000);
 }
 
+/**
+ * Classe da linha de música conforme onde ela vai ser anexada.
+ *
+ * A linha nasceu como cartão isolado e passou a ser uma linha dentro do cartão da
+ * secção — mas continua a poder ser usada solta (uma busca, uma lista sem temas), e aí
+ * o desenho de linha não se sustenta: sem cartão à volta, os divisores separam o nada.
+ * Quem monta a lista já sabe qual é o caso — se está a anexar à raiz, é solta — e é essa
+ * a única informação de que a variante precisa.
+ *
+ * @param {HTMLElement} parent onde a linha vai ser anexada
+ * @param {HTMLElement} raiz raiz da lista (`#playlist-list`)
+ * @param {boolean} ativa
+ */
+function classeLinhaPlaylist(parent, raiz, ativa) {
+  const variante = parent === raiz ? ' playlist-row--card' : '';
+  return 'playlist-row' + variante + (ativa ? ' ativo' : '');
+}
+
 /** Ordem da playlist respeitando marcadores de tema (cabeçalhos mesmo sem música). */
 function renderPlaylistItensComMarcadores(el, pl) {
   let i = 0;
@@ -9884,7 +9903,11 @@ function renderPlaylistItensComMarcadores(el, pl) {
     songNum++;
     const row = document.createElement('div');
     row.dataset.plIdx = String(idxPl);
-    row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
+    row.className = classeLinhaPlaylist(
+      songAppendParent,
+      el,
+      playlistItemSelecionadoNaUi(item)
+    );
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.innerHTML = htmlLinhaPlaylistModoAtual(
       item,
@@ -10048,7 +10071,11 @@ function renderPlaylistPainel() {
     const row = document.createElement('div');
     row.dataset.plIdx = String(idx);
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.className = 'playlist-row' + (playlistItemSelecionadoNaUi(item) ? ' ativo' : '');
+    row.className = classeLinhaPlaylist(
+      songAppendParent,
+      el,
+      playlistItemSelecionadoNaUi(item)
+    );
     row.innerHTML = htmlLinhaPlaylistModoAtual(
       item,
       nLista,
@@ -10277,6 +10304,7 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   const lab = document.createElement('div');
   lab.className = 'playlist-tema-head-label';
   lab.textContent = texto;
+  lab.dataset.dica = texto;
 
   row.appendChild(btnExpand);
   row.appendChild(lab);
@@ -11946,6 +11974,13 @@ function definirVazioDaFaixaSlidesVisivel(mostrar) {
   if (el) el.hidden = !mostrar;
 }
 
+/** Nome na barra da faixa de slides — texto e dica saem sempre juntos daqui. */
+function definirNomeMusicaBarraSlides(el, titulo) {
+  el.textContent = titulo;
+  if (titulo) el.dataset.dica = titulo;
+  else delete el.dataset.dica;
+}
+
 function renderSlidesStrip() {
   const dock = document.getElementById('slides-dock');
   const grid = document.getElementById('slides-grid');
@@ -11990,7 +12025,7 @@ function renderSlidesStrip() {
    */
   if (ehModoSlidesOperador() && (semMusicaCarregada || !faixaSlidesHabilitadaPorPlaylistNoModoSlides)) {
     dock.classList.toggle('oculto', false);
-    if (nomeEl) nomeEl.textContent = '';
+    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, '');
     grid.innerHTML = '';
     grid.style.zoom = '';
     delete grid.dataset.stripMusicaId;
@@ -12011,7 +12046,7 @@ function renderSlidesStrip() {
   definirVazioDaFaixaSlidesVisivel(false);
 
   if (podeAtualizarSomenteAtivoFaixaSlides()) {
-    if (nomeEl) nomeEl.textContent = musicaAtiva.titulo || '';
+    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, musicaAtiva.titulo || '');
     atualizarSomenteAtivoFaixaSlides();
     dock.classList.toggle('oculto', !ehModoSlidesOperador());
     document.body.classList.toggle(
@@ -12023,7 +12058,7 @@ function renderSlidesStrip() {
     return;
   }
 
-  if (nomeEl) nomeEl.textContent = musicaAtiva.titulo || '';
+  if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, musicaAtiva.titulo || '');
 
   /* Esconde a grade enquanto reconstrói e reajusta a fonte; ajustarEncaixe…
      a revela já dimensionada, evitando a «tremida» na troca de música. O
@@ -20141,6 +20176,7 @@ try {
   configurarObserverPreviewMinistrante();
   garantirMinistrantesCarregados().catch(() => {});
   iniciarSyncPeriodicoTonsInvb();
+  iniciarDicasDeTextoTruncado();
 
   if (typeof window !== 'undefined' && window.lyraElectron?.onMusicasSincronizadas) {
     window.lyraElectron.onMusicasSincronizadas((payload) => {

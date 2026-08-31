@@ -125,6 +125,21 @@
       --pl-col-btns-w: 112px;
       --pl-cols-gap: 6px;
 
+      /* ── Setlist: o cartão é a SECÇÃO, as músicas são linhas dentro dele ──
+         Cada música era um cartão com borda e canto próprios, e o resultado eram
+         dezenas de caixas empilhadas a competir entre si — a lista lia-se como um
+         monte de objectos soltos, não como «este bloco tem estas músicas». Passa a
+         haver uma caixa por secção; a música é uma linha, e o que a separa da
+         seguinte é um traço fino.
+
+         Tudo derivado de `--text` e `--accent`, que já mudam com o tema: no escuro
+         dá o clareamento habitual (branco a ~6%), no claro o escurecimento
+         equivalente, sem duplicar a paleta no bloco `html.dark`. */
+      --pl-secao-bg: color-mix(in srgb, var(--surface2) 55%, var(--surface));
+      --pl-linha-divisor: color-mix(in srgb, var(--text) 9%, transparent);
+      --pl-linha-hover-bg: color-mix(in srgb, var(--text) 5%, transparent);
+      --pl-linha-ativa-bg: color-mix(in srgb, var(--accent) 20%, var(--surface2));
+
       /* ── Barras de rolagem das listas do painel do banco ──
          Neutras, no mesmo `--border` que já pinta o polegar das outras barras do
          programa (`.playlist-list`, `.estrofes-slide-editor`, `.slides-grid`).
@@ -1933,6 +1948,35 @@
       word-break: normal;
     }
 
+    /*
+      Balão das dicas de texto truncado (`modules/dicaTexto.js`).
+
+      `position: fixed` e `z-index` acima de tudo: o balão é posicionado em coordenadas
+      de ecrã pelo módulo e não pode ser cortado pelo `overflow` da lista onde nasceu.
+      `pointer-events: none` para nunca roubar o rato ao que está por baixo — o balão
+      é para ler, não para clicar.
+    */
+    .dica-texto {
+      position: fixed;
+      z-index: 9999;
+      max-width: 420px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface2);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 12.5px;
+      line-height: 1.35;
+      font-weight: 500;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .dica-texto[hidden] { display: none !important; }
+
     .playlist-list {
       flex: 1;
       overflow-y: auto;
@@ -1945,28 +1989,39 @@
     .playlist-list::-webkit-scrollbar { width: 4px; }
     .playlist-list::-webkit-scrollbar-thumb { background: var(--border); }
 
+    /*
+      Linha de música dentro do cartão da secção: sem borda, sem canto, sem fundo.
+      O mesmo padding de sempre — só saíram a moldura e o raio, não o espaço.
+
+      O divisor vive no `border-top` de cada linha, incluindo a primeira: é ele que
+      separa a primeira música do cabeçalho da secção, e assim o traço é literalmente
+      o mesmo em toda a coluna, em vez de um `border-bottom` no cabeçalho a fingir-se
+      de divisor com outra cor.
+    */
     .playlist-row {
       position: relative;
       padding: 8px 10px;
-      margin-bottom: 6px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      background: transparent;
+      border: 0;
+      border-top: 1px solid var(--pl-linha-divisor);
+      border-radius: 0;
       cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
+      transition: background 0.15s ease;
     }
 
-    .playlist-row:hover { border-color: var(--accent2); }
+    .playlist-row:hover { background: var(--pl-linha-hover-bg); }
 
     /*
-      Destaque da música seleccionada: barra lateral + fundo tingido de accent.
-      Sem alterar tamanho/peso de fonte — todas as linhas mantêm a mesma tipografia.
+      Destaque da música seleccionada: fundo dourado suave + barra lateral. Sem borda
+      à volta — a barra basta para dizer «é esta», e uma moldura completa voltaria a
+      pôr a linha a competir com o cartão da secção que a contém.
+
+      A barra é pintada em `::before` e não num `border-left`: assim entra por cima do
+      padding que já existe, e a linha não muda de largura nem salta ao ser
+      seleccionada. O padding fica exactamente o mesmo em todos os estados.
     */
     .playlist-row.ativo {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(166,124,45,0.28);
-      background: color-mix(in srgb, var(--surface2) 84%, var(--accent) 16%);
-      padding-left: 14px;
+      background: var(--pl-linha-ativa-bg);
       scroll-margin-block: 12px;
     }
 
@@ -1976,9 +2031,40 @@
       left: 0;
       top: 0;
       bottom: 0;
+      width: 3px;
+      background: var(--accent);
+    }
+
+    /*
+      Variante cartão — para a linha usada FORA de um cartão de secção (busca, lista
+      solta). É o desenho que a linha tinha antes desta refactorização; sem ela, uma
+      lista sem secções ficava com traços a separar o nada.
+
+      Quem monta a lista é que decide: `renderPlaylistPainel` marca a variante quando
+      anexa a linha directamente à raiz em vez de ao corpo de uma secção.
+    */
+    .playlist-row--card {
+      margin-bottom: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .playlist-row--card:hover {
+      background: var(--surface2);
+      border-color: var(--accent2);
+    }
+
+    .playlist-row--card.ativo {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+      background: var(--pl-linha-ativa-bg);
+    }
+
+    .playlist-row--card.ativo::before {
       width: 4px;
       border-radius: 6px 0 0 6px;
-      background: var(--accent);
     }
 
     .playlist-row-top {
@@ -2374,9 +2460,30 @@
       font-weight: 700;
     }
 
+    /*
+      O cartão do setlist. Uma caixa por secção: canto de 10px, borda fina e um fundo
+      um degrau acima do painel — o suficiente para o bloco existir sem virar poço.
+
+      Sem `overflow: hidden` aqui de propósito: os traços de destino do arrasto
+      (`--drop-antes` / `--drop-depois`) são desenhados fora da caixa e seriam cortados.
+      Quem arredonda o fundo das linhas é o corpo, logo abaixo.
+    */
     .playlist-tema-section {
       position: relative;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--pl-secao-bg);
+    }
+
+    /*
+      As linhas vão até à borda do cartão, portanto é aqui que o canto de baixo é
+      recortado — senão o fundo do hover (ou da linha activa) fazia esquina quadrada
+      por cima do canto redondo do cartão.
+    */
+    .playlist-tema-section-body {
+      border-radius: 0 0 9px 9px;
+      overflow: hidden;
     }
 
     /*
@@ -2422,17 +2529,27 @@
       opacity: 0.92;
     }
 
+    /*
+      Cabeçalho: já não é um cartão dentro de outro cartão — é o topo do cartão da
+      secção. Perdeu borda, raio e margem próprios; ficou o padding (com o recuo à
+      direita que reserva a coluna do ✕) e o fundo transparente do cartão.
+    */
     .playlist-tema-head-row {
       position: relative;
       display: flex;
       align-items: center;
       gap: 6px;
-      margin: 10px 2px 6px;
+      margin: 0;
       /* Recuo à direita reserva a coluna do ✕ (18px + 6px de folga). */
-      padding: 4px 30px 4px 6px;
-      border: 1px solid color-mix(in srgb, var(--border) 74%, var(--accent) 16%);
-      border-radius: 6px;
-      background: color-mix(in srgb, var(--surface2) 84%, var(--surface));
+      padding: 6px 30px 6px 8px;
+      border: 0;
+      border-radius: 9px 9px 0 0;
+      background: transparent;
+    }
+
+    /* Recolhida, o cabeçalho é o cartão inteiro e arredonda dos dois lados. */
+    .playlist-tema-section--colapsada .playlist-tema-head-row {
+      border-radius: 9px;
     }
 
     /*
@@ -2456,14 +2573,18 @@
       cursor: grabbing;
     }
 
+    /* Sem borda própria no cabeçalho, o tracejado do arrasto passa a `outline` —
+       desenha-se por cima, não ocupa espaço, e não reabre a moldura que saiu daqui. */
     .playlist-tema-head-row--dragging {
-      border-style: dashed;
-      border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+      outline: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+      outline-offset: -1px;
+      border-radius: 9px 9px 0 0;
     }
 
-    /* Cabeçalho do bloco de destino realçado junto com a linha de inserção. */
-    .playlist-tema-section--drop-antes > .playlist-tema-head-row,
-    .playlist-tema-section--drop-depois > .playlist-tema-head-row {
+    /* Bloco de destino realçado junto com a linha de inserção: agora é o cartão
+       inteiro que acende, e não só a faixa do cabeçalho. */
+    .playlist-tema-section--drop-antes,
+    .playlist-tema-section--drop-depois {
       border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
     }
@@ -2482,17 +2603,19 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border: 1px solid color-mix(in srgb, var(--border) 78%, var(--text) 6%);
+      /* Sem moldura: dentro do cartão da secção, um botão com borda voltava a ser uma
+         caixa dentro de uma caixa. Fica o ícone, e o fundo só aparece ao apontar. */
+      border: 1px solid transparent;
       border-radius: 5px;
-      background: color-mix(in srgb, var(--surface2) 92%, var(--surface));
-      color: var(--text);
+      background: transparent;
+      color: var(--text-dim);
       cursor: pointer;
-      transition: border-color 0.15s ease, background 0.15s ease;
+      transition: color 0.15s ease, background 0.15s ease;
     }
 
     .playlist-tema-toggle-expand:hover {
-      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-      color: var(--accent);
+      background: var(--pl-linha-hover-bg);
+      color: var(--text);
     }
 
     .playlist-tema-toggle-expand svg {
@@ -2502,19 +2625,39 @@
       pointer-events: none;
     }
 
+    /*
+      Rótulo em `--text` (branco no escuro, preto no claro) e não em dourado.
+
+      Numa lista onde tudo o que importa é «qual é a música a seguir», o dourado tem de
+      ser um só: o da linha seleccionada. Com os cabeçalhos também dourados, a cor
+      deixava de apontar para nada — repetia-se meia dúzia de vezes por ecrã e a linha
+      activa perdia-se no meio. O cabeçalho continua a ler-se como cabeçalho pelo que
+      sempre o distinguiu: caixa alta, corpo pequeno e entreletra aberta.
+    */
     .playlist-tema-head-row .playlist-tema-head-label {
       flex: 1;
       min-width: 0;
       /* Ocupa toda a altura do card: a zona de arraste vira uma faixa cómoda, em vez
          de só a linha do texto. */
       align-self: stretch;
-      display: flex;
-      align-items: center;
+      /*
+        Bloco, e não `flex`: as reticências (`text-overflow`) não se aplicam ao texto
+        solto dentro de um contentor flex — o nome comprido era cortado a direito, sem
+        o «…» que diz que há mais. Como o bloco continua esticado à altura da faixa, o
+        `line-height` é que centra o texto, e a zona de arraste mantém-se larga.
+      */
+      display: block;
+      line-height: 22px;
       font-size: 12px;
       letter-spacing: .13em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--text);
       font-weight: 700;
+      /* Nome comprido não empurra o ✕ nem transborda: corta com reticências, e o
+         conteúdo inteiro fica a uma pausa do rato (ver `dicaTexto.js`). */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .playlist-copiar-nomes-btn.copiado {
@@ -2525,14 +2668,14 @@
     /* Faixa de 34px no canto direito — alinhada com o recuo reservado no card. */
     .playlist-tema-head-zona-del {
       position: absolute;
-      top: 1px;
-      right: 1px;
-      bottom: 1px;
+      top: 0;
+      right: 0;
+      bottom: 0;
       width: 34px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 0 5px 5px 0;
+      border-radius: 0 9px 0 0;
       cursor: default;
     }
 
@@ -6015,11 +6158,6 @@
 
     body.app-mod-slides .panel-playlist .playlist-row {
       padding: 6px 8px;
-      margin-bottom: 4px;
-    }
-
-    body.app-mod-slides .panel-playlist .playlist-row.ativo {
-      padding-left: 10px;
     }
 
     body.app-mod-slides .panel-playlist .playlist-row .tit {
@@ -10294,9 +10432,9 @@
           <div class="musica-toolbar-head-card">
             <div class="centro-toolbar-row musica-toolbar-titulo-row">
               <label class="edit-field-label" for="edit-artista">Artista:</label>
-              <input type="text" class="edit-field-artista" id="edit-artista" placeholder="Nome do artista" disabled>
+              <input type="text" class="edit-field-artista" id="edit-artista" placeholder="Nome do artista" data-dica disabled>
               <label class="edit-field-label" for="edit-titulo">Título:</label>
-              <input type="text" class="edit-field-titulo" id="edit-titulo" placeholder="Nome da música" disabled>
+              <input type="text" class="edit-field-titulo" id="edit-titulo" placeholder="Nome da música" data-dica disabled>
             </div>
             <div id="musica-versoes-bar" class="musica-versoes-bar" hidden aria-label="Versões locais da música"></div>
           </div>
