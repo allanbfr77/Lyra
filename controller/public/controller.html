@@ -2854,10 +2854,21 @@
       padding: 16px 12px;
     }
 
+    /*
+      Sem música e sem culto os dois avisos aparecem juntos (centro + playlist). Centrado
+      na vertical, o aviso do centro caía bem acima do outro — aqui ele ancora no topo e
+      recebe o desvio medido por `alinharAvisoCentralComAvisoPlaylist()`.
+    */
+    .estrofes-slide-editor.estrofes-slide-editor--vazio-alinhado {
+      align-items: flex-start;
+      padding-top: var(--aviso-central-topo, 16px);
+    }
+
     .estrofes-slide-editor--vazio .placeholder-msg--escolha-musica {
       margin-top: 0;
       text-align: center;
-      max-width: 22em;
+      max-width: 100%;
+      white-space: nowrap;
       font-size: 15px;
       line-height: 1.5;
     }

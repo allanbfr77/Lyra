@@ -9994,6 +9994,7 @@ async function copiarNomesMusicasPlaylist() {
 function renderPlaylist() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
+  agendarAlinhamentoAvisoCentral();
   renderSeletorTemasPlaylist();
   renderSeletorMinistranteCulto();
   if (!cultoId) {
@@ -13685,6 +13686,53 @@ function reaplicarAlturasEstrofesEditor() {
   });
 }
 
+/*
+ * Alinhamento vertical dos dois avisos de "nada selecionado".
+ *
+ * A coluna central e a da playlist são irmãs na grelha, mas o topo da lista da playlist
+ * fica muito mais abaixo (prévia + culto + ministrante + tema). Por isso o desvio não dá
+ * para fixar no CSS: é medido aqui e devolvido em `--aviso-central-topo`.
+ */
+function alinharAvisoCentralComAvisoPlaylist() {
+  const wrap = document.getElementById('estrofes-slide-editor');
+  if (!wrap) return;
+  const avisoCentral = wrap.querySelector('.placeholder-msg--escolha-musica');
+  const avisoPlaylist = document.querySelector('#playlist-list > .placeholder-msg');
+  if (!avisoCentral || !avisoPlaylist || !wrap.clientHeight) {
+    wrap.classList.remove('estrofes-slide-editor--vazio-alinhado');
+    wrap.style.removeProperty('--aviso-central-topo');
+    return;
+  }
+  wrap.classList.add('estrofes-slide-editor--vazio-alinhado');
+  /* Zerar antes de medir: o desvio tem de sair da posição sem recuo. */
+  wrap.style.setProperty('--aviso-central-topo', '0px');
+  const bruto = avisoPlaylist.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+  const limite = wrap.clientHeight - avisoCentral.offsetHeight;
+  const desvio = Math.round(Math.max(0, Math.min(bruto, Math.max(0, limite))));
+  wrap.style.setProperty('--aviso-central-topo', `${desvio}px`);
+}
+
+let alinhamentoAvisoCentralAgendado = false;
+
+/** Mede depois do render (e uma só vez por frame), senão o aviso da playlist ainda não existe. */
+function agendarAlinhamentoAvisoCentral() {
+  if (alinhamentoAvisoCentralAgendado) return;
+  alinhamentoAvisoCentralAgendado = true;
+  requestAnimationFrame(() => {
+    alinhamentoAvisoCentralAgendado = false;
+    alinharAvisoCentralComAvisoPlaylist();
+  });
+}
+
+/* A lista da playlist é `flex: 1`: recolher a prévia, redimensionar a janela ou mudar os
+   cabeçalhos acima altera a altura dela — e é aí que o desvio deixa de valer. */
+(function observarAlturaListaPlaylistParaAlinharAviso() {
+  if (typeof ResizeObserver !== 'function') return;
+  const lista = document.getElementById('playlist-list');
+  if (!lista) return;
+  new ResizeObserver(() => agendarAlinhamentoAvisoCentral()).observe(lista);
+})();
+
 function reorderEstrofesIndices(from, to) {
   if (!musicaAtiva || !modoEdicaoEstrofes) return;
   const arr = musicaAtiva.estrofes;
@@ -13710,6 +13758,7 @@ function reorderEstrofesIndices(from, to) {
 
 function renderEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
+  agendarAlinhamentoAvisoCentral();
 
   if (!musicaAtiva) {
     modoEdicaoEstrofes = false;
