@@ -1,0 +1,102 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body>
+<div class="culto-ministrante-wrap">
+      <div class="culto-ministrante-label">Ministrante do culto</div>
+      <select class="culto-ministrante-sel" id="culto-ministrante-sel" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
+        <option value="">—</option>
+      </select>
+    </div>
+    
+<script type="module">
+import { htmlOpcoesMinistranteCulto, normalizarMinistranteIdPlaylist, normalizarTomPlaylist }
+  from './js/modules/playlistMinistranteTom.js';
+window.__log = [];
+window.playlists = { c1: [
+  { tipo: 'marcador_tema', tema: 'Abertura' },
+  { id: 10, titulo: 'Santo', bancoFonte: 'user', ministranteId: null, tom: 'G' },
+  { id: 11, titulo: 'Aleluia', bancoFonte: 'user', ministranteId: null, tom: '' },
+] };
+window.cultoId = 'c1';
+window.__padrao = {};
+const CACHE = [{ id: 1, nome: 'Ana' }, { id: 2, nome: 'Bruno' }];
+// Banco de tons: Ana tem tom para a 10; Bruno não tem para nenhuma.
+const BANCO = { '1:10': 'D', '1:11': 'Am' };
+const obterCacheMinistrantes = () => CACHE.slice();
+const ehMarcadorTemaPlaylist = (x) => x && x.tipo === 'marcador_tema';
+const getPlaylist = () => playlists.c1;
+const getControllerApiBase = () => '';
+const getMinistrantePadraoCulto = (cid) => __padrao[cid] ?? null;
+const setMinistrantePadraoCulto = (cid, mid) => { if (mid) __padrao[cid] = mid; else delete __padrao[cid]; __log.push('padrao:' + mid); };
+const buscarTomMemoria = async (api, mid, musicaId) => BANCO[mid + ':' + musicaId] || '';
+const savePlaylists = () => __log.push('savePlaylists');
+const renderPlaylist = () => { __log.push('renderPlaylist'); renderSeletorMinistranteCulto(); };
+const refrescarAberturaM3SeMusicaAtivaNaPlaylist = () => __log.push('refrescarM3');
+function renderSeletorMinistranteCulto() {
+  const sel = document.getElementById('culto-ministrante-sel');
+  if (!sel) return;
+  const atual = cultoId ? getMinistrantePadraoCulto(cultoId) : null;
+  sel.innerHTML = htmlOpcoesMinistranteCulto(obterCacheMinistrantes(), atual);
+  sel.value = atual != null ? String(atual) : '';
+  sel.disabled = !cultoId;
+}
+
+async function onMinistranteCultoChange(valorSelect) {
+  if (!cultoId) return;
+  const sel = document.getElementById('culto-ministrante-sel');
+  const novoId = normalizarMinistranteIdPlaylist(valorSelect);
+  const pl = getPlaylist(cultoId);
+  setMinistrantePadraoCulto(cultoId, novoId);
+  if (sel) sel.disabled = true;
+  try {
+    if (novoId) await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
+    else limparMinistranteETonsDeTodasMusicas(pl);
+  } finally {
+    if (sel) sel.disabled = false;
+  }
+  savePlaylists();
+  renderPlaylist();
+  refrescarAberturaM3SeMusicaAtivaNaPlaylist();
+}
+
+function configurarSeletorMinistranteCulto() {
+  const sel = document.getElementById('culto-ministrante-sel');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    onMinistranteCultoChange(sel.value).catch(() => {});
+  });
+}
+
+async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
+  const api = getControllerApiBase();
+  const mid = normalizarMinistranteIdPlaylist(ministranteId);
+  if (!mid || !Array.isArray(pl)) return;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    it.ministranteId = mid;
+    try {
+      const tomMem = await buscarTomMemoria(
+        api,
+        mid,
+        Number(it.id),
+        it.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        it.titulo
+      );
+      it.tom = normalizarTomPlaylist(tomMem);
+    } catch (_) {
+      // intencional — banco indisponível: mantém o tom que já estava na linha
+    }
+  }
+}
+
+function limparMinistranteETonsDeTodasMusicas(pl) {
+  if (!Array.isArray(pl)) return;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    it.ministranteId = null;
+    it.tom = '';
+  }
+}
+configurarSeletorMinistranteCulto();
+renderSeletorMinistranteCulto();
+Object.assign(window, { renderSeletorMinistranteCulto, onMinistranteCultoChange });
+window.__pronto = true;
+</script></body></html>

@@ -91,7 +91,8 @@ import {
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 import {
-  htmlCorpoLinhaPlaylistComMinistranteTom,
+  htmlCorpoLinhaPlaylistComTom,
+  htmlOpcoesMinistranteCulto,
   htmlCorpoLinhaPlaylistSimples,
   carregarMinistrantesDoServidor,
   criarMinistranteNoServidor,
@@ -276,11 +277,13 @@ if (headPl) {
     titulo.className = 'playlist-panel-head-titulo';
     headPl.insertBefore(titulo, headPl.firstChild);
   }
-  // Neutraliza o nó de texto original do HTML («CULTO & PLAYLIST»), se ainda existir.
+  // Neutraliza o nó de texto original do HTML («CULTO»), se ainda existir.
   headPl.childNodes.forEach((n) => {
     if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent = '';
   });
-  titulo.textContent = modo ? 'PLAYLIST' : 'CULTO & PLAYLIST';
+  /* «CULTO» nos dois modos: a lista tem cabeçalho próprio («PLAYLIST», logo acima dela),
+     que é também onde vive o botão de copiar as músicas. */
+  titulo.textContent = 'CULTO';
 }
   /*
     Rótulo da barra da faixa: no modo slides ela identifica o que está carregado
@@ -9245,8 +9248,8 @@ function garantirMusicaAtivaVisivelNaPlaylist() {
 }
 
 /**
- * Botões ↑↓✕ (+ limpar min/tom no Home) e selects Ministrante/Tom.
- * Selects não disparam seleção/projeção da música (stopPropagation).
+ * Botões ↑↓✕ (+ limpar min/tom no Home) e o select de Tom da linha.
+ * O select não dispara seleção/projeção da música (stopPropagation).
  */
 function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
   const bLimpar = row.querySelector('.pl-btn-limpar-mestre-min-tom');
@@ -9278,16 +9281,7 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
     };
   }
 
-  const selMin = row.querySelector('.pl-sel-ministrante');
   const selTom = row.querySelector('.pl-sel-tom');
-  if (selMin) {
-    selMin.addEventListener('click', (e) => e.stopPropagation());
-    selMin.addEventListener('mousedown', (e) => e.stopPropagation());
-    selMin.addEventListener('change', (e) => {
-      e.stopPropagation();
-      onPlaylistMinistranteChange(idxPl, selMin.value, selTom);
-    });
-  }
   if (selTom) {
     selTom.addEventListener('click', (e) => e.stopPropagation());
     selTom.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -9345,24 +9339,6 @@ function limparMinistranteTomDeTodaPlaylist() {
   refrescarAberturaM3SeMusicaAtivaNaPlaylist();
 }
 
-/** Índice da 1.ª música real da playlist (ignora marcadores de tema). */
-function indicePrimeiraMusicaNaPlaylist(pl) {
-  if (!Array.isArray(pl)) return -1;
-  for (let i = 0; i < pl.length; i++) {
-    if (pl[i] && !ehMarcadorTemaPlaylist(pl[i])) return i;
-  }
-  return -1;
-}
-
-function contarMusicasNaPlaylist(pl) {
-  if (!Array.isArray(pl)) return 0;
-  let n = 0;
-  for (const it of pl) {
-    if (it && !ehMarcadorTemaPlaylist(it)) n += 1;
-  }
-  return n;
-}
-
 function nomeMinistrantePorId(id) {
   const n = Number(id);
   const m = obterCacheMinistrantes().find((x) => Number(x.id) === n);
@@ -9370,8 +9346,15 @@ function nomeMinistrantePorId(id) {
 }
 
 /**
- * Preenche ministrante em todas as músicas do culto e aplica o tom do site quando existir.
- * Não trava edição posterior — cada linha continua editável.
+ * Aplica o ministrante do culto a todas as músicas e repõe os tons a partir do cadastro
+ * dele (a memória ministrante+música do banco, que esta função só lê).
+ *
+ * O tom passa a refletir estritamente o ministrante escolhido: onde ele tem tom cadastrado,
+ * fica esse; onde não tem, a linha fica vazia em vez de herdar o tom de outra pessoa. O
+ * operador continua livre para escrever o tom que quiser na linha depois disto.
+ *
+ * Uma falha de rede na consulta não apaga nada: sem resposta do banco, o tom que já estava
+ * na linha fica onde está.
  */
 async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
   const api = getControllerApiBase();
@@ -9388,69 +9371,67 @@ async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
         it.bancoFonte === 'catalog' ? 'catalog' : 'user',
         it.titulo
       );
-      if (tomMem) it.tom = tomMem;
+      it.tom = normalizarTomPlaylist(tomMem);
     } catch (_) {
-      // intencional — sem memória: mantém o tom que já estava na linha
+      // intencional — banco indisponível: mantém o tom que já estava na linha
     }
   }
 }
 
-async function onPlaylistMinistranteChange(idxPl, valorSelect, selTomEl) {
+/** Zera ministrante e tom de todas as músicas do culto (escolha «—» no seletor). */
+function limparMinistranteETonsDeTodasMusicas(pl) {
+  if (!Array.isArray(pl)) return;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    it.ministranteId = null;
+    it.tom = '';
+  }
+}
+
+/**
+ * Repõe as opções e a seleção do seletor único de ministrante do culto.
+ *
+ * A lista de pessoas vem do cache do cadastro; o valor escolhido vem de
+ * `getMinistrantePadraoCulto`, que também infere o ministrante de playlists montadas
+ * antes de existir um seletor único (todas as músicas com a mesma pessoa).
+ */
+function renderSeletorMinistranteCulto() {
+  const sel = document.getElementById('culto-ministrante-sel');
+  if (!sel) return;
+  const atual = cultoId ? getMinistrantePadraoCulto(cultoId) : null;
+  sel.innerHTML = htmlOpcoesMinistranteCulto(obterCacheMinistrantes(), atual);
+  sel.value = atual != null ? String(atual) : '';
+  sel.disabled = !cultoId;
+}
+
+/**
+ * Troca do ministrante do culto — sem confirmação: é uma escolha por culto, não por música,
+ * e o operador vê o efeito na hora nos tons da lista.
+ */
+async function onMinistranteCultoChange(valorSelect) {
   if (!cultoId) return;
-  const pl = getPlaylist(cultoId);
-  const item = pl[idxPl];
-  if (!item || ehMarcadorTemaPlaylist(item)) return;
+  const sel = document.getElementById('culto-ministrante-sel');
   const novoId = normalizarMinistranteIdPlaylist(valorSelect);
-  item.ministranteId = novoId;
-  if (novoId) {
-    try {
-      const tomMem = await buscarTomMemoria(
-        getControllerApiBase(),
-        novoId,
-        Number(item.id),
-        item.bancoFonte === 'catalog' ? 'catalog' : 'user',
-        item.titulo
-      );
-      item.tom = tomMem || '';
-      if (selTomEl) selTomEl.value = item.tom;
-    } catch (_) {
-      // intencional — memória indisponível; mantém tom actual
-    }
-  } else {
-    /* Limpar ministrante (—): limpa o tom também. */
-    item.tom = '';
-    if (selTomEl) selTomEl.value = '';
+  const pl = getPlaylist(cultoId);
+  setMinistrantePadraoCulto(cultoId, novoId);
+  if (sel) sel.disabled = true;
+  try {
+    if (novoId) await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
+    else limparMinistranteETonsDeTodasMusicas(pl);
+  } finally {
+    if (sel) sel.disabled = false;
   }
-
-  /* Música 1: oferecer aplicar o mesmo ministrante (+ tons memorizados) em todas. */
-  const ehMusica1 = idxPl === indicePrimeiraMusicaNaPlaylist(pl);
-  if (novoId && ehMusica1 && contarMusicasNaPlaylist(pl) > 1) {
-    const nome = nomeMinistrantePorId(novoId) || 'este ministrante';
-    const ok = await appConfirm(
-      `Usar «${nome}» em todas as músicas deste culto?\n\n` +
-        `Os tons do site serão preenchidos quando existirem. ` +
-        `Alterar o tom na playlist vale só neste culto — o original continua no site.`,
-      'Ministrante do culto',
-      { fecharNoBackdrop: false }
-    );
-    if (ok) {
-      setMinistrantePadraoCulto(cultoId, novoId);
-      await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
-      savePlaylists();
-      renderPlaylist();
-      refrescarAberturaM3SeMusicaAtivaNaPlaylist();
-      return;
-    }
-  } else if (novoId && ehMusica1) {
-    if (contarMusicasNaPlaylist(pl) <= 1) setMinistrantePadraoCulto(cultoId, novoId);
-  } else if (!novoId && ehMusica1) {
-    setMinistrantePadraoCulto(cultoId, null);
-  }
-
   savePlaylists();
-  if (playlistItemMesmaVersaoQueAtiva(item)) {
-    refrescarAberturaM3SeMusicaAtivaNaPlaylist();
-  }
+  renderPlaylist();
+  refrescarAberturaM3SeMusicaAtivaNaPlaylist();
+}
+
+function configurarSeletorMinistranteCulto() {
+  const sel = document.getElementById('culto-ministrante-sel');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    onMinistranteCultoChange(sel.value).catch(() => {});
+  });
 }
 
 function onPlaylistTomChange(idxPl, valorSelect) {
@@ -9503,7 +9484,8 @@ function estadoBotoesMoverPlaylist(pl, idx) {
 }
 
 /**
- * HTML da linha da playlist: Home com Ministrante/Tom; Slide compacto como antes.
+ * HTML da linha da playlist: Home com o tom; Slide compacto como antes.
+ * O ministrante é do culto inteiro e vive no seletor único acima da lista.
  * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
 function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao, opts = {}) {
@@ -9514,7 +9496,7 @@ function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao, opts = {}) {
   if (ehModoSlidesOperador()) {
     return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml, mover);
   }
-  return htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersao, escapeHtml, {
+  return htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersao, escapeHtml, {
     /* Só na música 1: limpar mestre (toda a playlist). */
     mostrarLimparMestre: Number(songNum) === 1,
     ...mover,
@@ -9890,6 +9872,7 @@ function renderPlaylist() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
   renderSeletorTemasPlaylist();
+  renderSeletorMinistranteCulto();
   if (!cultoId) {
     el.innerHTML = '<div class="placeholder-msg" style="margin:16px">🗓️ Selecione primeiro o <strong>dia do culto</strong> para ver ou montar a playlist.</div>';
     return;
@@ -10688,6 +10671,7 @@ function configurarSeletorTemaPlaylist() {
 
   setupDropdownTemaPlaylist();
   configurarMenuContextoTemaPlaylist();
+  configurarSeletorMinistranteCulto();
 
   btnAplicar.addEventListener('click', () => {
     inserirTemaNaPlaylistAtual(sel.value);

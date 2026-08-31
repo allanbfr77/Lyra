@@ -1,0 +1,1606 @@
+<!doctype html><html class="dark"><head><meta charset="utf-8"><style>:root {
+      --slides-rail-height: 520px;
+      /* Modo slides: piso da faixa de prévias — o arraste nunca encolhe abaixo disto. */
+      --preview-mod-card-h-min: 172px;
+      --bg: #f5f3ee;
+      --surface: #ffffff;
+      --surface2: #ebe8e2;
+      --border: #d8d3c9;
+      --accent: #a67c2d;
+      --accent2: #7a5a1f;
+      --text: #000000;
+      --text-dim: #000000;
+      --green: #2f7d4e;
+      --red: #b03028;
+      --yellow: #c48800;
+      --on-accent: #1a1612;
+
+      /* ── Dock de navegação — geometria (partilhada pelos dois temas) ── */
+      --nav-dur: 0.18s;
+      --nav-gap: 4px;
+      --nav-dock-pad: 6px;
+      --nav-dock-radius: 20px;
+      --nav-item-radius: 14px;
+      --nav-item-w: 90px;
+      --nav-item-h: 58px;
+      --nav-icon-size: 20px;
+      /* Folga horizontal da cápsula à volta do ícone. */
+      --nav-capsula-px: 13px;
+      /* Folga vertical entre a pílula e as bordas do cabeçalho. */
+      --nav-dock-respiro: 13px;
+
+      /* ── Dock de navegação — cores (tema claro) ── */
+      --nav-dock-bg: color-mix(in srgb, var(--surface2) 72%, var(--surface));
+      --nav-dock-border: color-mix(in srgb, var(--border) 85%, transparent);
+      --nav-dock-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.35);
+      --nav-item-fg: color-mix(in srgb, var(--text) 58%, transparent);
+      --nav-item-fg-hover: var(--text);
+      --nav-item-bg-hover: color-mix(in srgb, var(--text) 7%, transparent);
+      --nav-item-active-bg: var(--surface);
+      --nav-item-active-border: color-mix(in srgb, var(--border) 90%, transparent);
+      --nav-item-active-fg: var(--text);
+      --nav-item-active-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 14px -8px rgb(0 0 0 / 0.4);
+      --nav-focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
+      /* Deriva de --text, por isso serve os dois temas sem redefinição. */
+      --nav-divisor: color-mix(in srgb, var(--text) 15%, transparent);
+
+      /* ── Cores semânticas por modo (tema claro) ── */
+      --mode-home: #8b7355;
+      --mode-midias: #7c5cbf;
+      --mode-biblia: #b8860b;
+      --mode-slide: #2d8a6e;
+      --mode-contagem: #b5603a;
+      --mode-cfg: #5b7c99;
+      --mode-tema: #4a6fa5;
+      --mode-voz: color-mix(in srgb, var(--text) 72%, transparent);
+
+      /* Prévia de slide na UI apenas — monitores físicos usam displayConfig.fontFamily. */
+      --slide-font: 'CMG Sans', 'DM Sans', system-ui, sans-serif;
+      /* Chrome da aplicação (menus, botões, formulários, tabelas). */
+      --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+      /* Escala tipográfica da UI — hierarquia consistente (não afecta projeção). */
+      --fs-title: 20px;
+      --fs-subtitle: 16px;
+      --fs-body-base: 14px;
+      --fs-text-base: 14px;
+      --fs-label-base: 12px;
+      --fs-section-base: 13px;
+      --fs-caption-base: 12px;
+      --fs-card-head-base: 11px;
+      --fs-card-text-base: 13px;
+      --fw-regular: 400;
+      --fw-medium: 500;
+      --fw-semibold: 600;
+      --fw-bold: 700;
+      --slide-chip-snippet-px-base: 14;
+      --slide-chip-num-px-base: 20;
+      /* Seta dos seletores (culto, ministrante, tema): uma só, desenhada em máscara para
+         herdar a cor do texto e ficar igual nos dropdowns próprios e no <select> nativo. */
+      --caret-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+body{margin:0;background:#14110d;font-family:var(--font-ui,system-ui);padding:16px}
+.sidebar{background:var(--surface,#1c1813);border:1px solid #3a3229;width:420px}
+/* Caixa da seta: máscara + currentColor, para acompanhar tema claro/escuro. */
+    .culto-dd-caret,
+    .playlist-tema-dd-caret,
+    .culto-ministrante-campo::after {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      opacity: 0.8;
+      background-color: currentColor;
+      -webkit-mask: var(--caret-chevron) center / 14px 14px no-repeat;
+      mask: var(--caret-chevron) center / 14px 14px no-repeat;
+    }
+.btn-reload-ctrl {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--surface2);
+      color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+    }
+.btn-reload-ctrl:hover {
+      border-color: var(--accent);
+      background: var(--surface);
+      color: var(--accent2);
+    }
+.btn-reload-ctrl:active { transform: scale(0.94); }
+.btn-reload-ctrl svg { display: block; width: 12px; height: 12px; }
+.btn-reload-ctrl--inline {
+      width: 18px;
+      height: 18px;
+      opacity: 0.72;
+    }
+.btn-reload-ctrl--inline:hover { opacity: 1; }
+.btn-reload-ctrl--inline svg {
+      width: 10px;
+      height: 10px;
+    }
+.btn {
+      font-family: var(--font-ui);
+      font-size: var(--fs-body-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: var(--fw-bold); }
+.btn.primary:hover { background: #c49216; border-color: #c49216; color: var(--on-accent); }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+.btn.success { border-color: var(--green); color: var(--green); }
+.btn.success:hover { background: var(--green); color: #fff; }
+.btn.sm { padding: 4px 8px; font-size: var(--fs-caption-base); font-weight: var(--fw-semibold); }
+.panel-section-head {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-ui);
+  font-size: var(--fs-section-base);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#playlist-head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+.culto-select-wrap {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+/* 1 culto = 1 ministrante: o seletor vive aqui, não em cada música da lista. */
+    .culto-ministrante-wrap {
+      padding: 8px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+/* Mesmo peso visual dos cabeçalhos de secção (.panel-section-head, «CULTO» e
+       «PLAYLIST»): os títulos da barra são do mesmo nível e não competem entre si. */
+    .culto-ministrante-label {
+      font-family: var(--font-ui);
+      font-size: var(--fs-section-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+.culto-ministrante-campo {
+      position: relative;
+      display: block;
+      color: var(--text);
+    }
+.culto-ministrante-campo::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+.culto-ministrante-sel {
+      /* Sem a seta nativa: a do painel entra pelo ::after do wrapper, igual à dos
+         dropdowns próprios do culto e do tema. O padding à direita abre o espaço dela. */
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      min-height: 32px;
+      box-sizing: border-box;
+      padding: 6px 30px 6px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--font-ui);
+      cursor: pointer;
+      outline: none;
+      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
+      color-scheme: dark;
+    }
+html:not(.dark) .culto-ministrante-sel {
+      color-scheme: light;
+    }
+.culto-ministrante-sel:hover { border-color: var(--accent2); }
+.culto-ministrante-sel:focus { border-color: var(--accent); }
+.culto-ministrante-sel option {
+      background-color: var(--surface2, #1c1c1c);
+      color: var(--text, #f0ebe3);
+    }
+.playlist-tema-wrap {
+      padding: 8px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+.playlist-tema-label {
+      font-family: var(--font-ui);
+      font-size: var(--fs-section-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+.playlist-tema-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+/* Seletor e ações lado a lado. É o seletor que cede espaço (nome do tema em
+       reticências); só quebra para a linha de baixo quando a barra lateral fica
+       estreita demais — e aí os dois botões descem juntos. */
+    .playlist-tema-dd {
+      position: relative;
+      flex: 1 1 80px;
+      min-width: 80px;
+      max-width: 100%;
+    }
+/* Largura de conteúdo: toda a folga da linha vai para o seletor. */
+    .playlist-tema-acoes {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+.playlist-tema-dd-btn {
+      width: 100%;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-family: var(--font-ui);
+      cursor: pointer;
+      text-align: left;
+      outline: none;
+    }
+.playlist-tema-dd-btn:hover { border-color: var(--accent2); }
+.playlist-tema-dd.open .playlist-tema-dd-btn { border-color: var(--accent); }
+.playlist-tema-dd-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+.playlist-tema-dd-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      margin: 0;
+      padding: 6px 0;
+      list-style: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      z-index: 30000;
+      max-height: min(320px, 55vh);
+      overflow-y: auto;
+    }
+.playlist-tema-dd-menu[hidden] { display: none !important; }
+.playlist-tema-dd-item {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      margin: 0;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      line-height: 1.4;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+.playlist-tema-dd-item:hover,
+    .playlist-tema-dd-item:focus-visible {
+      outline: none;
+      background: rgba(166, 124, 45, 0.22);
+    }
+.playlist-tema-dd-item[aria-selected="true"] {
+      background: rgba(166, 124, 45, 0.14);
+    }
+/* Ações da área de temas: ícone + rótulo, na linha do rótulo da secção.
+       Renomear/excluir saíram daqui — agora vivem no menu de contexto da lista.
+       Seletor mais específico para vencer o `.btn.sm` do bloco tipográfico lá em baixo. */
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn {
+      flex: 0 1 auto;
+      height: 32px;
+      min-width: 0;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+      line-height: 1;
+      white-space: nowrap;
+      border-radius: 6px;
+    }
+.playlist-tema-acao-btn svg {
+      display: block;
+      flex: 0 0 auto;
+      pointer-events: none;
+    }
+.playlist-tema-acao-btn-txt {
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      font-weight: 700;
+      pointer-events: none;
+    }
+/* Ação principal da área: inserir o tema escolhido na playlist. */
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover,
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+/* Menu de contexto dos temas (botão direito sobre um item da lista). */
+    .playlist-tema-ctx-menu {
+      position: fixed;
+      z-index: 30050;
+      min-width: 200px;
+      padding: 6px 0;
+      margin: 0;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+.playlist-tema-ctx-menu[hidden] { display: none !important; }
+.playlist-tema-ctx-titulo {
+      padding: 4px 14px 8px;
+      margin: 0 0 4px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 260px;
+    }
+.playlist-tema-ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+.playlist-tema-ctx-item svg {
+      flex: 0 0 auto;
+      display: block;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+.playlist-tema-ctx-item:hover,
+    .playlist-tema-ctx-item:focus-visible {
+      outline: none;
+      background: var(--surface2);
+      color: var(--accent);
+    }
+.playlist-tema-ctx-item--perigo:hover,
+    .playlist-tema-ctx-item--perigo:focus-visible {
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.18);
+    }
+/*
+      Ícone de cada título de secção da barra.
+
+      Vai no ::before do próprio título (não num <img> ou <svg> no markup) por duas razões:
+      o título de «CULTO» é reescrito por JS com `textContent`, que apagaria um ícone posto
+      lá dentro; e nos cabeçalhos com `space-between` um ícone solto contaria como terceiro
+      item do flex e seria empurrado para longe do texto.
+
+      Máscara + `currentColor`, como a seta dos seletores: acompanha o tema claro/escuro e
+      esmaece junto com o texto, sem precisar de uma versão por tema.
+    */
+    .playlist-panel-head-titulo,
+    .playlist-lista-head-titulo,
+    .culto-ministrante-label,
+    .playlist-tema-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+.playlist-panel-head-titulo::before,
+    .playlist-lista-head-titulo::before,
+    .culto-ministrante-label::before,
+    .playlist-tema-label::before {
+      content: '';
+      flex-shrink: 0;
+      width: 13px;
+      height: 13px;
+      /* Discreto de propósito: o ícone localiza a secção, quem a nomeia é o texto.
+         Traço fino no SVG + meia opacidade deixam-no ler como marca-d'água ao lado
+         do título, em vez de um segundo elemento a competir com ele. */
+      opacity: 0.5;
+      background-color: currentColor;
+      -webkit-mask: var(--secao-ico) center / contain no-repeat;
+      mask: var(--secao-ico) center / contain no-repeat;
+    }
+.playlist-panel-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E"); }
+.culto-ministrante-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cpath d='M12 19v3'/%3E%3C/svg%3E"); }
+.playlist-tema-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7.5' cy='7.5' r='1.3'/%3E%3C/svg%3E"); }
+.playlist-lista-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15V6'/%3E%3Ccircle cx='18.5' cy='15.5' r='2.5'/%3E%3Cpath d='M12 12H3'/%3E%3Cpath d='M16 6H3'/%3E%3Cpath d='M12 18H3'/%3E%3C/svg%3E"); }
+/* Cabeçalhos da barra da playlist sem divisória própria: os blocos abaixo deles
+       (culto, ministrante, tema) já trazem a sua, e o traço duplicava a régua. */
+    #playlist-panel-head,
+    #playlist-lista-head {
+      border-bottom: none;
+    }
+/* O botão de copiar fica no canto direito da linha — é o `space-between` herdado de
+       .panel-section-head que o empurra para lá, alinhado com o grupo S/C/I do «CULTO». */
+    #playlist-lista-head {
+      gap: 6px;
+    }
+.culto-dd {
+      position: relative;
+      width: 100%;
+    }
+.culto-dd-btn {
+      width: 100%;
+      min-height: 36px;
+      display: grid;
+      grid-template-columns: minmax(64px, 74px) 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      box-sizing: border-box;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+    }
+.culto-dd-btn:hover { border-color: var(--accent2); }
+.culto-dd.open .culto-dd-btn { border-color: var(--accent); }
+.culto-dd-col-data {
+      font-family: Consolas, "Courier New", monospace;
+      color: var(--text);
+      white-space: nowrap;
+    }
+.culto-dd-col-desc {
+      border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+      padding-left: 10px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+.culto-dd-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      z-index: 30000;
+      max-height: min(360px, 56vh);
+      overflow-y: auto;
+    }
+.culto-dd-menu[hidden] { display: none !important; }
+.culto-dd-item {
+      width: 100%;
+      border: none;
+      border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+      background: transparent;
+      color: var(--text);
+      display: grid;
+      grid-template-columns: minmax(64px, 74px) 1fr;
+      align-items: start;
+      text-align: left;
+      padding: 8px 10px;
+      gap: 10px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 13px;
+    }
+.culto-dd-item:first-child { border-top: none; }
+.culto-dd-item:hover,
+    .culto-dd-item:focus-visible {
+      outline: none;
+      background: rgba(166, 124, 45, 0.18);
+    }
+.culto-dd-item[aria-selected="true"] {
+      background: rgba(166, 124, 45, 0.14);
+    }
+.culto-dd-item .data {
+      font-family: Consolas, "Courier New", monospace;
+      white-space: nowrap;
+    }
+.culto-dd-item .desc {
+      border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+      padding-left: 10px;
+      min-width: 0;
+      /* No menu aberto o rótulo completo importa: "DOMINGO | MANHÃ" vs "DOMINGO | NOITE".
+         Deixa quebrar linha em vez de cortar com reticências. */
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
+.culto-dd-item-row {
+      display: flex;
+      align-items: stretch;
+      border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    }
+.culto-dd-item-row:first-child { border-top: none; }
+.culto-dd-item-row .culto-dd-item {
+      flex: 1;
+      min-width: 0;
+      border-top: none;
+    }
+.culto-dd-item-del {
+      flex-shrink: 0;
+      align-self: stretch;
+      width: 36px;
+      border: none;
+      border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+      border-radius: 0;
+      padding: 0;
+    }
+/* Mesmo modelo do «+ Nova música manual»: ação secundária com contorno
+       tracejado, fundo transparente e tipografia esmaecida. */
+    .culto-adicionar-btn {
+      width: 100%;
+      margin-top: 8px;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
+    }
+.culto-adicionar-btn:hover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
+      color: var(--text);
+    }
+.btn-slide-nota {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+      background: transparent;
+      color: color-mix(in srgb, var(--text) 68%, var(--text-dim));
+      cursor: pointer;
+      opacity: 0.78;
+    }
+.btn-slide-nota:hover:not(:disabled) {
+      opacity: 1;
+      border-color: color-mix(in srgb, var(--accent2) 55%, var(--border));
+      color: var(--text);
+      background: color-mix(in srgb, var(--surface2) 65%, transparent);
+    }
+.btn-slide-nota:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+.playlist-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      min-height: 0;
+      /* Folga para a música ativa nunca encostar (ou ser cortada) nas bordas ao rolar. */
+      scroll-padding-block: 12px;
+    }
+.playlist-list::-webkit-scrollbar { width: 4px; }
+.playlist-list::-webkit-scrollbar-thumb { background: var(--border); }
+.playlist-row {
+      position: relative;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+.playlist-row:hover { border-color: var(--accent2); }
+/*
+      Destaque da música seleccionada: barra lateral + fundo tingido de accent.
+      Sem alterar tamanho/peso de fonte — todas as linhas mantêm a mesma tipografia.
+    */
+    .playlist-row.ativo {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(166,124,45,0.28);
+      background: color-mix(in srgb, var(--surface2) 84%, var(--accent) 16%);
+      padding-left: 14px;
+      scroll-margin-block: 12px;
+    }
+.playlist-row.ativo::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      border-radius: 6px 0 0 6px;
+      background: var(--accent);
+    }
+.playlist-row-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      justify-content: space-between;
+    }
+.playlist-row-cols {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 84px 112px;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+    }
+.pl-col {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+.pl-col-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      overflow: hidden;
+      white-space: normal;
+    }
+.pl-col-artista {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+.pl-col-titulo.tit {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.25;
+      flex: unset;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+.pl-sel {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      font-family: var(--font-ui);
+      font-size: var(--fs-label-base);
+      font-weight: 500;
+      padding: 4px 3px;
+      border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
+      color-scheme: dark;
+    }
+html:not(.dark) .pl-sel {
+      color-scheme: light;
+    }
+.pl-sel option,
+    .pl-sel optgroup {
+      font-size: var(--fs-label-base);
+      background-color: var(--surface2, #1c1c1c);
+      color: var(--text, #f0ebe3);
+    }
+.pl-sel:focus {
+      outline: none;
+      border-color: var(--accent);
+      color: var(--text);
+    }
+.culto-ministrante-sel,
+    .culto-ministrante-sel option {
+      text-transform: uppercase;
+    }
+.playlist-row .tit {
+      font-size: var(--fs-text-base);
+      font-weight: 700;
+      line-height: 1.25;
+      min-width: 0;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+/*
+      Os ↑↓✕ aparecem ao apontar o CANTO DIREITO da linha, não a linha inteira.
+
+      Com a linha toda a servir de gatilho, bastava passar o rato pela playlist para os
+      controlos piscarem em cada linha por onde se passava — ruído constante numa lista
+      que se percorre com os olhos muito mais vezes do que se reordena. A zona sensível
+      passa a ser a própria caixa dos botões, que no modo Home já é uma coluna reservada
+      de 112 px (`align-self: stretch` dá-lhe a altura toda da linha, para o alvo ser a
+      faixa direita inteira e não só a fita de 26 px ao meio).
+
+      A caixa continua a apanhar o rato mesmo invisível (`pointer-events: auto`), mas os
+      botões lá dentro só ficam clicáveis quando ela está à vista: sem isso havia um
+      `✕` transparente à espera de um clique distraído. `pointer-events` herda-se, por
+      isso basta ligá-la nos filhos directos — a pastilha passa-a às setas.
+    */
+    .playlist-row .playlist-btns {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      align-self: stretch;
+      flex-shrink: 0;
+      width: 112px;
+      justify-content: flex-end;
+      box-sizing: border-box;
+      opacity: 0;
+      pointer-events: auto;
+      transform: translateX(4px);
+      transition: opacity 0.14s ease, transform 0.14s ease;
+    }
+.playlist-row .playlist-btns > * {
+      pointer-events: none;
+    }
+/*
+      Par ↑↓ como controlo segmentado: uma pastilha, um traço fino a separar os dois
+      sentidos. A dupla pertence à mesma ação (mudar de lugar) e passa a ler-se como
+      tal — o `✕`, que é destrutivo, fica visivelmente à parte.
+    */
+    .playlist-row .playlist-btns .pl-mover {
+      display: inline-flex;
+      align-items: stretch;
+      flex-shrink: 0;
+      border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface2) 60%, var(--surface));
+      overflow: hidden;
+    }
+.playlist-row .playlist-btns .pl-btn-mover {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: transparent;
+      /* Um pouco acima do `--text-dim`: as setas são das acções mais usadas da linha e
+         no cinzento das legendas quase não se viam sobre a pastilha. */
+      color: color-mix(in srgb, var(--text-dim) 62%, var(--text) 38%);
+      cursor: pointer;
+      transition: background 0.14s ease, color 0.14s ease, transform 0.1s ease;
+    }
+.playlist-row .playlist-btns .pl-btn-mover + .pl-btn-mover {
+      border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    }
+.playlist-row .playlist-btns .pl-btn-mover svg {
+      display: block;
+      pointer-events: none;
+    }
+.playlist-row .playlist-btns .pl-btn-mover:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 20%, transparent);
+      color: var(--accent);
+    }
+/* O empurrão de 1 px no sentido do movimento é o único feedback que o rato tem
+       antes de a linha começar a deslizar. */
+    .playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled) { transform: translateY(-1px); }
+.playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) { transform: translateY(1px); }
+.playlist-row .playlist-btns .pl-btn-mover:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+      color: var(--accent);
+    }
+/* Topo da lista, fim da lista, ou vizinho é cabeçalho de tema: sem para onde ir. */
+    .playlist-row .playlist-btns .pl-btn-mover:disabled {
+      opacity: 0.26;
+      cursor: default;
+      background: transparent;
+    }
+/*
+      `✕` na mesma caixa quadrada das setas — as três ações alinham pelo centro.
+
+      Em repouso fica neutro, não vermelho: com a moldura vermelha permanente, a acção
+      destrutiva era a mais gritante da linha, e a que se usa a toda a hora (reordenar)
+      a mais apagada. O vermelho aparece ao passar por cima — a tempo de avisar, e só a
+      quem já está a apontar para ele.
+    */
+    .playlist-row .playlist-btns .pl-btn-remover {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      border-radius: 7px;
+      border-color: color-mix(in srgb, var(--border) 85%, transparent);
+      color: var(--text-dim);
+    }
+.playlist-row .playlist-btns .pl-btn-remover:hover,
+    .playlist-row .playlist-btns .pl-btn-remover:focus-visible {
+      border-color: var(--red);
+      background: var(--red);
+      color: #fff;
+    }
+.playlist-row .playlist-btns .pl-btn-remover svg { display: block; }
+.playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom {
+      color: var(--text-dim);
+      /* O `.btn` base alinha texto; este leva um SVG e precisa de o centrar à mão, senão
+         a seta assenta na linha de base e fica um par de pixels abaixo do ↑ ↓ ✕ ao lado. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      border-radius: 7px;
+    }
+.playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom:hover {
+      color: var(--text);
+      border-color: color-mix(in srgb, var(--border) 50%, var(--text) 25%);
+    }
+.playlist-row .playlist-btns:hover,
+    .playlist-row .playlist-btns:focus-within {
+      opacity: 1;
+      transform: translateX(0);
+    }
+.playlist-row .playlist-btns:hover > *,
+    .playlist-row .playlist-btns:focus-within > * {
+      pointer-events: auto;
+    }
+.playlist-row.playlist-row--flash-move::after,
+    .playlist-row.playlist-row--flash-swap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--accent);
+      pointer-events: none;
+      opacity: 0;
+    }
+.playlist-row.playlist-row--flash-move::after {
+      animation: playlist-row-move-glow 0.62s ease-out;
+    }
+.playlist-row.playlist-row--flash-swap::after {
+      animation: playlist-row-move-glow-vizinho 0.62s ease-out;
+    }
+.playlist-row.playlist-row--flash-move {
+      animation: playlist-row-move-ring 0.62s ease-out;
+      border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
+    }
+/* Enquanto desliza, a linha em movimento passa por cima da outra. */
+    .playlist-row.playlist-row--a-mover {
+      z-index: 3;
+    }
+.playlist-row.playlist-row--a-deslocar {
+      z-index: 2;
+    }
+.playlist-row .playlist-btns,
+      .playlist-row .playlist-btns .pl-btn-mover {
+        transition: none;
+      }
+.playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled),
+      .playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) {
+        transform: none;
+      }
+/* Sem deslize (o JS já o dispensa) — o realce fica, mais demorado, porque é ele
+         que responde à pergunta «qual música é que mudou de lugar?». */
+      .playlist-row.playlist-row--flash-move::after,
+      .playlist-row.playlist-row--flash-swap::after,
+      .playlist-row.playlist-row--flash-move {
+        animation-duration: 0.9s;
+        animation-timing-function: ease-out;
+      }
+.playlist-row-tema-chip {
+      margin-top: 4px;
+      opacity: 0.85;
+    }
+.playlist-row .mini {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+.playlist-tema-head {
+      margin: 10px 2px 6px;
+      padding: 5px 8px;
+      border: 1px solid color-mix(in srgb, var(--border) 74%, var(--accent) 16%);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface2) 84%, var(--surface));
+      font-size: 10px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+    }
+.playlist-tema-section {
+      margin-bottom: 4px;
+    }
+.playlist-tema-section--colapsada .playlist-tema-section-body {
+      display: none !important;
+    }
+.playlist-tema-section--colapsada .playlist-tema-head-row {
+      opacity: 0.92;
+    }
+.playlist-tema-head-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 10px 2px 6px;
+      padding: 4px 36px 4px 6px;
+      border: 1px solid color-mix(in srgb, var(--border) 74%, var(--accent) 16%);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface2) 84%, var(--surface));
+    }
+.playlist-tema-head-row[draggable="true"] {
+      cursor: grab;
+    }
+.playlist-tema-head-row--dragging {
+      opacity: 0.55;
+      cursor: grabbing;
+    }
+.playlist-tema-head-row--drag-over {
+      border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+    }
+.playlist-tema-head-row .playlist-tema-toggle-expand.btn.sm {
+      padding: 0;
+      font-size: inherit;
+      line-height: 0;
+    }
+.playlist-tema-toggle-expand {
+      flex: 0 0 24px;
+      width: 24px;
+      height: 22px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid color-mix(in srgb, var(--border) 78%, var(--text) 6%);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--surface2) 92%, var(--surface));
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+.playlist-tema-toggle-expand:hover {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+      color: var(--accent);
+    }
+.playlist-tema-toggle-expand svg {
+      display: block;
+      width: 13px;
+      height: 13px;
+      pointer-events: none;
+    }
+.playlist-tema-head-row .playlist-tema-head-label {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+    }
+.playlist-copiar-nomes-btn.copiado {
+      color: var(--green);
+      border-color: var(--green);
+    }
+.playlist-tema-head-del {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 2px 8px;
+      font-size: 11px;
+      line-height: 1.2;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.14s ease, visibility 0.14s ease;
+    }
+.playlist-tema-head-row:hover .playlist-tema-head-del {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+.playlist-tema-head-del {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+.musica-versoes-bar .btn.sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 4px 11px;
+      border-radius: 999px;
+    }
+.musica-versoes-bar .btn.sm svg { width: 14px; height: 14px; flex-shrink: 0; }
+.musica-versoes-bar .btn.sm.versao-musica-ativa {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--accent);
+    }
+/* Com os botões contextuais + separadores, a barra ganhou itens. Fonte um
+       pouco menor e padding proporcional aliviam o peso visual. Hierarquia via
+       --font-ui / pesos — não usa tipografia de projeção. */
+    .centro-toolbar-acoes .btn {
+      font-size: var(--fs-caption-base);
+      letter-spacing: 0;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+/* Ícone SVG de cada ação: mesmo tamanho e alinhamento em todos os botões. */
+    .centro-toolbar-acoes .btn svg { width: 15px; height: 15px; flex-shrink: 0; display: block; }
+.centro-toolbar-acoes .btn .btn-ico {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      line-height: 0;
+    }
+.centro-toolbar-acoes .btn .btn-txt { line-height: 1.2; }
+/* Setas de navegação: só ícone, mais compactas. */
+    .centro-toolbar-acoes .btn.btn-nav-seta { padding: 5px 7px; }
+/* Hierarquia da barra: só a acção primária (EDITAR LETRA / SALVAR) tem
+       preenchimento sólido. Todo o resto é neutro — outline monocromático. */
+    .centro-toolbar-acoes .btn-toolbar-letra-completa {
+      font-weight: 600;
+      border-style: solid;
+      border-color: var(--border);
+      color: var(--text);
+      background: var(--surface2);
+    }
+.centro-toolbar-acoes .btn-toolbar-letra-completa:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--text) 42%, var(--border));
+      color: var(--text);
+      background: color-mix(in srgb, var(--surface2) 82%, var(--text) 8%);
+    }
+/* MODO LETRA COMPLETA activo (= Salvar alterações): mesmo dourado do «Editar letra» / primary. */
+    .centro-toolbar-acoes .btn-toolbar-letra-completa.ativo {
+      background: var(--accent);
+      color: var(--on-accent);
+      border-color: var(--accent);
+      font-weight: var(--fw-bold);
+    }
+.centro-toolbar-acoes .btn-toolbar-letra-completa.ativo:hover:not(:disabled) {
+      background: #c49216;
+      border-color: #c49216;
+      color: var(--on-accent);
+    }
+.centro-toolbar-acoes .btn-caixa-letras {
+      min-width: 36px;
+      padding: 5px 8px;
+      font-family: var(--font-ui);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+.centro-toolbar-acoes .btn-caixa-letras .btn-caixa-letras-glyph {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 1px;
+      line-height: 1;
+      font-size: 15px;
+    }
+.centro-toolbar-acoes .btn-caixa-letras .caixa-min {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+.centro-toolbar-acoes .btn-caixa-letras .caixa-maj {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+.centro-toolbar-acoes .btn-caixa-letras.ativo {
+      border-color: color-mix(in srgb, var(--text) 55%, var(--border));
+      color: var(--surface);
+      background: color-mix(in srgb, var(--text) 82%, var(--surface2));
+    }
+.centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-min,
+    .centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-maj {
+      color: var(--surface);
+    }
+/* SAIR (limpa as telas de projecção): neutro em repouso, vermelho só
+       no hover/foco — é reversível, mas não deve competir em repouso. */
+    .centro-toolbar-acoes .btn.danger#btn-sair-projecao {
+      border-color: var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+.centro-toolbar-acoes .btn.danger#btn-sair-projecao:hover:not(:disabled),
+    .centro-toolbar-acoes .btn.danger#btn-sair-projecao:focus-visible {
+      border-color: var(--red);
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.12);
+    }
+.btn.preview-painel-toggle-icon {
+      flex-shrink: 0;
+      padding: 6px 8px;
+      min-width: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(200, 169, 110, 0.92);
+      background: transparent;
+      border: 1px solid #3a3a3a;
+    }
+.btn.preview-painel-toggle-icon:hover {
+      border-color: rgba(166, 124, 45, 0.55);
+      color: rgba(230, 205, 150, 1);
+    }
+/* Primeiro item da pilha, como no M3 real — ver o CSS de `.titulo-musica-op` em
+       `display-operator.html`. A distância à letra é uma linha, posta por
+       `aplicarRespiroPreviewTituloAbertura`. */
+    .op-titulo-musica {
+      font-family: var(--slide-font);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #f3c15a;
+      font-size: 11px; /* fallback; Ajustes › Slides › Ministrante sobrepõe via style */
+      line-height: 1.3;
+      width: 100%;
+      text-align: center;
+    }
+.btn-banco-sqlite-toggle-lista {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+.btn-banco-sqlite-toggle-lista:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+.btn-banco-sqlite-toggle-lista[aria-expanded="false"] .btn-banco-sqlite-toggle-lista-icone {
+      transform: rotate(-90deg);
+    }
+.btn-banco-sqlite-toggle-lista-icone {
+      transition: transform 0.15s ease;
+    }
+.btn-import-letras {
+      align-self: center;
+      white-space: nowrap;
+    }
+.item .titulo {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.28;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+.btn.btn-playlist-plus {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #14100a;
+      background: linear-gradient(145deg, rgba(166, 124, 45, 0.95), rgba(120, 85, 28, 0.98));
+      border: 1px solid rgba(200, 169, 110, 0.35);
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      opacity: 0.95;
+      transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+    }
+.btn.btn-playlist-plus:hover {
+      opacity: 1;
+      transform: scale(1.06);
+      box-shadow:
+        0 3px 12px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+.item:hover .btn-playlist-plus {
+      opacity: 1;
+      color: #fff0cf;
+    }
+.btn.btn-banco-remover {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      padding: 0;
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.55;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+    }
+/* Em repouso a lixeira é neutra (sem vermelho), mesmo com a classe .danger:
+       o vermelho é reservado para hover/foco e para o estado de confirmação. */
+    .btn.btn-banco-remover,
+    .btn.danger.btn-banco-remover {
+      border-color: var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+    }
+.item:hover .btn-banco-remover {
+      opacity: 1;
+    }
+.btn.btn-banco-remover:hover,
+    .btn.danger.btn-banco-remover:hover,
+    .btn.btn-banco-remover:focus-visible,
+    .btn.danger.btn-banco-remover:focus-visible,
+    .btn.btn-banco-remover.confirmando,
+    .btn.danger.btn-banco-remover.confirmando {
+      opacity: 1;
+      border-color: var(--red);
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.12);
+    }
+.btn.btn-banco-remover.confirmando {
+      background: rgba(176, 48, 40, 0.22);
+    }
+.btn-estrofe-quick {
+      opacity: 0.3;
+      transition: opacity 0.16s ease, transform 0.12s ease;
+    }
+.estrofe-slide-edit:hover .btn-estrofe-quick {
+      opacity: 1;
+    }
+.btn-estrofe-quick:hover {
+      transform: scale(1.05);
+    }
+.slides-dock-zoom-group--inerte .btn {
+      cursor: not-allowed;
+    }
+/* Ação secundária/fallback: menos peso visual que o "Buscar" — contorno
+       tracejado, fundo transparente e cor esmaecida. */
+    .banco-nova-manual-wrap .btn {
+      border-radius: 6px;
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+.banco-nova-manual-wrap .btn:hover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
+      color: var(--text);
+    }
+.slide-quick-edit-dialog .btn,
+    .letras-preview-dialog .btn,
+    .musica-excluir-dialog .btn,
+    .cfg-modal .btn {
+      min-height: 32px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid color-mix(in srgb, var(--border) 76%, var(--accent) 10%);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--surface));
+      color: var(--text);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.12s ease;
+    }
+.slide-quick-edit-dialog .btn:hover,
+    .letras-preview-dialog .btn:hover,
+    .musica-excluir-dialog .btn:hover,
+    .cfg-modal .btn:hover {
+      border-color: var(--accent2);
+      background: color-mix(in srgb, var(--surface2) 78%, var(--accent) 10%);
+      color: var(--text);
+    }
+.slide-quick-edit-dialog .btn:active,
+    .letras-preview-dialog .btn:active,
+    .musica-excluir-dialog .btn:active,
+    .cfg-modal .btn:active {
+      transform: translateY(1px);
+    }
+.slide-quick-edit-dialog .btn.primary,
+    .letras-preview-dialog .btn.primary,
+    .musica-excluir-dialog .btn.primary,
+    .cfg-modal .btn.primary {
+      border-color: color-mix(in srgb, var(--accent) 84%, var(--border));
+      background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #d8b66e), color-mix(in srgb, var(--accent2) 92%, #7a5a1f));
+      color: var(--on-accent);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+.slide-quick-edit-dialog .btn.primary:hover,
+    .letras-preview-dialog .btn.primary:hover,
+    .musica-excluir-dialog .btn.primary:hover,
+    .cfg-modal .btn.primary:hover {
+      border-color: color-mix(in srgb, var(--accent2) 86%, var(--border));
+      background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, #d8b66e), color-mix(in srgb, var(--accent2) 96%, #6f501b));
+      color: var(--on-accent);
+    }
+.slide-quick-edit-dialog .btn.danger,
+    .letras-preview-dialog .btn.danger,
+    .musica-excluir-dialog .btn.danger,
+    .cfg-modal .btn.danger {
+      border-color: color-mix(in srgb, var(--red) 72%, var(--border));
+      background: color-mix(in srgb, var(--surface2) 86%, rgba(176, 48, 40, 0.14));
+      color: color-mix(in srgb, var(--red) 92%, var(--text));
+    }
+.slide-quick-edit-dialog .btn.danger:hover,
+    .letras-preview-dialog .btn.danger:hover,
+    .musica-excluir-dialog .btn.danger:hover,
+    .cfg-modal .btn.danger:hover {
+      border-color: color-mix(in srgb, var(--red) 86%, var(--border));
+      background: color-mix(in srgb, var(--surface2) 72%, rgba(176, 48, 40, 0.24));
+      color: #fff3f1;
+    }
+.playlist-panel-head-titulo {
+      min-width: 0;
+      white-space: nowrap;
+    }
+.ap-card6-footer .route-dd--card6-aviso,
+    .ap-card6-footer .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 32px;
+    }
+.ap-card6-footer .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 4px;
+      white-space: nowrap;
+      justify-content: center;
+      font-size: 10px;
+    }
+.ap-card6-footer .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+.ap-dd .ap-dd-btn .culto-dd-col-desc {
+      border-left: none;
+      padding-left: 0;
+    }
+.btn-theme {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+      line-height: 1;
+      white-space: nowrap;
+    }
+.btn-theme:hover { border-color: var(--accent); color: var(--accent); }
+/*
+     * Opções em lista (ex.: «Versão da Bíblia»): conteúdo à esquerda em vez de centrado.
+     * Com nomes de comprimentos diferentes, o centramento faz cada linha começar num ponto
+     * distinto. Alinhados à esquerda, todos os códigos (ACF, ARA, NTLH…) partem da mesma
+     * posição e as descrições ficam a prumo.
+     *
+     * Só alinhamento: tamanho, tipografia, cores e estados de hover/selecção continuam a
+     * vir de `.btn` / `.btn.primary`. O recuo lateral é o padding do próprio `.btn`, igual
+     * dos dois lados, por isso é uniforme para todos os itens.
+     */
+    .app-dialog-opcao--lista {
+      text-align: left;
+      justify-content: flex-start;
+    }
+.confirmar-import-acoes .btn { min-width: 112px; padding: 9px 16px; }
+.cfg-ministrante-row .btn.sm {
+      flex-shrink: 0;
+      min-width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+.contagem-acoes .btn { flex: 1 1 auto; min-width: 96px; justify-content: center; }
+.conn-input,
+    .culto-dd-btn,
+    .culto-dd-item,
+    .culto-ministrante-sel,
+    .playlist-tema-dd-btn,
+    .playlist-tema-dd-item,
+    .banco-fonte-select,
+    .search-box,
+    .item .sub,
+    .playlist-row .tit,
+    .edit-field-titulo,
+    .edit-field-artista,
+    .centro-letra-completa-ta,
+    .centro-comparativo-ta,
+    .estrofe-slide-ta,
+    .estrofe-slide-view-body,
+    .biblia-select,
+    .biblia-input,
+    .v-texto,
+    .cfg-form-input,
+    .cfg-form-select {
+      font-size: var(--fs-text-base);
+    }
+.btn {
+      font-size: var(--fs-body-base);
+      font-weight: var(--fw-semibold);
+    }
+.btn.sm {
+      font-size: var(--fs-caption-base);
+    }
+.conn-label,
+    .status-seg-item,
+    .tab,
+    .playlist-row .mini,
+    .slides-zoom-val,
+    .banco-filtros-checks,
+    .v-num,
+    .banco-letras-ajuda,
+    .pv-live-letras .pv-live-ap-meta,
+    .preview-operator-slides .op-slide-text .pv-live-ap-meta {
+      font-size: var(--fs-label-base);
+    }
+.hdr-btn-caption,
+    .playlist-preview-hint,
+    .playlist-tema-head {
+      font-size: var(--fs-caption-base);
+    }
+.panel-section-head,
+    .culto-ministrante-label,
+    .playlist-tema-label,
+    .sidebar-title,
+    .playlist-preview-head,
+    .pl-pv-titulo,
+    .cfg-form-label,
+    .cfg-section-title {
+      font-size: var(--fs-section-base);
+    }
+</style></head><body><div class="sidebar">   <div class="panel-section-head" id="playlist-panel-head">
+  <span class="playlist-panel-head-titulo">CULTO</span>
+  <div id="playlist-head-actions">
+    <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
+    <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
+    <button type="button" id="playlist-importar-btn" class="btn sm" title="Importar playlist a partir de um código">I</button>
+  </div>
+</div>
+    <div class="culto-select-wrap">
+      <div class="culto-dd" id="culto-dd">
+        <button type="button" class="culto-dd-btn" id="culto-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-dd-menu">
+          <span class="culto-dd-col-data" id="culto-dd-data">--/--</span>
+          <span class="culto-dd-col-desc" id="culto-dd-desc">Selecione o dia do culto...</span>
+          <span class="culto-dd-caret" aria-hidden="true"></span>
+        </button>
+        <ul class="culto-dd-menu" id="culto-dd-menu" role="listbox" hidden></ul>
+        <input type="hidden" id="culto-sel" value="" autocomplete="off" />
+      </div>
+      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
+    </div>
+    <div class="culto-ministrante-wrap">
+      <div class="culto-ministrante-label">Ministrante do culto</div>
+      <div class="culto-ministrante-campo">
+        <select class="culto-ministrante-sel" id="culto-ministrante-sel" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
+          <option value="">—</option>
+        </select>
+      </div>
+    </div>
+    <div class="playlist-tema-wrap">
+      <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
+      <div class="playlist-tema-row">
+        <div class="playlist-tema-dd" id="playlist-tema-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema — botão direito num tema da lista para renomear ou excluir" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
+            <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Louvor de Entrada</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
+        </div>
+        <div class="playlist-tema-acoes">
+          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Inserir</span>
+          </button>
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Novo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="panel-section-head" id="playlist-lista-head">
+      <span class="playlist-lista-head-titulo">Playlist</span>
+      <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+    <div class="playlist-list" id="playlist-list"><div style="padding:6px 10px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:700;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">Abertura</div><div class="playlist-row"><div class="playlist-row-cols">
+  <div class="pl-col pl-col-meta"><div class="pl-col-titulo tit">1. Santo, Santo, Santo</div><div class="pl-col-artista">Coral Lyra</div></div>
+  <div class="pl-col pl-col-tom"><select class="pl-sel pl-sel-tom"><option>D</option></select></div>
+  <div class="playlist-btns"></div></div></div><div style="padding:6px 10px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:700;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">Louvor de Entrada</div><div class="playlist-row"><div class="playlist-row-cols">
+  <div class="pl-col pl-col-meta"><div class="pl-col-titulo tit">2. Aleluia ao Cordeiro</div><div class="pl-col-artista">—</div></div>
+  <div class="pl-col pl-col-tom"><select class="pl-sel pl-sel-tom"><option>Am</option></select></div>
+  <div class="playlist-btns"></div></div></div></div>
+</div>
+<script>document.querySelectorAll('.culto-ministrante-sel').forEach(s=>{s.innerHTML='<option selected>ANA CAROLINA</option>';});</script>
+</body></html>

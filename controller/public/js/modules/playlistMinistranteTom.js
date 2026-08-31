@@ -53,10 +53,11 @@ function escapeAttr(s) {
 }
 
 /**
+ * Opções do seletor único de ministrante do culto (1 culto = 1 ministrante).
  * @param {{ id: number, nome: string }[]} lista
  * @param {number|null} selecionadoId
  */
-export function htmlSelectMinistrante(lista, selecionadoId) {
+export function htmlOpcoesMinistranteCulto(lista, selecionadoId) {
   const sel = normalizarMinistranteIdPlaylist(selecionadoId);
   const opts = [`<option value="">—</option>`];
   for (const m of lista) {
@@ -66,7 +67,7 @@ export function htmlSelectMinistrante(lista, selecionadoId) {
     const nome = String(m.nome || '').toLocaleUpperCase('pt-BR');
     opts.push(`<option value="${id}"${selected}>${escapeAttr(nome)}</option>`);
   }
-  return `<select class="pl-sel pl-sel-ministrante" title="Ministrante" aria-label="Ministrante">${opts.join('')}</select>`;
+  return opts.join('');
 }
 
 /**
@@ -162,10 +163,9 @@ const SVG_LIMPAR_MESTRE =
  * @param {(s: string) => string} escapeHtml
  * @param {{ mostrarLimparMestre?: boolean, podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
-export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
+export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
   const artista = String(item?.artista || '').trim();
   const titulo = String(item?.titulo || '');
-  const lista = obterCacheMinistrantes();
   /*
    * Seta circular, no lugar do antigo `∅`.
    *
@@ -185,7 +185,6 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
           <div class="pl-col-titulo tit" title="${escapeAttr(titulo)}">${songNum}. ${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
           <div class="pl-col-artista"${artista ? ` title="${escapeAttr(artista)}"` : ''}>${artista ? escapeHtml(artista) : '—'}</div>
         </div>
-        <div class="pl-col pl-col-ministrante">${htmlSelectMinistrante(lista, item?.ministranteId)}</div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
         <div class="playlist-btns">
           ${btnLimparMestre}
@@ -197,7 +196,7 @@ export function htmlCorpoLinhaPlaylistComMinistranteTom(item, songNum, rotuloVer
 
 /**
  * Linha compacta da playlist (modo Slide): só título + artista + botões.
- * Ministrante/Tom ficam exclusivos do modo Home.
+ * O tom fica exclusivo do modo Home; o ministrante é único e vive no topo da playlist.
  * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
 export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {

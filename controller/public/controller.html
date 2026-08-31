@@ -139,6 +139,22 @@
       --fw-bold: 700;
       --slide-chip-snippet-px-base: 14;
       --slide-chip-num-px-base: 20;
+      /* Seta dos seletores (culto, ministrante, tema): uma só, desenhada em máscara para
+         herdar a cor do texto e ficar igual nos dropdowns próprios e no <select> nativo. */
+      --caret-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    }
+
+    /* Caixa da seta: máscara + currentColor, para acompanhar tema claro/escuro. */
+    .culto-dd-caret,
+    .playlist-tema-dd-caret,
+    .culto-ministrante-campo::after {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      opacity: 0.8;
+      background-color: currentColor;
+      -webkit-mask: var(--caret-chevron) center / 14px 14px no-repeat;
+      mask: var(--caret-chevron) center / 14px 14px no-repeat;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -990,10 +1006,6 @@
       flex-wrap: wrap;
     }
 
-    .playlist-copiar-nomes-btn {
-      margin-left: 6px;
-    }
-
     @keyframes playlist-compartilhar-spin {
       to { transform: rotate(360deg); }
     }
@@ -1006,6 +1018,66 @@
       padding: 10px 14px;
       border-bottom: 1px solid var(--border);
     }
+
+    /* 1 culto = 1 ministrante: o seletor vive aqui, não em cada música da lista. */
+    .culto-ministrante-wrap {
+      padding: 8px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    /* Mesmo peso visual dos cabeçalhos de secção (.panel-section-head, «CULTO» e
+       «PLAYLIST»): os títulos da barra são do mesmo nível e não competem entre si. */
+    .culto-ministrante-label {
+      font-family: var(--font-ui);
+      font-size: var(--fs-section-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .culto-ministrante-campo {
+      position: relative;
+      display: block;
+      color: var(--text);
+    }
+    .culto-ministrante-campo::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+    .culto-ministrante-sel {
+      /* Sem a seta nativa: a do painel entra pelo ::after do wrapper, igual à dos
+         dropdowns próprios do culto e do tema. O padding à direita abre o espaço dela. */
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      min-height: 32px;
+      box-sizing: border-box;
+      padding: 6px 30px 6px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: var(--font-ui);
+      cursor: pointer;
+      outline: none;
+      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
+      color-scheme: dark;
+    }
+    html:not(.dark) .culto-ministrante-sel {
+      color-scheme: light;
+    }
+    .culto-ministrante-sel:hover { border-color: var(--accent2); }
+    .culto-ministrante-sel:focus { border-color: var(--accent); }
+    .culto-ministrante-sel option {
+      background-color: var(--surface2, #1c1c1c);
+      color: var(--text, #f0ebe3);
+    }
     .playlist-tema-wrap {
       padding: 8px 14px 10px;
       border-bottom: 1px solid var(--border);
@@ -1014,11 +1086,12 @@
       gap: 6px;
     }
     .playlist-tema-label {
-      font-size: 10px;
-      letter-spacing: .12em;
+      font-family: var(--font-ui);
+      font-size: var(--fs-section-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0.06em;
       text-transform: uppercase;
       color: var(--text-dim);
-      font-weight: 700;
     }
     .playlist-tema-row {
       display: flex;
@@ -1056,7 +1129,6 @@
       color: var(--text);
       border-radius: 6px;
       font-family: var(--font-ui);
-      font-size: 13px;
       cursor: pointer;
       text-align: left;
       outline: none;
@@ -1070,11 +1142,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .playlist-tema-dd-caret {
-      flex-shrink: 0;
-      font-size: 11px;
-      opacity: 0.8;
-    }
+
     .playlist-tema-dd-menu {
       position: absolute;
       left: 0;
@@ -1101,7 +1169,6 @@
       background: transparent;
       color: var(--text);
       font-family: var(--font-ui);
-      font-size: 14px;
       line-height: 1.4;
       text-align: left;
       cursor: pointer;
@@ -1228,6 +1295,62 @@
       display: none !important;
     }
 
+    /*
+      Ícone de cada título de secção da barra.
+
+      Vai no ::before do próprio título (não num <img> ou <svg> no markup) por duas razões:
+      o título de «CULTO» é reescrito por JS com `textContent`, que apagaria um ícone posto
+      lá dentro; e nos cabeçalhos com `space-between` um ícone solto contaria como terceiro
+      item do flex e seria empurrado para longe do texto.
+
+      Máscara + `currentColor`, como a seta dos seletores: acompanha o tema claro/escuro e
+      esmaece junto com o texto, sem precisar de uma versão por tema.
+    */
+    .playlist-panel-head-titulo,
+    .playlist-lista-head-titulo,
+    .culto-ministrante-label,
+    .playlist-tema-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .playlist-panel-head-titulo::before,
+    .playlist-lista-head-titulo::before,
+    .culto-ministrante-label::before,
+    .playlist-tema-label::before {
+      content: '';
+      flex-shrink: 0;
+      width: 13px;
+      height: 13px;
+      /* Discreto de propósito: o ícone localiza a secção, quem a nomeia é o texto.
+         Traço fino no SVG + meia opacidade deixam-no ler como marca-d'água ao lado
+         do título, em vez de um segundo elemento a competir com ele. */
+      opacity: 0.5;
+      background-color: currentColor;
+      -webkit-mask: var(--secao-ico) center / contain no-repeat;
+      mask: var(--secao-ico) center / contain no-repeat;
+    }
+
+    .playlist-panel-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E"); }
+    .culto-ministrante-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cpath d='M12 19v3'/%3E%3C/svg%3E"); }
+    .playlist-tema-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7.5' cy='7.5' r='1.3'/%3E%3C/svg%3E"); }
+    .playlist-lista-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15V6'/%3E%3Ccircle cx='18.5' cy='15.5' r='2.5'/%3E%3Cpath d='M12 12H3'/%3E%3Cpath d='M16 6H3'/%3E%3Cpath d='M12 18H3'/%3E%3C/svg%3E"); }
+
+    /* Cabeçalhos da barra da playlist sem divisória própria: os blocos abaixo deles
+       (culto, ministrante, tema) já trazem a sua, e o traço duplicava a régua. */
+    #playlist-panel-head,
+    #playlist-lista-head {
+      border-bottom: none;
+    }
+
+    /* O botão de copiar fica no canto direito da linha — é o `space-between` herdado de
+       .panel-section-head que o empurra para lá, alinhado com o grupo S/C/I do «CULTO». */
+    #playlist-lista-head {
+      gap: 6px;
+    }
+
+
     .culto-select {
       width: 100%;
       background: var(--surface2);
@@ -1279,10 +1402,7 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .culto-dd-caret {
-      opacity: 0.8;
-      font-size: 11px;
-    }
+
     .culto-dd-menu {
       position: absolute;
       left: 0;
@@ -1714,7 +1834,7 @@
 
     .playlist-row-cols {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 128px 84px 112px;
+      grid-template-columns: minmax(0, 1fr) 84px 112px;
       gap: 6px;
       align-items: center;
       width: 100%;
@@ -1787,8 +1907,8 @@
       border-color: var(--accent);
       color: var(--text);
     }
-    .pl-sel-ministrante,
-    .pl-sel-ministrante option {
+    .culto-ministrante-sel,
+    .culto-ministrante-sel option {
       text-transform: uppercase;
     }
 
@@ -5245,8 +5365,6 @@
     .playlist-panel-head-titulo {
       min-width: 0;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     body.app-mod-slides .panel-playlist .culto-select-wrap {
@@ -5303,8 +5421,11 @@
     }
 
     /* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */
-    body.app-mod-slides .pl-col-ministrante,
     body.app-mod-slides .pl-col-tom {
+      display: none !important;
+    }
+    /* Ministrante é do culto inteiro e só se define no Home. */
+    body.app-mod-slides .culto-ministrante-wrap {
       display: none !important;
     }
 
@@ -9238,6 +9359,9 @@
     .conn-input,
     .culto-dd-btn,
     .culto-dd-item,
+    .culto-ministrante-sel,
+    .playlist-tema-dd-btn,
+    .playlist-tema-dd-item,
     .banco-fonte-select,
     .search-box,
     .item .sub,
@@ -9271,7 +9395,6 @@
     .playlist-row .mini,
     .slides-zoom-val,
     .banco-filtros-checks,
-    .culto-dd-caret,
     .v-num,
     .banco-letras-ajuda,
     .pv-live-letras .pv-live-ap-meta,
@@ -9280,13 +9403,14 @@
     }
 
     .hdr-btn-caption,
-    .playlist-tema-label,
     .playlist-preview-hint,
     .playlist-tema-head {
       font-size: var(--fs-caption-base);
     }
 
     .panel-section-head,
+    .culto-ministrante-label,
+    .playlist-tema-label,
     .sidebar-title,
     .playlist-preview-head,
     .pl-pv-titulo,
@@ -9715,10 +9839,7 @@
       </div>
     </div>
    <div class="panel-section-head" id="playlist-panel-head">
-  CULTO &amp; PLAYLIST
-  <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-  </button>
+  <span class="playlist-panel-head-titulo">CULTO</span>
   <div id="playlist-head-actions">
     <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
     <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
@@ -9730,12 +9851,20 @@
         <button type="button" class="culto-dd-btn" id="culto-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-dd-menu">
           <span class="culto-dd-col-data" id="culto-dd-data">--/--</span>
           <span class="culto-dd-col-desc" id="culto-dd-desc">Selecione o dia do culto...</span>
-          <span class="culto-dd-caret" aria-hidden="true">▾</span>
+          <span class="culto-dd-caret" aria-hidden="true"></span>
         </button>
         <ul class="culto-dd-menu" id="culto-dd-menu" role="listbox" hidden></ul>
         <input type="hidden" id="culto-sel" value="" autocomplete="off" />
       </div>
       <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
+    </div>
+    <div class="culto-ministrante-wrap">
+      <div class="culto-ministrante-label">Ministrante do culto</div>
+      <div class="culto-ministrante-campo">
+        <select class="culto-ministrante-sel" id="culto-ministrante-sel" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
+          <option value="">—</option>
+        </select>
+      </div>
     </div>
     <div class="playlist-tema-wrap">
       <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
@@ -9743,7 +9872,7 @@
         <div class="playlist-tema-dd" id="playlist-tema-dd">
           <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema — botão direito num tema da lista para renomear ou excluir" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
             <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Selecione o tema…</span>
-            <span class="playlist-tema-dd-caret" aria-hidden="true">▾</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
           </button>
           <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
           <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
@@ -9760,6 +9889,12 @@
         </div>
       </div>
     </div>
+    <div class="panel-section-head" id="playlist-lista-head">
+      <span class="playlist-lista-head-titulo">Playlist</span>
+      <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
     <div class="playlist-list" id="playlist-list"></div>
   </aside>
 
@@ -9773,7 +9908,7 @@
             <div class="culto-dd ap-dd" id="ap-files-dd">
               <button type="button" class="culto-dd-btn ap-dd-btn" id="ap-files-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="ap-files-dd-menu">
                 <span class="culto-dd-col-desc" id="ap-files-selected">Selecione um arquivo...</span>
-                <span class="culto-dd-caret" aria-hidden="true">▾</span>
+                <span class="culto-dd-caret" aria-hidden="true"></span>
               </button>
               <div id="ap-files-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
                 <div id="apresentacao-menu-list"></div>
@@ -9788,7 +9923,7 @@
             <div class="culto-dd ap-dd" id="ap-audio-dd">
               <button type="button" class="culto-dd-btn ap-dd-btn" id="ap-audio-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="ap-audio-dd-menu">
                 <span class="culto-dd-col-desc" id="ap-audio-selected">Selecione um áudio...</span>
-                <span class="culto-dd-caret" aria-hidden="true">▾</span>
+                <span class="culto-dd-caret" aria-hidden="true"></span>
               </button>
               <div id="ap-audio-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
                 <div id="apresentacao-audio-list"></div>
