@@ -23378,8 +23378,8 @@ function sincronizarSeletorMonitorContagem() {
 /**
  * Abre o painel, ou fecha-o se já estiver aberto.
  *
- * O painel deixou de ser modal e não se fecha por clique fora; sem esta alternância, o
- * botão do cabeçalho seria a única entrada de um sítio sem saída óbvia.
+ * O botão do cabeçalho continua a alternar mesmo com o fecho por clique fora: é a saída
+ * óbvia para quem acabou de o abrir e ainda tem o rato lá.
  */
 function alternarPainelContagem() {
   const modal = document.getElementById('contagem-backdrop');
@@ -23627,6 +23627,33 @@ async function encerrarContagemDoPainel() {
     }
     fecharPainelContagem();
   }, true);
+
+  /*
+   * Clique fora fecha o painel, como uma janela que perde o foco. Sai só a UI: a contagem
+   * que já está no telão continua no ar — encerrá-la é o botão «Encerrar».
+   *
+   * `pointerdown` e não `click` por duas razões. No `pointerdown` a árvore ainda é a que o
+   * operador viu: cliques em botões do painel que provocam re-render (monitores, presets)
+   * chegariam ao `click` com o alvo já fora do DOM e passariam por «clique fora». E o
+   * painel abre no `click` do cabeçalho, que vem depois — assim o próprio clique que o
+   * abre nunca o fecha, venha de onde vier.
+   */
+  document.addEventListener('pointerdown', (ev) => {
+    const modal = document.getElementById('contagem-backdrop');
+    if (!modal?.classList.contains('aberto')) return;
+    /* Retraído é estado deliberado de quem quer o cronómetro à vista enquanto trabalha no
+       resto do controlador: aí clicar fora é o uso normal, não a saída do modo. Só sai
+       pelo botão do cabeçalho, pelo ✕ ou por ESC. */
+    if (modal.querySelector('.contagem-painel.retraido')) return;
+    const alvo = ev.target instanceof Element ? ev.target : null;
+    if (!alvo || alvo.closest('.contagem-painel')) return;
+    /* Deixar o botão do cabeçalho fechar aqui faria o `click` seguinte reabrir o painel. */
+    if (alvo.closest('#btn-modo-contagem')) return;
+    /* Os avisos do próprio painel (`alert` → app-dialog) desenham-se por cima, fora dele:
+       clicar no «OK» é responder ao painel, não sair do Modo Contador. */
+    if (alvo.closest('#app-dialog-overlay')) return;
+    fecharPainelContagem();
+  });
 
   /*
    * O host é a fonte de verdade: se outro operador (ou o ESC de uma janela de projeção)
