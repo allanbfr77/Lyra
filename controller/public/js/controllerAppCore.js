@@ -8267,6 +8267,15 @@ function renderSeletorTemasPlaylist() {
       aplicarSelecaoTemaNaUi(b.dataset.value || '');
       fecharDropdownTemaPlaylist();
     });
+    // Botão direito sobre o nome do tema: menu de contexto com renomear/excluir/inserir.
+    // O placeholder («Selecione o tema…») não tem tema por trás, logo não abre menu.
+    b.addEventListener('contextmenu', (ev) => {
+      const t = normalizarTemaPlaylist(b.dataset.value || '');
+      if (!t) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      abrirMenuContextoTemaPlaylist(ev.clientX, ev.clientY, t);
+    });
   });
   aplicarSelecaoTemaNaUi(preferido || '');
 }
@@ -9466,13 +9475,6 @@ function refrescarAberturaM3SeMusicaAtivaNaPlaylist() {
   }
 }
 
-function atualizarCabecalhoColunasPlaylist(temMusicas) {
-  const head = document.getElementById('playlist-cols-head');
-  if (!head) return;
-  /* Ministrante/Tom só no Home — no modo Slide o cabeçalho some. */
-  head.hidden = !temMusicas || !cultoId || ehModoSlidesOperador();
-}
-
 /**
  * A troca com o vizinho é possível nesta direção?
  *
@@ -9889,21 +9891,16 @@ function renderPlaylist() {
   el.innerHTML = '';
   renderSeletorTemasPlaylist();
   if (!cultoId) {
-    atualizarCabecalhoColunasPlaylist(false);
     el.innerHTML = '<div class="placeholder-msg" style="margin:16px">🗓️ Selecione primeiro o <strong>dia do culto</strong> para ver ou montar a playlist.</div>';
     return;
   }
   const pl = getPlaylist(cultoId);
   if (!pl.length) {
-    atualizarCabecalhoColunasPlaylist(false);
     el.innerHTML = ehModoSlidesOperador()
       ? '<div class="placeholder-msg" style="margin:16px">📝 Nenhuma música neste culto.<br>Abra <strong>TELA INICIAL</strong> (topo) e, no <strong>banco de músicas à esquerda</strong>, toque em <strong>+</strong> em cada música para incluir na playlist.</div>'
       : '<div class="placeholder-msg" style="margin:16px">📝 Nenhuma música neste culto.<br>No banco de músicas <strong>à esquerda</strong>, toque em <strong>+</strong> na linha da música para adicionar ao culto.</div>';
     return;
   }
-
-  const temMusica = pl.some((it) => !ehMarcadorTemaPlaylist(it));
-  atualizarCabecalhoColunasPlaylist(temMusica);
 
   if (playlistPossuiMarcadoresTema(pl)) {
     renderPlaylistItensComMarcadores(el, pl);
@@ -10557,34 +10554,143 @@ function confirmarSyncPlaylistModal() {
   })();
 }
 
+/** Tema sobre o qual o menu de contexto foi aberto (botão direito na lista de temas). */
+let temaMenuContextoAtual = '';
+
+function fecharMenuContextoTemaPlaylist() {
+  const m = document.getElementById('playlist-tema-ctx-menu');
+  if (m) m.hidden = true;
+  temaMenuContextoAtual = '';
+}
+
+/** Abre o menu junto ao cursor, sem deixá-lo sair da janela. */
+function abrirMenuContextoTemaPlaylist(clientX, clientY, tema) {
+  const menu = document.getElementById('playlist-tema-ctx-menu');
+  const titulo = document.getElementById('playlist-tema-ctx-titulo');
+  if (!menu) return;
+  temaMenuContextoAtual = normalizarTemaPlaylist(tema);
+  if (!temaMenuContextoAtual) return;
+  if (titulo) titulo.textContent = temaMenuContextoAtual;
+  menu.hidden = false;
+  menu.style.left = '-9999px';
+  menu.style.top = '0';
+  const rect = menu.getBoundingClientRect();
+  const pad = 8;
+  let x = clientX;
+  let y = clientY;
+  if (x + rect.width + pad > window.innerWidth) x = Math.max(pad, window.innerWidth - rect.width - pad);
+  if (y + rect.height + pad > window.innerHeight) y = Math.max(pad, window.innerHeight - rect.height - pad);
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+}
+
+/** Insere o tema no fim da playlist do culto; novas músicas passam a entrar nesse bloco. */
+function inserirTemaNaPlaylistAtual(tema) {
+  if (!cultoId) {
+    alert('Selecione primeiro o dia do culto.');
+    return;
+  }
+  const t = normalizarTemaPlaylist(tema);
+  if (!t) {
+    alert('Escolha um tema na lista antes de «Inserir».');
+    return;
+  }
+  if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(cultoId);
+  const pl = getPlaylist(cultoId);
+  pl.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: t });
+  garantirTemaNoCatalogoAtual(t);
+  setTemaSelecionadoAtual(t);
+  savePlaylists();
+  renderSeletorTemasPlaylist();
+  renderPlaylist();
+}
+
+async function renomearTemaPeloMenuContexto(tema) {
+  if (!cultoId) {
+    alert('Selecione primeiro o dia do culto.');
+    return;
+  }
+  const atual = normalizarTemaPlaylist(tema);
+  if (!atual) return;
+  const novo = await appPrompt('Novo nome do tema:', {
+    title: 'Editar nome do tema',
+    defaultValue: atual,
+    emptyMsg: 'Digite o novo nome do tema.',
+  });
+  if (!novo || novo === atual) return;
+  if (!renomearTemaNoCulto(atual, novo)) return;
+  renderSeletorTemasPlaylist();
+  renderPlaylist();
+  if (getTemaSelecionadoAtual() === novo) aplicarSelecaoTemaNaUi(novo);
+}
+
+async function excluirTemaPeloMenuContexto(tema) {
+  if (!cultoId) {
+    alert('Selecione primeiro o dia do culto.');
+    return;
+  }
+  const t = normalizarTemaPlaylist(tema);
+  if (!t) return;
+  const ok = await appConfirm(
+    `Excluir o tema «${t}»? Todas as músicas inseridas nesse tema serão removidas da playlist deste culto.`,
+    'Excluir tema'
+  );
+  if (!ok) return;
+  excluirTemaDoCulto(t);
+  renderSeletorTemasPlaylist();
+  renderPlaylist();
+}
+
+function configurarMenuContextoTemaPlaylist() {
+  const menu = document.getElementById('playlist-tema-ctx-menu');
+  if (!menu) return;
+
+  document.getElementById('playlist-tema-ctx-inserir')?.addEventListener('click', () => {
+    const t = temaMenuContextoAtual;
+    fecharMenuContextoTemaPlaylist();
+    fecharDropdownTemaPlaylist();
+    inserirTemaNaPlaylistAtual(t);
+  });
+
+  document.getElementById('playlist-tema-ctx-renomear')?.addEventListener('click', () => {
+    const t = temaMenuContextoAtual;
+    fecharMenuContextoTemaPlaylist();
+    fecharDropdownTemaPlaylist();
+    renomearTemaPeloMenuContexto(t).catch(() => {});
+  });
+
+  document.getElementById('playlist-tema-ctx-excluir')?.addEventListener('click', () => {
+    const t = temaMenuContextoAtual;
+    fecharMenuContextoTemaPlaylist();
+    fecharDropdownTemaPlaylist();
+    excluirTemaPeloMenuContexto(t).catch(() => {});
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!menu.hidden && !menu.contains(e.target)) fecharMenuContextoTemaPlaylist();
+  });
+  // Outro botão direito fora do menu fecha o que estava aberto (o handler do item reabre em seguida).
+  document.addEventListener('contextmenu', (e) => {
+    if (!menu.hidden && !menu.contains(e.target)) fecharMenuContextoTemaPlaylist();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu.hidden) fecharMenuContextoTemaPlaylist();
+  });
+  window.addEventListener('resize', () => fecharMenuContextoTemaPlaylist());
+  window.addEventListener('blur', () => fecharMenuContextoTemaPlaylist());
+}
+
 function configurarSeletorTemaPlaylist() {
   const sel = document.getElementById('playlist-tema-sel');
   const btnAdd = document.getElementById('playlist-tema-add');
   const btnAplicar = document.getElementById('playlist-tema-aplicar');
-  const btnEdit = document.getElementById('playlist-tema-edit');
-  const btnDel = document.getElementById('playlist-tema-del');
-  if (!sel || !btnAdd || !btnAplicar || !btnEdit || !btnDel) return;
+  if (!sel || !btnAdd || !btnAplicar) return;
 
   setupDropdownTemaPlaylist();
+  configurarMenuContextoTemaPlaylist();
 
   btnAplicar.addEventListener('click', () => {
-    if (!cultoId) {
-      alert('Selecione primeiro o dia do culto.');
-      return;
-    }
-    const t = normalizarTemaPlaylist(sel.value);
-    if (!t) {
-      alert('Escolha um tema na lista antes de «Inserir tema na playlist abaixo».');
-      return;
-    }
-    if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(cultoId);
-    const pl = getPlaylist(cultoId);
-    pl.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: t });
-    garantirTemaNoCatalogoAtual(t);
-    setTemaSelecionadoAtual(t);
-    savePlaylists();
-    renderSeletorTemasPlaylist();
-    renderPlaylist();
+    inserirTemaNaPlaylistAtual(sel.value);
   });
 
  btnAdd.addEventListener('click', async () => {
@@ -10598,54 +10704,6 @@ function configurarSeletorTemaPlaylist() {
   renderSeletorTemasPlaylist();
   aplicarSelecaoTemaNaUi(nome);
 });
-
-  btnEdit.addEventListener('click', async () => {
-    if (!cultoId) {
-      alert('Selecione primeiro o dia do culto.');
-      return;
-    }
-    const atual = normalizarTemaPlaylist(sel.value);
-    if (!atual) {
-      alert('Selecione um tema na lista para renomear.');
-      return;
-    }
-    const novo = await appPrompt('Novo nome do tema:', {
-      title: 'Renomear tema',
-      defaultValue: atual,
-      emptyMsg: 'Digite o novo nome do tema.',
-    });
-    if (!novo || novo === atual) return;
-    if (!renomearTemaNoCulto(atual, novo)) return;
-    renderSeletorTemasPlaylist();
-    if (getTemaSelecionadoAtual() === novo) aplicarSelecaoTemaNaUi(novo);
-  });
-
-  btnDel.addEventListener('click', async () => {
-    if (!cultoId) {
-      alert('Selecione primeiro o dia do culto.');
-      return;
-    }
-    const t = normalizarTemaPlaylist(sel.value);
-    if (!t) {
-      alert('Selecione um tema na lista para excluir.');
-      return;
-    }
-    // Estado de confirmação: o "X" só fica vermelho enquanto a confirmação está aberta.
-    btnDel.classList.add('confirmando');
-    let ok = false;
-    try {
-      ok = await appConfirm(
-        `Excluir o tema «${t}»? Todas as músicas inseridas nesse tema serão removidas da playlist deste culto.`,
-        'Excluir tema'
-      );
-    } finally {
-      btnDel.classList.remove('confirmando');
-    }
-    if (!ok) return;
-    excluirTemaDoCulto(t);
-    renderSeletorTemasPlaylist();
-    renderPlaylist();
-  });
 
   document.getElementById('playlist-compartilhar-btn')?.addEventListener('click', compartilharPlaylist);
 document.getElementById('playlist-importar-btn')?.addEventListener('click', importarPlaylist);

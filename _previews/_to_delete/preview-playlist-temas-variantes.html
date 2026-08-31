@@ -1,0 +1,858 @@
+<!doctype html><html class="dark"><head><meta charset="utf-8"><style>:root {
+      --slides-rail-height: 520px;
+      /* Modo slides: piso da faixa de prévias — o arraste nunca encolhe abaixo disto. */
+      --preview-mod-card-h-min: 172px;
+      --bg: #f5f3ee;
+      --surface: #ffffff;
+      --surface2: #ebe8e2;
+      --border: #d8d3c9;
+      --accent: #a67c2d;
+      --accent2: #7a5a1f;
+      --text: #000000;
+      --text-dim: #000000;
+      --green: #2f7d4e;
+      --red: #b03028;
+      --yellow: #c48800;
+      --on-accent: #1a1612;
+
+      /* ── Dock de navegação — geometria (partilhada pelos dois temas) ── */
+      --nav-dur: 0.18s;
+      --nav-gap: 4px;
+      --nav-dock-pad: 6px;
+      --nav-dock-radius: 20px;
+      --nav-item-radius: 14px;
+      --nav-item-w: 90px;
+      --nav-item-h: 58px;
+      --nav-icon-size: 20px;
+      /* Folga horizontal da cápsula à volta do ícone. */
+      --nav-capsula-px: 13px;
+      /* Folga vertical entre a pílula e as bordas do cabeçalho. */
+      --nav-dock-respiro: 13px;
+
+      /* ── Dock de navegação — cores (tema claro) ── */
+      --nav-dock-bg: color-mix(in srgb, var(--surface2) 72%, var(--surface));
+      --nav-dock-border: color-mix(in srgb, var(--border) 85%, transparent);
+      --nav-dock-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 10px 24px -16px rgb(0 0 0 / 0.35);
+      --nav-item-fg: color-mix(in srgb, var(--text) 58%, transparent);
+      --nav-item-fg-hover: var(--text);
+      --nav-item-bg-hover: color-mix(in srgb, var(--text) 7%, transparent);
+      --nav-item-active-bg: var(--surface);
+      --nav-item-active-border: color-mix(in srgb, var(--border) 90%, transparent);
+      --nav-item-active-fg: var(--text);
+      --nav-item-active-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 14px -8px rgb(0 0 0 / 0.4);
+      --nav-focus-ring: color-mix(in srgb, var(--accent) 70%, transparent);
+      /* Deriva de --text, por isso serve os dois temas sem redefinição. */
+      --nav-divisor: color-mix(in srgb, var(--text) 15%, transparent);
+
+      /* ── Cores semânticas por modo (tema claro) ── */
+      --mode-home: #8b7355;
+      --mode-midias: #7c5cbf;
+      --mode-biblia: #b8860b;
+      --mode-slide: #2d8a6e;
+      --mode-contagem: #b5603a;
+      --mode-cfg: #5b7c99;
+      --mode-tema: #4a6fa5;
+      --mode-voz: color-mix(in srgb, var(--text) 72%, transparent);
+
+      /* Prévia de slide na UI apenas — monitores físicos usam displayConfig.fontFamily. */
+      --slide-font: 'CMG Sans', 'DM Sans', system-ui, sans-serif;
+      /* Chrome da aplicação (menus, botões, formulários, tabelas). */
+      --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+      /* Escala tipográfica da UI — hierarquia consistente (não afecta projeção). */
+      --fs-title: 20px;
+      --fs-subtitle: 16px;
+      --fs-body-base: 14px;
+      --fs-text-base: 14px;
+      --fs-label-base: 12px;
+      --fs-section-base: 13px;
+      --fs-caption-base: 12px;
+      --fs-card-head-base: 11px;
+      --fs-card-text-base: 13px;
+      --fw-regular: 400;
+      --fw-medium: 500;
+      --fw-semibold: 600;
+      --fw-bold: 700;
+      --slide-chip-snippet-px-base: 14;
+      --slide-chip-num-px-base: 20;
+    }
+body{margin:0;background:#14110d;font-family:var(--font-ui,system-ui);display:flex;gap:24px;padding:20px;align-items:flex-start}
+.col{width:300px} .cap{color:#c8bfae;font:12px/1.4 monospace;padding:0 0 8px}
+.sidebar{background:var(--surface,#1c1813);border:1px solid #3a3229}
+.btn-reload-ctrl {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--surface2);
+      color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+    }
+.btn-reload-ctrl:hover {
+      border-color: var(--accent);
+      background: var(--surface);
+      color: var(--accent2);
+    }
+.btn-reload-ctrl:active { transform: scale(0.94); }
+.btn-reload-ctrl svg { display: block; width: 12px; height: 12px; }
+.btn-reload-ctrl--inline {
+      width: 18px;
+      height: 18px;
+      opacity: 0.72;
+    }
+.btn-reload-ctrl--inline:hover { opacity: 1; }
+.btn-reload-ctrl--inline svg {
+      width: 10px;
+      height: 10px;
+    }
+.btn {
+      font-family: var(--font-ui);
+      font-size: var(--fs-body-base);
+      font-weight: var(--fw-semibold);
+      letter-spacing: 0;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: var(--fw-bold); }
+.btn.primary:hover { background: #c49216; border-color: #c49216; color: var(--on-accent); }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: var(--red); color: #fff; }
+.btn.success { border-color: var(--green); color: var(--green); }
+.btn.success:hover { background: var(--green); color: #fff; }
+.btn.sm { padding: 4px 8px; font-size: var(--fs-caption-base); font-weight: var(--fw-semibold); }
+.playlist-tema-wrap {
+      padding: 8px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+.playlist-tema-label {
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+.playlist-tema-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+/* Seletor e ações na mesma linha: o dropdown cede espaço primeiro (nome em reticências)
+       e só quebra para a linha de baixo quando a barra lateral fica estreita demais —
+       nesse caso os dois botões descem juntos e dividem a largura. */
+    .playlist-tema-dd {
+      position: relative;
+      flex: 1 1 80px;
+      min-width: 80px;
+      max-width: 100%;
+    }
+/* Largura fixa (conteúdo): toda a folga da linha vai para o seletor. */
+    .playlist-tema-acoes {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+.playlist-tema-dd-btn {
+      width: 100%;
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+      outline: none;
+    }
+.playlist-tema-dd-btn:hover { border-color: var(--accent2); }
+.playlist-tema-dd.open .playlist-tema-dd-btn { border-color: var(--accent); }
+.playlist-tema-dd-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+.playlist-tema-dd-caret {
+      flex-shrink: 0;
+      font-size: 11px;
+      opacity: 0.8;
+    }
+.playlist-tema-dd-menu {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      margin: 0;
+      padding: 6px 0;
+      list-style: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      z-index: 30000;
+      max-height: min(320px, 55vh);
+      overflow-y: auto;
+    }
+.playlist-tema-dd-menu[hidden] { display: none !important; }
+.playlist-tema-dd-item {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      margin: 0;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      line-height: 1.4;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+.playlist-tema-dd-item:hover,
+    .playlist-tema-dd-item:focus-visible {
+      outline: none;
+      background: rgba(166, 124, 45, 0.22);
+    }
+.playlist-tema-dd-item[aria-selected="true"] {
+      background: rgba(166, 124, 45, 0.14);
+    }
+/* Botões de ação da barra de temas: ícone + rótulo, na mesma linha do seletor.
+       Renomear/excluir saíram daqui — agora vivem no menu de contexto da lista. */
+    /* O seletor da linha acima já dá conta do contexto; aqui o que importa é caber ao lado
+       dele sem quebrar. Seletor mais específico para vencer o `.btn.sm` do bloco tipográfico. */
+    .playlist-tema-row .btn.sm.playlist-tema-acao-btn {
+      flex: 0 1 auto;
+      height: 32px;
+      min-width: 0;
+      padding: 0 7px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+      line-height: 1;
+      white-space: nowrap;
+      border-radius: 6px;
+    }
+.playlist-tema-acao-btn svg {
+      display: block;
+      flex: 0 0 auto;
+      pointer-events: none;
+    }
+.playlist-tema-acao-btn-txt {
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      font-weight: 700;
+      pointer-events: none;
+    }
+/* Ação principal da área: inserir o tema escolhido na playlist. */
+    .playlist-tema-row .btn.sm.playlist-tema-acao-btn--primaria {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+.playlist-tema-row .btn.sm.playlist-tema-acao-btn--primaria:hover,
+    .playlist-tema-row .btn.sm.playlist-tema-acao-btn--primaria:focus-visible {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+.playlist-tema-dica {
+      margin: 0;
+      font-size: 10px;
+      line-height: 1.35;
+      color: var(--text-dim);
+      opacity: 0.75;
+    }
+/* Menu de contexto dos temas (botão direito sobre um item da lista). */
+    .playlist-tema-ctx-menu {
+      position: fixed;
+      z-index: 30050;
+      min-width: 200px;
+      padding: 6px 0;
+      margin: 0;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+.playlist-tema-ctx-menu[hidden] { display: none !important; }
+.playlist-tema-ctx-titulo {
+      padding: 4px 14px 8px;
+      margin: 0 0 4px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 260px;
+    }
+.playlist-tema-ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+.playlist-tema-ctx-item svg {
+      flex: 0 0 auto;
+      display: block;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+.playlist-tema-ctx-item:hover,
+    .playlist-tema-ctx-item:focus-visible {
+      outline: none;
+      background: var(--surface2);
+      color: var(--accent);
+    }
+.playlist-tema-ctx-item--perigo:hover,
+    .playlist-tema-ctx-item--perigo:focus-visible {
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.18);
+    }
+body.app-mod-slides .playlist-tema-wrap {
+      display: none !important;
+    }
+.btn-slide-nota {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+      background: transparent;
+      color: color-mix(in srgb, var(--text) 68%, var(--text-dim));
+      cursor: pointer;
+      opacity: 0.78;
+    }
+.btn-slide-nota:hover:not(:disabled) {
+      opacity: 1;
+      border-color: color-mix(in srgb, var(--accent2) 55%, var(--border));
+      color: var(--text);
+      background: color-mix(in srgb, var(--surface2) 65%, transparent);
+    }
+.btn-slide-nota:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+.playlist-tema-head-row .playlist-tema-toggle-expand.btn.sm {
+      padding: 0;
+      font-size: inherit;
+      line-height: 0;
+    }
+.musica-versoes-bar .btn.sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 4px 11px;
+      border-radius: 999px;
+    }
+.musica-versoes-bar .btn.sm svg { width: 14px; height: 14px; flex-shrink: 0; }
+.musica-versoes-bar .btn.sm.versao-musica-ativa {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--accent);
+    }
+/* Com os botões contextuais + separadores, a barra ganhou itens. Fonte um
+       pouco menor e padding proporcional aliviam o peso visual. Hierarquia via
+       --font-ui / pesos — não usa tipografia de projeção. */
+    .centro-toolbar-acoes .btn {
+      font-size: var(--fs-caption-base);
+      letter-spacing: 0;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+/* Ícone SVG de cada ação: mesmo tamanho e alinhamento em todos os botões. */
+    .centro-toolbar-acoes .btn svg { width: 15px; height: 15px; flex-shrink: 0; display: block; }
+.centro-toolbar-acoes .btn .btn-ico {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      line-height: 0;
+    }
+.centro-toolbar-acoes .btn .btn-txt { line-height: 1.2; }
+/* Setas de navegação: só ícone, mais compactas. */
+    .centro-toolbar-acoes .btn.btn-nav-seta { padding: 5px 7px; }
+/* Hierarquia da barra: só a acção primária (EDITAR LETRA / SALVAR) tem
+       preenchimento sólido. Todo o resto é neutro — outline monocromático. */
+    .centro-toolbar-acoes .btn-toolbar-letra-completa {
+      font-weight: 600;
+      border-style: solid;
+      border-color: var(--border);
+      color: var(--text);
+      background: var(--surface2);
+    }
+.centro-toolbar-acoes .btn-toolbar-letra-completa:hover:not(:disabled) {
+      border-color: color-mix(in srgb, var(--text) 42%, var(--border));
+      color: var(--text);
+      background: color-mix(in srgb, var(--surface2) 82%, var(--text) 8%);
+    }
+/* MODO LETRA COMPLETA activo (= Salvar alterações): mesmo dourado do «Editar letra» / primary. */
+    .centro-toolbar-acoes .btn-toolbar-letra-completa.ativo {
+      background: var(--accent);
+      color: var(--on-accent);
+      border-color: var(--accent);
+      font-weight: var(--fw-bold);
+    }
+.centro-toolbar-acoes .btn-toolbar-letra-completa.ativo:hover:not(:disabled) {
+      background: #c49216;
+      border-color: #c49216;
+      color: var(--on-accent);
+    }
+.centro-toolbar-acoes .btn-caixa-letras {
+      min-width: 36px;
+      padding: 5px 8px;
+      font-family: var(--font-ui);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+.centro-toolbar-acoes .btn-caixa-letras .btn-caixa-letras-glyph {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 1px;
+      line-height: 1;
+      font-size: 15px;
+    }
+.centro-toolbar-acoes .btn-caixa-letras .caixa-min {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+.centro-toolbar-acoes .btn-caixa-letras .caixa-maj {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+.centro-toolbar-acoes .btn-caixa-letras.ativo {
+      border-color: color-mix(in srgb, var(--text) 55%, var(--border));
+      color: var(--surface);
+      background: color-mix(in srgb, var(--text) 82%, var(--surface2));
+    }
+.centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-min,
+    .centro-toolbar-acoes .btn-caixa-letras.ativo .caixa-maj {
+      color: var(--surface);
+    }
+/* SAIR (limpa as telas de projecção): neutro em repouso, vermelho só
+       no hover/foco — é reversível, mas não deve competir em repouso. */
+    .centro-toolbar-acoes .btn.danger#btn-sair-projecao {
+      border-color: var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+.centro-toolbar-acoes .btn.danger#btn-sair-projecao:hover:not(:disabled),
+    .centro-toolbar-acoes .btn.danger#btn-sair-projecao:focus-visible {
+      border-color: var(--red);
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.12);
+    }
+.btn.preview-painel-toggle-icon {
+      flex-shrink: 0;
+      padding: 6px 8px;
+      min-width: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(200, 169, 110, 0.92);
+      background: transparent;
+      border: 1px solid #3a3a3a;
+    }
+.btn.preview-painel-toggle-icon:hover {
+      border-color: rgba(166, 124, 45, 0.55);
+      color: rgba(230, 205, 150, 1);
+    }
+/*
+      Modo slides — pré-visualizações telão/TV: olho menor e sem «caixa» (só o ícone no cabeçalho).
+    */
+    body.app-mod-slides .centro-col-preview-stack .btn.sm.preview-painel-toggle-icon {
+      padding: 0;
+      min-width: 0;
+      width: auto;
+      height: auto;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none;
+      line-height: 0;
+    }
+.btn-banco-sqlite-toggle-lista {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+.btn-banco-sqlite-toggle-lista:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+.btn-banco-sqlite-toggle-lista[aria-expanded="false"] .btn-banco-sqlite-toggle-lista-icone {
+      transform: rotate(-90deg);
+    }
+.btn-banco-sqlite-toggle-lista-icone {
+      transition: transform 0.15s ease;
+    }
+.btn-import-letras {
+      align-self: center;
+      white-space: nowrap;
+    }
+.btn.btn-playlist-plus {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #14100a;
+      background: linear-gradient(145deg, rgba(166, 124, 45, 0.95), rgba(120, 85, 28, 0.98));
+      border: 1px solid rgba(200, 169, 110, 0.35);
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      opacity: 0.95;
+      transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+    }
+.btn.btn-playlist-plus:hover {
+      opacity: 1;
+      transform: scale(1.06);
+      box-shadow:
+        0 3px 12px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    }
+.item:hover .btn-playlist-plus {
+      opacity: 1;
+      color: #fff0cf;
+    }
+.btn.btn-banco-remover {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      padding: 0;
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.55;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
+    }
+/* Em repouso a lixeira é neutra (sem vermelho), mesmo com a classe .danger:
+       o vermelho é reservado para hover/foco e para o estado de confirmação. */
+    .btn.btn-banco-remover,
+    .btn.danger.btn-banco-remover {
+      border-color: var(--border);
+      color: var(--text-dim);
+      background: var(--surface2);
+    }
+.item:hover .btn-banco-remover {
+      opacity: 1;
+    }
+.btn.btn-banco-remover:hover,
+    .btn.danger.btn-banco-remover:hover,
+    .btn.btn-banco-remover:focus-visible,
+    .btn.danger.btn-banco-remover:focus-visible,
+    .btn.btn-banco-remover.confirmando,
+    .btn.danger.btn-banco-remover.confirmando {
+      opacity: 1;
+      border-color: var(--red);
+      color: #ffd8d3;
+      background: rgba(176, 48, 40, 0.12);
+    }
+.btn.btn-banco-remover.confirmando {
+      background: rgba(176, 48, 40, 0.22);
+    }
+.btn-estrofe-quick {
+      opacity: 0.3;
+      transition: opacity 0.16s ease, transform 0.12s ease;
+    }
+.estrofe-slide-edit:hover .btn-estrofe-quick {
+      opacity: 1;
+    }
+.btn-estrofe-quick:hover {
+      transform: scale(1.05);
+    }
+.slides-dock-zoom-group--inerte .btn {
+      cursor: not-allowed;
+    }
+/* Ação secundária/fallback: menos peso visual que o "Buscar" — contorno
+       tracejado, fundo transparente e cor esmaecida. */
+    .banco-nova-manual-wrap .btn {
+      border-radius: 6px;
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+.banco-nova-manual-wrap .btn:hover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
+      color: var(--text);
+    }
+.slide-quick-edit-dialog .btn,
+    .letras-preview-dialog .btn,
+    .musica-excluir-dialog .btn,
+    .cfg-modal .btn {
+      min-height: 32px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid color-mix(in srgb, var(--border) 76%, var(--accent) 10%);
+      background: color-mix(in srgb, var(--surface2) 88%, var(--surface));
+      color: var(--text);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.12s ease;
+    }
+.slide-quick-edit-dialog .btn:hover,
+    .letras-preview-dialog .btn:hover,
+    .musica-excluir-dialog .btn:hover,
+    .cfg-modal .btn:hover {
+      border-color: var(--accent2);
+      background: color-mix(in srgb, var(--surface2) 78%, var(--accent) 10%);
+      color: var(--text);
+    }
+.slide-quick-edit-dialog .btn:active,
+    .letras-preview-dialog .btn:active,
+    .musica-excluir-dialog .btn:active,
+    .cfg-modal .btn:active {
+      transform: translateY(1px);
+    }
+.slide-quick-edit-dialog .btn.primary,
+    .letras-preview-dialog .btn.primary,
+    .musica-excluir-dialog .btn.primary,
+    .cfg-modal .btn.primary {
+      border-color: color-mix(in srgb, var(--accent) 84%, var(--border));
+      background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 88%, #d8b66e), color-mix(in srgb, var(--accent2) 92%, #7a5a1f));
+      color: var(--on-accent);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+.slide-quick-edit-dialog .btn.primary:hover,
+    .letras-preview-dialog .btn.primary:hover,
+    .musica-excluir-dialog .btn.primary:hover,
+    .cfg-modal .btn.primary:hover {
+      border-color: color-mix(in srgb, var(--accent2) 86%, var(--border));
+      background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, #d8b66e), color-mix(in srgb, var(--accent2) 96%, #6f501b));
+      color: var(--on-accent);
+    }
+.slide-quick-edit-dialog .btn.danger,
+    .letras-preview-dialog .btn.danger,
+    .musica-excluir-dialog .btn.danger,
+    .cfg-modal .btn.danger {
+      border-color: color-mix(in srgb, var(--red) 72%, var(--border));
+      background: color-mix(in srgb, var(--surface2) 86%, rgba(176, 48, 40, 0.14));
+      color: color-mix(in srgb, var(--red) 92%, var(--text));
+    }
+.slide-quick-edit-dialog .btn.danger:hover,
+    .letras-preview-dialog .btn.danger:hover,
+    .musica-excluir-dialog .btn.danger:hover,
+    .cfg-modal .btn.danger:hover {
+      border-color: color-mix(in srgb, var(--red) 86%, var(--border));
+      background: color-mix(in srgb, var(--surface2) 72%, rgba(176, 48, 40, 0.24));
+      color: #fff3f1;
+    }
+/* ↑ ↓ ✕ compactos — não competem com o título agora que a fonte da lista subiu. */
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .btn.sm,
+    body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover {
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      line-height: 1;
+      letter-spacing: 0;
+      border-radius: 4px;
+    }
+.ap-card6-footer .route-dd--card6-aviso,
+    .ap-card6-footer .btn {
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 32px;
+    }
+.ap-card6-footer .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 4px;
+      white-space: nowrap;
+      justify-content: center;
+      font-size: 10px;
+    }
+.ap-card6-footer .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+.btn-theme {
+      font-family: var(--font-ui);
+      font-size: 14px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+      line-height: 1;
+      white-space: nowrap;
+    }
+.btn-theme:hover { border-color: var(--accent); color: var(--accent); }
+/*
+     * Opções em lista (ex.: «Versão da Bíblia»): conteúdo à esquerda em vez de centrado.
+     * Com nomes de comprimentos diferentes, o centramento faz cada linha começar num ponto
+     * distinto. Alinhados à esquerda, todos os códigos (ACF, ARA, NTLH…) partem da mesma
+     * posição e as descrições ficam a prumo.
+     *
+     * Só alinhamento: tamanho, tipografia, cores e estados de hover/selecção continuam a
+     * vir de `.btn` / `.btn.primary`. O recuo lateral é o padding do próprio `.btn`, igual
+     * dos dois lados, por isso é uniforme para todos os itens.
+     */
+    .app-dialog-opcao--lista {
+      text-align: left;
+      justify-content: flex-start;
+    }
+.confirmar-import-acoes .btn { min-width: 112px; padding: 9px 16px; }
+.cfg-ministrante-row .btn.sm {
+      flex-shrink: 0;
+      min-width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+.contagem-acoes .btn { flex: 1 1 auto; min-width: 96px; justify-content: center; }
+.btn {
+      font-size: var(--fs-body-base);
+      font-weight: var(--fw-semibold);
+    }
+.btn.sm {
+      font-size: var(--fs-caption-base);
+    }
+.hdr-btn-caption,
+    .playlist-tema-label,
+    .playlist-preview-hint,
+    .playlist-tema-head {
+      font-size: var(--fs-caption-base);
+    }
+.vB-topo{justify-content:space-between} .vB-topo .playlist-tema-label{flex:0 0 auto}
+.vC-acoes .playlist-tema-acoes{flex:1 1 auto;width:100%}
+.vC-acoes .playlist-tema-row .btn.sm.playlist-tema-acao-btn{flex:1 1 auto}
+</style></head><body>
+<div class="col"><div class="cap">A — escolhida: tudo numa linha<br>(seletor fica com 108px)</div><div class="sidebar"><div class="playlist-tema-wrap"><div class="playlist-tema-label">TEMA NA PLAYLIST</div><div class="playlist-tema-row"><div class="playlist-tema-dd" id="playlist-tema-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
+            <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Louvor de Entrada</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true">▾</span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
+        </div>
+        <div class="playlist-tema-acoes">
+          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Inserir</span>
+          </button>
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
+            <span class="playlist-tema-acao-btn-txt">+ Novo</span>
+          </button>
+        </div></div><p class="playlist-tema-dica">Botão direito num tema da lista: renomear, excluir…</p></div></div></div>
+<div class="col"><div class="cap">B — botões na linha do rótulo<br>(seletor com largura toda)</div><div class="sidebar"><div class="playlist-tema-wrap"><div class="playlist-tema-row vB-topo"><div class="playlist-tema-label">TEMA</div><div class="playlist-tema-acoes">
+          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Inserir</span>
+          </button>
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
+            <span class="playlist-tema-acao-btn-txt">+ Novo</span>
+          </button>
+        </div></div><div class="playlist-tema-row"><div class="playlist-tema-dd" id="playlist-tema-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
+            <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Louvor de Entrada</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true">▾</span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
+        </div>
+        </div><p class="playlist-tema-dica">Botão direito num tema da lista: renomear, excluir…</p></div></div></div>
+<div class="col"><div class="cap">C — botões numa linha própria<br>(seletor com largura toda)</div><div class="sidebar"><div class="playlist-tema-wrap"><div class="playlist-tema-label">TEMA NA PLAYLIST</div><div class="playlist-tema-row"><div class="playlist-tema-dd" id="playlist-tema-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
+            <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Louvor de Entrada</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true">▾</span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
+        </div>
+        </div><div class="playlist-tema-row vC-acoes"><div class="playlist-tema-acoes">
+          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Inserir</span>
+          </button>
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
+            <span class="playlist-tema-acao-btn-txt">+ Novo</span>
+          </button>
+        </div></div><p class="playlist-tema-dica">Botão direito num tema da lista: renomear, excluir…</p></div></div></div>
+</body></html>

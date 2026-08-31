@@ -1024,13 +1024,23 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
     }
+    /* Seletor e ações lado a lado. É o seletor que cede espaço (nome do tema em
+       reticências); só quebra para a linha de baixo quando a barra lateral fica
+       estreita demais — e aí os dois botões descem juntos. */
     .playlist-tema-dd {
       position: relative;
-      flex: 1 1 100px;
-      min-width: 72px;
+      flex: 1 1 80px;
+      min-width: 80px;
       max-width: 100%;
+    }
+    /* Largura de conteúdo: toda a folga da linha vai para o seletor. */
+    .playlist-tema-acoes {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
     .playlist-tema-dd-btn {
       width: 100%;
@@ -1105,60 +1115,114 @@
     .playlist-tema-dd-item[aria-selected="true"] {
       background: rgba(166, 124, 45, 0.14);
     }
-    .playlist-tema-nav {
-      flex: 0 0 auto;
-      min-width: 32px;
-      width: 32px;
-      height: 28px;
-      padding: 0;
+    /* Ações da área de temas: ícone + rótulo, na linha do rótulo da secção.
+       Renomear/excluir saíram daqui — agora vivem no menu de contexto da lista.
+       Seletor mais específico para vencer o `.btn.sm` do bloco tipográfico lá em baixo. */
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn {
+      flex: 0 1 auto;
+      height: 32px;
+      min-width: 0;
+      padding: 0 8px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      line-height: 1;
-    }
-    .playlist-tema-acao {
-      flex: 0 0 auto;
-      min-width: 28px;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      gap: 4px;
       font-size: 11px;
       line-height: 1;
+      white-space: nowrap;
+      border-radius: 6px;
     }
-    .playlist-tema-acao svg {
+
+    .playlist-tema-acao-btn svg {
       display: block;
+      flex: 0 0 auto;
+      pointer-events: none;
     }
 
-    /* Pausa visual antes da ação destrutiva: divisória fina + respiro extra,
-       sem alterar o tamanho dos botões nem o gap dos demais. */
-    .playlist-tema-acao--destrutiva {
-      margin-left: 5px;
-      box-shadow: -6px 0 0 -5px var(--border);
+    .playlist-tema-acao-btn-txt {
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      font-weight: 700;
+      pointer-events: none;
     }
 
-    /* Em repouso o "X" usa o mesmo estilo neutro dos outros botões da barra;
-       o vermelho fica reservado para hover/foco e para o estado de confirmação. */
-    .btn.danger.playlist-tema-acao--destrutiva {
-      border-color: var(--border);
+    /* Ação principal da área: inserir o tema escolhido na playlist. */
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover,
+    .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+
+    /* Menu de contexto dos temas (botão direito sobre um item da lista). */
+    .playlist-tema-ctx-menu {
+      position: fixed;
+      z-index: 30050;
+      min-width: 200px;
+      padding: 6px 0;
+      margin: 0;
+      list-style: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    .playlist-tema-ctx-menu[hidden] { display: none !important; }
+
+    .playlist-tema-ctx-titulo {
+      padding: 4px 14px 8px;
+      margin: 0 0 4px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
       color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 260px;
+    }
+
+    .playlist-tema-ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 14px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    .playlist-tema-ctx-item svg {
+      flex: 0 0 auto;
+      display: block;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .playlist-tema-ctx-item:hover,
+    .playlist-tema-ctx-item:focus-visible {
+      outline: none;
       background: var(--surface2);
-      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      color: var(--accent);
     }
 
-    .btn.danger.playlist-tema-acao--destrutiva:hover,
-    .btn.danger.playlist-tema-acao--destrutiva:focus-visible,
-    .btn.danger.playlist-tema-acao--destrutiva.confirmando {
-      border-color: var(--red);
+    .playlist-tema-ctx-item--perigo:hover,
+    .playlist-tema-ctx-item--perigo:focus-visible {
       color: #ffd8d3;
-      background: rgba(176, 48, 40, 0.12);
-    }
-
-    .btn.danger.playlist-tema-acao--destrutiva.confirmando {
-      background: rgba(176, 48, 40, 0.22);
+      background: rgba(176, 48, 40, 0.18);
     }
     body.app-mod-slides .playlist-tema-wrap {
       display: none !important;
@@ -1648,32 +1712,6 @@
       justify-content: space-between;
     }
 
-    /* Cabeçalho: TÍTULO | MINISTRANTE | TOM | (reserva dos botões ↑↓✕)
-       Coluna de botões com largura fixa — evita desalinhamento no hover / música 1. */
-    .playlist-cols-head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 128px 84px 112px;
-      gap: 6px;
-      align-items: center;
-      padding: 4px 10px 6px;
-      margin: 0 8px;
-      font-family: var(--font-ui);
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .playlist-cols-head[hidden] {
-      display: none !important;
-    }
-    .playlist-cols-head span:last-child {
-      /* reserva alinhada aos botões ↑↓✕ */
-      visibility: hidden;
-    }
-
     .playlist-row-cols {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 128px 84px 112px;
@@ -2115,13 +2153,6 @@
       display: block;
       width: 13px;
       height: 13px;
-      pointer-events: none;
-    }
-
-    .playlist-tema-nav svg {
-      display: block;
-      width: 14px;
-      height: 14px;
       pointer-events: none;
     }
 
@@ -5272,9 +5303,6 @@
     }
 
     /* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */
-    body.app-mod-slides .playlist-cols-head {
-      display: none !important;
-    }
     body.app-mod-slides .pl-col-ministrante,
     body.app-mod-slides .pl-col-tom {
       display: none !important;
@@ -9713,28 +9741,24 @@
       <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
       <div class="playlist-tema-row">
         <div class="playlist-tema-dd" id="playlist-tema-dd">
-          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
+          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema — botão direito num tema da lista para renomear ou excluir" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
             <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Selecione o tema…</span>
             <span class="playlist-tema-dd-caret" aria-hidden="true">▾</span>
           </button>
           <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
           <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
         </div>
-        <button type="button" id="playlist-tema-aplicar" class="btn playlist-tema-nav" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
-        </button>
-        <button type="button" id="playlist-tema-add" class="btn sm" title="Novo tema">+ TEMA</button>
-        <button type="button" id="playlist-tema-edit" class="btn sm playlist-tema-acao" title="Renomear tema selecionado" aria-label="Renomear tema selecionado">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-        </button>
-        <button type="button" id="playlist-tema-del" class="btn sm danger playlist-tema-acao playlist-tema-acao--destrutiva" title="Excluir o tema e remover da playlist todas as músicas desse tema" aria-label="Excluir tema selecionado">✕</button>
+        <div class="playlist-tema-acoes">
+          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Inserir</span>
+          </button>
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span class="playlist-tema-acao-btn-txt">Novo</span>
+          </button>
+        </div>
       </div>
-    </div>
-    <div class="playlist-cols-head" id="playlist-cols-head" hidden>
-      <span>Título</span>
-      <span>Ministrante</span>
-      <span>Tom</span>
-      <span aria-hidden="true">···</span>
     </div>
     <div class="playlist-list" id="playlist-list"></div>
   </aside>
@@ -9893,6 +9917,22 @@
   </div>
 </div>
 
+
+<div id="playlist-tema-ctx-menu" class="playlist-tema-ctx-menu" role="menu" aria-label="Ações do tema" hidden>
+  <p class="playlist-tema-ctx-titulo" id="playlist-tema-ctx-titulo"></p>
+  <button type="button" class="playlist-tema-ctx-item" id="playlist-tema-ctx-inserir" role="menuitem">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
+    Inserir na playlist
+  </button>
+  <button type="button" class="playlist-tema-ctx-item" id="playlist-tema-ctx-renomear" role="menuitem">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    Editar nome
+  </button>
+  <button type="button" class="playlist-tema-ctx-item playlist-tema-ctx-item--perigo" id="playlist-tema-ctx-excluir" role="menuitem">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    Excluir tema
+  </button>
+</div>
 
 <div id="slides-strip-context-menu" class="slides-strip-context-menu" role="menu" hidden>
   <button type="button" class="slides-strip-context-item" id="slides-strip-ctx-edit">Edição rápida deste slide…</button>
