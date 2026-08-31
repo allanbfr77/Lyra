@@ -8336,7 +8336,7 @@ function renderSeletorTemasPlaylist() {
       }
       // A lista fecha para o menu de ações não tapar os nomes dos outros temas.
       fecharDropdownTemaPlaylist();
-      abrirMenuContextoTemaPlaylist(ev.clientX, ev.clientY, t);
+      abrirMenuContextoTemaPlaylist(t);
     });
   });
   aplicarSelecaoTemaNaUi(preferido || '');
@@ -10798,11 +10798,17 @@ function fecharMenuContextoTemaPlaylist() {
   menuContextoTemaPlaylist.fechar();
 }
 
-/** Abre as ações do tema no ponto onde o operador clicou com o botão direito. */
-function abrirMenuContextoTemaPlaylist(clientX, clientY, tema) {
+/**
+ * Abre as ações do tema numa posição fixa: logo abaixo do dropdown «TEMA NA PLAYLIST»,
+ * alinhado à esquerda dele. Não depende do item clicado — só o conteúdo do menu muda.
+ */
+function abrirMenuContextoTemaPlaylist(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
-  menuContextoTemaPlaylist.abrirNoPonto(clientX, clientY, {
+  const ancora =
+    document.getElementById('playlist-tema-dd-btn') || document.getElementById('playlist-tema-dd');
+  if (!ancora) return;
+  menuContextoTemaPlaylist.abrirNaAncora(ancora, {
     titulo: t,
     itens: [
       {
