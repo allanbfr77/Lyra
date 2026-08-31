@@ -16131,10 +16131,44 @@ function atualizarContagemListaInternet(qtd) {
   el.textContent = qtd === 1 ? '1 resultado encontrado' : `${qtd} resultados encontrados`;
 }
 
+/**
+ * Faz o texto cortado por `text-overflow: ellipsis` revelar-se por inteiro num
+ * tooltip nativo ao repousar o rato — sem mexer no corte, que é o que segura o
+ * layout dos cartões.
+ *
+ * O `title` é decidido no `mouseover`, não na renderização, por duas razões: a
+ * largura útil da linha muda com o painel, logo só medindo na hora se sabe se
+ * aquele título ainda cabe; e um `title` posto sempre encheria de tooltip
+ * redundante os títulos curtos — na biblioteca ainda taparia o tooltip de
+ * instruções que a própria linha (`.item`) já carrega.
+ *
+ * A escuta é delegada no container porque as linhas são recriadas a cada busca;
+ * `dataset` marca o container para não empilhar escutas em cada render.
+ *
+ * @param {string} idContainer id do elemento que contém as linhas
+ * @param {string} [seletor] textos truncáveis dentro de cada linha
+ */
+function ativarTooltipTextoTruncado(idContainer, seletor = '.titulo, .sub') {
+  const cont = document.getElementById(idContainer);
+  if (!cont || cont.dataset.tooltipTruncado === '1') return;
+  cont.dataset.tooltipTruncado = '1';
+  cont.addEventListener('mouseover', (ev) => {
+    const alvo = ev.target instanceof Element ? ev.target.closest(seletor) : null;
+    if (!alvo || !cont.contains(alvo)) return;
+    const texto = String(alvo.textContent || '').trim();
+    /* 1px de folga: arredondamento de subpixel dá `scrollWidth` maior que
+       `clientWidth` mesmo em texto que cabe todo. */
+    const cortado = alvo.scrollWidth - alvo.clientWidth > 1;
+    if (cortado && texto) alvo.title = texto;
+    else alvo.removeAttribute('title');
+  });
+}
+
 function renderizarListaInternet(lista) {
   const el = document.getElementById('lista-internet');
   if (!el) return;
   el.innerHTML = '';
+  ativarTooltipTextoTruncado('lista-internet');
 
   atualizarContagemListaInternet(Array.isArray(lista) ? lista.length : 0);
 
@@ -16624,6 +16658,7 @@ function renderizarListaLocal(lista) {
     : null;
 
   el.innerHTML = '';
+  ativarTooltipTextoTruncado('lista');
   const naPlaylist = bibConjuntoMusicasNaPlaylist();
   let grupoAtual = null;
   let letraAtual = null;
