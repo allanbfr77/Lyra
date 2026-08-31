@@ -1097,7 +1097,6 @@
       font-weight: var(--fw-semibold);
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: var(--text-dim);
     }
     .culto-ministrante-campo {
       position: relative;
@@ -1153,7 +1152,6 @@
       font-weight: var(--fw-semibold);
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: var(--text-dim);
     }
     .playlist-tema-row {
       display: flex;
@@ -1275,20 +1273,23 @@
       pointer-events: none;
     }
 
-    /* Ação principal da área: inserir o tema escolhido na playlist. */
+    /* «Inserir» acompanha o texto da barra (branco no tema escuro), sem o dourado
+       de `--accent` — esse ficou reservado aos títulos de secção. O hover genérico
+       `.btn:hover` também pinta de dourado, por isso o estado activo é reafirmado. */
     .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      border-color: var(--border);
+      color: var(--text);
+      background: var(--surface2);
     }
 
     .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover:not(:disabled),
     .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible:not(:disabled) {
-      border-color: var(--accent);
-      background: color-mix(in srgb, var(--accent) 22%, transparent);
+      border-color: var(--border);
+      color: var(--text);
+      background: var(--surface2);
     }
 
-    /* Tema já presente na playlist: «Inserir» perde o realce dourado da ação principal. */
+    /* Tema já presente na playlist: o botão fica visível, mas sem convite a clicar. */
     .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:disabled {
       border-color: var(--border);
       color: var(--text-dim);
@@ -1381,6 +1382,23 @@
     }
 
     /*
+      Cor dos títulos de secção da barra da direita: o mesmo dourado das letras A–Z
+      da biblioteca (`--bib-letra-cab`). Lá ele rotula o grupo sem gritar; aqui faz
+      o mesmo com CULTO, MINISTRANTE, TEMA NA PLAYLIST e PLAYLIST. O ícone ao lado
+      acompanha por `currentColor`.
+
+      A «Prévia dos slides» sai deste grupo de propósito (ver `.playlist-preview-head-titulo`):
+      é um cartão de conteúdo, não uma secção da barra, e em branco deixa o dourado a
+      marcar só as secções.
+    */
+    .playlist-panel-head-titulo,
+    .playlist-lista-head-titulo,
+    .culto-ministrante-label,
+    .playlist-tema-label {
+      color: var(--bib-letra-cab);
+    }
+
+    /*
       Ícone de cada título de secção da barra.
 
       Vai no ::before do próprio título (não num <img> ou <svg> no markup) por duas razões:
@@ -1408,10 +1426,9 @@
       flex-shrink: 0;
       width: 13px;
       height: 13px;
-      /* Discreto de propósito: o ícone localiza a secção, quem a nomeia é o texto.
-         Traço fino no SVG + meia opacidade deixam-no ler como marca-d'água ao lado
-         do título, em vez de um segundo elemento a competir com ele. */
-      opacity: 0.5;
+      /* O traço fino do SVG já o deixa atrás do texto; a opacidade só o puxa um
+         pouco para a frente do fundo, sem competir com o título. */
+      opacity: 0.72;
       background-color: currentColor;
       -webkit-mask: var(--secao-ico) center / contain no-repeat;
       mask: var(--secao-ico) center / contain no-repeat;
@@ -1831,6 +1848,24 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+    }
+
+    /*
+      Branco, e não o dourado que o cabeçalho do cartão herda: o dourado passou a ser a
+      marca das secções da barra (CULTO, MINISTRANTE, TEMA NA PLAYLIST, PLAYLIST), e a
+      prévia não é uma delas. O olho de ocultar segue a mesma cor do título.
+    */
+    .playlist-preview-head-titulo {
+      color: var(--text);
+    }
+
+    .playlist-preview-head .btn.preview-painel-toggle-icon {
+      color: var(--text);
+    }
+
+    .playlist-preview-head .btn.preview-painel-toggle-icon:hover {
+      color: var(--text);
+      border-color: var(--border);
     }
 
     .playlist-preview-head--com-toggle .playlist-preview-head-titulo {
@@ -10463,7 +10498,7 @@
       <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
     </div>
     <div class="culto-ministrante-wrap">
-      <div class="culto-ministrante-label">Ministrante do culto</div>
+      <div class="culto-ministrante-label">Ministrante</div>
       <div class="culto-ministrante-campo">
         <select class="culto-ministrante-sel" id="culto-ministrante-sel" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
           <option value="">—</option>
