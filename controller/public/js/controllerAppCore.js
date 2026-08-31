@@ -16018,7 +16018,7 @@ async function buscarLetrasExterno() {
       }
 
       if (!data.resultados || data.resultados.length === 0) {
-        alert('Nenhuma música encontrada no banco offline (suas músicas + catálogo).');
+        alert('Nenhuma música encontrada no catálogo offline.');
         resultadosLetrasCache = [];
         renderizarListaInternet([]);
         return;

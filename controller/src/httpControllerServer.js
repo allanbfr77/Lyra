@@ -1671,26 +1671,6 @@ async function iniciarServidorController(ctx, paths) {
       };
 
       const resultados = [];
-      const seen = new Set();
-
-      const rowsU = db
-        .prepare(
-          `SELECT id, titulo, artista, estrofes FROM musicas WHERE parent_id IS NULL`
-        )
-        .all();
-      for (const r of rowsU) {
-        if (!matchRow(r.titulo, r.artista, r.estrofes)) continue;
-        const k = `u:${r.id}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        resultados.push({
-          id: r.id,
-          titulo: r.titulo,
-          artista: r.artista || '',
-          fonte: 'banco-local',
-          origem: 'user',
-        });
-      }
 
       const catalogDb = getCatalog();
       if (catalogDb) {
@@ -1698,9 +1678,6 @@ async function iniciarServidorController(ctx, paths) {
           const rowsC = catalogDb.prepare('SELECT id, titulo, artista, estrofes FROM musicas').all();
           for (const r of rowsC) {
             if (!matchRow(r.titulo, r.artista, r.estrofes)) continue;
-            const k = `c:${r.id}`;
-            if (seen.has(k)) continue;
-            seen.add(k);
             resultados.push({
               id: r.id,
               titulo: r.titulo,
