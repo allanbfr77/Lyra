@@ -8277,7 +8277,9 @@ function renderSeletorTemasPlaylist() {
       if (!t) return;
       ev.preventDefault();
       ev.stopPropagation();
-      abrirMenuContextoTemaPlaylist(ev.clientX, ev.clientY, t);
+      // A lista fecha para o menu de ações não tapar os nomes dos outros temas.
+      fecharDropdownTemaPlaylist();
+      abrirMenuContextoTemaPlaylist(t);
     });
   });
   aplicarSelecaoTemaNaUi(preferido || '');
@@ -10546,23 +10548,51 @@ function fecharMenuContextoTemaPlaylist() {
   temaMenuContextoAtual = '';
 }
 
-/** Abre o menu junto ao cursor, sem deixá-lo sair da janela. */
-function abrirMenuContextoTemaPlaylist(clientX, clientY, tema) {
+/** Mede o menu visível sem flash na tela (offsetWidth é estável com max-width no CSS). */
+function medirMenuContextoTemaPlaylist(menu) {
+  const prev = {
+    hidden: menu.hidden,
+    visibility: menu.style.visibility,
+    left: menu.style.left,
+    top: menu.style.top,
+  };
+  menu.hidden = false;
+  menu.style.visibility = 'hidden';
+  menu.style.left = '0';
+  menu.style.top = '0';
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  menu.style.visibility = prev.visibility;
+  menu.style.left = prev.left;
+  menu.style.top = prev.top;
+  menu.hidden = prev.hidden;
+  return { width, height };
+}
+
+/**
+ * Abre o menu numa posição fixa: logo abaixo do dropdown «TEMA NA PLAYLIST», alinhado
+ * à esquerda dele. Não depende do item clicado — só o conteúdo do menu é que muda.
+ */
+function abrirMenuContextoTemaPlaylist(tema) {
   const menu = document.getElementById('playlist-tema-ctx-menu');
   const titulo = document.getElementById('playlist-tema-ctx-titulo');
-  if (!menu) return;
+  const anchor =
+    document.getElementById('playlist-tema-dd-btn') || document.getElementById('playlist-tema-dd');
+  if (!menu || !anchor) return;
   temaMenuContextoAtual = normalizarTemaPlaylist(tema);
   if (!temaMenuContextoAtual) return;
   if (titulo) titulo.textContent = temaMenuContextoAtual;
-  menu.hidden = false;
-  menu.style.left = '-9999px';
-  menu.style.top = '0';
-  const rect = menu.getBoundingClientRect();
+
+  const { width: menuW, height: menuH } = medirMenuContextoTemaPlaylist(menu);
+  const anchorRect = anchor.getBoundingClientRect();
   const pad = 8;
-  let x = clientX;
-  let y = clientY;
-  if (x + rect.width + pad > window.innerWidth) x = Math.max(pad, window.innerWidth - rect.width - pad);
-  if (y + rect.height + pad > window.innerHeight) y = Math.max(pad, window.innerHeight - rect.height - pad);
+  const gap = 10;
+
+  /* Recuo mínimo apenas para o menu não ser cortado pela borda da janela. */
+  const x = Math.max(pad, Math.min(anchorRect.left, window.innerWidth - pad - menuW));
+  const y = Math.max(pad, Math.min(anchorRect.bottom + gap, window.innerHeight - pad - menuH));
+
+  menu.hidden = false;
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
 }
