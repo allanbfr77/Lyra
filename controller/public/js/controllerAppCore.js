@@ -7021,21 +7021,41 @@ function sincronizarOrdemTemasCatalogoComPlaylist(cid) {
   saveTemasPorCulto();
 }
 
-function reordenarMarcadoresTemaNaPlaylist(cid, fromMarkerIdx, toMarkerIdx) {
+/**
+ * Move o bloco do tema `fromMarkerIdx` para antes ou depois do bloco `toMarkerIdx`.
+ *
+ * `posicao` é obrigatória para o resultado ser previsível: com um único índice de
+ * destino, arrastar para baixo e para cima davam semânticas diferentes (o `splice`
+ * de inserção acontece já com os índices deslocados pela remoção). Aqui o destino é
+ * calculado na lista original e só depois compensado em -1 quando o bloco removido
+ * estava antes dele.
+ *
+ * @returns {boolean} `true` se a ordem mudou de facto.
+ */
+function reordenarMarcadoresTemaNaPlaylist(cid, fromMarkerIdx, toMarkerIdx, posicao = 'antes') {
   const from = Number(fromMarkerIdx);
   const to = Number(toMarkerIdx);
-  if (!cid || !Number.isFinite(from) || !Number.isFinite(to) || from === to) return;
+  if (!cid || !Number.isFinite(from) || !Number.isFinite(to) || from === to) return false;
   const pl = getPlaylist(cid);
   const blocos = playlistParaBlocosComMarcadores(pl);
   const fromB = blocos.findIndex((b) => b.markerPlIdx === from);
   const toB = blocos.findIndex((b) => b.markerPlIdx === to);
-  if (fromB < 0 || toB < 0 || blocos[fromB].markerPlIdx == null) return;
+  if (fromB < 0 || toB < 0 || blocos[fromB].markerPlIdx == null) return false;
+
+  let alvo = posicao === 'depois' ? toB + 1 : toB;
+  /* O bloco inicial sem marcador (músicas antes do 1.º tema) tem de continuar em
+     primeiro: sem marcador próprio, as suas músicas seriam absorvidas pelo tema acima. */
+  if (blocos[0] && blocos[0].markerPlIdx == null && alvo === 0) alvo = 1;
+  if (fromB < alvo) alvo -= 1;
+  if (alvo === fromB) return false;
+
   const reord = [...blocos];
   const [bloco] = reord.splice(fromB, 1);
-  reord.splice(toB, 0, bloco);
+  reord.splice(alvo, 0, bloco);
   playlists[cid] = blocosComMarcadoresParaPlaylist(reord);
   sincronizarOrdemTemasCatalogoComPlaylist(cid);
   savePlaylists();
+  return true;
 }
 
 function renomearTemaNoCulto(velho, novo) {
@@ -8133,6 +8153,29 @@ function setTemaSelecionadoAtual(v) {
   saveTemaSelecionadoPorCulto();
 }
 
+/**
+ * Um tema só pode ocupar um bloco por culto. Cobre o marcador do bloco e as músicas
+ * já etiquetadas; a comparação passa pelo normalizador (trim, espaços, maiúsculas).
+ */
+function playlistAtualJaTemTema(tema) {
+  const t = normalizarTemaPlaylist(tema);
+  if (!t || !cultoId) return false;
+  return getPlaylist(cultoId).some((it) => normalizarTemaPlaylist(it?.tema) === t);
+}
+
+/** «Inserir» fica desativado enquanto o tema escolhido já estiver na playlist. */
+function atualizarEstadoBotaoInserirTema() {
+  const btn = document.getElementById('playlist-tema-aplicar');
+  const sel = document.getElementById('playlist-tema-sel');
+  if (!btn || !sel) return;
+  const t = normalizarTemaPlaylist(sel.value);
+  const duplicado = !!t && playlistAtualJaTemTema(t);
+  btn.disabled = duplicado;
+  btn.title = duplicado
+    ? `O tema «${t}» já está na playlist deste culto`
+    : 'Inserir este tema no fim da playlist; novas músicas entram neste bloco';
+}
+
 function aplicarSelecaoTemaNaUi(valor) {
   const sel = document.getElementById('playlist-tema-sel');
   const menu = document.getElementById('playlist-tema-dd-menu');
@@ -8153,6 +8196,7 @@ function aplicarSelecaoTemaNaUi(valor) {
   // Fallback do botão fechado: usa o placeholder guardado (ele pode não existir mais como item da lista).
   if (!textoSelecionado) textoSelecionado = menu.dataset.placeholder || (itens[0] ? itens[0].textContent : '');
   label.textContent = textoSelecionado;
+  atualizarEstadoBotaoInserirTema();
 }
 
 function fecharDropdownTemaPlaylist() {
@@ -10163,55 +10207,102 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   };
 
   if (idxMarcador != null && idxMarcador !== undefined && cultoId && playlistPossuiMarcadoresTema(getPlaylist(cultoId))) {
-    configurarDragReordenarCabecalhoTemaPlaylist(row, idxMarcador);
+    configurarDragReordenarCabecalhoTemaPlaylist(row, wrap, idxMarcador);
   }
 
   return body;
 }
 
-function configurarDragReordenarCabecalhoTemaPlaylist(row, markerPlIdx) {
+const MIME_MARCADOR_TEMA_PLAYLIST = 'application/x-lyra-pl-marcador-idx';
+
+/**
+ * Índice do marcador em arrasto. O `dataTransfer` só devolve os dados no `drop`
+ * (no `dragover` só há os tipos), por isso o índice fica aqui para o feedback
+ * visual poder saber qual bloco está a ser movido.
+ */
+let arrastandoMarcadorTemaPlaylistIdx = null;
+
+function limparIndicadoresDropTemaPlaylist() {
+  document
+    .querySelectorAll('.playlist-tema-section--drop-antes, .playlist-tema-section--drop-depois')
+    .forEach((el) => {
+      el.classList.remove('playlist-tema-section--drop-antes', 'playlist-tema-section--drop-depois');
+    });
+}
+
+/** Metade de cima da secção = cair antes dela; metade de baixo = cair depois. */
+function posicaoDropTemaPlaylist(secao, clientY) {
+  const r = secao.getBoundingClientRect();
+  if (!r.height) return 'antes';
+  return clientY - r.top < r.height / 2 ? 'antes' : 'depois';
+}
+
+/**
+ * Arrastar o cabeçalho move o bloco inteiro (marcador + músicas). A secção completa
+ * é zona de largada — não só o cabeçalho — para o gesto perdoar imprecisão.
+ */
+function configurarDragReordenarCabecalhoTemaPlaylist(row, secao, markerPlIdx) {
   row.draggable = true;
   row.dataset.plMarcadorIdx = String(markerPlIdx);
-  row.title = row.title ? `${row.title} · Arrastar para reordenar` : 'Arrastar para reordenar';
+  secao.dataset.plMarcadorIdx = String(markerPlIdx);
+  row.title = 'Arrastar para reordenar este tema na playlist';
 
   row.addEventListener('dragstart', (ev) => {
     if (ev.target instanceof HTMLElement && ev.target.closest('button')) {
       ev.preventDefault();
       return;
     }
-    ev.dataTransfer.setData('application/x-lyra-pl-marcador-idx', String(markerPlIdx));
+    arrastandoMarcadorTemaPlaylistIdx = markerPlIdx;
+    ev.dataTransfer.setData(MIME_MARCADOR_TEMA_PLAYLIST, String(markerPlIdx));
     ev.dataTransfer.effectAllowed = 'move';
     row.classList.add('playlist-tema-head-row--dragging');
+    secao.classList.add('playlist-tema-section--arrastando');
+    document.getElementById('playlist-list')?.classList.add('playlist-list--reordenando-tema');
   });
 
   row.addEventListener('dragend', () => {
+    arrastandoMarcadorTemaPlaylistIdx = null;
     row.classList.remove('playlist-tema-head-row--dragging');
-    document.querySelectorAll('.playlist-tema-head-row--drag-over').forEach((el) => {
-      el.classList.remove('playlist-tema-head-row--drag-over');
-    });
+    secao.classList.remove('playlist-tema-section--arrastando');
+    document.getElementById('playlist-list')?.classList.remove('playlist-list--reordenando-tema');
+    limparIndicadoresDropTemaPlaylist();
   });
 
-  row.addEventListener('dragover', (ev) => {
+  secao.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MARCADOR_TEMA_PLAYLIST)) return;
     ev.preventDefault();
-    const from = ev.dataTransfer.types.includes('application/x-lyra-pl-marcador-idx');
-    if (!from) return;
     ev.dataTransfer.dropEffect = 'move';
-    row.classList.add('playlist-tema-head-row--drag-over');
+    /* Sobre o próprio bloco arrastado não há destino a mostrar. */
+    if (arrastandoMarcadorTemaPlaylistIdx === markerPlIdx) {
+      limparIndicadoresDropTemaPlaylist();
+      return;
+    }
+    const pos = posicaoDropTemaPlaylist(secao, ev.clientY);
+    const cls =
+      pos === 'depois' ? 'playlist-tema-section--drop-depois' : 'playlist-tema-section--drop-antes';
+    /* Sem o atalho, cada `dragover` reescrevia a classe e o traço piscava. */
+    if (secao.classList.contains(cls)) return;
+    limparIndicadoresDropTemaPlaylist();
+    secao.classList.add(cls);
   });
 
-  row.addEventListener('dragleave', () => {
-    row.classList.remove('playlist-tema-head-row--drag-over');
+  secao.addEventListener('dragleave', (ev) => {
+    /* Passar por um filho dispara `dragleave` na secção; só limpa ao sair de facto. */
+    if (ev.relatedTarget instanceof Node && secao.contains(ev.relatedTarget)) return;
+    secao.classList.remove('playlist-tema-section--drop-antes', 'playlist-tema-section--drop-depois');
   });
 
-  row.addEventListener('drop', (ev) => {
+  secao.addEventListener('drop', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MARCADOR_TEMA_PLAYLIST)) return;
     ev.preventDefault();
     ev.stopPropagation();
-    row.classList.remove('playlist-tema-head-row--drag-over');
-    const fromRaw = ev.dataTransfer.getData('application/x-lyra-pl-marcador-idx');
-    const fromIdx = Number(fromRaw);
-    const toIdx = Number(row.dataset.plMarcadorIdx);
-    if (!Number.isFinite(fromIdx) || !Number.isFinite(toIdx) || fromIdx === toIdx) return;
-    reordenarMarcadoresTemaNaPlaylist(cultoId, fromIdx, toIdx);
+    const pos = posicaoDropTemaPlaylist(secao, ev.clientY);
+    limparIndicadoresDropTemaPlaylist();
+    const fromIdx = Number(ev.dataTransfer.getData(MIME_MARCADOR_TEMA_PLAYLIST));
+    const toIdx = Number(secao.dataset.plMarcadorIdx);
+    arrastandoMarcadorTemaPlaylistIdx = null;
+    if (!Number.isFinite(fromIdx) || !Number.isFinite(toIdx)) return;
+    if (!reordenarMarcadoresTemaNaPlaylist(cultoId, fromIdx, toIdx, pos)) return;
     renderSeletorTemasPlaylist();
     renderPlaylist();
   });
@@ -10619,6 +10710,11 @@ function inserirTemaNaPlaylistAtual(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) {
     appAlert('Escolha um tema na lista antes de «Inserir».', 'Inserir tema');
+    return;
+  }
+  if (playlistAtualJaTemTema(t)) {
+    appAlert(`O tema «${t}» já está na playlist deste culto.`, 'Inserir tema');
+    atualizarEstadoBotaoInserirTema();
     return;
   }
   if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(cultoId);
