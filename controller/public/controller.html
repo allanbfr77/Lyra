@@ -9544,6 +9544,11 @@
     .cfg-row-controlo .cfg-size-wrap,
     .cfg-row-controlo .cfg-color-row,
     .cfg-row-controlo input[type=file] { width: 100%; }
+    /* Rótulo curto + opção longa (ex.: Ao chegar a zero › Comportamento). */
+    .cfg-row--select-largo {
+      grid-template-columns: minmax(0, 1fr) minmax(150px, 268px);
+    }
+    .cfg-row--select-largo > .cfg-row-controlo { max-width: 268px; }
     /* Seletor de imagem: o input nativo não consegue mostrar uma imagem que
        veio gravada na config, por isso o estado real vem do JS. */
     .cfg-arquivo {
@@ -9666,6 +9671,32 @@
       outline: none;
       transition: border-color 0.2s;
       box-sizing: border-box;
+    }
+    /* Opção longa: corta com reticências em vez de no meio da palavra.
+       O Chromium do Electron ignora text-overflow no <select> nativo; sem a
+       seta do sistema o texto passa a ser nosso e o ellipsis funciona.
+       A seta volta pelo mesmo chevron dos outros dropdowns. */
+    .cfg-form-select {
+      -webkit-appearance: none;
+      appearance: none;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-right: 28px;
+      cursor: pointer;
+      background-image: var(--caret-chevron);
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 14px 14px;
+      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
+      color-scheme: dark;
+    }
+    html:not(.dark) .cfg-form-select {
+      color-scheme: light;
+    }
+    html.dark .cfg-form-select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8e5e0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     }
     .cfg-form-input:focus, .cfg-form-select:focus { border-color: var(--accent); }
     .cfg-section-title {
@@ -12767,7 +12798,7 @@
         <section class="cfg-card">
           <div class="cfg-card-head"><span class="cfg-card-titulo">Ao chegar a zero</span></div>
           <div class="cfg-card-corpo">
-            <div class="cfg-row" data-busca="ao zerar parar subir encerrar contagem regressiva">
+            <div class="cfg-row cfg-row--select-largo" data-busca="ao zerar parar subir encerrar contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Comportamento</div></div>
               <div class="cfg-row-controlo">
                 <select class="cfg-form-select" id="cfg-contagem-ao-zerar" onchange="onContagemCfgChange()">
