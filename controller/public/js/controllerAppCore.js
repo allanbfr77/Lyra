@@ -21836,6 +21836,10 @@ async function tratarComandoMenuLyra(payload) {
     await limparCacheElectronViaMenu();
     return;
   }
+  if (command === 'tools-recarregar-painel') {
+    recarregarPainelControlador();
+    return;
+  }
   if (command === 'tools-restart-local-server') {
     await reiniciarServidorLocalViaMenu();
     return;

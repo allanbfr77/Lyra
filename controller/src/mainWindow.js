@@ -419,6 +419,15 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
       label: 'Janelas',
       submenu: [
         {
+          /*
+           * Mesma acção do botão «Recarregar» no Modo Home: recarrega o painel (HTML/CSS/JS)
+           * com encerramento de projeção antes. Alterações em main.js exigem reiniciar o app.
+           */
+          label: 'Recarregar',
+          click: () => enviarComandoMenuAoRenderer(ctx, 'tools-recarregar-painel'),
+        },
+        { type: 'separator' },
+        {
           label: 'Abrir console do controlador',
           click: () => {
             const w = getJanelaPrincipal(ctx);
