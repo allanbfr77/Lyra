@@ -70,7 +70,7 @@ export function calcularFontePxPreview(texto, availW, availH) {
   const fromChars = (availW * padW) / (maxLen * CHAR_RATIO);
   const fromLines = availH / (n * LH);
   let px = Math.min(fromChars, fromLines);
-  px = Math.max(8, Math.min(20, px));
+  px = Math.max(8, Math.min(22, px));
   return px;
 }
 
@@ -96,9 +96,9 @@ export function aplicarClasseLinhas(el, texto) {
     let px = calcularFontePxPreview(raw, w, h);
     // Equilíbrio dos previews do modo slide: o telão (1 slide, caixa cheia) ia ao teto (20px)
     // e ofuscava o ministrante (2 slides). Igualamos o teto dos dois num valor intermediário
-    // (16px) para se «encontrarem no meio». Não afeta playlist central nem prévias da Bíblia.
+    // (18px) para se «encontrarem no meio». Não afeta playlist central nem prévias da Bíblia.
     const ehPreviewSlideModo = el.id === 'pv-live-letras' || el.classList.contains('op-slide-text');
-    if (ehPreviewSlideModo) px = Math.min(px, 16);
+    if (ehPreviewSlideModo) px = Math.min(px, 18);
     el.style.fontSize = px.toFixed(2) + 'px';
   };
   aplicar();

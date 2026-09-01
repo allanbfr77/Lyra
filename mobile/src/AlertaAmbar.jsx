@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   icon: { marginTop: 1 },
   texto: {
     flex: 1,
-    fontSize: 12.5,
+    fontSize: 14.5,
     lineHeight: 18,
     color: COLORS.accent2,
     fontFamily: FONTS.regular,

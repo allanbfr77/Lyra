@@ -65,10 +65,10 @@ export const FONTS = {
  * Não se aplica a conteúdo projetado em monitores físicos.
  */
 export const TYPE = {
-  title: 20,
-  subtitle: 16,
-  body: 14,
-  label: 12,
-  caption: 12,
-  section: 13,
+  title: 22,
+  subtitle: 18,
+  body: 16,
+  label: 14,
+  caption: 14,
+  section: 15,
 };

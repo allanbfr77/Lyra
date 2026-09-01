@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   txt: {
     color: COLORS.red,
     fontFamily: FONTS.semibold,
-    fontSize: 13,
+    fontSize: 15,
     letterSpacing: 2,
   },
 });

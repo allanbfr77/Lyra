@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   listPad: { paddingBottom: 32 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   intro: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.textDim,
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   // --- Bloco de ações ---
   grupoAdicionar: { marginHorizontal: 16, marginBottom: 16 },
   grupoLabel: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1.5,
     color: COLORS.textDim,
     fontFamily: FONTS.semibold,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 13, letterSpacing: 2 },
+  btnNovaTxt: { color: COLORS.onAccent, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 2 },
   cardBancoLocal: { marginTop: 10 },
 
   // --- Separação entre ações e lista ---
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   listaLabel: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1.5,
     color: COLORS.textDim,
     fontFamily: FONTS.semibold,
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
   },
   badgeCTxt: {
     fontFamily: FONTS.bold,
-    fontSize: 14,
+    fontSize: 16,
     letterSpacing: 0.5,
   },
   badgeCTxtAtivo: {
@@ -499,15 +499,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
   },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 18, fontFamily: FONTS.regular },
 
   // --- Lista ---
   sep: { height: 1, backgroundColor: COLORS.border, marginLeft: 16 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface },
   rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingLeft: 16 },
-  tit: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.semibold },
-  art: { fontSize: 13, color: COLORS.textDim, marginTop: 2, fontFamily: FONTS.regular },
-  meta: { fontSize: 11, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
+  tit: { fontSize: 18, color: COLORS.text, fontFamily: FONTS.semibold },
+  art: { fontSize: 15, color: COLORS.textDim, marginTop: 2, fontFamily: FONTS.regular },
+  meta: { fontSize: 13, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
   arrow: { paddingHorizontal: 12 },
   btnLixo: {
     paddingHorizontal: 18,

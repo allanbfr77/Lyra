@@ -53,6 +53,6 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   segAtivo: { backgroundColor: COLORS.accent },
-  segTxt: { fontFamily: FONTS.semibold, fontSize: 13, color: COLORS.textDim },
+  segTxt: { fontFamily: FONTS.semibold, fontSize: 15, color: COLORS.textDim },
   segTxtAtivo: { color: COLORS.onAccent, fontFamily: FONTS.bold },
 });

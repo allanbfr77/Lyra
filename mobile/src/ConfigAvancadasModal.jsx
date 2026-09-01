@@ -59,14 +59,14 @@ const styles = StyleSheet.create({
   },
   tit: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: 15,
     letterSpacing: 2,
     color: COLORS.accent,
     marginBottom: 8,
   },
   sub: {
     fontFamily: FONTS.regular,
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.textDim,
     lineHeight: 20,
     marginBottom: 16,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   },
   linhaPorta: {
     fontFamily: 'monospace',
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.accent2,
     backgroundColor: COLORS.surface2,
     borderRadius: 4,
@@ -89,13 +89,13 @@ const styles = StyleSheet.create({
   linhaDesc: {
     flex: 1,
     fontFamily: FONTS.regular,
-    fontSize: 12,
+    fontSize: 14,
     lineHeight: 17,
     color: COLORS.textDim,
   },
   rodape: {
     fontFamily: FONTS.regular,
-    fontSize: 11,
+    fontSize: 13,
     lineHeight: 16,
     color: COLORS.textDim,
     marginTop: 6,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   },
   btnFecharTxt: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: COLORS.textDim,
   },

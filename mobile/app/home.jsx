@@ -122,21 +122,21 @@ const styles = StyleSheet.create({
   conectadoDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.green },
   conectadoBadgeTxt: {
     flexShrink: 1,
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.green,
     fontFamily: FONTS.semibold,
     letterSpacing: 0.3,
   },
-  statusIp: { fontFamily: 'monospace', fontSize: 12 },
+  statusIp: { fontFamily: 'monospace', fontSize: 14 },
   btnDesconectar: { paddingVertical: 4, paddingLeft: 8 },
   btnDesconectarTxt: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 0.5,
     color: COLORS.red,
   },
 
-  titulo: { fontFamily: FONTS.semibold, fontSize: 11, letterSpacing: 3, color: COLORS.textDim, marginBottom: 20 },
+  titulo: { fontFamily: FONTS.semibold, fontSize: 13, letterSpacing: 3, color: COLORS.textDim, marginBottom: 20 },
   scrollContent: { paddingBottom: 40, gap: 14 },
 
   card: {
@@ -158,5 +158,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardLabel: { flex: 1, fontFamily: FONTS.bold, fontSize: 15, letterSpacing: 2, color: COLORS.accent },
+  cardLabel: { flex: 1, fontFamily: FONTS.bold, fontSize: 17, letterSpacing: 2, color: COLORS.accent },
 });

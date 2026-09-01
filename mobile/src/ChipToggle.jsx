@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   },
   chipAtivo: { backgroundColor: COLORS.surface2, borderColor: COLORS.accent },
   chipInativo: { backgroundColor: COLORS.surface, borderColor: COLORS.border },
-  txt: { fontSize: 12.5, fontFamily: FONTS.semibold },
+  txt: { fontSize: 14.5, fontFamily: FONTS.semibold },
   txtAtivo: { color: COLORS.accent2 },
   txtInativo: { color: COLORS.textDim },
 });

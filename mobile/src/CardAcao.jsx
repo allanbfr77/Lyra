@@ -76,13 +76,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   txt: { flex: 1 },
-  titulo: { fontFamily: FONTS.semibold, fontSize: 14, color: COLORS.text },
+  titulo: { fontFamily: FONTS.semibold, fontSize: 16, color: COLORS.text },
   descricao: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textDim,
     marginTop: 2,
     lineHeight: 16,
   },
-  chevron: { fontSize: 20, color: COLORS.accent2 },
+  chevron: { fontSize: 22, color: COLORS.accent2 },
 });

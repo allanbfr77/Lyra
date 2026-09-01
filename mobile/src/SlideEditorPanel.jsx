@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 32 },
   modoToggle: { marginBottom: 14, marginTop: 2 },
   regraHint: {
-    fontSize: 13,
+    fontSize: 15,
     color: COLORS.textDim,
     lineHeight: 20,
     marginBottom: 10,
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 4,
   },
-  label: { fontSize: 11, letterSpacing: 2, color: COLORS.textDim, fontFamily: FONTS.semibold },
+  label: { fontSize: 13, letterSpacing: 2, color: COLORS.textDim, fontFamily: FONTS.semibold },
   btnAddSlide: {
     borderWidth: 1,
     borderColor: COLORS.accent,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   btnAddSlideTxt: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: COLORS.accent,
     fontFamily: FONTS.semibold,
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   completaInput: {
     minHeight: 260,
-    fontSize: 15,
+    fontSize: 17,
     lineHeight: 22,
     color: COLORS.text,
     fontFamily: FONTS.regular,
@@ -375,22 +375,22 @@ const styles = StyleSheet.create({
   },
   ordemBtnOff: { opacity: 0.35 },
   ordemBtnTxt: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.accent2,
     fontFamily: FONTS.semibold,
     lineHeight: 20,
   },
   slideNum: {
     flex: 1,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 2,
     color: COLORS.accent,
     fontFamily: FONTS.semibold,
   },
-  slideRemover: { fontSize: 12, color: COLORS.red, fontFamily: FONTS.semibold },
+  slideRemover: { fontSize: 14, color: COLORS.red, fontFamily: FONTS.semibold },
   slideInput: {
     minHeight: 100,
-    fontSize: 15,
+    fontSize: 17,
     lineHeight: 22,
     color: COLORS.text,
     fontFamily: FONTS.regular,

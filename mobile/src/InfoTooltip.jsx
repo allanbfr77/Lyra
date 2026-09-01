@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   },
   titulo: {
     fontFamily: FONTS.bold,
-    fontSize: 13,
+    fontSize: 15,
     letterSpacing: 2,
     color: COLORS.accent,
     marginBottom: 10,
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   btnFecharTxt: {
     fontFamily: FONTS.semibold,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: COLORS.textDim,
   },

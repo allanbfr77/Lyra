@@ -324,7 +324,7 @@ export default function CultosPlaylistsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingHorizontal: 16, paddingTop: 12 },
   intro: {
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textDim,
     lineHeight: 18,
     marginBottom: 14,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   },
   introStrong: { fontFamily: FONTS.semibold, color: COLORS.text },
   aguardaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  aguardaTxt: { fontSize: 13, color: COLORS.accent2, fontFamily: FONTS.regular },
+  aguardaTxt: { fontSize: 15, color: COLORS.accent2, fontFamily: FONTS.regular },
   listContent: { paddingBottom: 28 },
 
   /** Botão que faz as vezes de <select>: mostra sempre o culto activo. */
@@ -354,15 +354,15 @@ const styles = StyleSheet.create({
   // Sem escolha: faixa neutra, para não sugerir um culto activo
   selectVazio: { borderLeftWidth: 4, borderLeftColor: COLORS.border },
   selectText: { flex: 1, paddingRight: 12 },
-  selectTit: { fontFamily: FONTS.semibold, fontSize: 15, color: COLORS.text },
+  selectTit: { fontFamily: FONTS.semibold, fontSize: 17, color: COLORS.text },
   selectTitPlaceholder: { color: COLORS.textDim, fontFamily: FONTS.regular },
-  selectSub: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textDim, marginTop: 3 },
-  selectChevron: { fontSize: 12, color: COLORS.accent, fontFamily: FONTS.semibold },
+  selectSub: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textDim, marginTop: 3 },
+  selectChevron: { fontSize: 14, color: COLORS.accent, fontFamily: FONTS.semibold },
 
   periodoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   periodoTxt: {
     fontFamily: FONTS.bold,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 2,
     color: COLORS.accent,
   },
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     maxHeight: '78%',
     padding: 14,
   },
-  dropdownTit: { fontFamily: FONTS.bold, fontSize: 16, color: COLORS.accent, marginBottom: 10 },
+  dropdownTit: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.accent, marginBottom: 10 },
   dropdownList: { maxHeight: 400 },
   opt: {
     flexDirection: 'row',
@@ -395,16 +395,16 @@ const styles = StyleSheet.create({
   },
   optAtivo: { backgroundColor: COLORS.surface2, borderRadius: 8 },
   optText: { flex: 1 },
-  optTit: { fontFamily: FONTS.semibold, fontSize: 14, color: COLORS.text },
-  optSub: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textDim, marginTop: 3 },
-  optCheck: { fontSize: 16, color: COLORS.accent, fontFamily: FONTS.bold, paddingLeft: 10 },
+  optTit: { fontFamily: FONTS.semibold, fontSize: 16, color: COLORS.text },
+  optSub: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textDim, marginTop: 3 },
+  optCheck: { fontSize: 18, color: COLORS.accent, fontFamily: FONTS.bold, paddingLeft: 10 },
   btnCancel: { marginTop: 12, alignItems: 'center', paddingVertical: 10 },
-  btnCancelTxt: { color: COLORS.accent2, fontFamily: FONTS.semibold, fontSize: 14 },
+  btnCancelTxt: { color: COLORS.accent2, fontFamily: FONTS.semibold, fontSize: 16 },
 
   temaBlock: { marginBottom: 12 },
   temaTit: {
     fontFamily: FONTS.semibold,
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 2,
     color: COLORS.accent2,
     marginBottom: 8,
@@ -427,9 +427,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
-  rowTit: { fontFamily: FONTS.semibold, fontSize: 15, color: COLORS.text },
-  rowVersao: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.accent2 },
-  rowArt: { fontFamily: FONTS.regular, fontSize: 13, color: COLORS.textDim, marginTop: 4 },
+  rowTit: { fontFamily: FONTS.semibold, fontSize: 17, color: COLORS.text },
+  rowVersao: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.accent2 },
+  rowArt: { fontFamily: FONTS.regular, fontSize: 15, color: COLORS.textDim, marginTop: 4 },
   rowEditBtn: {
     width: 48,
     backgroundColor: COLORS.surface2,
@@ -439,6 +439,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowEditIcon: { fontSize: 20, color: COLORS.accent },
-  empty: { fontSize: 13, color: COLORS.textDim, lineHeight: 20, fontFamily: FONTS.regular, paddingVertical: 24 },
+  rowEditIcon: { fontSize: 22, color: COLORS.accent },
+  empty: { fontSize: 15, color: COLORS.textDim, lineHeight: 20, fontFamily: FONTS.regular, paddingVertical: 24 },
 });

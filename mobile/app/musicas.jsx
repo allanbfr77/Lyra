@@ -202,19 +202,19 @@ export default function MusicasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 20 },
-  loadingTxt: { color: COLORS.textDim, fontSize: 14, marginTop: 12, fontFamily: FONTS.regular },
-  erroTxt: { color: COLORS.red, fontSize: 14, textAlign: 'center', lineHeight: 22, fontFamily: FONTS.regular },
+  loadingTxt: { color: COLORS.textDim, fontSize: 16, marginTop: 12, fontFamily: FONTS.regular },
+  erroTxt: { color: COLORS.red, fontSize: 16, textAlign: 'center', lineHeight: 22, fontFamily: FONTS.regular },
   btnRetry: { borderWidth: 1, borderColor: COLORS.accent, borderRadius: 6, paddingHorizontal: 20, paddingVertical: 10 },
-  btnRetryTxt: { color: COLORS.accent, fontFamily: FONTS.regular, fontSize: 13, letterSpacing: 1 },
+  btnRetryTxt: { color: COLORS.accent, fontFamily: FONTS.regular, fontSize: 15, letterSpacing: 1 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingHorizontal: 16, paddingVertical: 10, gap: 10,
   },
-  searchIcon: { fontSize: 20, color: COLORS.textDim },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, fontFamily: FONTS.regular, padding: 0 },
-  clearBtn: { color: COLORS.textDim, fontSize: 16, padding: 4 },
+  searchIcon: { fontSize: 22, color: COLORS.textDim },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 18, fontFamily: FONTS.regular, padding: 0 },
+  clearBtn: { color: COLORS.textDim, fontSize: 18, padding: 4 },
   contagem: {
-    fontSize: 11, color: COLORS.textDim, letterSpacing: 1, paddingHorizontal: 16, paddingVertical: 8,
+    fontSize: 13, color: COLORS.textDim, letterSpacing: 1, paddingHorizontal: 16, paddingVertical: 8,
     fontFamily: FONTS.regular, backgroundColor: COLORS.surface, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   musicaItem: {
@@ -226,10 +226,10 @@ const styles = StyleSheet.create({
   },
   musicaChevron: { paddingLeft: 12 },
   musicaInfo: { flex: 1 },
-  musicaTitulo: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.semibold },
-  musicaArtista: { fontSize: 13, color: COLORS.textDim, fontStyle: 'italic', marginTop: 2, fontFamily: FONTS.regular },
+  musicaTitulo: { fontSize: 18, color: COLORS.text, fontFamily: FONTS.semibold },
+  musicaArtista: { fontSize: 15, color: COLORS.textDim, fontStyle: 'italic', marginTop: 2, fontFamily: FONTS.regular },
   // Mesmo estilo do `meta` da Biblioteca Local (local.jsx)
-  musicaMeta: { fontSize: 11, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
+  musicaMeta: { fontSize: 13, color: COLORS.accent2, marginTop: 4, fontFamily: FONTS.regular },
   separator: { height: 1, backgroundColor: COLORS.border, marginLeft: 16 },
-  emptyTxt: { color: COLORS.textDim, fontSize: 14, fontStyle: 'italic', fontFamily: FONTS.regular },
+  emptyTxt: { color: COLORS.textDim, fontSize: 16, fontStyle: 'italic', fontFamily: FONTS.regular },
 });

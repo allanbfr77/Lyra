@@ -1347,7 +1347,7 @@ function aplicarEstiloTextareaAvisoCard6(el, rawCfg) {
   el.style.fontStyle = cfg.italic ? 'italic' : 'normal';
   el.style.width = '100%';
   el.style.maxWidth = '100%';
-  el.style.fontSize = '13px';
+  el.style.fontSize = '15px';
   el.style.whiteSpace = cfg.wrapLongLines ? 'pre-wrap' : 'pre';
   el.style.overflowWrap = cfg.wrapLongLines ? 'anywhere' : 'normal';
   el.style.wordBreak = 'break-word';
@@ -13260,7 +13260,7 @@ function escolherVersoesParaComparar(versoes, rootId) {
 
     const det = document.createElement('p');
     det.style.margin = '0';
-    det.style.fontSize = '13px';
+    det.style.fontSize = '15px';
     det.style.lineHeight = '1.5';
     det.style.color = 'var(--text-muted, #7a726b)';
     det.textContent = 'Escolha as duas versões que quer ver lado a lado.';
@@ -21108,7 +21108,7 @@ function appPrompt(msg, opts = {}) {
   body.textContent = '';
   const p = document.createElement('p');
   p.style.margin = '0 0 10px 0';
-  p.style.fontSize = '13px';
+  p.style.fontSize = '15px';
   p.textContent = String(msg || '');
   const input = document.createElement('input');
   input.type = 'text';
@@ -21127,7 +21127,7 @@ function appPrompt(msg, opts = {}) {
   const err = document.createElement('div');
   err.className = 'app-prompt-err';
   err.style.marginTop = '8px';
-  err.style.fontSize = '12px';
+  err.style.fontSize = '14px';
   err.style.color = 'var(--danger, #c44)';
   err.style.minHeight = '16px';
   body.appendChild(err);
@@ -21198,7 +21198,7 @@ function appEscolherOpcao(titulo, opcoes, textoDetalhe, opts = {}) {
     if (textoDetalhe != null && String(textoDetalhe).trim() !== '') {
       const det = document.createElement('p');
       det.style.margin = '0 0 12px 0';
-      det.style.fontSize = '13px';
+      det.style.fontSize = '15px';
       det.style.lineHeight = '1.55';
       det.style.whiteSpace = 'pre-line';
       det.style.color = 'var(--text-muted, #7a726b)';
@@ -21925,13 +21925,13 @@ function obterBannerAtualizacaoElementos() {
 
     const titulo = document.createElement('div');
     titulo.id = 'lyra-update-banner-title';
-    titulo.style.fontSize = '14px';
+    titulo.style.fontSize = '16px';
     titulo.style.fontWeight = '700';
     titulo.style.color = 'var(--text)';
 
     const detalhe = document.createElement('div');
     detalhe.id = 'lyra-update-banner-body';
-    detalhe.style.fontSize = '13px';
+    detalhe.style.fontSize = '15px';
     detalhe.style.lineHeight = '1.5';
     detalhe.style.color = 'var(--text-muted, #7a726b)';
     detalhe.style.whiteSpace = 'pre-line';
@@ -21945,7 +21945,7 @@ function obterBannerAtualizacaoElementos() {
 
     const progressLabel = document.createElement('div');
     progressLabel.id = 'lyra-update-banner-progress-label';
-    progressLabel.style.fontSize = '12px';
+    progressLabel.style.fontSize = '14px';
     progressLabel.style.color = 'var(--text-muted, #7a726b)';
 
     const progress = document.createElement('progress');

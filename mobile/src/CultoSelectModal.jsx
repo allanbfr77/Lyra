@@ -90,12 +90,12 @@ const styles = StyleSheet.create({
   },
   tit: {
     fontFamily: FONTS.bold,
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.accent,
     marginBottom: 6,
   },
   sub: {
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textDim,
     marginBottom: 12,
     fontFamily: FONTS.regular,
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  rowTxt: { fontSize: 14, color: COLORS.text, fontFamily: FONTS.regular },
+  rowTxt: { fontSize: 16, color: COLORS.text, fontFamily: FONTS.regular },
   btnCancel: { marginTop: 12, alignItems: 'center', paddingVertical: 10 },
-  btnCancelTxt: { color: COLORS.accent2, fontFamily: FONTS.semibold, fontSize: 14 },
+  btnCancelTxt: { color: COLORS.accent2, fontFamily: FONTS.semibold, fontSize: 16 },
 });

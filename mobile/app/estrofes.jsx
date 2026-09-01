@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerEditTxt: {
-    fontSize: 10,
+    fontSize: 12,
     letterSpacing: 1,
     color: COLORS.accent,
     fontFamily: FONTS.semibold,
@@ -673,28 +673,28 @@ const styles = StyleSheet.create({
   },
   headerProxBtnDisabled: { opacity: 0.7 },
   headerProxTxt: {
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 2,
     color: COLORS.white,
     fontFamily: FONTS.bold,
   },
-  musicaTitulo: { fontFamily: FONTS.bold, fontSize: 20, color: COLORS.accent },
+  musicaTitulo: { fontFamily: FONTS.bold, fontSize: 22, color: COLORS.accent },
   musicaVersao: {
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.accent2,
     marginTop: 4,
     letterSpacing: 1,
     fontFamily: FONTS.semibold,
   },
   musicaArtista: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textDim,
     fontStyle: 'italic',
     marginTop: 2,
     fontFamily: FONTS.regular,
   },
   musicaCount: {
-    fontSize: 11,
+    fontSize: 13,
     color: COLORS.textDim,
     letterSpacing: 1,
     marginTop: 2,
@@ -723,11 +723,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   estrofeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  estrofeNum: { fontFamily: FONTS.semibold, fontSize: 10, letterSpacing: 2, color: COLORS.textDim },
+  estrofeNum: { fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2, color: COLORS.textDim },
   estrofeNumAtiva: { color: COLORS.accent },
   estrofeNumSelecionada: { color: COLORS.accent2 },
   aovivoBadge: { backgroundColor: COLORS.accent, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  aovivoTxt: { fontSize: 9, color: COLORS.onAccent, fontFamily: FONTS.bold, letterSpacing: 1 },
+  aovivoTxt: { fontSize: 11, color: COLORS.onAccent, fontFamily: FONTS.bold, letterSpacing: 1 },
   selecionadaBadge: {
     borderWidth: 1,
     borderColor: COLORS.accent2,
@@ -735,8 +735,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  selecionadaTxt: { fontSize: 9, color: COLORS.accent2, fontFamily: FONTS.bold, letterSpacing: 1 },
-  estrofeTxt: { fontSize: 16, color: COLORS.text, lineHeight: 26, fontFamily: FONTS.regular },
+  selecionadaTxt: { fontSize: 11, color: COLORS.accent2, fontFamily: FONTS.bold, letterSpacing: 1 },
+  estrofeTxt: { fontSize: 18, color: COLORS.text, lineHeight: 26, fontFamily: FONTS.regular },
   estrofeTxtAtiva: { color: COLORS.accent },
   /** Barra de controle fixada na parte inferior da tela */
   controlBar: {
@@ -755,7 +755,7 @@ const styles = StyleSheet.create({
   navPosicao: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1.5,
     color: COLORS.textDim,
     fontFamily: FONTS.semibold,
@@ -773,5 +773,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navBtnDisabled: { opacity: 0.3 },
-  navBtnTxt: { fontSize: 20, color: COLORS.accent },
+  navBtnTxt: { fontSize: 22, color: COLORS.accent },
 });
