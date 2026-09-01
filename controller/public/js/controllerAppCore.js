@@ -47,8 +47,6 @@ import {
   SVG_OLHO_CORTADO,
   LS_PLAYLISTS,
   LS_PLAYLISTS_LEGACY,
-  LS_CULTO,
-  LS_CULTO_LEGACY,
   LS_CULTOS_MANUAIS,
   LS_PLAYLIST_TEMA_SEL,
   LS_PLAYLIST_TEMAS,
@@ -77,6 +75,7 @@ import {
   LS_DARK_CTRL,
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
+import { resolverProximoCultoPorHorarioBrasilia } from './modules/proximoCulto.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
@@ -118,6 +117,7 @@ import {
   limparEstiloPreviewSlide,
   aplicarClasseLinhas,
   reaplicarFontesPreviewPainel,
+  calcularFontePxSnippetGrelhaSlide,
 } from './painel/tipografiaPainelPreview.js';
 import {
   criarPortaProjecao,
@@ -4439,6 +4439,9 @@ function recarregarPainelControlador() {
 }
 
 function forcarRepinturaCompositorLyra() {
+  /* Repintura forçada com a janela oculta/minimizada altera o compositor sem ganho visual
+     e provoca «tremida» nas prévias de slides que continuam no DOM. */
+  if (document.hidden) return;
   requestAnimationFrame(() => {
     const el = document.documentElement;
     el.classList.add('lyra-gpu-repaint');
@@ -4448,6 +4451,16 @@ function forcarRepinturaCompositorLyra() {
 window.forcarRepinturaCompositorLyra = forcarRepinturaCompositorLyra;
 
 let lyraRepinturaAposEstadoT = 0;
+let lyraAssinaturaEstadoProjecaoRecebido = null;
+
+function assinaturaEstadoProjecaoRecebido(estado) {
+  try {
+    return JSON.stringify(estado ?? null);
+  } catch (_) {
+    return null;
+  }
+}
+
 function agendarRepinturaCompositorAposEstadoServidor() {
   if (!projecao.pronta()) return;
   const now = Date.now();
@@ -4964,14 +4977,9 @@ function fecharCultoDropdown() {
   btn.setAttribute('aria-expanded', 'false');
 }
 
-/** Culto do dia não persiste entre sessões — sempre recomeça em «Selecione o dia do culto...». */
-function limparCultoSelecionadoPersistido() {
-  try {
-    localStorage.setItem(LS_CULTO, '');
-    localStorage.removeItem(LS_CULTO_LEGACY);
-  } catch (_) {
-    // intencional — erro ignorado
-  }
+/** Seleciona automaticamente o próximo culto com base na data/hora de Brasília. */
+function resolverCultoInicialPorAgenda() {
+  return resolverProximoCultoPorHorarioBrasilia({ listarCultosDisponiveis });
 }
 
 function setCultoSelecionadoNaUi(value) {
@@ -5394,27 +5402,31 @@ function atualizarSomenteAtivoFaixaSlides() {
 }
 
 /**
- * Cada linha lógica do slide fica em `nowrap`; reduz font-size para caber na largura e na altura
- * útil do cartão (evita cortar a última linha e linhas «coladas»).
+ * Fonte dos cartões da grelha do Modo Slides — «aproveitar a área útil».
  *
- * Largura útil = `clientWidth` (sem borda) − padding − margem de segurança: o cálculo
- * antigo usava `getBoundingClientRect` (com borda) e quase zero folga, o que em
- * algumas resoluções cortava a última letra com `overflow-x: hidden`.
+ * Cada linha lógica fica em `nowrap`. O JS escolhe a MAIOR fonte que ainda cabe
+ * na largura e na altura úteis do cartão (bissecção, em `tipografiaPainelPreview`).
+ * A altura útil já desconta o número do slide e o espaço entre ele e o texto, por
+ * isso o texto nunca disputa nem sobrepõe o número.
+ *
+ * Só encolhe quando o conteúdo excede a caixa: slides curtos ou com poucas linhas
+ * ficam no tamanho máximo que a altura do cartão permite.
  */
-function ajustarFonteSnippetsNosSlideChips() {
+function ajustarFonteSnippetsNosSlideChips(tentativa = 0) {
   if (!ehModoSlidesOperador()) return;
   const grid = document.getElementById('slides-grid');
   if (!grid) return;
   const chips = grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)');
   if (!chips.length) return;
 
-  const basePx = slideChipSnippetBaseFontPx();
-  const minPx = 5.5;
+  const amostra = chips[0];
+  if (amostra && amostra.clientWidth < 48 && tentativa < 5) {
+    requestAnimationFrame(() => ajustarFonteSnippetsNosSlideChips(tentativa + 1));
+    return;
+  }
+
   const z = slidesChipZoomLevel;
-  const gapNumSnippet = 10 * z;
-  /** Folga horizontal (px) + factor — letter-spacing e subpixels não cortam o glifo. */
-  const SAFE_X = Math.max(4, 3 * z);
-  const SAFE_FACTOR = 0.97;
+  const gapNumSnippet = 6 * z;
   const meas = document.createElement('span');
   meas.setAttribute('aria-hidden', 'true');
   meas.style.cssText =
@@ -5424,8 +5436,8 @@ function ajustarFonteSnippetsNosSlideChips() {
   chips.forEach((chip) => {
     const snippet = chip.querySelector('.slide-snippet');
     if (!snippet) return;
-    const lines = snippet.querySelectorAll('.slide-snippet-line');
-    if (!lines.length) return;
+    const lineEls = [...snippet.querySelectorAll('.slide-snippet-line')];
+    if (!lineEls.length) return;
 
     const cs = getComputedStyle(snippet);
     const cChip = getComputedStyle(chip);
@@ -5433,63 +5445,97 @@ function ajustarFonteSnippetsNosSlideChips() {
     const padY = parseFloat(cChip.paddingTop) + parseFloat(cChip.paddingBottom);
     const snPadX =
       parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) || 0;
-    const availW = Math.max(8, chip.clientWidth - padX - snPadX - SAFE_X);
+    const availW = Math.max(12, chip.clientWidth - padX - snPadX - 2);
 
+    /* Espaço do número: reservado sempre, mesmo que a medição falhe (fallback pelo CSS). */
     const numEl = chip.querySelector('.slide-num');
-    const numH = numEl ? numEl.getBoundingClientRect().height : 0;
+    let numH = numEl ? numEl.getBoundingClientRect().height : 0;
+    if (!Number.isFinite(numH) || numH <= 0) numH = slideChipNumAlturaFallbackPx();
     const innerH = Math.max(0, chip.clientHeight - padY);
-    const availH = Math.max(40, innerH - numH - gapNumSnippet - 2);
+    const availH = Math.max(24, innerH - numH - gapNumSnippet - 1);
 
-    let maxW = 0;
-    lines.forEach((el) => {
-      if (el.classList.contains('slide-snippet-line--empty')) return;
-      const t = (el.textContent || '').trim();
-      if (!t) return;
-      meas.textContent = t;
-      meas.style.fontFamily = cs.fontFamily;
-      meas.style.fontWeight = cs.fontWeight;
-      meas.style.fontSize = `${basePx}px`;
-      meas.style.letterSpacing = cs.letterSpacing;
-      meas.style.textTransform = 'uppercase';
-      maxW = Math.max(maxW, meas.getBoundingClientRect().width);
+    const textos = lineEls
+      .filter((el) => !el.classList.contains('slide-snippet-line--empty'))
+      .map((el) => (el.textContent || '').trim())
+      .filter(Boolean);
+    if (!textos.length) return;
+
+    /*
+      RAZÃO de line-height, não px: `cs.lineHeight` vem resolvido em px (ex.: "18.93px")
+      e, usado como razão, esmagava o teto por altura — todos os cartões ficavam no
+      mínimo (~6px). Deriva-se a razão dividindo pelo font-size corrente.
+    */
+    const lh = razaoLineHeightSnippetSlide(cs);
+    const gapLinhas = parseFloat(cs.rowGap || cs.gap) || 3 * z;
+
+    /*
+      `letter-spacing` também vem em px, atrelado ao font-size corrente (0.035em).
+      Convertido para `em`, o medidor acompanha o tamanho testado em cada iteração.
+    */
+    const fsAtual = parseFloat(cs.fontSize) || 0;
+    const lsPx = parseFloat(cs.letterSpacing);
+    const lsEm = Number.isFinite(lsPx) && fsAtual > 0 ? lsPx / fsAtual : 0;
+
+    meas.style.fontFamily = cs.fontFamily;
+    meas.style.fontWeight = cs.fontWeight;
+    meas.style.fontStyle = cs.fontStyle;
+    meas.style.letterSpacing = `${lsEm}em`;
+    meas.style.textTransform = 'uppercase';
+
+    const medirLarguraMaxPx = (fontPx) => {
+      meas.style.fontSize = `${fontPx}px`;
+      let maxW = 0;
+      textos.forEach((t) => {
+        meas.textContent = t;
+        maxW = Math.max(maxW, meas.getBoundingClientRect().width);
+      });
+      return maxW;
+    };
+
+    const px = calcularFontePxSnippetGrelhaSlide({
+      textos,
+      availW,
+      availH,
+      nLinhasBloco: lineEls.length,
+      lineHeight: lh,
+      lineGapPx: gapLinhas,
+      minPx: 6,
+      maxPx: availH,
+      /* Sem `medirAlturaBlocoPx`: a altura sai da fórmula do CSS (linhas ×
+         line-height + gaps). `scrollHeight` não serve — com
+         `justify-content:center` o transbordo para cima não é contado e a
+         medida sairia otimista, deixando o texto cortado. */
+      medirLarguraMaxPx,
     });
 
-    let fx = maxW < 1 ? basePx : Math.max(minPx, basePx * Math.min(1, (availW / maxW) * SAFE_FACTOR));
-    snippet.style.fontSize = `${fx}px`;
-
-    for (let iter = 0; iter < 8; iter++) {
-      const sh = snippet.scrollHeight;
-      if (sh <= availH + 1) break;
-      const next = Math.max(minPx, fx * (availH / sh) * 0.97);
-      if (next >= fx - 0.02) break;
-      fx = next;
-      snippet.style.fontSize = `${fx}px`;
-    }
-
-    let maxW2 = 0;
-    lines.forEach((el) => {
-      if (el.classList.contains('slide-snippet-line--empty')) return;
-      const t = (el.textContent || '').trim();
-      if (!t) return;
-      meas.textContent = t;
-      meas.style.fontSize = `${fx}px`;
-      maxW2 = Math.max(maxW2, meas.getBoundingClientRect().width);
-    });
-    if (maxW2 > availW) {
-      fx = Math.max(minPx, fx * (availW / maxW2) * SAFE_FACTOR);
-      snippet.style.fontSize = `${fx}px`;
-      for (let iter = 0; iter < 6; iter++) {
-        const sh = snippet.scrollHeight;
-        if (sh <= availH + 1) break;
-        const next = Math.max(minPx, fx * (availH / sh) * 0.97);
-        if (next >= fx - 0.02) break;
-        fx = next;
-        snippet.style.fontSize = `${fx}px`;
-      }
-    }
+    snippet.style.setProperty('font-size', `${px}px`, 'important');
   });
 
   document.body.removeChild(meas);
+}
+
+/** Razão de line-height do snippet (o CSS guarda-a em `--slide-chip-snippet-lh`). */
+function razaoLineHeightSnippetSlide(cs) {
+  const varLh = parseFloat(cs.getPropertyValue('--slide-chip-snippet-lh'));
+  if (Number.isFinite(varLh) && varLh >= 0.5 && varLh <= 4) return varLh;
+  const lhPx = parseFloat(cs.lineHeight);
+  const fsPx = parseFloat(cs.fontSize);
+  if (Number.isFinite(lhPx) && Number.isFinite(fsPx) && fsPx > 0) {
+    const r = lhPx / fsPx;
+    if (r >= 0.5 && r <= 4) return r;
+  }
+  return 1.42;
+}
+
+/** Altura de reserva do número quando ainda não há caixa medível. */
+function slideChipNumAlturaFallbackPx() {
+  const dock = document.getElementById('slides-dock');
+  let base = 22;
+  if (dock) {
+    const raw = parseFloat(getComputedStyle(dock).getPropertyValue('--slide-chip-num-px'));
+    if (Number.isFinite(raw) && raw > 0) base = raw;
+  }
+  return base * slidesChipZoomLevel;
 }
 
 function ajustarEncaixeGrelhaSlidesModoSlides() {
@@ -5502,6 +5548,7 @@ function ajustarEncaixeGrelhaSlidesModoSlides() {
   const revelarGrade = () => {
     if (grid && grid.style.visibility === 'hidden') grid.style.visibility = '';
   };
+  if (typeof document !== 'undefined' && document.hidden) return;
   if (!ehModoSlidesOperador() || !viewport || !grid) {
     revelarGrade();
     return;
@@ -5514,18 +5561,23 @@ function ajustarEncaixeGrelhaSlidesModoSlides() {
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      // No modo slides, manter escala 1 e permitir scroll vertical para listas longas.
+      revelarGrade();
       grid.style.zoom = '';
       ajustarFonteSnippetsNosSlideChips();
-      revelarGrade();
     });
   });
 }
 
+let slidesGridViewportFitTimer = null;
+
 function setupSlidesGridViewportFitObserver() {
   const vp = document.getElementById('slides-grid-viewport');
   if (!vp || typeof ResizeObserver === 'undefined') return;
-  const ro = new ResizeObserver(() => ajustarEncaixeGrelhaSlidesModoSlides());
+  const ro = new ResizeObserver(() => {
+    if (document.hidden) return;
+    clearTimeout(slidesGridViewportFitTimer);
+    slidesGridViewportFitTimer = setTimeout(() => ajustarEncaixeGrelhaSlidesModoSlides(), 80);
+  });
   ro.observe(vp);
 }
 
@@ -6627,6 +6679,7 @@ document.addEventListener('mouseup', () => {
     if (Number.isFinite(px)) localStorage.setItem(LS_SLIDES_RAIL_PX, String(px));
   }
   queueMicrotask(() => {
+    if (document.hidden) return;
     ajustarEncaixeGrelhaSlidesModoSlides();
     reaplicarFontesPreviewPainel();
     reaplicarAlturasEstrofesEditor();
@@ -6642,6 +6695,7 @@ window.addEventListener('resize', () => {
   if (document.body.style.getPropertyValue('--preview-mod-card-h')) {
     aplicarAlturaPreviewMod(alturaPreviewModAtualPx());
   }
+  if (document.hidden) return;
   queueMicrotask(() => {
     ajustarEncaixeGrelhaSlidesModoSlides();
     reaplicarFontesPreviewPainel();
@@ -11503,10 +11557,18 @@ function aplicarPreviewTelaoNoDom(estado) {
     return;
   }
 
-  prevTitulo.textContent = ehModoSlidesOperador() ? '' : (estado.titulo || '').toUpperCase();
+  const tituloTelaoDesejado = ehModoSlidesOperador() ? '' : (estado.titulo || '').toUpperCase();
   const linhasPub = filtrarLinhasParaPublico(estado.linhas);
   const textoPub = linhasPub.join('\n');
-  prevLetras.textContent = textoSlideMaiusculo(textoPub);
+  const textoDom = textoSlideMaiusculo(textoPub);
+  const previewTelaoJaAlinhado =
+    prevTitulo.textContent === tituloTelaoDesejado &&
+    prevLetras.textContent === textoDom &&
+    !prevLetras.classList.contains('vazio') &&
+    prevLetras.dataset.previewFonteTexto === textoPub;
+  if (previewTelaoJaAlinhado) return;
+  prevTitulo.textContent = tituloTelaoDesejado;
+  prevLetras.textContent = textoDom;
   prevLetras.classList.remove('vazio');
   aplicarClasseLinhas(prevLetras, textoPub);
 }
@@ -11981,6 +12043,8 @@ function atualizarPreviewOperador() {
   }
 }
 
+let lyraAssinaturaEmitMinistrante = null;
+
 function emitirEstadoMinistranteAoServidor() {
   if (apresentacaoOcupandoCanalMinistrante()) return;
   if (!projecao.pronta()) return;
@@ -12008,7 +12072,7 @@ function emitirEstadoMinistranteAoServidor() {
     !!musicaAtiva &&
     estrofeAtiva === 0 &&
     !!(tituloMusica || atual || proximo);
-  projecao.enviar('exibir_ministrante', {
+  const payload = {
     titulo: tituloMusica,
     atual: slidePretoFinal ? '' : atual,
     proximo: slidePretoFinal ? '' : proximo,
@@ -12016,7 +12080,16 @@ function emitirEstadoMinistranteAoServidor() {
     projecaoAtiva,
     telaLimpa,
     slidePretoFinal,
-  });
+  };
+  let assinatura = null;
+  try {
+    assinatura = JSON.stringify(payload);
+  } catch (_) {
+  // intencional — erro ignorado
+}
+  if (assinatura !== null && assinatura === lyraAssinaturaEmitMinistrante) return;
+  lyraAssinaturaEmitMinistrante = assinatura;
+  projecao.enviar('exibir_ministrante', payload);
 }
 
 function configurarObserverPreviewMinistrante() {
@@ -12029,8 +12102,10 @@ function configurarObserverPreviewMinistrante() {
     timer = setTimeout(() => emitirEstadoMinistranteAoServidor(), 40);
   };
   const obs = new MutationObserver(() => agenda());
-  obs.observe(opA, { childList: true, subtree: true, characterData: true, attributes: true });
-  obs.observe(opP, { childList: true, subtree: true, characterData: true, attributes: true });
+  /* Só estrutura/texto — `attributes` disparava ao ajustar `font-size` nas prévias e
+     reemitia `exibir_ministrante` sem mudança real de letra (ciclo de repintura). */
+  obs.observe(opA, { childList: true, subtree: true, characterData: true });
+  obs.observe(opP, { childList: true, subtree: true, characterData: true });
 }
 
 /**
@@ -15140,6 +15215,8 @@ function persistirPreviewPainelOcultoLocal() {
 }
 }
 
+let lyraPreviewPainelOcultoDomCache = null;
+
 function aplicarPreviewPainelOcultoNoDom() {
   const syncBase = obterFlagsOcultarPreviewPorSincroniaModoSlides();
   const desbloqPub = hayConteudoExternoQueForcaPreviaPublicaModoSlide();
@@ -15152,9 +15229,17 @@ function aplicarPreviewPainelOcultoNoDom() {
     !!(previewPainelOcultoLocal[0] || syncEfetivo[0]),
     !!(previewPainelOcultoLocal[1] || syncEfetivo[1]),
   ];
+  const visCount = eff.filter((o) => !o).length;
+  let assinaturaDom = null;
+  try {
+    assinaturaDom = JSON.stringify({ eff, visCount, desbloqPub, desbloqMin, syncBase });
+  } catch (_) {
+  // intencional — erro ignorado
+}
+  if (assinaturaDom !== null && assinaturaDom === lyraPreviewPainelOcultoDomCache) return;
+  lyraPreviewPainelOcultoDomCache = assinaturaDom;
   const stack = document.querySelector('#layout-musicas .centro-col-preview-stack');
   const items = document.querySelectorAll('#layout-musicas .centro-col-preview-stack .preview-stack-item');
-  const visCount = eff.filter((o) => !o).length;
   items.forEach((el, i) => {
     el.classList.remove('preview-stack-item--painel-oculto', 'preview-stack-item--destaque-solo');
     const oculto = !!eff[i];
@@ -15564,6 +15649,9 @@ function aoReceberDisplayConfigDaProjecao(cfg) {
 
 /** Estado do que está projetado nas telas. */
 function aoReceberEstadoDaProjecao(estado) {
+  const assinatura = assinaturaEstadoProjecaoRecebido(estado);
+  if (assinatura !== null && assinatura === lyraAssinaturaEstadoProjecaoRecebido) return;
+  lyraAssinaturaEstadoProjecaoRecebido = assinatura;
 
   estadoServidor = estado;
   sincronizarEstrofeAtiva(estado);
@@ -20636,13 +20724,9 @@ try {
   });
   setupApAudioDropdown();
   setupApFilesDropdown();
-  limparCultoSelecionadoPersistido();
-  cultoId = '';
+  cultoId = resolverCultoInicialPorAgenda();
   initCultoSelect();
-  if (cultoId) {
-    garantirAberturaNoCatalogoCulto(cultoId);
-    if (garantirMarcadorAberturaNaPlaylist(cultoId)) savePlaylists();
-  }
+  if (cultoId) onCultoChange();
   document.body.classList.remove('app-mod-slides');
   document.body.classList.remove('app-mod-apresentacao');
   document.body.classList.remove('app-mod-biblia');
@@ -20690,7 +20774,6 @@ try {
 }
 
 window.addEventListener('beforeunload', () => {
-  limparCultoSelecionadoPersistido();
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
   const ip = hostProjecao();

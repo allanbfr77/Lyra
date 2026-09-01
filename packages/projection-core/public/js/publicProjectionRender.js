@@ -23,6 +23,31 @@ function attachPublicProjectionRender(ctx) {
   const BIBLIA_FADE_MS = 150;
   let bibliaFadeTimer = null;
   let bibliaUltimoConteudo = '';
+  let assinaturaExibirPublicoAplicada = null;
+
+  function assinaturaExibirPublico(estado) {
+    try {
+      const st = estado || {};
+      return JSON.stringify({
+        tipo: st.tipo,
+        linhas: st.linhas,
+        titulo: st.titulo,
+        blackout: st.blackout,
+        slidePretoFinal: st.slidePretoFinal,
+        telaLimpa: st.telaLimpa,
+        livro: st.livro,
+        capitulo: st.capitulo,
+        versiculo: st.versiculo,
+        referencia: st.referencia,
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function invalidarAssinaturaExibirPublico() {
+    assinaturaExibirPublicoAplicada = null;
+  }
 
   /**
    * Crossfade curto só no texto/referência da Bíblia (fundo permanece — sem flash branco/preto).
@@ -523,6 +548,8 @@ function attachPublicProjectionRender(ctx) {
     };
     setDisplayConfig(merged);
 
+    invalidarAssinaturaExibirPublico();
+
     const pb = merged.publico || {};
 
     // ── Fundo da projeção ──────────────────────────────────────────
@@ -611,7 +638,16 @@ function attachPublicProjectionRender(ctx) {
    *   @param {Object}   [estado.apresentacao]  - Dados da mídia de apresentação.
    */
   function exibir(estado) {
-    setEstadoAtual(estado || {});
+    const stIn = estado || {};
+    const assinatura = assinaturaExibirPublico(stIn);
+    const repetido =
+      assinatura !== null &&
+      assinatura === assinaturaExibirPublicoAplicada &&
+      (stIn.tipo === 'musica' || stIn.tipo === 'biblia');
+    if (repetido) return;
+    assinaturaExibirPublicoAplicada = assinatura;
+
+    setEstadoAtual(stIn);
     const st = getEstadoAtual();
     const cfg = getDisplayConfig();
 
