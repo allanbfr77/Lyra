@@ -6,8 +6,6 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    /* Sem cor de fundo fixa — overlay transparente por padrão.
-       Defina um fundo pelo campo "Custom CSS" da Browser Source no OBS, se quiser. */
     html, body {
       width: 100%;
       height: 100%;
@@ -22,26 +20,36 @@
       justify-content: flex-end;
     }
 
-    /* Bloco de slide/letra — some quando não há conteúdo em projeção */
+    /* ── FUNDO ──
+       Altura é escrita diretamente via JS (elWrap.style.height), medida
+       ANTES de cada troca — uma única transição limpa por mudança, sem
+       observer contínuo e sem transform, para evitar o efeito de gangorra
+       (dois movimentos verticais somados). */
     .slide-wrap {
       width: 100%;
       padding: 12px 40px;
+      box-sizing: border-box;
+      overflow: hidden;
+
+      opacity: 0;
+      height: 0px;
+      pointer-events: none;
+      transition: opacity 0.35s ease, height 0.35s ease;
+    }
+
+    .slide-wrap.projecao-ativa {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .slide-conteudo {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-
-      /* Animação de entrada/saída */
-      opacity: 0;
-      transform: translateY(12px);
-      transition: opacity 0.35s ease, transform 0.35s ease;
-      pointer-events: none;
-    }
-
-    /* Classe adicionada pelo JS quando há conteúdo */
-    .slide-wrap.visivel {
+      width: 100%;
       opacity: 1;
-      transform: translateY(0);
+      transition: opacity 0.12s ease !important;
     }
 
     .slide-titulo {
@@ -84,6 +92,17 @@
       max-width: 92%;
     }
 
+    /* Medidor: invisível, fora da tela, mesma tipografia. Serve só para
+       calcular a altura real do próximo conteúdo antes de aplicá-lo. */
+    #medidor {
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      width: 100%;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
     #obs-status {
       display: none;
     }
@@ -91,9 +110,19 @@
 </head>
 <body>
   <div class="slide-wrap" id="slide-wrap">
-    <div class="slide-titulo" id="slide-titulo"></div>
-    <div class="slide-linhas" id="slide-linhas"></div>
+    <div class="slide-conteudo" id="slide-conteudo">
+      <div class="slide-titulo" id="slide-titulo"></div>
+      <div class="slide-linhas" id="slide-linhas"></div>
+    </div>
   </div>
+
+  <div id="medidor" aria-hidden="true">
+    <div class="slide-conteudo" id="medidor-conteudo">
+      <div class="slide-titulo" id="medidor-titulo"></div>
+      <div class="slide-linhas" id="medidor-linhas"></div>
+    </div>
+  </div>
+
   <div id="obs-status"></div>
 
   <script>
@@ -118,71 +147,115 @@
       return `${proto}//${host}:5510`;
     }
 
-    const SERVER_URL  = resolverUrlServidorLyrics();
-    const elWrap       = document.getElementById('slide-wrap');
-    const elTitulo      = document.getElementById('slide-titulo');
-    const elLinhas       = document.getElementById('slide-linhas');
-    const elStatus       = document.getElementById('obs-status');
+    const SERVER_URL      = resolverUrlServidorLyrics();
+    const elWrap           = document.getElementById('slide-wrap');
+    const elConteudo         = document.getElementById('slide-conteudo');
+    const elTitulo             = document.getElementById('slide-titulo');
+    const elLinhas               = document.getElementById('slide-linhas');
+    const elStatus                 = document.getElementById('obs-status');
+
+    const elMedidorConteudo         = document.getElementById('medidor-conteudo');
+    const elMedidorTitulo             = document.getElementById('medidor-titulo');
+    const elMedidorLinhas               = document.getElementById('medidor-linhas');
+
+    // 24px = padding vertical total do .slide-wrap (12px topo + 12px base).
+    // Se o padding vertical mudar no Custom CSS do OBS, ajuste aqui também.
+    const PADDING_VERTICAL = 24;
+
     let fadeTimer;
     let socket = null;
+    let ultimoTitulo = null;
+    let ultimasLinhas = null;
 
     function setStatus(msg, cls) {
       elStatus.textContent = msg;
       elStatus.className = cls ? cls : '';
     }
 
-    function renderLinhas(linhas) {
-      elLinhas.innerHTML = '';
+    function renderLinhasEm(container, linhas) {
+      container.innerHTML = '';
       linhas.forEach((linha) => {
         const div = document.createElement('div');
         div.className = 'slide-linha';
         div.textContent = linha;
-        elLinhas.appendChild(div);
+        container.appendChild(div);
       });
     }
 
-    /**
-     * Só reage a projeções de música/letra e avisos — ignora Bíblia e apresentação/mídia.
-     *
-     * IMPORTANTE: esta página só escuta o evento `estado` (slide ATUAL). O painel do
-     * ministrante (monitor M3, `display-operator.html`) tem uma prévia "atual + próximo"
-     * pensada só para o operador — esse conteúdo trafega por um canal IPC interno do
-     * Electron (`atualizar_ministrante`), nunca pelo Socket.io, então não chega aqui.
-     * Esta página NUNCA deve ler `estado.linhasProximo` nem escutar eventos de
-     * ministrante/preview — o Browser Source do OBS deve mostrar sempre um único slide,
-     * independente do modo de monitor (M2/M3/Live) escolhido no controlador.
-     */
+    function conteudoIgual(titulo, linhas) {
+      if (titulo !== ultimoTitulo) return false;
+      if (!Array.isArray(ultimasLinhas)) return false;
+      if (ultimasLinhas.length !== linhas.length) return false;
+      return ultimasLinhas.every((l, i) => l === linhas[i]);
+    }
+
+    // Mede, de forma síncrona e isolada (fora da tela), a altura real que
+    // o próximo conteúdo vai ocupar — sem depender de observers contínuos.
+    function medirAlturaConteudo(titulo, linhas) {
+      elMedidorTitulo.textContent = titulo;
+      renderLinhasEm(elMedidorLinhas, linhas);
+      return elMedidorConteudo.scrollHeight;
+    }
+
     function atualizar(estado) {
+      const ehSlide = !!estado && (estado.tipo === 'musica' || estado.tipo === 'aviso');
+      const vazio =
+        !ehSlide ||
+        estado.telaLimpa ||
+        estado.blackout ||
+        estado.slidePretoFinal ||
+        !Array.isArray(estado.linhas) ||
+        estado.linhas.length === 0;
+
       clearTimeout(fadeTimer);
-      elWrap.classList.remove('visivel');
 
-      fadeTimer = setTimeout(() => {
-        /* Só música e aviso. A Bíblia tem fonte própria (`/obs/biblia`), a mídia é
-           servida por outro caminho, e a contagem regressiva é deliberadamente de sala —
-           ver a nota em `obs.html`. */
-        const ehSlide = !!estado && (estado.tipo === 'musica' || estado.tipo === 'aviso');
-        const vazio =
-          !ehSlide ||
-          estado.telaLimpa ||
-          estado.blackout ||
-          estado.slidePretoFinal ||
-          !Array.isArray(estado.linhas) ||
-          estado.linhas.length === 0;
+      if (vazio) {
+        // Fundo E conteúdo saem juntos: só mexemos na opacidade do WRAP
+        // (pai). Como .slide-conteudo é filho dele, some junto,
+        // fisicamente amarrado — não tem como um sair antes do outro.
+        elWrap.classList.remove('projecao-ativa');
+        elConteudo.style.opacity = '1'; // garante que fica "pronto" pra próxima entrada
 
-        if (vazio) {
+        fadeTimer = setTimeout(() => {
           elTitulo.textContent = '';
-          renderLinhas([]);
+          renderLinhasEm(elLinhas, []);
+          ultimoTitulo = null;
+          ultimasLinhas = null;
           setStatus(`Ligado a ${SERVER_URL} — à espera de letra/slide.`, 'ok');
-          return;
-        }
+        }, 350); // precisa bater com "transition: opacity 0.35s" do .slide-wrap
+        return;
+      }
 
-        /** Título só faz sentido para música — aviso não carrega título próprio. */
-        elTitulo.textContent = estado.tipo === 'musica' ? (estado.titulo || '') : '';
-        /** Apenas o slide atual (`estado.linhas`) — `estado.linhasProximo` é ignorado de propósito. */
-        renderLinhas(estado.linhas);
-        elWrap.classList.add('visivel');
+      const novoTitulo = estado.tipo === 'musica' ? (estado.titulo || '') : '';
+      const jaEstavaAtivo = elWrap.classList.contains('projecao-ativa');
+
+      if (jaEstavaAtivo && conteudoIgual(novoTitulo, estado.linhas)) {
+        return;
+      }
+
+      const aplicarConteudoReal = () => {
+        elTitulo.textContent = novoTitulo;
+        renderLinhasEm(elLinhas, estado.linhas);
+        ultimoTitulo = novoTitulo;
+        ultimasLinhas = estado.linhas.slice();
+        elConteudo.style.opacity = '1';
         setStatus(`Ligado a ${SERVER_URL}`, 'ok');
-      }, 120);
+      };
+
+      if (!jaEstavaAtivo) {
+        // Início de uma nova projeção: fundo e texto entram juntos
+        // (mesmo princípio — opacidade do texto já está em 1, o fundo
+        // que faz o fade-in, e o filho aparece junto com ele).
+        aplicarConteudoReal();
+        elWrap.classList.add('projecao-ativa');
+        return;
+      }
+
+      // Troca de slide na mesma projeção: só o texto faz um crossfade
+      // rápido e sutil. O fundo (.projecao-ativa) não é tocado — fica
+      // parado o tempo todo.
+      elConteudo.style.opacity = '0';
+      fadeTimer = setTimeout(aplicarConteudoReal, 90); // sai rápido...
     }
 
     function conectar() {
@@ -210,11 +283,12 @@
         );
       });
 
-      /** Único evento escutado: `estado` (slide atual). Nenhum evento de ministrante/preview é assinado aqui. */
       socket.on('estado', atualizar);
 
       socket.on('disconnect', () => {
-        elWrap.classList.remove('visivel');
+        elConteudo.style.opacity = '0';
+        elWrap.style.height = '0px';
+        elWrap.classList.remove('projecao-ativa');
         setStatus('Desligado do servidor.', 'erro');
       });
     }
