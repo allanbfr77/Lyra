@@ -157,6 +157,98 @@ export function calcularFontePxSnippetGrelhaSlide(opts) {
   return Math.max(minPx, lo);
 }
 
+/** Tamanho de referência (px) em que o canvas mede uma vez; a bissecção só escala. */
+export const REF_MEDICAO_SNIPPET_PX = 100;
+
+/**
+ * Largura a `fontPx` a partir da medição feita em `refPx`.
+ * `measureText` é linear com o tamanho da fonte (mesmo typeface, mesmo texto).
+ */
+export function escalarLarguraFonte(larguraNaRef, fontPx, refPx = REF_MEDICAO_SNIPPET_PX) {
+  const ref = Number(refPx);
+  const px = Number(fontPx);
+  const w = Number(larguraNaRef);
+  if (!(ref > 0) || !(px >= 0) || !(w >= 0) || !Number.isFinite(w)) return 0;
+  return w * (px / ref);
+}
+
+let canvasSnippetMedicao = null;
+
+function ctxCanvasSnippetMedicao() {
+  if (typeof document === 'undefined') return null;
+  try {
+    if (!canvasSnippetMedicao) {
+      canvasSnippetMedicao = document.createElement('canvas');
+      canvasSnippetMedicao.width = 1;
+      canvasSnippetMedicao.height = 1;
+    }
+    return canvasSnippetMedicao.getContext('2d');
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Medidor de largura para a grelha: uma medição real por texto único (canvas a 100px),
+ * depois escala na bissecção. `letter-spacing` entra à mão — o canvas ignora-o.
+ *
+ * Sem canvas (testes Node): fallback proporcional ao comprimento, ainda linear em `fontPx`.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.fontFamily]
+ * @param {string} [opts.fontWeight]
+ * @param {string} [opts.fontStyle]
+ * @param {number} [opts.letterSpacingEm]
+ * @param {string} [opts.textTransform]
+ */
+export function criarMedidorLarguraProporcionalCanvas(opts = {}) {
+  const ctx = ctxCanvasSnippetMedicao();
+  const ref = REF_MEDICAO_SNIPPET_PX;
+  const family = opts.fontFamily || 'sans-serif';
+  const weight = opts.fontWeight || '600';
+  const styleRaw = opts.fontStyle && opts.fontStyle !== 'normal' ? String(opts.fontStyle) : '';
+  const style = styleRaw ? `${styleRaw} ` : '';
+  const lsEm = Number(opts.letterSpacingEm);
+  const letterEm = Number.isFinite(lsEm) ? lsEm : 0;
+  const upper = String(opts.textTransform || '').toLowerCase() === 'uppercase';
+  const cache = new Map();
+  let medidasReais = 0;
+
+  if (ctx) {
+    ctx.font = `${style}${weight} ${ref}px ${family}`;
+  }
+
+  function larguraNaRef(texto) {
+    const t = upper ? String(texto || '').toUpperCase() : String(texto || '');
+    const hit = cache.get(t);
+    if (hit != null) return hit;
+    const extraLs = letterEm * ref * Math.max(0, t.length - 1);
+    let w;
+    if (ctx && typeof ctx.measureText === 'function') {
+      w = ctx.measureText(t).width + extraLs;
+    } else {
+      w = t.length * 0.55 * ref + extraLs;
+    }
+    medidasReais += 1;
+    cache.set(t, w);
+    return w;
+  }
+
+  return {
+    medirLarguraMaxPx(fontPx, textos) {
+      const lista = Array.isArray(textos) ? textos : [];
+      let maxW = 0;
+      for (let i = 0; i < lista.length; i++) {
+        maxW = Math.max(maxW, escalarLarguraFonte(larguraNaRef(lista[i]), fontPx, ref));
+      }
+      return maxW;
+    },
+    medidasReais() {
+      return medidasReais;
+    },
+  };
+}
+
 function classeLinhasParaContagem(n) {
   if (n <= 1) return 'lines-1';
   if (n === 2) return 'lines-2';

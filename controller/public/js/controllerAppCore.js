@@ -117,6 +117,7 @@ import {
   aplicarClasseLinhas,
   reaplicarFontesPreviewPainel,
   calcularFontePxSnippetGrelhaSlide,
+  criarMedidorLarguraProporcionalCanvas,
 } from './painel/tipografiaPainelPreview.js';
 import {
   criarPortaProjecao,
@@ -5426,12 +5427,172 @@ function atualizarSomenteAtivoFaixaSlides() {
 }
 
 /**
- * Revela a grelha escondida durante a reconstrução. É sempre chamada — inclusive nos
- * caminhos de desistência — para nunca deixar a grade presa em `visibility:hidden`.
+ * Revela a grelha se ainda estiver com `visibility:hidden` (legado). O 1º frame
+ * já pinta com a fonte CSS; o auto-fit corre depois, em lotes.
  */
 function revelarGradeSlides() {
   const grid = document.getElementById('slides-grid');
   if (grid && grid.style.visibility === 'hidden') grid.style.visibility = '';
+}
+
+/** Gerações do job de auto-fit: troca de música / resize cancela o job anterior. */
+let grelhaFitGeracao = 0;
+
+const GRELHA_FIT_LOTE = 4;
+const GRELHA_FIT_MARGEM_PERTO_PX = 120;
+
+function agendarLoteGrelhaFit(fn, { idle = false, timeout = 48 } = {}) {
+  if (idle && typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => fn(), { timeout });
+    return;
+  }
+  requestAnimationFrame(() => fn());
+}
+
+/**
+ * Chips no viewport primeiro, depois os da margem, depois o resto.
+ * Um `getBoundingClientRect` por chip — não entra na bissecção.
+ */
+function ordenarChipsGrelhaPorVisibilidade(chips, viewport) {
+  const lista = [...chips];
+  if (!viewport || !lista.length) return { fila: lista, nVisiveis: lista.length };
+  const vr = viewport.getBoundingClientRect();
+  const scored = lista.map((chip) => {
+    const r = chip.getBoundingClientRect();
+    const visivel =
+      r.bottom > vr.top && r.top < vr.bottom && r.right > vr.left && r.left < vr.right;
+    const perto =
+      r.bottom > vr.top - GRELHA_FIT_MARGEM_PERTO_PX &&
+      r.top < vr.bottom + GRELHA_FIT_MARGEM_PERTO_PX;
+    const prioridade = visivel ? 0 : perto ? 1 : 2;
+    return { chip, prioridade, top: r.top };
+  });
+  scored.sort((a, b) => a.prioridade - b.prioridade || a.top - b.top);
+  const nVisiveis = scored.reduce((n, s) => n + (s.prioridade === 0 ? 1 : 0), 0);
+  return { fila: scored.map((s) => s.chip), nVisiveis };
+}
+
+/**
+ * Geometria uniforme da grelha — lida uma vez no 1º chip do job.
+ * A altura do número usa a caixa real da amostra; os outros chips partilham o valor.
+ */
+function lerGeometriaChipGrelha(chip) {
+  const snippet = chip.querySelector('.slide-snippet');
+  if (!snippet) return null;
+  const cs = getComputedStyle(snippet);
+  const cChip = getComputedStyle(chip);
+  const z = slidesChipZoomLevel;
+  const padX = parseFloat(cChip.paddingLeft) + parseFloat(cChip.paddingRight);
+  const padY = parseFloat(cChip.paddingTop) + parseFloat(cChip.paddingBottom);
+  const snPadX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) || 0;
+  const availW = Math.max(12, chip.clientWidth - padX - snPadX - 2);
+  const numEl = chip.querySelector('.slide-num');
+  let numH = numEl ? numEl.getBoundingClientRect().height : 0;
+  if (!Number.isFinite(numH) || numH <= 0) numH = slideChipNumAlturaFallbackPx();
+  const innerH = Math.max(0, chip.clientHeight - padY);
+  const availH = Math.max(24, innerH - numH - 6 * z - 1);
+  const lh = razaoLineHeightSnippetSlide(cs);
+  const gapLinhas = parseFloat(cs.rowGap || cs.gap) || 3 * z;
+  const fsAtual = parseFloat(cs.fontSize) || 0;
+  const lsPx = parseFloat(cs.letterSpacing);
+  const lsEm = Number.isFinite(lsPx) && fsAtual > 0 ? lsPx / fsAtual : 0.035;
+  return {
+    availW,
+    availH,
+    lh,
+    gapLinhas,
+    lsEm,
+    fontFamily: cs.fontFamily,
+    fontWeight: cs.fontWeight,
+    fontStyle: cs.fontStyle,
+    textTransform: cs.textTransform,
+  };
+}
+
+function aplicarFonteNumChipGrelha(chip, geo, medidor) {
+  const snippet = chip.querySelector('.slide-snippet');
+  if (!snippet) return;
+  const lineEls = [...snippet.querySelectorAll('.slide-snippet-line')];
+  if (!lineEls.length) return;
+  const textos = lineEls
+    .filter((el) => !el.classList.contains('slide-snippet-line--empty'))
+    .map((el) => (el.textContent || '').trim())
+    .filter(Boolean);
+  if (!textos.length) return;
+
+  const chave = [
+    textos.join('\u001f'),
+    geo.availW.toFixed(1),
+    geo.availH.toFixed(1),
+    String(lineEls.length),
+    String(geo.lh),
+    String(geo.gapLinhas),
+    geo.lsEm.toFixed(4),
+    geo.fontFamily,
+    geo.fontWeight,
+  ].join('|');
+
+  if (snippet.dataset.fitChave === chave && snippet.dataset.fitPx) return;
+
+  const medirLarguraMaxPx = (fontPx) => medidor.medirLarguraMaxPx(fontPx, textos);
+
+  const px = calcularFontePxSnippetGrelhaSlide({
+    textos,
+    availW: geo.availW,
+    availH: geo.availH,
+    nLinhasBloco: lineEls.length,
+    lineHeight: geo.lh,
+    lineGapPx: geo.gapLinhas,
+    minPx: 6,
+    maxPx: geo.availH,
+    /* Sem `medirAlturaBlocoPx`: a altura sai da fórmula do CSS (linhas ×
+       line-height + gaps). `scrollHeight` não serve — com
+       `justify-content:center` o transbordo para cima não é contado e a
+       medida sairia otimista, deixando o texto cortado. */
+    medirLarguraMaxPx,
+  });
+
+  const pxStr = `${px}px`;
+  if (snippet.style.fontSize !== pxStr) {
+    snippet.style.setProperty('font-size', pxStr, 'important');
+  }
+  snippet.dataset.fitChave = chave;
+  snippet.dataset.fitPx = pxStr;
+}
+
+function iniciarJobAjusteFonteGrelhaIncremental(gen, viewport) {
+  if (gen !== grelhaFitGeracao) return;
+  const grid = document.getElementById('slides-grid');
+  const chips = grid
+    ? grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)')
+    : [];
+  const amostra = chips[0];
+  if (!amostra) return;
+
+  const geo = lerGeometriaChipGrelha(amostra);
+  if (!geo) return;
+
+  const { fila, nVisiveis } = ordenarChipsGrelhaPorVisibilidade(chips, viewport);
+  const medidor = criarMedidorLarguraProporcionalCanvas({
+    fontFamily: geo.fontFamily,
+    fontWeight: geo.fontWeight,
+    fontStyle: geo.fontStyle,
+    letterSpacingEm: geo.lsEm,
+    textTransform: geo.textTransform || 'uppercase',
+  });
+
+  const processar = (idx) => {
+    if (gen !== grelhaFitGeracao) return;
+    const fim = Math.min(idx + GRELHA_FIT_LOTE, fila.length);
+    for (let i = idx; i < fim; i++) {
+      aplicarFonteNumChipGrelha(fila[i], geo, medidor);
+    }
+    if (fim >= fila.length) return;
+    const visiveisFeitos = fim >= nVisiveis;
+    agendarLoteGrelhaFit(() => processar(fim), { idle: visiveisFeitos, timeout: 64 });
+  };
+
+  processar(0);
 }
 
 /**
@@ -5444,110 +5605,32 @@ function revelarGradeSlides() {
  *
  * Só encolhe quando o conteúdo excede a caixa: slides curtos ou com poucas linhas
  * ficam no tamanho máximo que a altura do cartão permite.
+ *
+ * O 1º frame NÃO espera este ajuste: a grelha pinta com a fonte CSS e o fit corre
+ * depois, em lotes (visíveis primeiro). M2/M3 e o preview não entram aqui.
  */
 function ajustarFonteSnippetsNosSlideChips(tentativa = 0) {
-  if (!ehModoSlidesOperador()) return revelarGradeSlides();
+  revelarGradeSlides();
+  grelhaFitGeracao += 1;
+  if (!ehModoSlidesOperador()) return;
   const grid = document.getElementById('slides-grid');
   if (!grid) return;
   const chips = grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)');
-  if (!chips.length) return revelarGradeSlides();
+  if (!chips.length) return;
 
   const amostra = chips[0];
   if (amostra && amostra.clientWidth < 48 && tentativa < 5) {
-    /* Caixa ainda não medível: tenta no próximo quadro e só então revela — revelar
-       agora mostraria a fonte base antes de encolher («tremida»). */
     requestAnimationFrame(() => ajustarFonteSnippetsNosSlideChips(tentativa + 1));
     return;
   }
 
-  const z = slidesChipZoomLevel;
-  const gapNumSnippet = 6 * z;
-  const meas = document.createElement('span');
-  meas.setAttribute('aria-hidden', 'true');
-  meas.style.cssText =
-    'position:fixed;left:-99999px;top:0;visibility:hidden;pointer-events:none;white-space:nowrap;';
-  document.body.appendChild(meas);
-
-  chips.forEach((chip) => {
-    const snippet = chip.querySelector('.slide-snippet');
-    if (!snippet) return;
-    const lineEls = [...snippet.querySelectorAll('.slide-snippet-line')];
-    if (!lineEls.length) return;
-
-    const cs = getComputedStyle(snippet);
-    const cChip = getComputedStyle(chip);
-    const padX = parseFloat(cChip.paddingLeft) + parseFloat(cChip.paddingRight);
-    const padY = parseFloat(cChip.paddingTop) + parseFloat(cChip.paddingBottom);
-    const snPadX =
-      parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) || 0;
-    const availW = Math.max(12, chip.clientWidth - padX - snPadX - 2);
-
-    /* Espaço do número: reservado sempre, mesmo que a medição falhe (fallback pelo CSS). */
-    const numEl = chip.querySelector('.slide-num');
-    let numH = numEl ? numEl.getBoundingClientRect().height : 0;
-    if (!Number.isFinite(numH) || numH <= 0) numH = slideChipNumAlturaFallbackPx();
-    const innerH = Math.max(0, chip.clientHeight - padY);
-    const availH = Math.max(24, innerH - numH - gapNumSnippet - 1);
-
-    const textos = lineEls
-      .filter((el) => !el.classList.contains('slide-snippet-line--empty'))
-      .map((el) => (el.textContent || '').trim())
-      .filter(Boolean);
-    if (!textos.length) return;
-
-    /*
-      RAZÃO de line-height, não px: `cs.lineHeight` vem resolvido em px (ex.: "18.93px")
-      e, usado como razão, esmagava o teto por altura — todos os cartões ficavam no
-      mínimo (~6px). Deriva-se a razão dividindo pelo font-size corrente.
-    */
-    const lh = razaoLineHeightSnippetSlide(cs);
-    const gapLinhas = parseFloat(cs.rowGap || cs.gap) || 3 * z;
-
-    /*
-      `letter-spacing` também vem em px, atrelado ao font-size corrente (0.035em).
-      Convertido para `em`, o medidor acompanha o tamanho testado em cada iteração.
-    */
-    const fsAtual = parseFloat(cs.fontSize) || 0;
-    const lsPx = parseFloat(cs.letterSpacing);
-    const lsEm = Number.isFinite(lsPx) && fsAtual > 0 ? lsPx / fsAtual : 0;
-
-    meas.style.fontFamily = cs.fontFamily;
-    meas.style.fontWeight = cs.fontWeight;
-    meas.style.fontStyle = cs.fontStyle;
-    meas.style.letterSpacing = `${lsEm}em`;
-    meas.style.textTransform = 'uppercase';
-
-    const medirLarguraMaxPx = (fontPx) => {
-      meas.style.fontSize = `${fontPx}px`;
-      let maxW = 0;
-      textos.forEach((t) => {
-        meas.textContent = t;
-        maxW = Math.max(maxW, meas.getBoundingClientRect().width);
-      });
-      return maxW;
-    };
-
-    const px = calcularFontePxSnippetGrelhaSlide({
-      textos,
-      availW,
-      availH,
-      nLinhasBloco: lineEls.length,
-      lineHeight: lh,
-      lineGapPx: gapLinhas,
-      minPx: 6,
-      maxPx: availH,
-      /* Sem `medirAlturaBlocoPx`: a altura sai da fórmula do CSS (linhas ×
-         line-height + gaps). `scrollHeight` não serve — com
-         `justify-content:center` o transbordo para cima não é contado e a
-         medida sairia otimista, deixando o texto cortado. */
-      medirLarguraMaxPx,
-    });
-
-    snippet.style.setProperty('font-size', `${px}px`, 'important');
-  });
-
-  document.body.removeChild(meas);
-  revelarGradeSlides();
+  const gen = grelhaFitGeracao;
+  const viewport = document.getElementById('slides-grid-viewport');
+  /* Idle: o 1º frame não compete com o 1º lote. timeout garante visíveis cedo. */
+  agendarLoteGrelhaFit(() => {
+    if (gen !== grelhaFitGeracao) return;
+    iniciarJobAjusteFonteGrelhaIncremental(gen, viewport);
+  }, { idle: true, timeout: 48 });
 }
 
 /** Razão de line-height do snippet (o CSS guarda-a em `--slide-chip-snippet-lh`). */
@@ -5578,29 +5661,15 @@ function ajustarEncaixeGrelhaSlidesModoSlides() {
   const grid = document.getElementById('slides-grid');
   const viewport = document.getElementById('slides-grid-viewport');
   if (grid) grid.style.zoom = '';
-  /* A grade é escondida durante a reconstrução para evitar a «tremida» de pintar com
-     fonte base e só depois encolher. Todo caminho daqui para baixo tem de a revelar —
-     incluindo as desistências — senão fica presa em `visibility:hidden`. */
-  if (typeof document !== 'undefined' && document.hidden) {
-    revelarGradeSlides();
-    return;
-  }
-  if (!ehModoSlidesOperador() || !viewport || !grid) {
-    revelarGradeSlides();
-    return;
-  }
+  revelarGradeSlides();
+  if (typeof document !== 'undefined' && document.hidden) return;
+  if (!ehModoSlidesOperador() || !viewport || !grid) return;
   const dock = document.getElementById('slides-dock');
-  if (!dock || dock.classList.contains('oculto')) {
-    revelarGradeSlides();
-    return;
-  }
+  if (!dock || dock.classList.contains('oculto')) return;
 
   /*
-    Um quadro, não dois. O layout dos chips já está resolvido quando este callback
-    corre (o DOM foi inserido no turno anterior), e `ajustarFonteSnippetsNosSlideChips`
-    tem a sua própria rede de segurança: se a caixa ainda não for medível, reagenda-se
-    e só revela quando conseguir medir. O segundo `requestAnimationFrame` custava ~16 ms
-    a cada troca de música sem acrescentar garantia nenhuma.
+    Um quadro para agendar o job. O 1º frame já mostrou a grelha com a fonte CSS;
+    `ajustarFonteSnippetsNosSlideChips` só enfileira o auto-fit.
   */
   requestAnimationFrame(() => {
     grid.style.zoom = '';
@@ -12468,10 +12537,8 @@ function renderSlidesStrip() {
 
   if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, musicaAtiva.titulo || '');
 
-  /* Esconde a grade enquanto reconstrói e reajusta a fonte; ajustarEncaixe…
-     a revela já dimensionada, evitando a «tremida» na troca de música. O
-     visibility:hidden preserva o layout, então a medição continua a funcionar. */
-  if (ehModoSlidesOperador()) grid.style.visibility = 'hidden';
+  /* 1º frame com a fonte CSS; o auto-fit dos snippets corre depois, em lotes. */
+  if (grid.style.visibility === 'hidden') grid.style.visibility = '';
   grid.innerHTML = '';
   const nEst = musicaAtiva.estrofes.length;
   const idxSlidePreto = nEst;
@@ -18377,8 +18444,9 @@ async function selecionarMusicaDoBanco(id, opts) {
        Slides (`.panel-banco`, `.centro-col-letras`): reconstruí-los aqui só atrasaria
        o primeiro quadro da grelha. Ficam para o tempo ocioso, logo a seguir. */
     const emModoSlides = ehModoSlidesOperador();
-    if (emModoSlides) agendarRenderizacoesOcultasDoModoSlides();
-    else refreshListaBanco();
+    if (emModoSlides) {
+      agendarRenderizacoesOcultasDoModoSlides();
+    } else refreshListaBanco();
     renderPlaylist();
     if (!emModoSlides) renderEstrofesEditor();
     renderSlidesStrip();

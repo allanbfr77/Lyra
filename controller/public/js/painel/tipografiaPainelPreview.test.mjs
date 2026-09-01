@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   calcularFontePxPreview,
   calcularFontePxSnippetGrelhaSlide,
+  criarMedidorLarguraProporcionalCanvas,
+  escalarLarguraFonte,
+  REF_MEDICAO_SNIPPET_PX,
 } from './tipografiaPainelPreview.js';
 
 test('calcularFontePxPreview respeita limites mínimo e máximo', () => {
@@ -92,4 +95,22 @@ test('calcularFontePxSnippetGrelhaSlide só encolhe quando a linha excede a larg
   });
   assert.ok(curto > longo);
   assert.ok(longo * 30 * 0.6 <= 185 + 0.5);
+});
+
+test('escalarLarguraFonte é proporcional ao font-size', () => {
+  assert.equal(escalarLarguraFonte(200, 50, 100), 100);
+  assert.equal(escalarLarguraFonte(200, 25, 100), 50);
+  assert.equal(REF_MEDICAO_SNIPPET_PX, 100);
+});
+
+test('criarMedidorLarguraProporcionalCanvas mede uma vez e escala na bissecção', () => {
+  const m = criarMedidorLarguraProporcionalCanvas({ letterSpacingEm: 0 });
+  const a = m.medirLarguraMaxPx(100, ['ABC', 'AB']);
+  const b = m.medirLarguraMaxPx(50, ['ABC', 'AB']);
+  assert.ok(a > 0);
+  assert.equal(Math.round((a / b) * 100) / 100, 2);
+  /* Duas linhas distintas, uma medição real cada — a 2.ª chamada só escala o cache. */
+  assert.equal(m.medidasReais(), 2);
+  m.medirLarguraMaxPx(12.5, ['ABC']);
+  assert.equal(m.medidasReais(), 2);
 });
