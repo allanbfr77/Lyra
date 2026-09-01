@@ -353,6 +353,7 @@ function safeRequire(modulo) {
 }
 const electronMod = safeRequire('electron');
 const ipcRenderer = electronMod?.ipcRenderer || null;
+const viewportDaJanela = safeRequire('./js/viewportDaJanela');
 
 // ─── Referências DOM ──────────────────────────────────────────────
 const elTela         = document.getElementById('tela');
@@ -792,6 +793,16 @@ if (ipcRenderer) {
     });
   });
 }
+
+function reportarViewportPublico() {
+  if (!viewportDaJanela) return;
+  viewportDaJanela.reportarViewportJanela('publico', { elArea: elTela || elLetras });
+}
+window.addEventListener('resize', () => {
+  clearTimeout(window.__lyraViewportPubTimer);
+  window.__lyraViewportPubTimer = setTimeout(reportarViewportPublico, 50);
+});
+reportarViewportPublico();
 </script>
 </body>
 </html>

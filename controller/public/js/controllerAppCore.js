@@ -23049,11 +23049,7 @@ function onClockDateFontSizeCtrlInput() {
 }
 
 function onClockVerseFontSizeCtrlInput() {
-  const val = lerNumeroInput('cfg-clock-verse-fontsize-ctrl', currentCfgCtrl.clock?.verseFontSize ?? 2.4);
-  if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
-  currentCfgCtrl.clock.verseFontSize = val;
-  setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(val));
-  debounceSalvarCfg();
+  aplicarCfgRelogio();
 }
 
 function pintarCfgBgPreview(elId, { bgType, bgColor, bgGradient, bgImage }) {

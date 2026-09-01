@@ -30,6 +30,7 @@
       color: #ffffff;
       cursor: none;
       font-family: 'CMG Sans', 'DM Sans', system-ui, -apple-system, sans-serif;
+      padding: 3vh 4vw;
     }
     .wrap {
       display: flex;
@@ -38,8 +39,11 @@
       justify-content: center;
       gap: 0.6vh;
       width: 100%;
-      max-width: 92vw;
+      max-width: 100%;
+      height: 100%;
       text-align: center;
+      overflow: hidden;
+      box-sizing: border-box;
     }
     .clock {
       font-size: 13vh;
@@ -47,12 +51,25 @@
       line-height: 1;
       letter-spacing: -0.02em;
       font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
     }
     .meta {
-      max-width: 86%;
+      max-width: 92%;
       line-height: 1.35;
       white-space: pre-wrap;
+      overflow-wrap: break-word;
       opacity: 0.86;
+    }
+    #clock-date {
+      flex-shrink: 0;
+    }
+    #clock-analog-wrap {
+      flex-shrink: 0;
+    }
+    #clock-verse {
+      flex-shrink: 0;
+      width: 92%;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -66,7 +83,22 @@
     <div id="clock-verse" class="meta"></div>
   </div>
   <script>
-    const { ipcRenderer } = require('electron');
+    const { ipcRenderer, webFrame } = require('electron');
+    try {
+      if (webFrame && typeof webFrame.setZoomFactor === 'function') webFrame.setZoomFactor(1);
+    } catch (_) {}
+    let slideFit = null;
+    let viewportDaJanela = null;
+    try {
+      slideFit = require('./js/slideFit');
+    } catch (e) {
+      console.error('[Lyra] slideFit indisponível no relógio:', e && e.message);
+    }
+    try {
+      viewportDaJanela = require('./js/viewportDaJanela');
+    } catch (e) {
+      console.error('[Lyra] viewportDaJanela indisponível no relógio:', e && e.message);
+    }
 
     const elClockDigital = document.getElementById('clock-digital');
     const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
@@ -213,12 +245,89 @@
       elClockVerse.style.color = corVersiculo(clk);
 
       elClockDigital.style.fontSize = `${Math.max(7, Number(clk.fontSize || 13))}vh`;
-      elClockDate.style.fontSize = `${Math.max(1, Number(clk.dateFontSize || 2.4))}vh`;
-      elClockVerse.style.fontSize = `${Math.max(1, Number(clk.verseFontSize || 2.4))}vh`;
+      elClockDate.style.fontSize = `${Math.max(0.8, Number(clk.dateFontSize || 2.4))}vh`;
+      elClockVerse.style.fontSize = `${Math.max(0.8, Number(clk.verseFontSize || 2.4))}vh`;
 
       aplicarFundoRelogio(clk);
       tick();
+      ajustarVersiculoRelogioAoEspaco();
       if (!timer) timer = setInterval(tick, 1000);
+    }
+
+    function elementoRelogioVisivel(el) {
+      if (!el) return false;
+      try {
+        if (getComputedStyle(el).display === 'none') return false;
+      } catch (_) {
+        if (el.style.display === 'none') return false;
+      }
+      return true;
+    }
+
+    function pxGapWrapRelogio() {
+      const wrap = elClockVerse && elClockVerse.parentElement;
+      if (!wrap) return 0;
+      const cs = getComputedStyle(wrap);
+      const row = parseFloat(cs.rowGap);
+      if (Number.isFinite(row)) return row;
+      const g = parseFloat(cs.gap);
+      return Number.isFinite(g) ? g : 0;
+    }
+
+    /**
+     * Aplica o `verseFontSize` dos Ajustes. Só encolhe se a ALTURA do bloco passar
+     * do espaço que sobra abaixo do relógio e da data — e só quando esse espaço
+     * já está medido de forma credível. Sem isto, um layout a meio do paint
+     * (caixa estreita + quebra agressiva) mandava a fonte para 0,8 vh e o
+     * slider deixava de fazer efeito.
+     */
+    function ajustarVersiculoRelogioAoEspaco() {
+      const clk = displayConfig.clock || {};
+      if (!elClockVerse || clk.showVerse === false || !clk.verse) return;
+      const minVh = 0.8;
+      const baseVh = Math.max(minVh, Number(clk.verseFontSize || 2.4));
+      elClockVerse.style.fontSize = `${baseVh}vh`;
+
+      const wrap = elClockVerse.parentElement;
+      if (!wrap) return;
+      const areaH = wrap.clientHeight;
+      const areaW = wrap.clientWidth;
+      /* Layout ainda não está estável: fica no tamanho pedido, não se inventa um mínimo. */
+      if (!Number.isFinite(areaH) || areaH < 80 || !Number.isFinite(areaW) || areaW < 80) return;
+
+      let usado = 0;
+      let nOutros = 0;
+      [elClockDigital, elClockAnalogWrap, elClockDate].forEach((el) => {
+        if (!elementoRelogioVisivel(el)) return;
+        nOutros += 1;
+        usado += el.getBoundingClientRect().height;
+      });
+      const gaps = Math.max(0, nOutros) * pxGapWrapRelogio();
+      const maxH = areaH - usado - gaps - 2;
+
+      /* Orçamento absurdo (relógio maior que o wrap) = medição a meio; não encolher. */
+      if (!(maxH >= 32)) return;
+      if (elClockVerse.scrollHeight <= maxH + 1) return;
+
+      if (slideFit) {
+        const vh = slideFit.encolherFonteAteCaber({
+          fonteMaxVh: baseVh,
+          fonteMinVh: minVh,
+          cabe(v) {
+            elClockVerse.style.fontSize = `${v}vh`;
+            return elClockVerse.scrollHeight <= maxH + 1;
+          },
+        });
+        elClockVerse.style.fontSize = `${vh}vh`;
+        return;
+      }
+      let atual = baseVh;
+      while (atual > minVh) {
+        elClockVerse.style.fontSize = `${atual}vh`;
+        if (elClockVerse.scrollHeight <= maxH + 1) break;
+        atual -= 0.1;
+      }
+      elClockVerse.style.fontSize = `${Math.max(minVh, atual)}vh`;
     }
 
     function tick() {
@@ -258,17 +367,42 @@
         elClockDate.style.display = 'none';
       }
 
-      if (clk.showVerse && clk.verse) {
-        elClockVerse.textContent = String(clk.verse);
+      const verseTxt = clk.showVerse && clk.verse ? String(clk.verse) : '';
+      const verseMudou =
+        (elClockVerse.textContent || '') !== verseTxt ||
+        (verseTxt ? elClockVerse.style.display === 'none' : elClockVerse.style.display !== 'none');
+      if (verseTxt) {
+        elClockVerse.textContent = verseTxt;
         elClockVerse.style.display = '';
       } else {
         elClockVerse.textContent = '';
         elClockVerse.style.display = 'none';
       }
+      if (verseMudou) ajustarVersiculoRelogioAoEspaco();
     }
 
     ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));
+    let timerRefitRelogio = null;
+    function reportarViewportRelogio() {
+      if (!viewportDaJanela) return;
+      const wrap = elClockVerse && elClockVerse.parentElement;
+      viewportDaJanela.reportarViewportJanela('relogio', { elArea: wrap });
+    }
+    window.addEventListener('resize', () => {
+      clearTimeout(timerRefitRelogio);
+      timerRefitRelogio = setTimeout(() => {
+        ajustarVersiculoRelogioAoEspaco();
+        reportarViewportRelogio();
+      }, 50);
+    });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        ajustarVersiculoRelogioAoEspaco();
+        reportarViewportRelogio();
+      }).catch(() => {});
+    }
     aplicarConfig(lerConfigDoArranque() || displayConfig);
+    reportarViewportRelogio();
   </script>
 </body>
 </html>

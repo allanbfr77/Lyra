@@ -18,14 +18,14 @@ const assert = require('node:assert');
 const { createProjectionEngine } = require('./projectionEngine');
 
 const DISPLAYS = [
-  { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 } },
-  { id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 } },
+  { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 }, scaleFactor: 1.5 },
+  { id: 2, bounds: { x: 1920, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 }, scaleFactor: 1.5 },
 ];
 
 /** Setup real de igreja: ecrã do operador (principal) + telão + retorno do ministrante. */
 const DISPLAYS_TRES = [
   ...DISPLAYS,
-  { id: 3, bounds: { x: 3840, y: 0, width: 1280, height: 720 }, size: { width: 1280, height: 720 } },
+  { id: 3, bounds: { x: 3840, y: 0, width: 1280, height: 720 }, size: { width: 1280, height: 720 }, scaleFactor: 1.25 },
 ];
 
 function janelaFalsa(opts = {}) {
@@ -38,7 +38,13 @@ function janelaFalsa(opts = {}) {
     bounds: { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 1920, height: opts.height ?? 1080 },
     sends: [],
     paginas: [],
-    webContents: { send: (canal, payload) => win.sends.push({ canal, payload }), on: () => {}, once: () => {} },
+    opcoesCriacao: opts,
+    webContents: {
+      send: (canal, payload) => win.sends.push({ canal, payload }),
+      on: () => {},
+      once: () => {},
+      ipc: { on: () => {} },
+    },
     isDestroyed: () => win.destruida,
     isVisible: () => win.visivel,
     isFullScreen: () => win.fullscreen,
@@ -639,6 +645,28 @@ function cobreOEcraDoOperador(engine) {
     return !!b && b.x === principal.x && b.y === principal.y;
   });
 }
+
+test('janelas de projeção não aplicam zoomFactor = scaleFactor (escala já está nos DIP)', () => {
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  engine.sincronizarJanelasRelogio();
+  const comZoom = engine.janelasDeProjecao().filter((e) => {
+    const z = e.win?.opcoesCriacao?.webPreferences?.zoomFactor;
+    return z != null && z !== 1;
+  });
+  assert.deepStrictEqual(
+    comZoom.map((e) => ({ role: e.role, zoom: e.win.opcoesCriacao.webPreferences.zoomFactor })),
+    [],
+    'zoomFactor=scaleFactor duplicava o zoom em TVs/projetores com DPI ≠ 100%'
+  );
+});
 
 test('roteamento antigo a apontar ao monitor principal não abre janela lá', () => {
   const engine = montarComTresEcrans(

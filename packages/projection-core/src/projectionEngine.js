@@ -867,6 +867,38 @@ function createProjectionEngine(paths, deps) {
   }
 
   /**
+   * Cada janela de projeção reporta o viewport que o SEU renderer está a ver.
+   * Serve para confirmar, no PC do utilizador, que o M3 mede 1360×768 e o M2 mede
+   * 800×600 — sem cruzar dimensões. Grava no log de erros do host (`viewport-janela`).
+   */
+  function anexarDiagnosticoViewport(win) {
+    const wc = win && win.webContents;
+    if (!wc) return;
+    const ipc = wc.ipc;
+    if (!ipc || typeof ipc.on !== 'function') return;
+    if (win.__lyraViewportIpcBound) return;
+    win.__lyraViewportIpcBound = true;
+    ipc.on('lyra-viewport-janela', (_event, info) => {
+      let boundsJanela = null;
+      try {
+        boundsJanela = win.getBounds();
+      } catch (_) {
+        // intencional
+      }
+      const linha = { ...(info && typeof info === 'object' ? info : {}), boundsJanela };
+      try {
+        logError('viewport-janela', JSON.stringify(linha));
+      } catch (_) {
+        try {
+          console.log('[Lyra viewport]', linha);
+        } catch (__) {
+          // intencional
+        }
+      }
+    });
+  }
+
+  /**
    * Garante topo absoluto e fundo nativo assim que a janela existe.
    *
    * **Não mostra a janela** e **não entra em fullscreen exclusivo** — ver
@@ -901,6 +933,7 @@ function createProjectionEngine(paths, deps) {
       atualizarLoopTopoAbsolutoProjecao();
     });
     atualizarLoopTopoAbsolutoProjecao();
+    anexarDiagnosticoViewport(win);
   }
 
   function finalizarJanelaRelogioNativa(win) {
@@ -919,6 +952,7 @@ function createProjectionEngine(paths, deps) {
   // intencional — erro ignorado
 }
     });
+    anexarDiagnosticoViewport(win);
   }
 
   function enviarBootstrapJanelaPublica(win) {
@@ -1172,7 +1206,9 @@ function createProjectionEngine(paths, deps) {
         nodeIntegration: true,
         contextIsolation: false,
         backgroundThrottling: false,
-        zoomFactor: d.scaleFactor || 1,
+        /* Sem `zoomFactor: scaleFactor`. A janela já nasce em DIP (`bounds`); aplicar o
+           factor de escala outra vez duplicava o zoom em TVs 4K/42" com DPI ≠ 100%.
+           O versículo encolhia no slider e voltava ao tamanho anterior no `setBounds`. */
         ...(bootstrap ? { additionalArguments: [bootstrap.arg] } : {}),
       },
     });
@@ -1463,7 +1499,8 @@ function createProjectionEngine(paths, deps) {
       {
         ...opcoesBrowserWindowProjecao(d, label, {
         icon: caminhoIconeApp(),
-          webPreferences: { zoomFactor: d.scaleFactor || 1 },
+          /* Sem `zoomFactor: scaleFactor` — a janela já nasce em DIP (`d.bounds`).
+             Aplicar a escala outra vez duplicava o zoom (ver relógio / M3). */
         }),
         show: false,
         transparent: false,
@@ -1499,7 +1536,7 @@ function createProjectionEngine(paths, deps) {
     const win = new BrowserWindow(
       opcoesBrowserWindowProjecao(d, label, {
         icon: caminhoIconeApp(),
-        webPreferences: { zoomFactor: d.scaleFactor || 1 },
+        /* Sem `zoomFactor: scaleFactor` — mesma regra do telão e do relógio. */
       })
     );
     finalizarJanelaProjecaoNativa(win);

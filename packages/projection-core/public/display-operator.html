@@ -57,10 +57,13 @@
       position: relative;
       padding: 0 2vw;
       box-sizing: border-box;
+      overflow: hidden;
     }
     .slide {
       width: 100%;
       max-width: 100%;
+      min-width: 0;
+      flex-shrink: 0;
       align-self: stretch;
       white-space: pre-wrap;
       text-transform: uppercase;
@@ -91,6 +94,7 @@
     .titulo-musica-op {
       width: 100%;
       max-width: 100%;
+      flex-shrink: 0;
       box-sizing: border-box;
       text-align: center;
       font-weight: 700;
@@ -131,6 +135,7 @@
     .ref-biblica-op {
       width: 100%;
       max-width: 100%;
+      flex-shrink: 0;
       text-align: center;
       font-weight: 600;
       font-size: 1.8vh;
@@ -304,6 +309,18 @@
       else if (elCapaContagem) elCapaContagem.hidden = true;
     }
     const elWrapLetras = document.getElementById('op-wrap-letras');
+    let slideFit = null;
+    let viewportDaJanela = null;
+    try {
+      slideFit = require('./js/slideFit');
+    } catch (e) {
+      console.error('[Lyra] slideFit indisponível no monitor do ministrante:', e && e.message);
+    }
+    try {
+      viewportDaJanela = require('./js/viewportDaJanela');
+    } catch (e) {
+      console.error('[Lyra] viewportDaJanela indisponível no monitor do ministrante:', e && e.message);
+    }
     let ultimoPayloadMinistrante = null;
     let displayConfig = {
       fontSize: 5,
@@ -645,6 +662,106 @@
       if (ultimoPayloadMinistrante) aplicar(ultimoPayloadMinistrante);
     }
 
+    function temTextoSlideMinistrante(texto) {
+      return String(texto || '').trim().length > 0;
+    }
+
+    function elementoFlexVisivelOp(el) {
+      return !!(el && !el.classList.contains('oculta'));
+    }
+
+    function pxGapWrapOp() {
+      if (!elWrapLetras) return 0;
+      const cs = getComputedStyle(elWrapLetras);
+      const row = parseFloat(cs.rowGap);
+      if (Number.isFinite(row)) return row;
+      const g = parseFloat(cs.gap);
+      return Number.isFinite(g) ? g : 0;
+    }
+
+    function alturaBlocoTituloOpPx() {
+      if (!elementoFlexVisivelOp(elTituloMusicaOp)) return 0;
+      const h = elTituloMusicaOp.getBoundingClientRect().height;
+      const mb = parseFloat(getComputedStyle(elTituloMusicaOp).marginBottom) || 0;
+      return h + mb;
+    }
+
+    function alturaRefOpPx() {
+      if (!elementoFlexVisivelOp(elRefBiblicaOp)) return 0;
+      return elRefBiblicaOp.getBoundingClientRect().height;
+    }
+
+    function fonteVhDoSlideOp(el, fallback) {
+      const v = parseFloat(el && el.style.fontSize);
+      return Number.isFinite(v) && v > 0 ? v : fallback;
+    }
+
+    function slideCabeNaCaixaOp(el, maxW, maxH) {
+      if (!el) return true;
+      return el.scrollWidth <= maxW + 1 && el.scrollHeight <= maxH + 1;
+    }
+
+    /**
+     * Encolhe UM painel até a linha mais larga caber na largura útil (comportamento
+     * antigo, só quando o auto-fit de linhas longas está ligado ou o wrap está off).
+     */
+    function ajustarLarguraLinhasPainelOp(el, base, texto, mon, ehBiblia, usarMaiusculas, limite) {
+      const linhas = [];
+      String(textoPlanoMinistranteParaMedicao(texto) || '')
+        .split(/\r\n|\r|\n/)
+        .forEach((l) => linhas.push(l));
+      if (!linhas.length) return;
+      const medidor = document.createElement('span');
+      medidor.style.position = 'fixed';
+      medidor.style.left = '-99999px';
+      medidor.style.top = '-99999px';
+      medidor.style.visibility = 'hidden';
+      medidor.style.whiteSpace = 'pre';
+      medidor.style.fontFamily = getComputedStyle(el).fontFamily;
+      medidor.style.fontWeight = ehBiblia
+        ? mon.negrito !== false
+          ? 'bold'
+          : 'normal'
+        : getComputedStyle(el).fontWeight;
+      medidor.style.letterSpacing = getComputedStyle(el).letterSpacing;
+      medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
+      document.body.appendChild(medidor);
+      let atual = base;
+      const minimo = 2.1;
+      while (atual > minimo) {
+        medidor.style.fontSize = `${atual}vh`;
+        let maior = 0;
+        for (const l of linhas) {
+          const amostra = l || ' ';
+          medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
+          maior = Math.max(maior, medidor.getBoundingClientRect().width);
+        }
+        if (maior <= limite) break;
+        atual -= 0.2;
+      }
+      document.body.removeChild(medidor);
+      el.style.fontSize = `${Math.max(minimo, atual)}vh`;
+    }
+
+    function ajustarFonteSlideACaixaOp(el, fonteMaxVh, maxW, maxH) {
+      if (!el || !slideFit || maxH < 8 || maxW < 8) return fonteMaxVh;
+      const vh = slideFit.encolherFonteAteCaber({
+        fonteMaxVh,
+        fonteMinVh: slideFit.FONTE_MIN_VH,
+        cabe(v) {
+          el.style.fontSize = `${v}vh`;
+          return slideCabeNaCaixaOp(el, maxW, maxH);
+        },
+      });
+      el.style.fontSize = `${vh}vh`;
+      return vh;
+    }
+
+    /**
+     * Fonte por slide: o valor dos Ajustes é o teto. Slides curtos ficam nesse tamanho;
+     * slides densos encolhem só o necessário para caber na área real do wrap (altura e
+     * largura medidas no ecrã — AOC 32" ou Samsung 42").
+     */
     function ajustarAutoFitSlidesMinistrante() {
       const mon = displayConfig.ministrante || {};
       const ehBiblia =
@@ -653,56 +770,79 @@
       const baseProximo = Math.max(2.2, Number(mon.fontSizeProximo ?? mon.fontSize ?? 4.1));
       elAtual.style.fontSize = `${baseAtual}vh`;
       elProximo.style.fontSize = `${baseProximo}vh`;
-      const wrap = mon.wrapLongLines !== false;
-      const autoFit = wrap ? mon.autoFitLongLines === true : true;
+      const wrapLinhas = mon.wrapLongLines !== false;
+      const autoFitLargura = wrapLinhas ? mon.autoFitLongLines === true : true;
       const usarMaiusculas = ehBiblia ? mon.maiusculo === true : true;
-      if (!autoFit) return;
-      const limite = window.innerWidth * 0.9;
-      if (!Number.isFinite(limite) || limite <= 0) return;
       const plMed = ultimoPayloadMinistrante || {};
 
-      /** Ajusta a fonte de UM painel de forma independente, a partir da sua própria base. */
-      const ajustarPainel = (el, base, texto) => {
-        const linhas = [];
-        String(textoPlanoMinistranteParaMedicao(texto) || '')
-          .split(/\r\n|\r|\n/)
-          .forEach((l) => linhas.push(l));
-        if (!linhas.length) return;
-        const medidor = document.createElement('span');
-        medidor.style.position = 'fixed';
-        medidor.style.left = '-99999px';
-        medidor.style.top = '-99999px';
-        medidor.style.visibility = 'hidden';
-        medidor.style.whiteSpace = 'pre';
-        medidor.style.fontFamily = getComputedStyle(el).fontFamily;
-        medidor.style.fontWeight = ehBiblia
-          ? mon.negrito !== false
-            ? 'bold'
-            : 'normal'
-          : getComputedStyle(el).fontWeight;
-        medidor.style.letterSpacing = getComputedStyle(el).letterSpacing;
-        medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
-        document.body.appendChild(medidor);
-        let atual = base;
-        const minimo = 2.1;
-        while (atual > minimo) {
-          medidor.style.fontSize = `${atual}vh`;
-          let maior = 0;
-          for (const l of linhas) {
-            const amostra = l || ' ';
-            medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
-            maior = Math.max(maior, medidor.getBoundingClientRect().width);
-          }
-          if (maior <= limite) break;
-          atual -= 0.2;
+      if (autoFitLargura) {
+        /* Largura DESTA janela (wrap do M3), nunca innerWidth de outro monitor. */
+        const limite = (elWrapLetras && elWrapLetras.clientWidth > 12)
+          ? elWrapLetras.clientWidth
+          : (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+        if (Number.isFinite(limite) && limite > 0) {
+          ajustarLarguraLinhasPainelOp(
+            elAtual, baseAtual, plMed.atual, mon, ehBiblia, usarMaiusculas, limite
+          );
+          ajustarLarguraLinhasPainelOp(
+            elProximo, baseProximo, plMed.proximo, mon, ehBiblia, usarMaiusculas, limite
+          );
         }
-        document.body.removeChild(medidor);
-        el.style.fontSize = `${Math.max(minimo, atual)}vh`;
+      }
+
+      aplicarRespiroTituloAberturaOp();
+
+      if (!slideFit || !elWrapLetras) return;
+
+      const areaH = elWrapLetras.clientHeight;
+      const areaW = elWrapLetras.clientWidth;
+      if (!Number.isFinite(areaH) || areaH < 40 || !Number.isFinite(areaW) || areaW < 40) return;
+
+      const atualOn = temTextoSlideMinistrante(plMed.atual);
+      const proxOn = temTextoSlideMinistrante(plMed.proximo);
+      const nFlex = [elTituloMusicaOp, elAtual, elRefBiblicaOp, elProximo]
+        .filter(elementoFlexVisivelOp).length;
+      const gapsPx = Math.max(0, nFlex - 1) * pxGapWrapOp();
+      const margem = slideFit.MARGEM_PX || 2;
+
+      const encaixarNaAltura = () => {
+        const restante = Math.max(
+          0,
+          areaH - alturaBlocoTituloOpPx() - alturaRefOpPx() - gapsPx - margem
+        );
+        const hA = atualOn ? elAtual.scrollHeight : 0;
+        const hP = proxOn ? elProximo.scrollHeight : 0;
+        const orc = slideFit.calcularOrcamentosSlides({
+          restantePx: restante,
+          alturaAtualPx: hA,
+          alturaProximoPx: hP,
+          atualTemConteudo: atualOn,
+          proximoTemConteudo: proxOn,
+        });
+        if (atualOn && !slideCabeNaCaixaOp(elAtual, areaW, Math.max(8, orc.budgetAtualPx))) {
+          ajustarFonteSlideACaixaOp(
+            elAtual,
+            fonteVhDoSlideOp(elAtual, baseAtual),
+            areaW,
+            Math.max(8, orc.budgetAtualPx)
+          );
+        }
+        if (proxOn && !slideCabeNaCaixaOp(elProximo, areaW, Math.max(8, orc.budgetProximoPx))) {
+          ajustarFonteSlideACaixaOp(
+            elProximo,
+            fonteVhDoSlideOp(elProximo, baseProximo),
+            areaW,
+            Math.max(8, orc.budgetProximoPx)
+          );
+        }
       };
 
-      ajustarPainel(elAtual, baseAtual, plMed.atual);
-      ajustarPainel(elProximo, baseProximo, plMed.proximo);
-      /* Por último: a linha do respiro mede-se na fonte que acabou de ficar decidida. */
+      encaixarNaAltura();
+      /* O respiro mede-se na fonte efectiva; depois de encolher, a margem do título
+         diminui e pode libertar altura — uma segunda passagem aproveita isso sem
+         voltar a crescer acima do teto já aplicado. */
+      aplicarRespiroTituloAberturaOp();
+      encaixarNaAltura();
       aplicarRespiroTituloAberturaOp();
     }
 
@@ -1112,6 +1252,25 @@
     ipcRenderer.on('apresentacao_video_sync', (_, payload) => {
       aplicarSyncVideoApresentacaoNoHost(elCapaAp, payload || {});
     });
+    let timerRefitOp = null;
+    function reportarViewportMinistrante() {
+      if (!viewportDaJanela) return;
+      viewportDaJanela.reportarViewportJanela('ministrante', { elArea: elWrapLetras });
+    }
+    window.addEventListener('resize', () => {
+      clearTimeout(timerRefitOp);
+      timerRefitOp = setTimeout(() => {
+        ajustarAutoFitSlidesMinistrante();
+        reportarViewportMinistrante();
+      }, 50);
+    });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        ajustarAutoFitSlidesMinistrante();
+        reportarViewportMinistrante();
+      }).catch(() => {});
+    }
+    reportarViewportMinistrante();
     aplicar({ telaLimpa: true });
   </script>
 </body>
