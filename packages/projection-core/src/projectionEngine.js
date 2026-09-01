@@ -880,12 +880,29 @@ function createProjectionEngine(paths, deps) {
     win.__lyraViewportIpcBound = true;
     ipc.on('lyra-viewport-janela', (_event, info) => {
       let boundsJanela = null;
+      let contentBoundsJanela = null;
+      let contentSize = null;
       try {
         boundsJanela = win.getBounds();
       } catch (_) {
         // intencional
       }
-      const linha = { ...(info && typeof info === 'object' ? info : {}), boundsJanela };
+      try {
+        contentBoundsJanela = win.getContentBounds();
+      } catch (_) {
+        // intencional
+      }
+      try {
+        contentSize = win.getContentSize();
+      } catch (_) {
+        // intencional
+      }
+      const linha = {
+        ...(info && typeof info === 'object' ? info : {}),
+        boundsJanela,
+        contentBoundsJanela,
+        contentSize,
+      };
       try {
         logError('viewport-janela', JSON.stringify(linha));
       } catch (_) {

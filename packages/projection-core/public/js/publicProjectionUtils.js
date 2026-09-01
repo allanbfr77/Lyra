@@ -69,6 +69,148 @@ function attachPublicProjectionUtils(ctx) {
     return String(Math.min(2.4, Math.max(1, raw)));
   }
 
+  function zoomFactorDestaJanela() {
+    try {
+      const electron = require('electron');
+      const zf = electron.webFrame && electron.webFrame.getZoomFactor;
+      if (typeof zf === 'function') return Number(zf.call(electron.webFrame)) || 1;
+    } catch (_) {
+      // intencional — fora do Electron
+    }
+    return 1;
+  }
+
+  function snapshotCaixa(el) {
+    if (!el) return null;
+    const cs = window.getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return {
+      tag: el.tagName,
+      id: el.id || '',
+      className: String(el.className || ''),
+      rectWidth: r.width,
+      rectHeight: r.height,
+      clientWidth: el.clientWidth,
+      clientHeight: el.clientHeight,
+      scrollWidth: el.scrollWidth,
+      scrollHeight: el.scrollHeight,
+      offsetWidth: el.offsetWidth,
+      offsetHeight: el.offsetHeight,
+      width: cs.width,
+      height: cs.height,
+      maxWidth: cs.maxWidth,
+      minWidth: cs.minWidth,
+      padding: `${cs.paddingTop} ${cs.paddingRight} ${cs.paddingBottom} ${cs.paddingLeft}`,
+      paddingLeft: cs.paddingLeft,
+      paddingRight: cs.paddingRight,
+      borderLeftWidth: cs.borderLeftWidth,
+      borderRightWidth: cs.borderRightWidth,
+      overflow: cs.overflow,
+      overflowX: cs.overflowX,
+      transform: cs.transform,
+      zoom: cs.zoom,
+      boxSizing: cs.boxSizing,
+      display: cs.display,
+      flex: cs.flex,
+      flexShrink: cs.flexShrink,
+      alignSelf: cs.alignSelf,
+      whiteSpace: cs.whiteSpace,
+      overflowWrap: cs.overflowWrap,
+      wordBreak: cs.wordBreak,
+      fontSize: cs.fontSize,
+    };
+  }
+
+  function cadeiaPais(el) {
+    const out = [];
+    let n = el;
+    let guarda = 0;
+    while (n && guarda < 8) {
+      out.push(snapshotCaixa(n));
+      if (n === ctx.document.documentElement) break;
+      n = n.parentElement;
+      guarda += 1;
+    }
+    return out;
+  }
+
+  function enviarDiagnosticoAutoFitPublico(payload) {
+    const info = {
+      papel: 'publico',
+      tipo: 'autofit-publico',
+      ...payload,
+      em: new Date().toISOString(),
+    };
+    try {
+      const { ipcRenderer } = require('electron');
+      if (ipcRenderer && typeof ipcRenderer.send === 'function') {
+        ipcRenderer.send('lyra-viewport-janela', info);
+      }
+    } catch (_) {
+      // intencional
+    }
+    try {
+      console.log('[Lyra autofit M2]', info);
+    } catch (_) {
+      // intencional
+    }
+  }
+
+  function coletarDiagnosticoAutoFitPublico(extra) {
+    const elLetras = getElLetras();
+    const elTela = ctx.elTela;
+    const vv = window.visualViewport;
+    let zoomCssTela = null;
+    let zoomCssLetras = null;
+    try {
+      zoomCssTela = elTela ? window.getComputedStyle(elTela).zoom : null;
+      zoomCssLetras = elLetras ? window.getComputedStyle(elLetras).zoom : null;
+    } catch (_) {
+      // intencional
+    }
+    const linha0 = elLetras && elLetras.querySelector('.linha-texto');
+    return {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      visualViewportWidth: vv && vv.width,
+      visualViewportHeight: vv && vv.height,
+      visualViewportScale: vv && vv.scale,
+      devicePixelRatio: window.devicePixelRatio,
+      zoomFactor: zoomFactorDestaJanela(),
+      tela: snapshotCaixa(elTela),
+      letras: snapshotCaixa(elLetras),
+      primeiraLinha: snapshotCaixa(linha0),
+      telaTransform: elTela ? window.getComputedStyle(elTela).transform : null,
+      letrasTransform: elLetras ? window.getComputedStyle(elLetras).transform : null,
+      telaZoom: zoomCssTela,
+      letrasZoom: zoomCssLetras,
+      paisDeLetras: cadeiaPais(elLetras),
+      ...(extra && typeof extra === 'object' ? extra : {}),
+    };
+  }
+
+  function paddingHorizontalPx(el) {
+    if (!el) return 0;
+    const cs = window.getComputedStyle(el);
+    return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  }
+
+  function larguraConteudoPx(el) {
+    if (!el || !(el.clientWidth > 12)) return 0;
+    return Math.max(8, el.clientWidth - paddingHorizontalPx(el));
+  }
+
+  function larguraJanelaPx() {
+    const vv = window.visualViewport && window.visualViewport.width;
+    const w = Number.isFinite(vv) && vv > 12 ? vv : window.innerWidth;
+    return Number.isFinite(w) && w > 12 ? w : 0;
+  }
+
+  /**
+   * Tecto de largura desta janela: o menor entre o `.letras`, o `.tela` e o viewport.
+   * Não usar só o getBoundingClientRect do texto — com `white-space:pre` o flex
+   * infla essa caixa até à linha inteira e o autoajuste «acha» que já cabe.
+   */
   function larguraLimiteMedicaoPx() {
     if (typeof ctx.larguraUtilLetrasPx === 'function') {
       try {
@@ -77,11 +219,11 @@ function attachPublicProjectionUtils(ctx) {
       } catch (_) {}
     }
     const el = getElLetras();
-    if (el) {
-      void el.offsetWidth;
-      const r = el.getBoundingClientRect().width;
-      if (Number.isFinite(r) && r > 12) return Math.max(8, Math.floor(r - 4));
-    }
+    const elTela = ctx.elTela;
+    if (el) void el.offsetWidth;
+    const candidatos = [larguraConteudoPx(el), larguraConteudoPx(elTela), larguraJanelaPx()]
+      .filter((w) => Number.isFinite(w) && w > 12);
+    if (candidatos.length) return Math.max(8, Math.floor(Math.min(...candidatos)));
     return window.innerWidth * 0.9;
   }
 
@@ -188,8 +330,9 @@ function attachPublicProjectionUtils(ctx) {
     elLetras.style.letterSpacing = `${letterSpacing}px`;
     elLetras.style.lineHeight = lineHeightStr;
     elLetras.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
-    elLetras.style.overflowWrap = wrap ? 'anywhere' : 'normal';
-    elLetras.style.wordBreak = wrap ? 'break-word' : 'normal';
+    /* `anywhere` encosta o último glifo à borda; `break-word` só parte se a palavra não couber. */
+    elLetras.style.overflowWrap = wrap ? 'break-word' : 'normal';
+    elLetras.style.wordBreak = 'normal';
     elLetras.style.textAlign = pb.textAlign || 'center';
 
     // ── Gera o HTML das linhas escapado e, opcionalmente, em maiúsculas ──
@@ -205,14 +348,71 @@ function attachPublicProjectionUtils(ctx) {
   // Tecnica igual ao Holyrics: vh como unidade base + medidor invisivel
 
   /**
-   * Aplica `font-size` em vh (teto 9 nos slides; aviso pode ir a 40 via
-   * `fontSizeMaxVh`) e, se o autoajuste estiver activo (mesma regra
-   * que `display-operator.html`: sem wrap → sempre ajusta; com wrap → só se
-   * `autoFitLongLines`), reduz até a linha caber na largura útil.
+   * Altura útil do contentor do `.letras` (`.tela` menos padding).
+   * O próprio `.letras` cresce com o texto, por isso `clientHeight` dele não é o tecto.
+   */
+  function alturaUtilContentorPx(el) {
+    const parent = el && el.parentElement;
+    if (!parent) return window.innerHeight;
+    const cs = window.getComputedStyle(parent);
+    const pad =
+      (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    return Math.max(8, parent.clientHeight - pad);
+  }
+
+  /**
+   * Cabe na caixa PINTADA desta janela. Sem piso de fonte: ou cabe, ou ainda transborda.
+   */
+  function letrasCabemNaCaixaPublico(el) {
+    if (!el) return true;
+    void el.offsetWidth;
+    const w = el.clientWidth;
+    if (w > 8 && el.scrollWidth > w + 1) return false;
+    const maxH = alturaUtilContentorPx(el);
+    if (maxH > 8 && el.scrollHeight > maxH + 1) return false;
+    return true;
+  }
+
+  function letrasCabemNaLarguraDaJanela(el) {
+    return letrasCabemNaCaixaPublico(el);
+  }
+
+  /**
+   * Encolhe só o necessário, proporcional ao overflow real.
+   * O 0,15 vh é só guarda de loop (fonte 0) — não é um tamanho «válido» se ainda cortar.
+   */
+  function encolherFonteAteLetrasCaberem(el, fonteMaxVh) {
+    let vh = fonteMaxVh;
+    el.style.fontSize = `${vh}vh`;
+    if (letrasCabemNaCaixaPublico(el)) return vh;
+
+    const pisoLoop = 0.15;
+    for (let i = 0; i < 28; i++) {
+      void el.offsetWidth;
+      const cw = el.clientWidth;
+      const sw = el.scrollWidth;
+      const sh = el.scrollHeight;
+      const maxH = alturaUtilContentorPx(el);
+      let factor = 1;
+      if (cw > 8 && sw > cw + 1) factor = Math.min(factor, cw / sw);
+      if (maxH > 8 && sh > maxH + 1) factor = Math.min(factor, maxH / sh);
+      if (factor >= 0.999) break;
+      vh = vh * factor * 0.992;
+      if (vh < pisoLoop) vh = pisoLoop;
+      el.style.fontSize = `${vh}vh`;
+      if (letrasCabemNaCaixaPublico(el)) break;
+      if (vh <= pisoLoop) break;
+    }
+    return fonteVhAplicada(el, vh);
+  }
+
+  /**
+   * Aplica `font-size` em vh (teto dos Ajustes) e, se o conteúdo transbordar,
+   * reduz proporcionalmente até `scrollWidth <= clientWidth` e a altura caber
+   * no `.tela`. Sem piso rígido de 2 vh: o tamanho sai da área × o texto.
    *
-   * Aviso (`exactFontSize`): o valor de Ajustes aplica-se tal qual — sem encolher.
-   * Sem isto, com «quebra de linha» desligada o autoajuste travava por volta de
-   * ~17 vh (largura da palavra) e o slider 17→40 não mudava nada no ecrã.
+   * Slides curtos: já cabem no teto → não encolhem.
+   * Aviso (`exactFontSize`): o valor de Ajustes aplica-se tal qual.
    */
   function aplicarFontSize(cfg) {
     const elLetras = getElLetras();
@@ -221,53 +421,50 @@ function attachPublicProjectionUtils(ctx) {
     const pb = cfg.publico || {};
     const baseVh = fontSizeVhPublico(pb);
     elLetras.style.fontSize = `${baseVh}vh`;
-
-    if (pb.exactFontSize === true) return;
+    void elLetras.offsetWidth;
 
     const wrap = pb.wrapLongLines === true;
     const autoFit = wrap ? pb.autoFitLongLines === true : true;
-    if (!autoFit) return;
+    const diagnostico = {
+      wrapLongLines: wrap,
+      autoFitLongLines: pb.autoFitLongLines === true,
+      autoFitLarguraActivo: autoFit,
+      exactFontSize: pb.exactFontSize === true,
+      vhInicial: baseVh,
+      candidatosPx: {
+        letrasConteudoPx: larguraConteudoPx(elLetras),
+        telaConteudoPx: larguraConteudoPx(ctx.elTela),
+        janelaPx: larguraJanelaPx(),
+        larguraUtilLetrasPx:
+          typeof ctx.larguraUtilLetrasPx === 'function' ? ctx.larguraUtilLetrasPx() : null,
+        limiteUsadoPx: larguraLimiteMedicaoPx(),
+      },
+      letrasCabiamAntes: letrasCabemNaCaixaPublico(elLetras),
+      maiorLinhaNaBasePx: elLetras.scrollWidth,
+      antes: coletarDiagnosticoAutoFitPublico({}),
+    };
 
-    const usarMaiusculas = pb.maiusculo !== false;
-
-    const linhas = [];
-    elLetras.querySelectorAll('.linha-texto').forEach((span) => {
-      const txt = span.textContent;
-      if (txt) linhas.push(txt);
-    });
-    if (!linhas.length) return;
-
-    const limite = larguraLimiteMedicaoPx();
-    if (!Number.isFinite(limite) || limite <= 0) return;
-
-    const medidor = document.createElement('span');
-    medidor.style.position = 'fixed';
-    medidor.style.left = '-99999px';
-    medidor.style.top = '-99999px';
-    medidor.style.visibility = 'hidden';
-    medidor.style.whiteSpace = 'pre';
-    medidor.style.fontFamily = pb.fontFamily || 'CMG Sans, sans-serif';
-    medidor.style.fontWeight = pb.negrito !== false ? 'bold' : 'normal';
-    medidor.style.fontStyle = pb.italico ? 'italic' : 'normal';
-    medidor.style.letterSpacing = `${pb.letterSpacing != null ? pb.letterSpacing : 0}px`;
-    medidor.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
-    ctx.document.body.appendChild(medidor);
-
-    let atual = baseVh;
-    const minimo = 2.1;
-    while (atual > minimo) {
-      medidor.style.fontSize = `${atual}vh`;
-      let maior = 0;
-      for (const l of linhas) {
-        const amostra = (l || ' ');
-        medidor.textContent = usarMaiusculas ? amostra.toUpperCase() : amostra;
-        maior = Math.max(maior, medidor.getBoundingClientRect().width);
-      }
-      if (maior <= limite) break;
-      atual -= 0.2;
+    if (pb.exactFontSize === true) {
+      enviarDiagnosticoAutoFitPublico({
+        ...diagnostico,
+        motivo: 'exactFontSize — autoajuste não correu',
+      });
+      return;
     }
-    ctx.document.body.removeChild(medidor);
-    elLetras.style.fontSize = `${Math.max(minimo, atual)}vh`;
+
+    const vhFinal = encolherFonteAteLetrasCaberem(elLetras, baseVh);
+
+    diagnostico.maiorLinhaQuandoParouPx = elLetras.scrollWidth;
+    diagnostico.vhAposMedidor = vhFinal;
+    diagnostico.vhFinal = fonteVhAplicada(elLetras, vhFinal);
+    diagnostico.letrasCabiamDepois = letrasCabemNaCaixaPublico(elLetras);
+    diagnostico.depois = coletarDiagnosticoAutoFitPublico({});
+    enviarDiagnosticoAutoFitPublico(diagnostico);
+  }
+
+  function fonteVhAplicada(el, fallback) {
+    const v = parseFloat(el && el.style.fontSize);
+    return Number.isFinite(v) && v > 0 ? v : fallback;
   }
 
   // ─── Aplica wrap imediato (para o painel reagir rapido) ──────────────
@@ -287,10 +484,9 @@ function attachPublicProjectionUtils(ctx) {
 
     const wrap = pb.wrapLongLines === true;
 
-    // Aplica ou remove as propriedades de quebra de linha
     elLetras.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
-    elLetras.style.overflowWrap = wrap ? 'anywhere' : 'normal';
-    elLetras.style.wordBreak = wrap ? 'break-word' : 'normal';
+    elLetras.style.overflowWrap = wrap ? 'break-word' : 'normal';
+    elLetras.style.wordBreak = 'normal';
   }
 
   // ─── Exporta ─────────────────────────────────────────────────────
