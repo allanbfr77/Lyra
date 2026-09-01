@@ -5344,9 +5344,9 @@ function normalizarFonteLetrasSite(val) {
 let letrasSiteFonte = 'banco-local';
 
 const BANCO_FONTE_OPCOES = [
-  { value: 'banco-local', label: 'Banco Local' },
-  { value: 'cifraclub', label: 'CifraClub' },
-  { value: 'letras-mus-br', label: 'Letras.mus.br' },
+  { value: 'banco-local', label: 'BANCO LOCAL' },
+  { value: 'cifraclub', label: 'CIFRA CLUB' },
+  { value: 'letras-mus-br', label: 'LETRAS.MUS.BR' },
 ];
 let listaLocalRenderizada = [];
 /** Lista de músicas SQLite visível (padrão) ou recolhida. */
@@ -14155,7 +14155,7 @@ function renderEstrofesEditor() {
     wrap.classList.add('estrofes-slide-editor--vazio');
     atualizarToolbarModoEdicao();
     wrap.innerHTML =
-      '<div class="placeholder-msg placeholder-msg--escolha-musica">Escolha uma música na playlist (à direita) ou no banco (à esquerda).</div>';
+      '<div class="placeholder-msg placeholder-msg--escolha-musica">Escolha uma música na playlist (à direita) ou na biblioteca (à esquerda).</div>';
     atualizarSlidesInstrucoes();
     document.getElementById('edit-titulo').value = '';
     document.getElementById('edit-artista').value = '';

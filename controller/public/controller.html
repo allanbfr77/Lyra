@@ -1240,6 +1240,13 @@
     .biblia-traducao-dd {
       position: relative;
       width: 100%;
+      flex: 0 0 auto;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .banco-fonte-dd {
+      height: fit-content;
     }
 
     .playlist-tema-wrap {
@@ -4465,6 +4472,27 @@
       font-size: 15px;
     }
 
+    .banco-fonte-dd .playlist-tema-dd-label {
+      text-transform: uppercase;
+    }
+
+    .banco-fonte-dd .playlist-tema-dd-menu {
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Só a altura do botão — o menu absoluto abre logo abaixo e pode cobrir filtros/busca. */
+    .banco-fonte-dd.open {
+      z-index: 30001;
+    }
+
+    .banco-secao-internet:has(.banco-fonte-dd.open) {
+      overflow: visible;
+    }
+
     .banco-filtros-checks {
       display: flex;
       flex-wrap: wrap;
@@ -4477,9 +4505,19 @@
     .banco-filtros-checks label {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+      line-height: 1.25;
       cursor: pointer;
       user-select: none;
+    }
+
+    .banco-filtros-checks input[type="checkbox"] {
+      margin: 0;
+      flex: 0 0 auto;
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      display: block;
     }
 
     .banco-busca-local-wrap {
@@ -10741,9 +10779,9 @@
           <span>Pesquisar músicas</span>
         </div>
         <label class="sr-only" for="banco-fonte-dd-btn">Fonte da pesquisa (catálogo offline ou internet)</label>
-        <div class="playlist-tema-dd banco-fonte-dd" id="banco-fonte-dd">
+        <div class="banco-fonte-dd" id="banco-fonte-dd">
           <button type="button" class="playlist-tema-dd-btn" id="banco-fonte-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="banco-fonte-dd-menu" title="Fonte da pesquisa de músicas">
-            <span class="playlist-tema-dd-label" id="banco-fonte-dd-label">Banco Local</span>
+            <span class="playlist-tema-dd-label" id="banco-fonte-dd-label">BANCO LOCAL</span>
             <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
           </button>
           <ul class="playlist-tema-dd-menu" id="banco-fonte-dd-menu" role="listbox" hidden></ul>
