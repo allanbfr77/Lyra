@@ -229,6 +229,7 @@ function liberarBloqueioUiModos() {
       const el = document.getElementById(id);
       if (el) el.hidden = true;
     });
+    definirIsolamentoSelecaoPreviewLetras(false);
     fecharMenuFlutuanteAberto();
   } catch (_) {
   // intencional — erro ignorado
@@ -7349,7 +7350,8 @@ function abrirModalCompartilharPlaylist() {
   body.appendChild(wrap);
   ov.hidden = false;
   ov.classList.add('aberto');
-  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  // Clique no escuro não fecha. Escape cancela (limpeza do resolver).
+  appDialogFecharNoBackdrop = true;
   appCompartilharResolver = () => {};
   return wrap;
 }
@@ -7690,7 +7692,8 @@ function abrirModalImportarPlaylistInput(valorInicial = '') {
 
   ov.hidden = false;
   ov.classList.add('aberto');
-  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  // Clique no escuro não fecha. Escape cancela (limpeza do resolver), salvo spinner bloqueado.
+  appDialogFecharNoBackdrop = true;
   appImportarResolver = () => {};
   setTimeout(() => {
     try {
@@ -8827,7 +8830,8 @@ function abrirModalSincronizarBanco() {
   body.appendChild(wrap);
   ov.hidden = false;
   ov.classList.add('aberto');
-  // Marca o modal como ativo p/ que Escape e clique no backdrop façam a limpeza correta.
+  // Clique no escuro não fecha. Escape cancela (limpeza do resolver).
+  appDialogFecharNoBackdrop = true;
   appSincronizarResolver = () => {};
   return wrap;
 }
@@ -8982,16 +8986,17 @@ async function enderecosDestaMaquinaParaMostrar() {
 /** Pergunta o endereço do outro PC (uma vez) e guarda-o. */
 async function pedirIpPcParceiroSync() {
   const meus = await enderecosDestaMaquinaParaMostrar();
-  const sufixo = meus.length ? `\n\nO endereço deste PC é ${meus.join(' ou ')}.` : '';
-  const resposta = await appPrompt(
-    `Endereço do outro PC (o que vai receber o banco).${sufixo}`,
-    {
-      title: 'Sincronizar banco',
-      defaultValue: ipPcParceiroSync(),
-      emptyMsg: 'Digite um IP como 192.168.0.12, ou o nome do PC.',
-      normalizar: (v) => (ehEnderecoDeRedePlausivel(v) ? String(v).trim() : ''),
-    }
-  );
+  const ipLocal = meus.length ? meus.join(' ou ') : '';
+  const resposta = await appPrompt('', {
+    title: 'Sincronizar Banco de Dados',
+    auxText: ipLocal
+      ? `O IP deste computador é: ${ipLocal}`
+      : 'Não foi possível detectar o IP deste computador.',
+    fieldLabel: 'Digite o endereço IP do computador de destino (que receberá o banco):',
+    defaultValue: ipPcParceiroSync(),
+    emptyMsg: 'Digite um IP como 192.168.0.12, ou o nome do PC.',
+    normalizar: (v) => (ehEnderecoDeRedePlausivel(v) ? String(v).trim() : ''),
+  });
   if (!resposta) return '';
   guardarIpPcParceiroSync(resposta);
   return resposta;
@@ -9337,9 +9342,6 @@ function solicitarRemoverMusicaDoBancoServidor(idMusica, tituloDisplay) {
 
 function configurarModalExcluirMusica() {
   document.getElementById('musica-excluir-cancel')?.addEventListener('click', () => fecharModalExcluirMusica());
-  document.getElementById('musica-excluir-backdrop')?.addEventListener('click', (e) => {
-    if (e.target && e.target.id === 'musica-excluir-backdrop') fecharModalExcluirMusica();
-  });
   document.getElementById('musica-excluir-confirm')?.addEventListener('click', () => executarRemoverMusicaDoBancoConfirmado());
 }
 
@@ -11328,9 +11330,6 @@ function configurarModalSyncPlaylist() {
     solicitarSincronizacaoManualBanco().catch(() => {});
   });
   document.getElementById('sync-playlist-dismiss')?.addEventListener('click', () => fecharModalNovasMusicasSync());
-  document.getElementById('sync-playlist-backdrop')?.addEventListener('click', (e) => {
-    if (e.target && e.target.id === 'sync-playlist-backdrop') fecharModalNovasMusicasSync();
-  });
   document.getElementById('sync-playlist-confirm')?.addEventListener('click', () => confirmarSyncPlaylistModal());
 }
 
@@ -12665,7 +12664,6 @@ function excluirSlideEdicaoRapida() {
 
 function setupSlidesStripContextMenuEEdicaoRapida() {
   const bd = document.getElementById('slide-quick-edit-backdrop');
-  const delBd = document.getElementById('slide-delete-confirm-backdrop');
   document.getElementById('slide-quick-edit-cancel')?.addEventListener('click', () => fecharSlideQuickEditModal());
   document.getElementById('slide-quick-edit-save')?.addEventListener('click', () => confirmarSlideQuickEdit());
   document.getElementById('slide-quick-edit-delete')?.addEventListener('click', () => excluirSlideEdicaoRapida());
@@ -12687,17 +12685,6 @@ function setupSlidesStripContextMenuEEdicaoRapida() {
   });
   document.getElementById('slide-delete-confirm-cancel')?.addEventListener('click', () => fecharSlideDeleteConfirmModal());
   document.getElementById('slide-delete-confirm-excluir')?.addEventListener('click', () => executarExclusaoSlideConfirmada());
-  let slideDelBackdropPointerDown = false;
-  delBd?.addEventListener('pointerdown', (e) => {
-    slideDelBackdropPointerDown = e.target === delBd;
-  });
-  delBd?.addEventListener('pointerup', (e) => {
-    if (slideDelBackdropPointerDown && e.target === delBd) fecharSlideDeleteConfirmModal();
-    slideDelBackdropPointerDown = false;
-  });
-  delBd?.addEventListener('pointercancel', () => {
-    slideDelBackdropPointerDown = false;
-  });
 }
 
 function marcacaoEstrofeEditor() {
@@ -13439,8 +13426,8 @@ async function carregarVersoesParaComparativo() {
 /**
  * Pergunta que duas versões comparar.
  *
- * Reutiliza o `app-dialog` padrão (e o `appEscolhaResolver`, para que Escape e
- * clique no escuro continuem a fechar). Resolve `{ idA, idB }` ou `null`.
+ * Reutiliza o `app-dialog` padrão (e o `appEscolhaResolver`, para que Escape
+ * continue a cancelar). Clique no escuro não fecha. Resolve `{ idA, idB }` ou `null`.
  */
 function escolherVersoesParaComparar(versoes, rootId) {
   const ov = document.getElementById('app-dialog-overlay');
@@ -13573,6 +13560,7 @@ function escolherVersoesParaComparar(versoes, rootId) {
 
     ov.hidden = false;
     ov.classList.add('aberto');
+    appDialogFecharNoBackdrop = true;
   });
 }
 
@@ -15403,6 +15391,8 @@ let letrasPreviewOfflineOrigem = 'catalog';
 let letrasPreviewFontePendente = 'cifraclub';
 let letrasPreviewMaxLinhasPorSlide = 4;
 let letrasPreviewReqSeq = 0;
+/** Estrofes exibidas no modal — usadas para montar o clipboard com linhas em branco entre trechos. */
+let letrasPreviewPartesAtuais = [];
 
 function getLetrasSiteFonteAtual() {
   const sel = document.getElementById('banco-fonte-select');
@@ -15452,17 +15442,137 @@ function lerMaxLinhasPreviewLetras() {
   return 4;
 }
 
+function modalPreviewLetrasEstaAberto() {
+  const bd = document.getElementById('letras-preview-backdrop');
+  return !!bd && !bd.hidden;
+}
+
+/** Enquanto o modal está aberto, bloqueia seleção no resto da página. */
+function definirIsolamentoSelecaoPreviewLetras(ativo) {
+  document.documentElement.classList.toggle('letras-preview-aberto', !!ativo);
+}
+
+/** Ctrl+A no modal: só os blocos de letra (`.letras-preview-pre`), não a interface atrás. */
+function selecionarTodoTextoPreviewLetras() {
+  const scroll = document.getElementById('letras-preview-scroll');
+  if (!scroll) return;
+  const blocos = scroll.querySelectorAll('.letras-preview-pre');
+  const sel = window.getSelection();
+  if (!sel) return;
+  sel.removeAllRanges();
+  if (!blocos.length) {
+    const msg = scroll.querySelector('.placeholder-msg');
+    if (!msg) return;
+    const range = document.createRange();
+    range.selectNodeContents(msg);
+    sel.addRange(range);
+    return;
+  }
+  const range = document.createRange();
+  range.setStart(blocos[0], 0);
+  const ultimo = blocos[blocos.length - 1];
+  range.setEnd(ultimo, ultimo.childNodes.length);
+  sel.addRange(range);
+}
+
+function selecaoPreviewLetrasIntersectaNo(sel, node) {
+  if (!sel?.rangeCount) return false;
+  const r = sel.getRangeAt(0);
+  const nr = document.createRange();
+  nr.selectNodeContents(node);
+  return r.compareBoundaryPoints(Range.END_TO_START, nr) > 0 && r.compareBoundaryPoints(Range.START_TO_END, nr) < 0;
+}
+
+/** Recorta o trecho de um `<pre>` que cai dentro da seleção actual. */
+function textoPrePreviewLetrasNaSelecao(pre, sel) {
+  const selRange = sel.getRangeAt(0);
+  const preRange = document.createRange();
+  preRange.selectNodeContents(pre);
+  const range = document.createRange();
+  range.selectNodeContents(pre);
+  if (selRange.compareBoundaryPoints(Range.START_TO_START, preRange) > 0) {
+    range.setStart(selRange.startContainer, selRange.startOffset);
+  }
+  if (selRange.compareBoundaryPoints(Range.END_TO_END, preRange) < 0) {
+    range.setEnd(selRange.endContainer, selRange.endOffset);
+  }
+  return range.toString();
+}
+
+function selecaoPreviewLetrasDentroDoScroll(scroll, sel) {
+  if (!sel?.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  const anc = range.commonAncestorContainer;
+  const el = anc.nodeType === Node.TEXT_NODE ? anc.parentElement : anc;
+  return !!el && scroll.contains(el);
+}
+
+/**
+ * Ao copiar vários trechos, o espaço visual entre blocos é só CSS — o clipboard
+ * vinha sem linha em branco. Junta cada `.letras-preview-pre` com `\n\n`.
+ * @returns {string|null} texto formatado ou `null` para deixar o navegador copiar
+ */
+function textoCopiaPreviewLetrasComEspacosEntreTrechos(scroll) {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount || sel.isCollapsed) return null;
+  if (!selecaoPreviewLetrasDentroDoScroll(scroll, sel)) return null;
+
+  const pres = [...scroll.querySelectorAll('.letras-preview-pre')];
+  if (pres.length < 2) return null;
+
+  const intersecting = pres.filter((pre) => selecaoPreviewLetrasIntersectaNo(sel, pre));
+  if (intersecting.length < 2) return null;
+
+  const selRange = sel.getRangeAt(0);
+  if (
+    intersecting.length === pres.length &&
+    letrasPreviewPartesAtuais.length === pres.length &&
+    pres.every((pre) => {
+      const preRange = document.createRange();
+      preRange.selectNodeContents(pre);
+      return (
+        selRange.compareBoundaryPoints(Range.START_TO_START, preRange) <= 0 &&
+        selRange.compareBoundaryPoints(Range.END_TO_END, preRange) >= 0
+      );
+    })
+  ) {
+    return letrasPreviewPartesAtuais.join('\n\n');
+  }
+
+  const partes = intersecting.map((pre) => {
+    const preRange = document.createRange();
+    preRange.selectNodeContents(pre);
+    const inteiro =
+      selRange.compareBoundaryPoints(Range.START_TO_START, preRange) <= 0 &&
+      selRange.compareBoundaryPoints(Range.END_TO_END, preRange) >= 0;
+    return inteiro ? pre.textContent || '' : textoPrePreviewLetrasNaSelecao(pre, sel);
+  });
+  return partes.join('\n\n');
+}
+
+function tratarCopiaPreviewLetras(e) {
+  if (!modalPreviewLetrasEstaAberto()) return;
+  const scroll = document.getElementById('letras-preview-scroll');
+  if (!scroll) return;
+  const texto = textoCopiaPreviewLetrasComEspacosEntreTrechos(scroll);
+  if (texto === null) return;
+  e.preventDefault();
+  e.clipboardData.setData('text/plain', texto);
+}
+
 function fecharModalPreviewLetras() {
   const bd = document.getElementById('letras-preview-backdrop');
   if (bd) {
     bd.hidden = true;
     bd.setAttribute('aria-hidden', 'true');
   }
+  definirIsolamentoSelecaoPreviewLetras(false);
   letrasPreviewPathPendente = '';
   letrasPreviewCatalogIdPendente = null;
   letrasPreviewUserIdPendente = null;
   letrasPreviewOfflineOrigem = 'catalog';
   letrasPreviewFontePendente = 'cifraclub';
+  letrasPreviewPartesAtuais = [];
 }
 
 async function abrirModalPreviewLetras(path, fonte) {
@@ -15473,6 +15583,7 @@ async function abrirModalPreviewLetras(path, fonte) {
   const bd = document.getElementById('letras-preview-backdrop');
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
+  definirIsolamentoSelecaoPreviewLetras(true);
   await carregarPreviewLetrasNoModal();
 }
 
@@ -15488,6 +15599,7 @@ async function abrirModalPreviewLetrasOffline(id, origem) {
   const bd = document.getElementById('letras-preview-backdrop');
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
+  definirIsolamentoSelecaoPreviewLetras(true);
   const btnImp = document.getElementById('letras-preview-import');
   if (btnImp) btnImp.textContent = orig === 'user' ? 'Usar esta música' : 'Importar para o banco';
   await carregarPreviewLetrasNoModal();
@@ -15551,6 +15663,7 @@ async function carregarPreviewLetrasNoModal() {
     const metaLinhas = mostraLinhas ? ` · ${letrasPreviewMaxLinhasPorSlide} linha(s)/slide` : '';
     meta.innerHTML = `<strong>${escapeHtml(data.titulo || '')}</strong>${data.artista ? ` · ${escapeHtml(data.artista)}` : ''} · ${escapeHtml(fonteLabel)}${metaLinhas}`;
     const parts = Array.isArray(data.estrofes) ? data.estrofes : [];
+    letrasPreviewPartesAtuais = parts.slice();
 
     // `parcial` = a letra veio de meta tag, que só traz o começo da música.
     // Sem este aviso, uma letra truncada em 4 linhas passava por completa.
@@ -15561,10 +15674,16 @@ async function carregarPreviewLetrasNoModal() {
     scroll.innerHTML =
       avisoParcial +
       parts
-        .map(
-          (bloco, idx) =>
+        .map((bloco, idx) => {
+          const sep =
+            idx > 0
+              ? '<span class="letras-preview-sep" aria-hidden="true">\n\n</span>'
+              : '';
+          return (
+            sep +
             `<div class="letras-preview-bloco"><span class="letras-preview-num">Trecho ${idx + 1}</span><pre class="letras-preview-pre">${escapeHtml(bloco)}</pre></div>`
-        )
+          );
+        })
         .join('');
   } catch (e) {
     if (reqId !== letrasPreviewReqSeq) return;
@@ -15602,9 +15721,35 @@ function configurarModalPreviewLetras() {
       carregarPreviewLetrasNoModal();
     }
   });
-  document.getElementById('letras-preview-backdrop')?.addEventListener('click', (e) => {
-    if (e.target && e.target.id === 'letras-preview-backdrop') fecharModalPreviewLetras();
+  /**
+   * Só fecha ao clicar «no escuro»: pointerdown + pointerup no próprio backdrop.
+   * Sem isto, arrastar seleção da letra para fora termina no backdrop — o navegador
+   * sintetiza click no backdrop e fecha o modal inadvertidamente.
+   */
+  let letrasPreviewBackdropPointerDown = false;
+  const letrasPreviewBd = document.getElementById('letras-preview-backdrop');
+  letrasPreviewBd?.addEventListener('pointerdown', (e) => {
+    letrasPreviewBackdropPointerDown = e.target === letrasPreviewBd;
   });
+  letrasPreviewBd?.addEventListener('pointerup', (e) => {
+    if (letrasPreviewBackdropPointerDown && e.target === letrasPreviewBd) fecharModalPreviewLetras();
+    letrasPreviewBackdropPointerDown = false;
+  });
+  letrasPreviewBd?.addEventListener('pointercancel', () => {
+    letrasPreviewBackdropPointerDown = false;
+  });
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (!modalPreviewLetrasEstaAberto()) return;
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
+      e.preventDefault();
+      selecionarTodoTextoPreviewLetras();
+    },
+    true
+  );
+  /* O `copy` dispara no elemento focado (ex.: campo de busca atrás do modal), não no scroll. */
+  document.addEventListener('copy', tratarCopiaPreviewLetras, true);
 }
 
 async function playlistDuploCliqueIniciarProjecao(itemOuId) {
@@ -21188,8 +21333,11 @@ setTimeout(() => {
 // ════════════════════════════════════════════════════════════
 
 let appDialogResolver = null;
-/** Se false, clique no escuro do app-dialog não fecha (só OK/Cancelar). */
-let appDialogFecharNoBackdrop = true;
+/**
+ * Se false, Escape não dispensa o app-dialog (alertas só-OK).
+ * Clique no escuro nunca fecha um aviso do sistema — só OK/Cancelar/Fechar.
+ */
+let appDialogFecharNoBackdrop = false;
 let appPromptResolver = null;
 let appEscolhaResolver = null;
 let appCompartilharResolver = null;
@@ -21197,7 +21345,7 @@ let appImportarResolver = null;
 let appSincronizarResolver = null;
 
 function fecharAppDialog(resultado) {
-  appDialogFecharNoBackdrop = true;
+  appDialogFecharNoBackdrop = false;
   const ov = document.getElementById('app-dialog-overlay');
   const body = document.getElementById('app-dialog-body');
   const okBtn = document.getElementById('app-dialog-ok');
@@ -21312,8 +21460,8 @@ function abrirAppDialog(msg, opts = {}) {
   ok.textContent = String(opts.okLabel || 'OK');
   cancel.textContent = String(opts.cancelLabel || 'Cancelar');
   cancel.style.display = opts.confirm ? '' : 'none';
-  /* Por omissão clique no escuro fecha; `fecharNoBackdrop: false` ignora o clique. */
-  appDialogFecharNoBackdrop = opts.fecharNoBackdrop !== false;
+  /* Clique no escuro nunca fecha. O flag só permite Escape como Cancelar (não em alertas só-OK). */
+  appDialogFecharNoBackdrop = !!opts.confirm;
   ov.hidden = false;
   ov.classList.add('aberto');
   return new Promise((resolve) => {
@@ -21324,14 +21472,13 @@ function abrirAppDialog(msg, opts = {}) {
 }
 
 function appAlert(msg, title) {
-  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false, fecharNoBackdrop: false });
+  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false });
 }
 
 function appConfirm(msg, title, opts = {}) {
   return abrirAppDialog(msg, {
     title: title || 'Lyra',
     confirm: true,
-    fecharNoBackdrop: opts.fecharNoBackdrop,
     okLabel: opts.okLabel,
     cancelLabel: opts.cancelLabel,
   });
@@ -21352,10 +21499,30 @@ function appPrompt(msg, opts = {}) {
   ok.textContent = 'OK';
   cancel.textContent = 'Cancelar';
   body.textContent = '';
-  const p = document.createElement('p');
-  p.style.margin = '0 0 10px 0';
-  p.style.fontSize = '15px';
-  p.textContent = String(msg || '');
+  const auxText = opts.auxText != null ? String(opts.auxText) : '';
+  const fieldLabel = opts.fieldLabel != null ? String(opts.fieldLabel) : '';
+  const msgText = String(msg || '');
+  if (auxText) {
+    const aux = document.createElement('p');
+    aux.style.margin = '0 0 10px 0';
+    aux.style.fontSize = '15px';
+    aux.textContent = auxText;
+    body.appendChild(aux);
+  }
+  if (fieldLabel) {
+    const labelEl = document.createElement('label');
+    labelEl.style.display = 'block';
+    labelEl.style.margin = auxText ? '0 0 6px 0' : '0 0 10px 0';
+    labelEl.style.fontSize = '15px';
+    labelEl.textContent = fieldLabel;
+    body.appendChild(labelEl);
+  } else if (msgText) {
+    const p = document.createElement('p');
+    p.style.margin = '0 0 10px 0';
+    p.style.fontSize = '15px';
+    p.textContent = msgText;
+    body.appendChild(p);
+  }
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = Number.isFinite(Number(opts.maxLength)) ? Number(opts.maxLength) : 40;
@@ -21368,7 +21535,6 @@ function appPrompt(msg, opts = {}) {
   input.style.background = 'var(--surface2)';
   input.style.color = 'var(--text)';
   input.style.fontFamily = 'var(--font-ui)';
-  body.appendChild(p);
   body.appendChild(input);
   const err = document.createElement('div');
   err.className = 'app-prompt-err';
@@ -21380,6 +21546,7 @@ function appPrompt(msg, opts = {}) {
   cancel.style.display = '';
   ov.hidden = false;
   ov.classList.add('aberto');
+  appDialogFecharNoBackdrop = true;
   return new Promise((resolve) => {
     appPromptResolver = resolve;
     const normalizar =
@@ -21420,7 +21587,7 @@ function appPrompt(msg, opts = {}) {
   });
 }
 
-/** Várias opções com botões; resolve o `value` escolhido ou `null` (cancelar / overlay).
+/** Várias opções com botões; resolve o `value` escolhido ou `null` (Cancelar).
  *  `textoDetalhe` (opcional): parágrafo acima dos botões (use \\n para quebras).
  *  `opts.itensEmLista` (opcional): alinha o texto dos botões à esquerda, para quando as
  *  opções formam uma lista de rótulos de comprimentos diferentes. Sem ele, o diálogo
@@ -21476,6 +21643,7 @@ function appEscolherOpcao(titulo, opcoes, textoDetalhe, opts = {}) {
     cancel.onclick = () => finish(null);
     ov.hidden = false;
     ov.classList.add('aberto');
+    appDialogFecharNoBackdrop = true;
   });
 }
 
@@ -23214,8 +23382,8 @@ function bootOverlaysEAppDialogCtrl() {
   });
   document.getElementById('app-dialog-overlay')?.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'app-dialog-overlay') {
-      if (!appDialogFecharNoBackdrop) return;
-      fecharAppDialog(false);
+      /* Aviso do sistema: clique fora é ignorado. Fecha só por botão do diálogo. */
+      e.preventDefault();
     }
   });
   aprimorarControlesVisuaisCfg();

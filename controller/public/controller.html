@@ -5638,6 +5638,15 @@
       z-index: 9650;
     }
 
+    html.letras-preview-aberto {
+      user-select: none;
+    }
+
+    html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .letras-preview-pre,
+    html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .placeholder-msg {
+      user-select: text;
+    }
+
     #musica-excluir-backdrop {
       z-index: 9755;
     }
@@ -5781,6 +5790,21 @@
 
     .letras-preview-bloco:last-child {
       margin-bottom: 0;
+    }
+
+  /* Linhas em branco reais entre trechos — entram na seleção/cópia (o margin do bloco não entra). */
+    .letras-preview-sep {
+      display: block;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      white-space: pre;
+      font-size: 0;
+      line-height: 0;
+      border: 0;
+      opacity: 0;
+      user-select: text;
     }
 
     .letras-preview-num {
