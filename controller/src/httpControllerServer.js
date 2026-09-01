@@ -1058,6 +1058,14 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
+  /**
+   * Busca na Biblioteca do programa (banco do utilizador).
+   *
+   * O catálogo offline («Banco Local» em PESQUISAR MÚSICAS) não entra aqui —
+   * tem endpoint próprio: GET /api/letras/buscar-local. Incluí-lo fazia a
+   * opção «Letra (trecho)» listar na Biblioteca músicas que só existem no
+   * catálogo.
+   */
   expressApp.get('/api/musicas/buscar', (req, res) => {
     try {
       const qRaw = String(req.query.q || '').trim();
@@ -1098,21 +1106,6 @@ async function iniciarServidorController(ctx, paths) {
         if (seen.has(k)) continue;
         seen.add(k);
         out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '', fonte: 'user' });
-      }
-      const catalogDb = getCatalog();
-      if (catalogDb) {
-        try {
-          const rowsC = catalogDb.prepare('SELECT id, titulo, artista, estrofes FROM musicas').all();
-          for (const r of rowsC) {
-            if (!matchRow(r.titulo, r.artista, r.estrofes)) continue;
-            const k = `c:${r.id}`;
-            if (seen.has(k)) continue;
-            seen.add(k);
-            out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '', fonte: 'catalog' });
-          }
-        } catch (_) {
-          // intencional — erro ignorado
-        }
       }
       res.json(out);
     } catch (e) {

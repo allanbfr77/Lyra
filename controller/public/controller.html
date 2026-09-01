@@ -1501,10 +1501,11 @@
     }
 
     /*
-      Cor dos títulos de secção da barra da direita: o mesmo dourado das letras A–Z
-      da biblioteca (`--bib-letra-cab`). Lá ele rotula o grupo sem gritar; aqui faz
-      o mesmo com CULTO, MINISTRANTE, TEMA NA PLAYLIST e PLAYLIST. O ícone ao lado
-      acompanha por `currentColor`.
+      Cor dos títulos de secção: o mesmo dourado das letras A–Z da biblioteca
+      (`--bib-letra-cab`). Lá ele rotula o grupo sem gritar; aqui faz o mesmo com
+      CULTO, MINISTRANTE, TEMA NA PLAYLIST, PLAYLIST e, no painel esquerdo,
+      PESQUISAR MÚSICAS / BIBLIOTECA. Nesses dois o dourado vai só no <span> do
+      nome — o SVG ao lado permanece em `--text-dim` (não herda esta cor).
 
       A «Prévia dos slides» sai deste grupo de propósito (ver `.playlist-preview-head-titulo`):
       é um cartão de conteúdo, não uma secção da barra, e em branco deixa o dourado a
@@ -1513,7 +1514,8 @@
     .playlist-panel-head-titulo,
     .playlist-lista-head-titulo,
     .culto-ministrante-label,
-    .playlist-tema-label {
+    .playlist-tema-label,
+    .sidebar-title > span {
       color: var(--bib-letra-cab);
     }
 
@@ -1525,8 +1527,8 @@
       lá dentro; e nos cabeçalhos com `space-between` um ícone solto contaria como terceiro
       item do flex e seria empurrado para longe do texto.
 
-      Máscara + `currentColor`, como a seta dos seletores: acompanha o tema claro/escuro e
-      esmaece junto com o texto, sem precisar de uma versão por tema.
+      Máscara + `--text-dim`, a mesma cor dos ícones de PESQUISAR MÚSICAS / BIBLIOTECA.
+      O título fica no dourado; o ícone não herda `currentColor` do texto.
     */
     .playlist-panel-head-titulo,
     .playlist-lista-head-titulo,
@@ -1543,12 +1545,11 @@
     .playlist-tema-label::before {
       content: '';
       flex-shrink: 0;
-      width: 13px;
-      height: 13px;
-      /* O traço fino do SVG já o deixa atrás do texto; a opacidade só o puxa um
-         pouco para a frente do fundo, sem competir com o título. */
-      opacity: 0.72;
-      background-color: currentColor;
+      width: 14px;
+      height: 14px;
+      /* Mesma cor e opacidade dos SVG ao lado de PESQUISAR MÚSICAS / BIBLIOTECA. */
+      opacity: 0.9;
+      background-color: var(--text-dim);
       -webkit-mask: var(--secao-ico) center / contain no-repeat;
       mask: var(--secao-ico) center / contain no-repeat;
     }
@@ -10638,7 +10639,7 @@
         </div>
         <label class="sr-only" for="banco-fonte-select">Fonte da pesquisa (catálogo offline ou internet)</label>
         <select class="banco-fonte-select" id="banco-fonte-select" onchange="onBancoFonteChange()">
-          <option value="banco-local" selected>Banco Offline</option>
+          <option value="banco-local" selected>Banco Local</option>
           <option value="cifraclub">CifraClub</option>
           <option value="letras-mus-br">Letras.mus.br</option>
         </select>
@@ -10666,7 +10667,7 @@
         <div class="banco-secao-titulo-linha">
           <div class="sidebar-title sidebar-title--com-icone" id="sidebar-title-sqlite">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
-            <span>Banco de Dados SQLite</span>
+            <span>Biblioteca</span>
           </div>
           <button type="button" class="btn-banco-sqlite-toggle-lista" id="btn-banco-sqlite-toggle-lista" onclick="alternarListaBancoSqlite()" aria-expanded="true" title="Recolher lista de músicas">
             <svg class="btn-banco-sqlite-toggle-lista-icone" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>

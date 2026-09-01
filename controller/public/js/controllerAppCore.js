@@ -17094,7 +17094,9 @@ function filtrar() {
         renderizarListaLocal([]);
         return;
       }
-      renderizarListaLocal(lista);
+      /* Só a Biblioteca: o catálogo offline aparece em PESQUISAR MÚSICAS
+         (Banco Local), nunca nesta lista. */
+      renderizarListaLocal(lista.filter((m) => m && (!m.fonte || m.fonte === 'user')));
     } catch (e) {
       console.error(e);
       renderizarListaLocal([]);
