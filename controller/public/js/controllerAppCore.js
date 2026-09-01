@@ -95,7 +95,6 @@ import {
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
 import {
   htmlCorpoLinhaPlaylistComTom,
-  htmlOpcoesMinistranteCulto,
   htmlCorpoLinhaPlaylistSimples,
   carregarMinistrantesDoServidor,
   criarMinistranteNoServidor,
@@ -1408,6 +1407,9 @@ function mensagemAlvoInvalidoApresentacao(alvo) {
 }
 
 function mensagemAlvoInvalidoBiblia(alvo) {
+  if (alvo === 'desativado') {
+    return 'A projeção está em «Não exibir». Selecione um destino em «Monitor» (no cabeçalho), antes de projetar o versículo.';
+  }
   return mensagemAlvoInvalidoMonitor(alvo, 'Bíblia');
 }
 
@@ -3975,10 +3977,19 @@ async function perguntarTraducaoBibliaSeNecessario() {
 }
 
 function aplicarTraducaoBibliaNoSelect(codigo) {
-  const sel = document.getElementById('traducao-sel');
+  const hid = document.getElementById('traducao-sel');
+  const wrap = document.getElementById('traducao-sel-dd');
   if (!codigo) return;
   bibliaTraducaoAtual = codigo;
-  if (sel && [...sel.options].some((o) => o.value === codigo)) sel.value = codigo;
+  if (!hid || !wrap) return;
+  const item = wrap.querySelector(`.playlist-tema-dd-item[data-value="${CSS.escape(codigo)}"]`);
+  if (!item) return;
+  hid.value = codigo;
+  const label = wrap.querySelector('.playlist-tema-dd-label');
+  if (label) label.textContent = item.textContent;
+  wrap.querySelectorAll('.playlist-tema-dd-item').forEach((ib) => {
+    ib.setAttribute('aria-selected', ib.dataset.value === codigo ? 'true' : 'false');
+  });
 }
 
 function onTraducaoBibliaChange() {
@@ -4086,14 +4097,22 @@ function atualizarBtnTelaInicial() {
 }
 
 async function carregarTraducoes() {
-  const sel = document.getElementById('traducao-sel');
-  if (!sel) return;
+  const wrap = document.getElementById('traducao-sel-dd');
+  const hid = document.getElementById('traducao-sel');
+  if (!wrap || !hid) return;
   try {
     const lista = await fetchListaTraducoesBiblia();
-    sel.innerHTML = lista.map((t) =>
-      `<option value="${escapeHtml(t.traducao)}">${escapeHtml(t.traducao)} — ${escapeHtml(t.nome)}</option>`
-    ).join('');
+    const items = lista.map((t) => ({
+      value: t.traducao,
+      label: `${t.traducao} — ${t.nome}`,
+    }));
     const traducaoSessao = obterBibliaTraducaoSessao();
+    const valorAtual = traducaoSessao || hid.value || (items[0] ? items[0].value : '');
+    renderItensLyraSelectDropdown(wrap, items, {
+      valorAtual,
+      placeholder: '—',
+      aoSelecionar: () => onTraducaoBibliaChange(),
+    });
     if (traducaoSessao) aplicarTraducaoBibliaNoSelect(traducaoSessao);
     popularGradeLivros();
   } catch (e) {
@@ -5323,6 +5342,12 @@ function normalizarFonteLetrasSite(val) {
   return 'banco-local';
 }
 let letrasSiteFonte = 'banco-local';
+
+const BANCO_FONTE_OPCOES = [
+  { value: 'banco-local', label: 'Banco Local' },
+  { value: 'cifraclub', label: 'CifraClub' },
+  { value: 'letras-mus-br', label: 'Letras.mus.br' },
+];
 let listaLocalRenderizada = [];
 /** Lista de músicas SQLite visível (padrão) ou recolhida. */
 let bancoSqliteListaExpandida = true;
@@ -8396,6 +8421,83 @@ function aplicarSelecaoTemaNaUi(valor) {
   atualizarEstadoBotaoInserirTema();
 }
 
+function fecharLyraSelectDropdownWrap(wrap) {
+  if (!wrap) return;
+  const menu = wrap.querySelector('.playlist-tema-dd-menu');
+  const btn = wrap.querySelector('.playlist-tema-dd-btn');
+  wrap.classList.remove('open');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+/** Mesmo visual/hover do dropdown «Tema da playlist» — evita o destaque azul do `<select>` nativo. */
+function setupLyraSelectDropdownWrap(wrap) {
+  if (!wrap || wrap.dataset.lyraSelectDdBound === '1') return;
+  wrap.dataset.lyraSelectDdBound = '1';
+  const btn = wrap.querySelector('.playlist-tema-dd-btn');
+  const menu = wrap.querySelector('.playlist-tema-dd-menu');
+  if (!btn || !menu) return;
+  const fechar = () => fecharLyraSelectDropdownWrap(wrap);
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (btn.disabled) return;
+    const abrir = menu.hidden;
+    fecharLyraSelectDropdownWrap(wrap);
+    if (abrir) {
+      wrap.classList.add('open');
+      menu.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) fechar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') fechar();
+  });
+}
+
+function renderItensLyraSelectDropdown(wrap, items, opts = {}) {
+  if (!wrap) return;
+  const menu = wrap.querySelector('.playlist-tema-dd-menu');
+  const label = wrap.querySelector('.playlist-tema-dd-label');
+  const hid = wrap.querySelector('input[type="hidden"]');
+  if (!menu || !label || !hid) return;
+  const valorAtual = opts.valorAtual != null ? String(opts.valorAtual) : String(hid.value || '');
+  const placeholder = opts.placeholder ?? '—';
+  menu.innerHTML = '';
+  let rotuloBtn = placeholder;
+  items.forEach(({ value, label: rotulo }) => {
+    const v = value != null ? String(value) : '';
+    const li = document.createElement('li');
+    li.setAttribute('role', 'presentation');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'playlist-tema-dd-item';
+    b.dataset.value = v;
+    b.textContent = rotulo;
+    b.setAttribute('aria-selected', v === valorAtual ? 'true' : 'false');
+    li.appendChild(b);
+    menu.appendChild(li);
+    if (v === valorAtual) rotuloBtn = rotulo;
+  });
+  label.textContent = rotuloBtn;
+  hid.value = valorAtual;
+  menu.querySelectorAll('.playlist-tema-dd-item').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const v = b.dataset.value ?? '';
+      hid.value = v;
+      label.textContent = b.textContent;
+      menu.querySelectorAll('.playlist-tema-dd-item').forEach((ib) => {
+        ib.setAttribute('aria-selected', ib.dataset.value === v ? 'true' : 'false');
+      });
+      fecharLyraSelectDropdownWrap(wrap);
+      if (typeof opts.aoSelecionar === 'function') opts.aoSelecionar(v);
+    });
+  });
+}
+
 function fecharDropdownTemaPlaylist() {
   const wrap = document.getElementById('playlist-tema-dd');
   const menu = document.getElementById('playlist-tema-dd-menu');
@@ -9716,12 +9818,27 @@ function limparMinistranteETonsDeTodasMusicas(pl) {
  * antes de existir um seletor único (todas as músicas com a mesma pessoa).
  */
 function renderSeletorMinistranteCulto() {
-  const sel = document.getElementById('culto-ministrante-sel');
-  if (!sel) return;
+  const wrap = document.getElementById('culto-ministrante-dd');
+  const btn = document.getElementById('culto-ministrante-dd-btn');
+  if (!wrap || !btn) return;
   const atual = cultoId ? getMinistrantePadraoCulto(cultoId) : null;
-  sel.innerHTML = htmlOpcoesMinistranteCulto(obterCacheMinistrantes(), atual);
-  sel.value = atual != null ? String(atual) : '';
-  sel.disabled = !cultoId;
+  const items = [{ value: '', label: '—' }];
+  for (const m of obterCacheMinistrantes()) {
+    const id = Number(m.id);
+    if (!Number.isFinite(id)) continue;
+    items.push({
+      value: String(id),
+      label: String(m.nome || '').toLocaleUpperCase('pt-BR'),
+    });
+  }
+  renderItensLyraSelectDropdown(wrap, items, {
+    valorAtual: atual != null ? String(atual) : '',
+    placeholder: '—',
+    aoSelecionar: (v) => {
+      onMinistranteCultoChange(v).catch(() => {});
+    },
+  });
+  btn.disabled = !cultoId;
 }
 
 /**
@@ -9730,16 +9847,16 @@ function renderSeletorMinistranteCulto() {
  */
 async function onMinistranteCultoChange(valorSelect) {
   if (!cultoId) return;
-  const sel = document.getElementById('culto-ministrante-sel');
+  const btn = document.getElementById('culto-ministrante-dd-btn');
   const novoId = normalizarMinistranteIdPlaylist(valorSelect);
   const pl = getPlaylist(cultoId);
   setMinistrantePadraoCulto(cultoId, novoId);
-  if (sel) sel.disabled = true;
+  if (btn) btn.disabled = true;
   try {
     if (novoId) await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
     else limparMinistranteETonsDeTodasMusicas(pl);
   } finally {
-    if (sel) sel.disabled = false;
+    if (btn) btn.disabled = !cultoId;
   }
   savePlaylists();
   renderPlaylist();
@@ -9747,11 +9864,8 @@ async function onMinistranteCultoChange(valorSelect) {
 }
 
 function configurarSeletorMinistranteCulto() {
-  const sel = document.getElementById('culto-ministrante-sel');
-  if (!sel) return;
-  sel.addEventListener('change', () => {
-    onMinistranteCultoChange(sel.value).catch(() => {});
-  });
+  const wrap = document.getElementById('culto-ministrante-dd');
+  if (wrap) setupLyraSelectDropdownWrap(wrap);
 }
 
 function onPlaylistTomChange(idxPl, valorSelect) {
@@ -10291,7 +10405,6 @@ function renderPlaylist() {
 function renderPlaylistPainel() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
-  agendarAlinhamentoAvisoCentral();
   renderSeletorTemasPlaylist();
   renderSeletorMinistranteCulto();
   if (!cultoId) {
@@ -14008,61 +14121,6 @@ function reaplicarAlturasEstrofesEditor() {
   });
 }
 
-/** Margem do aviso da playlist em `renderPlaylist()` — o alvo do alinhamento sai dela. */
-const PLAYLIST_AVISO_MARGEM_PX = 16;
-
-/*
- * Alinhamento vertical do aviso "escolha uma música" com o aviso da coluna da playlist.
- *
- * A coluna central e a da playlist são irmãs na grelha, mas o topo da lista da playlist
- * fica muito mais abaixo (prévia + culto + ministrante + tema). Por isso o desvio não dá
- * para fixar no CSS: é medido aqui e devolvido em `--aviso-central-topo`.
- *
- * O alvo é a geometria da lista, não o elemento do aviso: assim o aviso central não salta
- * quando a coluna da direita troca de aviso ou passa a mostrar músicas.
- */
-function alinharAvisoCentralComAvisoPlaylist() {
-  const wrap = document.getElementById('estrofes-slide-editor');
-  if (!wrap) return;
-  const avisoCentral = wrap.querySelector('.placeholder-msg--escolha-musica');
-  const lista = document.getElementById('playlist-list');
-  if (!avisoCentral || !lista || !wrap.clientHeight || !lista.clientHeight) {
-    wrap.classList.remove('estrofes-slide-editor--vazio-alinhado');
-    wrap.style.removeProperty('--aviso-central-topo');
-    return;
-  }
-  wrap.classList.add('estrofes-slide-editor--vazio-alinhado');
-  /* Zerar antes de medir: o desvio tem de sair da posição sem recuo. */
-  wrap.style.setProperty('--aviso-central-topo', '0px');
-  const recuoTopoLista = parseFloat(getComputedStyle(lista).paddingTop) || 0;
-  const alvo = lista.getBoundingClientRect().top + recuoTopoLista + PLAYLIST_AVISO_MARGEM_PX;
-  const bruto = alvo - wrap.getBoundingClientRect().top;
-  const limite = wrap.clientHeight - avisoCentral.offsetHeight;
-  const desvio = Math.round(Math.max(0, Math.min(bruto, Math.max(0, limite))));
-  wrap.style.setProperty('--aviso-central-topo', `${desvio}px`);
-}
-
-let alinhamentoAvisoCentralAgendado = false;
-
-/** Mede depois do render (e uma só vez por frame), senão o aviso da playlist ainda não existe. */
-function agendarAlinhamentoAvisoCentral() {
-  if (alinhamentoAvisoCentralAgendado) return;
-  alinhamentoAvisoCentralAgendado = true;
-  requestAnimationFrame(() => {
-    alinhamentoAvisoCentralAgendado = false;
-    alinharAvisoCentralComAvisoPlaylist();
-  });
-}
-
-/* A lista da playlist é `flex: 1`: recolher a prévia, redimensionar a janela ou mudar os
-   cabeçalhos acima altera a altura dela — e é aí que o desvio deixa de valer. */
-(function observarAlturaListaPlaylistParaAlinharAviso() {
-  if (typeof ResizeObserver !== 'function') return;
-  const lista = document.getElementById('playlist-list');
-  if (!lista) return;
-  new ResizeObserver(() => agendarAlinhamentoAvisoCentral()).observe(lista);
-})();
-
 function reorderEstrofesIndices(from, to) {
   if (!musicaAtiva || !modoEdicaoEstrofes) return;
   const arr = musicaAtiva.estrofes;
@@ -14088,7 +14146,6 @@ function reorderEstrofesIndices(from, to) {
 
 function renderEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
-  agendarAlinhamentoAvisoCentral();
 
   if (!musicaAtiva) {
     modoEdicaoEstrofes = false;
@@ -16421,12 +16478,18 @@ async function carregarMusicas() {
 }
 
 function initBancoPainelFromStorage() {
-  const sel = document.getElementById('banco-fonte-select');
-  if (!sel) return;
+  const hid = document.getElementById('banco-fonte-select');
+  const wrap = document.getElementById('banco-fonte-dd');
+  if (!hid || !wrap) return;
+
+  setupLyraSelectDropdownWrap(wrap);
 
   // Padrão ao abrir o controlador: banco offline (não restaura Cifra Club / Letras da sessão anterior).
   letrasSiteFonte = 'banco-local';
-  sel.value = 'banco-local';
+  renderItensLyraSelectDropdown(wrap, BANCO_FONTE_OPCOES, {
+    valorAtual: 'banco-local',
+    aoSelecionar: () => onBancoFonteChange(),
+  });
   aplicarPlaceholderBuscaLetras();
 
   const ft = localStorage.getItem(LS_FILTRO_TITULO);
@@ -20779,6 +20842,7 @@ try {
   if (avisoCard6CfgSalva) apresentacaoCard6AvisoCfg = avisoCard6CfgSalva;
   carregarBibliaCfgDoStorage();
   setupCultoDropdown();
+  setupLyraSelectDropdownWrap(document.getElementById('traducao-sel-dd'));
   setupAdicionarCultoManual();
   configurarNotasSlideControlador({
     obterMusicaId: () => (musicaAtiva && musicaAtiva.id != null ? Number(musicaAtiva.id) : null),
@@ -21260,7 +21324,7 @@ function abrirAppDialog(msg, opts = {}) {
 }
 
 function appAlert(msg, title) {
-  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false });
+  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false, fecharNoBackdrop: false });
 }
 
 function appConfirm(msg, title, opts = {}) {
@@ -23254,6 +23318,7 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       /* Importação em andamento: Escape não dispensa o spinner. */
       if (appImportarBloqueadoFechar) return;
+      if (!appDialogFecharNoBackdrop) return;
       fecharAppDialog(false);
       return;
     }

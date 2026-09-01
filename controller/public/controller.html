@@ -244,9 +244,7 @@
 
     /* Caixa da seta: máscara + currentColor, para acompanhar tema claro/escuro. */
     .culto-dd-caret,
-    .playlist-tema-dd-caret,
-    .culto-ministrante-campo::after,
-    .biblia-sel-traducao-campo::after {
+    .playlist-tema-dd-caret {
       width: 14px;
       height: 14px;
       flex-shrink: 0;
@@ -1233,42 +1231,17 @@
       display: block;
       color: var(--text);
     }
-    .culto-ministrante-campo::after {
-      content: '';
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none;
+
+    .culto-ministrante-dd-label {
+      text-transform: uppercase;
     }
-    .culto-ministrante-sel {
-      /* Sem a seta nativa: a do painel entra pelo ::after do wrapper, igual à dos
-         dropdowns próprios do culto e do tema. O padding à direita abre o espaço dela. */
-      -webkit-appearance: none;
-      appearance: none;
+
+    .banco-fonte-dd,
+    .biblia-traducao-dd {
+      position: relative;
       width: 100%;
-      min-height: 34px;
-      box-sizing: border-box;
-      padding: 6px 30px 6px 10px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-family: var(--font-ui);
-      cursor: pointer;
-      outline: none;
-      /* Sem isto o popup nativo no Windows fica branco e o texto claro some. */
-      color-scheme: dark;
     }
-    html:not(.dark) .culto-ministrante-sel {
-      color-scheme: light;
-    }
-    .culto-ministrante-sel:hover { border-color: var(--accent2); }
-    .culto-ministrante-sel:focus { border-color: var(--accent); }
-    .culto-ministrante-sel option {
-      background-color: var(--surface2, #1c1c1c);
-      color: var(--text, #f0ebe3);
-    }
+
     .playlist-tema-wrap {
       padding: 8px 14px 10px;
       border-bottom: 1px solid var(--border);
@@ -1339,7 +1312,7 @@
       right: 0;
       top: calc(100% + 4px);
       margin: 0;
-      padding: 6px 0;
+      padding: 4px 0;
       list-style: none;
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -1353,13 +1326,13 @@
     .playlist-tema-dd-item {
       display: block;
       width: 100%;
-      padding: 10px 14px;
+      padding: 5px 14px;
       margin: 0;
       border: none;
       background: transparent;
       color: var(--text);
       font-family: var(--font-ui);
-      line-height: 1.4;
+      line-height: 1.3;
       text-align: left;
       cursor: pointer;
       box-sizing: border-box;
@@ -1372,6 +1345,7 @@
     .playlist-tema-dd-item[aria-selected="true"] {
       background: rgba(166, 124, 45, 0.14);
     }
+
     /* Ações da área de temas: ícone + rótulo, na linha do rótulo da secção.
        Renomear/excluir saíram daqui — agora vivem no menu de contexto da lista.
        Seletor mais específico para vencer o `.btn.sm` do bloco tipográfico lá em baixo. */
@@ -2330,8 +2304,7 @@
       border-color: var(--accent);
       color: var(--text);
     }
-    .culto-ministrante-sel,
-    .culto-ministrante-sel option {
+    .culto-ministrante-dd-label {
       text-transform: uppercase;
     }
 
@@ -3311,7 +3284,8 @@
       box-sizing: border-box;
     }
 
-    /* Sem música: o grid de 3 colunas deixava o texto só na 1.ª coluna — centraliza no painel. */
+    /* Sem música: o grid de 3 colunas deixava o texto só na 1.ª coluna — centraliza
+       horizontal e verticalmente na área útil do painel central. */
     .estrofes-slide-editor.estrofes-slide-editor--vazio {
       display: flex;
       align-items: center;
@@ -3319,18 +3293,8 @@
       box-sizing: border-box;
       padding: 16px 12px 16px;
       /* Sem barra para centrar, o recuo negativo não tem razão de ser: o aviso
-         volta a ficar centrado na coluna inteira. */
+         fica centrado na coluna inteira. */
       margin-right: 0;
-    }
-
-    /*
-      Sem música o aviso do centro acompanha a linha do aviso da playlist, em vez de ficar
-      centrado na vertical (caía bem acima do outro). Ancora no topo e recebe o desvio
-      medido por `alinharAvisoCentralComAvisoPlaylist()` — igual com ou sem culto aberto.
-    */
-    .estrofes-slide-editor.estrofes-slide-editor--vazio-alinhado {
-      align-items: flex-start;
-      padding-top: var(--aviso-central-topo, 16px);
     }
 
     .estrofes-slide-editor--vazio .placeholder-msg--escolha-musica {
@@ -4496,20 +4460,10 @@
       opacity: 0.9;
     }
 
-    .banco-fonte-select {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 7px 10px;
-      font-family: var(--font-ui);
-      font-size: 15px;
+    .banco-fonte-dd .playlist-tema-dd-btn {
       border-radius: 4px;
-      outline: none;
-      cursor: pointer;
+      font-size: 15px;
     }
-
-    .banco-fonte-select:focus { border-color: var(--accent); }
 
     .banco-filtros-checks {
       display: flex;
@@ -6664,30 +6618,9 @@
       display: block;
       color: var(--text);
     }
-    .biblia-sel-traducao-campo::after {
-      content: '';
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none;
-    }
 
-    .biblia-sel-traducao {
-      width: 100%;
-      box-sizing: border-box;
-      /* Sem a seta nativa: a do painel entra pelo ::after do wrapper, igual aos
-         seletores da coluna direita do Modo Home (culto, ministrante, tema). */
-      -webkit-appearance: none;
-      appearance: none;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 30px 6px 10px;
+    .biblia-traducao-dd .playlist-tema-dd-btn {
       font-size: 15px;
-      cursor: pointer;
-      outline: none;
     }
 
     /*
@@ -10550,10 +10483,8 @@
     .conn-input,
     .culto-dd-btn,
     .culto-dd-item,
-    .culto-ministrante-sel,
     .playlist-tema-dd-btn,
     .playlist-tema-dd-item,
-    .banco-fonte-select,
     .search-box,
     .item .sub,
     .playlist-row .tit,
@@ -10791,12 +10722,15 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <span>Pesquisar músicas</span>
         </div>
-        <label class="sr-only" for="banco-fonte-select">Fonte da pesquisa (catálogo offline ou internet)</label>
-        <select class="banco-fonte-select" id="banco-fonte-select" onchange="onBancoFonteChange()">
-          <option value="banco-local" selected>Banco Local</option>
-          <option value="cifraclub">CifraClub</option>
-          <option value="letras-mus-br">Letras.mus.br</option>
-        </select>
+        <label class="sr-only" for="banco-fonte-dd-btn">Fonte da pesquisa (catálogo offline ou internet)</label>
+        <div class="playlist-tema-dd banco-fonte-dd" id="banco-fonte-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="banco-fonte-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="banco-fonte-dd-menu" title="Fonte da pesquisa de músicas">
+            <span class="playlist-tema-dd-label" id="banco-fonte-dd-label">Banco Local</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="banco-fonte-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="banco-fonte-select" value="banco-local" autocomplete="off" />
+        </div>
         <div class="banco-filtros-checks">
           <label><input type="checkbox" id="filtro-busca-titulo" checked onchange="onFiltroBuscaChange()"> Música (título)</label>
           <label><input type="checkbox" id="filtro-busca-artista" checked onchange="onFiltroBuscaChange()"> Artista</label>
@@ -10969,7 +10903,14 @@
       <!-- Topo: seletor de tradução + filtro de testamento -->
       <div class="biblia-header">
         <div class="biblia-sel-traducao-campo">
-          <select id="traducao-sel" class="biblia-sel-traducao" onchange="onTraducaoBibliaChange()" title="Tradução desta sessão (definida ao entrar no modo Bíblia)"></select>
+          <div class="playlist-tema-dd biblia-traducao-dd" id="traducao-sel-dd">
+            <button type="button" class="playlist-tema-dd-btn" id="traducao-sel-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="traducao-sel-dd-menu" title="Tradução desta sessão (definida ao entrar no modo Bíblia)" aria-label="Tradução bíblica">
+              <span class="playlist-tema-dd-label" id="traducao-sel-dd-label">—</span>
+              <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+            </button>
+            <ul class="playlist-tema-dd-menu" id="traducao-sel-dd-menu" role="listbox" hidden></ul>
+            <input type="hidden" id="traducao-sel" value="" autocomplete="off" />
+          </div>
         </div>
         <div class="biblia-filtro-testamento" role="group" aria-label="Filtrar livros por testamento">
           <button type="button" class="biblia-filtro-btn" id="biblia-filtro-at" onclick="definirFiltroTestamentoBiblia('at')" aria-pressed="false" title="Mostrar só os livros do Antigo Testamento (clique de novo para ver todos)">AT</button>
@@ -11061,9 +11002,14 @@
     <div class="culto-ministrante-wrap">
       <div class="culto-ministrante-label">Ministrante</div>
       <div class="culto-ministrante-campo">
-        <select class="culto-ministrante-sel" id="culto-ministrante-sel" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
-          <option value="">—</option>
-        </select>
+        <div class="playlist-tema-dd culto-ministrante-dd" id="culto-ministrante-dd">
+          <button type="button" class="playlist-tema-dd-btn" id="culto-ministrante-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-ministrante-dd-menu" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
+            <span class="playlist-tema-dd-label culto-ministrante-dd-label" id="culto-ministrante-dd-label">—</span>
+            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+          </button>
+          <ul class="playlist-tema-dd-menu" id="culto-ministrante-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="culto-ministrante-sel" value="" autocomplete="off" />
+        </div>
       </div>
     </div>
     <div class="playlist-tema-wrap">
