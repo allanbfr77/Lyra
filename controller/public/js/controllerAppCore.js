@@ -5402,6 +5402,15 @@ function atualizarSomenteAtivoFaixaSlides() {
 }
 
 /**
+ * Revela a grelha escondida durante a reconstrução. É sempre chamada — inclusive nos
+ * caminhos de desistência — para nunca deixar a grade presa em `visibility:hidden`.
+ */
+function revelarGradeSlides() {
+  const grid = document.getElementById('slides-grid');
+  if (grid && grid.style.visibility === 'hidden') grid.style.visibility = '';
+}
+
+/**
  * Fonte dos cartões da grelha do Modo Slides — «aproveitar a área útil».
  *
  * Cada linha lógica fica em `nowrap`. O JS escolhe a MAIOR fonte que ainda cabe
@@ -5413,14 +5422,16 @@ function atualizarSomenteAtivoFaixaSlides() {
  * ficam no tamanho máximo que a altura do cartão permite.
  */
 function ajustarFonteSnippetsNosSlideChips(tentativa = 0) {
-  if (!ehModoSlidesOperador()) return;
+  if (!ehModoSlidesOperador()) return revelarGradeSlides();
   const grid = document.getElementById('slides-grid');
   if (!grid) return;
   const chips = grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)');
-  if (!chips.length) return;
+  if (!chips.length) return revelarGradeSlides();
 
   const amostra = chips[0];
   if (amostra && amostra.clientWidth < 48 && tentativa < 5) {
+    /* Caixa ainda não medível: tenta no próximo quadro e só então revela — revelar
+       agora mostraria a fonte base antes de encolher («tremida»). */
     requestAnimationFrame(() => ajustarFonteSnippetsNosSlideChips(tentativa + 1));
     return;
   }
@@ -5512,6 +5523,7 @@ function ajustarFonteSnippetsNosSlideChips(tentativa = 0) {
   });
 
   document.body.removeChild(meas);
+  revelarGradeSlides();
 }
 
 /** Razão de line-height do snippet (o CSS guarda-a em `--slide-chip-snippet-lh`). */
@@ -5542,29 +5554,33 @@ function ajustarEncaixeGrelhaSlidesModoSlides() {
   const grid = document.getElementById('slides-grid');
   const viewport = document.getElementById('slides-grid-viewport');
   if (grid) grid.style.zoom = '';
-  /* Revela a grade (escondida durante a reconstrução para evitar a «tremida»
-     de pintar com fonte base e só depois encolher). Sempre reexibe, mesmo nos
-     early-returns, para não deixar a grade presa em visibility:hidden. */
-  const revelarGrade = () => {
-    if (grid && grid.style.visibility === 'hidden') grid.style.visibility = '';
-  };
-  if (typeof document !== 'undefined' && document.hidden) return;
+  /* A grade é escondida durante a reconstrução para evitar a «tremida» de pintar com
+     fonte base e só depois encolher. Todo caminho daqui para baixo tem de a revelar —
+     incluindo as desistências — senão fica presa em `visibility:hidden`. */
+  if (typeof document !== 'undefined' && document.hidden) {
+    revelarGradeSlides();
+    return;
+  }
   if (!ehModoSlidesOperador() || !viewport || !grid) {
-    revelarGrade();
+    revelarGradeSlides();
     return;
   }
   const dock = document.getElementById('slides-dock');
   if (!dock || dock.classList.contains('oculto')) {
-    revelarGrade();
+    revelarGradeSlides();
     return;
   }
 
+  /*
+    Um quadro, não dois. O layout dos chips já está resolvido quando este callback
+    corre (o DOM foi inserido no turno anterior), e `ajustarFonteSnippetsNosSlideChips`
+    tem a sua própria rede de segurança: se a caixa ainda não for medível, reagenda-se
+    e só revela quando conseguir medir. O segundo `requestAnimationFrame` custava ~16 ms
+    a cada troca de música sem acrescentar garantia nenhuma.
+  */
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      revelarGrade();
-      grid.style.zoom = '';
-      ajustarFonteSnippetsNosSlideChips();
-    });
+    grid.style.zoom = '';
+    ajustarFonteSnippetsNosSlideChips();
   });
 }
 
@@ -16516,6 +16532,33 @@ function refreshListaBanco() {
   filtrar();
 }
 
+let renderOcultasModoSlidesAgendado = false;
+
+/**
+ * Adia a reconstrução dos painéis que o Modo Slides mantém escondidos (biblioteca e
+ * editor de estrofes). Não é «não fazer»: é fazer depois do quadro que interessa —
+ * o da grelha de slides — para o clique em «Próxima música» não pagar por DOM que
+ * ninguém está a ver. Coalescido: vários pedidos seguidos rendem um só trabalho.
+ */
+function agendarRenderizacoesOcultasDoModoSlides() {
+  if (renderOcultasModoSlidesAgendado) return;
+  renderOcultasModoSlidesAgendado = true;
+  const correr = () => {
+    renderOcultasModoSlidesAgendado = false;
+    try {
+      refreshListaBanco();
+      renderEstrofesEditor();
+    } catch (_) {
+      // intencional — painéis ocultos nunca podem derrubar a projeção
+    }
+  };
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(correr, { timeout: 400 });
+  } else {
+    setTimeout(correr, 60);
+  }
+}
+
 /**
  * Atualiza a linha de contexto acima da lista de resultados da pesquisa.
  * A fonte já está indicada no seletor acima, então aqui mostramos apenas
@@ -18061,7 +18104,9 @@ async function selecionarMusicaDoBanco(id, opts) {
       const ea = document.getElementById('edit-artista');
       if (et) et.value = musicaAtiva.titulo || '';
       if (ea) ea.value = musicaAtiva.artista || '';
-      await carregarVersoesMusicaServidor(musicaRootId);
+      /* Sem `await`: a barra de versões é informativa e mais um ida-e-volta aqui
+         atrasava a projeção. Igual ao que `aplicarBaseMusicaSelecionada` já faz. */
+      void carregarVersoesMusicaServidor(musicaRootId);
     } else {
       aplicarBaseMusicaSelecionada(base, id, versaoReq);
     }
@@ -18092,9 +18137,25 @@ async function selecionarMusicaDoBanco(id, opts) {
       aplicarSelecaoUiBiblioteca(id, fonteBanco);
     }
 
-    refreshListaBanco();
+    /*
+      Ponto mais cedo em que a música já está inteira em memória. Quem pediu projeção
+      imediata — o botão «Próxima música» — emite AQUI, antes de qualquer DOM: o telão
+      deixa de esperar pela reconstrução da grelha, das prévias e da playlist.
+      O callback também deixa `estrofeAtiva` e as flags no valor final, para o painel
+      ser desenhado UMA vez já no estado certo, em vez de duas.
+    */
+    if (typeof (opts && opts.aoCarregarAntesDeRenderizar) === 'function') {
+      opts.aoCarregarAntesDeRenderizar();
+    }
+
+    /* Biblioteca e editor de estrofes vivem em contentores `display:none` no Modo
+       Slides (`.panel-banco`, `.centro-col-letras`): reconstruí-los aqui só atrasaria
+       o primeiro quadro da grelha. Ficam para o tempo ocioso, logo a seguir. */
+    const emModoSlides = ehModoSlidesOperador();
+    if (emModoSlides) agendarRenderizacoesOcultasDoModoSlides();
+    else refreshListaBanco();
     renderPlaylist();
-    renderEstrofesEditor();
+    if (!emModoSlides) renderEstrofesEditor();
     renderSlidesStrip();
     atualizarPreviewOperador();
     return true;
@@ -18137,22 +18198,27 @@ async function projecaoProximaMusicaPlaylist() {
     return;
   }
   const next = pl[j];
+  /*
+    A projeção sai no instante em que a música chega — antes de a grelha, as prévias e a
+    playlist serem redesenhadas. Antes, o `emitir` só vinha depois de um ciclo inteiro de
+    render (e de um segundo ciclo, aqui em baixo), e o telão trocava no fim: era esse o
+    atraso perceptível entre o clique e a próxima música.
+  */
   const ok = await selecionarMusicaDoBanco(Number(next.id), {
     habilitarFaixaModoSlides: true,
     versaoLocalId: next.versaoLocalId || undefined,
     fonte: next.bancoFonte === 'catalog' ? 'catalog' : 'user',
     pularConfirmacaoDescarte: true,
     origemUi: 'playlist',
+    aoCarregarAntesDeRenderizar: () => {
+      /* Destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
+      faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+      estrofeAtiva = 0;
+      slidesDockVisivel = ehModoSlidesOperador();
+      emitirEstrofeAoServidor(0);
+    },
   });
   if (!ok || !musicaAtiva) return;
-  /* Garante destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
-  faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-  estrofeAtiva = 0;
-  slidesDockVisivel = ehModoSlidesOperador();
-  emitirEstrofeAoServidor(0);
-  renderPlaylist();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
   marcacaoEstrofeEditor();
   atualizarEstadoBtnProximaMusicaPlaylist();
 }
