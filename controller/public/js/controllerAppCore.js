@@ -1197,10 +1197,7 @@ function criarSeletorMonitorAvisoCard6() {
   btn.addEventListener('click', (ev) => {
     ev.stopPropagation();
     const aberto = !menu.hidden;
-    document.querySelectorAll('.route-dd-open').forEach((el) => el.classList.remove('route-dd-open'));
-    document.querySelectorAll('.route-dd-menu').forEach((el) => {
-      el.hidden = true;
-    });
+    fecharOutrosSeletoresDropdown(dd);
     menu.hidden = aberto;
     dd.classList.toggle('route-dd-open', !aberto);
     btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
@@ -5034,6 +5031,7 @@ function setupCultoDropdown() {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = menu.hidden;
+    fecharOutrosSeletoresDropdown(wrap);
     if (abrir) {
       wrap.classList.add('open');
       menu.hidden = false;
@@ -5078,8 +5076,8 @@ function setupApAudioDropdown() {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = menu.hidden;
+    fecharOutrosSeletoresDropdown(wrap);
     if (abrir) {
-      fecharApFilesDropdown();
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
@@ -5103,8 +5101,8 @@ function setupApFilesDropdown() {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = menu.hidden;
+    fecharOutrosSeletoresDropdown(wrap);
     if (abrir) {
-      fecharApAudioDropdown();
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
@@ -5814,15 +5812,7 @@ function setupMenusRoteamentoTelas() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const abrir = !wrap.classList.contains('route-dd-open');
-      document.querySelectorAll('.route-dd').forEach((w) => {
-        if (w !== wrap) {
-          w.classList.remove('route-dd-open');
-          const m = w.querySelector('.route-dd-menu');
-          const b = w.querySelector('.route-dd-btn');
-          if (m) m.hidden = true;
-          if (b) b.setAttribute('aria-expanded', 'false');
-        }
-      });
+      fecharOutrosSeletoresDropdown(wrap);
       if (abrir) {
         wrap.classList.add('route-dd-open');
         menu.hidden = false;
@@ -8424,6 +8414,29 @@ function aplicarSelecaoTemaNaUi(valor) {
   atualizarEstadoBotaoInserirTema();
 }
 
+/**
+ * Um seletor aberto de cada vez: fecha todos os dropdowns customizados excepto `excetoWrap`.
+ * Não mexe em opções nem na lógica de escolha — só no estado aberto/fechado.
+ */
+function fecharOutrosSeletoresDropdown(excetoWrap) {
+  document.querySelectorAll('.playlist-tema-dd, .banco-fonte-dd').forEach((w) => {
+    if (w !== excetoWrap) fecharLyraSelectDropdownWrap(w);
+  });
+  if (document.getElementById('culto-dd') !== excetoWrap) fecharCultoDropdown();
+  if (document.getElementById('ap-audio-dd') !== excetoWrap) fecharApAudioDropdown();
+  if (document.getElementById('ap-files-dd') !== excetoWrap) fecharApFilesDropdown();
+  document.querySelectorAll('.route-dd').forEach((wrap) => {
+    if (wrap === excetoWrap) return;
+    wrap.classList.remove('route-dd-open');
+    const menu = wrap.querySelector('.route-dd-menu');
+    const btn = wrap.querySelector('.route-dd-btn');
+    if (menu) menu.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  });
+  const overflowWrap = document.querySelector('.ap-playlist-overflow');
+  if (overflowWrap && overflowWrap !== excetoWrap) fecharMenuOverflowPlaylist();
+}
+
 function fecharLyraSelectDropdownWrap(wrap) {
   if (!wrap) return;
   const menu = wrap.querySelector('.playlist-tema-dd-menu');
@@ -8445,11 +8458,13 @@ function setupLyraSelectDropdownWrap(wrap) {
     e.stopPropagation();
     if (btn.disabled) return;
     const abrir = menu.hidden;
-    fecharLyraSelectDropdownWrap(wrap);
+    fecharOutrosSeletoresDropdown(wrap);
     if (abrir) {
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
+    } else {
+      fecharLyraSelectDropdownWrap(wrap);
     }
   });
   document.addEventListener('click', (e) => {
@@ -8521,11 +8536,13 @@ function setupDropdownTemaPlaylist() {
     e.stopPropagation();
     fecharMenuContextoTemaPlaylist();
     const abrir = menu.hidden;
-    fecharDropdownTemaPlaylist();
+    fecharOutrosSeletoresDropdown(wrap);
     if (abrir) {
       wrap.classList.add('open');
       menu.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
+    } else {
+      fecharDropdownTemaPlaylist();
     }
   });
   document.addEventListener('click', fecharDropdownTemaPlaylist);
@@ -9802,7 +9819,7 @@ async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
   }
 }
 
-/** Zera ministrante e tom de todas as músicas do culto (escolha «—» no seletor). */
+/** Zera ministrante e tom de todas as músicas do culto (escolha vazia no seletor). */
 function limparMinistranteETonsDeTodasMusicas(pl) {
   if (!Array.isArray(pl)) return;
   for (const it of pl) {
@@ -9824,7 +9841,7 @@ function renderSeletorMinistranteCulto() {
   const btn = document.getElementById('culto-ministrante-dd-btn');
   if (!wrap || !btn) return;
   const atual = cultoId ? getMinistrantePadraoCulto(cultoId) : null;
-  const items = [{ value: '', label: '—' }];
+  const items = [{ value: '', label: 'Selecione o ministrante...' }];
   for (const m of obterCacheMinistrantes()) {
     const id = Number(m.id);
     if (!Number.isFinite(id)) continue;
@@ -9835,7 +9852,7 @@ function renderSeletorMinistranteCulto() {
   }
   renderItensLyraSelectDropdown(wrap, items, {
     valorAtual: atual != null ? String(atual) : '',
-    placeholder: '—',
+    placeholder: 'Selecione o ministrante...',
     aoSelecionar: (v) => {
       onMinistranteCultoChange(v).catch(() => {});
     },
@@ -21165,6 +21182,7 @@ document.getElementById('ap-playlist-overflow-btn')?.addEventListener('click', (
   const btn = document.getElementById('ap-playlist-overflow-btn');
   if (!menu || !btn) return;
   const abrir = menu.hidden;
+  fecharOutrosSeletoresDropdown(document.querySelector('.ap-playlist-overflow'));
   menu.hidden = !abrir;
   btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
 });

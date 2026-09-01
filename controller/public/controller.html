@@ -1233,7 +1233,8 @@
     }
 
     .culto-ministrante-dd-label {
-      text-transform: uppercase;
+      /* Placeholder em caixa mista; nomes já vêm em maiúsculas do JS. */
+      text-transform: none;
     }
 
     .banco-fonte-dd,
@@ -2312,7 +2313,8 @@
       color: var(--text);
     }
     .culto-ministrante-dd-label {
-      text-transform: uppercase;
+      /* Placeholder em caixa mista; nomes já vêm em maiúsculas do JS. */
+      text-transform: none;
     }
 
     .playlist-row .tit {
@@ -11084,7 +11086,7 @@
       <div class="culto-ministrante-campo">
         <div class="playlist-tema-dd culto-ministrante-dd" id="culto-ministrante-dd">
           <button type="button" class="playlist-tema-dd-btn" id="culto-ministrante-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-ministrante-dd-menu" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
-            <span class="playlist-tema-dd-label culto-ministrante-dd-label" id="culto-ministrante-dd-label">—</span>
+            <span class="playlist-tema-dd-label culto-ministrante-dd-label" id="culto-ministrante-dd-label">Selecione o ministrante...</span>
             <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
           </button>
           <ul class="playlist-tema-dd-menu" id="culto-ministrante-dd-menu" role="listbox" hidden></ul>
