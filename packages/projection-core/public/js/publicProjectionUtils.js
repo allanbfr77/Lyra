@@ -7,7 +7,7 @@
  *  - Validação de números
  *  - Cálculo da área útil do container
  *  - Renderização de linhas de texto como spans estilizados
- *  - Tamanho em vh (2.2–9 nos slides; aviso até 40 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
+ *  - Tamanho em vh (1–14 nos slides; aviso até 40 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
  *  - Autoajuste horizontal (mesma regra que `display-operator.html`)
  *  - Aplicação imediata de wrap de texto
  *
@@ -45,19 +45,19 @@ function attachPublicProjectionUtils(ctx) {
   /**
    * Escala vh do telão público.
    *
-   * Teto por omissão: 9 (slides / bíblia). O aviso pode pedir até 40 via
-   * `pb.fontSizeMaxVh` — sem isso, valores acima de 9 cairiam no ramo legado 2–40 e
-   * seriam remapeados para ~3–5 vh, e o seletor «aumentava» sem o texto crescer.
+   * Teto por omissão: 14 (slides / bíblia). O aviso pode pedir até 40 via
+   * `pb.fontSizeMaxVh` — sem isso, valores acima de 14 cairiam no ramo legado 2–40 e
+   * seriam remapeados, e o seletor «aumentava» sem o texto crescer.
    */
   function fontSizeVhPublico(pb) {
     const maxPedido = Number(pb && pb.fontSizeMaxVh);
-    const teto = Number.isFinite(maxPedido) && maxPedido >= 2.2 ? maxPedido : 9;
+    const teto = Number.isFinite(maxPedido) && maxPedido >= 2.2 ? maxPedido : 14;
     const v = Number(pb && pb.fontSize);
     if (!Number.isFinite(v)) return 5.5;
-    if (v >= 2.2 && v <= teto) return v;
-    /* JSON antigo 2–40 → vh 2.2–9. Só com o teto padrão: com teto > 9, 10–15 são vh reais. */
-    if (teto <= 9 && v >= 2 && v <= 40) return 2.2 + ((v - 2) * (9 - 2.2)) / (40 - 2);
-    return Math.min(teto, Math.max(2.2, v));
+    if (v >= 1 && v <= teto) return v;
+    /* JSON antigo 2–40 → só quando o valor está claramente fora do slider novo. */
+    if (teto <= 14 && v > teto && v <= 40) return teto;
+    return Math.min(teto, Math.max(1, v));
   }
 
   /** Line-height CSS absoluto (1–2.4), igual ministrante; legado: incremento −0.5…1 → 1+valor. */

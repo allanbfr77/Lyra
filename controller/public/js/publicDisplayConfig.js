@@ -6,7 +6,7 @@
  * de estilo do slide público (fonte, cor, espaçamento, alinhamento, etc.).
  *
  * Tamanho da fonte e espaçamento entre linhas seguem a mesma convenção do painel
- * Ministrante (vh 2.2–9 e line-height 1.0–2.4).
+ * Ministrante (vh 1–14 e line-height 1.0–2.4).
  *
  * @param {Object} ctx - Contexto compartilhado da aplicação (document, helpers, estado).
  */
@@ -27,15 +27,16 @@ function attachPublicDisplayConfig(ctx) {
   }
 
   /**
-   * Converte `fontSize` guardado para o intervalo em vh (0–9, passo 1).
-   * Arruma JSON antigo onde o slider era 2–40 ou 2.2–9 com casas decimais.
+   * Converte `fontSize` guardado para o intervalo em vh (1–14, passo 1).
+   * Arruma JSON antigo onde o slider era 0–9, 2–40 ou 2.2–9 com casas decimais.
    */
   function normalizarFontSizeVhPublicoParaForm(valor) {
     const v = Number(valor);
     if (!Number.isFinite(v)) return 6;
-    if (v >= 0 && v <= 9) return Math.round(v);
-    if (v >= 2 && v <= 40) return Math.round(2 + ((v - 2) * (9 - 2)) / (40 - 2));
-    return Math.min(9, Math.max(0, Math.round(v)));
+    if (v >= 1 && v <= 14) return Math.round(v);
+    if (v >= 0 && v < 1) return 1;
+    if (v > 14 && v <= 40) return 14;
+    return Math.min(14, Math.max(1, Math.round(v)));
   }
 
   /**

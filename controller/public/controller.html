@@ -9731,6 +9731,159 @@
       height: 18px;
     }
 
+    /* SliderComEdicao — Ajustes: label + valor editável + barra a 100%. */
+    .cfg-row--slider {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: stretch;
+      row-gap: 6px;
+    }
+    .cfg-row--slider .cfg-row-hint { margin-top: 0; }
+    .slider-com-edicao {
+      --sce-bg: #1a1a1a;
+      --sce-trilha: #333;
+      --sce-marca: #bb8f47;
+      --sce-unid: #c4c0b8;
+      --sce-pct: 0%;
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--sce-bg);
+      border-radius: 8px;
+      padding: 10px 12px 12px;
+    }
+    .slider-com-edicao .sce-topo {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .slider-com-edicao .sce-label {
+      color: #e8e5e0;
+      font-size: 15px;
+    }
+    .slider-com-edicao .sce-valor-wrap {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .slider-com-edicao .sce-valor-btn,
+    .slider-com-edicao .sce-valor-input {
+      margin: 0;
+      padding: 3px 8px;
+      border: 1px solid var(--sce-trilha);
+      border-radius: 4px;
+      background: #111;
+      font-family: var(--font-ui);
+      line-height: 1.2;
+      box-sizing: border-box;
+    }
+    .slider-com-edicao .sce-valor-btn {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      cursor: text;
+    }
+    .slider-com-edicao .sce-valor-btn:hover {
+      border-color: #555;
+    }
+    .slider-com-edicao .sce-num {
+      font-weight: var(--fw-semibold);
+      color: var(--sce-marca);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+    .slider-com-edicao .sce-unid {
+      font-size: 13px;
+      color: var(--sce-unid);
+    }
+    .slider-com-edicao .sce-valor-input {
+      width: 4.6em;
+      color: var(--sce-marca);
+      font-size: 15px;
+      font-weight: var(--fw-semibold);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      outline: none;
+    }
+    /* Um só anel de foco: a borda dourada substitui a de repouso; sem outline extra. */
+    .slider-com-edicao .sce-valor-btn:focus-visible,
+    .slider-com-edicao .sce-valor-input:focus,
+    .slider-com-edicao .sce-valor-input:focus-visible {
+      outline: none;
+      border-color: var(--sce-marca);
+    }
+    .slider-com-edicao input[type='range']:focus-visible {
+      outline: 2px solid var(--sce-marca);
+      outline-offset: 2px;
+    }
+    .slider-com-edicao .sce-trilho {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+    .slider-com-edicao .sce-min,
+    .slider-com-edicao .sce-max {
+      font-family: var(--font-ui);
+      font-size: 11px;
+      color: var(--sce-unid);
+      font-variant-numeric: tabular-nums;
+      min-width: 1.6em;
+    }
+    .slider-com-edicao .sce-max { text-align: right; }
+    .slider-com-edicao input[type='range'] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      margin: 0;
+      padding: 0;
+      border-radius: 999px;
+      background: linear-gradient(
+        to right,
+        var(--sce-marca) 0%,
+        var(--sce-marca) var(--sce-pct),
+        var(--sce-trilha) var(--sce-pct),
+        var(--sce-trilha) 100%
+      );
+      cursor: pointer;
+    }
+    .slider-com-edicao input[type='range']::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: transparent;
+    }
+    .slider-com-edicao input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin-top: -5px;
+      border-radius: 50%;
+      background: var(--sce-marca);
+      border: 3px solid var(--sce-bg);
+      box-sizing: border-box;
+    }
+    .slider-com-edicao input[type='range']::-moz-range-track {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--sce-trilha);
+    }
+    .slider-com-edicao input[type='range']::-moz-range-progress {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--sce-marca);
+    }
+    .slider-com-edicao input[type='range']::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--sce-marca);
+      border: 3px solid var(--sce-bg);
+      box-sizing: border-box;
+    }
+
     .cfg-ministrante-add {
       display: flex;
       gap: 8px;
@@ -11671,9 +11824,8 @@
                   </select>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="tamanho da fonte letra telao slides">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-publico-fontsize-val-ctrl">6</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-publico-fontsize-ctrl" min="0" max="9" step="1" value="6" oninput="onPublicoSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte letra telao slides">
+                <input type="range" class="cfg-slider" id="cfg-publico-fontsize-ctrl" min="1" max="14" step="1" value="6" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onPublicoSlideCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da letra texto telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
@@ -11697,9 +11849,8 @@
                   <button type="button" class="cfg-switch cfg-switch--on" id="cfg-publico-maiusculo-ctrl" role="switch" aria-checked="true" aria-label="Maiúsculas" onclick="toggleCfgSwitch(this); onPublicoSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="espacamento entre linhas telao slides">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre linhas <span class="cfg-row-val" id="cfg-publico-linespacing-val-ctrl">1.35</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-publico-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onPublicoSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="espacamento entre linhas telao slides">
+                <input type="range" class="cfg-slider" id="cfg-publico-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" data-sce-label="Espaçamento entre linhas" data-sce-unidade="" oninput="onPublicoSlideCfgChange()">
               </div>
               <div class="cfg-row" data-busca="espacamento entre caracteres letras telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre caracteres <span class="cfg-row-val" id="cfg-publico-letterspacing-val-ctrl">0</span></div></div>
@@ -11836,21 +11987,17 @@
           <section class="cfg-card">
             <div class="cfg-card-head"><span class="cfg-card-titulo">Tamanhos</span></div>
             <div class="cfg-card-corpo">
-              <div class="cfg-row" data-busca="tamanho da fonte titulo slide 1 abertura musica ministrante m3">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (título 1.º slide) <span class="cfg-row-val"><span id="cfg-ministrante-abertura-titulo-fontsize-val-ctrl">7</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-abertura-titulo-fontsize-ctrl" min="0" max="12" step="1" value="7" oninput="onMinistranteSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte titulo slide 1 abertura musica ministrante m3">
+                <input type="range" class="cfg-slider" id="cfg-ministrante-abertura-titulo-fontsize-ctrl" min="1" max="12" step="1" value="7" data-sce-label="Tamanho (título 1.º slide)" data-sce-unidade="vh" oninput="onMinistranteSlideCfgChange()">
               </div>
-              <div class="cfg-row" data-busca="tamanho da fonte atual ministrante slides">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (atual) <span class="cfg-row-val"><span id="cfg-ministrante-fontsize-atual-val-ctrl">4.1</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-fontsize-atual-ctrl" min="0" max="9" step="1" value="4" oninput="onMinistranteSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte atual ministrante slides">
+                <input type="range" class="cfg-slider" id="cfg-ministrante-fontsize-atual-ctrl" min="1" max="14" step="1" value="4" data-sce-label="Tamanho (atual)" data-sce-unidade="vh" oninput="onMinistranteSlideCfgChange()">
               </div>
-              <div class="cfg-row" data-busca="tamanho da fonte proximo ministrante slides">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho (próximo) <span class="cfg-row-val"><span id="cfg-ministrante-fontsize-proximo-val-ctrl">4.1</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-ministrante-fontsize-proximo-ctrl" min="0" max="9" step="1" value="4" oninput="onMinistranteSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte proximo ministrante slides">
+                <input type="range" class="cfg-slider" id="cfg-ministrante-fontsize-proximo-ctrl" min="1" max="14" step="1" value="4" data-sce-label="Tamanho (próximo)" data-sce-unidade="vh" oninput="onMinistranteSlideCfgChange()">
               </div>
-              <div class="cfg-row" data-busca="espacamento entre linhas ministrante slides">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre linhas <span class="cfg-row-val" id="cfg-ministrante-linespacing-val-ctrl">1.35</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-ministrante-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" oninput="onMinistranteSlideCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="espacamento entre linhas ministrante slides">
+                <input type="range" class="cfg-slider" id="cfg-ministrante-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" data-sce-label="Espaçamento entre linhas" data-sce-unidade="" oninput="onMinistranteSlideCfgChange()">
               </div>
             </div>
           </section>
@@ -11950,9 +12097,8 @@
                   </select>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="tamanho da fonte versiculo biblia telao">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-pub-fontsize-val-ctrl">5.5</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-pub-fontsize-ctrl" min="0" max="9" step="1" value="6" oninput="onBibliaPublicoCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte versiculo biblia telao">
+                <input type="range" class="cfg-slider" id="cfg-biblia-pub-fontsize-ctrl" min="1" max="14" step="1" value="6" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onBibliaPublicoCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da letra versiculo biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
@@ -11988,9 +12134,8 @@
                   <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-pub-ref-mostrar-ctrl" role="switch" aria-checked="true" aria-label="Mostrar referência" onclick="toggleCfgSwitch(this); onBibliaPublicoCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="tamanho da referencia biblia telao">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-pub-ref-size-val-ctrl">1.8</span> vw</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-pub-ref-size-ctrl" min="0" max="9" step="1" value="2" oninput="onBibliaPublicoCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da referencia biblia telao">
+                <input type="range" class="cfg-slider" id="cfg-biblia-pub-ref-size-ctrl" min="1" max="14" step="1" value="2" data-sce-label="Tamanho" data-sce-unidade="vw" oninput="onBibliaPublicoCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da referencia biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
@@ -12083,9 +12228,8 @@
                   </select>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="tamanho da fonte versiculo biblia ministrante">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-min-fontsize-val-ctrl">4.1</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-min-fontsize-ctrl" min="0" max="9" step="1" value="4" oninput="onBibliaMinistranteCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte versiculo biblia ministrante">
+                <input type="range" class="cfg-slider" id="cfg-biblia-min-fontsize-ctrl" min="1" max="14" step="1" value="4" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onBibliaMinistranteCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da letra versiculo biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
@@ -12121,9 +12265,8 @@
                   <button type="button" class="cfg-switch cfg-switch--on" id="cfg-biblia-min-ref-mostrar-ctrl" role="switch" aria-checked="true" aria-label="Mostrar referência" onclick="toggleCfgSwitch(this); onBibliaMinistranteCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
                 </div>
               </div>
-              <div class="cfg-row" data-busca="tamanho da referencia biblia ministrante">
-                <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-biblia-min-ref-size-val-ctrl">1.7</span> vh</span></div></div>
-                <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-biblia-min-ref-size-ctrl" min="0" max="9" step="1" value="2" oninput="onBibliaMinistranteCfgChange()"></div>
+              <div class="cfg-row cfg-row--slider" data-busca="tamanho da referencia biblia ministrante">
+                <input type="range" class="cfg-slider" id="cfg-biblia-min-ref-size-ctrl" min="1" max="14" step="1" value="2" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onBibliaMinistranteCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da referencia biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
@@ -12285,9 +12428,8 @@
                 </select>
               </div>
             </div>
-            <div class="cfg-row" data-busca="tamanho do relogio fonte">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-clock-fontsize-val-ctrl">13</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-fontsize-ctrl" min="1" step="1" value="13" oninput="onClockFontSizeCtrlInput()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho do relogio fonte">
+              <input type="range" class="cfg-slider" id="cfg-clock-fontsize-ctrl" min="1" max="40" step="1" value="13" data-sce-label="Tamanho do relógio" data-sce-unidade="vh" oninput="onClockFontSizeCtrlInput()">
             </div>
             <div class="cfg-row" data-busca="cor do relogio texto">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
@@ -12310,9 +12452,8 @@
                 <button type="button" class="cfg-switch" id="cfg-clock-date-ctrl" role="switch" aria-checked="false" aria-label="Mostrar data" onclick="toggleCfgSwitch(this); aplicarCfgRelogio();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
               </div>
             </div>
-            <div class="cfg-row" data-busca="tamanho da data relogio">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho da data <span class="cfg-row-val"><span id="cfg-clock-date-fontsize-val-ctrl">2.4</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-date-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockDateFontSizeCtrlInput()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho da data relogio">
+              <input type="range" class="cfg-slider" id="cfg-clock-date-fontsize-ctrl" min="0.8" max="14" step="1" value="2.4" data-sce-label="Tamanho da data" data-sce-unidade="vh" oninput="onClockDateFontSizeCtrlInput()">
             </div>
             <div class="cfg-row" data-busca="cor da data relogio">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor da data</div></div>
@@ -12339,9 +12480,8 @@
               <div class="cfg-row-copy"><div class="cfg-row-label">Versículo</div></div>
               <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-verse-ctrl" placeholder="Ex.: João 3:16" oninput="aplicarCfgRelogio()"></div>
             </div>
-            <div class="cfg-row" data-busca="tamanho do versiculo relogio">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho do versículo <span class="cfg-row-val"><span id="cfg-clock-verse-fontsize-val-ctrl">2.4</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input class="cfg-form-input" type="number" id="cfg-clock-verse-fontsize-ctrl" min="0.8" step="0.1" value="2.4" oninput="onClockVerseFontSizeCtrlInput()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho do versiculo relogio">
+              <input type="range" class="cfg-slider" id="cfg-clock-verse-fontsize-ctrl" min="0.8" max="14" step="1" value="2.4" data-sce-label="Tamanho do versículo" data-sce-unidade="vh" oninput="onClockVerseFontSizeCtrlInput()">
             </div>
             <div class="cfg-row" data-busca="cor do versiculo relogio">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor do versículo</div></div>
@@ -12404,9 +12544,8 @@
         <section class="cfg-card">
           <div class="cfg-card-head"><span class="cfg-card-titulo">Aparência</span></div>
           <div class="cfg-card-corpo">
-            <div class="cfg-row" data-busca="tamanho da fonte aviso card 6">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho da fonte <span class="cfg-row-val"><span id="cfg-card6-fontsize-val-ctrl">5.5</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-card6-fontsize-ctrl" min="2" max="40" step="1" value="6" oninput="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte aviso card 6">
+              <input type="range" class="cfg-slider" id="cfg-card6-fontsize-ctrl" min="2" max="40" step="1" value="6" data-sce-label="Tamanho da fonte" data-sce-unidade="vh" oninput="onAvisoCard6CfgChange()" data-ap-card6-cfg-field="1">
             </div>
             <div class="cfg-row" data-busca="cor do texto aviso card 6">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor do texto</div></div>
@@ -12535,9 +12674,8 @@
                 </select>
               </div>
             </div>
-            <div class="cfg-row" data-busca="tamanho dos digitos fonte contagem regressiva">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Tamanho <span class="cfg-row-val"><span id="cfg-contagem-fontsize-val">18</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-fontsize" min="4" max="40" step="1" value="18" oninput="onContagemCfgChange()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho dos digitos fonte contagem regressiva">
+              <input type="range" class="cfg-slider" id="cfg-contagem-fontsize" min="4" max="40" step="1" value="18" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onContagemCfgChange()">
             </div>
             <div class="cfg-row" data-busca="cor dos digitos texto contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
@@ -12549,9 +12687,8 @@
                 <button type="button" class="cfg-switch cfg-switch--on" id="cfg-contagem-negrito" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onContagemCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
               </div>
             </div>
-            <div class="cfg-row" data-busca="espacamento entre caracteres digitos contagem regressiva">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento <span class="cfg-row-val" id="cfg-contagem-letterspacing-val">-0.02</span></div></div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-contagem-letterspacing" min="-0.15" max="0.3" step="0.01" value="-0.02" oninput="onContagemCfgChange()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="espacamento entre caracteres digitos contagem regressiva">
+              <input type="range" class="cfg-slider" id="cfg-contagem-letterspacing" min="-0.15" max="0.3" step="0.01" value="-0.02" data-sce-label="Espaçamento" data-sce-unidade="em" oninput="onContagemCfgChange()">
             </div>
           </div>
         </section>
@@ -12559,17 +12696,15 @@
         <section class="cfg-card">
           <div class="cfg-card-head"><span class="cfg-card-titulo">Mensagens</span></div>
           <div class="cfg-card-corpo">
-            <div class="cfg-row" data-busca="tamanho mensagem acima topo contagem regressiva">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Acima — tamanho <span class="cfg-row-val"><span id="cfg-contagem-topo-size-val">4.5</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-topo-size" min="1" max="15" step="0.5" value="4.5" oninput="onContagemCfgChange()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho mensagem acima topo contagem regressiva">
+              <input type="range" class="cfg-slider" id="cfg-contagem-topo-size" min="1" max="15" step="1" value="4.5" data-sce-label="Acima — tamanho" data-sce-unidade="vh" oninput="onContagemCfgChange()">
             </div>
             <div class="cfg-row" data-busca="cor mensagem acima topo contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Acima — cor</div></div>
               <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-topo-color" value="#f3c15a" oninput="onContagemCfgChange()"></div>
             </div>
-            <div class="cfg-row" data-busca="tamanho mensagem abaixo rodape contagem regressiva">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Abaixo — tamanho <span class="cfg-row-val"><span id="cfg-contagem-rodape-size-val">3</span> vh</span></div></div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider cfg-slider--vh" id="cfg-contagem-rodape-size" min="1" max="15" step="0.5" value="3" oninput="onContagemCfgChange()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="tamanho mensagem abaixo rodape contagem regressiva">
+              <input type="range" class="cfg-slider" id="cfg-contagem-rodape-size" min="1" max="15" step="1" value="3" data-sce-label="Abaixo — tamanho" data-sce-unidade="vh" oninput="onContagemCfgChange()">
             </div>
             <div class="cfg-row" data-busca="cor mensagem abaixo rodape contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Abaixo — cor</div></div>
@@ -12609,12 +12744,9 @@
         <section class="cfg-card">
           <div class="cfg-card-head"><span class="cfg-card-titulo">Reta final</span></div>
           <div class="cfg-card-corpo">
-            <div class="cfg-row" data-busca="alerta segundos finais cor contagem regressiva">
-              <div class="cfg-row-copy">
-                <div class="cfg-row-label">Alertar nos últimos <span class="cfg-row-val"><span id="cfg-contagem-alerta-val">60</span> s</span></div>
-                <div class="cfg-row-hint">Os dígitos mudam de cor. Zero desliga.</div>
-              </div>
-              <div class="cfg-row-controlo"><input type="range" class="cfg-slider" id="cfg-contagem-alerta-segundos" min="0" max="300" step="5" value="60" oninput="onContagemCfgChange()"></div>
+            <div class="cfg-row cfg-row--slider" data-busca="alerta segundos finais cor contagem regressiva">
+              <input type="range" class="cfg-slider" id="cfg-contagem-alerta-segundos" min="0" max="300" step="5" value="60" data-sce-label="Alertar nos últimos" data-sce-unidade="s" oninput="onContagemCfgChange()">
+              <div class="cfg-row-hint">Os dígitos mudam de cor. Zero desliga.</div>
             </div>
             <div class="cfg-row" data-busca="cor do alerta final contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor do alerta</div></div>

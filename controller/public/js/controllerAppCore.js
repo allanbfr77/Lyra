@@ -93,6 +93,7 @@ import {
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
+import { inicializarSlidersComEdicao, sincronizarSliderComEdicao } from './modules/sliderComEdicao.js';
 import {
   htmlCorpoLinhaPlaylistComTom,
   htmlCorpoLinhaPlaylistSimples,
@@ -23056,7 +23057,12 @@ function toggleCfgSwitch(el) {
   setCfgSwitchState(el, next);
   return next;
 }
-function setInputVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+function setInputVal(id, v) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = v;
+  if (el.dataset.sceMontado === '1') sincronizarSliderComEdicao(el);
+}
 function setSpanText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 function lerNumeroInput(id, fallback) {
   const el = document.getElementById(id);
@@ -23544,7 +23550,9 @@ function bootOverlaysEAppDialogCtrl() {
 
 /** Slider vh com pontinhos 0…max (atributo do input) + cores com código hex à direita. */
 function aprimorarControlesVisuaisCfg() {
+  inicializarSlidersComEdicao(document.querySelector('.cfg-modal') || document);
   document.querySelectorAll('.cfg-modal .cfg-slider--vh').forEach((input) => {
+    if (input.dataset.sceMontado === '1' || input.hasAttribute('data-sce-label')) return;
     if (input.dataset.cfgTicks === '1') {
       sincronizarTicksSliderVh(input);
       return;
