@@ -5295,7 +5295,18 @@ function removerCopiasLocaisDaMusica(idMusica) {
   saveCopiasLocaisMap();
 }
 let filtrarLocalTimer = null;
+/** Gerações da busca da Biblioteca: descartar resultado/trabalho de uma tecla já ultrapassada. */
+let filtrarBibliotecaGeracao = 0;
+/** Pedido HTTP da busca por trecho de letra ainda em voo (abortado ao digitar de novo). */
+let filtrarBibliotecaAbort = null;
+/** Revisão de `todasMusicas` vs. o DOM completo já montado — evita reconstruir a cada tecla. */
+let bibDadosRev = 0;
+let bibDomRev = -1;
+/** Último texto de busca aplicado à visibilidade (para só resetar o scroll quando o filtro muda). */
+let bibFiltroQAplicado = null;
 let resultadosLetrasCache = [];
+let letrasBuscaGeracao = 0;
+let letrasBuscaAbort = null;
 /** Fonte da busca de letras: `banco-local`, `cifraclub` ou `letras-mus-br` (seletor único). */
 function normalizarFonteLetrasSite(val) {
   const s = String(val || '').trim();
@@ -16265,6 +16276,7 @@ async function carregarMusicas() {
   try {
     const res = await fetch(`${getControllerApiBase()}/api/musicas`);
     todasMusicas = await res.json();
+    bibDadosRev += 1;
     filtrar();
   } catch (e) {
     console.error('Erro ao carregar músicas', e);
@@ -16297,6 +16309,7 @@ function onBancoFonteChange() {
   letrasSiteFonte = normalizarFonteLetrasSite(sel?.value);
   aplicarPlaceholderBuscaLetras();
   garantirBuscaLetrasEditavel();
+  cancelarBuscaLetrasEmVoo();
   limparResultadosBuscaLetras();
   atualizarBotaoLimparBuscaLetras();
   setTimeout(() => document.getElementById('busca-letras-q')?.focus(), 0);
@@ -16354,10 +16367,21 @@ function limparBuscaLetras({ focar = false } = {}) {
  * Digitação no campo. Esvaziando-o à mão, os resultados anteriores deixam de
  * ter termo associado e são descartados — antes ficavam presos na tela.
  */
+function cancelarBuscaLetrasEmVoo() {
+  if (letrasBuscaAbort) {
+    letrasBuscaAbort.abort();
+    letrasBuscaAbort = null;
+  }
+  letrasBuscaGeracao += 1;
+}
+
 function onBuscaLetrasInput() {
   atualizarBotaoLimparBuscaLetras();
   const inp = document.getElementById('busca-letras-q');
-  if (inp && !String(inp.value || '').trim()) limparResultadosBuscaLetras();
+  if (inp && !String(inp.value || '').trim()) {
+    cancelarBuscaLetrasEmVoo();
+    limparResultadosBuscaLetras();
+  }
 }
 
 function onFiltroBuscaChange() {
@@ -16368,7 +16392,6 @@ function onFiltroBuscaChange() {
 }
 
 function refreshListaBanco() {
-  renderizarListaInternet(resultadosLetrasCache);
   filtrar();
 }
 
@@ -16744,10 +16767,14 @@ function bibLimparBusca() {
  * Ctrl/⌘+Enter abre; Esc limpa a busca; qualquer carácter atira o foco para a
  * busca e escreve-o lá — quem começa a escrever quer filtrar, não navegar.
  */
+function bibLinhasVisiveis(el) {
+  return Array.from((el || document.getElementById('lista'))?.querySelectorAll('.item:not([hidden])') || []);
+}
+
 function bibTeclasLista(ev) {
   const el = document.getElementById('lista');
   if (!el) return;
-  const linhas = Array.from(el.querySelectorAll('.item'));
+  const linhas = bibLinhasVisiveis(el);
   const atual = ev.target instanceof Element ? ev.target.closest('.item') : null;
   const i = atual ? linhas.indexOf(atual) : -1;
 
@@ -16800,7 +16827,7 @@ function bibTeclasBusca(ev) {
     return;
   }
   if (ev.key === 'ArrowDown') {
-    const primeira = document.querySelector('#lista .item');
+    const primeira = document.querySelector('#lista .item:not([hidden])');
     if (!primeira) return;
     ev.preventDefault();
     bibFocarLinha(primeira);
@@ -16859,10 +16886,48 @@ function bibGarantirTeclado() {
     el.addEventListener('keydown', bibTeclasLista);
     /* Delegado no contentor: as linhas são recriadas a cada render. */
     el.addEventListener('mouseover', (ev) => {
-      bibLinhaSobCursor = ev.target instanceof Element ? ev.target.closest('.item') : null;
+      const linha = ev.target instanceof Element ? ev.target.closest('.item') : null;
+      bibLinhaSobCursor = linha && !linha.hidden ? linha : null;
     });
     el.addEventListener('mouseleave', () => {
       bibLinhaSobCursor = null;
+    });
+    el.addEventListener('click', (ev) => {
+      const t = ev.target instanceof Element ? ev.target : null;
+      if (!t) return;
+      const linha = t.closest('.item');
+      if (!linha || !el.contains(linha) || linha.hidden) return;
+      if (t.closest('.bib-add')) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        void bibAdicionarLinha(linha);
+        return;
+      }
+      if (t.closest('.item-acoes-banco')) return;
+      const m = bibMusicaDaLinha(linha);
+      if (!m) return;
+      selecionarMusicaDoBanco(m.id, {
+        fonte: linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+        preferirCopia: true,
+        origemUi: 'biblioteca',
+      });
+    });
+    el.addEventListener('contextmenu', (ev) => {
+      const linha = ev.target instanceof Element ? ev.target.closest('.item') : null;
+      if (!linha || !el.contains(linha) || linha.hidden) return;
+      if (linha.dataset.bibFonte !== 'user') return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const m = bibMusicaDaLinha(linha);
+      if (!m) return;
+      abrirMenuContextoMusicaBanco(ev.clientX, ev.clientY, m, linha);
+    });
+    el.addEventListener('mousedown', (ev) => {
+      const div = ev.target instanceof Element ? ev.target.closest('.item') : null;
+      if (!div || !el.contains(div) || div.hidden) return;
+      const prev = el.querySelector('.item[tabindex="0"]');
+      if (prev && prev !== div) prev.setAttribute('tabindex', '-1');
+      div.setAttribute('tabindex', '0');
     });
     document.addEventListener('keydown', bibEnterGlobal);
   }
@@ -16921,6 +16986,13 @@ function renderizarListaLocal(lista) {
   el.innerHTML = '';
   ativarTooltipTextoTruncado('lista');
   const naPlaylist = bibConjuntoMusicasNaPlaylist();
+  const frag = document.createDocumentFragment();
+  const tplMais = document.createElement('template');
+  tplMais.innerHTML = BIB_SVG_MAIS;
+  const svgMais = tplMais.content.firstElementChild;
+  const tplVisto = document.createElement('template');
+  tplVisto.innerHTML = BIB_SVG_VISTO;
+  const svgVisto = tplVisto.content.firstElementChild;
   let grupoAtual = null;
   let letraAtual = null;
   let primeiraLinha = null;
@@ -16941,7 +17013,7 @@ function renderizarListaLocal(lista) {
       cab.setAttribute('aria-hidden', 'true');
       cab.textContent = letra;
       grupoAtual.appendChild(cab);
-      el.appendChild(grupoAtual);
+      frag.appendChild(grupoAtual);
     }
 
     /* Destaque só desta coluna: seleção na Playlist zera `selecaoUiBiblioteca`. */
@@ -16985,49 +17057,23 @@ function renderizarListaLocal(lista) {
     const add = document.createElement('span');
     add.className = 'bib-add';
     add.setAttribute('aria-hidden', 'true');
-    add.innerHTML = BIB_SVG_MAIS;
+    if (svgMais) add.appendChild(svgMais.cloneNode(true));
     const visto = document.createElement('span');
     visto.className = 'bib-check';
     visto.setAttribute('aria-hidden', 'true');
-    visto.innerHTML = BIB_SVG_VISTO;
+    if (svgVisto) visto.appendChild(svgVisto.cloneNode(true));
     acoes.appendChild(add);
     acoes.appendChild(visto);
 
     div.appendChild(meta);
     div.appendChild(acoes);
 
-    add.addEventListener('click', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      await bibAdicionarLinha(div);
-    });
-
-    /* Só músicas do utilizador têm menu: as do catálogo não podem ser apagadas, e um menu
-       com uma única acção indisponível não diz mais do que menu nenhum. */
-    if (rowFonte === 'user') {
-      div.addEventListener('contextmenu', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        abrirMenuContextoMusicaBanco(ev.clientX, ev.clientY, m, div);
-      });
-    }
-    div.addEventListener('click', (ev) => {
-      if (ev.target instanceof Element && ev.target.closest('.item-acoes-banco')) return;
-      /* Clicar na lista abre a CÓPIA editável; o original fica preservado e
-         acessível pelo chip «Original» da barra de versões. */
-      selecionarMusicaDoBanco(m.id, { fonte: rowFonte, preferirCopia: true, origemUi: 'biblioteca' });
-    });
-    /* Clicar traz o cursor do teclado para a linha: rato e setas partilham a
-       mesma seleção, em vez de haver duas a competir. */
-    div.addEventListener('mousedown', () => {
-      el.querySelectorAll('.item').forEach((x) => x.setAttribute('tabindex', '-1'));
-      div.setAttribute('tabindex', '0');
-    });
-
     grupoAtual.appendChild(div);
     if (!primeiraLinha) primeiraLinha = div;
     if (ativo && !linhaAtiva) linhaAtiva = div;
   });
+
+  el.appendChild(frag);
 
   /* Uma única linha entra no Tab: a carregada, se estiver à vista; senão a primeira. */
   const entrada = linhaAtiva || primeiraLinha;
@@ -17035,7 +17081,7 @@ function renderizarListaLocal(lista) {
 
   /* Devolve o foco à mesma música, se ela sobreviveu ao filtro. */
   if (chaveFocada) {
-    const volta = Array.from(el.querySelectorAll('.item')).find(
+    const volta = bibLinhasVisiveis(el).find(
       (l) => bibChaveMusica(bibMusicaDaLinha(l)?.id, l.dataset.bibFonte) === chaveFocada
     );
     if (volta) bibFocarLinha(volta);
@@ -17044,77 +17090,172 @@ function renderizarListaLocal(lista) {
   bibGarantirTeclado();
 }
 
+function camposBuscaBiblioteca(m) {
+  if (!m) return { titulo: '', artista: '' };
+  if (!m._bibBusca) {
+    m._bibBusca = {
+      titulo: String(m.titulo || '').toLowerCase(),
+      artista: String(m.artista || '').toLowerCase(),
+    };
+  }
+  return m._bibBusca;
+}
+
+/** Monta o DOM completo uma vez por revisão de dados — a digitação só esconde linhas. */
+function garantirDomBibliotecaCompleto() {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  const domOk =
+    bibDomRev === bibDadosRev && (todasMusicas.length === 0 || el.querySelector('.item'));
+  if (domOk) return;
+  renderizarListaLocal(todasMusicas);
+  bibDomRev = bibDadosRev;
+  bibFiltroQAplicado = null;
+}
+
+/**
+ * Mostra/esconde linhas já montadas. Recriar a lista a cada tecla era o que
+ * congelava o campo: `innerHTML = ''` + N nós + N ouvintes no mesmo turno do `input`.
+ */
+function aplicarVisibilidadeBiblioteca(predicado, qAplicada) {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  el.querySelectorAll('.bib-grupo').forEach((grupo) => {
+    let algum = false;
+    grupo.querySelectorAll('.item').forEach((linha) => {
+      const m = bibMusicaDaLinha(linha);
+      const show = !!(m && predicado(m, linha));
+      linha.hidden = !show;
+      if (show) algum = true;
+    });
+    grupo.hidden = !algum;
+  });
+  const q = qAplicada == null ? '' : String(qAplicada);
+  if (q !== bibFiltroQAplicado) {
+    el.scrollTop = 0;
+    bibFiltroQAplicado = q;
+  }
+  atualizarEstadoAdicionadasListaLocal();
+  el.querySelectorAll('.item').forEach((linha) => {
+    const m = bibMusicaDaLinha(linha);
+    if (!m) return;
+    const rowFonte = linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user';
+    const ativo =
+      !!selecaoUiBiblioteca &&
+      Number(selecaoUiBiblioteca.id) === Number(m.id) &&
+      selecaoUiBiblioteca.fonte === rowFonte;
+    linha.classList.toggle('ativo', ativo);
+  });
+}
+
 function filtrar() {
+  /* Sair do turno do `input` antes de qualquer trabalho: a tecla tem de pintar
+     primeiro. Debounce extra só na busca por letra, que vai ao SQLite. */
+  const letra = document.getElementById('filtro-busca-letra')?.checked;
+  const q = (document.getElementById('busca')?.value || '').trim();
+  clearTimeout(filtrarLocalTimer);
+  if (filtrarBibliotecaAbort) {
+    filtrarBibliotecaAbort.abort();
+    filtrarBibliotecaAbort = null;
+  }
+  const geracao = ++filtrarBibliotecaGeracao;
+  const delay = letra && q.length >= 1 ? 220 : 0;
+  filtrarLocalTimer = setTimeout(() => {
+    void aplicarFiltroBiblioteca(geracao);
+  }, delay);
+}
+
+async function aplicarFiltroBiblioteca(geracao) {
+  if (geracao !== filtrarBibliotecaGeracao) return;
   const titulo = document.getElementById('filtro-busca-titulo').checked;
   const artista = document.getElementById('filtro-busca-artista').checked;
   const letra = document.getElementById('filtro-busca-letra').checked;
+  const q = (document.getElementById('busca').value || '').trim();
+
+  garantirDomBibliotecaCompleto();
+  if (geracao !== filtrarBibliotecaGeracao) return;
 
   if (!titulo && !artista && !letra) {
-    renderizarListaLocal([]);
+    aplicarVisibilidadeBiblioteca(() => false, q);
     return;
   }
 
-  const q = (document.getElementById('busca').value || '').trim();
+  if (!q) {
+    aplicarVisibilidadeBiblioteca(() => true, '');
+    return;
+  }
 
-  clearTimeout(filtrarLocalTimer);
-  filtrarLocalTimer = null;
+  if (!letra) {
+    const ql = q.toLowerCase();
+    aplicarVisibilidadeBiblioteca((m) => {
+      const c = camposBuscaBiblioteca(m);
+      return (titulo && c.titulo.includes(ql)) || (artista && c.artista.includes(ql));
+    }, q);
+    return;
+  }
 
-  const precisaDebounce = letra && q.length >= 1;
-
-  const rodar = async () => {
-    try {
-      if (!letra) {
-        if (!q) {
-          renderizarListaLocal(todasMusicas);
-          return;
-        }
-        const ql = q.toLowerCase();
-        const filtradas = todasMusicas.filter(
-          (m) =>
-            (titulo && m.titulo && m.titulo.toLowerCase().includes(ql)) ||
-            (artista && m.artista && m.artista.toLowerCase().includes(ql))
-        );
-        renderizarListaLocal(filtradas);
-        return;
-      }
-
-      if (!q) {
-        renderizarListaLocal(todasMusicas);
-        return;
-      }
-      const qs = new URLSearchParams({
-        q,
-        titulo: titulo ? '1' : '0',
-        artista: artista ? '1' : '0',
-        letra: letra ? '1' : '0',
-      });
-      const res = await fetch(`${getControllerApiBase()}/api/musicas/buscar?${qs}`);
-      const lista = await res.json();
-      if (!Array.isArray(lista)) {
-        renderizarListaLocal([]);
-        return;
-      }
-      /* Só a Biblioteca: o catálogo offline aparece em PESQUISAR MÚSICAS
-         (Banco Local), nunca nesta lista. */
-      renderizarListaLocal(lista.filter((m) => m && (!m.fonte || m.fonte === 'user')));
-    } catch (e) {
-      console.error(e);
-      renderizarListaLocal([]);
+  try {
+    const ctl = new AbortController();
+    filtrarBibliotecaAbort = ctl;
+    const qs = new URLSearchParams({
+      q,
+      titulo: titulo ? '1' : '0',
+      artista: artista ? '1' : '0',
+      letra: letra ? '1' : '0',
+    });
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/buscar?${qs}`, {
+      signal: ctl.signal,
+    });
+    if (geracao !== filtrarBibliotecaGeracao) return;
+    const lista = await res.json();
+    if (geracao !== filtrarBibliotecaGeracao) return;
+    if (!Array.isArray(lista)) {
+      aplicarVisibilidadeBiblioteca(() => false, q);
+      return;
     }
-  };
-
-  if (precisaDebounce) filtrarLocalTimer = setTimeout(() => rodar(), 220);
-  else rodar();
+    const ids = new Set();
+    for (const m of lista) {
+      if (m && (!m.fonte || m.fonte === 'user')) ids.add(Number(m.id));
+    }
+    aplicarVisibilidadeBiblioteca((m, linha) => {
+      const fonte = linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user';
+      return fonte === 'user' && ids.has(Number(m.id));
+    }, q);
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    console.error(e);
+    if (geracao === filtrarBibliotecaGeracao) aplicarVisibilidadeBiblioteca(() => false, q);
+  } finally {
+    if (filtrarBibliotecaAbort && geracao === filtrarBibliotecaGeracao) filtrarBibliotecaAbort = null;
+  }
 }
 
 async function buscarLetrasExterno() {
-  if (getLetrasSiteFonteAtual() === 'banco-local') {
-    const q = document.getElementById('busca-letras-q').value.trim();
-    if (!q) return alert('Digite o nome da música/artista ou um trecho da letra');
-    const titulo = document.getElementById('filtro-busca-titulo').checked;
-    const artista = document.getElementById('filtro-busca-artista').checked;
-    const letra = document.getElementById('filtro-busca-letra').checked;
-    if (!titulo && !artista && !letra) return alert('Marque pelo menos um critério de busca.');
+  const q = document.getElementById('busca-letras-q').value.trim();
+  const titulo = document.getElementById('filtro-busca-titulo').checked;
+  const artista = document.getElementById('filtro-busca-artista').checked;
+  const letra = document.getElementById('filtro-busca-letra').checked;
+  const fonteLocal = getLetrasSiteFonteAtual() === 'banco-local';
+
+  if (!q) {
+    return alert(
+      fonteLocal
+        ? 'Digite o nome da música/artista ou um trecho da letra'
+        : 'Digite o nome da música/artista'
+    );
+  }
+  if (!titulo && !artista && !letra) return alert('Marque pelo menos um critério de busca.');
+
+  if (letrasBuscaAbort) {
+    letrasBuscaAbort.abort();
+    letrasBuscaAbort = null;
+  }
+  const geracao = ++letrasBuscaGeracao;
+  const ctl = new AbortController();
+  letrasBuscaAbort = ctl;
+  const vigente = () => geracao === letrasBuscaGeracao;
+
+  if (fonteLocal) {
     const elLista = document.getElementById('lista-internet');
     if (elLista) elLista.innerHTML = '<div class="placeholder-msg">Buscando no banco offline…</div>';
     try {
@@ -17124,8 +17265,12 @@ async function buscarLetrasExterno() {
         artista: artista ? '1' : '0',
         letra: letra ? '1' : '0',
       });
-      const res = await fetch(`${getControllerApiBase()}/api/letras/buscar-local?${params}`);
+      const res = await fetch(`${getControllerApiBase()}/api/letras/buscar-local?${params}`, {
+        signal: ctl.signal,
+      });
+      if (!vigente()) return;
       const data = await res.json().catch(() => ({}));
+      if (!vigente()) return;
 
       if (!data.sucesso) {
         alert(data.erro || 'Erro ao buscar no banco local');
@@ -17150,37 +17295,31 @@ async function buscarLetrasExterno() {
         origem: r.origem === 'user' ? 'user' : 'catalog',
       }));
       renderizarListaInternet(resultadosLetrasCache);
-    } catch (_err) {
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      if (!vigente()) return;
       alert('Erro de conexão com o banco offline.');
       resultadosLetrasCache = [];
       renderizarListaInternet([]);
+    } finally {
+      if (letrasBuscaAbort === ctl) letrasBuscaAbort = null;
     }
     return;
   }
 
-  const q = document.getElementById('busca-letras-q').value.trim();
-  if (!q) return alert('Digite o nome da música/artista');
-  
-  const titulo = document.getElementById('filtro-busca-titulo').checked;
-  const artista = document.getElementById('filtro-busca-artista').checked;
-  const letra = document.getElementById('filtro-busca-letra').checked;
-  
-  if (!titulo && !artista && !letra) return alert('Marque pelo menos um critério de busca.');
-  
-  // ALTERADO: agora aponta para o Controller (porta 3001)
-  const base = `${getControllerApiBase()}/api/letras/buscar`;
-  
   try {
-    // Controller espera titulo e artista como query params
     const params = new URLSearchParams({
       titulo: q,
       artista: artista ? '1' : '',
       fonte: getLetrasSiteFonteAtual(),
     });
-    
-    const res = await fetch(`${base}?${params}`);
+    const res = await fetch(`${getControllerApiBase()}/api/letras/buscar?${params}`, {
+      signal: ctl.signal,
+    });
+    if (!vigente()) return;
     const data = await res.json().catch(() => ({}));
-    
+    if (!vigente()) return;
+
     if (!res.ok) {
       alert(data.erro || `Erro HTTP ${res.status}`);
       resultadosLetrasCache = [];
@@ -17197,8 +17336,12 @@ async function buscarLetrasExterno() {
       renderizarListaInternet([]);
     }
   } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    if (!vigente()) return;
     console.error('Erro na busca:', e);
     alert('Erro ao buscar letra. Verifique se o Controller está rodando (porta 3001): ' + e.message);
+  } finally {
+    if (letrasBuscaAbort === ctl) letrasBuscaAbort = null;
   }
 }
 

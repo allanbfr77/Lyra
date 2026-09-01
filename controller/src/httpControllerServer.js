@@ -329,6 +329,83 @@ function fold(s) {
     .trim();
 }
 
+const BUSCA_MUSICAS_LOTE = 40;
+
+function matchTituloArtistaBusca(titulo, artista, foldQ, wantTit, wantArt) {
+  if (!foldQ) return true;
+  if (wantTit && fold(titulo).includes(foldQ)) return true;
+  if (wantArt && fold(artista).includes(foldQ)) return true;
+  return false;
+}
+
+function matchLetraBusca(estrofesJson, foldQ) {
+  if (!foldQ) return false;
+  try {
+    const arr = JSON.parse(estrofesJson || '[]');
+    const letraTxt = fold(Array.isArray(arr) ? arr.join('\n') : String(arr));
+    return letraTxt.includes(foldQ);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Varre um SQLite de músicas sem carregar todas as letras de uma vez.
+ * Percorre a tabela na ordem original (como o scan antigo); título/artista
+ * resolvem-se na meta e as estrofes vêm em lotes, com `setImmediate` entre
+ * eles, para o processo principal do Electron não congelar a digitação.
+ *
+ * @param {import('better-sqlite3').Database | null} sqliteDb
+ * @param {{ foldQ: string, wantTit: boolean, wantArt: boolean, wantLetra: boolean, soRaiz?: boolean, limite?: number }} opts
+ * @returns {Promise<Array<{ id: number, titulo: string, artista: string }>>}
+ */
+async function varrerMusicasPorCriterios(sqliteDb, opts) {
+  const wantTit = !!opts.wantTit;
+  const wantArt = !!opts.wantArt;
+  const wantLetra = !!opts.wantLetra;
+  const foldQ = opts.foldQ;
+  const limite = Number.isFinite(opts.limite) && opts.limite > 0 ? opts.limite : Infinity;
+  if (!sqliteDb || (!wantTit && !wantArt && !wantLetra)) return [];
+
+  const sql = opts.soRaiz
+    ? 'SELECT id, titulo, artista FROM musicas WHERE parent_id IS NULL'
+    : 'SELECT id, titulo, artista FROM musicas';
+  const metas = sqliteDb.prepare(sql).all();
+  const out = [];
+
+  for (let i = 0; i < metas.length && out.length < limite; i += BUSCA_MUSICAS_LOTE) {
+    if (wantLetra && i > 0) await new Promise((r) => setImmediate(r));
+    const chunk = metas.slice(i, i + BUSCA_MUSICAS_LOTE);
+    const idsLetra = [];
+    const hitTitArt = new Set();
+    for (const r of chunk) {
+      if (matchTituloArtistaBusca(r.titulo, r.artista, foldQ, wantTit, wantArt)) {
+        hitTitArt.add(r.id);
+      } else if (wantLetra) {
+        idsLetra.push(r.id);
+      }
+    }
+    const hitLetra = new Set();
+    if (idsLetra.length) {
+      const ph = idsLetra.map(() => '?').join(',');
+      const rows = sqliteDb
+        .prepare(`SELECT id, estrofes FROM musicas WHERE id IN (${ph})`)
+        .all(...idsLetra);
+      for (const row of rows) {
+        if (matchLetraBusca(row.estrofes, foldQ)) hitLetra.add(row.id);
+      }
+    }
+    for (const r of chunk) {
+      if (out.length >= limite) break;
+      if (hitTitArt.has(r.id) || hitLetra.has(r.id)) {
+        out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '' });
+      }
+    }
+  }
+
+  return limite === Infinity ? out : out.slice(0, limite);
+}
+
 const LIVROS_BIBLIA_ALIASES = new Map([
   ['atos', ['Atos', 'Atos dos Apóstolos']],
   ['atos dos apostolos', ['Atos dos Apóstolos', 'Atos']],
@@ -1062,55 +1139,29 @@ async function iniciarServidorController(ctx, paths) {
    * Busca na Biblioteca do programa (banco do utilizador).
    *
    * O catálogo offline («Banco Local» em PESQUISAR MÚSICAS) não entra aqui —
-   * tem endpoint próprio: GET /api/letras/buscar-local. Incluí-lo fazia a
-   * opção «Letra (trecho)» listar na Biblioteca músicas que só existem no
-   * catálogo.
+   * tem endpoint próprio: GET /api/letras/buscar-local.
    */
   expressApp.get('/api/musicas/buscar', (req, res) => {
-    try {
-      const qRaw = String(req.query.q || '').trim();
-      const wantTit = req.query.titulo === '1';
-      const wantArt = req.query.artista === '1';
-      const wantLetra = req.query.letra === '1';
-      if (!wantTit && !wantArt && !wantLetra) return res.json([]);
+    const qRaw = String(req.query.q || '').trim();
+    const wantTit = req.query.titulo === '1';
+    const wantArt = req.query.artista === '1';
+    const wantLetra = req.query.letra === '1';
+    if (!wantTit && !wantArt && !wantLetra) return res.json([]);
 
-      const foldQ = fold(qRaw);
-
-      const matchRow = (titulo, artista, estrofesJson) => {
-        if (!foldQ) return true;
-        const t = fold(titulo);
-        const a = fold(artista);
-        let letraTxt = '';
-        try {
-          const arr = JSON.parse(estrofesJson || '[]');
-          letraTxt = fold(Array.isArray(arr) ? arr.join('\n') : String(arr));
-        } catch (_) {
-  // intencional — erro ignorado
-}
-        if (wantTit && t.includes(foldQ)) return true;
-        if (wantArt && a.includes(foldQ)) return true;
-        if (wantLetra && letraTxt.includes(foldQ)) return true;
-        return false;
-      };
-
-      const out = [];
-      const seen = new Set();
-      const rowsU = db
-        .prepare(
-          `SELECT id, titulo, artista, estrofes FROM musicas WHERE parent_id IS NULL`
-        )
-        .all();
-      for (const r of rowsU) {
-        if (!matchRow(r.titulo, r.artista, r.estrofes)) continue;
-        const k = `u:${r.id}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '', fonte: 'user' });
+    void (async () => {
+      try {
+        const rows = await varrerMusicasPorCriterios(db, {
+          foldQ: fold(qRaw),
+          wantTit,
+          wantArt,
+          wantLetra,
+          soRaiz: true,
+        });
+        res.json(rows.map((r) => ({ ...r, fonte: 'user' })));
+      } catch (e) {
+        if (!res.headersSent) res.status(500).json({ erro: e.message || String(e) });
       }
-      res.json(out);
-    } catch (e) {
-      res.status(500).json({ erro: e.message || String(e) });
-    }
+    })();
   });
 
   expressApp.get('/api/musicas/:id', (req, res) => {
@@ -1632,79 +1683,47 @@ async function iniciarServidorController(ctx, paths) {
   });
 
   expressApp.get('/api/letras/buscar-local', (req, res) => {
-    try {
-      const qRaw = String(req.query.q || req.query.titulo || '').trim();
-      const wantTit = req.query.titulo === '1';
-      const wantArt = req.query.artista === '1';
-      const wantLetra = req.query.letra === '1';
-      if (!qRaw) return res.json({ sucesso: false, erro: 'Informe o texto da busca', resultados: [] });
-      if (!wantTit && !wantArt && !wantLetra) {
-        return res.json({
-          sucesso: false,
-          erro: 'Marque pelo menos um critério: Música (título), Artista ou Letra (trecho)',
-          resultados: [],
+    const qRaw = String(req.query.q || req.query.titulo || '').trim();
+    const wantTit = req.query.titulo === '1';
+    const wantArt = req.query.artista === '1';
+    const wantLetra = req.query.letra === '1';
+    if (!qRaw) return res.json({ sucesso: false, erro: 'Informe o texto da busca', resultados: [] });
+    if (!wantTit && !wantArt && !wantLetra) {
+      return res.json({
+        sucesso: false,
+        erro: 'Marque pelo menos um critério: Música (título), Artista ou Letra (trecho)',
+        resultados: [],
+      });
+    }
+
+    const catalogDb = getCatalog();
+    void (async () => {
+      try {
+        const rows = await varrerMusicasPorCriterios(catalogDb, {
+          foldQ: fold(qRaw),
+          wantTit,
+          wantArt,
+          wantLetra,
+          limite: 40,
         });
-      }
-
-      const foldQ = fold(qRaw);
-      const matchRow = (titulo, artista, estrofesJson) => {
-        const t = fold(titulo);
-        const a = fold(artista);
-        let letraTxt = '';
-        try {
-          const arr = JSON.parse(estrofesJson || '[]');
-          letraTxt = fold(Array.isArray(arr) ? arr.join('\n') : String(arr));
-        } catch (_) {
-          // intencional — erro ignorado
-        }
-        if (wantTit && t.includes(foldQ)) return true;
-        if (wantArt && a.includes(foldQ)) return true;
-        if (wantLetra && letraTxt.includes(foldQ)) return true;
-        return false;
-      };
-
-      const resultados = [];
-
-      const catalogDb = getCatalog();
-      if (catalogDb) {
-        try {
-          const rowsC = catalogDb.prepare('SELECT id, titulo, artista, estrofes FROM musicas').all();
-          for (const r of rowsC) {
-            if (!matchRow(r.titulo, r.artista, r.estrofes)) continue;
-            resultados.push({
-              id: r.id,
-              titulo: r.titulo,
-              artista: r.artista || '',
-              fonte: 'banco-local',
-              origem: 'catalog',
-            });
-          }
-        } catch (_) {
-          // intencional — erro ignorado
-        }
-      }
-
-      const limitados = resultados.slice(0, 40);
-      if (!limitados.length) {
-        return res.json({
+        const resultados = rows.map((r) => ({
+          id: r.id,
+          titulo: r.titulo,
+          artista: r.artista || '',
+          fonte: 'banco-local',
+          origem: 'catalog',
+        }));
+        res.json({
           sucesso: true,
-          resultados: [],
-          total: 0,
+          resultados,
+          total: resultados.length,
           offline: true,
           catalogDisponivel: !!catalogDb,
         });
+      } catch (err) {
+        if (!res.headersSent) res.json({ sucesso: false, erro: err.message, resultados: [] });
       }
-
-      res.json({
-        sucesso: true,
-        resultados: limitados,
-        total: limitados.length,
-        offline: true,
-        catalogDisponivel: !!catalogDb,
-      });
-    } catch (err) {
-      res.json({ sucesso: false, erro: err.message, resultados: [] });
-    }
+    })();
   });
 
   expressApp.get('/api/letras/preview-local', (req, res) => {
