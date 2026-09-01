@@ -13237,6 +13237,7 @@ async function alternarModoLetraCompletaCentral() {
   };
   modoLetraCompletaCentral = true;
   aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
+  sincronizarFlagCaixaLetrasComTextoAtual();
   atualizarToolbarModoEdicao();
 }
 
@@ -14016,46 +14017,107 @@ function aplicarCaixaLetrasAoTexto(texto) {
     : textoEstrofeCaixaSentenca(texto);
 }
 
-/** Força MAIÚSCULAS no textarea preservando o cursor (só no modo aA activo). */
-function forcarMaiusculasNoTextareaSeAtivo(ta) {
-  if (!caixaLetrasEdicaoMaiuscula || !ta) return;
+/** true se o texto já está todo em maiúsculas (e tem letras com caixa). */
+function textoEstaTodoEmMaiusculas(texto) {
+  const s = String(texto ?? '');
+  if (!s) return false;
+  if (s !== textoEstrofeCaixaMaiuscula(s)) return false;
+  return s !== s.toLocaleLowerCase('pt-BR');
+}
+
+function obterTextosEstrofesEmEdicao() {
+  if (modoLetraCompletaCentral) {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    if (ta) return [ta.value];
+  }
+  if (modoEdicaoEstrofes) {
+    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
+    if (tas.length) return tas.map((ta) => ta.value);
+  }
+  return Array.isArray(musicaAtiva?.estrofes)
+    ? musicaAtiva.estrofes.map((s) => String(s ?? ''))
+    : [];
+}
+
+function estrofesEmEdicaoEstaoEmMaiusculas() {
+  return textoEstaTodoEmMaiusculas(obterTextosEstrofesEmEdicao().join('\n'));
+}
+
+/** Alinha o botão aA ao que a letra já tem (evita 1.º clique no-op em letras MAIÚSCULAS). */
+function sincronizarFlagCaixaLetrasComTextoAtual() {
+  caixaLetrasEdicaoMaiuscula = estrofesEmEdicaoEstaoEmMaiusculas();
+}
+
+function aplicarValorTextareaPreservandoSelecao(ta, novo) {
+  if (!ta || ta.value === novo) return false;
   const start = ta.selectionStart;
   const end = ta.selectionEnd;
-  const up = textoEstrofeCaixaMaiuscula(ta.value);
-  if (up === ta.value) return;
-  ta.value = up;
+  ta.value = novo;
   try {
     ta.setSelectionRange(start, end);
   } catch (_) {
     /* ignore */
   }
+  return true;
 }
 
-/** Aplica a caixa actual a todas as estrofes / textarea da edição. */
+/** Força MAIÚSCULAS no textarea preservando o cursor (só no modo aA activo). */
+function forcarMaiusculasNoTextareaSeAtivo(ta) {
+  if (!caixaLetrasEdicaoMaiuscula || !ta) return;
+  aplicarValorTextareaPreservandoSelecao(ta, textoEstrofeCaixaMaiuscula(ta.value));
+}
+
+/**
+ * Aplica a caixa actual nos textareas já montados — sem reconstruir os cartões.
+ * Faixa e prévias já mostram maiúsculas; um rebuild só fazia os slides tremerem.
+ */
 function aplicarCaixaLetrasNasEstrofesEmEdicao() {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
+  let alterou = false;
   if (modoLetraCompletaCentral) {
     const ta = document.getElementById('centro-letra-completa-ta');
     if (ta) {
-      const start = ta.selectionStart;
-      const end = ta.selectionEnd;
-      ta.value = aplicarCaixaLetrasAoTexto(ta.value);
-      try {
-        ta.setSelectionRange(start, end);
-      } catch (_) {
-        /* ignore */
+      const novo = aplicarCaixaLetrasAoTexto(ta.value);
+      if (aplicarValorTextareaPreservandoSelecao(ta, novo)) alterou = true;
+      const novas = splitTextoLetraCompletaEmEstrofes(ta.value);
+      if (
+        novas.length !== musicaAtiva.estrofes.length ||
+        novas.some((s, i) => s !== musicaAtiva.estrofes[i])
+      ) {
+        musicaAtiva.estrofes = novas;
+        alterou = true;
       }
-      sincronizarEstrofesDesdeTextareaLetraCompleta();
       if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
         guiasEstrofesLetraCompleta.agendar();
       }
     }
   } else if (modoEdicaoEstrofes) {
-    musicaAtiva.estrofes = musicaAtiva.estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
-    renderEstrofesEditor();
+    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
+    if (tas.length === musicaAtiva.estrofes.length) {
+      tas.forEach((ta) => {
+        const idx = parseInt(ta.dataset.i, 10);
+        const novo = aplicarCaixaLetrasAoTexto(ta.value);
+        if (Number.isFinite(idx) && musicaAtiva.estrofes[idx] != null && musicaAtiva.estrofes[idx] !== novo) {
+          musicaAtiva.estrofes[idx] = novo;
+          alterou = true;
+        }
+        if (aplicarValorTextareaPreservandoSelecao(ta, novo)) {
+          alterou = true;
+          aplicarAlturaCardEstrofe(ta.closest('.estrofe-slide-edit'));
+        }
+      });
+    } else {
+      const novas = musicaAtiva.estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
+      alterou = novas.some((s, i) => s !== musicaAtiva.estrofes[i]);
+      musicaAtiva.estrofes = novas;
+      renderEstrofesEditor();
+    }
   }
-  renderSlidesStrip();
-  atualizarPreviewOperador();
+  if (!alterou) return;
+  const grid = document.getElementById('slides-grid');
+  if (grid && musicaAtiva.estrofes) {
+    grid.dataset.stripDigest = digestEstrofesParaStripFaixa(musicaAtiva.estrofes);
+  }
   if (projecaoMusicaEmitidaNoServidor && projecao.pronta() && estrofeAtiva >= 0) {
     emitirEstrofeAoServidor(estrofeAtiva);
   }
@@ -14072,7 +14134,9 @@ function alternarCaixaLetrasEdicao() {
       }
     });
   }
-  caixaLetrasEdicaoMaiuscula = !caixaLetrasEdicaoMaiuscula;
+  /* Converte para o oposto do que o texto já é — o flag arrancava em false,
+     então o 1.º clique só re-renderizava letras que já estavam em MAIÚSCULAS. */
+  caixaLetrasEdicaoMaiuscula = !estrofesEmEdicaoEstaoEmMaiusculas();
   aplicarCaixaLetrasNasEstrofesEmEdicao();
   atualizarToolbarCaixaLetrasEdicao();
 }
@@ -14088,6 +14152,12 @@ function configurarCamposMetadadosMusicaHome() {
       if (!modoLetraCompletaCentral) return;
       forcarMaiusculasNoTextareaSeAtivo(taFull);
     });
+  }
+  const btnCaixa = document.getElementById('btn-caixa-letras-edicao');
+  if (btnCaixa && btnCaixa.dataset.caixaLetrasCfg !== '1') {
+    btnCaixa.dataset.caixaLetrasCfg = '1';
+    /* Evita blur do textarea no mousedown (rebuild dos cartões roubava o 1.º clique). */
+    btnCaixa.addEventListener('mousedown', (e) => e.preventDefault());
   }
 }
 
@@ -14110,6 +14180,7 @@ function entrarModoEdicao() {
     estrofeAtiva,
   };
   modoEdicaoEstrofes = true;
+  sincronizarFlagCaixaLetrasComTextoAtual();
   renderEstrofesEditor();
 }
 
