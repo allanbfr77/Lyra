@@ -12925,8 +12925,11 @@ const guiasEstrofesLetraCompleta = (() => {
 
   /**
    * Índices das linhas em branco que separam de facto duas estrofes.
-   * Espelha `splitTextoEmEstrofesPorLinhaVaziaStrict`: corridas de linhas vazias contam
-   * como um único corte, e vazios no início/fim não separam nada.
+   * Espelha `splitTextoEmEstrofesPorLinhaVaziaStrict`: uma corrida de vazias é
+   * um único corte. A guia vai na ÚLTIMA vazia da corrida — assim um Enter no
+   * fim do slide (ainda no mesmo bloco) empurra a linha para baixo, em vez de
+   * a deixar colada à última frase. Dois Enters no fim (duas vazias) marcam
+   * slide novo; um Enter pendurado não.
    * @param {string[]} linhas
    * @returns {number[]}
    */
@@ -12939,10 +12942,12 @@ const guiasEstrofesLetraCompleta = (() => {
         if (viuConteudo && inicioCorrida === -1) inicioCorrida = i;
         continue;
       }
-      /* Só é separadora se houver conteúdo antes e depois. */
-      if (inicioCorrida !== -1) idx.push(inicioCorrida);
+      if (inicioCorrida !== -1) idx.push(i - 1);
       inicioCorrida = -1;
       viuConteudo = true;
+    }
+    if (inicioCorrida !== -1 && linhas.length - inicioCorrida >= 2) {
+      idx.push(linhas.length - 1);
     }
     return idx;
   }
@@ -12953,8 +12958,10 @@ const guiasEstrofesLetraCompleta = (() => {
     if (!els) return;
     const { ta, guias } = els;
     if (!modoLetraCompletaCentral || guias.offsetParent === null) {
-      espelho.textContent = '';
-      desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+      if (espelho) espelho.textContent = '';
+      if (desloca) {
+        desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+      }
       return;
     }
 
@@ -12962,6 +12969,12 @@ const guiasEstrofesLetraCompleta = (() => {
     PROPS_METRICA.forEach((p) => {
       espelho.style[p] = cs[p];
     });
+    /* O fluxo contínuo com <span> vazio não gerava caixa de linha: o offsetTop
+       ficava preso e as guias não acompanhavam o Enter. Cada linha do textarea
+       vira um bloco — linhas longas continuam a quebrar com as mesmas métricas. */
+    espelho.style.whiteSpace = 'pre-wrap';
+    espelho.style.overflowWrap = 'break-word';
+    espelho.style.wordBreak = 'normal';
     /* `clientWidth` já exclui a barra de deslocamento — a largura útil bate certo. */
     espelho.style.width = `${ta.clientWidth}px`;
     espelho.style.border = '0';
@@ -12972,37 +12985,33 @@ const guiasEstrofesLetraCompleta = (() => {
       .replace(/\r/g, '\n')
       .split('\n');
     const separadoras = indicesLinhasSeparadoras(linhas);
+    const alvo = new Set(separadoras);
 
     desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
-    if (!separadoras.length) {
-      espelho.textContent = '';
-      desloca.style.transform = 'translateY(0px)';
+    espelho.textContent = '';
+    const marcas = [];
+    linhas.forEach((linha, i) => {
+      const row = document.createElement('div');
+      row.className = 'centro-letra-completa-espelho-linha';
+      /* NBSP na linha vazia: sem caractere o bloco colapsa e o offset mente. */
+      row.textContent = linha === '' ? '\u00a0' : linha;
+      espelho.appendChild(row);
+      if (alvo.has(i)) marcas.push(row);
+    });
+
+    if (!marcas.length) {
+      desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
       return;
     }
 
-    /* Espelho = mesmo texto, com marcas de largura zero no início das linhas separadoras.
-       Marcas em linha e vazias não alteram a quebra de linha, mas dão-nos o `offsetTop`. */
-    espelho.textContent = '';
-    const marcas = [];
-    const alvo = new Set(separadoras);
-    linhas.forEach((linha, i) => {
-      if (i > 0) espelho.appendChild(document.createTextNode('\n'));
-      if (alvo.has(i)) {
-        const marca = document.createElement('span');
-        espelho.appendChild(marca);
-        marcas.push(marca);
-      }
-      if (linha !== '') espelho.appendChild(document.createTextNode(linha));
-    });
-
     const alturaLinha = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
-    /* Recuo igual ao do texto, para a régua não invadir o espaço da barra de deslocamento. */
     const recuoEsq = cs.paddingLeft;
     const recuoDir = cs.paddingRight;
     marcas.forEach((marca) => {
       const regua = document.createElement('div');
       regua.className = 'centro-letra-completa-guia';
-      regua.style.top = `${Math.round(marca.offsetTop + alturaLinha / 2)}px`;
+      const h = marca.offsetHeight || alturaLinha;
+      regua.style.top = `${Math.round(marca.offsetTop + h / 2)}px`;
       regua.style.left = recuoEsq;
       regua.style.right = recuoDir;
       desloca.appendChild(regua);
@@ -13021,8 +13030,16 @@ const guiasEstrofesLetraCompleta = (() => {
   function agendar() {
     if (agendado) return;
     agendado = true;
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(desenhar);
-    else setTimeout(desenhar, 0);
+    const pintar = () => {
+      desenhar();
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => {
+        pintar();
+        /* O Enter pode mostrar a barra de deslocamento só no frame seguinte. */
+        requestAnimationFrame(pintar);
+      });
+    } else setTimeout(pintar, 0);
   }
 
   function ligar() {
@@ -13035,6 +13052,9 @@ const guiasEstrofesLetraCompleta = (() => {
     }
     ta.dataset.guiasLigadas = '1';
     ta.addEventListener('input', agendar);
+    ta.addEventListener('keyup', agendar);
+    ta.addEventListener('paste', agendar);
+    ta.addEventListener('cut', agendar);
     ta.addEventListener('scroll', sincronizarDeslocamento, { passive: true });
     window.addEventListener('resize', agendar);
     if (typeof ResizeObserver === 'function') {
@@ -14185,6 +14205,9 @@ function configurarCamposMetadadosMusicaHome() {
     taFull.addEventListener('input', () => {
       if (!modoLetraCompletaCentral) return;
       forcarMaiusculasNoTextareaSeAtivo(taFull);
+      if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
+        guiasEstrofesLetraCompleta.agendar();
+      }
     });
   }
   const btnCaixa = document.getElementById('btn-caixa-letras-edicao');
