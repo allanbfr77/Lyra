@@ -9816,6 +9816,7 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
         versaoLocalId: item.versaoLocalId || undefined,
         fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
         origemUi: 'playlist',
+        abrirEmLetraCompleta: true,
       });
     }, 300);
   });
@@ -13206,6 +13207,19 @@ async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
   return true;
 }
 
+/** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade. */
+function entrarModoLetraCompletaCentral() {
+  if (!musicaAtiva || modoLetraCompletaCentral) return;
+  snapshotLetraCompleta = {
+    estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
+    estrofeAtiva,
+  };
+  modoLetraCompletaCentral = true;
+  aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
+  sincronizarFlagCaixaLetrasComTextoAtual();
+  atualizarToolbarModoEdicao();
+}
+
 async function alternarModoLetraCompletaCentral() {
   if (!musicaAtiva) return;
   if (modoLetraCompletaCentral) {
@@ -13226,19 +13240,17 @@ async function alternarModoLetraCompletaCentral() {
         return;
       }
     }
-    snapshotLetraCompleta = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
-    atualizarToolbarModoEdicao();
+    sairDoModoLetraCompletaParaGrade();
     return;
   }
-  snapshotLetraCompleta = {
-    estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva,
-  };
-  modoLetraCompletaCentral = true;
-  aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
-  sincronizarFlagCaixaLetrasComTextoAtual();
+  entrarModoLetraCompletaCentral();
+}
+
+/** Transição partilhada de volta à grade de slides (destino de Salvar, Cancelar e Grade/Slide). */
+function sairDoModoLetraCompletaParaGrade() {
+  snapshotLetraCompleta = null;
+  modoLetraCompletaCentral = false;
+  aplicarLayoutModoLetraCompleta();
   atualizarToolbarModoEdicao();
 }
 
@@ -13265,15 +13277,31 @@ function cancelarModoLetraCompletaCentral() {
       projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
     }
   }
-  snapshotLetraCompleta = null;
-  modoLetraCompletaCentral = false;
-  aplicarLayoutModoLetraCompleta();
-  atualizarToolbarModoEdicao();
+  sairDoModoLetraCompletaParaGrade();
+}
+
+/**
+ * Atalho de navegação: volta à grade sem gravar.
+ * Reutiliza o mesmo destino de Cancelar. Se a letra estiver suja, pede confirmação
+ * (o Cancelar desta barra descarta em silêncio; o Cancelar do modo edição por
+ * slides já avisa — o mesmo cuidado aplica-se aqui).
+ */
+async function irParaGradeSlidesDesdeLetraCompleta() {
+  if (!modoLetraCompletaCentral) return;
+  if (letraCompletaSujaVsSnapshot()) {
+    const ok = await appConfirm(
+      'Há alterações não gravadas. Descartar e voltar à grade de slides? Use «Salvar alterações» para gravar no banco.',
+      'Voltar à grade'
+    );
+    if (!ok) return;
+  }
+  cancelarModoLetraCompletaCentral();
 }
 
 function atualizarToolbarModoLetraCompleta() {
   const btn = document.getElementById('btn-modo-letra-completa');
   const btnCancelar = document.getElementById('btn-cancelar-letra-completa');
+  const btnGrade = document.getElementById('btn-grade-slides-letra-completa');
   if (!btn) return;
   const m = !!musicaAtiva;
   const mostrar = m && !modoEdicaoEstrofes;
@@ -13298,6 +13326,10 @@ function atualizarToolbarModoLetraCompleta() {
   if (btnCancelar) {
     btnCancelar.style.display = mostrar && modoLetraCompletaCentral ? '' : 'none';
     btnCancelar.disabled = !mostrar || !modoLetraCompletaCentral;
+  }
+  if (btnGrade) {
+    btnGrade.style.display = mostrar && modoLetraCompletaCentral ? '' : 'none';
+    btnGrade.disabled = !mostrar || !modoLetraCompletaCentral;
   }
 }
 
@@ -13959,6 +13991,7 @@ function atualizarToolbarModoComparativo() {
     'btn-editar-letra',
     'btn-modo-letra-completa',
     'btn-cancelar-letra-completa',
+    'btn-grade-slides-letra-completa',
     'btn-nova-estrofe',
     'btn-salvar-musica',
     'btn-encerrar-edicao',
@@ -17328,6 +17361,7 @@ function bibTeclasLista(ev) {
         fonte: atual.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
         preferirCopia: true,
         origemUi: 'biblioteca',
+        abrirEmLetraCompleta: true,
       });
     } else {
       bibAdicionarLinha(atual);
@@ -17400,6 +17434,7 @@ function bibEnterGlobal(ev) {
       fonte: bibLinhaSobCursor.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
       preferirCopia: true,
       origemUi: 'biblioteca',
+      abrirEmLetraCompleta: true,
     });
   } else {
     bibAdicionarLinha(bibLinhaSobCursor);
@@ -17438,6 +17473,7 @@ function bibGarantirTeclado() {
         fonte: linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
         preferirCopia: true,
         origemUi: 'biblioteca',
+        abrirEmLetraCompleta: true,
       });
     });
     el.addEventListener('contextmenu', (ev) => {
@@ -18523,6 +18559,15 @@ async function selecionarMusicaDoBanco(id, opts) {
     if (!emModoSlides) renderEstrofesEditor();
     renderSlidesStrip();
     atualizarPreviewOperador();
+    /* Clique na Biblioteca/Playlist da Home: abre em letra completa.
+       Outros fluxos (importar, nova versão, próxima música, modo slides) ficam na grade. */
+    if (
+      opts &&
+      opts.abrirEmLetraCompleta &&
+      modoRoteamentoAtual() === 'completo'
+    ) {
+      entrarModoLetraCompletaCentral();
+    }
     return true;
   } catch (e) {
     musicaAtiva = null;
@@ -18862,6 +18907,7 @@ exporCallbacksParaAtributosHtml({
   iniciarCriarNovaVersao,
   alternarModoLetraCompletaCentral,
   cancelarModoLetraCompletaCentral,
+  irParaGradeSlidesDesdeLetraCompleta,
   alternarModoComparativoCentral,
   cancelarModoComparativoCentral,
   alternarCaixaLetrasEdicao,
