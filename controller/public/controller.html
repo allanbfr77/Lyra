@@ -3669,14 +3669,47 @@
       background: color-mix(in srgb, var(--accent) 55%, transparent);
     }
 
-    /* Seletores de versão do diálogo «o que comparar». */
-    .cmp-escolha-campo {
+    /* Diálogo «Comparar versões»: duas colunas empilhadas, opções em lista vertical. */
+    .app-dialog--cmp-escolha {
+      max-width: 420px;
+      max-height: min(90vh, 720px);
       display: flex;
       flex-direction: column;
-      gap: 4px;
     }
 
-    .cmp-escolha-campo label {
+    .app-dialog--cmp-escolha .app-dialog-body {
+      white-space: normal;
+      padding: 18px 18px 16px;
+      overflow-y: auto;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    .app-dialog--cmp-escolha .app-dialog-actions {
+      flex-shrink: 0;
+    }
+
+    .cmp-escolha-form {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .cmp-escolha-intro {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--text-dim);
+    }
+
+    .cmp-escolha-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .cmp-escolha-col-titulo {
       font-size: 13px;
       font-weight: 700;
       letter-spacing: 0.03em;
@@ -3684,16 +3717,90 @@
       color: var(--text-dim);
     }
 
-    .cmp-escolha-campo select {
+    .cmp-escolha-col-nota {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--text-dim);
+      opacity: 0.8;
+    }
+
+    .cmp-escolha-col-hint {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.4;
+      min-height: calc(1.4em);
+      color: var(--text-dim);
+      font-style: italic;
+      opacity: 0.85;
+    }
+
+    .cmp-escolha-col-hint--ok {
+      font-style: normal;
+      font-weight: 600;
+      color: var(--accent);
+      opacity: 1;
+    }
+
+    .cmp-escolha-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      /* Com muitas versões, cada coluna rola de forma independente. */
+      max-height: min(220px, 34vh);
+      overflow-y: auto;
+      padding: 2px 4px 2px 2px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+    }
+
+    .cmp-escolha-lista::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .cmp-escolha-lista::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .cmp-escolha-lista::-webkit-scrollbar-thumb {
+      background: var(--scroll-thumb);
+      border-radius: 4px;
+    }
+
+    .cmp-escolha-lista::-webkit-scrollbar-thumb:hover {
+      background: var(--scroll-thumb-hover);
+    }
+
+    .cmp-escolha-opcao {
       width: 100%;
       box-sizing: border-box;
-      padding: 8px 10px;
-      border-radius: 6px;
+      padding: 10px 12px;
+      border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--surface2);
       color: var(--text);
       font-family: var(--font-ui);
       font-size: 15px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .cmp-escolha-opcao:hover {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    }
+
+    .cmp-escolha-opcao.ativo {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 16%, var(--surface2));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+
+    .cmp-escolha-col--pendente .cmp-escolha-lista {
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent);
+      border-radius: 8px;
     }
 
     .cmp-escolha-erro {

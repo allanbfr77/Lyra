@@ -13246,50 +13246,83 @@ function escolherVersoesParaComparar(versoes, rootId) {
   const head = document.getElementById('app-dialog-head');
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
+  const dialog = ov?.querySelector('.app-dialog');
   if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(null);
 
   return new Promise((resolve) => {
     appEscolhaResolver = resolve;
     head.textContent = 'Comparar versões';
     body.innerHTML = '';
+    dialog?.classList.add('app-dialog--cmp-escolha');
 
     const wrap = document.createElement('div');
-    wrap.style.display = 'flex';
-    wrap.style.flexDirection = 'column';
-    wrap.style.gap = '12px';
+    wrap.className = 'cmp-escolha-form';
 
     const det = document.createElement('p');
-    det.style.margin = '0';
-    det.style.fontSize = '15px';
-    det.style.lineHeight = '1.5';
-    det.style.color = 'var(--text-muted, #7a726b)';
+    det.className = 'cmp-escolha-intro';
     det.textContent = 'Escolha as duas versões que quer ver lado a lado.';
     wrap.appendChild(det);
 
-    const criarCampo = (rotulo, idCampo, indicePadrao) => {
-      const campo = document.createElement('div');
-      campo.className = 'cmp-escolha-campo';
-      const lbl = document.createElement('label');
-      lbl.setAttribute('for', idCampo);
-      lbl.textContent = rotulo;
-      const sel = document.createElement('select');
-      sel.id = idCampo;
+    const criarColuna = (rotulo) => {
+      let selecionado = null;
+      const col = document.createElement('div');
+      col.className = 'cmp-escolha-col';
+
+      const titulo = document.createElement('div');
+      titulo.className = 'cmp-escolha-col-titulo';
+      titulo.textContent = versoes.length > 1 ? `${rotulo} (${versoes.length})` : rotulo;
+
+      const hint = document.createElement('p');
+      hint.className = 'cmp-escolha-col-hint';
+      hint.textContent = 'Nenhuma versão selecionada';
+
+      const lista = document.createElement('div');
+      lista.className = 'cmp-escolha-lista';
+      lista.setAttribute('role', 'listbox');
+
       versoes.forEach((v) => {
-        const op = document.createElement('option');
-        op.value = String(v.id);
-        op.textContent = rotuloVersaoComparativo(v, rootId);
-        sel.appendChild(op);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cmp-escolha-opcao';
+        btn.setAttribute('role', 'option');
+        btn.textContent = rotuloVersaoComparativo(v, rootId);
+        btn.onclick = () => {
+          lista.querySelectorAll('.cmp-escolha-opcao').forEach((b) => {
+            b.classList.remove('ativo');
+            b.setAttribute('aria-selected', 'false');
+          });
+          btn.classList.add('ativo');
+          btn.setAttribute('aria-selected', 'true');
+          selecionado = Number(v.id);
+          col.classList.remove('cmp-escolha-col--pendente');
+          hint.textContent = `Selecionada: ${rotuloVersaoComparativo(v, rootId)}`;
+          hint.classList.add('cmp-escolha-col-hint--ok');
+          erro.textContent = '';
+          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
+        lista.appendChild(btn);
       });
-      if (versoes[indicePadrao]) sel.value = String(versoes[indicePadrao].id);
-      campo.appendChild(lbl);
-      campo.appendChild(sel);
-      wrap.appendChild(campo);
-      return sel;
+
+      col.appendChild(titulo);
+      if (versoes.length > 4) {
+        const nota = document.createElement('p');
+        nota.className = 'cmp-escolha-col-nota';
+        nota.textContent = 'Role a lista para ver todas as versões.';
+        col.appendChild(nota);
+      }
+      col.appendChild(hint);
+      col.appendChild(lista);
+      return {
+        col,
+        getId: () => selecionado,
+        marcarPendente: () => col.classList.add('cmp-escolha-col--pendente'),
+      };
     };
 
-    /* Padrão: primeira contra segunda — normalmente ORIGINAL contra a cópia. */
-    const selA = criarCampo('Versão à esquerda', 'cmp-escolha-a', 0);
-    const selB = criarCampo('Versão à direita', 'cmp-escolha-b', 1);
+    const colA = criarColuna('Versão à esquerda');
+    const colB = criarColuna('Versão à direita');
+    wrap.appendChild(colA.col);
+    wrap.appendChild(colB.col);
 
     const erro = document.createElement('div');
     erro.className = 'cmp-escolha-erro';
@@ -13301,6 +13334,7 @@ function escolherVersoesParaComparar(versoes, rootId) {
       const r = appEscolhaResolver;
       appEscolhaResolver = null;
       body.innerHTML = '';
+      dialog?.classList.remove('app-dialog--cmp-escolha');
       ok.style.display = '';
       ov.classList.remove('aberto');
       ov.hidden = true;
@@ -13310,9 +13344,18 @@ function escolherVersoesParaComparar(versoes, rootId) {
     ok.style.display = '';
     ok.textContent = 'Comparar';
     ok.onclick = () => {
-      const idA = Number(selA.value);
-      const idB = Number(selB.value);
-      if (!Number.isFinite(idA) || !Number.isFinite(idB)) {
+      let pendente = false;
+      const idA = colA.getId();
+      const idB = colB.getId();
+      if (!Number.isFinite(idA)) {
+        colA.marcarPendente();
+        pendente = true;
+      }
+      if (!Number.isFinite(idB)) {
+        colB.marcarPendente();
+        pendente = true;
+      }
+      if (pendente) {
         erro.textContent = 'Escolha as duas versões.';
         return;
       }
