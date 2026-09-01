@@ -57,12 +57,19 @@
       position: relative;
       padding: 0 2vw;
       box-sizing: border-box;
-      overflow: hidden;
+      /*
+       * Sem `overflow: hidden`. Num contentor flex isso recorta a tinta do glifo
+       * (side bearing do “O” em CMG Sans Bold) mesmo quando o `scrollWidth` cabe.
+       * O `body` já recorta o ecrã; a folga lateral fica no padding do wrap/slide.
+       */
+      overflow: visible;
     }
     .slide {
       width: 100%;
       max-width: 100%;
-      min-width: 0;
+      box-sizing: border-box;
+      /* Folga só da tinta (side bearing / antialiasing), sem encolher a fonte. */
+      padding-inline: 0.08em;
       flex-shrink: 0;
       align-self: stretch;
       white-space: pre-wrap;
@@ -72,9 +79,9 @@
       font-size: 4.1vh;
       display: block;
       text-align: center;
-      text-align-last: center;
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      overflow-wrap: break-word;
+      word-break: normal;
+      overflow: visible;
       text-shadow: 0 2px 28px rgba(28, 22, 22, 0.12);
     }
     #atual { color: #ffffff; transition: opacity 150ms ease; }
@@ -110,6 +117,9 @@
     }
     .linha-ministrante {
       display: block;
+      /* A tinta do “O” sai da caixa de avance; não recorta o glifo. */
+      padding-inline: 0.04em;
+      box-sizing: border-box;
     }
     /*
      * Cor do comentário — SEM `var()`, de propósito.
@@ -638,12 +648,14 @@
         elProximo.style.overflowWrap = 'normal';
         elProximo.style.wordBreak = 'normal';
       } else {
+        /* `anywhere` parte a palavra para encher a linha e encosta o último
+           glifo à borda — a tinta do “O” sai da caixa e é recortada. */
         elAtual.style.whiteSpace = 'pre-wrap';
-        elAtual.style.overflowWrap = 'anywhere';
-        elAtual.style.wordBreak = 'break-word';
+        elAtual.style.overflowWrap = 'break-word';
+        elAtual.style.wordBreak = 'normal';
         elProximo.style.whiteSpace = 'pre-wrap';
-        elProximo.style.overflowWrap = 'anywhere';
-        elProximo.style.wordBreak = 'break-word';
+        elProximo.style.overflowWrap = 'break-word';
+        elProximo.style.wordBreak = 'normal';
       }
       const projecaoAtiva = payloadMinistranteTemConteudoAtivo(ultimoPayloadMinistrante);
       aplicarFundoMinistrantePorProjecao(projecaoAtiva);
@@ -696,9 +708,31 @@
       return Number.isFinite(v) && v > 0 ? v : fallback;
     }
 
+    function paddingHorizontalPx(el) {
+      if (!el) return 0;
+      const cs = getComputedStyle(el);
+      return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+    }
+
+    /** Largura da caixa de conteúdo do slide (sem padding), nesta janela. */
+    function larguraConteudoSlideOp(el) {
+      if (el && el.clientWidth > 12) {
+        return Math.max(8, el.clientWidth - paddingHorizontalPx(el));
+      }
+      if (elWrapLetras && elWrapLetras.clientWidth > 12) {
+        return Math.max(8, elWrapLetras.clientWidth - paddingHorizontalPx(elWrapLetras));
+      }
+      return (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+    }
+
     function slideCabeNaCaixaOp(el, maxW, maxH) {
       if (!el) return true;
-      return el.scrollWidth <= maxW + 1 && el.scrollHeight <= maxH + 1;
+      /* Comparar com a caixa DO SLIDE. O clientWidth do wrap inclui padding e
+         fazia o fit achar que cabia quando o texto já encostava na borda.
+         A tinta do glifo (side bearing do “O”) não aumenta o scrollWidth —
+         isso resolve-se no CSS (padding / overflow), não a encolher a fonte. */
+      const w = Math.min(maxW, el.clientWidth > 8 ? el.clientWidth : maxW);
+      return el.scrollWidth <= w + 1 && el.scrollHeight <= maxH + 1;
     }
 
     /**
@@ -776,16 +810,17 @@
       const plMed = ultimoPayloadMinistrante || {};
 
       if (autoFitLargura) {
-        /* Largura DESTA janela (wrap do M3), nunca innerWidth de outro monitor. */
-        const limite = (elWrapLetras && elWrapLetras.clientWidth > 12)
-          ? elWrapLetras.clientWidth
-          : (window.visualViewport && window.visualViewport.width) || window.innerWidth;
-        if (Number.isFinite(limite) && limite > 0) {
+        /* Largura da caixa de texto DESTA janela, não o wrap com padding. */
+        const limiteAtual = larguraConteudoSlideOp(elAtual);
+        const limiteProximo = larguraConteudoSlideOp(elProximo);
+        if (Number.isFinite(limiteAtual) && limiteAtual > 0) {
           ajustarLarguraLinhasPainelOp(
-            elAtual, baseAtual, plMed.atual, mon, ehBiblia, usarMaiusculas, limite
+            elAtual, baseAtual, plMed.atual, mon, ehBiblia, usarMaiusculas, limiteAtual
           );
+        }
+        if (Number.isFinite(limiteProximo) && limiteProximo > 0) {
           ajustarLarguraLinhasPainelOp(
-            elProximo, baseProximo, plMed.proximo, mon, ehBiblia, usarMaiusculas, limite
+            elProximo, baseProximo, plMed.proximo, mon, ehBiblia, usarMaiusculas, limiteProximo
           );
         }
       }
@@ -1225,11 +1260,11 @@
           elProximo.style.wordBreak = 'normal';
         } else {
           elAtual.style.whiteSpace = 'pre-wrap';
-          elAtual.style.overflowWrap = 'anywhere';
-          elAtual.style.wordBreak = 'break-word';
+          elAtual.style.overflowWrap = 'break-word';
+          elAtual.style.wordBreak = 'normal';
           elProximo.style.whiteSpace = 'pre-wrap';
-          elProximo.style.overflowWrap = 'anywhere';
-          elProximo.style.wordBreak = 'break-word';
+          elProximo.style.overflowWrap = 'break-word';
+          elProximo.style.wordBreak = 'normal';
         }
         if (mon.fontFamily) {
           elAtual.style.fontFamily = mon.fontFamily;
