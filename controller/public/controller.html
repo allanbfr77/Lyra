@@ -236,15 +236,17 @@
       --fw-bold: 700;
       --slide-chip-snippet-px-base: 14;
       --slide-chip-num-px-base: 20;
-      /* Seta dos seletores (culto, ministrante, tema): uma só, desenhada em máscara para
-         herdar a cor do texto e ficar igual nos dropdowns próprios e no <select> nativo. */
+      /* Seta dos seletores (culto, ministrante, tema, tradução da Bíblia): uma só,
+         desenhada em máscara para herdar a cor do texto e ficar igual nos dropdowns
+         próprios e no <select> nativo. */
       --caret-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     }
 
     /* Caixa da seta: máscara + currentColor, para acompanhar tema claro/escuro. */
     .culto-dd-caret,
     .playlist-tema-dd-caret,
-    .culto-ministrante-campo::after {
+    .culto-ministrante-campo::after,
+    .biblia-sel-traducao-campo::after {
       width: 14px;
       height: 14px;
       flex-shrink: 0;
@@ -6509,9 +6511,10 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
-      font-size: 11px;
+      font-size: 13px;
+      font-weight: bold;
       color: var(--text-dim);
-      line-height: 1.3;
+      line-height: 1.25;
     }
     .biblia-legenda-item {
       display: inline-flex;
@@ -6520,21 +6523,43 @@
       white-space: nowrap;
     }
     .biblia-legenda-swatch {
-      width: 11px;
-      height: 11px;
+      width: 12px;
+      height: 12px;
       border-radius: 3px;
       flex-shrink: 0;
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
-    .biblia-sel-traducao {
+    .biblia-sel-traducao-campo {
+      position: relative;
       flex: 0 0 280px;
+      display: block;
+      color: var(--text);
+    }
+    .biblia-sel-traducao-campo::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .biblia-sel-traducao {
+      width: 100%;
+      box-sizing: border-box;
+      /* Sem a seta nativa: a do painel entra pelo ::after do wrapper, igual aos
+         seletores da coluna direita do Modo Home (culto, ministrante, tema). */
+      -webkit-appearance: none;
+      appearance: none;
       background: var(--surface2);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 6px 10px;
+      padding: 6px 30px 6px 10px;
       font-size: 13px;
+      cursor: pointer;
+      outline: none;
     }
 
     /*
@@ -10820,7 +10845,9 @@
 
       <!-- Topo: seletor de tradução + filtro de testamento -->
       <div class="biblia-header">
-        <select id="traducao-sel" class="biblia-sel-traducao" onchange="onTraducaoBibliaChange()" title="Tradução desta sessão (definida ao entrar no modo Bíblia)"></select>
+        <div class="biblia-sel-traducao-campo">
+          <select id="traducao-sel" class="biblia-sel-traducao" onchange="onTraducaoBibliaChange()" title="Tradução desta sessão (definida ao entrar no modo Bíblia)"></select>
+        </div>
         <div class="biblia-filtro-testamento" role="group" aria-label="Filtrar livros por testamento">
           <button type="button" class="biblia-filtro-btn" id="biblia-filtro-at" onclick="definirFiltroTestamentoBiblia('at')" aria-pressed="false" title="Mostrar só os livros do Antigo Testamento (clique de novo para ver todos)">AT</button>
           <button type="button" class="biblia-filtro-btn" id="biblia-filtro-nt" onclick="definirFiltroTestamentoBiblia('nt')" aria-pressed="false" title="Mostrar só os livros do Novo Testamento (clique de novo para ver todos)">NT</button>
