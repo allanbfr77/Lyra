@@ -5438,7 +5438,7 @@ function ajustarFonteSnippetsNosSlideChips() {
     const numEl = chip.querySelector('.slide-num');
     const numH = numEl ? numEl.getBoundingClientRect().height : 0;
     const innerH = Math.max(0, chip.clientHeight - padY);
-    const availH = Math.max(40, innerH - numH - gapNumSnippet);
+    const availH = Math.max(40, innerH - numH - gapNumSnippet - 2);
 
     let maxW = 0;
     lines.forEach((el) => {
@@ -12079,8 +12079,7 @@ function atualizarSlidesInstrucoes() {
       renderInstrucoesProjecao('<strong>Modo controlador</strong>', [
         'A playlist só prepara a música, sem enviar às telas',
         'Na coluna central, <strong>clique</strong> seleciona o slide',
-        '<strong>Duplo clique</strong> projeta ou abre a faixa (na 1.ª vez)',
-        'Duplo clique no chip da faixa projeta',
+        'Botão ✎ ou clique direito: edição rápida',
       ]);
     }
     return;
@@ -12122,8 +12121,7 @@ function atualizarSlidesInstrucoes() {
     );
   } else {
     renderInstrucoesProjecao(`<strong>${n} estrofe(s)</strong>`, [
-      'Coluna central: <strong>clique</strong> seleciona, <strong>duplo clique</strong> projeta direto',
-      'Faixa inferior: duplo clique no chip projeta',
+      'Coluna central: <strong>clique</strong> seleciona o slide',
       'Botão direito no chip abre a edição rápida',
       'Último chip = preto',
       '<strong>Avançar música</strong> carrega a seguinte da playlist',
@@ -13865,7 +13863,7 @@ async function sairModoEdicao() {
   marcacaoEstrofeEditor();
 }
 
-/** Altura mínima equivalente a 5 linhas (13px × 1.55). */
+/** Altura mínima equivalente a 5 linhas (medida a partir da fonte actual do elemento). */
 function alturaMinimaTextoEstrofePx(el) {
   if (!el) return 5 * 13 * 1.55;
   const cs = getComputedStyle(el);
@@ -14031,16 +14029,13 @@ function renderEstrofesEditor() {
     const div = document.createElement('div');
     div.className = 'estrofe-slide-edit' + (estrofeAtiva === i ? ' ativa' : '');
     if (modoEdicaoEstrofes) {
-      div.title =
-        'Edição · arrastar ⋮⋮ para reordenar · duplo clique fora do texto para projetar';
+      div.title = ehModoSlidesOperador()
+        ? 'Edição · arrastar ⋮⋮ para reordenar · duplo clique fora do texto para projetar'
+        : 'Edição · arrastar ⋮⋮ para reordenar';
     } else if (ehModoSlidesOperador()) {
       div.title = 'Duplo clique para projetar nas telas';
     } else {
-      const base =
-        slidesDockVisivel
-          ? 'Clique para selecionar · duplo clique para projetar nas telas'
-          : 'Clique para selecionar · duplo clique para projetar nas telas';
-      div.title = `${base} · Botão ✎ ou clique direito: edição rápida`;
+      div.title = 'Clique para selecionar · Botão ✎ ou clique direito: edição rápida';
     }
 
     if (modoEdicaoEstrofes) {
@@ -14177,12 +14172,7 @@ function renderEstrofesEditor() {
       centralSlideTapTimer = null;
       if (ehModoSlidesOperador()) {
         projetarPorDuploCliqueCentral(i);
-        return;
       }
-      // Modo completo: duplo clique entra no modo slides e já projeta o slide.
-      alternarModoSlidesOperador();
-      faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-      projetarPorDuploCliqueCentral(i);
     });
 
     wrap.appendChild(div);
