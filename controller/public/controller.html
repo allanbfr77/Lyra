@@ -6614,13 +6614,31 @@
 
     .biblia-sel-traducao-campo {
       position: relative;
-      flex: 0 0 280px;
+      /* Largura para a opção mais longa (NTLH — Nova Tradução na Linguagem de Hoje) numa linha. */
+      flex: 0 0 440px;
       display: block;
       color: var(--text);
     }
 
     .biblia-traducao-dd .playlist-tema-dd-btn {
       font-size: 15px;
+    }
+
+    .biblia-traducao-dd .playlist-tema-dd-label {
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    .biblia-traducao-dd .playlist-tema-dd-menu {
+      left: 0;
+      right: auto;
+      min-width: 100%;
+      width: max-content;
+      max-width: min(440px, calc(100vw - 32px));
+    }
+
+    .biblia-traducao-dd .playlist-tema-dd-item {
+      white-space: nowrap;
     }
 
     /*
