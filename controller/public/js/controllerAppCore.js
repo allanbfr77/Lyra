@@ -77,6 +77,7 @@ import {
   LS_DARK_CTRL,
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
+import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
@@ -521,6 +522,18 @@ function normalizarRota(obj) {
     ministranteIndex: live ? -1 : Number.isFinite(min) ? min : -1,
     live,
   };
+}
+
+/**
+ * Um monitor serve **uma** saída de cada vez — a regra vive em
+ * `modules/saidasMonitorExclusivas.js`, para se poder ler e testar sem DOM.
+ * Aqui só se garante que ela recebe uma rota já normalizada.
+ *
+ * @param {{publicoIndex:number, ministranteIndex:number, live?:boolean}} rota
+ * @param {'publico'|'ministrante'} [canalQuePrevalece] a saída que o operador acabou de mexer
+ */
+function rotaSemMonitorRepetido(rota, canalQuePrevalece = 'publico') {
+  return aplicarSaidaExclusiva(normalizarRota(rota), canalQuePrevalece);
 }
 
 function indiceMonitorPrincipalNaLista(monitores) {
@@ -5762,7 +5775,31 @@ function renderRoteamentoTelas(monitores, routing) {
     items.push({ value: String(m.index), label: montarLabelMonitor(m), title: montarTitleMonitor(m) });
   });
 
-  function preencherMenu(menuEl, hidEl, dispEl, valorSelecionado) {
+  /**
+   * Tira este monitor da outra saída — ver `rotaSemMonitorRepetido`.
+   *
+   * Mexe no DOM da outra coluna (valor, rótulo e `aria-selected`) porque a troca tem de
+   * ser visível no mesmo instante do clique: o operador escolhe o M2 no Ministrante e vê o
+   * Público passar a «Não exibir» sem ter de reabrir o menu. O `salvarRoteamento…` que
+   * corre logo a seguir lê os dois campos, por isso as duas saídas vão coerentes.
+   *
+   * @param {HTMLElement} outroMenu
+   * @param {HTMLInputElement} outroHid
+   * @param {HTMLElement} outroDisp
+   * @param {string} valorEscolhido
+   */
+  function libertarMonitorDaOutraSaida(outroMenu, outroHid, outroDisp, valorEscolhido) {
+    if (!outroMenu || !outroHid || !outroDisp) return;
+    if (valorEscolhido === '-1') return;
+    if (outroHid.value !== valorEscolhido) return;
+    outroHid.value = '-1';
+    outroDisp.textContent = 'Não exibir';
+    outroMenu.querySelectorAll('.route-dd-item').forEach((ib) => {
+      ib.setAttribute('aria-selected', ib.dataset.value === '-1' ? 'true' : 'false');
+    });
+  }
+
+  function preencherMenu(menuEl, hidEl, dispEl, valorSelecionado, outros = null) {
     menuEl.innerHTML = '';
     const vSel = String(valorSelecionado);
     items.forEach(({ value, label, title }) => {
@@ -5782,6 +5819,9 @@ function renderRoteamentoTelas(monitores, routing) {
         menuEl.querySelectorAll('.route-dd-item').forEach((ib) => {
           ib.setAttribute('aria-selected', ib.dataset.value === String(value) ? 'true' : 'false');
         });
+        if (outros) {
+          libertarMonitorDaOutraSaida(outros.menu, outros.hid, outros.disp, String(value));
+        }
         fecharMenusRoteamentoTelas();
         atualizarEstiloRotasDesativadas();
         salvarRoteamentoTelasNoServidor();
@@ -5916,6 +5956,13 @@ function renderRoteamentoTelas(monitores, routing) {
   let min = indiceRoteamentoMonitorNaUi(routing?.ministranteIndex);
   pub = sanitizarIndiceMonitorProjecao(pub, lista);
   min = sanitizarIndiceMonitorProjecao(min, lista);
+  /* Rota gravada antes desta regra podia ter o mesmo monitor nas duas saídas. Mostrar isso
+     tal e qual deixaria o operador a olhar para uma configuração que o motor não consegue
+     cumprir. Resolve-se aqui, com o Público a prevalecer. */
+  ({ publicoIndex: pub, ministranteIndex: min } = rotaSemMonitorRepetido(
+    { publicoIndex: pub, ministranteIndex: min },
+    'publico'
+  ));
 
   const pubStr = String(pub);
   const minStr = String(min);
@@ -5926,8 +5973,16 @@ function renderRoteamentoTelas(monitores, routing) {
   dispPub.textContent = rotPub ? rotPub.label : 'Não exibir';
   dispMin.textContent = rotMin ? rotMin.label : 'Não exibir';
 
-  preencherMenu(menuPub, hidPub, dispPub, pubStr);
-  preencherMenu(menuMin, hidMin, dispMin, minStr);
+  preencherMenu(menuPub, hidPub, dispPub, pubStr, {
+    menu: menuMin,
+    hid: hidMin,
+    disp: dispMin,
+  });
+  preencherMenu(menuMin, hidMin, dispMin, minStr, {
+    menu: menuPub,
+    hid: hidPub,
+    disp: dispPub,
+  });
   atualizarEstiloRotasDesativadas();
   aplicarPreviewPainelOcultoNoDom();
 }
@@ -14804,6 +14859,12 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
      */
     marcarRotaDefinidaPeloOperador(modo);
     if (modo === 'completo') marcarRotaDefinidaPeloOperador('slides');
+
+    /* Rede de segurança da regra «um monitor, uma saída». O clique já libertou a outra
+       saída; isto cobre um DOM fora de sincronia e deixa a regra escrita num sítio só. */
+    if (modo === 'slides' || modo === 'completo') {
+      rotasPorModo[modo] = rotaSemMonitorRepetido(rotasPorModo[modo], 'publico');
+    }
 
     if (modo === 'slides') {
       rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(normalizarRota(rotasPorModo.slides));

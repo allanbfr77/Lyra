@@ -143,6 +143,39 @@ O ministrante não é removido de nada: a janela persistente continua no monitor
 visível e preta, pronta a voltar a receber conteúdo assim que o operador escolher um
 monitor.
 
+## Um monitor, uma saída
+
+Regra nova, no Modo Slides (e no modo completo, que partilha o mesmo seletor duplo): o
+mesmo monitor não pode estar nas duas saídas ao mesmo tempo.
+
+Porquê: Público e Ministrante são duas janelas fullscreen. Apontá-las ao mesmo ecrã põe uma
+por cima da outra, e o que fica à vista passa a depender da ordem por que o motor as
+sincroniza — o operador vê ora a estrofe do telão, ora a do retorno, sem nada na interface
+a explicar porquê. O motor até tem lógica para «estacionar o ocupante» quando dois papéis
+disputam o mesmo índice, mas isso é remediar um estado que não devia ser possível escolher.
+
+Onde está: `controller/public/js/modules/saidasMonitorExclusivas.js` —
+`rotaSemMonitorRepetido(rota, canalQuePrevalece)`. Módulo próprio porque é uma regra de
+dados: lê-se e testa-se sem DOM, sem Electron e sem monitores.
+
+Aplicada em três pontos:
+
+1. **No clique** (`libertarMonitorDaOutraSaida`, dentro de `renderRoteamentoTelas`):
+   escolher o M2 no Ministrante põe o Público em «Não exibir» no mesmo instante — valor,
+   rótulo e `aria-selected` da outra coluna. O operador vê a troca sem reabrir o menu.
+2. **Ao pintar os seletores**: uma rota gravada antes desta regra podia ter o mesmo monitor
+   nas duas saídas. Mostrá-la tal e qual deixaria o operador a olhar para uma configuração
+   que o motor não consegue cumprir.
+3. **No envio** (`salvarRoteamentoTelasNoServidor`, modos `slides` e `completo`): rede de
+   segurança para um DOM fora de sincronia.
+
+Desempate: prevalece a saída que o operador acabou de mexer. Sem clique a decidir (caso 2),
+prevalece o **Público** — é a saída principal, e é a que se nota logo se ficar vazia.
+
+«Live — OBS» não entra na regra: não usa monitor nenhum, logo não há conflito possível. E
+«Não exibir» nas duas saídas também não é conflito — `-1 === -1` é o estado normal de quem
+ainda não escolheu.
+
 ## Testes
 
 `packages/projection-core/src/projectionEngine.test.js`:
@@ -156,6 +189,12 @@ monitor.
 - Ministrante em «Não exibir» é estável: nada recriado a cada passagem
 - «Não exibir» no ministrante não afecta o telão do público
 
+`controller/public/js/modules/saidasMonitorExclusivas.test.mjs` (8 casos): sem conflito
+passa intacta; escolher no Ministrante um monitor que estava no Público tira-o de lá; o
+inverso; rota antiga com desempate no Público; «Não exibir» nas duas saídas não é conflito;
+Live — OBS; valores inválidos caem em «Não exibir» em vez de propagarem `NaN`; e o
+resultado é sempre um objecto novo.
+
 Os três primeiros do bloco do Ministrante foram verificados a falhar com a correcção
 desligada (marca a seguir a `min` em vez de `minConteudo`).
 
@@ -163,7 +202,7 @@ O primeiro apanhou um furo real durante a implementação: com a janela visível
 continuava a ser-lhe enviado e passou a ser visto. Foi o que motivou a filtragem em
 `atualizarDisplays`.
 
-`npm test`: 538 de 542. As 4 falhas são anteriores e sem relação — três são
+`npm test`: 546 de 550. As 4 falhas são anteriores e sem relação — três são
 `Cannot find module '@lyra/projection-core'` (o link do workspace não resolve neste
 checkout) e uma é uma asserção de versão do `package.json` do Controlador.
 
