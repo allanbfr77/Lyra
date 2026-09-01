@@ -18,6 +18,15 @@ export const LS_ROTAS_POR_MODO = 'lyra_rotas_por_modo_v1';
  * renumeração de monitores do Windows. Ver `modules/identidadeMonitores.js`.
  */
 export const LS_IDENTIDADE_MONITORES = 'lyra_identidade_monitores_v1';
+/**
+ * Modos cuja rota de monitores o operador escolheu à mão (`{ slides: true, … }`).
+ *
+ * «Não exibir» é uma escolha como outra qualquer, mas é indistinguível de «ainda não
+ * configurado» olhando só para os índices: os dois são -1. Sem esta marca, entrar no modo
+ * Slides com o telão em «Não exibir» fazia o painel preencher a rota sozinho com M2/M3 —
+ * a escolha do operador desaparecia entre uma troca de modo e outra.
+ */
+export const LS_ROTAS_DEFINIDAS_PELO_OPERADOR = 'lyra_rotas_definidas_operador_v1';
 export const LS_APRESENTACAO_STATE = 'lyra_apresentacao_state_v1';
 /** Configuração de exibição exclusiva do modo Bíblia (fundo, referência, etc.). */
 export const LS_BIBLIA_CFG = 'lyra_biblia_cfg_v1';

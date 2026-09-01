@@ -39,6 +39,7 @@ import {
   LS_PLAYLIST_PREVIEW_SLIDE_OCULTO,
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
+  LS_ROTAS_DEFINIDAS_PELO_OPERADOR,
   LS_APRESENTACAO_STATE,
   LS_BIBLIA_CFG,
   LS_SLIDE_CFG,
@@ -396,7 +397,41 @@ function salvarRotasPorModoNoStorage() {
 }
 }
 
+/**
+ * Modos cuja rota o operador definiu à mão — ver `LS_ROTAS_DEFINIDAS_PELO_OPERADOR`.
+ * @type {Record<string, boolean>}
+ */
+let rotasDefinidasPeloOperador = {};
+
+function carregarRotasDefinidasPeloOperador() {
+  try {
+    const p = JSON.parse(localStorage.getItem(LS_ROTAS_DEFINIDAS_PELO_OPERADOR) || '{}');
+    rotasDefinidasPeloOperador = p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+  } catch (_) {
+    rotasDefinidasPeloOperador = {};
+  }
+}
+
+/** O operador escolheu isto à mão neste modo — inclusive «Não exibir». */
+function marcarRotaDefinidaPeloOperador(modo) {
+  if (!modo) return;
+  rotasDefinidasPeloOperador[modo] = true;
+  try {
+    localStorage.setItem(
+      LS_ROTAS_DEFINIDAS_PELO_OPERADOR,
+      JSON.stringify(rotasDefinidasPeloOperador)
+    );
+  } catch (_) {
+  // intencional — erro ignorado
+}
+}
+
+function rotaFoiDefinidaPeloOperador(modo) {
+  return !!rotasDefinidasPeloOperador[modo];
+}
+
 function carregarRotasPorModoDoStorage() {
+  carregarRotasDefinidasPeloOperador();
   try {
     const raw = localStorage.getItem(LS_ROTAS_POR_MODO);
     if (!raw) return;
@@ -438,7 +473,7 @@ function persistirIdentidadesDosModos() {
   if (!Array.isArray(lista) || !lista.length) return;
   /* Só `completo` e `slides`: são as escolhas duradouras de infraestrutura («o telão é a
      LG TV»). `apresentacao` e `biblia` são rotas de sessão, deliberadamente repostas a
-     «Desativado» em cada arranque — persistir a sua identidade fá-las-ia ressuscitar. */
+     «Não exibir» em cada arranque — persistir a sua identidade fá-las-ia ressuscitar. */
   ['completo', 'slides'].forEach((modo) => {
     const r = normalizarRota(rotasPorModo[modo]);
     /* Rota «Live — OBS» não usa monitor nenhum; gravar identidades aqui apagaria a
@@ -656,7 +691,7 @@ function atualizarIndicadorProjecaoLiveUi() {
      OBS. Ficar verde só em Live — OBS deixava os outros destinos, que são os do dia a
      dia, sem qualquer confirmação no cabeçalho.
 
-     «Desativado» fica de fora por definição: sem rota não há nada a sair. Leio os campos
+     «Não exibir» fica de fora por definição: sem rota não há nada a sair. Leio os campos
      escondidos em vez da classe `route-dd--rota-desativada` para não depender da ordem
      por que as duas funções correm. */
   const hidPub = document.getElementById('route-publico');
@@ -1429,7 +1464,7 @@ function opcoesSeletorCabecalhoDoModoAtual() {
 function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
   const incluirLive = opts.incluirLive !== false;
   const out = [];
-  out.push({ key: 'des', label: 'Desativado', pub: -1, min: -1, live: false });
+  out.push({ key: 'des', label: 'Não exibir', pub: -1, min: -1, live: false });
   if (incluirLive) {
     out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
   }
@@ -3956,6 +3991,9 @@ async function alternarModoBiblia() {
   /* Slide → Bíblia tem de encerrar a projeção, tal como Slide → Home. */
   const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
   if (!ativo) {
+    /* Antes de `carregarTraducoes()`, que já desenha a grade: o modo abre sempre com
+       os 66 livros, seja qual for o filtro deixado da última vez. */
+    bibliaFiltroTestamento = null;
     const trad = await perguntarTraducaoBibliaSeNecessario();
     if (!trad) return;
     await carregarTraducoes();
@@ -3992,7 +4030,7 @@ async function alternarModoBiblia() {
       document.title = 'Lyra — Controlador';
       bibliaSairModo();
       liberarBloqueioUiModos();
-      /* Sair do modo Bíblia encerra a projeção — rotas transitórias voltam a Desativado. */
+      /* Sair do modo Bíblia encerra a projeção — rotas transitórias voltam a Não exibir. */
       void desativarRotasModosTransitorios({ sincronizarServidor: true, forcar: true });
       aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
     }
@@ -4170,21 +4208,18 @@ async function encerrarAvisoCard6NoControlador() {
 }
 
 /**
- * Cabeçalho «Encerrar projeção» no Modo Mídias: só mídia + rota do cabeçalho → Desativado.
+ * Cabeçalho «Encerrar projeção» no Modo Mídias: só mídia + rota do cabeçalho → Não exibir.
  */
 async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
   await encerrarProjecaoMidiaApresentacaoNoControlador();
   rotasPorModo.apresentacao = rotaDesativada();
   marcarRotaLiveNoDom(false);
-  if (!apresentacaoAvisoCard6Ativo) {
-    rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
-    salvarRotasPorModoNoStorage();
-  }
+  /* Sem tocar em `rotasPorModo.slides`: encerrar a mídia é assunto deste modo. */
   atualizarFeedbackProjecaoApresentacaoUi({
     mensagemIdle: apresentacaoAvisoCard6Ativo
       ? 'Mídia encerrada. Aviso continua no ar.'
-      : 'Projeção de mídia encerrada. «Monitor» em Desativado.',
+      : 'Projeção de mídia encerrada. «Monitor» em «Não exibir».',
   });
   aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
@@ -4202,10 +4237,10 @@ async function encerrarProjecaoModoApresentacao() {
   await encerrarProjecaoMidiaApresentacaoNoControlador();
   rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
   rotasPorModo.apresentacaoAviso = rotaDesativada();
-  rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
+  /* Idem: a rota do modo Slides é dele. */
   salvarRotasPorModoNoStorage();
   atualizarFeedbackProjecaoApresentacaoUi({
-    mensagemIdle: 'Projeção encerrada. «Monitor» em Desativado; modo slide com Público (M2) e Ministrante (M3) ativos.',
+    mensagemIdle: 'Projeção encerrada. «Monitor» em «Não exibir»; o modo Slides mantém a configuração dele.',
   });
   aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
@@ -4303,13 +4338,28 @@ async function alternarModoSlidesOperador(opts = {}) {
       faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
+      /*
+       * Preenchimento automático da rota — só enquanto o operador nunca escolheu nada.
+       *
+       * Os dois ramos abaixo existiam para que entrar no modo Slides «já funcionasse» numa
+       * instalação nova. Mas eles não distinguiam «ainda não configurado» de «configurado
+       * como Não exibir»: nos dois casos os índices são -1. O resultado era a escolha do
+       * operador a desaparecer sozinha — punha o telão em «Não exibir», saía do modo,
+       * voltava, e a rota estava outra vez em M2/M3. Pior no segundo ramo, que reescrevia
+       * mesmo uma rota com monitores, bastando não haver projeção no ar.
+       *
+       * Com a marca de `LS_ROTAS_DEFINIDAS_PELO_OPERADOR`, o automatismo continua a servir
+       * quem nunca mexeu no seletor e cala-se assim que alguém mexe.
+       */
       const sEntrada = normalizarRota(rotasPorModo.slides);
-      if (sEntrada.publicoIndex < 0 && sEntrada.ministranteIndex < 0) {
-        rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
-        salvarRotasPorModoNoStorage();
-      } else if (!hayProjecaoAtivaNoServidor()) {
-        rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
-        salvarRotasPorModoNoStorage();
+      if (!rotaFoiDefinidaPeloOperador('slides')) {
+        if (
+          (sEntrada.publicoIndex < 0 && sEntrada.ministranteIndex < 0) ||
+          !hayProjecaoAtivaNoServidor()
+        ) {
+          rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
+          salvarRotasPorModoNoStorage();
+        }
       }
       slidesAplicarCfgArmazenada();
       syncRoteamentoTelasModoSlidesNaUi();
@@ -5574,7 +5624,7 @@ function montarTitleMonitor(m) {
  * Aviso persistente no cabeçalho quando um monitor guardado deixou de existir.
  *
  * Não usa `alert()`: isto pode disparar durante um culto, e um modal a bloquear o painel
- * é pior que o problema que anuncia. O canal afetado já ficou em «Desativado» — o aviso
+ * é pior que o problema que anuncia. O canal afetado já ficou em «Não exibir» — o aviso
  * só explica porquê e o operador refaz a escolha quando puder.
  *
  * @param {string[]} nomes
@@ -5685,7 +5735,7 @@ function rotuloRotaApresentacaoForaDoPreset(r, lista) {
   if (r && r.live) return 'Live — OBS';
   const pub = indiceRoteamentoMonitorNaUi(r?.publicoIndex);
   const min = indiceRoteamentoMonitorNaUi(r?.ministranteIndex);
-  if (pub < 0 && min < 0) return 'Desativado';
+  if (pub < 0 && min < 0) return 'Não exibir';
   if (pub >= 0 && min < 0) return `Público — Monitor ${pub + 1}`;
   if (pub < 0 && min >= 0) return `Ministrante — Monitor ${min + 1}`;
   return 'Ambos';
@@ -5705,7 +5755,7 @@ function renderRoteamentoTelas(monitores, routing) {
   const modoR = modoRoteamentoAtual();
   if (lblPub) lblPub.textContent = modoUsaSeletorMonitorUnificado() ? 'Monitor' : 'Público';
 
-  const items = [{ value: '-1', label: 'Desativado' }];
+  const items = [{ value: '-1', label: 'Não exibir' }];
   const lista = Array.isArray(monitores) ? monitores : [];
   lista.forEach((m) => {
     if (m && m.primary) return;
@@ -5746,8 +5796,8 @@ function renderRoteamentoTelas(monitores, routing) {
     if (!lista.length) {
       hidPub.value = '-1';
       hidMin.value = '-1';
-      dispPub.textContent = 'Desativado';
-      dispMin.textContent = 'Desativado';
+      dispPub.textContent = 'Não exibir';
+      dispMin.textContent = 'Não exibir';
       const op0 = opcoesRoteamentoUnificadoModoApresentacao(
         lista,
         opcoesSeletorCabecalhoDoModoAtual()
@@ -5809,7 +5859,7 @@ function renderRoteamentoTelas(monitores, routing) {
     hidMin.value = String(min);
     dispPub.textContent = rotuloBtn;
     const rotMin = items.find((x) => x.value === String(min));
-    dispMin.textContent = rotMin ? rotMin.label : 'Desativado';
+    dispMin.textContent = rotMin ? rotMin.label : 'Não exibir';
 
     menuPub.innerHTML = '';
     opcoes.forEach((o) => {
@@ -5853,8 +5903,8 @@ function renderRoteamentoTelas(monitores, routing) {
   if (!lista.length) {
     hidPub.value = '-1';
     hidMin.value = '-1';
-    dispPub.textContent = 'Desativado';
-    dispMin.textContent = 'Desativado';
+    dispPub.textContent = 'Não exibir';
+    dispMin.textContent = 'Não exibir';
     preencherMenu(menuPub, hidPub, dispPub, '-1');
     preencherMenu(menuMin, hidMin, dispMin, '-1');
     atualizarEstiloRotasDesativadas();
@@ -5873,8 +5923,8 @@ function renderRoteamentoTelas(monitores, routing) {
   const rotMin = items.find((x) => x.value === minStr);
   hidPub.value = pubStr;
   hidMin.value = minStr;
-  dispPub.textContent = rotPub ? rotPub.label : 'Desativado';
-  dispMin.textContent = rotMin ? rotMin.label : 'Desativado';
+  dispPub.textContent = rotPub ? rotPub.label : 'Não exibir';
+  dispMin.textContent = rotMin ? rotMin.label : 'Não exibir';
 
   preencherMenu(menuPub, hidPub, dispPub, pubStr);
   preencherMenu(menuMin, hidMin, dispMin, minStr);
@@ -5882,7 +5932,7 @@ function renderRoteamentoTelas(monitores, routing) {
   aplicarPreviewPainelOcultoNoDom();
 }
 
-/** Destaque vermelho quando a rota está em «Desativado» (sem telão/TV externos — só pré-visualizações). */
+/** Destaque vermelho quando a rota está em «Não exibir» (sem telão/TV externos — só pré-visualizações). */
 function atualizarEstiloRotasDesativadas() {
   const wrapPub = document.getElementById('route-publico-dd');
   const wrapMin = document.getElementById('route-ministrante-dd');
@@ -5906,8 +5956,8 @@ function atualizarEstiloRotasDesativadas() {
         ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
         : des
           ? modoUnificado
-            ? 'Desativado: nenhum monitor externo para projeção neste modo.'
-            : 'Desativado: sem envio a monitor externo — só pré-visualização neste painel.'
+            ? 'Não exibir: nenhum monitor externo disponível para este modo.'
+            : 'Não exibir: o monitor continua ligado, mas não recebe conteúdo deste modo — só a pré-visualização deste painel.'
           : modoUnificado
             ? 'Onde projetar (público, ministrante ou ambos).'
             : 'Escolher monitor do telão / público';
@@ -5931,7 +5981,7 @@ function atualizarEstiloRotasDesativadas() {
         : bloqMinAp
           ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
           : des
-            ? 'Desativado: sem envio a monitor externo — só pré-visualização neste painel.'
+            ? 'Não exibir: o monitor continua ligado, mas não recebe conteúdo deste modo — só a pré-visualização deste painel.'
             : 'Escolher monitor do ministrante / retorno';
     }
   }
@@ -12020,7 +12070,7 @@ function atualizarSlidesInstrucoes() {
  * Zoom da faixa: à vista, mas inerte enquanto não há slides para dimensionar.
  *
  * Esconder os botões seria mais limpo e pior: o operador deixaria de saber que o controlo
- * existe. Desativado diz «existe, ainda não serve para nada» — que é a verdade do estado
+ * existe. Não exibir diz «existe, ainda não serve para nada» — que é a verdade do estado
  * ocioso. Fica ao lado do «Avançar música», que já seguia esta regra.
  *
  * @param {boolean} inertes
@@ -14708,7 +14758,7 @@ async function carregarRoteamentoTelasDoServidor() {
     }
     /**
      * Não sincronizar o modo atual para o servidor só por ligar o socket:
-     * no modo slides com telão «Desativado» (-1,-1) isso gravava -1 no PC servidor
+     * no modo slides com telão «Não exibir» (-1,-1) isso gravava -1 no PC servidor
      * e `garantirTelasAbertasParaProjecao` deixava de abrir janelas — só prévias no painel.
      */
     if (ehModoSlidesOperador()) {
@@ -14745,6 +14795,16 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     if (!fromUi) return;
     rotasPorModo[modo] = { ...normalizarRota(fromUi) };
 
+    /*
+     * `usarValoresDaUi` é a assinatura de que foi o operador a escolher — os caminhos
+     * automáticos passam sempre `{ usarValoresDaUi: false }`. A partir daqui o painel para
+     * de preencher a rota deste modo sozinho, e «Não exibir» deixa de ser confundido com
+     * «ainda não configurado». O modo `completo` escreve também em `slides` logo abaixo,
+     * por isso marca os dois.
+     */
+    marcarRotaDefinidaPeloOperador(modo);
+    if (modo === 'completo') marcarRotaDefinidaPeloOperador('slides');
+
     if (modo === 'slides') {
       rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(normalizarRota(rotasPorModo.slides));
     } else if (modo === 'completo') {
@@ -14755,10 +14815,18 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
       const a = normalizarRota(rotasPorModo.apresentacao);
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
         void encerrarProjecaoMidiaApresentacaoNoControlador();
-        rotasPorModo.slides = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
+        /*
+         * A rota do modo Slides NÃO se toca aqui.
+         *
+         * Cada modo manda no seu próprio conteúdo e na sua própria configuração. Este ramo
+         * reescrevia `rotasPorModo.slides` para M2/M3, e o operador que tivesse posto o
+         * Slides em «Não exibir» via essa escolha desaparecer sem ter mexido nela — bastava
+         * pôr o modo Mídias em «Não exibir». Encerrar a mídia é conteúdo deste modo;
+         * decidir onde os slides aparecem é do outro.
+         */
         try {
           atualizarFeedbackProjecaoApresentacaoUi({
-            mensagemIdle: 'Projeção encerrada. Modo slide: Público (M2) e Ministrante (M3) ativos.',
+            mensagemIdle: 'Projeção de mídia encerrada. O modo Slides mantém a configuração dele.',
           });
         } catch (_) {
   // intencional — erro ignorado
@@ -14872,7 +14940,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
 /**
  * Ocultar prévia quando não há saída física naquele canal (após unir slide ∪ apresentação no servidor).
  * Modo slide: cartões sempre visíveis — tela preta no conteúdo quando o monitor está desativado ou sem projeção.
- * Modo completo / apresentação: usa rota efetiva — ex.: apresentação «Desativado» com slide em M2+M3 mostra as duas prévias.
+ * Modo completo / apresentação: usa rota efetiva — ex.: apresentação «Não exibir» com slide em M2+M3 mostra as duas prévias.
  * [0] = público / telão, [1] = ministrante / retorno.
  */
 function obterFlagsOcultarPreviewPorSincroniaModoSlides() {
@@ -15009,10 +15077,10 @@ function aplicarPreviewPainelOcultoNoDom() {
         i === 0
           ? modoAp
             ? 'No modo apresentação, esta prévia fica oculta porque o destino não inclui o monitor público.'
-            : 'No modo slide, esta prévia fica oculta enquanto o Público estiver Desativado (ative um monitor em Público para voltar a ver).'
+            : 'No modo slide, esta prévia fica oculta enquanto o Público estiver em «Não exibir» (escolha um monitor em Público para voltar a ver).'
           : modoAp
             ? 'No modo apresentação, esta prévia fica oculta porque o destino não inclui o monitor ministrante.'
-            : 'No modo slide, esta prévia fica oculta enquanto o Ministrante estiver Desativado (ative um monitor em Ministrante para voltar a ver).';
+            : 'No modo slide, esta prévia fica oculta enquanto o Ministrante estiver em «Não exibir» (escolha um monitor em Ministrante para voltar a ver).';
     } else if (desbloq && syncBase[i]) {
       btn.title =
         i === 0
@@ -15513,6 +15581,22 @@ projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
 projecao.aoReceber('solicitar_playlists_controlador', emitirPlaylistsDoControlador);
 projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
 projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
+/*
+ * O host avisou que o arranjo de monitores mudou (projetor ligado/desligado, resolução).
+ *
+ * Sem isto, os seletores só se actualizavam no arranque, ao ligar o socket e ao desenhar
+ * a contagem — ligar o projetor com o app aberto deixava a lista desactualizada enquanto o
+ * motor já tinha reorganizado as telas. `carregarRoteamentoTelasDoServidor()` é o caminho
+ * completo: relê a lista, restaura a rota por identidade de monitor e avisa se algum
+ * monitor configurado ficou em falta.
+ */
+projecao.aoReceber('monitores_alterados', () => {
+  void carregarRoteamentoTelasDoServidor().then(() => {
+    try { renderSeletorMonitorContagem(); } catch (_) {
+      // intencional — o seletor da contagem pode ainda não estar montado
+    }
+  });
+});
 
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
 function iniciarSocket(ip) {
@@ -18039,6 +18123,7 @@ exporCallbacksParaAtributosHtml({
   bnpConfirmarCap,
   bnpConfirmarVer,
   bibliaAplicarCfgExibicao,
+  definirFiltroTestamentoBiblia,
   bibliaEscolherFundo,
   setBibliaPosCtrl,
   onBibliaPublicoBgTypeCtrlChange,
@@ -18364,6 +18449,19 @@ const reconhecimentoVozBiblia = criarReconhecimentoVozBiblia({
   navegarEProjetarVersiculo: (ref) =>
     bibliaNavegarEProjetarPorReferencia(ref.livro, ref.capitulo, ref.versiculo),
 });
+
+/**
+ * Filtro de testamento da grade de livros: `null` (todos), `'at'` ou `'nt'`.
+ *
+ * Nasce e volta sempre a `null` ao entrar no modo: o filtro é um gesto do operador
+ * para aquele momento, não uma preferência. Guardá-lo entre sessões abriria o modo
+ * Bíblia com metade dos livros escondidos sem ninguém ter pedido — e a leitura que
+ * se procura durante um culto tanto pode estar num testamento como no outro.
+ *
+ * A separação já existe em `LIVROS` (o campo `nt` de cada livro, 39 contra 27), por
+ * isso não há aqui uma segunda lista de nomes a divergir da primeira.
+ */
+let bibliaFiltroTestamento = null;
 
 let bibliaSelecionadoLivro = null;
 let bibliaSelecionadoLivroDb = null;
@@ -19366,23 +19464,73 @@ function bibliaSairModo() {
   }
 }
 
+/** Um livro passa o filtro actual? Sem filtro, passam todos. */
+function livroVisivelNoFiltroTestamento(livro) {
+  if (bibliaFiltroTestamento === 'at') return !livro.nt;
+  if (bibliaFiltroTestamento === 'nt') return !!livro.nt;
+  return true;
+}
+
+/**
+ * Liga, troca ou desliga o filtro.
+ *
+ * Clicar no filtro que já está ligado desliga-o — é como se volta a «todos os livros»
+ * sem precisar de um terceiro botão a dizer «Tudo», que só existiria para desfazer os
+ * outros dois.
+ *
+ * A selecção de livro, capítulo e versículo não é tocada: filtrar é mudar o que se vê
+ * na grade, não largar a passagem que já se estava a preparar. Se o livro escolhido
+ * ficar do lado escondido, ele volta assim que o filtro sair.
+ */
+function definirFiltroTestamentoBiblia(filtro) {
+  bibliaFiltroTestamento = bibliaFiltroTestamento === filtro ? null : filtro;
+  atualizarBotoesFiltroTestamentoBiblia();
+  popularGradeLivros();
+}
+
+function atualizarBotoesFiltroTestamentoBiblia() {
+  [['biblia-filtro-at', 'at'], ['biblia-filtro-nt', 'nt']].forEach(([id, valor]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const ligado = bibliaFiltroTestamento === valor;
+    btn.classList.toggle('ativo', ligado);
+    btn.setAttribute('aria-pressed', ligado ? 'true' : 'false');
+  });
+}
+
+/**
+ * Só os grupos que têm livros à vista.
+ *
+ * Uma legenda com «Evangelhos + Atos» por cima de uma grade só com o Antigo Testamento
+ * estaria a descrever uma lista que não está no ecrã.
+ */
 function popularLegendaBiblia() {
   const el = document.getElementById('biblia-legenda');
   if (!el) return;
-  el.innerHTML = BIBLIA_GRUPOS.map(
-    (g) =>
-      `<span class="biblia-legenda-item">` +
-      `<span class="biblia-legenda-swatch" style="background:${g.cor}"></span>` +
-      `<span>${escapeHtml(g.label)}</span></span>`
-  ).join('');
+  const visiveis = new Set();
+  LIVROS.forEach((l, idx) => {
+    if (livroVisivelNoFiltroTestamento(l)) visiveis.add(bibliaGrupoPorIndiceLivro(idx).id);
+  });
+  el.innerHTML = BIBLIA_GRUPOS.filter((g) => visiveis.has(g.id))
+    .map(
+      (g) =>
+        `<span class="biblia-legenda-item">` +
+        `<span class="biblia-legenda-swatch" style="background:${g.cor}"></span>` +
+        `<span>${escapeHtml(g.label)}</span></span>`
+    )
+    .join('');
 }
 
 function popularGradeLivros() {
   const col = document.getElementById('biblia-col-livros');
   if (!col) return;
   popularLegendaBiblia();
+  atualizarBotoesFiltroTestamentoBiblia();
   col.innerHTML = '';
   LIVROS.forEach((l, idx) => {
+    /* `idx` continua a ser o índice em `LIVROS`, e não na lista filtrada: é dele que
+       sai a cor do grupo, que tem de ser a mesma com filtro ou sem ele. */
+    if (!livroVisivelNoFiltroTestamento(l)) return;
     const grupo = bibliaGrupoPorIndiceLivro(idx);
     const btn = document.createElement('button');
     btn.className =
@@ -19563,7 +19711,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
     lerRota: () => rotasPorModo.biblia,
   });
   if (!enviar) {
-    /* Único motivo legítimo para não enviar: «Desativado» é o operador a dizer que não
+    /* Único motivo legítimo para não enviar: «Não exibir» é o operador a dizer que não
        quer projetar. Ausência de monitor físico não é — o OBS não precisa de nenhum. */
     if (!navegacaoRapida) alert(mensagemAlvoInvalidoBiblia(alvo));
     return;
@@ -23399,7 +23547,7 @@ function chaveMonitorSelecionadoContagem() {
 }
 
 /**
- * Opções do seletor: «Desativado», cada monitor de projeção, e «Ambos» quando há dois.
+ * Opções do seletor: «Não exibir», cada monitor de projeção, e «Ambos» quando há dois.
  *
  * «Ambos» usa os mesmos índices que o resto do app trata como telão e ministrante
  * (`indicesPadraoPublicoMinistranteApresentacao` — Monitor 2 e Monitor 3, na convenção do
@@ -23412,7 +23560,7 @@ function opcoesMonitorContagem() {
       chave: '-1',
       publicoIndex: -1,
       alvo: 'publico',
-      label: 'Desativado',
+      label: 'Não exibir',
       title: 'Sem telão — a contagem não aparece em monitor nenhum.',
     },
   ];
@@ -23452,7 +23600,7 @@ function renderSeletorMonitorContagem() {
   const atual = chaveMonitorSelecionadoContagem();
   host.innerHTML = '';
 
-  /* Só «Desativado» significa que não há para onde projetar — dizer isso é mais útil do
+  /* Só «Não exibir» significa que não há para onde projetar — dizer isso é mais útil do
      que oferecer uma lista de um item que não leva a lado nenhum. */
   if (opcoes.length <= 1) {
     const vazio = document.createElement('div');

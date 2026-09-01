@@ -79,6 +79,8 @@ function fakeWin(opts = {}) {
     titulo: opts.title,
     /** `show` do construtor: tem de ser `false` em toda a janela de projeção. */
     criadaVisivel: opts.show !== false,
+    /** Fullscreen exclusivo no construtor: proibido — handshake HDMI com o projetor. */
+    criadaFullscreen: !!opts.fullscreen,
     webContents: {
       send: (canal, payload) => win.sends.push({ canal, payload }),
       on: registar(handlersWc),
@@ -382,6 +384,14 @@ function verificarNasceramOcultas(abertas) {
       e.win.criadaVisivel, false,
       `janela de papel «${e.role}» nasceu visível`
     );
+    assert.strictEqual(
+      e.win.criadaFullscreen, false,
+      `janela de papel «${e.role}» nasceu em fullscreen exclusivo`
+    );
+    assert.ok(
+      !e.win.nativas.some((n) => String(n).startsWith('setFullScreen')),
+      `janela de papel «${e.role}» chamou setFullScreen: ${e.win.nativas}`
+    );
     const iLoad = primeiroIndice(e.win.nativas, 'loadFile');
     const iShow = primeiroIndice(e.win.nativas, 'show');
     assert.ok(iLoad >= 0, `janela de papel «${e.role}» devia ter carregado uma página`);
@@ -471,9 +481,12 @@ test('todo monitor gerido tem chão preto, em qualquer transição de rota', () 
       );
     });
     fundos.forEach((e) => {
-      assert.strictEqual(
-        e.win.isFullScreen(), true,
-        `${etiqueta}: chão do monitor ${e.index} não está em tela cheia`
+      const d = DISPLAYS_TRES[e.index];
+      assert.ok(d, `${etiqueta}: índice ${e.index} fora dos displays de teste`);
+      assert.deepStrictEqual(
+        e.win.getBounds(),
+        d.bounds,
+        `${etiqueta}: chão do monitor ${e.index} não cobre o ecrã`
       );
     });
   };

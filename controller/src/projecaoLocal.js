@@ -13,11 +13,13 @@ const {
   alvosDaDifusao,
   displayConfigModo,
   displayRouting,
+  displayChangePolicy,
   monitorsList,
   localIp,
   controleAcesso,
 } = require('@lyra/projection-core');
 
+const { ligarTratadorMudancaDisplays } = displayChangePolicy;
 const { buildMonitorsList } = monitorsList;
 const { caminhoIconeApp } = require('./lib/iconPath');
 
@@ -66,61 +68,70 @@ function criarProjecaoLocal(deps) {
   let activa = false;
 
   /**
-   * Listeners de mudança de monitores, guardados para se poderem desmontar.
-   *
-   * O Servidor regista os seus e nunca os larga (`server/src/main.js:160-163`), o que ali
-   * é legítimo: ele é dono do processo e só os perde ao fechar. Aqui não — o modo local
-   * liga e desliga na mesma sessão, e listeners deixados para trás chamariam um motor já
-   * desmontado a cada monitor ligado.
-   *
-   * @type {Array<[string, Function]>}
+   * Função que desliga os listeners de mudança de monitores.
+   * O Servidor regista os seus e nunca os larga; aqui o modo local liga e desliga
+   * na mesma sessão, e listeners deixados para trás chamariam um motor já desmontado.
+   * @type {(() => void)|null}
    */
-  let listenersDeMonitores = [];
+  let desligarListenersDeMonitores = null;
 
   const registarErro = typeof logError === 'function' ? logError : () => {};
 
   /**
    * Ligar um projetor, desligá-lo ou mudar a resolução tem de reabrir/reposicionar as
    * telas — senão as janelas ficam em monitores que já não existem, ou o monitor novo
-   * fica a mostrar a área de trabalho. Mesmos três eventos que o Servidor escuta.
+   * fica a mostrar a área de trabalho. A política (ignorar `workArea`, coalescer HDMI)
+   * vive no Core para o Servidor e o modo local não divergirem.
    */
   function registarListenersDeMonitores() {
     removerListenersDeMonitores();
-    const garantir = (etapa) => {
-      if (!activa || !engine) return;
-      try {
-        engine.garantirTelasAbertasParaProjecao();
-      } catch (e) {
-        registarErro(`projecao-local-display-change-garantir-telas-${etapa}`, e);
-      }
-    };
-    const aoMudar = () => {
-      garantir('imediato');
-      /* `display-removed` chega antes de o Windows acabar de arrumar as janelas órfãs:
-         na primeira passagem elas ainda parecem no sítio, e é só depois que o SO as
-         arrasta para o ecrã do operador — sem emitir mais nenhum evento. A guarda do
-         `activa` na segunda passagem cobre o desligar do modo local entretanto. */
-      setTimeout(() => garantir('revalidacao'), 1200);
-    };
-    for (const evento of ['display-added', 'display-removed', 'display-metrics-changed']) {
-      try {
-        screen.on(evento, aoMudar);
-        listenersDeMonitores.push([evento, aoMudar]);
-      } catch (e) {
-        registarErro(`projecao-local-listener-${evento}`, e);
-      }
+    try {
+      desligarListenersDeMonitores = ligarTratadorMudancaDisplays(screen, {
+        /*
+         * Contraparte do `broadcastMonitoresParaJanelaControle()` do Servidor
+         * (`server/src/main.js`), que aqui não existia.
+         *
+         * Sem ela, ligar o projetor com o app já aberto não mexia nos seletores: a lista
+         * de monitores do painel só era recarregada no arranque, ao ligar o socket e ao
+         * desenhar a contagem. O operador via «M2 (Público)» na lista antiga — ou não via
+         * o monitor novo de todo — enquanto o motor já tinha reorganizado as telas.
+         *
+         * O painel recebe pelo mesmo canal de retorno dos eventos de projeção e vai ele
+         * próprio buscar a lista à API; aqui só se avisa que mudou.
+         */
+        aoListaMonitores: () => {
+          if (!activa) return;
+          try {
+            if (typeof aoEmitirParaPainel === 'function') {
+              aoEmitirParaPainel('monitores_alterados', buildMonitorsList(screen));
+            }
+          } catch (e) {
+            registarErro('projecao-local-monitores-alterados', e);
+          }
+        },
+        aoReorganizarJanelas: (etapa) => {
+          if (!activa || !engine) return;
+          try {
+            engine.garantirTelasAbertasParaProjecao();
+          } catch (e) {
+            registarErro(`projecao-local-display-change-garantir-telas-${etapa}`, e);
+          }
+        },
+      });
+    } catch (e) {
+      registarErro('projecao-local-listeners-monitores', e);
     }
   }
 
   function removerListenersDeMonitores() {
-    for (const [evento, fn] of listenersDeMonitores) {
+    if (typeof desligarListenersDeMonitores === 'function') {
       try {
-        screen.removeListener(evento, fn);
+        desligarListenersDeMonitores();
       } catch (e) {
-        registarErro(`projecao-local-remover-listener-${evento}`, e);
+        registarErro('projecao-local-remover-listeners-monitores', e);
       }
     }
-    listenersDeMonitores = [];
+    desligarListenersDeMonitores = null;
   }
 
   /**

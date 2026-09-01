@@ -6530,6 +6530,62 @@
       font-size: 13px;
     }
 
+    /*
+      Filtro de testamento — dois botões, ao lado da tradução.
+
+      Mesma caixa do seletor ao lado (fundo, borda, raio e altura): são vizinhos na
+      mesma barra, e um par de botões com desenho próprio leria como outra coisa
+      qualquer colada ali. Par encostado, com um traço a separar os dois, porque AT e
+      NT são as duas metades de uma mesma escolha.
+    */
+    .biblia-filtro-testamento {
+      display: inline-flex;
+      align-items: stretch;
+      flex: 0 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--surface2);
+    }
+
+    .biblia-filtro-btn {
+      min-width: 46px;
+      padding: 6px 12px;
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .biblia-filtro-btn + .biblia-filtro-btn {
+      border-left: 1px solid var(--border);
+    }
+
+    .biblia-filtro-btn:hover {
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+      color: var(--text);
+    }
+
+    /*
+      Ligado: o mesmo dourado que marca o livro seleccionado na grade — na Bíblia é
+      essa a cor de «está activo», e o filtro não precisa de inventar outra.
+    */
+    .biblia-filtro-btn.ativo {
+      background: color-mix(in srgb, var(--accent) 22%, var(--surface2));
+      color: var(--accent);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    .biblia-filtro-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+
     .biblia-corpo {
       display: grid;
       grid-template-columns: minmax(400px, 42%) minmax(200px, 18%) 1fr;
@@ -10091,7 +10147,7 @@
       border-color: var(--accent);
     }
 
-    /* Rota «Desativado» (-1): sem projeção em monitor externo — só pré-visualizações no painel */
+    /* Rota «Não exibir» (-1): sem projeção em monitor externo — só pré-visualizações no painel */
     .route-dd.route-dd--rota-desativada .route-dd-btn {
       border-color: color-mix(in srgb, var(--red) 52%, var(--border));
       background: color-mix(in srgb, var(--surface2) 86%, var(--red) 14%);
@@ -10113,7 +10169,7 @@
     }
 
     /* Só um monitor de projeção: o retorno do ministrante não tem para onde ir.
-       Cinzento neutro, e não vermelho de «Desativado» — não é um erro de configuração,
+       Cinzento neutro, e não vermelho de «Não exibir» — não é um erro de configuração,
        é o limite do hardware ligado. */
     .route-dd.route-dd--sem-monitor .route-dd-btn:disabled {
       cursor: not-allowed;
@@ -10169,7 +10225,7 @@
     }
 
     /* `--projetando` vem do JS e não olha ao destino: Público, Ministrante, Ambos ou
-       Live — OBS, o verde diz sempre a mesma coisa. Só «Desativado» fica de fora. */
+       Live — OBS, o verde diz sempre a mesma coisa. Só «Não exibir» fica de fora. */
     body.app-mod-biblia .route-dd.route-dd--projetando .route-dd-btn {
       border-color: #3d9e58;
       background: var(--surface2);
@@ -10435,7 +10491,7 @@
       <span class="conn-label" id="route-publico-label">Público</span>
       <div class="route-dd" id="route-publico-dd">
         <button type="button" class="route-dd-btn" id="route-publico-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="route-publico-menu">
-          <span class="route-dd-label" id="route-publico-display">Desativado</span>
+          <span class="route-dd-label" id="route-publico-display">Não exibir</span>
           <span class="route-dd-caret" aria-hidden="true">▾</span>
         </button>
         <ul class="route-dd-menu" id="route-publico-menu" role="listbox" hidden></ul>
@@ -10444,7 +10500,7 @@
       <span class="conn-label" id="route-ministrante-label">Ministrante</span>
       <div class="route-dd" id="route-ministrante-dd">
         <button type="button" class="route-dd-btn" id="route-ministrante-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="route-ministrante-menu">
-          <span class="route-dd-label" id="route-ministrante-display">Desativado</span>
+          <span class="route-dd-label" id="route-ministrante-display">Não exibir</span>
           <span class="route-dd-caret" aria-hidden="true">▾</span>
         </button>
         <ul class="route-dd-menu" id="route-ministrante-menu" role="listbox" hidden></ul>
@@ -10755,9 +10811,13 @@
 
     <div id="layout-biblia" class="biblia-layout-novo">
 
-      <!-- Topo: seletor de tradução -->
+      <!-- Topo: seletor de tradução + filtro de testamento -->
       <div class="biblia-header">
         <select id="traducao-sel" class="biblia-sel-traducao" onchange="onTraducaoBibliaChange()" title="Tradução desta sessão (definida ao entrar no modo Bíblia)"></select>
+        <div class="biblia-filtro-testamento" role="group" aria-label="Filtrar livros por testamento">
+          <button type="button" class="biblia-filtro-btn" id="biblia-filtro-at" onclick="definirFiltroTestamentoBiblia('at')" aria-pressed="false" title="Mostrar só os livros do Antigo Testamento (clique de novo para ver todos)">AT</button>
+          <button type="button" class="biblia-filtro-btn" id="biblia-filtro-nt" onclick="definirFiltroTestamentoBiblia('nt')" aria-pressed="false" title="Mostrar só os livros do Novo Testamento (clique de novo para ver todos)">NT</button>
+        </div>
       </div>
 
       <div class="biblia-legenda" id="biblia-legenda" aria-label="Legenda dos grupos de livros"></div>

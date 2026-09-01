@@ -65,6 +65,7 @@ module.exports = {
   displayConfigTransforms: require('./displayConfigTransforms'),
   displayIndices: require('./displayIndices'),
   displayRouting: require('./displayRouting'),
+  displayChangePolicy: require('./displayChangePolicy'),
   localIp: require('./localIp'),
   /* Guarda de acesso à porta 5510. Vive aqui porque os dois hosts a servem, e o celular
      tem de se autenticar da mesma maneira nos dois modos. */

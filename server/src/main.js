@@ -34,6 +34,7 @@ const displayConfigModo = require('./lib/displayConfigModo');
 const { buildMonitorsList } = require('./lib/monitorsList');
 const serverPrefs = require('./lib/serverPrefs');
 const projectionCore = require('@lyra/projection-core');
+const { ligarTratadorMudancaDisplays } = projectionCore.displayChangePolicy;
 const { createWindowsApi } = require('./windows');
 const { createTrayApi } = require('./tray');
 const path = require('path');
@@ -104,20 +105,16 @@ function broadcastMonitoresParaJanelaControle() {
  * evento é emitido. Sem esta repetição, a janela ficava lá para sempre.
  *
  * A verificação é idempotente: com tudo no sítio não toca em janela nenhuma.
+ *
+ * `display-metrics-changed` com só `workArea` é ignorado: é o loop do projetor
+ * (ver `displayChangePolicy`).
  */
-const ATRASO_REVALIDAR_MONITORES_MS = 1200;
-
-function aoMudarDisplaysDoSistema() {
-  broadcastMonitoresParaJanelaControle();
-  const garantir = (etapa) => {
-    try {
-      windowsApi.garantirTelasAbertasParaProjecao();
-    } catch (e) {
-      logError(`display-change-garantir-telas-${etapa}`, e);
-    }
-  };
-  garantir('imediato');
-  setTimeout(() => garantir('revalidacao'), ATRASO_REVALIDAR_MONITORES_MS);
+function aoReorganizarJanelasPorDisplay(etapa) {
+  try {
+    windowsApi.garantirTelasAbertasParaProjecao();
+  } catch (e) {
+    logError(`display-change-garantir-telas-${etapa}`, e);
+  }
 }
 
 function agendarReinicioServidorElectron() {
@@ -204,10 +201,10 @@ app.whenReady().then(() => {
   } catch (e) {
     logError('startup-garantir-telas', e);
   }
-  screen.on('display-added', aoMudarDisplaysDoSistema);
-  screen.on('display-removed', aoMudarDisplaysDoSistema);
-  /** Atualiza resoluções / escala mesmo sem cabo novo (ex.: “Estender só depois”). */
-  screen.on('display-metrics-changed', aoMudarDisplaysDoSistema);
+  ligarTratadorMudancaDisplays(screen, {
+    aoListaMonitores: broadcastMonitoresParaJanelaControle,
+    aoReorganizarJanelas: aoReorganizarJanelasPorDisplay,
+  });
   windowsApi.criarJanelaControle();
   trayApi.refreshMenusAndTray();
 });

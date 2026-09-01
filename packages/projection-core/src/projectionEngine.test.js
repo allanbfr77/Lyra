@@ -33,6 +33,8 @@ function janelaFalsa(opts = {}) {
     destruida: false,
     visivel: true,
     fullscreen: !!opts.fullscreen,
+    criadaFullscreen: !!opts.fullscreen,
+    setFullScreenCalls: [],
     bounds: { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 1920, height: opts.height ?? 1080 },
     sends: [],
     paginas: [],
@@ -44,7 +46,7 @@ function janelaFalsa(opts = {}) {
     on: () => {}, once: () => {},
     close: () => { win.destruida = true; },
     setBackgroundColor: () => {}, setAlwaysOnTop: () => {}, moveTop: () => {},
-    setFullScreen: (b) => { win.fullscreen = !!b; },
+    setFullScreen: (b) => { win.fullscreen = !!b; win.setFullScreenCalls.push(!!b); },
     setBounds: (b) => { win.bounds = { ...win.bounds, ...b }; },
     show: () => { win.visivel = true; win.focouAoMostrar = true; },
     /* O motor tem de usar SEMPRE esta: `show()` do Electron mostra e foca, e uma janela de
@@ -815,6 +817,54 @@ test('sem deriva nenhuma o motor não mexe nas janelas', () => {
   );
 });
 
+test('janelas de projeção não usam fullscreen exclusivo', () => {
+  /* O modelo do Holyrics: janela sem moldura do tamanho do monitor. `fullscreen: true`
+     no Windows entra em DXGI exclusivo, o projetor perde o sinal e o PC fica a piscar. */
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  const abertas = engine.janelasDeProjecao();
+  assert.ok(abertas.length > 0);
+  for (const e of abertas) {
+    assert.strictEqual(
+      e.win.criadaFullscreen,
+      false,
+      `papel ${e.role} nasceu em fullscreen exclusivo`
+    );
+    assert.deepStrictEqual(
+      e.win.setFullScreenCalls,
+      [],
+      `papel ${e.role} chamou setFullScreen: ${e.win.setFullScreenCalls}`
+    );
+  }
+});
+
+test('oscilação de 1 px nos bounds não reposiciona o telão', () => {
+  /* DPI e getBounds em ecrã secundário oscilam 1 px. Sem folga o motor «corrigia»
+     para sempre — o mesmo loop do projetor, por outro caminho. */
+  const engine = montarComTresEcrans(
+    {
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    },
+    [1, 2]
+  );
+  engine.abrirTelasConfiguradas();
+  const publico = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  const alvo = DISPLAYS_TRES[1].bounds;
+  publico.win.setBounds({ ...alvo, x: alvo.x + 1 });
+  const antes = { ...publico.win.getBounds() };
+  engine.garantirTelasAbertasParaProjecao();
+  assert.deepStrictEqual(publico.win.getBounds(), antes);
+});
+
 /**
  * ── A rota diz ONDE desenhar, não SE existe o que desenhar ────────────────────
  *
@@ -906,4 +956,431 @@ test('sem monitor roteado as janelas que sobram continuam a receber o payload oc
   );
   assert.ok(Array.isArray(antes));
   assert.strictEqual(state.estadoAtual.tipo, 'biblia');
+});
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * Relógio e projetor: as duas regressões do M2 (Público).
+ * ---------------------------------------------------------------------------------------
+ */
+
+/** Motor com N ecrãs e um monitor principal que se pode trocar a meio (como o Windows faz). */
+function montarComEcransMutaveis(routing, indices, displays, opts = {}) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-m2-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(routingPath, JSON.stringify(routing));
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices }));
+
+  const ecra = { principal: opts.principal ?? 0 };
+  const state = armazemDeProjecao();
+  if (opts.clock) state.displayConfig.clock = opts.clock;
+  const engine = createProjectionEngine(
+    { displayRoutingPath: () => routingPath, displaySettingsPath: () => settingsPath },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => displays,
+        getPrimaryDisplay: () => displays[ecra.principal],
+        on: () => {},
+      },
+      BrowserWindow: function (o) { return janelaFalsa(o); },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => opts.operadorConectado !== false,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+    }
+  );
+  /** Reescreve o ficheiro de rota, como faz um PUT /api/display-routing. */
+  const definirRota = (r) => fs.writeFileSync(routingPath, JSON.stringify(r));
+  return { engine, ecra, state, definirRota };
+}
+
+const ROTA_PUBLICO_NO_1 = {
+  version: 2,
+  slides: { publicoIndex: 1, ministranteIndex: -1 },
+  apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+  contagem: { publicoIndex: -1, ministranteIndex: -1 },
+};
+
+test('relógio do ministrante não nasce no monitor do público (dois ecrãs, projetor no M2)', () => {
+  /*
+   * A regressão do projetor. Com dois monitores, `loadDisplayIndices()` devolve [1, 2], o
+   * índice 2 cai no filtro e sobra [1]; a linha antiga `ministranteIndex = fixos[1] ??
+   * publicoIndex` colapsava o ministrante no monitor do público. Nascia uma janela de
+   * relógio por baixo do telão, no projetor, que nunca chegava a ser revelada — o alvo é o
+   * ministrante e `deveRevelarRelogioNoRole('publico')` é falso. Ficava só a cobrir o M2 e
+   * a disputar z-order com o telão a cada `moveTop()` do reclaim.
+   */
+  const { engine } = montarComEcransMutaveis(ROTA_PUBLICO_NO_1, [1, 2], DISPLAYS, {
+    clock: { showClock: true, monitorRelogio: 'ministrante' },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+
+  const relogios = engine.janelasDeProjecao().filter((e) => e.role === 'relogio');
+  assert.deepEqual(
+    relogios.map((e) => e.index),
+    [],
+    'sem ministrante roteado e com o público no M2, não há monitor para o relógio'
+  );
+  assert.ok(
+    engine.janelasDeProjecao().some((e) => e.role === 'publico' && e.index === 1),
+    'o telão continua a abrir no M2'
+  );
+});
+
+test('relógio ainda abre no monitor de recurso quando o público não está roteado', () => {
+  /* Contraparte: a correção acima não pode apagar o relógio de uma instalação nova, onde
+     ainda não há rota nenhuma e o relógio é a única coisa no ecrã secundário. */
+  const rotaVazia = {
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: -1 },
+    apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  };
+  const { engine } = montarComEcransMutaveis(rotaVazia, [1, 2], DISPLAYS, {
+    clock: { showClock: true, monitorRelogio: 'ministrante' },
+  });
+  engine.sincronizarJanelasRelogio();
+
+  assert.ok(
+    engine.janelasDeProjecao().some((e) => e.role === 'relogio' && e.index === 1),
+    'sem telão no M2 o relógio de recurso continua a abrir lá'
+  );
+});
+
+test('relógio no monitor do público continua a existir quando é isso que a config pede', () => {
+  const { engine } = montarComEcransMutaveis(ROTA_PUBLICO_NO_1, [1, 2], DISPLAYS, {
+    clock: { showClock: true, monitorRelogio: 'publico' },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.ok(
+    engine.janelasDeProjecao().some((e) => e.role === 'relogio' && e.index === 1),
+    'alvo «publico» é intencional: o telão esconde-se para revelar o relógio'
+  );
+});
+
+test('projetor promovido a monitor principal não desmonta as telas', () => {
+  /*
+   * Ao ligar um projetor, o Windows promove-o a principal por instantes enquanto
+   * reconfigura o arranjo. `indiceProjecaoSeguro` devolve -1 para o principal — é a guarda
+   * que impede projetar por cima do painel do operador —, e nesse intervalo a rota parecia
+   * vazia. O motor fechava/apagava as telas e reabria-as no evento seguinte: o
+   * abre-fecha-abre que se via no M2.
+   */
+  const { engine, ecra } = montarComEcransMutaveis(ROTA_PUBLICO_NO_1, [1, 2], DISPLAYS, {
+    clock: { showClock: false, monitorRelogio: 'ministrante' },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  const publicoAntes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(publicoAntes, 'o telão devia estar aberto no M2');
+  const enviosAntes = publicoAntes.win.sends.length;
+
+  /* O Windows troca o principal para o projetor a meio do handshake. */
+  ecra.principal = 1;
+  engine.garantirTelasAbertasParaProjecao();
+
+  const publicoDepois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(publicoDepois, 'a janela do telão não pode ser desmontada por um estado transitório');
+  assert.strictEqual(publicoDepois.win, publicoAntes.win, 'e tem de ser a MESMA janela');
+  assert.strictEqual(publicoDepois.win.destruida, false);
+  /* O sintoma visível era este: o telão apagava-se durante o transitório. */
+  assert.deepEqual(
+    publicoDepois.win.sends.slice(enviosAntes),
+    [],
+    'o telão não pode receber payload de apagar por causa de um principal transitório'
+  );
+
+  /* De volta ao normal, nada a recriar. */
+  ecra.principal = 0;
+  engine.garantirTelasAbertasParaProjecao();
+  assert.strictEqual(
+    engine.janelasDeProjecao().find((e) => e.role === 'publico').win,
+    publicoAntes.win
+  );
+});
+
+test('projetor promovido a principal sem operador ligado também não fecha as janelas', () => {
+  /* Sem operador, o ramo antigo chamava `fecharTodasJanelasProjecao()`: o transitório
+     destruía mesmo as janelas, e a seguir era preciso recriá-las e recarregar as páginas. */
+  const { engine, ecra } = montarComEcransMutaveis(ROTA_PUBLICO_NO_1, [1, 2], DISPLAYS, {
+    clock: { showClock: false, monitorRelogio: 'ministrante' },
+    operadorConectado: false,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  const publicoAntes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(publicoAntes, 'o telão devia estar aberto no M2');
+
+  ecra.principal = 1;
+  engine.garantirTelasAbertasParaProjecao();
+
+  assert.strictEqual(publicoAntes.win.destruida, false, 'a janela não pode ser fechada');
+  assert.ok(
+    engine.janelasDeProjecao().some((e) => e.role === 'publico' && e.win === publicoAntes.win),
+    'e continua registada'
+  );
+});
+
+test('rota realmente desligada continua a apagar as telas', () => {
+  /* A guarda transitória não pode engolir o caso legítimo: «Desativado» nos dois canais
+     tem de continuar a limpar o que está no ar. */
+  const rotaDesligada = {
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: -1 },
+    apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  };
+  const { engine } = montarComEcransMutaveis(rotaDesligada, [], DISPLAYS, {
+    clock: { showClock: false, monitorRelogio: 'ministrante' },
+    operadorConectado: false,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  assert.strictEqual(
+    engine.janelasDeProjecao().filter((e) => e.role === 'publico').length,
+    0,
+    'sem monitor roteado e sem operador, não fica telão nenhum aberto'
+  );
+});
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * «Não exibir» (antes «Desativado»): instrução de conteúdo, não de hardware.
+ * ---------------------------------------------------------------------------------------
+ */
+
+const rota = (pub, min) => ({
+  version: 2,
+  slides: { publicoIndex: pub, ministranteIndex: min },
+  apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+  contagem: { publicoIndex: -1, ministranteIndex: -1 },
+});
+
+const SEM_RELOGIO = { showClock: false, monitorRelogio: 'ministrante' };
+
+test('«Não exibir» mantém a janela viva, visível e no monitor — não a esconde nem a fecha', () => {
+  const { engine, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  const antes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(antes, 'o telão devia estar aberto no M2');
+  assert.strictEqual(antes.win.visivel, true);
+
+  /* O operador põe o Público em «Não exibir» neste modo. */
+  definirRota(rota(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(depois, 'a janela não pode ser fechada');
+  assert.strictEqual(depois.win, antes.win, 'nem recriada');
+  assert.strictEqual(depois.win.destruida, false);
+  assert.strictEqual(depois.win.visivel, true, 'nem escondida — é isso que faz o projetor piscar');
+  assert.strictEqual(depois.index, 1, 'continua no monitor dela');
+
+  const ultimo = depois.win.sends.filter((s) => s.canal === 'atualizar').pop();
+  assert.ok(ultimo, 'devia ter recebido payload');
+  assert.ok(
+    !ultimo.payload || ultimo.payload.telaLimpa === true ||
+      (Array.isArray(ultimo.payload.linhas) && ultimo.payload.linhas.length === 0),
+    `a janela devia ficar preta, recebeu: ${JSON.stringify(ultimo.payload)}`
+  );
+});
+
+test('«Não exibir» é estável: chamadas repetidas não recriam nem remexem na janela', () => {
+  /* Se a rota parecesse por cumprir com a janela em «Não exibir», cada estrofe e cada
+     evento de ecrã disparavam um resync completo — o churn que renegocia o projetor. */
+  const { engine, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rota(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+
+  const win = engine.janelasDeProjecao().find((e) => e.role === 'publico').win;
+  const boundsAntes = win.setBounds.length;
+  const paginasAntes = win.paginas.length;
+  for (let i = 0; i < 5; i += 1) engine.garantirTelasAbertasParaProjecao();
+
+  const agora = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(agora.win, win, 'a mesma janela nas cinco passagens');
+  assert.strictEqual(agora.win.paginas.length, paginasAntes, 'nenhuma página recarregada');
+  assert.strictEqual(agora.win.visivel, true);
+  assert.ok(boundsAntes >= 0);
+});
+
+test('voltar a escolher um monitor devolve o conteúdo à janela que estava em «Não exibir»', () => {
+  const { engine, definirRota, state } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rota(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  const win = engine.janelasDeProjecao().find((e) => e.role === 'publico').win;
+  const enviosAntes = win.sends.length;
+
+  definirRota(rota(1, 2));
+  state.estadoAtual = { tipo: 'musica', titulo: 'Hino', linhas: ['volta'], telaLimpa: false };
+  engine.garantirTelasAbertasParaProjecao();
+
+  const conteudo = win.sends
+    .slice(enviosAntes)
+    .filter((s) => s.canal === 'atualizar')
+    .map((s) => s.payload)
+    .filter((p) => Array.isArray(p?.linhas) && p.linhas.length > 0);
+  assert.ok(conteudo.length > 0, 'a janela tem de voltar a receber conteúdo, não ficar presa a preto');
+  assert.strictEqual(engine.janelasDeProjecao().find((e) => e.role === 'publico').win, win);
+});
+
+test('«Não exibir» nos dois canais não fecha janela nenhuma com o operador ligado', () => {
+  const { engine, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  const vivasAntes = engine
+    .janelasDeProjecao()
+    .filter((e) => e.role === 'publico' || e.role === 'ministrante')
+    .map((e) => e.win);
+  assert.ok(vivasAntes.length >= 1);
+
+  definirRota(rota(-1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+
+  for (const win of vivasAntes) {
+    assert.strictEqual(win.destruida, false, 'nenhuma janela de projeção pode ser fechada');
+  }
+});
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * Ministrante em «Não exibir»: prévia e monitor físico têm de dizer o mesmo.
+ * ---------------------------------------------------------------------------------------
+ */
+
+/** Estado com conteúdo real no canal do ministrante (snapshot vem das estrofes). */
+function comConteudoNoMinistrante(state) {
+  state.estadoAtual = {
+    tipo: 'musica',
+    titulo: 'Hino',
+    telaLimpa: false,
+    estrofes: ['primeira estrofe', 'segunda estrofe'],
+    estrofeIndex: 0,
+  };
+  state.estadoMinistrante = { titulo: 'Hino', atual: 'primeira estrofe', proximo: '', telaLimpa: false };
+}
+
+/** Último payload que a janela do ministrante recebeu. */
+function ultimoPayloadMinistrante(engine) {
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  if (!entrada) return null;
+  const s = entrada.win.sends.filter((x) => x.canal === 'atualizar_ministrante').pop();
+  return s ? s.payload : null;
+}
+
+test('Ministrante em «Não exibir»: a janela persistente fica preta, não só a prévia', () => {
+  /*
+   * A regressão relatada: no Modo Slides, pôr o Ministrante em «Não exibir» escondia o
+   * conteúdo na prévia do painel — que olha para a rota — e o monitor físico continuava a
+   * mostrar a estrofe. A causa é `resolverIndiceJanelaPersistenteMinistrante`: com a rota a
+   * -1 ele devolve o monitor de RECURSO, para a janela não ter de nascer à vista mais
+   * tarde. Só que esse índice >= 0 fazia o resto do motor tratar o canal como activo.
+   *
+   * A janela persistente continua a existir — o ministrante não é removido de nada —, mas
+   * marcada e preta.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoMinistrante(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  const janelaAntes = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.ok(janelaAntes, 'o ministrante devia estar aberto no M3');
+  assert.strictEqual(ultimoPayloadMinistrante(engine).projecaoAtiva, true, 'antes: com conteúdo');
+
+  definirRota(rota(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const janelaDepois = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.ok(janelaDepois, 'a janela persistente do ministrante continua a existir');
+  assert.strictEqual(janelaDepois.win, janelaAntes.win, 'e é a mesma — nada foi removido');
+  assert.strictEqual(janelaDepois.win.destruida, false);
+  assert.strictEqual(janelaDepois.semExibicao, true, 'marcada como «Não exibir»');
+
+  const payload = ultimoPayloadMinistrante(engine);
+  assert.strictEqual(payload.telaLimpa, true, 'o monitor físico tem de ficar preto');
+  assert.strictEqual(String(payload.atual || ''), '', 'sem estrofe');
+  assert.strictEqual(String(payload.titulo || ''), '', 'sem título');
+});
+
+test('Ministrante volta a exibir quando o operador escolhe o monitor de novo', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoMinistrante(state);
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rota(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  assert.strictEqual(ultimoPayloadMinistrante(engine).telaLimpa, true);
+
+  definirRota(rota(1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.strictEqual(entrada.semExibicao, false, 'a marca tem de sair');
+  assert.strictEqual(
+    ultimoPayloadMinistrante(engine).projecaoAtiva,
+    true,
+    'o conteúdo tem de voltar — «Não exibir» esconde, não apaga'
+  );
+});
+
+test('Ministrante em «Não exibir» é estável: nada recriado a cada passagem', () => {
+  /* `garantirTelasAbertasParaProjecao` corre a cada estrofe. Se a marca certa não contasse
+     como rota cumprida, era um resync completo por estrofe no monitor do ministrante. */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoMinistrante(state);
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rota(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+
+  const win = engine.janelasDeProjecao().find((e) => e.role === 'ministrante').win;
+  const paginas = win.paginas.length;
+  for (let i = 0; i < 5; i += 1) {
+    engine.garantirTelasAbertasParaProjecao();
+    engine.render({});
+  }
+
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.strictEqual(entrada.win, win, 'a mesma janela nas cinco passagens');
+  assert.strictEqual(entrada.win.paginas.length, paginas, 'nenhuma página recarregada');
+  assert.strictEqual(entrada.win.visivel, true, 'nem escondida');
+  assert.strictEqual(ultimoPayloadMinistrante(engine).telaLimpa, true, 'e continua preta');
+});
+
+test('«Não exibir» no ministrante não afecta o telão do público', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoMinistrante(state);
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rota(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const pub = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(pub, 'o telão continua aberto');
+  assert.strictEqual(pub.semExibicao, false, 'e sem a marca');
+  assert.strictEqual(pub.index, 1);
+  const ultimo = pub.win.sends.filter((s) => s.canal === 'atualizar').pop();
+  assert.ok(ultimo, 'o telão continua a receber os seus payloads');
 });
