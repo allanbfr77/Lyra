@@ -19115,10 +19115,12 @@ function encerrarProjecaoDoControlador(opts = {}) {
     renderMusicaVersoesBar();
     modoEdicaoEstrofes = false;
     snapshotEdicaoEstrofes = null;
+    snapshotLetraCompleta = null;
     modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
     faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
     selecaoUiPlaylist = null;
+    selecaoUiBiblioteca = null;
   }
   estrofeAtiva = -1;
   slidesDockVisivel = ehModoSlidesOperador();
@@ -21026,14 +21028,52 @@ async function bibliaEscolherFundo(input) {
  * cobrem, e esses são verificados pelo estado de abertura que cada um usa.
  */
 function escDaHomePertenceAoSair(btn) {
-  const menuAberto = document.querySelector(
-    '.menu-flutuante:not([hidden]), .culto-dd-menu:not([hidden]), .playlist-tema-dd-menu:not([hidden]), .route-dd.route-dd-open'
-  );
-  if (menuAberto) return false;
+  if (escDaHomeTemCamadaPorCima()) return false;
   const r = btn.getBoundingClientRect();
   if (!r.width || !r.height) return false;
   const topo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
   return !!topo && btn.contains(topo);
+}
+
+/** Menu, diálogo ou painel por cima: o ESC é deles, não da seleção da Home. */
+function escDaHomeTemCamadaPorCima() {
+  if (
+    document.querySelector(
+      '.menu-flutuante:not([hidden]), .culto-dd-menu:not([hidden]), .playlist-tema-dd-menu:not([hidden]), .route-dd.route-dd-open'
+    )
+  ) {
+    return true;
+  }
+  if (document.getElementById('app-dialog-overlay')?.classList.contains('aberto')) return true;
+  if (document.getElementById('lyra-menu-modal-overlay')?.classList.contains('aberto')) return true;
+  if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return true;
+  if (document.getElementById('cfg-modal-overlay-ctrl')?.classList.contains('aberto')) return true;
+  return false;
+}
+
+/**
+ * ESC na Home = Sair (limpa a música). No modo letra completa o botão some da
+ * barra, mas a tecla continua a fazer o mesmo — seleccionar uma música abre
+ * nesse modo, e sem isto o ESC ficava mudo.
+ * @returns {boolean} true se a selecção foi limpa.
+ */
+function acionarEscSairDaHome() {
+  if (ehModoApresentacaoOperador() || ehModoBibliaOperador() || ehModoSlidesOperador()) {
+    return false;
+  }
+  const btnSairCentral = document.getElementById('btn-sair-projecao');
+  if (
+    btnSairCentral &&
+    !btnSairCentral.disabled &&
+    btnSairCentral.offsetParent !== null &&
+    escDaHomePertenceAoSair(btnSairCentral)
+  ) {
+    btnSairCentral.click();
+    return true;
+  }
+  if (!modoLetraCompletaCentral || !musicaAtiva || escDaHomeTemCamadaPorCima()) return false;
+  encerrarProjecaoDoControlador({ limparMusica: true });
+  return true;
 }
 
 document.addEventListener('keydown', (e) => {
@@ -21110,6 +21150,17 @@ document.addEventListener('keydown', (e) => {
       slidesRailUserRecolhido = true;
       encerrarProjecaoDoControlador({ limparMusica: true });
       return;
+    } else if (
+      modoLetraCompletaCentral &&
+      (e.target.id === 'centro-letra-completa-ta' ||
+        e.target.id === 'edit-titulo' ||
+        e.target.id === 'edit-artista')
+    ) {
+      /* O textarea da letra completa engolia o ESC; na Home ele limpa a selecção. */
+      if (acionarEscSairDaHome()) {
+        e.preventDefault();
+        return;
+      }
     }
     /* Sem nada projetado: cai no bloco abaixo e o campo trata o Escape. */
   }
@@ -21189,25 +21240,12 @@ document.addEventListener('keydown', (e) => {
       return;
     }
     /*
-     * Home: o ESC é o botão «Sair» da barra central, e não uma segunda via para o
-     * mesmo fim. Aciona-se o próprio botão (`.click()`) em vez de repetir aqui a
-     * chamada a `encerrarProjecaoDoControlador`: assim as duas entradas partilham
-     * literalmente o mesmo caminho — se o «Sair» mudar de ação, o ESC muda com ele.
-     *
-     * A visibilidade do botão é a condição de existir ação: `atualizarToolbarAcoes`
-     * esconde-o sem música carregada e durante a edição visual, e nesses estados não há
-     * nada para encerrar — o ESC fica livre para quem o queira (campos, menus).
+     * Home: o ESC é o botão «Sair» da barra central. No modo letra completa esse
+     * botão está escondido (a barra troca para Salvar/Cancelar), mas seleccionar
+     * uma música na Home abre nesse modo — o ESC tem de limpar a selecção na
+     * mesma. `acionarEscSairDaHome` cobre os dois casos.
      */
-    const btnSairCentral = document.getElementById('btn-sair-projecao');
-    if (
-      btnSairCentral &&
-      !btnSairCentral.disabled &&
-      btnSairCentral.offsetParent !== null &&
-      escDaHomePertenceAoSair(btnSairCentral)
-    ) {
-      e.preventDefault();
-      btnSairCentral.click();
-    }
+    if (acionarEscSairDaHome()) e.preventDefault();
   } else if (e.key === 'F10') {
     e.preventDefault();
     toggleBlackoutTelas();
@@ -21982,7 +22020,7 @@ const LYRA_SHORTCUT_GROUPS = [
       },
       {
         keys: ['Escape'],
-        action: 'No modo Slide, encerra a projeção atual e limpa as telas. No modo Bíblia, fecha a busca rápida aberta ou encerra a projeção bíblica.',
+        action: 'Na Home, limpa a música selecionada (também no modo letra completa). No modo Slide, encerra a projeção atual e limpa as telas. No modo Bíblia, fecha a busca rápida aberta ou encerra a projeção bíblica.',
       },
     ],
   },

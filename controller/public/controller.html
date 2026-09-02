@@ -3446,10 +3446,6 @@
       outline: none;
     }
 
-    .centro-letra-completa-ta:focus {
-      border-color: var(--accent);
-    }
-
     /**
      * Divisórias entre estrofes. Um textarea só desenha texto puro, por isso as linhas
      * vivem numa camada por baixo dele (o textarea fica com fundo transparente).
@@ -3488,8 +3484,8 @@
       left: 14px;
       right: 14px;
       height: 1px;
-      background: color-mix(in srgb, var(--border) 70%, transparent);
-      opacity: 0.55;
+      background: color-mix(in srgb, var(--text-dim) 28%, var(--border) 72%);
+      opacity: 0.64;
     }
 
     /* Espelho invisível: existe só para medir onde cai cada linha em branco. */
