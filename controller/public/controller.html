@@ -10462,6 +10462,54 @@
       pointer-events: none;
     }
 
+    /*
+      «Lembrar monitor» — só nos modos de seletor unificado.
+
+      O slot do cabeçalho é partilhado com o modo Slides, que tem persistência própria
+      (a rota dele já sobrevive entre sessões) e não tem checkbox nenhum a oferecer. Sem
+      esta regra, a caixa aparecia lá a prometer algo que não faz.
+    */
+    .hdr-lembrar-monitor {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 5px;
+      padding: 0 7px;
+      height: 30px;
+      box-sizing: border-box;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-dim, var(--text));
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    }
+    body.app-mod-apresentacao .hdr-lembrar-monitor,
+    body.app-mod-biblia .hdr-lembrar-monitor {
+      display: inline-flex;
+    }
+    .hdr-lembrar-monitor:hover {
+      border-color: color-mix(in srgb, var(--text) 28%, var(--border));
+      color: var(--text);
+    }
+    /*
+      Sem realce de estado no contentor: quem diz se está ligado é a própria caixa de
+      seleção. Um contorno dourado a acender ao lado do «Encerrar projeção» lia-se como
+      aviso de projeção no ar — e «Lembrar monitor» não é projeção, é só memória.
+    */
+    .hdr-lembrar-monitor input {
+      margin: 0;
+      width: 13px;
+      height: 13px;
+      cursor: pointer;
+    }
+    .hdr-lembrar-monitor-texto {
+      font-size: var(--fs-caption-base, 11px);
+      letter-spacing: 0.01em;
+    }
+
     .route-dd {
       position: relative;
       min-width: 120px;
@@ -10862,6 +10910,10 @@
           <path d="m9 9 6 6"/>
         </svg>
       </button>
+      <label class="hdr-lembrar-monitor" id="hdr-lembrar-monitor" title="Guarda o monitor escolhido neste modo. Encerrar a projeção continua a encerrá-la — o monitor é que fica escolhido para a próxima vez.">
+        <input type="checkbox" id="hdr-lembrar-monitor-chk" autocomplete="off" />
+        <span class="hdr-lembrar-monitor-texto">Lembrar monitor</span>
+      </label>
     </div>
   </div>
     <nav class="hdr-icons-bar" id="hdr-icons-bar" aria-label="Modos e ferramentas">

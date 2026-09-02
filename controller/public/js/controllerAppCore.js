@@ -78,6 +78,13 @@ import { resolverProximoCultoPorHorarioBrasilia } from './modules/proximoCulto.j
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import { rotaSlidesParaEnvioComBiblia } from './modules/supressaoCanalSlides.js';
 import { precisaReporRotaSlides, rotaSlidesReposta } from './modules/reposicaoRotaSlides.js';
+import {
+  MODOS_COM_MEMORIA,
+  definirLembrarMonitor,
+  lembrarMonitorLigado,
+  registrarEscolhaMonitor,
+  rotaLembradaParaEntrada,
+} from './modules/monitorLembrado.js';
 import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
@@ -495,6 +502,86 @@ function rotaRestauradaPorIdentidade(modo, rotaServidor) {
 
 function rotaDesativada() {
   return { publicoIndex: -1, ministranteIndex: -1, live: false };
+}
+
+/* ─── «Lembrar monitor» (Bíblia e Mídias) — ver `modules/monitorLembrado.js` ─── */
+
+/** Modo com memória de monitor aberto agora, ou `null`. */
+function modoComMemoriaMonitorAtual() {
+  const m = modoRoteamentoAtual();
+  return MODOS_COM_MEMORIA.includes(m) ? m : null;
+}
+
+/** Põe o checkbox a dizer a verdade sobre o modo que está aberto. */
+function sincronizarCheckboxLembrarMonitor() {
+  const chk = document.getElementById('hdr-lembrar-monitor-chk');
+  if (!chk) return;
+  const modo = modoComMemoriaMonitorAtual();
+  chk.checked = !!modo && lembrarMonitorLigado(hostChaveMonitores(), modo);
+}
+
+/**
+ * Grava a escolha que o operador acabou de fazer no seletor unificado.
+ *
+ * Só daqui — do clique. Os caminhos automáticos escrevem «Não exibir» ao sair do modo, e
+ * ouvi-los faria a memória apagar-se a si própria.
+ */
+function registrarEscolhaMonitorDoOperador() {
+  const modo = modoComMemoriaMonitorAtual();
+  if (!modo) return;
+  const rota = rotaSelecionadaNaUi();
+  if (!rota) return;
+  registrarEscolhaMonitor(hostChaveMonitores(), modo, rota, monitoresServidorCache);
+}
+
+/**
+ * Repõe o monitor lembrado — só à ENTRADA no modo.
+ *
+ * Aplicar isto a meio de uma projeção moveria a janela do que está no ar, e é por isso que
+ * a projeção activa manda: com mídia ou versículo no telão, a rota em vigor fica como está
+ * e a memória espera pela próxima entrada. «Monitor lembrado ≠ projeção ativa» corta nos
+ * dois sentidos.
+ *
+ * @param {'biblia'|'apresentacao'} modo
+ * @returns {boolean} houve reposição
+ */
+function aplicarMonitorLembradoAoEntrarNoModo(modo) {
+  if (!MODOS_COM_MEMORIA.includes(modo)) return false;
+  if (hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
+  /* Sem lista de monitores não se conclui nada: entrar no modo antes de o servidor
+     responder daria «monitor não encontrado» para um monitor que está ligado e bem. A
+     entrada seguinte, já com a lista, repõe. */
+  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return false;
+  const { aplicar, rota, faltou } = rotaLembradaParaEntrada(
+    hostChaveMonitores(),
+    modo,
+    monitoresServidorCache
+  );
+  if (!aplicar) return false;
+  rotasPorModo[modo] = sanitizarRotaProjecao(rota, monitoresServidorCache);
+
+  /*
+   * A Bíblia não tem canal próprio no servidor: viaja no `apresentacao`, e é dali que
+   * `obterRotaApresentacaoParaServidor()` monta o pacote. Sem este espelho, repor o monitor
+   * lembrado enchia `rotasPorModo.biblia` e o servidor continuava a receber -1 — o painel
+   * dava a projeção por feita e o M2 ficava vazio.
+   *
+   * O espelhamento já existia, mas só no ramo `usarValoresDaUi === true` de
+   * `salvarRoteamentoTelasNoServidor` — o clique do operador. A reposição entra pelo
+   * caminho automático e não passava por lá.
+   *
+   * Sem guarda de mídia no ar aqui de propósito: esta função já desistiu acima se houvesse
+   * qualquer projeção activa, que é a mesma condição sob a qual aquele ramo se abstém de
+   * mexer no canal partilhado.
+   */
+  if (modo === 'biblia') {
+    rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.biblia) };
+  }
+
+  /* Só avisa quando há mesmo o que avisar: chamar com lista vazia limparia a faixa de um
+     aviso do modo Slides que nada tem a ver com isto. */
+  if (faltou.length) avisarMonitoresConfiguradosEmFalta(faltou);
+  return true;
 }
 
 function normalizarRota(obj) {
@@ -1930,6 +2017,7 @@ async function projetarItemApresentacao(item) {
     atualizarRodapeAudioApresentacao(item);
     return;
   }
+  await reidratarRotaApresentacaoDoSeletor();
   const alvoProjecao = obterAlvoProjecaoModoApresentacao();
   if (!monitoresApresentacaoCobremAlvo(alvoProjecao)) {
     alert(mensagemAlvoInvalidoApresentacao(alvoProjecao));
@@ -3879,6 +3967,8 @@ function abrirMenuModoApresentacao() {
     } else if (!apresentacaoAvisoCard6Ativo) {
       rotasPorModo.apresentacaoAviso = rotaDesativada();
     }
+    aplicarMonitorLembradoAoEntrarNoModo('apresentacao');
+    sincronizarCheckboxLembrarMonitor();
     aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
     apresentacaoCardSelecionadoIdx = null;
     renderGridApresentacao();
@@ -4027,6 +4117,8 @@ async function alternarModoBiblia() {
         rotasPorModo.biblia = rotaDesativada();
         marcarRotaLiveNoDom(false);
       }
+      aplicarMonitorLembradoAoEntrarNoModo('biblia');
+      sincronizarCheckboxLembrarMonitor();
       bibliaAplicarCfgExibicao();
       bibliaRotaSyncServidorChave = null;
       aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
@@ -4237,7 +4329,58 @@ async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
   });
   aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
+  reexibirMonitorLembradoNoSeletorAposEncerrar('apresentacao');
   atualizarPreviewOperador();
+}
+
+/**
+ * Depois de encerrar: a projeção fica encerrada e as janelas libertadas — e o seletor volta
+ * a mostrar o monitor lembrado, pronto para a próxima projeção.
+ *
+ * É aqui que «monitor lembrado ≠ projeção ativa» deixa de ser uma frase e passa a ser duas
+ * camadas com valores diferentes de propósito: a rota em vigor está em «Não exibir» (o
+ * servidor recebeu -1, as janelas foram libertadas, nada continua no telão) e o seletor
+ * mostra o M2. `reidratarRotaApresentacaoDoSeletor()` é quem volta a juntá-las, no momento
+ * de projetar outra vez.
+ *
+ * A alternativa era deixar a rota no monitor lembrado e o motor manteria lá uma janela
+ * preta em cima do ecrã — encerrado para o público, mas com o monitor por devolver.
+ *
+ * @param {'biblia'|'apresentacao'} modo
+ */
+function reexibirMonitorLembradoNoSeletorAposEncerrar(modo) {
+  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return;
+  const { aplicar, rota } = rotaLembradaParaEntrada(
+    hostChaveMonitores(),
+    modo,
+    monitoresServidorCache
+  );
+  if (!aplicar) return;
+  renderRoteamentoTelas(monitoresServidorCache, sanitizarRotaProjecao(rota, monitoresServidorCache));
+  atualizarIndicadorProjecaoLiveUi();
+}
+
+/**
+ * Alinha `rotasPorModo.apresentacao` com o seletor antes de projetar.
+ *
+ * Depois de «Encerrar» com «Lembrar monitor» ligado os dois divergem de propósito (ver
+ * acima). Projetar outra vez tem de reconstituir a rota — e ANTES de ler o alvo, pela mesma
+ * razão que está escrita em `modules/rotaEnvioBiblia.js`: ler o alvo da rota velha e
+ * entregá-lo à rota nova era como o versículo ia parar ao monitor errado.
+ *
+ * Não faz nada quando a rota já tem destino: o caminho normal de quem não usa a memória
+ * continua exactamente como estava.
+ */
+async function reidratarRotaApresentacaoDoSeletor() {
+  if (!ehModoApresentacaoOperador()) return;
+  const atual = normalizarRota(rotasPorModo.apresentacao);
+  if (atual.live || atual.publicoIndex >= 0 || atual.ministranteIndex >= 0) return;
+  const daUi = rotaSelecionadaNaUi();
+  if (!daUi) return;
+  const r = normalizarRota(daUi);
+  if (!r.live && r.publicoIndex < 0 && r.ministranteIndex < 0) return;
+  rotasPorModo.apresentacao = sanitizarRotaProjecao(r, monitoresServidorCache);
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 }
 
 /**
@@ -6097,6 +6240,9 @@ function renderRoteamentoTelas(monitores, routing) {
         atualizarEstiloRotasDesativadas();
         /* O reenvio tem de esperar pelo PUT: as janelas do canal novo só existem depois de
            o servidor sincronizar a rota, e conteúdo enviado antes disso cai no vazio. */
+        /* Antes do PUT, e a partir do DOM que o clique acabou de escrever: é este o único
+           sítio onde se sabe que foi o operador a escolher. */
+        registrarEscolhaMonitorDoOperador();
         salvarRoteamentoTelasNoServidor()
           .then(() => reemitirConteudoAposMudancaDeRotaUnificada())
           .catch(() => {
@@ -21513,6 +21659,21 @@ document.getElementById('apresentacao-fechar')?.addEventListener('click', () => 
 document.getElementById('apresentacao-encerrar')?.addEventListener('click', () => {
   void encerrarModoApresentacaoNoTelao();
 });
+document.getElementById('hdr-lembrar-monitor-chk')?.addEventListener('change', (ev) => {
+  const modo = modoComMemoriaMonitorAtual();
+  if (!modo) return;
+  /* Ligar captura o que está no seletor naquele instante — é o que o operador tem à frente
+     quando clica. Desligar não apaga o que estava guardado; só deixa de o aplicar. */
+  definirLembrarMonitor(
+    hostChaveMonitores(),
+    modo,
+    !!ev.target.checked,
+    rotaSelecionadaNaUi(),
+    monitoresServidorCache
+  );
+  sincronizarCheckboxLembrarMonitor();
+});
+
 document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () => {
   if (ehModoApresentacaoOperador()) {
     void encerrarProjecaoMidiaCabecalhoModoApresentacao();

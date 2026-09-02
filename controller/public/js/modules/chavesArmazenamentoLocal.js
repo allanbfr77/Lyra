@@ -19,6 +19,19 @@ export const LS_ROTAS_POR_MODO = 'lyra_rotas_por_modo_v1';
  */
 export const LS_IDENTIDADE_MONITORES = 'lyra_identidade_monitores_v1';
 /**
+ * Preferência «Lembrar monitor» dos modos Bíblia e Mídias — o estado do checkbox e o
+ * monitor a repor ao voltar ao modo.
+ *
+ * Separada de `LS_ROTAS_POR_MODO` e de `LS_IDENTIDADE_MONITORES` de propósito: aquelas são
+ * a rota em vigor, esta é só uma memória. Monitor lembrado não é projeção ativa — encerrar
+ * continua a encerrar, e o que fica é a escolha para a próxima vez.
+ *
+ * Guarda por IDENTIDADE e agrupa por host de projeção, pelas mesmas razões de
+ * `LS_IDENTIDADE_MONITORES`: índices não sobrevivem à renumeração do Windows, e o hardware
+ * de um servidor remoto não é o desta máquina. Ver `modules/monitorLembrado.js`.
+ */
+export const LS_MONITOR_LEMBRADO = 'lyra_monitor_lembrado_v1';
+/**
  * Modos cuja rota de monitores o operador escolheu à mão (`{ slides: true, … }`).
  *
  * «Não exibir» é uma escolha como outra qualquer, mas é indistinguível de «ainda não
