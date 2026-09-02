@@ -319,11 +319,22 @@ test('9) buildId errado após install → erro (não finge sucesso)', async () =
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('18) Controlador package.json está em 1.4.0', () => {
+/*
+ * O que aqui interessa é o `electron-updater` declarado: é ele que faz a atualização
+ * automática, e se sumisse do `package.json` o fluxo todo deste ficheiro morria em
+ * silêncio.
+ *
+ * A versão era comparada com um literal (`'1.4.0'`) — uma fotografia do dia em que o teste
+ * foi escrito. Nada no fluxo de atualização lê `pkg.version`, portanto o literal não
+ * protegia nada e falhava a cada lançamento. Uma falha permanente que todos aprendem a
+ * ignorar é pior do que teste nenhum: esconde a próxima falha a sério. Fica a asserção que
+ * tem conteúdo — há versão, e está bem formada.
+ */
+test('18) Controlador package.json tem versão válida e o electron-updater declarado', () => {
   const pkg = JSON.parse(
     fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')
   );
-  assert.equal(pkg.version, '1.4.0');
+  assert.match(pkg.version, /^\d+\.\d+\.\d+/);
   assert.ok(pkg.dependencies['electron-updater']);
 });
 

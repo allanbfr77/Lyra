@@ -39,7 +39,6 @@ import {
   LS_PLAYLIST_PREVIEW_SLIDE_OCULTO,
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
-  LS_ROTAS_DEFINIDAS_PELO_OPERADOR,
   LS_APRESENTACAO_STATE,
   LS_BIBLIA_CFG,
   LS_SLIDE_CFG,
@@ -77,6 +76,8 @@ import {
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
 import { resolverProximoCultoPorHorarioBrasilia } from './modules/proximoCulto.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
+import { rotaSlidesParaEnvioComBiblia } from './modules/supressaoCanalSlides.js';
+import { precisaReporRotaSlides, rotaSlidesReposta } from './modules/reposicaoRotaSlides.js';
 import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
@@ -400,41 +401,22 @@ function salvarRotasPorModoNoStorage() {
 }
 }
 
-/**
- * Modos cuja rota o operador definiu à mão — ver `LS_ROTAS_DEFINIDAS_PELO_OPERADOR`.
- * @type {Record<string, boolean>}
+/*
+ * `LS_ROTAS_DEFINIDAS_PELO_OPERADOR` era lido aqui.
+ *
+ * A marca existia para um fim só: calar o preenchimento automático do modo Slides assim
+ * que o operador mexesse no seletor, porque o automatismo não distinguia «ainda não
+ * configurado» de «configurado como Não exibir». Com a regra nova — o preenchimento olha
+ * apenas para o vazio TOTAL, e «Não exibir» nas duas saídas vale só dentro da sessão do
+ * modo (ver `alternarModoSlidesOperador`) — essa distinção deixou de ser precisa, e a
+ * marca ficou sem um único leitor.
+ *
+ * Removida em vez de mantida «por via das dúvidas»: uma chave de localStorage que só se
+ * escreve é uma armadilha para quem vier a seguir — parece estado com significado e não
+ * governa nada. A chave antiga fica nas instalações existentes, inofensiva, e nada a lê.
  */
-let rotasDefinidasPeloOperador = {};
-
-function carregarRotasDefinidasPeloOperador() {
-  try {
-    const p = JSON.parse(localStorage.getItem(LS_ROTAS_DEFINIDAS_PELO_OPERADOR) || '{}');
-    rotasDefinidasPeloOperador = p && typeof p === 'object' && !Array.isArray(p) ? p : {};
-  } catch (_) {
-    rotasDefinidasPeloOperador = {};
-  }
-}
-
-/** O operador escolheu isto à mão neste modo — inclusive «Não exibir». */
-function marcarRotaDefinidaPeloOperador(modo) {
-  if (!modo) return;
-  rotasDefinidasPeloOperador[modo] = true;
-  try {
-    localStorage.setItem(
-      LS_ROTAS_DEFINIDAS_PELO_OPERADOR,
-      JSON.stringify(rotasDefinidasPeloOperador)
-    );
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function rotaFoiDefinidaPeloOperador(modo) {
-  return !!rotasDefinidasPeloOperador[modo];
-}
 
 function carregarRotasPorModoDoStorage() {
-  carregarRotasDefinidasPeloOperador();
   try {
     const raw = localStorage.getItem(LS_ROTAS_POR_MODO);
     if (!raw) return;
@@ -4337,6 +4319,22 @@ async function alternarModoSlidesOperador(opts = {}) {
   if (ehModoSlidesOperador() && !permitirDesativar) return;
   if (ehModoBibliaOperador()) {
     rotasPorModo.biblia = rotaDesativada();
+    /*
+     * Devolver o canal partilhado, e não só largar a rota da Bíblia.
+     *
+     * Bíblia e Mídias escrevem ambas em `rotasPorModo.apresentacao`, e o motor dá-lhe
+     * precedência sobre o canal do Slides (`a.publicoIndex >= 0 ? a : s`). Este caminho —
+     * Bíblia direto para Slides, sem passar pela Home — limpava a rota da Bíblia e deixava
+     * o monitor dela reservado no canal partilhado. O Slides ficava com o seletor a dizer
+     * M3 e a projeção a sair no M2 da Bíblia: a interface a afirmar uma coisa e o projetor
+     * a fazer outra, sem nada apagado que denunciasse o problema.
+     *
+     * A guarda é a mesma de `desativarRotasModosTransitorios`: com mídia no ar o canal não
+     * se toca, senão fechavam-se as janelas do que está a projetar.
+     */
+    if (!hayProjecaoApresentacaoModoAtiva()) {
+      rotasPorModo.apresentacao = rotaDesativada();
+    }
     marcarRotaLiveNoDom(false);
   }
   executarComTransicaoUi(() => {
@@ -4371,27 +4369,37 @@ async function alternarModoSlidesOperador(opts = {}) {
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
       /*
-       * Preenchimento automático da rota — só enquanto o operador nunca escolheu nada.
+       * O modo Slides abre sempre utilizável — é o modo rápido, e um operador que entra
+       * nele a meio do culto não pode encontrar «Não exibir» à sua espera.
        *
-       * Os dois ramos abaixo existiam para que entrar no modo Slides «já funcionasse» numa
-       * instalação nova. Mas eles não distinguiam «ainda não configurado» de «configurado
-       * como Não exibir»: nos dois casos os índices são -1. O resultado era a escolha do
-       * operador a desaparecer sozinha — punha o telão em «Não exibir», saía do modo,
-       * voltava, e a rota estava outra vez em M2/M3. Pior no segundo ramo, que reescrevia
-       * mesmo uma rota com monitores, bastando não haver projeção no ar.
+       * Regra: «Não exibir» no Slides vale só DENTRO da sessão do modo. Cada saída que
+       * esteja desligada à ENTRADA é reposta no seu monitor de origem; uma saída que tenha
+       * monitor é deixada exactamente como o operador a pôs (inclusive M2/M3 trocados).
+       * Desligar continua a funcionar enquanto se trabalha; sair e voltar, ou reabrir o
+       * programa, devolve os monitores.
        *
-       * Com a marca de `LS_ROTAS_DEFINIDAS_PELO_OPERADOR`, o automatismo continua a servir
-       * quem nunca mexeu no seletor e cala-se assim que alguém mexe.
+       * É por canal, e não só no vazio total, porque uma saída sozinha em «Não exibir» é
+       * quase sempre rasto de outro modo: quando o Mídias toma o M2, a regra de exclusão
+       * tira o M2 daqui — e nada o devolvia quando a mídia era encerrada. Repor à entrada é
+       * o que fecha esse ciclo. Roubar o monitor de volta ao Mídias não acontece:
+       * `rotaSlidesAoEntrarNoModo()` consulta a rota dele e desvia-se do que estiver
+       * mesmo a projetar.
+       *
+       * O que existia antes: os dois ramos preenchiam sem distinguir «ainda não
+       * configurado» de «configurado como Não exibir» — nos dois casos os índices são -1 —
+       * e a marca `LS_ROTAS_DEFINIDAS_PELO_OPERADOR` foi criada para calar o automatismo
+       * assim que alguém mexesse no seletor. Só que essa marca também calava o
+       * automatismo quando a configuração se PERDIA, e havia um caminho que a perdia
+       * sozinho (ver `modules/supressaoCanalSlides.js`): o operador ficava com o modo
+       * Slides mudo, sem ter desligado nada, e sem forma de perceber porquê.
+       *
+       * O segundo ramo antigo (`|| !hayProjecaoAtivaNoServidor()`) sai de vez: ele
+       * reescrevia uma rota COM monitores só por não haver projeção no ar, e isso sim
+       * apagava escolhas à revelia.
        */
-      const sEntrada = normalizarRota(rotasPorModo.slides);
-      if (!rotaFoiDefinidaPeloOperador('slides')) {
-        if (
-          (sEntrada.publicoIndex < 0 && sEntrada.ministranteIndex < 0) ||
-          !hayProjecaoAtivaNoServidor()
-        ) {
-          rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
-          salvarRotasPorModoNoStorage();
-        }
+      if (precisaReporRotaSlides(rotasPorModo.slides)) {
+        rotasPorModo.slides = rotaSlidesReposta(rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
+        salvarRotasPorModoNoStorage();
       }
       slidesAplicarCfgArmazenada();
       syncRoteamentoTelasModoSlidesNaUi();
@@ -15262,16 +15270,6 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     if (!fromUi) return;
     rotasPorModo[modo] = { ...normalizarRota(fromUi) };
 
-    /*
-     * `usarValoresDaUi` é a assinatura de que foi o operador a escolher — os caminhos
-     * automáticos passam sempre `{ usarValoresDaUi: false }`. A partir daqui o painel para
-     * de preencher a rota deste modo sozinho, e «Não exibir» deixa de ser confundido com
-     * «ainda não configurado». O modo `completo` escreve também em `slides` logo abaixo,
-     * por isso marca os dois.
-     */
-    marcarRotaDefinidaPeloOperador(modo);
-    if (modo === 'completo') marcarRotaDefinidaPeloOperador('slides');
-
     /* Rede de segurança da regra «um monitor, uma saída». O clique já libertou a outra
        saída; isto cobre um DOM fora de sincronia e deixa a regra escrita num sítio só. */
     if (modo === 'slides' || modo === 'completo') {
@@ -15322,15 +15320,24 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
         /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
         rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
       } else {
-        const b = normalizarRota(rotasPorModo.biblia);
-        rotasPorModo.apresentacao = { ...b };
-        let s = normalizarRota(rotasPorModo.slides);
-        if (b.live || b.publicoIndex >= 0) s = { ...s, publicoIndex: -1 };
-        if (b.live || b.ministranteIndex >= 0) s = { ...s, ministranteIndex: -1 };
-        /* Evita que o merge no servidor reabra o telão via índice antigo em slides. */
-        if (b.live || b.publicoIndex < 0) s = { ...s, publicoIndex: -1 };
-        if (b.live || b.ministranteIndex < 0) s = { ...s, ministranteIndex: -1 };
-        rotasPorModo.slides = s;
+        rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.biblia) };
+        /*
+         * A rota do modo Slides NÃO se toca aqui — mesmo princípio do ramo `apresentacao`
+         * acima, que já tinha sido corrigido: cada modo manda na configuração dele.
+         *
+         * O canal do Slides continua a ter de ser silenciado enquanto a Bíblia manda. Sem
+         * isso o merge do servidor (`a.publicoIndex >= 0 ? a : s`) deixa o índice antigo do
+         * Slides passar por baixo, e com a Bíblia só no público o M3 abre com conteúdo de
+         * slides em vez do escudo preto. Mas isso é uma decisão sobre o PACOTE que sai, e é
+         * lá que passa a viver: `rotaSlidesParaEnvioComBiblia()`, ao montar o `payloadDual`.
+         *
+         * Aqui zerava-se `rotasPorModo.slides` para obter o mesmo efeito — e as quatro
+         * condições (`>= 0` e `< 0`) cobriam todos os valores, portanto zerava sempre. O
+         * `persistirIdentidadesDosModos()` logo abaixo gravava esse zero como escolha
+         * explícita do operador, e `restaurarRotaPorIdentidade()` no arranque seguinte lia
+         * `houveSalvo === false`: uma única ida ao Modo Bíblia apagava para sempre o telão
+         * configurado do Modo Slides. Ver `modules/supressaoCanalSlides.js`.
+         */
       }
     }
 
@@ -15356,7 +15363,13 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
 
   const payloadDual = {
     version: 2,
-    slides: normalizarRota(rotasPorModo.slides),
+    /* Com o Modo Bíblia a reclamar o canal partilhado, o canal do Slides sai silenciado —
+       sem que a configuração guardada em `rotasPorModo.slides` mude, que é o que
+       `persistirIdentidadesDosModos()` acabou de gravar. Ver `modules/supressaoCanalSlides.js`. */
+    slides:
+      modo === 'biblia'
+        ? rotaSlidesParaEnvioComBiblia(rotasPorModo.biblia, rotasPorModo.slides)
+        : normalizarRota(rotasPorModo.slides),
     apresentacao: obterRotaApresentacaoParaServidor(),
     /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
        a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
