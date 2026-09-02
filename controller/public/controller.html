@@ -10628,9 +10628,17 @@
       color: var(--text-dim);
     }
 
-    /* Aviso de monitor guardado que desapareceu — informa sem bloquear o painel. */
+    /* Sem monitor de projeção: o aviso sai do fluxo da esquerda (senão
+       cobre o Home no modo Slides) e fica à direita, onde o estado da
+       ligação está escondido nestes modos. */
     .hdr-monitores-aviso.oculto { display: none; }
     .hdr-monitores-aviso {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 3;
+      flex-shrink: 0;
       font-size: 13px;
       font-weight: 700;
       color: #ffb347;
@@ -10919,10 +10927,9 @@
     <div class="hdr-slot hdr-slot--routes-dual" id="hdr-slot-routes-dual">
       <!--
         Só dois seletores. O monitor principal é reservado ao operador em silêncio: não
-        aparece nas listas e o motor recusa-se a abrir projeção lá. O aviso abaixo é a
-        única coisa que o cabeçalho tem a dizer sobre monitores, e só quando algo falha.
+        aparece nas listas e o motor recusa-se a abrir projeção lá. O aviso de monitor
+        em falta fica depois do Encerrar, para não deslocar os seletores.
       -->
-      <span class="hdr-monitores-aviso oculto" id="hdr-monitores-aviso" role="status"></span>
       <span class="conn-label" id="route-publico-label">Público</span>
       <div class="route-dd" id="route-publico-dd">
         <button type="button" class="route-dd-btn" id="route-publico-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="route-publico-menu">
@@ -10953,6 +10960,7 @@
           <path d="m9 9 6 6"/>
         </svg>
       </button>
+      <span class="hdr-monitores-aviso oculto" id="hdr-monitores-aviso" role="status"></span>
     </div>
   </div>
     <nav class="hdr-icons-bar" id="hdr-icons-bar" aria-label="Modos e ferramentas">

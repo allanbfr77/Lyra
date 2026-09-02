@@ -471,7 +471,15 @@ function persistirIdentidadesDosModos() {
     /* Rota «Live — OBS» não usa monitor nenhum; gravar identidades aqui apagaria a
        escolha física do utilizador só por ele ter ido para o OBS por um momento. */
     if (r.live) return;
-    guardarIdentidadesRota(host, modo, identidadesDaRota(r, lista));
+    const novas = identidadesDaRota(r, lista);
+    /* Rota a −1 porque o monitor sumiu (sanitização), não porque o operador desligou.
+       Gravar null apagaria a identidade e o aviso «Monitor não encontrado» desaparecia
+       no recarregamento seguinte. */
+    if (!novas.publico && !novas.ministrante) {
+      const { faltou } = rotaRestauradaPorIdentidade(modo, r);
+      if (faltou.length) return;
+    }
+    guardarIdentidadesRota(host, modo, novas);
   });
 }
 
@@ -532,6 +540,7 @@ function registrarEscolhaMonitorDoOperador() {
   const rota = rotaSelecionadaNaUi();
   if (!rota) return;
   registrarEscolhaMonitor(hostChaveMonitores(), modo, rota, monitoresServidorCache);
+  avisarMonitoresConfiguradosEmFalta();
 }
 
 /**
@@ -578,9 +587,8 @@ function aplicarMonitorLembradoAoEntrarNoModo(modo) {
     rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.biblia) };
   }
 
-  /* Só avisa quando há mesmo o que avisar: chamar com lista vazia limparia a faixa de um
-     aviso do modo Slides que nada tem a ver com isto. */
-  if (faltou.length) avisarMonitoresConfiguradosEmFalta(faltou);
+  /* Aviso do cabeçalho: só depende de haver (ou não) monitor de projeção. */
+  avisarMonitoresConfiguradosEmFalta();
   return true;
 }
 
@@ -5921,19 +5929,17 @@ function montarTitleMonitor(m) {
 }
 
 /**
- * Aviso persistente no cabeçalho quando um monitor guardado deixou de existir.
+ * Aviso no cabeçalho quando não há nenhum monitor de projeção.
  *
- * Não usa `alert()`: isto pode disparar durante um culto, e um modal a bloquear o painel
- * é pior que o problema que anuncia. O canal afetado já ficou em «Não exibir» — o aviso
- * só explica porquê e o operador refaz a escolha quando puder.
- *
- * @param {string[]} nomes
+ * O ecrã principal é do operador e não conta. Com pelo menos um monitor externo,
+ * o aviso não aparece — mesmo que o que estava guardado tenha mudado de nome.
+ * Sem lista ainda (servidor a responder), não mostra nem esconde: evitar o pisca.
  */
-function avisarMonitoresConfiguradosEmFalta(nomes) {
+function avisarMonitoresConfiguradosEmFalta() {
   const el = document.getElementById('hdr-monitores-aviso');
   if (!el) return;
-  const unicos = [...new Set((Array.isArray(nomes) ? nomes : []).filter(Boolean))];
-  if (!unicos.length) {
+  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return;
+  if (contarMonitoresDeProjecao() > 0) {
     el.classList.add('oculto');
     el.textContent = '';
     el.removeAttribute('title');
@@ -5941,7 +5947,7 @@ function avisarMonitoresConfiguradosEmFalta(nomes) {
   }
   el.classList.remove('oculto');
   el.textContent = '⚠ Monitor não encontrado';
-  el.title = `Estes monitores estavam configurados e não foram encontrados: ${unicos.join(', ')}.\nEscolha novamente onde projetar.`;
+  el.title = 'Nenhum monitor de projeção foi encontrado. Ligue um monitor externo e escolha onde projetar.';
 }
 
 function fecharMenusRoteamentoTelas() {
@@ -15469,6 +15475,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   /* Guardar QUAIS monitores ficaram em uso, não em que posição estavam — é isto que
      permite restaurar a configuração depois de o Windows renumerar os ecrãs. */
   persistirIdentidadesDosModos();
+  avisarMonitoresConfiguradosEmFalta();
 
   const payloadDual = {
     version: 2,
