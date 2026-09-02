@@ -1892,6 +1892,10 @@
       min-width: 0;
       padding: 2px 6px 4px;
       box-sizing: border-box;
+      /* Mesma altura com ou sem badge: a grelha de slides não sobe nem desce. */
+      height: 32px;
+      min-height: 32px;
+      max-height: 32px;
     }
     body.app-mod-slides .slide-nota-bar[hidden] {
       display: none !important;
@@ -1905,16 +1909,18 @@
     }
     .slide-nota-badge {
       display: inline-block;
+      box-sizing: border-box;
+      height: 26px;
       max-width: min(380px, calc(100vw - 120px));
       font-size: 15px;
-      line-height: 1.35;
+      line-height: 24px;
       font-weight: 500;
       letter-spacing: 0.01em;
       color: color-mix(in srgb, var(--text) 78%, var(--text-dim));
       background: transparent;
       border: 1px solid #20d813;
       border-radius: 999px;
-      padding: 3px 11px;
+      padding: 0 11px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -6120,8 +6126,8 @@
       flex-direction: row;
       flex: 0 0 auto;
       flex-shrink: 0;
-      /* Altura pelo conteúdo: os cards têm --preview-mod-card-h fixo e a barra de
-         nota do slide (abaixo do card TELÃO) pode crescer sem ser cortada. */
+      /* Altura pelo conteúdo: os cards têm --preview-mod-card-h fixo. A barra
+         de nota abaixo do TELÃO tem altura constante — o badge não a estica. */
       height: auto;
       min-height: var(--preview-mod-card-h);
       max-height: none;
