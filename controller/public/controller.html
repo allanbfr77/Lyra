@@ -549,6 +549,13 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    /* Home: Recarregar e o badge Este PC/Servidor ocupam a direita.
+       A pill cobriria esses controlos — some só aqui; nos modos de
+       operação continua visível. Home = body sem app-mod-*. */
+    body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
+      .hdr-projecao-pill {
+      display: none;
+    }
 
     .hdr-slot {
       display: none;
@@ -6788,12 +6795,42 @@
       text-align: center;
       line-height: 1.25;
       color: #fff;
-      transition: filter 0.15s, outline-color 0.15s;
+      /* `position` + `transform` ficam no estado base para o realce entrar e sair
+         sempre animado — se só existissem em `.selecionado`, a saída era um corte seco. */
+      position: relative;
+      transform: scale(1);
+      transition: box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
     }
     .biblia-livro-btn:hover { filter: brightness(1.14); }
+
+    /*
+      Anel duplo (escuro por dentro, dourado por fora) desenhado com `box-shadow`: ao
+      contrário de `border`/`outline` com espessura, não ocupa espaço nem empurra o texto,
+      e a escala é `transform` — nada aqui mexe em `width`/`height`, logo não há reflow
+      na grade. O `z-index` põe o livro escolhido por cima dos vizinhos para o anel
+      não ficar cortado pelos botões que crescem ao lado.
+    */
     .biblia-livro-btn.selecionado {
-      outline: 2px solid #f0c040;
-      outline-offset: 1px;
+      box-shadow:
+        0 0 0 2px #000,
+        0 0 0 4px #f5c518,
+        0 4px 12px rgba(0, 0, 0, 0.4);
+      transform: scale(1.05);
+      z-index: 2;
+    }
+
+    /*
+      Havendo escolha, o resto da grade recua: as cores dos grupos continuam as mesmas,
+      só perdem presença. A classe vive na coluna, por isso volta tudo a `opacity: 1`
+      assim que a selecção é limpa.
+    */
+    .biblia-col-livros.tem-selecao .biblia-livro-btn:not(.selecionado) {
+      opacity: 0.55;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .biblia-livro-btn { transition: none; }
+      .biblia-livro-btn.selecionado { transform: none; }
     }
     .biblia-livro-btn.biblia-livro-btn--texto-escuro { color: #1a1a1a; }
 
@@ -6953,19 +6990,25 @@
       white-space: nowrap;
     }
 
+    /*
+      Escolhido mas ainda não no ecrã: dourado — o mesmo `#f5c518` do anel que marca o
+      livro na grade, para «escolhido» ser sempre a mesma cor dentro da Bíblia. O verde
+      abaixo continua a querer dizer só uma coisa: está projetado.
+    */
     .biblia-v-card.selecionado:not(.projetado) {
-      background: #2a2a4e;
-      border-color: #6060aa;
+      background: #3a3116;
+      border-color: #f5c518;
     }
     html:not(.dark) .biblia-v-card.selecionado:not(.projetado) {
-      background: color-mix(in srgb, #4a6cf7 16%, var(--surface));
-      border-color: #4a6cf7;
+      background: color-mix(in srgb, #f5c518 20%, var(--surface));
+      border-color: color-mix(in srgb, #f5c518 75%, #000);
     }
     html:not(.dark) .biblia-v-card.selecionado:not(.projetado) .biblia-v-texto {
       color: var(--text);
     }
+    /* Sobre fundo claro, o âmbar normal do número perdia-se; escurece-se o mesmo dourado. */
     html:not(.dark) .biblia-v-card.selecionado:not(.projetado) .biblia-v-num {
-      color: #2d4a9e;
+      color: color-mix(in srgb, #f5c518 45%, #000);
     }
     .biblia-v-card.projetado {
       background: #1a3d2a;
@@ -10899,6 +10942,10 @@
         <input type="hidden" id="route-ministrante" value="-1" autocomplete="off" />
       </div>
       <span id="indicador-live-obs" class="indicador-live-obs oculto" title="Projeção ativa para OBS — Browser Source em http://127.0.0.1:5001/obs">● LIVE → OBS</span>
+      <label class="hdr-lembrar-monitor" id="hdr-lembrar-monitor" title="Guarda o monitor escolhido neste modo. Encerrar a projeção continua a encerrá-la — o monitor é que fica escolhido para a próxima vez.">
+        <input type="checkbox" id="hdr-lembrar-monitor-chk" autocomplete="off" />
+        <span class="hdr-lembrar-monitor-texto">Lembrar monitor</span>
+      </label>
       <button type="button" class="hdr-encerrar-projecao-btn" id="hdr-encerrar-projecao" title="Encerrar projeção" aria-label="Encerrar projeção">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9"/>
@@ -10906,10 +10953,6 @@
           <path d="m9 9 6 6"/>
         </svg>
       </button>
-      <label class="hdr-lembrar-monitor" id="hdr-lembrar-monitor" title="Guarda o monitor escolhido neste modo. Encerrar a projeção continua a encerrá-la — o monitor é que fica escolhido para a próxima vez.">
-        <input type="checkbox" id="hdr-lembrar-monitor-chk" autocomplete="off" />
-        <span class="hdr-lembrar-monitor-texto">Lembrar monitor</span>
-      </label>
     </div>
   </div>
     <nav class="hdr-icons-bar" id="hdr-icons-bar" aria-label="Modos e ferramentas">

@@ -20382,6 +20382,7 @@ function bibliaLimparEstadoOperador() {
   bibliaSelecionadoLivro = null;
   bibliaSelecionadoLivroDb = null;
   bibliaSelecionadoCap = null;
+  bibliaAtualizarDestaqueGradeLivros();
   bibliaNavPopupFechar();
 }
 
@@ -20511,15 +20512,31 @@ function popularGradeLivros() {
     btn.onclick = () => bibliaEscolherLivro(l);
     col.appendChild(btn);
   });
+  bibliaAtualizarDestaqueGradeLivros();
+}
+
+/**
+ * Põe a grade de livros a condizer com `bibliaSelecionadoLivro`.
+ *
+ * É o único sítio que mexe no realce: marca o livro escolhido e assinala na coluna
+ * que há uma selecção activa (é dessa classe que vem o escurecimento dos outros).
+ * Sem livro escolhido, tudo volta ao normal — inclusive depois de repopular a grade,
+ * que é o que acontece ao filtrar por testamento.
+ */
+function bibliaAtualizarDestaqueGradeLivros() {
+  const col = document.getElementById('biblia-col-livros');
+  const nome = bibliaSelecionadoLivro;
+  document.querySelectorAll('.biblia-livro-btn').forEach((b) => {
+    b.classList.toggle('selecionado', Boolean(nome) && b.dataset.nome === nome);
+  });
+  if (col) col.classList.toggle('tem-selecao', Boolean(nome));
 }
 
 function bibliaEscolherLivro(livro) {
   bibliaSelecionadoLivro = livro.nome;
   bibliaSelecionadoLivroDb = bibliaLivroNomeDb(livro);
   bibliaSelecionadoCap = null;
-  document.querySelectorAll('.biblia-livro-btn').forEach((b) => {
-    b.classList.toggle('selecionado', b.dataset.nome === livro.nome);
-  });
+  bibliaAtualizarDestaqueGradeLivros();
   const btn = document.querySelector(
     `.biblia-livro-btn[data-nome="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(livro.nome) : livro.nome}"]`
   );
