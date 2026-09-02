@@ -315,31 +315,66 @@ test('aplicarDisplayConfigNasJanelas escreve nas janelas de conteúdo e na de co
   assert.ok(ctrl.sends.some((s) => s.canal === 'display_config'), 'janela de controle recebeu');
 });
 
-test('a config do telão NÃO chega ao relógio nem ao escudo', () => {
-  /*
-   * Regressão do «relógio a piscar»: o registo era passado inteiro a
-   * `enviarDisplayConfigParaJanelas`, por isso o relógio recebia a config do telão (com a
-   * sua própria chave `clock`, vinda do modo Bíblia) e, no frame seguinte, a config de
-   * relógio persistida que `sincronizarJanelasRelogio` envia. Duas configs diferentes na
-   * mesma janela = repintura visível. O escudo é tela preta e não deve pintar fundo nenhum.
-   */
-  const { ctx, api } = montar({ paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }) });
-  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+/*
+ * Regressão do «relógio a piscar»: o registo era passado inteiro a
+ * `enviarDisplayConfigParaJanelas`, por isso o relógio recebia a config do telão (com a
+ * sua própria chave `clock`, vinda do modo Bíblia) e, no frame seguinte, a config de
+ * relógio persistida que `sincronizarJanelasRelogio` envia. Duas configs diferentes na
+ * mesma janela = repintura visível. O escudo é tela preta e não deve pintar fundo nenhum.
+ *
+ * Este teste era um só, com dois ecrãs e telão e ministrante no mesmo monitor, e deixou de
+ * poder correr: a regra do relógio foi apertada de propósito — num setup de dois monitores
+ * sem ministrante próprio ele já não abre (ver `indicesMonitoresRelogioDesejados`) — e o
+ * escudo também não nascia, porque o único índice de projeção disponível estava em uso. O
+ * cenário ficou sem nenhuma janela para inspecionar e o teste passou a falhar na montagem,
+ * sem nunca chegar a afirmar nada.
+ *
+ * Agora são dois cenários com três ecrãs, cada um construído para produzir o papel que
+ * afirma. Verificado: só assim cada papel existe mesmo.
+ */
+function montarComTresEcras(rota, clock) {
+  const { ctx, api } = montar({
+    paths: pathsComRota(rota),
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
+  ctx.displayConfig.clock = clock;
   api.garantirTelasAbertasParaProjecao();
+  return api;
+}
 
-  const outras = api.janelasDeProjecao().filter((e) => e.role === 'relogio' || e.role === 'escudo');
-  assert.ok(outras.length > 0, 'cenário precisa de pelo menos um relógio ou escudo');
-  outras.forEach((e) => { e.win.sends.length = 0; });
+/** Nenhuma `display_config` chegou às janelas destes papéis desde o último `sends.length = 0`. */
+function verificarNaoRecebeuConfig(api, papel) {
+  const alvos = api.janelasDeProjecao().filter((e) => e.role === papel);
+  assert.ok(
+    alvos.length > 0,
+    `cenário precisa de pelo menos um «${papel}»; papéis abertos: ${api.janelasDeProjecao().map((e) => e.role)}`
+  );
+  alvos.forEach((e) => { e.win.sends.length = 0; });
 
   api.aplicarDisplayConfigNasJanelas({ forcarModo: 'biblia' });
 
-  outras.forEach((e) => {
+  alvos.forEach((e) => {
     assert.deepStrictEqual(
       e.win.sends.filter((s) => s.canal === 'display_config'),
       [],
       `janela de papel «${e.role}» não devia receber a config do telão`
     );
   });
+}
+
+test('a config do telão NÃO chega ao escudo', () => {
+  /* Telão e ministrante no M2 deixam o M3 sem canal — é ele que ganha escudo. */
+  const api = montarComTresEcras({ publicoIndex: 1, ministranteIndex: 1 }, { showClock: false });
+  verificarNaoRecebeuConfig(api, 'escudo');
+});
+
+test('a config do telão NÃO chega ao relógio', () => {
+  /* Ministrante num monitor próprio (M3): é a condição para o relógio dele chegar a abrir. */
+  const api = montarComTresEcras(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { showClock: true, monitorRelogio: 'ministrante' }
+  );
+  verificarNaoRecebeuConfig(api, 'relogio');
 });
 
 test('nenhuma janela de projeção nasce visível', () => {
@@ -410,41 +445,57 @@ test('reexibir janela oculta: sem sair do fullscreen e com show() por último', 
    * branco». Com os bounds já certos não deve haver `setFullScreen(false)` nenhum, e o
    * `show()` tem de ser o último passo.
    */
+  /*
+   * O cenário mudou de papel, e o motivo importa: este teste desactivava o público e
+   * esperava que a janela fosse ocultada. Isso deixou de ser verdade de propósito —
+   * «Não exibir» passou a manter a janela viva, visível e preta, porque o esconder/mostrar
+   * a cada troca de modo punha o Windows a renegociar a saída de vídeo (ver
+   * `marcarSemExibicao` e `sincronizarJanelaRole` no motor). Há hoje testes a afirmar
+   * exactamente o contrário do que esta montagem pedia.
+   *
+   * O escudo continua a ser ocultado e reexibido — é o caminho que ainda exercita a
+   * sequência que este teste existe para proteger. Com três ecrãs e telão e ministrante no
+   * M2, o M3 fica sem canal e ganha escudo; dar o M3 ao ministrante tira-lho, e devolvê-lo
+   * volta a mostrá-lo no mesmo monitor, com os bounds já certos.
+   */
   const rota = pathsComRota({ publicoIndex: 1, ministranteIndex: 1 });
-  const { ctx, api } = montar({ paths: rota });
+  const { ctx, api } = montar({
+    paths: rota,
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
   ctx.displayConfig.clock = { showClock: false };
   api.garantirTelasAbertasParaProjecao();
 
-  const pub = api.janelasDeProjecao().find((e) => e.role === 'publico');
-  assert.ok(pub, 'cenário precisa da janela do público');
+  const escudo = api.janelasDeProjecao().find((e) => e.role === 'escudo');
+  assert.ok(escudo, 'cenário precisa da janela de escudo');
 
-  // Desactiva o público: a janela é ocultada, não fechada.
-  rota.escreverRota({ publicoIndex: -1, ministranteIndex: 1 });
+  // O ministrante toma o M3: o escudo deixa de ser desejado e é ocultado, não fechado.
+  rota.escreverRota({ publicoIndex: 1, ministranteIndex: 2 });
   api.garantirTelasAbertasParaProjecao();
-  assert.strictEqual(pub.win.isVisible(), false, 'devia ter sido ocultada');
+  assert.strictEqual(escudo.win.isVisible(), false, 'devia ter sido ocultada');
 
-  pub.win.nativas.length = 0;
+  escudo.win.nativas.length = 0;
 
   // Reactiva no MESMO monitor: os bounds já estão certos.
   rota.escreverRota({ publicoIndex: 1, ministranteIndex: 1 });
   api.garantirTelasAbertasParaProjecao();
 
-  assert.ok(pub.win.isVisible(), 'devia ter voltado a aparecer');
+  assert.ok(escudo.win.isVisible(), 'devia ter voltado a aparecer');
   assert.strictEqual(
-    primeiroIndice(pub.win.nativas, 'setFullScreen(false)'), -1,
-    `não devia sair do fullscreen com os bounds já certos: ${pub.win.nativas}`
+    primeiroIndice(escudo.win.nativas, 'setFullScreen(false)'), -1,
+    `não devia sair do fullscreen com os bounds já certos: ${escudo.win.nativas}`
   );
-  const iShow = primeiroIndice(pub.win.nativas, 'show');
-  assert.ok(iShow >= 0, `devia ter chamado show(): ${pub.win.nativas}`);
+  const iShow = primeiroIndice(escudo.win.nativas, 'show');
+  assert.ok(iShow >= 0, `devia ter chamado show(): ${escudo.win.nativas}`);
   /* Depois do `show()` só podem vir reafirmações de topo (`setAlwaysOnTop`/`moveTop`), que
      são o reclaim e não mexem em geometria. Um `setBounds` ou `setFullScreen` a seguir
      significa que a janela mudou de forma **já visível** — é isso que pisca. */
-  const geometriaDepoisDoShow = pub.win.nativas
+  const geometriaDepoisDoShow = escudo.win.nativas
     .slice(iShow + 1)
-    .filter((n) => String(n).startsWith('setBounds') || String(n).startsWith('setFullScreen'));
+    .filter((x) => String(x).startsWith('setBounds') || String(x).startsWith('setFullScreen'));
   assert.deepStrictEqual(
     geometriaDepoisDoShow, [],
-    `nada de geometria depois do show(): ${pub.win.nativas}`
+    `nada de geometria depois do show(): ${escudo.win.nativas}`
   );
 });
 
