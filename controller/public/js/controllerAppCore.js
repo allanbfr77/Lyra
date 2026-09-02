@@ -750,10 +750,10 @@ function atualizarIndicadorProjecaoLiveUi() {
   /*
      O selo «● LIVE → OBS» não aparece no modo Bíblia.
 
-     Ali ele não acrescenta nada: o seletor ao lado já diz «Live — OBS», ganha o contorno
-     laranja enquanto a projeção corre, e o próprio versículo no ar é a confirmação de que
-     está a sair. Três avisos da mesma coisa, um deles a pulsar, num canto do cabeçalho que
-     o operador tem debaixo dos olhos durante o culto inteiro.
+     Ali ele não acrescenta nada: o seletor ao lado já diz «Live — OBS», e o próprio
+     versículo no ar é a confirmação de que está a sair. Dois avisos da mesma coisa, um
+     deles a pulsar, num canto do cabeçalho que o operador tem debaixo dos olhos durante
+     o culto inteiro.
 
      No modo Apresentação continua: lá o que está no ar é mídia, que pode estar a tocar sem
      o operador a ver, e o selo é o único sinal de que a saída Live está mesmo ativa. */
@@ -764,46 +764,9 @@ function atualizarIndicadorProjecaoLiveUi() {
   }
   if (wrap) {
     wrap.classList.toggle('route-dd--live-projetando', projetando);
-  }
-
-  /*
-     Contorno verde do seletor de monitor (modo Bíblia) — vale para QUALQUER destino
-     escolhido, não só para a saída Live.
-
-     A pergunta que o contorno responde é «está no ar?», e a resposta não muda consoante
-     o versículo saia para o telão do público, para o retorno do ministrante ou para o
-     OBS. Ficar verde só em Live — OBS deixava os outros destinos, que são os do dia a
-     dia, sem qualquer confirmação no cabeçalho.
-
-     «Não exibir» fica de fora por definição: sem rota não há nada a sair. Leio os campos
-     escondidos em vez da classe `route-dd--rota-desativada` para não depender da ordem
-     por que as duas funções correm. */
-  const hidPub = document.getElementById('route-publico');
-  const hidMin = document.getElementById('route-ministrante');
-  const rotaAtivaNaUi =
-    !!liveSel ||
-    (!!hidPub && hidPub.value !== '-1') ||
-    (!!hidMin && hidMin.value !== '-1');
-  /*
-     `projecaoBibliaMinistrante` tem de entrar à parte, e é por isto:
-
-     com o alvo «Ministrante — M3» o canal público leva uma tela limpa DE PROPÓSITO, e o
-     versículo viaja fora dessa difusão. Para `hayProjecaoAtivaNoServidor()` — que só olha
-     ao payload público — não há nada no ar, e o seletor ficava cinzento com o versículo
-     projetado no retorno. A bandeira é justamente o «está no M3 e só lá», e é a mesma que
-     o eco do estado já lê para não dar a Bíblia por encerrada (ver `projectionPayloads`).
-
-     Somo-a aqui em vez de a acrescentar a `hayProjecaoAtivaNoServidor()`: essa função
-     decide prévias, botão de encerrar e troca de rota, e o seu «público limpo = nada no
-     ar» é deliberado. */
-  const bibliaSoNoMinistrante = !!(estadoServidor && estadoServidor.projecaoBibliaMinistrante);
-  if (wrap) {
-    wrap.classList.toggle(
-      'route-dd--projetando',
-      ehModoBibliaOperador() &&
-        rotaAtivaNaUi &&
-        (hayProjecaoAtivaNoServidor() || bibliaSoNoMinistrante)
-    );
+    /* O seletor escolhe o destino; quem diz que há projeção no ar são os outros
+       indicadores (pill, versículo na grelha, selo Live). */
+    wrap.classList.remove('route-dd--projetando');
   }
   const btn = document.getElementById('route-publico-btn');
   if (btn && emModoLive && liveSel) {

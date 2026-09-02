@@ -7171,6 +7171,7 @@
       min-height: 34px;
     }
     .ap-card6-footer .route-dd--card6-aviso {
+      width: auto;
       max-width: none;
     }
     .ap-card6-footer .route-dd--card6-aviso.route-dd-open {
@@ -10510,10 +10511,13 @@
       letter-spacing: 0.01em;
     }
 
+    /*
+      Largura fixa: «Não exibir», «Ambos» e «Público — Monitor 2» não podem
+      empurrar o cabeçalho. Texto a mais trunca no `.route-dd-label`.
+    */
     .route-dd {
       position: relative;
-      min-width: 120px;
-      max-width: 170px;
+      width: 170px;
       flex-shrink: 0;
     }
 
@@ -10598,47 +10602,33 @@
     }
 
     /*
-      Modo Bíblia: o seletor de Live diz o ESTADO, não a escolha.
+      Modo Bíblia: o seletor de Live diz a escolha, não o estado.
 
       Escolher «Live — OBS» não é um acontecimento — é configuração, e configuração não
       precisa de cor. O laranja pintava o seletor a partir do momento em que a rota era
       escolhida e ficava lá o culto inteiro, ao lado de um selo «● LIVE → OBS» a pulsar:
       um alarme permanente para o estado normal de trabalho. Por isso o seletor
-      escolhido, mas parado, fica igual aos vizinhos.
+      escolhido, parado ou a projetar, fica igual aos vizinhos.
 
-      Quando há projeção — para qualquer destino: Público, Ministrante, Ambos ou
-      Live — OBS — ganha o contorno verde, o MESMO `#3d9e58` que marca o versículo no ar
-      na grelha ao lado. Ler o verde é ler a mesma coisa nos dois sítios: «isto está a
-      sair». Só contorno e anel: o fundo mantém-se neutro para o botão continuar a ser um
-      seletor e não um aviso.
+      A indicação de que há projeção no ar fica noutros sítios (versículo na grelha,
+      pill «Projetando»). O seletor só escolhe o destino.
 
-      Nos modos Apresentação e Slides o laranja fica como estava — ali o que está no ar é
-      mídia, que pode estar a correr com o operador a olhar para outro lado.
+      Nos modos Apresentação e Slides o laranja de Live a projetar fica como estava —
+      ali o que está no ar é mídia, que pode estar a correr com o operador a olhar para
+      outro lado.
     */
-    body.app-mod-biblia .route-dd.route-dd--rota-live:not(.route-dd--projetando) .route-dd-btn {
+    body.app-mod-biblia .route-dd.route-dd--rota-live .route-dd-btn {
       border-color: var(--border);
       background: var(--surface2);
       box-shadow: none;
     }
 
-    /* `--projetando` vem do JS e não olha ao destino: Público, Ministrante, Ambos ou
-       Live — OBS, o verde diz sempre a mesma coisa. Só «Não exibir» fica de fora. */
-    body.app-mod-biblia .route-dd.route-dd--projetando .route-dd-btn {
-      border-color: #3d9e58;
-      background: var(--surface2);
-      box-shadow: 0 0 0 1px color-mix(in srgb, #3d9e58 40%, transparent);
-    }
-
-    /* Sem projeção, apontar realça como em qualquer outro seletor. A projetar, o verde
-       manda: o rato a passar não é razão para esconder, mesmo que por um segundo, o
-       único sinal de que está no ar. */
-    body.app-mod-biblia .route-dd.route-dd--rota-live:not(.route-dd--projetando) .route-dd-btn:hover {
+    body.app-mod-biblia .route-dd.route-dd--rota-live .route-dd-btn:hover {
       border-color: var(--accent2);
     }
 
     /* Menu aberto: aí o operador está a mexer, e o realce de interação vem à frente. */
-    body.app-mod-biblia .route-dd.route-dd-open.route-dd--rota-live .route-dd-btn,
-    body.app-mod-biblia .route-dd.route-dd-open.route-dd--projetando .route-dd-btn {
+    body.app-mod-biblia .route-dd.route-dd-open.route-dd--rota-live .route-dd-btn {
       border-color: var(--accent);
     }
     .indicador-live-obs.oculto { display: none; }
