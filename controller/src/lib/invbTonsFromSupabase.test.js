@@ -9,6 +9,9 @@ const {
   resolverMinistranteNoCadastro,
   indexarHistoricoLouvores,
   escolherTomComHistorico,
+  splitNomesMinistrantes,
+  parsePares,
+  ehNomeMinistranteAgrupado,
 } = require('./invbTonsFromSupabase');
 
 test('itemImportFromMusicaRow lê JSON de tons do site', () => {
@@ -155,4 +158,92 @@ test('itemImportFromMusicaRow aceita Orig. como ORIG.', () => {
   });
   assert.ok(item);
   assert.strictEqual(item.tons.Cris, 'ORIG.');
+});
+
+test('splitNomesMinistrantes separa nomes agrupados e preserva Pr. Humberto', () => {
+  assert.deepStrictEqual(splitNomesMinistrantes('Raphaela, Daniela'), ['Raphaela', 'Daniela']);
+  assert.deepStrictEqual(splitNomesMinistrantes('Raphaela Cris'), ['Raphaela', 'Cris']);
+  assert.deepStrictEqual(splitNomesMinistrantes('Raphaela Cris Vanessa'), [
+    'Raphaela',
+    'Cris',
+    'Vanessa',
+  ]);
+  assert.deepStrictEqual(splitNomesMinistrantes('Pr. Humberto'), ['Pr. Humberto']);
+  assert.deepStrictEqual(splitNomesMinistrantes('Pr. Humberto Vanessa'), [
+    'Pr. Humberto',
+    'Vanessa',
+  ]);
+  assert.deepStrictEqual(splitNomesMinistrantes('Raphaela e Cris'), ['Raphaela', 'Cris']);
+  assert.deepStrictEqual(splitNomesMinistrantes(['Raphaela', 'Cris']), ['Raphaela', 'Cris']);
+  assert.strictEqual(ehNomeMinistranteAgrupado('Raphaela, Daniela'), true);
+  assert.strictEqual(ehNomeMinistranteAgrupado('Pr. Humberto'), false);
+  assert.strictEqual(ehNomeMinistranteAgrupado('Raphaela'), false);
+});
+
+test('Se Eu Não Te Ouvir: A# com Raphaela e Daniela, C com Cris (payload real do site)', () => {
+  const item = itemImportFromMusicaRow({
+    nome: 'Se Eu Não Te Ouvir',
+    tom: '[{"tom":"A#","min":"Raphaela, Daniela"},{"tom":"C","min":"Cris"}]',
+    ministrante: 'Raphaela, Daniela, Cris',
+  });
+  assert.ok(item);
+  assert.strictEqual(item.tons.Raphaela, 'A#');
+  assert.strictEqual(item.tons.Daniela, 'A#');
+  assert.strictEqual(item.tons.Cris, 'C');
+  assert.strictEqual(item.tons['Raphaela, Daniela'], undefined);
+  assert.strictEqual(item.tons.Todos, undefined);
+});
+
+test('par do site com mins[] (formato do editor) gera um vínculo por pessoa', () => {
+  const pares = parsePares([
+    { tom: 'A#', mins: ['Raphaela', 'Daniela'] },
+    { tom: 'C', mins: ['Cris'] },
+  ]);
+  assert.deepStrictEqual(pares, [
+    { tom: 'A#', min: 'Raphaela' },
+    { tom: 'A#', min: 'Daniela' },
+    { tom: 'C', min: 'Cris' },
+  ]);
+});
+
+test('vários ministrantes no mesmo tom são reconhecidos um a um', () => {
+  const item = itemImportFromMusicaRow({
+    nome: 'A Ele a Glória',
+    tom: JSON.stringify([
+      { tom: 'E', min: 'Raphaela Cris' },
+      { tom: 'C', min: 'Daniela' },
+    ]),
+    ministrante: 'Raphaela Cris, Daniela',
+  });
+  assert.ok(item);
+  assert.strictEqual(item.tons.Raphaela, 'E');
+  assert.strictEqual(item.tons.Cris, 'E');
+  assert.strictEqual(item.tons.Daniela, 'C');
+  assert.strictEqual(item.tons.Todos, undefined);
+  assert.strictEqual(item.tons['Raphaela Cris'], undefined);
+});
+
+test('mais de dois ministrantes no mesmo tom recebem o mesmo tom', () => {
+  const item = itemImportFromMusicaRow({
+    nome: 'Canção',
+    tom: JSON.stringify([
+      { tom: 'E', min: 'Raphaela Cris Vanessa' },
+      { tom: 'C', min: 'Daniela' },
+    ]),
+    ministrante: 'Raphaela Cris Vanessa, Daniela',
+  });
+  assert.ok(item);
+  assert.strictEqual(item.tons.Raphaela, 'E');
+  assert.strictEqual(item.tons.Cris, 'E');
+  assert.strictEqual(item.tons.Vanessa, 'E');
+  assert.strictEqual(item.tons.Daniela, 'C');
+});
+
+test('min como array no JSON do site gera um par por pessoa', () => {
+  const pares = parsePares([{ tom: 'E', min: ['Raphaela', 'Cris'] }, { tom: 'C', min: 'Daniela' }]);
+  assert.deepStrictEqual(pares, [
+    { tom: 'E', min: 'Raphaela' },
+    { tom: 'E', min: 'Cris' },
+    { tom: 'C', min: 'Daniela' },
+  ]);
 });

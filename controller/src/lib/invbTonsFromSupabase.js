@@ -167,6 +167,109 @@ function normMin(n) {
   return MAP_MIN[k] || String(n || '').trim();
 }
 
+/** Aliases conhecidos, do mais longo para o mais curto («pr. humberto» antes de «humberto»). */
+function aliasesMinistrantePorTamanho() {
+  const set = new Set(Object.keys(MAP_MIN));
+  set.add('todos');
+  set.add('todas');
+  return [...set].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Separa ministrantes agrupados na mesma linha de tom do site
+ * («Raphaela, Daniela» → Raphaela + Daniela). «Pr. Humberto» continua uma pessoa.
+ * @param {string|string[]} raw
+ * @returns {string[]}
+ */
+function minsToArrayComoNoSite(str) {
+  return String(str || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function splitNomesMinistrantes(raw) {
+  if (Array.isArray(raw)) {
+    const out = [];
+    for (const n of raw) {
+      for (const nome of splitNomesMinistrantes(n)) out.push(nome);
+    }
+    return out;
+  }
+  const texto = String(raw || '').trim();
+  if (!texto) return [];
+  if (ehMinistranteTodos(texto)) return ['Todos'];
+
+  const porVirgula = minsToArrayComoNoSite(texto);
+  const partes =
+    porVirgula.length > 1
+      ? porVirgula
+      : texto
+          .split(/[;/|+]+|(?:\s+(?:e|&)\s+)/i)
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  const nomes = [];
+  for (const parte of partes) {
+    if (ehMinistranteTodos(parte)) {
+      nomes.push('Todos');
+      continue;
+    }
+    for (const nome of extrairNomesDoTrecho(parte)) {
+      if (nome) nomes.push(nome);
+    }
+  }
+  return nomes.length ? nomes : [normMin(texto)].filter(Boolean);
+}
+
+/** Nome composto do site («Raphaela, Daniela») — não é uma pessoa. */
+function ehNomeMinistranteAgrupado(nome) {
+  const texto = String(nome || '').trim();
+  if (!texto || ehMinistranteTodos(texto)) return false;
+  if (minsToArrayComoNoSite(texto).length > 1) return true;
+  if (/[;/|]/.test(texto) || /\s+(?:e|&)\s+/i.test(texto)) {
+    return splitNomesMinistrantes(texto).length > 1;
+  }
+  return false;
+}
+
+/** Nomes no par do site: `min` (string «A, B») ou `mins` (array do editor). */
+function nomesDoParSite(p) {
+  if (!p || typeof p !== 'object') return '';
+  if (Array.isArray(p.mins) && p.mins.length) return p.mins;
+  if (Array.isArray(p.min) && p.min.length) return p.min;
+  if (Array.isArray(p.ministrantes) && p.ministrantes.length) return p.ministrantes;
+  return p.min || p.ministrante || '';
+}
+
+function extrairNomesDoTrecho(trecho) {
+  const aliases = aliasesMinistrantePorTamanho();
+  let resto = String(trecho || '').trim();
+  const achados = [];
+  while (resto) {
+    const baixo = resto.toLocaleLowerCase('pt-BR');
+    let aliasBateu = '';
+    for (const alias of aliases) {
+      if (!baixo.startsWith(alias)) continue;
+      const depois = resto.slice(alias.length);
+      if (depois === '' || /^\s/.test(depois)) {
+        aliasBateu = alias;
+        break;
+      }
+    }
+    if (aliasBateu) {
+      achados.push(normMin(resto.slice(0, aliasBateu.length)));
+      resto = resto.slice(aliasBateu.length).trim();
+      continue;
+    }
+    const m = resto.match(/^(\S+)(?:\s+(.*))?$/);
+    if (!m) break;
+    achados.push(normMin(m[1]));
+    resto = String(m[2] || '').trim();
+  }
+  return achados;
+}
+
 /**
  * Associa o nome do site a um ministrante já cadastrado (Humberto ≈ Pr. Humberto).
  * Não cria pessoa — só resolve alias/prefixo único.
@@ -231,8 +334,10 @@ function parsePares(tomField, ministranteField) {
     for (const p of parsed) {
       if (!p) continue;
       const tom = normTom(p.tom);
-      const min = normMin(p.min || p.ministrante || '');
-      if (tom && min) out.push({ tom, min });
+      const nomes = splitNomesMinistrantes(nomesDoParSite(p));
+      for (const min of nomes) {
+        if (tom && min) out.push({ tom, min });
+      }
     }
   }
   if (
@@ -242,13 +347,12 @@ function parsePares(tomField, ministranteField) {
     !tomField.trim().startsWith('[')
   ) {
     const tom = normTom(tomField);
-    const min = normMin(ministranteField);
-    if (tom && min) out.push({ tom, min });
+    const nomes = splitNomesMinistrantes(ministranteField);
+    for (const min of nomes) {
+      if (tom && min) out.push({ tom, min });
+    }
   }
-  const nomesCampo = String(ministranteField || '')
-    .split(/[,;/|]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const nomesCampo = splitNomesMinistrantes(ministranteField);
   if (nomesCampo.some((n) => ehMinistranteTodos(n))) {
     const tomTodos = out[0]?.tom || normTom(tomField);
     if (tomTodos && TONS_OK.has(tomTodos) && !out.some((p) => ehMinistranteTodos(p.min))) {
@@ -474,6 +578,8 @@ module.exports = {
   escolherTomComHistorico,
   statsHistoricoParaMusica,
   normMin,
+  splitNomesMinistrantes,
+  ehNomeMinistranteAgrupado,
   normTom,
   parsePares,
   itemImportFromMusicaRow,

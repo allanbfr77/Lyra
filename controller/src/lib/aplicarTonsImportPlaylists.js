@@ -2,7 +2,13 @@
 
 const { normalizarChaveComparacao, listarMinistrantesNoDb } = require('../db');
 const { loadPlaylistsJson, savePlaylistsJson } = require('./playlistsStore');
-const { TONS_OK, ehMinistranteTodos, normTom, normMin } = require('./invbTonsFromSupabase');
+const {
+  TONS_OK,
+  ehMinistranteTodos,
+  normTom,
+  normMin,
+  splitNomesMinistrantes,
+} = require('./invbTonsFromSupabase');
 
 /**
  * Monta mapa tituloNorm → { ministranteNomeLower → tom }.
@@ -20,14 +26,19 @@ function mapaTonsPorTitulo(itens) {
       for (const [min, tom] of Object.entries(tons)) {
         const t = normTom(tom);
         if (!TONS_OK.has(t)) continue;
-        byMin.set(String(min || '').trim().toLocaleLowerCase('pt-BR'), t);
+        for (const nome of splitNomesMinistrantes(min)) {
+          const chave = String(nome || '').trim().toLocaleLowerCase('pt-BR');
+          if (chave) byMin.set(chave, t);
+        }
       }
     } else if (Array.isArray(tons)) {
       for (const p of tons) {
         const t = normTom(p?.tom);
-        const min = String(p?.ministrante || '').trim().toLocaleLowerCase('pt-BR');
-        if (!min || !TONS_OK.has(t)) continue;
-        byMin.set(min, t);
+        if (!TONS_OK.has(t)) continue;
+        for (const nome of splitNomesMinistrantes(p?.ministrante || p?.nome || '')) {
+          const min = String(nome || '').trim().toLocaleLowerCase('pt-BR');
+          if (min) byMin.set(min, t);
+        }
       }
     }
   }

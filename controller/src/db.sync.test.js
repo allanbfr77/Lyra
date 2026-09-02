@@ -634,3 +634,100 @@ test('16) um único tom no site (Raphaela B) preenche qualquer ministrante', () 
   assert.strictEqual(obterTomMemoriaNoDb(raphaela.id, musicaId, 'user'), 'B');
   assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'B');
 });
+
+test('17) ministrantes agrupados no mesmo tom (Raphaela Cris) são aplicados um a um', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    obterTomPadraoNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'A Ele a Glória', '', ['letra']);
+  const raphaela = inserirMinistranteNoDb('Raphaela');
+  const cris = inserirMinistranteNoDb('Cris');
+  const daniela = inserirMinistranteNoDb('Daniela');
+  const vanessa = inserirMinistranteNoDb('Vanessa');
+
+  importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'A Ele a Glória',
+        artista: '',
+        tons: { 'Raphaela, Cris': 'E', Daniela: 'C' },
+      },
+    ],
+  });
+
+  assert.strictEqual(obterTomMemoriaNoDb(raphaela.id, musicaId, 'user'), 'E');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'E');
+  assert.strictEqual(obterTomMemoriaNoDb(daniela.id, musicaId, 'user'), 'C');
+  assert.strictEqual(obterTomMemoriaNoDb(vanessa.id, musicaId, 'user'), null);
+  assert.strictEqual(obterTomPadraoNoDb(musicaId, 'user'), null);
+  const {
+    listarMinistrantesNoDb,
+  } = require('./db');
+  assert.ok(!listarMinistrantesNoDb().some((m) => String(m.nome).includes(',')));
+});
+
+test('18) import não cria ministrante «Raphaela, Daniela» e aplica A# nas duas', () => {
+  const {
+    inserirMinistranteNoDb,
+    importarTonsMemoriaDeArquivo,
+    obterTomMemoriaNoDb,
+    listarMinistrantesNoDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Se Eu Não Te Ouvir', 'Sarah Farias', ['letra']);
+  const raphaela = inserirMinistranteNoDb('Raphaela');
+  const daniela = inserirMinistranteNoDb('Daniela');
+  const cris = inserirMinistranteNoDb('Cris');
+
+  importarTonsMemoriaDeArquivo({
+    itens: [
+      {
+        titulo: 'Se Eu Não Te Ouvir',
+        artista: 'Sarah Farias',
+        tons: { 'Raphaela, Daniela': 'A#', Cris: 'C' },
+      },
+    ],
+  });
+
+  assert.ok(!listarMinistrantesNoDb().some((m) => /,/u.test(m.nome)));
+  assert.strictEqual(obterTomMemoriaNoDb(raphaela.id, musicaId, 'user'), 'A#');
+  assert.strictEqual(obterTomMemoriaNoDb(daniela.id, musicaId, 'user'), 'A#');
+  assert.strictEqual(obterTomMemoriaNoDb(cris.id, musicaId, 'user'), 'C');
+});
+
+test('19) ministrante já criado como «Raphaela, Daniela» é desmembrado', () => {
+  const {
+    inserirMinistranteNoDb,
+    migrarMinistrantesAgrupadosDoSite,
+    obterTomMemoriaNoDb,
+    gravarTomMemoriaNoDb,
+    listarMinistrantesNoDb,
+    getDb,
+  } = require('./db');
+
+  const db = bancoLimpo();
+  const musicaId = semearOriginal(db, 'Se Eu Não Te Ouvir', '', ['letra']);
+  const raphaela = inserirMinistranteNoDb('Raphaela');
+  const daniela = inserirMinistranteNoDb('Daniela');
+  getDb().prepare('INSERT INTO ministrantes (nome) VALUES (?)').run('Raphaela, Daniela');
+  const agrupado = getDb()
+    .prepare('SELECT id FROM ministrantes WHERE nome = ? COLLATE NOCASE')
+    .get('Raphaela, Daniela');
+  gravarTomMemoriaNoDb(agrupado.id, musicaId, 'user', 'A#');
+
+  migrarMinistrantesAgrupadosDoSite();
+
+  assert.strictEqual(obterTomMemoriaNoDb(raphaela.id, musicaId, 'user'), 'A#');
+  assert.strictEqual(obterTomMemoriaNoDb(daniela.id, musicaId, 'user'), 'A#');
+  assert.strictEqual(
+    getDb().prepare('SELECT id FROM ministrantes WHERE nome = ? COLLATE NOCASE').get('Raphaela, Daniela'),
+    undefined
+  );
+  assert.ok(!listarMinistrantesNoDb().some((m) => /,/u.test(m.nome)));
+});

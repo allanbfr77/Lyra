@@ -5,6 +5,8 @@ const path = require('path');
 const {
   normMin,
   resolverMinistranteNoCadastro,
+  splitNomesMinistrantes,
+  ehNomeMinistranteAgrupado,
 } = require('./lib/invbTonsFromSupabase');
 
 let db;
@@ -436,12 +438,112 @@ function migrarMinistranteCrisMedeirosParaCris(playlistsJsonPathFn) {
   return { deId: antigo.id, paraId: cris.id, acao: 'fundiu' };
 }
 
+function copiarTomMemoriaSeVazio(deId, paraId) {
+  const tons = db
+    .prepare('SELECT musica_id, banco_fonte, tom FROM tom_memoria WHERE ministrante_id = ?')
+    .all(deId);
+  for (const t of tons) {
+    const ja = db
+      .prepare(
+        `SELECT 1 FROM tom_memoria
+         WHERE ministrante_id = ? AND musica_id = ? AND banco_fonte = ?`
+      )
+      .get(paraId, t.musica_id, t.banco_fonte);
+    if (ja) continue;
+    db.prepare(
+      `INSERT INTO tom_memoria (ministrante_id, musica_id, banco_fonte, tom, atualizado_em)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`
+    ).run(paraId, t.musica_id, t.banco_fonte, t.tom);
+  }
+}
+
+function limparMinistranteIdNasPlaylists(playlistsJsonPathFn, idsRemovidos) {
+  const ids = new Set((idsRemovidos || []).map((n) => Number(n)).filter((n) => Number.isFinite(n)));
+  if (!ids.size || typeof playlistsJsonPathFn !== 'function') return;
+  try {
+    const { loadPlaylistsJson, savePlaylistsJson } = require('./lib/playlistsStore');
+    const playlists = loadPlaylistsJson(playlistsJsonPathFn);
+    let mudou = false;
+    for (const lista of Object.values(playlists)) {
+      if (!Array.isArray(lista)) continue;
+      for (const it of lista) {
+        if (!it || it.tipo === 'marcador_tema') continue;
+        if (ids.has(Number(it.ministranteId))) {
+          it.ministranteId = null;
+          mudou = true;
+        }
+      }
+    }
+    if (mudou) savePlaylistsJson(playlistsJsonPathFn, playlists);
+  } catch (_) {
+    /* playlists opcionais na migração */
+  }
+}
+
+/**
+ * Import antigo gravou «Raphaela, Daniela» como uma pessoa. Desmembra e apaga o nome composto.
+ */
+function migrarMinistrantesAgrupadosDoSite(playlistsJsonPathFn) {
+  let rows = [];
+  try {
+    rows = db.prepare('SELECT id, nome FROM ministrantes').all();
+  } catch (_) {
+    return [];
+  }
+
+  const idsRemovidos = [];
+  for (const row of rows) {
+    const nome = String(row.nome || '').trim();
+    if (!ehNomeMinistranteAgrupado(nome)) continue;
+    const nomes = splitNomesMinistrantes(nome).filter((n) => n && !ehMinistranteTodos(n));
+    if (nomes.length < 2) continue;
+
+    for (const individual of nomes) {
+      const dest = garantirMinistrantePorNomeNoDb(individual);
+      if (!dest) continue;
+      copiarTomMemoriaSeVazio(row.id, dest.id);
+    }
+
+    try {
+      const pendentes = db
+        .prepare(
+          `SELECT titulo_norm, artista_norm, ministrante_nome, tom, titulo_original, artista_original
+           FROM tom_import_pendente WHERE ministrante_nome = ? COLLATE NOCASE`
+        )
+        .all(nome);
+      for (const p of pendentes) {
+        for (const individual of nomes) {
+          upsertTomImportPendente(
+            p.titulo_original || '',
+            p.artista_original || '',
+            individual,
+            p.tom
+          );
+        }
+        db.prepare(
+          `DELETE FROM tom_import_pendente
+           WHERE titulo_norm = ? AND artista_norm = ? AND ministrante_nome = ?`
+        ).run(p.titulo_norm, p.artista_norm, p.ministrante_nome);
+      }
+    } catch (_) {
+      /* tabela pode não existir ainda */
+    }
+
+    db.prepare('DELETE FROM tom_memoria WHERE ministrante_id = ?').run(row.id);
+    db.prepare('DELETE FROM ministrantes WHERE id = ?').run(row.id);
+    idsRemovidos.push(Number(row.id));
+  }
+
+  limparMinistranteIdNasPlaylists(playlistsJsonPathFn, idsRemovidos);
+  return idsRemovidos;
+}
+
 function listarMinistrantesNoDb() {
   return db
     .prepare('SELECT id, nome FROM ministrantes ORDER BY nome COLLATE NOCASE')
     .all()
     .map((r) => ({ id: r.id, nome: String(r.nome || '') }))
-    .filter((r) => !ehMinistranteTodos(r.nome));
+    .filter((r) => !ehMinistranteTodos(r.nome) && !ehNomeMinistranteAgrupado(r.nome));
 }
 
 function inserirMinistranteNoDb(nomeRaw) {
@@ -453,6 +555,13 @@ function inserirMinistranteNoDb(nomeRaw) {
   }
   if (ehMinistranteTodos(nome)) {
     const err = new Error('«Todos» não é um ministrante — é o tom padrão da música no site.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (ehNomeMinistranteAgrupado(nome)) {
+    const err = new Error(
+      'Este nome agrupa mais de uma pessoa (como no site). Cadastre cada ministrante separadamente.'
+    );
     err.statusCode = 400;
     throw err;
   }
@@ -494,6 +603,13 @@ function atualizarMinistranteNoDb(idRaw, nomeRaw) {
   }
   if (ehMinistranteTodos(nome)) {
     const err = new Error('«Todos» não é um ministrante — é o tom padrão da música no site.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (ehNomeMinistranteAgrupado(nome)) {
+    const err = new Error(
+      'Este nome agrupa mais de uma pessoa (como no site). Cadastre cada ministrante separadamente.'
+    );
     err.statusCode = 400;
     throw err;
   }
@@ -651,7 +767,7 @@ function gravarTomMemoriaNoDb(ministranteIdRaw, musicaIdRaw, bancoFonteRaw, tomR
 /** Garante ministrante pelo nome (cria se não existir). «Todos» não é cadastrado. */
 function garantirMinistrantePorNomeNoDb(nomeRaw) {
   const nome = String(nomeRaw ?? '').trim();
-  if (!nome || ehMinistranteTodos(nome)) return null;
+  if (!nome || ehMinistranteTodos(nome) || ehNomeMinistranteAgrupado(nome)) return null;
   const existente = db
     .prepare('SELECT id, nome FROM ministrantes WHERE nome = ? COLLATE NOCASE')
     .get(nome);
@@ -669,17 +785,27 @@ function garantirMinistrantePorNomeNoDb(nomeRaw) {
  *  - `{ versao, itens: [{ titulo, artista, tons: { "Nome": "G#" } }] }`
  *  - `[{ titulo, artista, ministrante, tom }]`
  */
+function empilharParesMinistranteTom(pares, titulo, artista, ministranteRaw, tom) {
+  const tomStr = String(tom || '').trim();
+  for (const nome of splitNomesMinistrantes(ministranteRaw)) {
+    const ministrante = String(nome || '').trim();
+    if (!ministrante) continue;
+    pares.push({ titulo, artista, ministrante, tom: tomStr });
+  }
+}
+
 function normalizarPayloadImportTons(raw) {
   const pares = [];
   if (Array.isArray(raw)) {
     for (const row of raw) {
       if (!row || typeof row !== 'object') continue;
-      pares.push({
-        titulo: String(row.titulo || '').trim(),
-        artista: String(row.artista || '').trim(),
-        ministrante: String(row.ministrante || row.ministranteNome || '').trim(),
-        tom: String(row.tom || '').trim(),
-      });
+      empilharParesMinistranteTom(
+        pares,
+        String(row.titulo || '').trim(),
+        String(row.artista || '').trim(),
+        row.ministrante || row.ministranteNome || '',
+        row.tom
+      );
     }
   } else if (raw && typeof raw === 'object') {
     const itens = Array.isArray(raw.itens) ? raw.itens : Array.isArray(raw.musicas) ? raw.musicas : [];
@@ -689,30 +815,21 @@ function normalizarPayloadImportTons(raw) {
       const artista = String(item.artista || '').trim();
       if (item.tons && typeof item.tons === 'object' && !Array.isArray(item.tons)) {
         for (const [ministrante, tom] of Object.entries(item.tons)) {
-          pares.push({
-            titulo,
-            artista,
-            ministrante: String(ministrante || '').trim(),
-            tom: String(tom || '').trim(),
-          });
+          empilharParesMinistranteTom(pares, titulo, artista, ministrante, tom);
         }
       } else if (Array.isArray(item.tons)) {
         for (const t of item.tons) {
           if (!t || typeof t !== 'object') continue;
-          pares.push({
+          empilharParesMinistranteTom(
+            pares,
             titulo,
             artista,
-            ministrante: String(t.ministrante || t.nome || '').trim(),
-            tom: String(t.tom || '').trim(),
-          });
+            t.ministrante || t.nome || '',
+            t.tom
+          );
         }
       } else if (item.ministrante || item.tom) {
-        pares.push({
-          titulo,
-          artista,
-          ministrante: String(item.ministrante || '').trim(),
-          tom: String(item.tom || '').trim(),
-        });
+        empilharParesMinistranteTom(pares, titulo, artista, item.ministrante || '', item.tom);
       }
     }
   }
@@ -858,6 +975,7 @@ function obterTomImportPendentePorTitulo(titulo, nomeMinistrante) {
  * «Todos» vira tom padrão e também preenche os ministrantes já cadastrados.
  */
 function importarTonsMemoriaDeArquivo(payload) {
+  migrarMinistrantesAgrupadosDoSite();
   const pares = normalizarPayloadImportTons(payload);
   const resumo = {
     total: pares.length,
@@ -1038,11 +1156,15 @@ function aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista) {
         n += 1;
         continue;
       }
-      const min = garantirMinistrantePorNomeNoDb(row.ministrante_nome);
-      if (!min) continue;
-      gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
-      idsEspecificos.add(Number(min.id));
-      n += 1;
+      const nomes = splitNomesMinistrantes(row.ministrante_nome);
+      const alvo = nomes.length ? nomes : [row.ministrante_nome];
+      for (const nome of alvo) {
+        const min = garantirMinistrantePorNomeNoDb(nome);
+        if (!min) continue;
+        gravarTomMemoriaNoDb(min.id, musicaId, 'user', tom);
+        idsEspecificos.add(Number(min.id));
+        n += 1;
+      }
     }
     if (tomTodos) {
       for (const m of listarMinistrantesNoDb()) {
@@ -1131,6 +1253,7 @@ function initControllerDatabase(paths, Database) {
   initHistoricoProjecaoDB();
   migrarRotuloCopiaCapitalizacao();
   migrarMinistranteCrisMedeirosParaCris(paths?.playlistsJsonPath);
+  migrarMinistrantesAgrupadosDoSite(paths?.playlistsJsonPath);
 }
 
 const ROTULO_COPIA_MODIFICADA = 'Cópia';
@@ -2107,6 +2230,7 @@ module.exports = {
   substituirMinistrantesETomMemoriaParaSync,
   ehMinistranteTodos,
   migrarMinistranteCrisMedeirosParaCris,
+  migrarMinistrantesAgrupadosDoSite,
   obterTomPadraoNoDb,
   gravarTomPadraoNoDb,
   inserirMinistranteNoDb,

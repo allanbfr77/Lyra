@@ -1,5 +1,9 @@
 const fs = require("fs");
 const path = require("path");
+const {
+  parsePares,
+  TONS_OK,
+} = require("../controller/src/lib/invbTonsFromSupabase");
 
 const rawPath = path.join(__dirname, "_raw-supabase-musicas.json");
 const outPath = path.join(__dirname, "import-tons-invb-louvores.json");
@@ -24,100 +28,6 @@ async function carregarRaw() {
   });
   if (!res.ok) throw new Error(`Supabase HTTP ${res.status}`);
   return res.json();
-}
-
-/* Nomes como no site / cadastro Lyra. */
-const MAP_MIN = {
-  cris: "Cris",
-  daniela: "Daniela",
-  mirian: "Mirian",
-  raphaela: "Raphaela",
-  "pr. humberto": "Pr. Humberto",
-  "pr humberto": "Pr. Humberto",
-  humberto: "Pr. Humberto",
-  vanessa: "Vanessa",
-};
-
-function normMin(n) {
-  const k = String(n || "")
-    .trim()
-    .toLowerCase();
-  return MAP_MIN[k] || String(n || "").trim();
-}
-
-function normTom(tom) {
-  let t = String(tom || "").trim();
-  if (/^orig\.?$/i.test(t)) return "ORIG.";
-  return t;
-}
-
-const TONS_OK = new Set([
-  "C",
-  "C#",
-  "Db",
-  "D",
-  "D#",
-  "Eb",
-  "E",
-  "F",
-  "F#",
-  "Gb",
-  "G",
-  "G#",
-  "Ab",
-  "A",
-  "A#",
-  "Bb",
-  "B",
-  "Cb",
-  "Cm",
-  "C#m",
-  "Dbm",
-  "Dm",
-  "D#m",
-  "Ebm",
-  "Em",
-  "Fm",
-  "F#m",
-  "Gbm",
-  "Gm",
-  "G#m",
-  "Abm",
-  "Am",
-  "A#m",
-  "Bbm",
-  "Bm",
-  "ORIG.",
-]);
-
-function parsePares(tomField, ministranteField) {
-  const out = [];
-  let parsed = null;
-  try {
-    const t = typeof tomField === "string" ? JSON.parse(tomField) : tomField;
-    if (Array.isArray(t)) parsed = t;
-  } catch (_) {
-    /* ignore */
-  }
-  if (parsed) {
-    for (const p of parsed) {
-      if (!p) continue;
-      const tom = normTom(p.tom);
-      const min = normMin(p.min || p.ministrante || "");
-      if (tom && min) out.push({ tom, min });
-    }
-  }
-  if (
-    !out.length &&
-    tomField &&
-    typeof tomField === "string" &&
-    !tomField.trim().startsWith("[")
-  ) {
-    const tom = normTom(tomField);
-    const min = normMin(ministranteField);
-    if (tom && min) out.push({ tom, min });
-  }
-  return out;
 }
 
 function artistFromObs(obs) {
