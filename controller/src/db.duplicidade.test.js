@@ -148,7 +148,7 @@ test('importação com aoDuplicar=copiar preserva o comportamento do celular', (
   const nova = db.prepare('SELECT * FROM musicas WHERE id = ?').get(r.id);
   assert.strictEqual(nova.parent_id, id);
   assert.strictEqual(nova.is_immutable, 0);
-  assert.strictEqual(nova.rotulo, 'CÓPIA/IMPORTADA');
+  assert.strictEqual(nova.rotulo, 'Cópia/Importada');
   // O original segue intacto.
   const original = db.prepare('SELECT * FROM musicas WHERE id = ?').get(id);
   assert.strictEqual(original.is_immutable, 1);
@@ -177,7 +177,7 @@ test('cadastro manual passa pela mesma checagem de duplicidade', () => {
   assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM musicas').get().c, antes);
 });
 
-test('cadastro manual forçado grava como versão rotulada CÓPIA/MANUAL', () => {
+test('cadastro manual forçado grava como versão rotulada Cópia/Manual', () => {
   const db = bancoLimpo();
   const id = semear(db, 'Clamo Jesus', 'Paulo César Baruk');
 
@@ -189,7 +189,7 @@ test('cadastro manual forçado grava como versão rotulada CÓPIA/MANUAL', () =>
   assert.strictEqual(r.copyImportada, true);
   const nova = db.prepare('SELECT * FROM musicas WHERE id = ?').get(r.id);
   assert.strictEqual(nova.parent_id, id);
-  assert.strictEqual(nova.rotulo, 'CÓPIA/MANUAL');
+  assert.strictEqual(nova.rotulo, 'Cópia/Manual');
 });
 
 test('cadastro manual sem duplicata cria original imutável', () => {

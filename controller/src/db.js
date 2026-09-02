@@ -1129,19 +1129,20 @@ function initControllerDatabase(paths, Database) {
   initApresentacoesDB();
   initMinistrantesETomMemoriaDB();
   initHistoricoProjecaoDB();
+  migrarRotuloCopiaCapitalizacao();
   migrarMinistranteCrisMedeirosParaCris(paths?.playlistsJsonPath);
 }
 
-const ROTULO_COPIA_MODIFICADA = 'CÓPIA';
-const ROTULO_COPIA_IMPORTADA = 'CÓPIA/IMPORTADA';
-const ROTULO_COPIA_MANUAL = 'CÓPIA/MANUAL';
+const ROTULO_COPIA_MODIFICADA = 'Cópia';
+const ROTULO_COPIA_IMPORTADA = 'Cópia/Importada';
+const ROTULO_COPIA_MANUAL = 'Cópia/Manual';
 /**
  * Rótulo da cópia editável que nasce junto com o original.
  *
  * Mesmo texto de `ROTULO_COPIA_MODIFICADA` de propósito: para o usuário é a
  * mesma coisa («a cópia»), e a barra de versões já sabe desenhar esse rótulo.
  */
-const ROTULO_COPIA_PADRAO = 'CÓPIA';
+const ROTULO_COPIA_PADRAO = 'Cópia';
 
 /** Marcas de acentuação isoladas pela decomposição NFD (U+0300..U+036F). */
 const REGEX_MARCAS_ACENTO = /[\u0300-\u036f]/g;
@@ -1205,6 +1206,26 @@ function migrarMusicasImutabilidade() {
   `);
 }
 
+/** Rótulo automático deixa de ser «CÓPIA» e passa a «Cópia» (e variantes). */
+function migrarRotuloCopiaCapitalizacao() {
+  const pares = [
+    ['CÓPIA', 'Cópia'],
+    ['CÓPIA/IMPORTADA', 'Cópia/Importada'],
+    ['CÓPIA/MANUAL', 'Cópia/Manual'],
+  ];
+  const aplicar = () => {
+    const atualizar = (tabela) => {
+      if (!colunaExiste(tabela, 'rotulo')) return;
+      const upd = db.prepare(`UPDATE ${tabela} SET rotulo = ? WHERE rotulo = ?`);
+      for (const [antigo, novo] of pares) upd.run(novo, antigo);
+    };
+    atualizar('musicas');
+    atualizar('historico_projecao');
+  };
+  if (typeof db.transaction === 'function') db.transaction(aplicar)();
+  else aplicar();
+}
+
 function parseEstrofesJson(raw) {
   try {
     const arr = JSON.parse(raw || '[]');
@@ -1250,7 +1271,7 @@ function finalizarMusicaOriginalAposInsert(id) {
  * Cadastra uma música nova: **duas linhas**, sempre.
  *
  * 1. o ORIGINAL (`is_immutable = 1`), que nunca é alterado pela edição normal;
- * 2. uma CÓPIA filha idêntica (`is_immutable = 0`), que é a versão que o
+ * 2. uma Cópia filha idêntica (`is_immutable = 0`), que é a versão que o
  *    controlador abre por padrão e onde as edições acontecem.
  *
  * Antes só o original era gravado e a cópia nascia tarde, no primeiro fork de

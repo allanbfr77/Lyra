@@ -7513,7 +7513,7 @@ async function conteudoMusicaParaShare(it) {
         titulo: c.titulo || it.titulo || '',
         artista: c.artista || it.artista || '',
         estrofes: Array.isArray(c.estrofes) ? c.estrofes.map((s) => String(s)) : [],
-        // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
+        // Rótulo de origem da versão escolhida (ex.: 'Cópia'). Só procedência
         // p/ exibição no destino; não recria fork/lineage entre bancos.
         rotulo: String(c.rotulo || it.versaoRotulo || '').trim(),
         ...extrasShare,
@@ -7531,7 +7531,7 @@ async function conteudoMusicaParaShare(it) {
     titulo: m.titulo || it.titulo || '',
     artista: m.artista || it.artista || '',
     estrofes: Array.isArray(m.estrofes) ? m.estrofes : [],
-    // Rótulo de origem da versão escolhida (ex.: 'CÓPIA'). Só procedência
+    // Rótulo de origem da versão escolhida (ex.: 'Cópia'). Só procedência
     // p/ exibição no destino; não recria fork/lineage entre bancos.
     rotulo: String(m.rotulo || it.versaoRotulo || '').trim(),
     ...extrasShare,
@@ -7914,7 +7914,7 @@ function abrirJanelaConfirmarImport(ctx) {
     const nome = document.createElement('div');
     nome.className = 'confirmar-import-item-nome';
     nome.textContent = String(m.titulo || '').trim() || 'Sem título';
-    // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'CÓPIA').
+    // Rótulo da versão que veio no código (ex.: 'COP. ALAN', 'Cópia').
     const rotulo = String(m.rotulo || '').trim();
     if (rotulo) {
       const tag = document.createElement('span');
@@ -8330,7 +8330,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
 
       if (!res2.ok) continue;
       const rootId = nova.copyImportada ? Number(nova.rootId) : Number(nova.id);
-      // Rótulo de origem enviado no payload (ex.: 'CÓPIA'). Compat.: se o app
+      // Rótulo de origem enviado no payload (ex.: 'Cópia'). Compat.: se o app
       // de origem não enviou, fica vazio e o item segue sem tag como hoje.
       const rotuloOrigem = String(m.rotulo || '').trim();
       const idParaTom = nova.copyImportada ? Number(nova.id) : rootId;
@@ -8343,7 +8343,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
         ministranteId: mt.ministranteId,
         tom: mt.tom,
         ...(nova.copyImportada
-          ? { versaoLocalId: String(nova.id), versaoRotulo: 'CÓPIA/IMPORTADA' }
+          ? { versaoLocalId: String(nova.id), versaoRotulo: 'Cópia/Importada' }
           : rotuloOrigem
             ? { versaoRotulo: rotuloOrigem }
             : {}),
@@ -8396,7 +8396,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
   const detalhes = [];
   if (substituidas > 0) detalhes.push(`${substituidas} substituída(s) pela versão recebida`);
   if (mantidas > 0) detalhes.push(`${mantidas} mantida(s) como já estavam no banco`);
-  if (copiasImportadas > 0) detalhes.push(`${copiasImportadas} duplicada(s) como «CÓPIA/IMPORTADA»`);
+  if (copiasImportadas > 0) detalhes.push(`${copiasImportadas} duplicada(s) como «Cópia/Importada»`);
   if (detalhes.length) msg += `\n\nConflitos resolvidos: ${detalhes.join('; ')}.`;
 
   // Caso simples auto-fecha; havendo conflitos resolvidos, exige fechar manual.
@@ -9711,7 +9711,7 @@ function onCultoChange() {
 
 /**
  * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
- * em controller/src/db.js → «CÓPIA»). Como quase toda a entrada da playlist acaba por ser
+ * em controller/src/db.js → «Cópia»). Como quase toda a entrada da playlist acaba por ser
  * uma cópia, repeti-lo em cada linha é ruído — só nomes dados pelo operador dizem algo.
  * Comparação insensível a maiúsculas e normalizada; aceita também o rótulo legado
  * «cópia/modificada» já gravado em bases antigas.
@@ -9720,6 +9720,26 @@ const ROTULOS_VERSAO_AUTOMATICOS = new Set([
   'cópia'.normalize('NFC'),
   'cópia/modificada'.normalize('NFC'),
 ]);
+
+/**
+ * Forma canónica de exibição dos rótulos automáticos. Músicas antigas ainda
+ * podem ter «CÓPIA» gravado; na UI passam a «Cópia».
+ */
+const ROTULOS_VERSAO_EXIBICAO = new Map([
+  ['cópia'.normalize('NFC'), 'Cópia'],
+  ['cópia/modificada'.normalize('NFC'), 'Cópia'],
+  ['cópia/importada'.normalize('NFC'), 'Cópia/Importada'],
+  ['cópia/manual'.normalize('NFC'), 'Cópia/Manual'],
+]);
+
+function formatarRotuloVersaoExibicao(rotulo) {
+  const bruto = String(rotulo || '').trim();
+  if (!bruto) return 'Cópia';
+  const chave = bruto.normalize('NFC').toLocaleLowerCase('pt-BR');
+  const automatico = ROTULOS_VERSAO_EXIBICAO.get(chave);
+  if (automatico) return automatico;
+  return bruto.toLocaleUpperCase('pt-BR');
+}
 
 /** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
 function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
@@ -11008,7 +11028,7 @@ async function addMusicaNaPlaylist(meta) {
           const rotulo = String(v.rotulo || '').trim() || 'Cópia';
           opcoesVersao.push({
             value: String(v.id),
-            label: rotulo.toLocaleUpperCase('pt-BR'),
+            label: formatarRotuloVersaoExibicao(rotulo),
           });
         }
       }
@@ -11018,7 +11038,7 @@ async function addMusicaNaPlaylist(meta) {
     for (const c of getCopiasParaMusica(idNum)) {
       opcoesVersao.push({
         value: c.id,
-        label: `${String(c.rotulo || 'Cópia').toLocaleUpperCase('pt-BR')} (LOCAL)`,
+        label: `${formatarRotuloVersaoExibicao(c.rotulo)} (LOCAL)`,
       });
     }
   }
@@ -13058,7 +13078,7 @@ const guiasEstrofesLetraCompleta = (() => {
     ta.addEventListener('scroll', sincronizarDeslocamento, { passive: true });
     window.addEventListener('resize', agendar);
     if (typeof ResizeObserver === 'function') {
-      /* O textarea tem `resize: vertical`; o operador pode arrastá-lo. */
+      /* Recalcula se a caixa mudar de tamanho (redimensionar a janela / o painel). */
       new ResizeObserver(agendar).observe(ta);
     }
     agendar();
@@ -13374,7 +13394,7 @@ function rotuloVersaoComparativo(v, rootId) {
   const ehOriginal = v.parent_id == null && Number(v.id) === Number(rootId);
   if (ehOriginal) return 'ORIGINAL';
   const rotulo = String(v.rotulo || '').trim();
-  return (rotulo || 'Cópia').toLocaleUpperCase('pt-BR');
+  return formatarRotuloVersaoExibicao(rotulo);
 }
 
 function comparativoTextarea(lado) {
@@ -18176,9 +18196,7 @@ async function confirmarRemoverVersaoLocal(idMusica, copiaId) {
 }
 
 function rotuloExibicaoVersaoServidor(v) {
-  const rotulo = String(v.rotulo || '').trim();
-  if (rotulo) return rotulo.toLocaleUpperCase('pt-BR');
-  return 'CÓPIA';
+  return formatarRotuloVersaoExibicao(v?.rotulo);
 }
 
 /**
@@ -18231,7 +18249,7 @@ const SVG_VERSAO = {
 
 /** Ícone da cópia a partir do rótulo (rótulos automáticos conhecidos; nome próprio = cópia genérica). */
 function iconeVersaoServidorPorRotulo(labelUpper) {
-  const s = String(labelUpper || '');
+  const s = String(labelUpper || '').normalize('NFC').toLocaleUpperCase('pt-BR');
   if (s.includes('IMPORTAD')) return SVG_VERSAO.importada;
   if (s.includes('MODIFICAD') || s === 'CÓPIA' || s === 'COPIA') return SVG_VERSAO.modificada;
   return SVG_VERSAO.copia;
@@ -18297,7 +18315,7 @@ function renderMusicaVersoesBar() {
   }
 
   copiasLocais.forEach((c) => {
-    const rotuloVis = `${String(c.rotulo || 'Cópia').toLocaleUpperCase('pt-BR')} (LOCAL)`;
+    const rotuloVis = `${formatarRotuloVersaoExibicao(c.rotulo)} (LOCAL)`;
     bar.appendChild(mkChip(rotuloVis, c.id, musicaVersaoLocalId === c.id, SVG_VERSAO.local));
   });
 

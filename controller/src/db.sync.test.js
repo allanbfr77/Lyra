@@ -112,7 +112,7 @@ test('1) sincronizar apenas músicas originais preserva identidade e imutabilida
 test('2) sincronizar música com uma cópia preserva original e versão', () => {
   const db = bancoLimpo();
   const rootId = semearOriginal(db, 'Clamo Jesus', 'Baruk', ['Original']);
-  const versao = criarVersaoMusicaNoDb(rootId, 'CÓPIA');
+  const versao = criarVersaoMusicaNoDb(rootId, 'Cópia');
   assert.ok(versao.ok);
 
   const exportadas = listarMusicasUsuarioParaSync();
@@ -123,7 +123,7 @@ test('2) sincronizar música com uma cópia preserva original e versão', () => 
   assert.strictEqual(copiaExp.parent_id, rootId);
   assert.strictEqual(copiaExp.root_id, rootId);
   assert.strictEqual(copiaExp.is_immutable, 0);
-  assert.strictEqual(copiaExp.rotulo, 'CÓPIA');
+  assert.strictEqual(copiaExp.rotulo, 'Cópia');
 
   bancoLimpo();
   substituirMusicasUsuarioParaSync(exportadas);
@@ -135,7 +135,7 @@ test('2) sincronizar música com uma cópia preserva original e versão', () => 
   assert.strictEqual(Number(copia.is_immutable), 0);
   assert.strictEqual(copia.parent_id, rootId);
   assert.strictEqual(copia.root_id, rootId);
-  assert.strictEqual(copia.rotulo, 'CÓPIA');
+  assert.strictEqual(copia.rotulo, 'Cópia');
   assert.notStrictEqual(copia.id, original.id);
 });
 
@@ -144,7 +144,7 @@ test('3) sincronizar música com múltiplas cópias preserva todas', () => {
   const rootId = semearOriginal(db, 'Maravilhosa Graça', '', ['Base']);
   const v1 = criarVersaoMusicaNoDb(rootId, 'ENSAIO');
   const v2 = criarVersaoMusicaNoDb(rootId, 'CULTO');
-  const v3 = criarVersaoMusicaNoDb(rootId, 'CÓPIA/MANUAL');
+  const v3 = criarVersaoMusicaNoDb(rootId, 'Cópia/Manual');
   assert.ok(v1.ok && v2.ok && v3.ok);
 
   // Conteúdo distinto em cada cópia
@@ -163,14 +163,14 @@ test('3) sincronizar música com múltiplas cópias preserva todas', () => {
 
   assert.strictEqual(obterMusicaUsuarioPorId(v1.id).rotulo, 'ENSAIO');
   assert.strictEqual(obterMusicaUsuarioPorId(v2.id).rotulo, 'CULTO');
-  assert.strictEqual(obterMusicaUsuarioPorId(v3.id).rotulo, 'CÓPIA/MANUAL');
+  assert.strictEqual(obterMusicaUsuarioPorId(v3.id).rotulo, 'Cópia/Manual');
   assert.deepStrictEqual(JSON.parse(obterMusicaUsuarioPorId(v2.id).estrofes), ['Letra culto']);
 });
 
 test('4) sincronizar cópias com diferentes tags (rótulos) preserva metadados', () => {
   const db = bancoLimpo();
   const rootId = semearOriginal(db, 'Tag Test', 'Art', ['O']);
-  const tags = ['CÓPIA', 'CÓPIA/IMPORTADA', 'ALAN', 'ENSAIO/VOZ'];
+  const tags = ['Cópia', 'Cópia/Importada', 'ALAN', 'ENSAIO/VOZ'];
   const ids = tags.map((t) => {
     const r = criarVersaoMusicaNoDb(rootId, t);
     assert.ok(r.ok);
@@ -213,7 +213,7 @@ test('5) playlist só com originais aponta para os originais', () => {
 test('6) playlist com cópias preserva versaoLocalId apontando para a cópia', () => {
   const db = bancoLimpo();
   const rootId = semearOriginal(db, 'Playlist Cópia', 'Z', ['Orig']);
-  const versao = criarVersaoMusicaNoDb(rootId, 'CÓPIA');
+  const versao = criarVersaoMusicaNoDb(rootId, 'Cópia');
   db.prepare('UPDATE musicas SET estrofes=? WHERE id=?').run(JSON.stringify(['Letra da cópia']), versao.id);
 
   const exportadas = listarMusicasUsuarioParaSync();
@@ -224,14 +224,14 @@ test('6) playlist com cópias preserva versaoLocalId apontando para a cópia', (
         titulo: 'Playlist Cópia',
         artista: 'Z',
         versaoLocalId: String(versao.id),
-        versaoRotulo: 'CÓPIA',
+        versaoRotulo: 'Cópia',
       },
     ],
   };
 
   const playlists = normalizePlaylists(playlistsOrig);
   assert.strictEqual(playlists.culto[0].versaoLocalId, String(versao.id));
-  assert.strictEqual(playlists.culto[0].versaoRotulo, 'CÓPIA');
+  assert.strictEqual(playlists.culto[0].versaoRotulo, 'Cópia');
   assert.strictEqual(idEfetivoPlaylist(playlists.culto[0]), versao.id);
   assert.notStrictEqual(idEfetivoPlaylist(playlists.culto[0]), rootId);
 
@@ -350,7 +350,7 @@ test('9) playlist recebida aponta exatamente para as mesmas versões da origem',
 test('10) re-sincronizar não cria duplicações', () => {
   const db = bancoLimpo();
   const rootId = semearOriginal(db, 'Sem Dup', 'D', ['o']);
-  const v1 = criarVersaoMusicaNoDb(rootId, 'CÓPIA');
+  const v1 = criarVersaoMusicaNoDb(rootId, 'Cópia');
   const v2 = criarVersaoMusicaNoDb(rootId, 'OUTRA');
 
   const snapshot = listarMusicasUsuarioParaSync();
@@ -419,15 +419,15 @@ test('normalizeMusicas do servidor alinha com o controlador (cópias + tags)', (
       parent_id: 1,
       root_id: 1,
       is_immutable: 0,
-      rotulo: 'CÓPIA/IMPORTADA',
+      rotulo: 'Cópia/Importada',
     },
   ];
   const a = normalizarMusicasUsuarioParaSync(payload);
   const b = normalizeMusicas(payload);
   assert.strictEqual(a.length, 2);
   assert.strictEqual(b.length, 2);
-  assert.strictEqual(a[1].rotulo, 'CÓPIA/IMPORTADA');
-  assert.strictEqual(b[1].rotulo, 'CÓPIA/IMPORTADA');
+  assert.strictEqual(a[1].rotulo, 'Cópia/Importada');
+  assert.strictEqual(b[1].rotulo, 'Cópia/Importada');
   assert.strictEqual(a[1].parent_id, 1);
   assert.strictEqual(b[1].parent_id, 1);
 });

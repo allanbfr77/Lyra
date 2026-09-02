@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<title>Opções de triângulo</title>
+<style>
+  html, body { margin: 0; background: #18181b; color: #e8e5e0; font: 15px "Segoe UI", sans-serif; }
+  body { padding: 28px 24px; }
+  h1 { font-size: 18px; font-weight: 650; margin: 0 0 6px; }
+  p { margin: 0 0 22px; color: #9a9690; font-size: 14px; }
+  .grid { display: flex; gap: 18px; }
+  .card {
+    flex: 1;
+    background: #232328;
+    border: 1px solid #3f3f48;
+    border-radius: 12px;
+    padding: 16px 14px 18px;
+    text-align: center;
+  }
+  .letra { font-size: 22px; font-weight: 700; color: #c49a3a; }
+  .nome { font-size: 14px; font-weight: 600; margin: 4px 0 12px; }
+  .zoom {
+    height: 88px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: #2e2e35; border-radius: 8px; margin-bottom: 12px;
+  }
+  .zoom svg { width: 36px; height: 36px; display: block; }
+  .bar {
+    width: 10px; height: 140px; margin: 0 auto;
+    background: #2a2a30; border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 2px 0;
+    box-sizing: border-box;
+  }
+  .bar .cap { width: 10px; height: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bar .cap svg { width: 10px; height: 9px; display: block; }
+  .bar .track { flex: 1; width: 8px; display: flex; align-items: flex-start; justify-content: center; padding-top: 8px; }
+  .bar .thumb { width: 8px; height: 44px; background: #3f3f48; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <h1>Triângulos da barra de rolagem</h1>
+  <p>Cinza claro no tema escuro. Escolha a letra (A–E). Nada disto entra no app até você confirmar.</p>
+  <div class="grid">
+
+    <div class="card">
+      <div class="letra">A</div>
+      <div class="nome">Pirâmide larga</div>
+      <div class="zoom">
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 5 L20 18 H4 Z"/></svg>
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M4 6 H20 L12 19 Z"/></svg>
+      </div>
+      <div class="bar">
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 5 L20 18 H4 Z"/></svg></div>
+        <div class="track"><div class="thumb"></div></div>
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M4 6 H20 L12 19 Z"/></svg></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="letra">B</div>
+      <div class="nome">Chevron em V</div>
+      <div class="zoom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="bar">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></div>
+        <div class="track"><div class="thumb"></div></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="letra">C</div>
+      <div class="nome">Seta clássica</div>
+      <div class="zoom">
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 7 L16.5 16 L7.5 16 Z"/></svg>
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M7.5 8 L16.5 8 L12 17 Z"/></svg>
+      </div>
+      <div class="bar">
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 7 L16.5 16 L7.5 16 Z"/></svg></div>
+        <div class="track"><div class="thumb"></div></div>
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M7.5 8 L16.5 8 L12 17 Z"/></svg></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="letra">D</div>
+      <div class="nome">Só contorno</div>
+      <div class="zoom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2" stroke-linejoin="round"><path d="M12 6 L19 18 H5 Z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2" stroke-linejoin="round"><path d="M5 6 H19 L12 18 Z"/></svg>
+      </div>
+      <div class="bar">
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2" stroke-linejoin="round"><path d="M12 6 L19 18 H5 Z"/></svg></div>
+        <div class="track"><div class="thumb"></div></div>
+        <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="#c8c4be" stroke-width="2" stroke-linejoin="round"><path d="M5 6 H19 L12 18 Z"/></svg></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="letra">E</div>
+      <div class="nome">Ponta arredondada</div>
+      <div class="zoom">
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 6 C12.6 6 13 6.3 13.3 6.8 L19.2 17.2 C19.7 18.1 19.1 19 18 19 H6 C4.9 19 4.3 18.1 4.8 17.2 L10.7 6.8 C11 6.3 11.4 6 12 6 Z"/></svg>
+        <svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M6 5 H18 C19.1 5 19.7 5.9 19.2 6.8 L13.3 17.2 C13 17.7 12.6 18 12 18 C11.4 18 11 17.7 10.7 17.2 L4.8 6.8 C4.3 5.9 4.9 5 6 5 Z"/></svg>
+      </div>
+      <div class="bar">
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M12 6 C12.6 6 13 6.3 13.3 6.8 L19.2 17.2 C19.7 18.1 19.1 19 18 19 H6 C4.9 19 4.3 18.1 4.8 17.2 L10.7 6.8 C11 6.3 11.4 6 12 6 Z"/></svg></div>
+        <div class="track"><div class="thumb"></div></div>
+        <div class="cap"><svg viewBox="0 0 24 24"><path fill="#c8c4be" d="M6 5 H18 C19.1 5 19.7 5.9 19.2 6.8 L13.3 17.2 C13 17.7 12.6 18 12 18 C11.4 18 11 17.7 10.7 17.2 L4.8 6.8 C4.3 5.9 4.9 5 6 5 Z"/></svg></div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

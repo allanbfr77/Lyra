@@ -26,7 +26,7 @@ async function adicionarMusicaNaPlaylistCulto(ip, cultoId, cultoLabel, rootId, t
   };
   if (opts.copyImportada && opts.versaoId != null) {
     body.versaoLocalId = String(opts.versaoId);
-    body.versaoRotulo = 'CÓPIA/IMPORTADA';
+    body.versaoRotulo = 'Cópia/Importada';
   } else if (String(opts.rotuloOrigem || '').trim()) {
     // Sem conflito no destino: música vira original limpa no DB, mas o item da playlist
     // carrega a procedência (ex.: 'Cópia/Modificada') só p/ exibição — sem versaoLocalId.

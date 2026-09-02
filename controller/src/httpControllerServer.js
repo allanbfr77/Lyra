@@ -1268,7 +1268,7 @@ async function iniciarServidorController(ctx, paths) {
    * Importação por código (playlist compartilhada entre máquinas).
    *
    * `decisaoDuplicidade` no corpo controla o que fazer se já existir equivalente:
-   *  - ausente / `copiar`: grava CÓPIA/IMPORTADA automaticamente. **Default por
+   *  - ausente / `copiar`: grava Cópia/Importada automaticamente. **Default por
    *    compatibilidade** — é o que o app do celular usa, onde não há janela de
    *    conflito para perguntar;
    *  - `perguntar`: só detecta e responde 409, sem gravar nada (usado pelo
@@ -1486,7 +1486,7 @@ async function iniciarServidorController(ctx, paths) {
               ...base,
               id: imp.rootId,
               versaoLocalId: String(imp.id),
-              versaoRotulo: 'CÓPIA/IMPORTADA',
+              versaoRotulo: 'Cópia/Importada',
             };
           }
           return { ...base, id: imp.id };
@@ -1518,7 +1518,7 @@ async function iniciarServidorController(ctx, paths) {
         }
 
         const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
-        // Lote vindo do celular: sem diálogo possível, mantém CÓPIA/IMPORTADA.
+        // Lote vindo do celular: sem diálogo possível, mantém Cópia/Importada.
         const imp = importarMusicaUsuarioNoDb(titulo, artista, norm, { aoDuplicar: 'copiar' });
         if (!imp.ok) {
           resultados.push({ status: 'erro', clientId, erro: imp.erro || 'Falha ao importar' });

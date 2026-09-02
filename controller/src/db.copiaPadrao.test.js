@@ -90,7 +90,7 @@ test('inserir música cria original imutável e cópia editável', () => {
   assert.strictEqual(copia.is_immutable, 0);
   assert.strictEqual(Number(copia.parent_id), Number(r.id));
   assert.strictEqual(Number(copia.root_id), Number(r.id));
-  assert.strictEqual(copia.rotulo, 'CÓPIA');
+  assert.strictEqual(copia.rotulo, 'Cópia');
   // Conteúdo idêntico ao do original no momento do cadastro.
   assert.strictEqual(copia.titulo, original.titulo);
   assert.strictEqual(copia.artista, original.artista);
@@ -215,7 +215,7 @@ test('listarVersoesPorRootId traz original e cópia da música recém-criada', (
   assert.strictEqual(versoes.length, 2);
   assert.strictEqual(versoes[0].is_immutable, 1);
   assert.strictEqual(versoes[1].is_immutable, 0);
-  assert.strictEqual(versoes[1].rotulo, 'CÓPIA');
+  assert.strictEqual(versoes[1].rotulo, 'Cópia');
 });
 
 test('garantirCopiaPadraoNoDb rejeita id inexistente ou inválido', () => {

@@ -46,7 +46,7 @@ test('trocar do original para a cópia não conta como segunda vez', () => {
   /* Original e cópia editável são a mesma música para quem monta repertório: o operador
      mudou de versão a meio, a congregação não cantou duas vezes. */
   const original = reg({ musicaId: 12, rootId: 12 });
-  const copia = reg({ musicaId: 340, rootId: 12, rotulo: 'CÓPIA' });
+  const copia = reg({ musicaId: 340, rootId: 12, rotulo: 'Cópia' });
   const marca = h.marcaDeRegisto(original, T0);
   assert.equal(h.deveRegistar(copia, marca, T0 + MIN), false);
 });
