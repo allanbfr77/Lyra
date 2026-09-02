@@ -10297,8 +10297,8 @@
       opacity: 0.6;
     }
 
-    .contagem-tempo-linha { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-    .contagem-campo { display: flex; flex-direction: column; gap: 4px; }
+    .contagem-tempo-linha { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+    .contagem-campo { display: flex; flex-direction: column; gap: 6px; }
     .contagem-campo-rotulo { font-size: 13px; opacity: 0.7; }
     .contagem-campo input {
       width: 84px;
@@ -10312,15 +10312,17 @@
       color: var(--text);
     }
 
-    .contagem-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .contagem-grupo:has(.contagem-presets) { gap: 14px; }
+    .contagem-presets { display: flex; gap: 8px; flex-wrap: wrap; }
     .contagem-preset {
-      padding: 7px 12px;
+      padding: 3px 9px;
       border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--surface2);
-      color: var(--text);
-      font-size: 15px;
-      font-weight: 600;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.3;
       cursor: pointer;
     }
     .contagem-preset:hover { border-color: var(--mode-contagem); }
