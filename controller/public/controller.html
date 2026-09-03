@@ -275,12 +275,14 @@
     *::-webkit-scrollbar {
       width: 9px;
       height: 9px;
+      cursor: default;
     }
     *::-webkit-scrollbar-button {
       display: block;
       background-color: transparent;
       background-repeat: no-repeat;
       background-position: center;
+      cursor: default;
     }
     *::-webkit-scrollbar-button:vertical:decrement,
     *::-webkit-scrollbar-button:vertical:start:decrement {
@@ -323,6 +325,7 @@
     *::-webkit-scrollbar-track {
       background: var(--scroll-track);
       border-radius: 8px;
+      cursor: default;
     }
     *::-webkit-scrollbar-thumb {
       background: var(--scroll-thumb);
@@ -330,6 +333,7 @@
       border: 1px solid transparent;
       border-radius: 8px;
       min-height: 36px;
+      cursor: default;
     }
     *::-webkit-scrollbar-thumb:hover,
     *::-webkit-scrollbar-thumb:active {
@@ -338,6 +342,7 @@
     }
     *::-webkit-scrollbar-corner {
       background: transparent;
+      cursor: default;
     }
 
     /* Controles nativos herdam a UI; prévias de slide continuam com --slide-font. */
@@ -346,6 +351,18 @@
     select,
     textarea {
       font-family: var(--font-ui);
+    }
+
+    /**
+     * Chromium/Electron no Windows trata o textarea como um único widget:
+     * `cursor: text` (UA ou regra nossa) pinta I-beam também sobre a barra
+     * de rolagem — visível porque este painel estiliza `::-webkit-scrollbar`.
+     * `auto` deixa o motor escolher: I-beam só no texto, seta default na barra.
+     * Cobre letra completa, comparativo, cartões de estrofe e os diálogos
+     * com textarea (edição rápida, nota, nova música).
+     */
+    textarea {
+      cursor: auto;
     }
 
     .sr-only {
@@ -4009,7 +4026,8 @@
 
     #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-ta {
       user-select: text;
-      cursor: text;
+      /* `auto`, não `text`: senão o I-beam cobre a scrollbar do cartão. */
+      cursor: auto;
     }
 
     .centro-col-preview-stack {
