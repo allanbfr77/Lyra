@@ -871,6 +871,45 @@ function createProjectionEngine(paths, deps) {
    * Serve para confirmar, no PC do utilizador, que o M3 mede 1360×768 e o M2 mede
    * 800×600 — sem cruzar dimensões. Grava no log de erros do host (`viewport-janela`).
    */
+  function geometriaNativaDaJanela(win) {
+    let windowBounds = null;
+    let contentBounds = null;
+    let contentSize = null;
+    let windowsScaleFactor = null;
+    try {
+      windowBounds = win.getBounds();
+    } catch (_) {
+      // intencional
+    }
+    try {
+      contentBounds = typeof win.getContentBounds === 'function' ? win.getContentBounds() : null;
+    } catch (_) {
+      // intencional
+    }
+    try {
+      contentSize = typeof win.getContentSize === 'function' ? win.getContentSize() : null;
+    } catch (_) {
+      // intencional
+    }
+    try {
+      if (screen && typeof screen.getDisplayMatching === 'function' && windowBounds) {
+        const d = screen.getDisplayMatching(windowBounds);
+        if (d && Number.isFinite(d.scaleFactor)) windowsScaleFactor = d.scaleFactor;
+      }
+    } catch (_) {
+      // intencional
+    }
+    return { windowBounds, contentBounds, contentSize, windowsScaleFactor };
+  }
+
+  function contextoLogViewport(info) {
+    const tipo = info && info.tipoDiagnostico;
+    if (typeof tipo === 'string' && tipo.trim()) {
+      return tipo.replace(/^\[/, '').replace(/\]$/, '');
+    }
+    return 'viewport-janela';
+  }
+
   function anexarDiagnosticoViewport(win) {
     const wc = win && win.webContents;
     if (!wc) return;
@@ -878,33 +917,26 @@ function createProjectionEngine(paths, deps) {
     if (!ipc || typeof ipc.on !== 'function') return;
     if (win.__lyraViewportIpcBound) return;
     win.__lyraViewportIpcBound = true;
+    if (typeof ipc.handle === 'function') {
+      try {
+        ipc.handle('lyra-janela-geometria', () => geometriaNativaDaJanela(win));
+      } catch (_) {
+        // intencional — canal já registado nesta janela
+      }
+    }
     ipc.on('lyra-viewport-janela', (_event, info) => {
-      let boundsJanela = null;
-      let contentBoundsJanela = null;
-      let contentSize = null;
-      try {
-        boundsJanela = win.getBounds();
-      } catch (_) {
-        // intencional
-      }
-      try {
-        contentBoundsJanela = win.getContentBounds();
-      } catch (_) {
-        // intencional
-      }
-      try {
-        contentSize = win.getContentSize();
-      } catch (_) {
-        // intencional
-      }
+      const geo = geometriaNativaDaJanela(win);
       const linha = {
         ...(info && typeof info === 'object' ? info : {}),
-        boundsJanela,
-        contentBoundsJanela,
-        contentSize,
+        windowBounds: geo.windowBounds,
+        contentBounds: geo.contentBounds,
+        contentSize: geo.contentSize,
+        windowsScaleFactor: geo.windowsScaleFactor,
+        boundsJanela: geo.windowBounds,
+        contentBoundsJanela: geo.contentBounds,
       };
       try {
-        logError('viewport-janela', JSON.stringify(linha));
+        logError(contextoLogViewport(info), JSON.stringify(linha));
       } catch (_) {
         try {
           console.log('[Lyra viewport]', linha);

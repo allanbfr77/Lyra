@@ -692,6 +692,10 @@ function attachPublicProjectionRender(ctx) {
     ctx.document.body.classList.toggle('slide-preto-final', !!(st.slidePretoFinal && !st.blackout));
     ctx.document.body.classList.toggle('modo-aviso-projecao', !!ehAviso);
     ctx.document.body.classList.toggle('modo-contagem-projecao', !!ehContagem);
+    ctx.document.body.classList.toggle(
+      'modo-biblia-projecao',
+      st.tipo === 'biblia' && !st.blackout && !st.slidePretoFinal && !st.telaLimpa && !ehAviso && !ehContagem && !ehApresentacao,
+    );
     aplicarTransparenciaOciosaTelao(idleSemProjecao, cfg);
 
     // ── Blackout / Slide preto: fundo/preto sem relógio ───────────────

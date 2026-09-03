@@ -40,6 +40,7 @@
       gap: 0.6vh;
       width: 100%;
       max-width: 100%;
+      min-width: 0;
       height: 100%;
       text-align: center;
       overflow: hidden;
@@ -66,10 +67,21 @@
     #clock-analog-wrap {
       flex-shrink: 0;
     }
+    /*
+     * Só o versículo: `align-self:stretch` impede o flex (`align-items:center`)
+     * de alargar a caixa até à linha inteira. Sem isso, clientWidth == scrollWidth
+     * e o `.wrap { overflow:hidden }` corta as pontas.
+     */
     #clock-verse {
       flex-shrink: 0;
-      width: 92%;
+      align-self: stretch;
+      width: auto;
+      max-width: 100%;
+      min-width: 0;
       box-sizing: border-box;
+      padding-inline: 4%;
+      overflow-wrap: break-word;
+      word-break: normal;
     }
   </style>
 </head>
@@ -87,17 +99,17 @@
     try {
       if (webFrame && typeof webFrame.setZoomFactor === 'function') webFrame.setZoomFactor(1);
     } catch (_) {}
-    let slideFit = null;
     let viewportDaJanela = null;
-    try {
-      slideFit = require('./js/slideFit');
-    } catch (e) {
-      console.error('[Lyra] slideFit indisponível no relógio:', e && e.message);
-    }
     try {
       viewportDaJanela = require('./js/viewportDaJanela');
     } catch (e) {
       console.error('[Lyra] viewportDaJanela indisponível no relógio:', e && e.message);
+    }
+    let layoutDiagnostico = null;
+    try {
+      layoutDiagnostico = require('./js/layoutDiagnostico');
+    } catch (e) {
+      console.error('[Lyra] layoutDiagnostico indisponível no relógio:', e && e.message);
     }
 
     const elClockDigital = document.getElementById('clock-digital');
@@ -274,12 +286,172 @@
       return Number.isFinite(g) ? g : 0;
     }
 
+    function quebraLinhaAtivaRelogio(el) {
+      if (!el) return false;
+      try {
+        const ws = getComputedStyle(el).whiteSpace;
+        return ws === 'pre-wrap' || ws === 'pre-line' || ws === 'break-spaces' || ws === 'normal';
+      } catch (_) {
+        return true;
+      }
+    }
+
+    function fonteVhRelogio(el, fallback) {
+      const v = parseFloat(el && el.style.fontSize);
+      return Number.isFinite(v) && v > 0 ? v : fallback;
+    }
+
+    function medirCabimentoVersiculoRelogio(el, maxH) {
+      if (!el) {
+        return {
+          larguraDisponivel: 0,
+          larguraTexto: 0,
+          alturaDisponivel: 0,
+          alturaTexto: 0,
+          textoCabeHorizontalmente: true,
+          textoCabeVerticalmente: true,
+        };
+      }
+      void el.offsetWidth;
+      const wrap = el.parentElement;
+      const wrapW = wrap && wrap.clientWidth > 8 ? wrap.clientWidth : 0;
+      const elW = el.clientWidth;
+      /*
+       * Se o flex inflar o versículo, clientWidth acompanha o texto e o overflow
+       * horizontal «desaparece». A largura real é a do contentor `.wrap`.
+       */
+      const larguraDisponivel = wrapW > 8
+        ? Math.min(elW > 8 ? elW : wrapW, wrapW)
+        : elW;
+      const larguraTexto = el.scrollWidth;
+      const rectEl = el.getBoundingClientRect();
+      const rectWrap = wrap ? wrap.getBoundingClientRect() : null;
+      const inflouAlemDoWrap = !!(
+        rectWrap &&
+        Number.isFinite(rectWrap.width) &&
+        rectEl.width > rectWrap.width + 1
+      );
+      const alturaDisponivel = Number.isFinite(maxH) ? maxH : el.clientHeight;
+      const alturaTexto = el.scrollHeight;
+      const cabeH = !inflouAlemDoWrap &&
+        !(larguraDisponivel > 8 && larguraTexto > larguraDisponivel + 1);
+      const cabeV = !(alturaDisponivel > 8 && alturaTexto > alturaDisponivel + 1);
+      return {
+        larguraDisponivel,
+        larguraTexto,
+        alturaDisponivel,
+        alturaTexto,
+        textoCabeHorizontalmente: cabeH,
+        textoCabeVerticalmente: cabeV,
+      };
+    }
+
+    function versiculoRelogioCabeNaCaixa(el, maxH) {
+      const m = medirCabimentoVersiculoRelogio(el, maxH);
+      return m.textoCabeHorizontalmente && m.textoCabeVerticalmente;
+    }
+
     /**
-     * Aplica o `verseFontSize` dos Ajustes. Só encolhe se a ALTURA do bloco passar
-     * do espaço que sobra abaixo do relógio e da data — e só quando esse espaço
-     * já está medido de forma credível. Sem isto, um layout a meio do paint
-     * (caixa estreita + quebra agressiva) mandava a fonte para 0,8 vh e o
-     * slider deixava de fazer efeito.
+     * Reduz a fonte do versículo até caber na caixa real do elemento.
+     * Overflow horizontal e vertical; o fator mais restritivo ganha.
+     * Versículo curto (já cabe) permanece no tamanho configurado.
+     */
+    function encolherFonteVersiculoRelogio(el, fonteMaxVh, maxH) {
+      let vh = fonteMaxVh;
+      el.style.fontSize = `${vh}vh`;
+      if (versiculoRelogioCabeNaCaixa(el, maxH)) return vh;
+
+      const pisoLoop = 0.15;
+      for (let i = 0; i < 28; i++) {
+        const m = medirCabimentoVersiculoRelogio(el, maxH);
+        let factor = 1;
+        if (!m.textoCabeHorizontalmente && m.larguraDisponivel > 8 && m.larguraTexto > 0) {
+          factor = Math.min(factor, m.larguraDisponivel / m.larguraTexto);
+        }
+        if (!m.textoCabeVerticalmente && m.alturaDisponivel > 8 && m.alturaTexto > 0) {
+          factor = Math.min(factor, m.alturaDisponivel / m.alturaTexto);
+        }
+        if (factor >= 0.999) break;
+        vh = vh * factor * 0.992;
+        if (vh < pisoLoop) vh = pisoLoop;
+        el.style.fontSize = `${vh}vh`;
+        if (versiculoRelogioCabeNaCaixa(el, maxH)) break;
+        if (vh <= pisoLoop) break;
+      }
+      return fonteVhRelogio(el, vh);
+    }
+
+    function emitirDiagnosticoRelogio(opts) {
+      if (!layoutDiagnostico) return;
+      const {
+        wrap,
+        quebra,
+        baseVh,
+        motivo,
+        areaH,
+        areaW,
+        maxH,
+        payloadAntes,
+        medicaoAntes,
+      } = opts;
+      const fonteFinalVh = fonteVhRelogio(elClockVerse, baseVh);
+      const medicaoDepois = medirCabimentoVersiculoRelogio(elClockVerse, maxH);
+      const payloadDepois = layoutDiagnostico.capturarPayloadLayout({
+        momento: 'depois',
+        elTexto: elClockVerse,
+        elContainer: wrap,
+        quebraLinhaAtiva: quebra,
+        extra: {
+          motivo,
+          fonteInicialVh: baseVh,
+          fonteFinalVh,
+          areaH,
+          areaW,
+          maxH,
+        },
+      });
+      const criterio = layoutDiagnostico.criterioQueLimitou(
+        medicaoAntes.textoCabeHorizontalmente,
+        medicaoAntes.textoCabeVerticalmente,
+      );
+      layoutDiagnostico.emitirBlocosComGeometriaNativa([
+        { prefixo: '[relogio-layout-diagnostico]', payload: payloadAntes },
+        { prefixo: '[relogio-layout-diagnostico]', payload: payloadDepois },
+        {
+          prefixo: '[layout-decisao]',
+          payload: {
+            contexto: 'relogio',
+            quebraLinhaAtiva: quebra,
+            larguraDisponivel: medicaoAntes.larguraDisponivel,
+            larguraTexto: medicaoAntes.larguraTexto,
+            alturaDisponivel: medicaoAntes.alturaDisponivel,
+            alturaTexto: medicaoAntes.alturaTexto,
+            fonteInicial: baseVh,
+            fonteFinal: fonteFinalVh,
+            textoCabeHorizontalmente: medicaoDepois.textoCabeHorizontalmente,
+            textoCabeVerticalmente: medicaoDepois.textoCabeVerticalmente,
+            houveReducaoDeFonte: fonteFinalVh + 0.001 < baseVh,
+            criterioQueLimitou: criterio,
+            motivo,
+            textoCabeHorizontalmenteAntes: medicaoAntes.textoCabeHorizontalmente,
+            textoCabeVerticalmenteAntes: medicaoAntes.textoCabeVerticalmente,
+            larguraDisponivelDepois: medicaoDepois.larguraDisponivel,
+            larguraTextoDepois: medicaoDepois.larguraTexto,
+            alturaDisponivelDepois: medicaoDepois.alturaDisponivel,
+            alturaTextoDepois: medicaoDepois.alturaTexto,
+            overflowHorizontalDepois: !medicaoDepois.textoCabeHorizontalmente,
+            overflowVerticalDepois: !medicaoDepois.textoCabeVerticalmente,
+            algoritmoConsideraLargura: true,
+            algoritmoConsideraAltura: true,
+          },
+        },
+      ]);
+    }
+
+    /**
+     * Aplica o `verseFontSize` dos Ajustes no bloco do versículo.
+     * Encolhe só se esse bloco transbordar na largura ou na altura disponível
+     * abaixo do relógio/data. Relógio e data não são medidos nem alterados.
      */
     function ajustarVersiculoRelogioAoEspaco() {
       const clk = displayConfig.clock || {};
@@ -292,8 +464,39 @@
       if (!wrap) return;
       const areaH = wrap.clientHeight;
       const areaW = wrap.clientWidth;
+      const quebra = quebraLinhaAtivaRelogio(elClockVerse);
+      const capturarAntes = (motivo, extraMaxH) => layoutDiagnostico
+        ? layoutDiagnostico.capturarPayloadLayout({
+            momento: 'antes',
+            elTexto: elClockVerse,
+            elContainer: wrap,
+            quebraLinhaAtiva: quebra,
+            extra: {
+              motivo,
+              fonteInicialVh: baseVh,
+              areaH,
+              areaW,
+              maxH: extraMaxH,
+            },
+          })
+        : null;
+
       /* Layout ainda não está estável: fica no tamanho pedido, não se inventa um mínimo. */
-      if (!Number.isFinite(areaH) || areaH < 80 || !Number.isFinite(areaW) || areaW < 80) return;
+      if (!Number.isFinite(areaH) || areaH < 80 || !Number.isFinite(areaW) || areaW < 80) {
+        const medicaoAntes = medirCabimentoVersiculoRelogio(elClockVerse, areaH);
+        emitirDiagnosticoRelogio({
+          wrap,
+          quebra,
+          baseVh,
+          motivo: 'area-ainda-instavel',
+          areaH,
+          areaW,
+          maxH: areaH,
+          payloadAntes: capturarAntes('area-ainda-instavel', areaH),
+          medicaoAntes,
+        });
+        return;
+      }
 
       let usado = 0;
       let nOutros = 0;
@@ -304,30 +507,52 @@
       });
       const gaps = Math.max(0, nOutros) * pxGapWrapRelogio();
       const maxH = areaH - usado - gaps - 2;
+      const payloadAntes = capturarAntes('medicao', maxH);
+      const medicaoAntes = medirCabimentoVersiculoRelogio(elClockVerse, maxH);
 
       /* Orçamento absurdo (relógio maior que o wrap) = medição a meio; não encolher. */
-      if (!(maxH >= 32)) return;
-      if (elClockVerse.scrollHeight <= maxH + 1) return;
-
-      if (slideFit) {
-        const vh = slideFit.encolherFonteAteCaber({
-          fonteMaxVh: baseVh,
-          fonteMinVh: minVh,
-          cabe(v) {
-            elClockVerse.style.fontSize = `${v}vh`;
-            return elClockVerse.scrollHeight <= maxH + 1;
-          },
+      if (!(maxH >= 32)) {
+        emitirDiagnosticoRelogio({
+          wrap,
+          quebra,
+          baseVh,
+          motivo: 'orcamento-altura-invalido',
+          areaH,
+          areaW,
+          maxH,
+          payloadAntes,
+          medicaoAntes,
         });
-        elClockVerse.style.fontSize = `${vh}vh`;
         return;
       }
-      let atual = baseVh;
-      while (atual > minVh) {
-        elClockVerse.style.fontSize = `${atual}vh`;
-        if (elClockVerse.scrollHeight <= maxH + 1) break;
-        atual -= 0.1;
+
+      if (versiculoRelogioCabeNaCaixa(elClockVerse, maxH)) {
+        emitirDiagnosticoRelogio({
+          wrap,
+          quebra,
+          baseVh,
+          motivo: 'ja-cabia',
+          areaH,
+          areaW,
+          maxH,
+          payloadAntes,
+          medicaoAntes,
+        });
+        return;
       }
-      elClockVerse.style.fontSize = `${Math.max(minVh, atual)}vh`;
+
+      encolherFonteVersiculoRelogio(elClockVerse, baseVh, maxH);
+      emitirDiagnosticoRelogio({
+        wrap,
+        quebra,
+        baseVh,
+        motivo: 'encolheu-por-overflow',
+        areaH,
+        areaW,
+        maxH,
+        payloadAntes,
+        medicaoAntes,
+      });
     }
 
     function tick() {

@@ -170,6 +170,14 @@
       padding-inline: 0.04em;
     }
 
+    /* Versículo: a caixa não pode inflar com `white-space:pre` — senão
+       clientWidth == scrollWidth e o auto-fit acha que já cabe. */
+    body.modo-biblia-projecao .letras,
+    body.modo-biblia-projecao .linha-texto {
+      min-width: 0;
+      max-width: 100%;
+    }
+
     #ref-biblica {
       transition: opacity 150ms ease;
     }

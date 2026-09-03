@@ -18,6 +18,29 @@
  */
 function attachPublicProjectionUtils(ctx) {
 
+  let layoutDiagnostico = null;
+  try {
+    layoutDiagnostico = require('./layoutDiagnostico');
+  } catch (_) {
+    layoutDiagnostico = null;
+  }
+
+  function tipoEstadoAtual() {
+    try {
+      if (typeof ctx.getEstadoAtual === 'function') {
+        const st = ctx.getEstadoAtual();
+        return st && st.tipo ? String(st.tipo) : '';
+      }
+    } catch (_) {
+      // intencional
+    }
+    return ctx.estadoAtual && ctx.estadoAtual.tipo ? String(ctx.estadoAtual.tipo) : '';
+  }
+
+  function ehModoBiblia() {
+    return tipoEstadoAtual() === 'biblia';
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────
 
   /**
@@ -334,6 +357,11 @@ function attachPublicProjectionUtils(ctx) {
     elLetras.style.overflowWrap = wrap ? 'break-word' : 'normal';
     elLetras.style.wordBreak = 'normal';
     elLetras.style.textAlign = pb.textAlign || 'center';
+    if (ehModoBiblia()) {
+      elLetras.style.minWidth = '0';
+      elLetras.style.maxWidth = '100%';
+      elLetras.style.width = '100%';
+    }
 
     // ── Gera o HTML das linhas escapado e, opcionalmente, em maiúsculas ──
     elLetras.innerHTML = linhas
@@ -358,6 +386,72 @@ function attachPublicProjectionUtils(ctx) {
     const pad =
       (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     return Math.max(8, parent.clientHeight - pad);
+  }
+
+  /**
+   * Caixa pintada do versículo: o contentor (`.tela`) e o próprio `.letras`.
+   * Se o flex inflar `.letras` até à linha (`white-space:pre`), `clientWidth` do
+   * texto deixa de ser a largura visual — usa-se então a largura do pai.
+   * Não usa `window.innerWidth` nem `screen`.
+   */
+  function caixaRealVersiculo(el) {
+    if (!el) {
+      return { cw: 0, ch: 0, sw: 0, sh: 0 };
+    }
+    void el.offsetWidth;
+    const parent = el.parentElement;
+    let cw = el.clientWidth;
+    let ch = el.clientHeight;
+    if (parent) {
+      const cs = window.getComputedStyle(parent);
+      const padH =
+        (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const padV =
+        (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const pcw = parent.clientWidth - padH;
+      const pch = parent.clientHeight - padV;
+      if (pcw > 8) cw = Math.min(cw > 8 ? cw : pcw, pcw);
+      if (pch > 8) ch = pch;
+    }
+    return {
+      cw,
+      ch,
+      sw: el.scrollWidth,
+      sh: el.scrollHeight,
+    };
+  }
+
+  function versiculoBibliaCabeNaCaixa(el) {
+    if (!el) return true;
+    const { cw, ch, sw, sh } = caixaRealVersiculo(el);
+    if (cw > 8 && sw > cw + 1) return false;
+    if (ch > 8 && sh > ch + 1) return false;
+    return true;
+  }
+
+  /**
+   * Auto-fit só do versículo (Bíblia). Slides e avisos continuam em
+   * `encolherFonteAteLetrasCaberem`. Sem piso de 2 vh: reduz até caber.
+   */
+  function encolherFonteVersiculoBiblia(el, fonteMaxVh) {
+    let vh = fonteMaxVh;
+    el.style.fontSize = `${vh}vh`;
+    if (versiculoBibliaCabeNaCaixa(el)) return vh;
+
+    const pisoLoop = 0.15;
+    for (let i = 0; i < 28; i++) {
+      const { cw, ch, sw, sh } = caixaRealVersiculo(el);
+      let factor = 1;
+      if (cw > 8 && sw > cw + 1) factor = Math.min(factor, cw / sw);
+      if (ch > 8 && sh > ch + 1) factor = Math.min(factor, ch / sh);
+      if (factor >= 0.999) break;
+      vh = vh * factor * 0.992;
+      if (vh < pisoLoop) vh = pisoLoop;
+      el.style.fontSize = `${vh}vh`;
+      if (versiculoBibliaCabeNaCaixa(el)) break;
+      if (vh <= pisoLoop) break;
+    }
+    return fonteVhAplicada(el, vh);
   }
 
   /**
@@ -406,6 +500,112 @@ function attachPublicProjectionUtils(ctx) {
     return fonteVhAplicada(el, vh);
   }
 
+  function medirCabimentoLetras(el) {
+    if (!el) {
+      return {
+        larguraDisponivel: 0,
+        larguraTexto: 0,
+        alturaDisponivel: 0,
+        alturaTexto: 0,
+        textoCabeHorizontalmente: true,
+        textoCabeVerticalmente: true,
+      };
+    }
+    if (ehModoBiblia()) {
+      const { cw, ch, sw, sh } = caixaRealVersiculo(el);
+      return {
+        larguraDisponivel: cw,
+        larguraTexto: sw,
+        alturaDisponivel: ch,
+        alturaTexto: sh,
+        textoCabeHorizontalmente: !(cw > 8 && sw > cw + 1),
+        textoCabeVerticalmente: !(ch > 8 && sh > ch + 1),
+      };
+    }
+    void el.offsetWidth;
+    const larguraDisponivel = el.clientWidth;
+    const larguraTexto = el.scrollWidth;
+    const alturaDisponivel = alturaUtilContentorPx(el);
+    const alturaTexto = el.scrollHeight;
+    return {
+      larguraDisponivel,
+      larguraTexto,
+      alturaDisponivel,
+      alturaTexto,
+      textoCabeHorizontalmente: !(larguraDisponivel > 8 && larguraTexto > larguraDisponivel + 1),
+      textoCabeVerticalmente: !(alturaDisponivel > 8 && alturaTexto > alturaDisponivel + 1),
+    };
+  }
+
+  function extraDiagnosticoBiblia(elLetras, wrap, baseVh, pb) {
+    return {
+      tipoEstado: tipoEstadoAtual(),
+      wrapLongLines: wrap,
+      autoFitLongLines: pb.autoFitLongLines === true,
+      exactFontSize: pb.exactFontSize === true,
+      fonteInicialVh: baseVh,
+      candidatosPx: {
+        letrasConteudoPx: larguraConteudoPx(elLetras),
+        telaConteudoPx: larguraConteudoPx(ctx.elTela),
+        janelaPx: larguraJanelaPx(),
+        larguraUtilLetrasPx:
+          typeof ctx.larguraUtilLetrasPx === 'function' ? ctx.larguraUtilLetrasPx() : null,
+        limiteUsadoPx: larguraLimiteMedicaoPx(),
+      },
+      linhasRenderizadas: layoutDiagnostico.medirLinhasRenderizadas(elLetras),
+    };
+  }
+
+  function emitirDiagnosticoBiblia(opts) {
+    if (!layoutDiagnostico || !ehModoBiblia()) return;
+    const {
+      elLetras,
+      wrap,
+      baseVh,
+      fonteFinalVh,
+      payloadAntes,
+      payloadDepois,
+      medicaoAntes,
+      medicaoDepois,
+    } = opts;
+    const criterio = layoutDiagnostico.criterioQueLimitou(
+      medicaoAntes.textoCabeHorizontalmente,
+      medicaoAntes.textoCabeVerticalmente,
+    );
+    layoutDiagnostico.emitirBlocosComGeometriaNativa([
+      { prefixo: '[biblia-layout-diagnostico]', payload: payloadAntes },
+      { prefixo: '[biblia-layout-diagnostico]', payload: payloadDepois },
+      {
+        prefixo: '[layout-decisao]',
+        payload: {
+          contexto: 'biblia',
+          quebraLinhaAtiva: wrap,
+          larguraDisponivel: medicaoAntes.larguraDisponivel,
+          larguraTexto: medicaoAntes.larguraTexto,
+          alturaDisponivel: medicaoAntes.alturaDisponivel,
+          alturaTexto: medicaoAntes.alturaTexto,
+          fonteInicial: baseVh,
+          fonteFinal: fonteFinalVh,
+          textoCabeHorizontalmente: medicaoDepois.textoCabeHorizontalmente,
+          textoCabeVerticalmente: medicaoDepois.textoCabeVerticalmente,
+          houveReducaoDeFonte: fonteFinalVh + 0.001 < baseVh,
+          criterioQueLimitou: criterio,
+          textoCabeHorizontalmenteAntes: medicaoAntes.textoCabeHorizontalmente,
+          textoCabeVerticalmenteAntes: medicaoAntes.textoCabeVerticalmente,
+          larguraDisponivelDepois: medicaoDepois.larguraDisponivel,
+          larguraTextoDepois: medicaoDepois.larguraTexto,
+          alturaDisponivelDepois: medicaoDepois.alturaDisponivel,
+          alturaTextoDepois: medicaoDepois.alturaTexto,
+          overflowHorizontalDepois: !medicaoDepois.textoCabeHorizontalmente,
+          overflowVerticalDepois: !medicaoDepois.textoCabeVerticalmente,
+          algoritmoConsideraLargura: true,
+          algoritmoConsideraAltura: true,
+          idElementoTexto: elLetras && elLetras.id,
+        },
+      },
+    ]);
+  }
+
   /**
    * Aplica `font-size` em vh (teto dos Ajustes) e, se o conteúdo transbordar,
    * reduz proporcionalmente até `scrollWidth <= clientWidth` e a altura caber
@@ -444,15 +644,53 @@ function attachPublicProjectionUtils(ctx) {
       antes: coletarDiagnosticoAutoFitPublico({}),
     };
 
+    const diagBiblia = ehModoBiblia() && layoutDiagnostico;
+    const elContainer = ctx.elTela || elLetras.parentElement;
+    const medicaoAntes = diagBiblia ? medirCabimentoLetras(elLetras) : null;
+    const payloadAntes = diagBiblia
+      ? layoutDiagnostico.capturarPayloadLayout({
+          momento: 'antes',
+          elTexto: elLetras,
+          elContainer,
+          quebraLinhaAtiva: wrap,
+          extra: extraDiagnosticoBiblia(elLetras, wrap, baseVh, pb),
+        })
+      : null;
+
     if (pb.exactFontSize === true) {
       enviarDiagnosticoAutoFitPublico({
         ...diagnostico,
         motivo: 'exactFontSize — autoajuste não correu',
       });
+      if (diagBiblia) {
+        const medicaoDepois = medirCabimentoLetras(elLetras);
+        emitirDiagnosticoBiblia({
+          elLetras,
+          wrap,
+          baseVh,
+          fonteFinalVh: baseVh,
+          payloadAntes,
+          payloadDepois: layoutDiagnostico.capturarPayloadLayout({
+            momento: 'depois',
+            elTexto: elLetras,
+            elContainer,
+            quebraLinhaAtiva: wrap,
+            extra: {
+              ...extraDiagnosticoBiblia(elLetras, wrap, baseVh, pb),
+              motivo: 'exactFontSize — autoajuste não correu',
+              fonteFinalVh: baseVh,
+            },
+          }),
+          medicaoAntes,
+          medicaoDepois,
+        });
+      }
       return;
     }
 
-    const vhFinal = encolherFonteAteLetrasCaberem(elLetras, baseVh);
+    const vhFinal = ehModoBiblia()
+      ? encolherFonteVersiculoBiblia(elLetras, baseVh)
+      : encolherFonteAteLetrasCaberem(elLetras, baseVh);
 
     diagnostico.maiorLinhaQuandoParouPx = elLetras.scrollWidth;
     diagnostico.vhAposMedidor = vhFinal;
@@ -460,6 +698,30 @@ function attachPublicProjectionUtils(ctx) {
     diagnostico.letrasCabiamDepois = letrasCabemNaCaixaPublico(elLetras);
     diagnostico.depois = coletarDiagnosticoAutoFitPublico({});
     enviarDiagnosticoAutoFitPublico(diagnostico);
+
+    if (diagBiblia) {
+      const fonteFinalVh = fonteVhAplicada(elLetras, vhFinal);
+      const medicaoDepois = medirCabimentoLetras(elLetras);
+      emitirDiagnosticoBiblia({
+        elLetras,
+        wrap,
+        baseVh,
+        fonteFinalVh,
+        payloadAntes,
+        payloadDepois: layoutDiagnostico.capturarPayloadLayout({
+          momento: 'depois',
+          elTexto: elLetras,
+          elContainer,
+          quebraLinhaAtiva: wrap,
+          extra: {
+            ...extraDiagnosticoBiblia(elLetras, wrap, baseVh, pb),
+            fonteFinalVh,
+          },
+        }),
+        medicaoAntes,
+        medicaoDepois,
+      });
+    }
   }
 
   function fonteVhAplicada(el, fallback) {
@@ -487,6 +749,11 @@ function attachPublicProjectionUtils(ctx) {
     elLetras.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
     elLetras.style.overflowWrap = wrap ? 'break-word' : 'normal';
     elLetras.style.wordBreak = 'normal';
+    if (ehModoBiblia()) {
+      elLetras.style.minWidth = '0';
+      elLetras.style.maxWidth = '100%';
+      elLetras.style.width = '100%';
+    }
   }
 
   // ─── Exporta ─────────────────────────────────────────────────────
