@@ -63,6 +63,14 @@ function createUserPaths(userDataRoot) {
     bibliaSqlitePath: (traducao) => bibliaSqlitePathProjeto(traducao),
     /** Vídeos do card 5 (modo apresentação) persistidos em disco. */
     apresentacaoVideosDir: () => path.join(userDataRoot, 'apresentacao-videos'),
+    /**
+     * Mídias do modo Apresentação — áudio e vídeo, copiados para cá na importação.
+     *
+     * A pasta antiga fica onde está: os vídeos que já lá estão não são movidos, e quem
+     * resolve um ficheiro por id procura nas duas. Só o que entra de agora em diante
+     * vem para aqui.
+     */
+    apresentacaoMidiasDir: () => path.join(userDataRoot, 'apresentacao-midias'),
 
     /*
      * Ficheiros da projeção no modo «projetar nesta máquina».

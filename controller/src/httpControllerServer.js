@@ -79,9 +79,52 @@ const NOMES_TRADUCAO_BIBLIA = {
 /** Estado do modo apresentação persistido só na RAM (sincronização entre clientes na mesma máquina/rede). */
 let apresentacaoStateMem = {};
 
-/** Vídeos do card 5 — servidos por HTTP (telão/player carregam por URL, sem Base64 no POST). */
-const apresentacaoVideosMem = new Map();
+/** Vídeos do card 5 — servidos por HTTP a partir do disco, nunca da memória. */
 let apresentacaoVideosDirPath = '';
+/** Pasta das mídias importadas por caminho — áudio e vídeo. Ver `apresentacaoMidiasDir`. */
+let apresentacaoMidiasDirPath = '';
+
+/** Extensões que a importação por caminho aceita. */
+const EXTENSOES_MIDIA_APRESENTACAO = new Set([
+  '.mp3', '.m4a', '.aac', '.ogg', '.oga', '.wav', '.flac', '.opus', '.wma',
+  '.mp4', '.webm', '.ogv', '.mov', '.avi', '.mkv', '.m4v',
+]);
+
+const MIMES_MIDIA_APRESENTACAO = {
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg', '.wav': 'audio/wav', '.flac': 'audio/flac', '.opus': 'audio/opus',
+  '.wma': 'audio/x-ms-wma',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.ogv': 'video/ogg', '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo', '.mkv': 'video/x-matroska', '.m4v': 'video/mp4',
+};
+
+/** MIME pela extensão, para áudio e vídeo. Cai em `mimePorCaminhoVideo` no desconhecido. */
+function mimePorCaminhoMidia(filePath) {
+  const ext = path.extname(String(filePath || '')).toLowerCase();
+  return MIMES_MIDIA_APRESENTACAO[ext] || mimePorCaminhoVideo(filePath);
+}
+
+/**
+ * Procura o ficheiro de uma mídia pelo id, nas duas pastas.
+ *
+ * A pasta nova primeiro; a antiga (`apresentacao-videos`) a seguir, para os vídeos que já
+ * lá estavam antes de a importação passar a copiar por caminho.
+ */
+function resolverArquivoMidiaApresentacao(id) {
+  const safe = String(id || '').replace(/[^\w.-]+/g, '_');
+  if (!safe) return null;
+  for (const dir of [apresentacaoMidiasDirPath, apresentacaoVideosDirPath]) {
+    if (!dir) continue;
+    try {
+      if (!fs.existsSync(dir)) continue;
+      const found = fs.readdirSync(dir).find((f) => f.startsWith(safe + '.'));
+      if (found) return path.join(dir, found);
+    } catch (_) {
+      // intencional — uma pasta ilegível não impede de tentar a outra
+    }
+  }
+  return null;
+}
 
 function extensaoMimeVideo(mime) {
   const m = String(mime || '').toLowerCase();
@@ -107,18 +150,6 @@ function salvarVideoApresentacaoNoDisco(id, buf, mime) {
 }
 }
 
-function resolverArquivoVideoApresentacaoNoDisco(id) {
-  if (!apresentacaoVideosDirPath) return null;
-  try {
-    const dir = apresentacaoVideosDirPath;
-    if (!fs.existsSync(dir)) return null;
-    const safe = String(id || '').replace(/[^\w.-]+/g, '_');
-    const found = fs.readdirSync(dir).find((f) => f.startsWith(safe + '.'));
-    return found ? path.join(dir, found) : null;
-  } catch (_) {
-    return null;
-  }
-}
 
 function mimePorCaminhoVideo(filePath) {
   const ext = path.extname(String(filePath || '')).toLowerCase();
@@ -129,8 +160,8 @@ function mimePorCaminhoVideo(filePath) {
   return 'video/mp4';
 }
 
-/** Entrega vídeo com suporte a Range — leitura em fluxo do disco (buffer do SO). */
-function enviarVideoApresentacaoComRange(req, res, filePath, mime) {
+/** Entrega a mídia com suporte a Range — leitura em fluxo do disco (buffer do SO). */
+function enviarMidiaApresentacaoComRange(req, res, filePath, mime) {
   const stat = fs.statSync(filePath);
   const total = stat.size;
   const tipo = mime || mimePorCaminhoVideo(filePath);
@@ -157,11 +188,6 @@ function enviarVideoApresentacaoComRange(req, res, filePath, mime) {
   fs.createReadStream(filePath).pipe(res);
 }
 
-function obterVideoApresentacaoPorId(id) {
-  const key = String(id || '').trim();
-  if (!key) return null;
-  return apresentacaoVideosMem.get(key) || null;
-}
 
 function projectionBaseUrl() {
   try {
@@ -460,12 +486,15 @@ async function iniciarServidorController(ctx, paths) {
   const expressApp = express();
   apresentacaoVideosDirPath =
     typeof paths.apresentacaoVideosDir === 'function' ? paths.apresentacaoVideosDir() : '';
-  if (apresentacaoVideosDirPath) {
+  apresentacaoMidiasDirPath =
+    typeof paths.apresentacaoMidiasDir === 'function' ? paths.apresentacaoMidiasDir() : '';
+  for (const dir of [apresentacaoVideosDirPath, apresentacaoMidiasDirPath]) {
+    if (!dir) continue;
     try {
-      fs.mkdirSync(apresentacaoVideosDirPath, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true });
     } catch (_) {
-  // intencional — erro ignorado
-}
+      // intencional — erro ignorado
+    }
   }
 
   expressApp.use(express.json({ limit: '800mb' }));
@@ -626,6 +655,80 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
+  function urlMidiaApresentacao(id) {
+    return `http://127.0.0.1:${HTTP_CONTROLLER_PORT}/api/apresentacao/midia/${encodeURIComponent(id)}`;
+  }
+
+  /**
+   * Importa uma mídia do modo Apresentação copiando o ficheiro — sem Base64 pelo meio.
+   *
+   * O caminho antigo era: o painel lia o ficheiro inteiro, transformava-o numa string
+   * Base64 (~1,33x o tamanho), embrulhava-a em JSON e mandava-a por HTTP; deste lado o
+   * body-parser guardava tudo em memória e descodificava de volta. Medido: um MP3 de
+   * 7 MB custava ~92 ms e ~47 MB de heap; um vídeo de 100 MB, 1,4 s e 667 MB — que num
+   * PC de 4 GB é o que faz a máquina ir para a memória virtual. `fs.copyFile` faz o
+   * mesmo trabalho em 5,6 ms e 203 ms, e sem ocupar memória nenhuma.
+   *
+   * Só da própria máquina: o corpo traz um caminho de ficheiro, e aceitar caminhos
+   * arbitrários da rede daria a qualquer aparelho da LAN uma forma de ler ficheiros
+   * deste PC — bastava mandar copiar e depois pedir o GET.
+   */
+  expressApp.post('/api/apresentacao/midia/importar', soDestaMaquina, (req, res) => {
+    void (async () => {
+      try {
+        const id = String((req.body && req.body.id) || '').trim();
+        const origem = String((req.body && req.body.filePath) || '').trim();
+        if (!id || !origem) {
+          return res.status(400).json({ ok: false, erro: 'id e filePath são obrigatórios' });
+        }
+        if (!apresentacaoMidiasDirPath) {
+          return res.status(500).json({ ok: false, erro: 'pasta de mídias indisponível' });
+        }
+        const ext = path.extname(origem).toLowerCase();
+        if (!EXTENSOES_MIDIA_APRESENTACAO.has(ext)) {
+          return res
+            .status(400)
+            .json({ ok: false, erro: `extensão não suportada: ${ext || '(nenhuma)'}` });
+        }
+        const safe = id.replace(/[^\w.-]+/g, '_');
+        const destino = path.join(apresentacaoMidiasDirPath, `${safe}${ext}`);
+        await fs.promises.mkdir(apresentacaoMidiasDirPath, { recursive: true });
+        /* Mesmo id com outra extensão deixaria dois ficheiros a responder ao mesmo GET. */
+        const anterior = resolverArquivoMidiaApresentacao(id);
+        if (anterior && anterior !== destino) {
+          try {
+            await fs.promises.unlink(anterior);
+          } catch (_) {
+            // intencional — o que interessa é a cópia nova ficar de pé
+          }
+        }
+        await fs.promises.copyFile(origem, destino);
+        const stat = await fs.promises.stat(destino);
+        res.json({
+          ok: true,
+          url: urlMidiaApresentacao(id),
+          bytes: stat.size,
+          mime: mimePorCaminhoMidia(destino),
+        });
+      } catch (e) {
+        if (!res.headersSent) {
+          res.status(500).json({ ok: false, erro: (e && e.message) || String(e) });
+        }
+      }
+    })();
+  });
+
+  /** Serve a mídia importada. Em fluxo e com Range — o player pede aos pedaços. */
+  expressApp.get('/api/apresentacao/midia/:id', (req, res) => {
+    try {
+      const arquivo = resolverArquivoMidiaApresentacao(req.params.id);
+      if (!arquivo) return res.status(404).end();
+      return enviarMidiaApresentacaoComRange(req, res, arquivo, mimePorCaminhoMidia(arquivo));
+    } catch (_) {
+      return res.status(500).end();
+    }
+  });
+
   expressApp.put('/api/apresentacao/video/:id', (req, res) => {
     try {
       const id = String(req.params.id || '').trim();
@@ -644,7 +747,11 @@ async function iniciarServidorController(ctx, paths) {
       if (!buf.length) {
         return res.status(400).json({ ok: false, erro: 'vídeo vazio' });
       }
-      apresentacaoVideosMem.set(id, { mime, buf });
+      /*
+       * Só disco. Guardar também o Buffer aqui deixava o vídeo inteiro residente na RAM
+       * do processo principal — 667 MB medidos para um ficheiro de 100 MB — e o GET já
+       * preferia o disco de qualquer maneira. Era despesa pura.
+       */
       salvarVideoApresentacaoNoDisco(id, buf, mime);
       const url = `http://127.0.0.1:${HTTP_CONTROLLER_PORT}/api/apresentacao/video/${encodeURIComponent(id)}`;
       res.json({ ok: true, url });
@@ -653,40 +760,17 @@ async function iniciarServidorController(ctx, paths) {
     }
   });
 
+  /**
+   * Rota antiga, mantida para os vídeos que versões anteriores gravaram e para o app de
+   * celular. Serve do disco, como a rota nova — não há mais cópia em memória.
+   */
   expressApp.get('/api/apresentacao/video/:id', (req, res) => {
     try {
-      const id = String(req.params.id || '').trim();
-      const arquivo = resolverArquivoVideoApresentacaoNoDisco(id);
-      if (arquivo) {
-        return enviarVideoApresentacaoComRange(req, res, arquivo, mimePorCaminhoVideo(arquivo));
-      }
-      const entry = obterVideoApresentacaoPorId(id);
-      if (!entry?.buf) return res.status(404).end();
-      const buf = entry.buf;
-      const mime = entry.mime || 'video/mp4';
-      const total = buf.length;
-      const range = req.headers.range;
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', mime);
-      res.setHeader('Cache-Control', 'private, max-age=3600');
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim());
-        if (match) {
-          const start = match[1] !== '' ? parseInt(match[1], 10) : 0;
-          const end = match[2] !== '' ? parseInt(match[2], 10) : total - 1;
-          if (Number.isFinite(start) && Number.isFinite(end) && start <= end && start < total) {
-            const chunk = buf.subarray(start, end + 1);
-            res.status(206);
-            res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-            res.setHeader('Content-Length', String(chunk.length));
-            return res.send(chunk);
-          }
-        }
-      }
-      res.setHeader('Content-Length', String(total));
-      res.send(buf);
-    } catch (e) {
-      res.status(500).end();
+      const arquivo = resolverArquivoMidiaApresentacao(req.params.id);
+      if (!arquivo) return res.status(404).end();
+      return enviarMidiaApresentacaoComRange(req, res, arquivo, mimePorCaminhoMidia(arquivo));
+    } catch (_) {
+      return res.status(500).end();
     }
   });
 

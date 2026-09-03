@@ -78,8 +78,12 @@ function iniciarServidor(ctx, paths, deps) {
     /* Controladores antigos enviavam `http://127.0.0.1:3001/...` — endereço inacessível a
        partir dos telões, que podem estar noutra máquina. */
     reescreverSrcMidia: (src, kind) => {
-      if (kind !== 'video') return src;
-      if (!/^https?:\/\/(127\.0\.0\.1|localhost):3001\/api\/apresentacao\/video\//i.test(src)) {
+      if (kind !== 'video' && kind !== 'audio') return src;
+      /* `/midia/` é o caminho novo (mídia importada por cópia de ficheiro); `/video/`
+         continua a valer para o que versões anteriores gravaram. */
+      if (
+        !/^https?:\/\/(127\.0\.0\.1|localhost):3001\/api\/apresentacao\/(video|midia)\//i.test(src)
+      ) {
         return src;
       }
       const lan = getPreferredLocalIPv4();

@@ -378,6 +378,8 @@ function detectarKindApresentacaoPorMimeOuNome(mime, nome) {
   /* Mesmo caso no Windows para .mp4/.webm com type vazio. */
   if (/\.(mp4|webm|mov|mkv|m4v|ogv|avi)(\?|$)/i.test(n)) return 'video';
   if (m.startsWith('audio/')) return 'audio';
+  /* Mesmo caso do vídeo: o Windows devolve type vazio para .mp3/.wav. */
+  if (/\.(mp3|m4a|aac|ogg|oga|wav|flac|opus|wma)(\?|$)/i.test(n)) return 'audio';
   if (m === 'application/pdf' || n.endsWith('.pdf')) return 'pdf';
   return 'iframe';
 }
@@ -1744,6 +1746,48 @@ async function garantirVideoSrcHttp(item) {
   return item;
 }
 
+/** URL da mídia importada (áudio ou vídeo). O servidor acha o ficheiro pelo id. */
+function urlMidiaApresentacaoHttpPorId(id) {
+  const mid = String(id || '').trim();
+  if (!mid) return '';
+  return `${getControllerApiBase()}/api/apresentacao/midia/${encodeURIComponent(mid)}`;
+}
+
+/**
+ * Manda o controlador copiar o ficheiro para a pasta do aplicativo — sem Base64.
+ *
+ * O caminho antigo lia o ficheiro inteiro no painel, transformava-o numa string Base64,
+ * embrulhava-a em JSON e mandava-a por HTTP. Um MP3 de 7 MB custava ~92 ms e ~47 MB de
+ * heap; um vídeo de 100 MB, 1,4 s e 667 MB. Aqui só viaja o caminho, e quem copia é o
+ * processo principal, com uma cópia de sistema operativo.
+ *
+ * Devolve `true` e preenche `item.src` quando correu bem. O chamador decide o que fazer
+ * com o `false` — hoje, voltar ao caminho antigo, que continua a funcionar.
+ */
+async function importarMidiaApresentacaoPorCaminho(item) {
+  const id = String(item?.id || '').trim();
+  const filePath = String(item?.filePath || '').trim();
+  if (!id || !filePath) return false;
+  try {
+    const r = await fetch(`${getControllerApiBase()}/api/apresentacao/midia/importar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, filePath, mime: item.mime || '' }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok || !j.url) {
+      console.warn('[Lyra] importar mídia por caminho falhou:', j.erro || `HTTP ${r.status}`);
+      return false;
+    }
+    item.src = String(j.url);
+    if (j.mime) item.mime = String(j.mime);
+    return true;
+  } catch (e) {
+    console.warn('[Lyra] importar mídia por caminho falhou:', e);
+    return false;
+  }
+}
+
 function urlVideoApresentacaoHttpPorId(id) {
   const vid = String(id || '').trim();
   if (!vid) return '';
@@ -1768,11 +1812,11 @@ function reescreverUrlVideoParaTelas(url) {
   if (!ip) return u;
   return u
     .replace(
-      /^https?:\/\/127\.0\.0\.1:3001(?=\/api\/apresentacao\/video\/)/i,
+      /^https?:\/\/127\.0\.0\.1:3001(?=\/api\/apresentacao\/(?:video|midia)\/)/i,
       `http://${ip}:5510`
     )
     .replace(
-      /^https?:\/\/localhost:3001(?=\/api\/apresentacao\/video\/)/i,
+      /^https?:\/\/localhost:3001(?=\/api\/apresentacao\/(?:video|midia)\/)/i,
       `http://${ip}:5510`
     );
 }
@@ -1864,15 +1908,22 @@ async function gerarThumbnailVideoApresentacao(src) {
 }
       resolve(dataUrl || '');
     };
+    const LARGURA_THUMB_PX = 320;
     const capturar = () => {
       try {
         const w = v.videoWidth || 0;
         const h = v.videoHeight || 0;
         if (w < 2 || h < 2) return finish('');
+        /* A miniatura é pintada num cartão de poucos centímetros. Guardá-la na resolução
+           nativa do vídeo dava 200 a 500 KB de Base64 por item — no estado, no
+           localStorage e em cada sincronização — para desenhar 160 pixels. */
+        const escala = Math.min(1, LARGURA_THUMB_PX / w);
+        const cw = Math.max(2, Math.round(w * escala));
+        const ch = Math.max(2, Math.round(h * escala));
         const c = document.createElement('canvas');
-        c.width = w;
-        c.height = h;
-        c.getContext('2d').drawImage(v, 0, 0, w, h);
+        c.width = cw;
+        c.height = ch;
+        c.getContext('2d').drawImage(v, 0, 0, cw, ch);
         finish(c.toDataURL('image/jpeg', 0.82));
       } catch (_) {
         finish('');
@@ -2488,8 +2539,11 @@ async function tocarAudioServidorApresentacao(item, opts = {}) {
   } else {
     limparGuardaVisualRetomadaAudio();
   }
+  /* No modo dois PCs quem toca é a janela de controle do Servidor, na outra máquina:
+     lá, `127.0.0.1:3001` é o próprio Servidor e não o controlador. A mesma reescrita que
+     o vídeo já usava leva a URL para o proxy da 5510. */
   const ok = await enviarComandoAudioProjeccao('audio_play', {
-    src: item.src,
+    src: reescreverUrlVideoParaTelas(item.src),
     name: item.name || 'audio',
     mediaKind: 'audio',
     autoplay: opts.autoplay !== false,
@@ -2697,25 +2751,46 @@ function criarItemApresentacaoDeArquivo(file, onDone) {
     alert('PowerPoint local ainda não abre direto no telão. Exporte para PDF ou use URL de apresentação online (Google Slides / Office Online).');
     return;
   }
-  const reader = new FileReader();
-  reader.onerror = () => alert('Não foi possível ler o arquivo selecionado.');
-  reader.onload = () => {
-    const src = String(reader.result || '');
-    if (!src) return;
-    const kind = detectarKindApresentacaoPorMimeOuNome(mime, nome);
-    const itemNovo = {
-      id: `ap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      kind,
-      src,
-      mime,
-      name: nome,
-      title: nome,
+  const kind = detectarKindApresentacaoPorMimeOuNome(mime, nome);
+  const id = `ap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const fp = String(file.path || '').trim();
+
+  /** O caminho antigo: o ficheiro inteiro em Base64, dentro do item. */
+  const entregarPorDataUrl = () => {
+    const reader = new FileReader();
+    reader.onerror = () => alert('Não foi possível ler o arquivo selecionado.');
+    reader.onload = () => {
+      const src = String(reader.result || '');
+      if (!src) return;
+      const itemNovo = { id, kind, src, mime, name: nome, title: nome };
+      if (fp) itemNovo.filePath = fp;
+      onDone(itemNovo);
     };
-    const fp = String(file.path || '').trim();
-    if (fp && kind === 'video') itemNovo.filePath = fp;
-    onDone(itemNovo);
+    reader.readAsDataURL(file);
   };
-  reader.readAsDataURL(file);
+
+  /*
+   * Áudio e vídeo entram por caminho de ficheiro; o controlador copia-os para a pasta do
+   * aplicativo e devolve uma URL.
+   *
+   * Antes vinham em Base64 e ficavam assim: no item, no estado gravado e em cada comando
+   * que os mandava tocar. Um MP3 de 7 MB ocupava ~47 MB de heap e o estado do modo Mídias
+   * passava dos 5 MB de quota do localStorage logo no primeiro áudio — não gravava, em
+   * silêncio, e pagava o custo à mesma. Com a URL, o que viaja são duzentos bytes.
+   *
+   * Sem caminho de ficheiro (arrastado do navegador, por exemplo) ou se a cópia falhar,
+   * o caminho antigo continua a servir — pior, mas funciona.
+   */
+  if ((kind === 'audio' || kind === 'video') && fp) {
+    const itemNovo = { id, kind, src: '', mime, name: nome, title: nome, filePath: fp };
+    void importarMidiaApresentacaoPorCaminho(itemNovo).then((ok) => {
+      if (ok) return onDone(itemNovo);
+      entregarPorDataUrl();
+    });
+    return;
+  }
+
+  entregarPorDataUrl();
 }
 
 function renderListaAudiosApresentacao() {
@@ -6613,16 +6688,22 @@ function normalizarItemApresentacao(raw) {
   let kind = String(raw.kind || '').trim();
   if (!id || !name) return null;
   if (!src && !filePath) return null;
-  if (kind === 'video' && !src && filePath) {
+  if ((kind === 'video' || kind === 'audio') && !src && filePath) {
     /* src HTTP será restaurado ao reentrar no modo. */
   } else if (!src) return null;
   /* Itens antigos: MIME vazio classificou como iframe mas o src é data:image — corrige para prévia e projeção. */
   if ((!kind || kind === 'iframe') && /^data:image\//i.test(src)) kind = 'image';
   if (!kind) return null;
+  /*
+   * URL da nossa própria API: reconstruir a partir do id em vez de confiar na gravada.
+   * A base pode ter mudado de porta entre sessões, e os ficheiros que versões anteriores
+   * gravaram respondiam em `/video/` — a rota nova acha-os na mesma pasta antiga.
+   */
+  const srcDaApiPropria = /\/api\/apresentacao\/(?:video|midia)\//i.test(src);
   const out = {
     id,
     kind,
-    src: src || urlVideoApresentacaoHttpPorId(id),
+    src: !src || srcDaApiPropria ? urlMidiaApresentacaoHttpPorId(id) : src,
     mime: String(raw.mime || ''),
     name,
     title: String(raw.title || name),

@@ -13,10 +13,17 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
   'content-length',
 ]);
 
+/** Prefixos que este proxy encaminha ao controlador. */
+const PREFIXOS_APRESENTACAO = ['/api/apresentacao/video', '/api/apresentacao/midia'];
+
 /**
- * Proxy HTTP para `/api/apresentacao/video*` → controlador (:3001).
- * Os telões (PC servidor) não alcançam `127.0.0.1:3001` do controlador noutro PC;
- * passam a pedir o vídeo em `:5510` e o servidor reencaminha.
+ * Proxy HTTP para `/api/apresentacao/video*` e `/api/apresentacao/midia*` → controlador
+ * (:3001). Os telões (PC servidor) não alcançam `127.0.0.1:3001` do controlador noutro
+ * PC; passam a pedir a mídia em `:5510` e o servidor reencaminha.
+ *
+ * `/midia` é o caminho novo, o das mídias importadas por cópia de ficheiro — áudio
+ * incluído. `/video` fica porque os vídeos gravados por versões anteriores continuam a
+ * responder por lá.
  *
  * @param {import('express').Express} expressApp
  * @param {(ctx: string, err: unknown) => void} logError
@@ -25,7 +32,7 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
 function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlHost) {
   expressApp.use((req, res, next) => {
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
-    if (!ou.startsWith('/api/apresentacao/video')) return next();
+    if (!PREFIXOS_APRESENTACAO.some((prefixo) => ou.startsWith(prefixo))) return next();
 
     const pathRaw = typeof req.originalUrl === 'string' ? req.originalUrl : req.url || '/';
     let host = CTL_HOST_DEFAULT;
