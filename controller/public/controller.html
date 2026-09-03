@@ -5085,6 +5085,22 @@
         calc(var(--banco-lista-pad-x) + var(--banco-card-inset-x) - 2px);
       transition: color 0.12s ease;
     }
+    /* Grupos fora da vista não pagam layout nem pintura.
+       A lista da biblioteca monta o DOM completo de uma vez — uma linha por música, com
+       cerca de dez nós cada — e a digitação apenas esconde linhas. Com muitas músicas o
+       caro não é montar (isso acontece uma vez) mas recalcular e repintar tudo a cada
+       mudança de filtro. `content-visibility: auto` deixa o navegador saltar os grupos
+       que não estão à vista.
+
+       `contain-intrinsic-size: auto` faz o navegador guardar a altura real do grupo
+       depois de o ter desenhado uma vez, para a barra de rolagem não saltar; os 160px
+       são só o palpite inicial. Focar uma linha e `scrollIntoView` continuam a
+       funcionar — o navegador revela a subárvore sozinho quando precisa. */
+    .lista-sqlite > .bib-grupo {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 160px;
+    }
+
     /* `.item { display:grid }` ganha ao `[hidden]` do UA — sem isto a linha
        filtrada continuava a ocupar espaço. */
     .lista-sqlite .item[hidden],

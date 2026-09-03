@@ -1189,6 +1189,31 @@ function aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista) {
  * @param {object} paths Objeto de caminhos (`createUserPaths`).
  * @param {typeof import('better-sqlite3')} Database
  */
+/**
+ * Modo de escrita do SQLite — WAL.
+ *
+ * No modo `delete` (o padrão, e o que este banco usava), cada COMMIT cria e apaga um
+ * ficheiro de journal e paga um `fsync` por isso. Importar 10 músicas são ~40 desses
+ * ciclos: 316 ms medidos num SSD, e bastante pior num disco mecânico — que é o que os
+ * PCs de culto costumam ter. Com WAL a mesma importação cai para poucos milissegundos.
+ *
+ * `synchronous = NORMAL` é o par natural do WAL: deixa de sincronizar a cada COMMIT e
+ * sincroniza no checkpoint. O que se aceita é perder as últimas transacções se a máquina
+ * perder energia no instante exacto — o banco não corrompe. Para um repertório de
+ * músicas, troca óbvia.
+ *
+ * O modo fica gravado no próprio ficheiro; declarar sempre é inofensivo e cobre os
+ * bancos que vêm de versões anteriores.
+ */
+function aplicarPragmasDesempenho(conexao) {
+  try {
+    conexao.pragma('journal_mode = WAL');
+    conexao.pragma('synchronous = NORMAL');
+  } catch (e) {
+    console.warn('[Lyra] PRAGMAs de desempenho não aplicados:', e && e.message);
+  }
+}
+
 function initControllerDatabase(paths, Database) {
   const dbPathNew = paths.dbPathNew();
   const dbPathLegacyInvb = paths.dbPathLegacyInvb?.();
@@ -1206,6 +1231,7 @@ function initControllerDatabase(paths, Database) {
   }
 
   db = new Database(dbPathNew);
+  aplicarPragmasDesempenho(db);
   if (catalog) { try { catalog.close(); } catch (_) {
   // intencional — erro ignorado
 } catalog = null; }
@@ -1405,27 +1431,41 @@ function inserirMusicaUsuario(titulo, artista, estrofes) {
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
   const tituloTrim = String(titulo).trim();
   const artistaTrim = String(artista || '').trim();
-  const info = db
-    .prepare('INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)')
-    .run(tituloTrim, artistaTrim, JSON.stringify(norm));
-  const newId = info.lastInsertRowid;
-  finalizarMusicaOriginalAposInsert(newId);
 
-  let copiaId = null;
-  const originalRow = obterMusicaUsuarioPorId(newId);
-  if (originalRow) {
-    const copia = inserirCopiaMusica(originalRow, tituloTrim, artistaTrim, norm, {
-      rotulo: ROTULO_COPIA_PADRAO,
-    });
-    if (copia && copia.ok) copiaId = copia.id;
-  }
+  /*
+   * Cadastrar uma música são três escritas — o original, o `root_id` que se aponta a si
+   * mesmo, e a Cópia padrão — mais as da memória de tom. Soltas, cada uma é uma
+   * transacção implícita com o seu próprio `fsync`; juntas, são uma só. Numa importação
+   * de 10 músicas é a diferença entre ~30 sincronizações de disco e 10.
+   *
+   * `aplicarTonsPendentesParaMusica` continua a engolir o próprio erro dentro da
+   * transacção: falhar a memória de tom nunca desfez o cadastro, e não passa a desfazer.
+   */
+  const gravar = () => {
+    const info = db
+      .prepare('INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)')
+      .run(tituloTrim, artistaTrim, JSON.stringify(norm));
+    const newId = info.lastInsertRowid;
+    finalizarMusicaOriginalAposInsert(newId);
 
-  try {
-    aplicarTonsPendentesParaMusica(newId, titulo, artista);
-  } catch (_) {
-    // intencional — memória de tom não deve impedir o cadastro
-  }
-  return { ok: true, id: newId, copiaId, rootId: newId };
+    let copiaId = null;
+    const originalRow = obterMusicaUsuarioPorId(newId);
+    if (originalRow) {
+      const copia = inserirCopiaMusica(originalRow, tituloTrim, artistaTrim, norm, {
+        rotulo: ROTULO_COPIA_PADRAO,
+      });
+      if (copia && copia.ok) copiaId = copia.id;
+    }
+
+    try {
+      aplicarTonsPendentesParaMusica(newId, titulo, artista);
+    } catch (_) {
+      // intencional — memória de tom não deve impedir o cadastro
+    }
+    return { ok: true, id: newId, copiaId, rootId: newId };
+  };
+
+  return typeof db.transaction === 'function' ? db.transaction(gravar)() : gravar();
 }
 
 function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
@@ -1812,6 +1852,64 @@ function encontrarMusicaUsuarioDuplicada(titulo, artista) {
     }
   }
   return candidatoSoTitulo;
+}
+
+/**
+ * Duplicidade de VÁRIAS músicas de uma vez — uma varredura, não N.
+ *
+ * `encontrarMusicaUsuarioDuplicada` lê a tabela inteira e normaliza o título de cada
+ * linha. Chamá-la num `map` sobre as 10 músicas de uma importação repetia esse trabalho
+ * 10 vezes sobre exactamente as mesmas linhas. Aqui a varredura e a normalização
+ * acontecem uma vez, e as 10 comparações correm sobre o resultado já preparado.
+ *
+ * Não devolve `estrofes`: quem chama isto quer sinalizar, não comparar letras — e a
+ * versão música a música lia a letra da linha que casava, à toa. A letra completa
+ * continua a vir de `encontrarMusicaUsuarioDuplicada`, quando a janela de conflito
+ * precisa dela.
+ *
+ * O critério de desempate é o mesmo da versão individual: título+artista ganha sempre;
+ * título sozinho fica como candidato de menor prioridade, e quem decide é o utilizador.
+ *
+ * @param {Array<{titulo?: string, artista?: string}>} lista
+ */
+function encontrarMusicasUsuarioDuplicadasEmLote(lista) {
+  const entradas = Array.isArray(lista) ? lista : [];
+  if (!entradas.length) return [];
+
+  const linhas = db
+    .prepare(
+      'SELECT id, titulo, artista, root_id FROM musicas WHERE parent_id IS NULL ORDER BY id ASC'
+    )
+    .all()
+    .map((row) => ({
+      row,
+      titulo: normalizarChaveComparacao(row.titulo),
+      artista: normalizarArtistaComparacao(row.artista),
+    }));
+
+  const montar = (row, motivo) => ({
+    duplicado: true,
+    id: row.id,
+    titulo: String(row.titulo || '').trim(),
+    artista: String(row.artista || '').trim(),
+    rootId: row.root_id != null ? row.root_id : row.id,
+    motivo,
+  });
+
+  return entradas.map((m) => {
+    const tituloAlvo = normalizarChaveComparacao(m && m.titulo);
+    if (!tituloAlvo) return { duplicado: false };
+    const artistaAlvo = normalizarArtistaComparacao(m && m.artista);
+    let candidatoSoTitulo = null;
+    for (const linha of linhas) {
+      if (linha.titulo !== tituloAlvo) continue;
+      if (linha.artista === artistaAlvo) return montar(linha.row, 'titulo-artista');
+      if ((!linha.artista || !artistaAlvo) && !candidatoSoTitulo) {
+        candidatoSoTitulo = montar(linha.row, 'titulo');
+      }
+    }
+    return candidatoSoTitulo || { duplicado: false };
+  });
 }
 
 /**
@@ -2206,6 +2304,7 @@ module.exports = {
   criarMusicaUsuarioNoDb,
   substituirMusicaUsuarioNoDb,
   encontrarMusicaUsuarioDuplicada,
+  encontrarMusicasUsuarioDuplicadasEmLote,
   normalizarChaveComparacao,
   normalizarArtistaComparacao,
   atualizarMusicaNoDb,

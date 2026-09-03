@@ -19,6 +19,7 @@ const {
   criarMusicaUsuarioNoDb,
   substituirMusicaUsuarioNoDb,
   encontrarMusicaUsuarioDuplicada,
+  encontrarMusicasUsuarioDuplicadasEmLote,
   listarVersoesPorRootId,
   garantirCopiaPadraoNoDb,
   listarMusicasUsuarioParaSync,
@@ -51,7 +52,6 @@ const {
   loadSharedSyncMeta,
   normalizeSharedSyncMeta,
   saveSharedSyncMeta,
-  touchSharedSyncMeta,
 } = require('./lib/sharedSyncMetaStore');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
 const cifra = require('./lib/cifraLetras');
@@ -494,6 +494,46 @@ async function iniciarServidorController(ctx, paths) {
     next();
   });
 
+  /* --- Marca «o banco compartilhado mudou» ---------------------------------- */
+
+  const META_ALTERACAO_COALESCE_MS = 250;
+  let metaAlteracaoPendente = '';
+  let metaAlteracaoTimer = null;
+
+  function gravarMarcaBancoCompartilhado() {
+    metaAlteracaoTimer = null;
+    const updatedAt = metaAlteracaoPendente;
+    metaAlteracaoPendente = '';
+    if (!updatedAt) return;
+    try {
+      const atual = loadSharedSyncMeta(paths.sharedSyncMetaPath);
+      saveSharedSyncMeta(paths.sharedSyncMetaPath, { ...atual, updatedAt });
+    } catch (e) {
+      console.warn('[Lyra] marca de sincronização não gravada:', e && e.message);
+    }
+  }
+
+  /**
+   * «O banco mudou» — sem pagar uma escrita de ficheiro por música.
+   *
+   * `touchSharedSyncMeta` faz uma leitura e um `fs.writeFileSync` síncronos, e no caminho
+   * da importação isso corria uma vez por música: 10 músicas, 10 ciclos de disco dentro
+   * do processo principal — o mesmo que desenha a projeção.
+   *
+   * O `updatedAt` continua a sair na hora, porque é dele que dependem quem escuta e o
+   * comparador de sincronização; só a gravação é adiada e coalescida, de modo que
+   * marcações seguidas rendam um ficheiro escrito. O valor gravado é exactamente o que
+   * foi anunciado — ficheiro e ouvintes nunca discordam.
+   */
+  function marcarBancoCompartilhadoAlterado() {
+    const updatedAt = new Date().toISOString();
+    metaAlteracaoPendente = updatedAt;
+    if (!metaAlteracaoTimer) {
+      metaAlteracaoTimer = setTimeout(gravarMarcaBancoCompartilhado, META_ALTERACAO_COALESCE_MS);
+    }
+    return updatedAt;
+  }
+
   function notificarBancoCompartilhadoAlterado(updatedAt) {
     try {
       if (ctx.windowMain && !ctx.windowMain.isDestroyed()) {
@@ -797,7 +837,7 @@ async function iniciarServidorController(ctx, paths) {
     try {
       const nome = req.body && req.body.nome != null ? req.body.nome : '';
       const criado = inserirMinistranteNoDb(nome);
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.status(201).json(criado);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -808,7 +848,7 @@ async function iniciarServidorController(ctx, paths) {
     try {
       const nome = req.body && req.body.nome != null ? req.body.nome : '';
       const atualizado = atualizarMinistranteNoDb(req.params.id, nome);
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json(atualizado);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -818,7 +858,7 @@ async function iniciarServidorController(ctx, paths) {
   expressApp.delete('/api/ministrantes/:id', (req, res) => {
     try {
       const out = apagarMinistranteNoDb(req.params.id);
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json(out);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -848,7 +888,7 @@ async function iniciarServidorController(ctx, paths) {
         body.fonte,
         body.tom
       );
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json(out);
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -864,7 +904,7 @@ async function iniciarServidorController(ctx, paths) {
         paths.playlistsJsonPath,
         Array.isArray(body?.itens) ? body.itens : body?.musicas || []
       );
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json({ ok: true, ...resumo, playlistsAtualizadas: pl.atualizadas });
     } catch (e) {
       res.status(e.statusCode || 500).json({ erro: e.message || String(e) });
@@ -920,7 +960,7 @@ async function iniciarServidorController(ctx, paths) {
 
       const resumo = importarTonsMemoriaDeArquivo(payload);
       const pl = aplicarTonsImportNasPlaylists(paths.playlistsJsonPath, payload.itens || []);
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json({
         ok: true,
         origem,
@@ -957,7 +997,7 @@ async function iniciarServidorController(ctx, paths) {
       }
       const resumo = importarTonsMemoriaDeArquivo(payload);
       const pl = aplicarTonsImportNasPlaylists(paths.playlistsJsonPath, payload.itens);
-      touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      marcarBancoCompartilhadoAlterado();
       res.json({ ok: true, ...resumo, playlistsAtualizadas: pl.atualizadas });
     } catch (e) {
       res.status(e.statusCode || 500).json({ ok: false, erro: e.message || String(e) });
@@ -1217,7 +1257,7 @@ async function iniciarServidorController(ctx, paths) {
       });
       if (ins.duplicado) return responderDuplicidade(res, ins, titulo, artista);
       if (!ins.ok) return res.status(400).json({ erro: ins.erro || 'Falha ao inserir' });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       res.json({
         id: ins.id,
@@ -1245,19 +1285,20 @@ async function iniciarServidorController(ctx, paths) {
   expressApp.post('/api/musicas/checar-duplicidade', (req, res) => {
     try {
       const lista = Array.isArray(req.body && req.body.musicas) ? req.body.musicas : [];
-      const resultados = lista.map((m) => {
-        const existente = encontrarMusicaUsuarioDuplicada(m && m.titulo, m && m.artista);
-        if (!existente) return { duplicado: false };
-        // Sem as estrofes: aqui só interessa sinalizar. A letra completa é
-        // carregada depois, pela janela de conflito, música a música.
-        return {
-          duplicado: true,
-          id: existente.id,
-          titulo: existente.titulo,
-          artista: existente.artista,
-          motivo: existente.motivo,
-        };
-      });
+      // Uma varredura para a lista inteira — ver `encontrarMusicasUsuarioDuplicadasEmLote`.
+      // Sem as estrofes: aqui só interessa sinalizar. A letra completa é
+      // carregada depois, pela janela de conflito, música a música.
+      const resultados = encontrarMusicasUsuarioDuplicadasEmLote(lista).map((r) =>
+        r.duplicado
+          ? {
+              duplicado: true,
+              id: r.id,
+              titulo: r.titulo,
+              artista: r.artista,
+              motivo: r.motivo,
+            }
+          : { duplicado: false }
+      );
       res.json({ resultados });
     } catch (e) {
       res.status(500).json({ erro: e.message || String(e), resultados: [] });
@@ -1286,7 +1327,7 @@ async function iniciarServidorController(ctx, paths) {
         if (!alvo) return res.status(409).json({ erro: 'Música existente não encontrada para substituir' });
         const sub = substituirMusicaUsuarioNoDb(alvo.id, titulo, artista, estrofes);
         if (!sub.ok) return res.status(400).json({ erro: sub.erro || 'Falha ao substituir' });
-        const metaSub = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+        const metaSub = { updatedAt: marcarBancoCompartilhadoAlterado() };
         notificarBancoCompartilhadoAlterado(metaSub.updatedAt);
         return res.json({
           id: sub.id,
@@ -1303,7 +1344,7 @@ async function iniciarServidorController(ctx, paths) {
       });
       if (r.duplicado) return responderDuplicidade(res, r, titulo, artista);
       if (!r.ok) return res.status(400).json({ erro: r.erro || 'Falha ao importar' });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       res.json({
         id: r.id,
@@ -1324,7 +1365,7 @@ async function iniciarServidorController(ctx, paths) {
     const { titulo, artista, estrofes } = req.body || {};
     const r = atualizarMusicaNoDb(id, titulo, artista, estrofes);
     if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
-    const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+    const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
     notificarBancoCompartilhadoAlterado(meta.updatedAt);
     res.json({
       ok: true,
@@ -1366,7 +1407,7 @@ async function iniciarServidorController(ctx, paths) {
       const r = garantirCopiaPadraoNoDb(id);
       if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
       if (r.criada) {
-        const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+        const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
         notificarBancoCompartilhadoAlterado(meta.updatedAt);
       }
       const row = obterMusicaUsuarioPorId(r.id);
@@ -1390,7 +1431,7 @@ async function iniciarServidorController(ctx, paths) {
       const rotulo = String(req.body?.rotulo || '').trim();
       const r = criarVersaoMusicaNoDb(id, rotulo);
       if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       const row = obterMusicaUsuarioPorId(r.id);
       res.status(201).json({
@@ -1414,7 +1455,7 @@ async function iniciarServidorController(ctx, paths) {
       const rotulo = String(req.body?.rotulo || '').trim();
       const r = atualizarRotuloVersaoNoDb(id, rotulo);
       if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       res.json({ ok: true, id: r.id, rotulo: r.rotulo, rootId: r.rootId });
     } catch (e) {
@@ -1430,7 +1471,7 @@ async function iniciarServidorController(ctx, paths) {
     if (!Number.isFinite(idn)) return res.status(400).json({ erro: 'id inválido' });
     const r = apagarMusicaUsuarioNoDb(idn);
     if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
-    const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+    const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
     notificarBancoCompartilhadoAlterado(meta.updatedAt);
     res.json({ ok: true, removidos: r.removidos, cascade: !!r.cascade, rootId: r.rootId });
   }
@@ -1534,7 +1575,7 @@ async function iniciarServidorController(ctx, paths) {
       }
 
       if (musicasOk.length) {
-        const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+        const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
         notificarBancoCompartilhadoAlterado(meta.updatedAt);
       }
       notificarMusicasSincronizadasNoPainel(musicasOk);
@@ -1808,7 +1849,7 @@ async function iniciarServidorController(ctx, paths) {
       });
       if (imp.duplicado) return responderDuplicidade(res, imp, titulo, artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       return res.json({
         id: imp.id,
@@ -1895,7 +1936,7 @@ async function iniciarServidorController(ctx, paths) {
       });
       if (imp.duplicado) return responderDuplicidade(res, imp, r.titulo, r.artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
-      const meta = touchSharedSyncMeta(paths.sharedSyncMetaPath);
+      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       res.json({
         id: imp.id,

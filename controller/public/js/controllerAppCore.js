@@ -2206,6 +2206,10 @@ function pararRelogioUiVideo() {
 function iniciarRelogioUiVideo() {
   pararRelogioUiVideo();
   const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
+  /* O relógio mostra segundos. Refazer textos, ícones e barra a cada quadro era pagar 60
+     atualizações de DOM — com um `getBoundingClientRect` dentro, ou seja, um cálculo de
+     layout forçado — para mudar um dígito uma vez por segundo. */
+  let ultimoSegundoUi = -1;
   const tick = () => {
     if (!videoProjetadoAtivoNoPlayer() || !audioStateRemoto.playing) {
       pararRelogioUiVideo();
@@ -2243,7 +2247,15 @@ function iniciarRelogioUiVideo() {
       return;
     }
     audioStateRemoto.currentTime = t;
-    atualizarUiPlayerAudioRemoto();
+    const segundo = Math.floor(t);
+    if (segundo !== ultimoSegundoUi) {
+      ultimoSegundoUi = segundo;
+      atualizarUiPlayerAudioRemoto();
+    } else if (_previewAlvoAtual) {
+      /* O overlay do preview continua a acompanhar o layout a cada quadro — é para isso
+         que este laço existe. O resto da UI não precisa. */
+      posicionarOverlayPreview();
+    }
     _videoUiClockRaf = requestAnimationFrame(tick);
   };
   _videoUiClockRaf = requestAnimationFrame(tick);
@@ -2570,6 +2582,10 @@ function atualizarBotaoMudoPlayerAudio() {
   btn.setAttribute('aria-pressed', mudo ? 'true' : 'false');
   btn.title = mudo ? 'Reativar som' : 'Mudo';
   btn.setAttribute('aria-label', mudo ? 'Reativar som' : 'Silenciar');
+  /* Os atributos acima são idempotentes e baratos; o SVG é que não. */
+  const iconeMudo = mudo ? 'mudo' : 'som';
+  if (btn.dataset.lyraIcone === iconeMudo) return;
+  btn.dataset.lyraIcone = iconeMudo;
   btn.innerHTML = mudo
     ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="m16 9 5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
     : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a4 4 0 0 1 0 7M18 6a7 7 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
@@ -2590,6 +2606,12 @@ function seekAudioServidor(time) {
 function renderPlayPauseIcon() {
   const btn = document.getElementById('ap-audio-play-pause');
   if (!btn) return;
+  /* Dois estados, só. Reconstruir o SVG a cada `timeupdate` refazia o mesmo desenho ~4x
+     por segundo — e 60x por segundo enquanto um vídeo corria, porque o relógio do vídeo
+     passava por aqui a cada quadro. */
+  const iconeAlvo = audioStateRemoto.playing ? 'pause' : 'play';
+  if (btn.dataset.lyraIcone === iconeAlvo) return;
+  btn.dataset.lyraIcone = iconeAlvo;
   if (audioStateRemoto.playing) {
     btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
   } else {
@@ -6702,14 +6724,53 @@ function aplicarEstadoModoApresentacao(payload, opts = {}) {
   }
 }
 
-function salvarEstadoModoApresentacaoNoStorage() {
+let _salvarEstadoApresentacaoTimer = null;
+let _avisouQuotaApresentacao = false;
+
+/**
+ * Grava mesmo. Só o agendador abaixo e o `beforeunload` chamam isto directamente.
+ */
+function gravarEstadoModoApresentacaoNoStorageAgora() {
+  clearTimeout(_salvarEstadoApresentacaoTimer);
+  _salvarEstadoApresentacaoTimer = null;
   try {
     localStorage.setItem(LS_APRESENTACAO_STATE, JSON.stringify(coletarEstadoModoApresentacaoAtual()));
-  } catch (_) {
-  // intencional — erro ignorado
-}
+    _avisouQuotaApresentacao = false;
+  } catch (e) {
+    /*
+     * Isto falhava em silêncio, e o silêncio escondia um problema real: com a mídia
+     * embutida em base64, um único áudio já leva o estado para lá dos ~5 MB de quota do
+     * localStorage, a gravação nunca acontece — e o custo de a tentar (serializar dezenas
+     * de MB) é pago à mesma. Enquanto a mídia não sair do estado, que ao menos deixe rasto.
+     */
+    if (!_avisouQuotaApresentacao) {
+      _avisouQuotaApresentacao = true;
+      console.warn(
+        '[Lyra] estado do modo Mídias não foi gravado no localStorage:',
+        (e && e.name) || '',
+        (e && e.message) || ''
+      );
+    }
+  }
   salvarAvisoCard6CfgNoStorage();
   agendarSincronizacaoEstadoModoApresentacaoServidor();
+}
+
+/**
+ * Agenda a gravação do estado do modo Mídias.
+ *
+ * Havia 31 pontos a chamar a gravação directa, e cada uma serializa o estado inteiro —
+ * biblioteca, cards, áudios e playlist, com a mídia em base64 lá dentro. Adicionar 10
+ * áudios chamava-a 10 vezes sobre um objecto que crescia a cada volta: trabalho
+ * quadrático sobre dezenas de MB, medido em ~4 s numa máquina rápida.
+ *
+ * O debounce é de arrasto: chamadas seguidas empurram a gravação para a frente, e um
+ * lote inteiro rende uma escrita só. Quem precisa de gravar já — sair da janela —
+ * chama `gravarEstadoModoApresentacaoNoStorageAgora`.
+ */
+function salvarEstadoModoApresentacaoNoStorage() {
+  clearTimeout(_salvarEstadoApresentacaoTimer);
+  _salvarEstadoApresentacaoTimer = setTimeout(gravarEstadoModoApresentacaoNoStorageAgora, 200);
 }
 
 /**
@@ -21518,6 +21579,12 @@ try {
 }
 
 window.addEventListener('beforeunload', () => {
+  /* A gravação do modo Mídias é adiada; sair da janela é o momento de a cumprir. */
+  try {
+    gravarEstadoModoApresentacaoNoStorageAgora();
+  } catch (_) {
+    // intencional — sair da janela nunca pode falhar por causa disto
+  }
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
   const ip = hostProjecao();
