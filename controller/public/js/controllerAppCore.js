@@ -4046,11 +4046,9 @@ function onTraducaoBibliaChange() {
   bibliaCapsRequestSeq++;
   bibliaVersiculosRequestSeq++;
   bibliaPrefetchCapJob++;
+  bibliaCapituloCache.clear();
   popularGradeLivros();
-  const colCaps = document.getElementById('biblia-col-caps');
-  if (colCaps) colCaps.innerHTML = '<div class="biblia-placeholder">← Selecione um livro</div>';
-  const colVers = document.getElementById('biblia-col-versiculos');
-  if (colVers) colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
+  bibliaReporPainelNavegacao();
 }
 
 async function alternarModoBiblia() {
@@ -4059,12 +4057,15 @@ async function alternarModoBiblia() {
   const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
   if (!ativo) {
     /* Antes de `carregarTraducoes()`, que já desenha a grade: o modo abre sempre com
-       os 66 livros, seja qual for o filtro deixado da última vez. */
+       os 66 livros, seja qual for o filtro deixado da última vez. A navegação
+       (livro/capítulo/versículos) já foi limpa ao sair; isto reforça o painel
+       vazio se o operador voltar no mesmo instante. */
     bibliaFiltroTestamento = null;
     const trad = await perguntarTraducaoBibliaSeNecessario();
     if (!trad) return;
     await carregarTraducoes();
     aplicarTraducaoBibliaNoSelect(trad);
+    bibliaReporPainelNavegacao();
   }
   executarComTransicaoUi(() => {
     document.body.classList.remove('app-mod-slides', 'app-mod-apresentacao');
@@ -19429,10 +19430,11 @@ const reconhecimentoVozBiblia = criarReconhecimentoVozBiblia({
 /**
  * Filtro de testamento da grade de livros: `null` (todos), `'at'` ou `'nt'`.
  *
- * Nasce e volta sempre a `null` ao entrar no modo: o filtro é um gesto do operador
- * para aquele momento, não uma preferência. Guardá-lo entre sessões abriria o modo
- * Bíblia com metade dos livros escondidos sem ninguém ter pedido — e a leitura que
- * se procura durante um culto tanto pode estar num testamento como no outro.
+ * Nasce e volta sempre a `null` ao sair (e de novo ao entrar) do modo: o filtro é
+ * um gesto do operador para aquele momento, não uma preferência. Guardá-lo entre
+ * visitas abriria o modo Bíblia com metade dos livros escondidos sem ninguém ter
+ * pedido — e a leitura que se procura durante um culto tanto pode estar num
+ * testamento como no outro.
  *
  * A separação já existe em `LIVROS` (o campo `nt` de cada livro, 39 contra 27), por
  * isso não há aqui uma segunda lista de nomes a divergir da primeira.
@@ -20378,19 +20380,58 @@ function bibliaLimparProjecaoOperador() {
   });
 }
 
-/** Limpa navegação local (livro/capítulo/lista). Usado ao sair do modo Bíblia. */
+/**
+ * Recoloca o painel de navegação no estado de primeira abertura: capítulos e
+ * versículos vazios, busca rápida limpa, colunas no topo. Não mexe na tradução.
+ */
+function bibliaReporPainelNavegacao() {
+  const colCaps = document.getElementById('biblia-col-caps');
+  if (colCaps) {
+    colCaps.innerHTML = '<div class="biblia-placeholder">← Selecione um livro</div>';
+    colCaps.scrollTop = 0;
+  }
+  const colVers = document.getElementById('biblia-col-versiculos');
+  if (colVers) {
+    colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
+    colVers.scrollTop = 0;
+  }
+  const colLivros = document.getElementById('biblia-col-livros');
+  if (colLivros) colLivros.scrollTop = 0;
+  const busca = document.getElementById('biblia-busca-rapida');
+  if (busca) busca.value = '';
+}
+
+function bibliaReporEstadoBuscaRapida() {
+  bnpEtapa = 'livro';
+  bnpLivroSelecionado = null;
+  bnpCapSelecionado = null;
+  bnpDigitando = '';
+  bnpFocoIndex = -1;
+  bnpTotalCaps = 0;
+  bnpTotalVers = 0;
+}
+
+/**
+ * Limpa navegação local (livro/capítulo/versículos/filtro/busca). Usado ao sair
+ * do modo Bíblia. A tradução da sessão (`bibliaTraducaoSessao`) não se toca —
+ * é a única preferência que sobrevive entre visitas ao modo.
+ */
 function bibliaLimparEstadoOperador() {
   bibliaLimparProjecaoOperador();
   bibliaVersiculosCapitulo = [];
   bibliaVersiculosBrutosCapitulo = [];
+  bibliaCapituloCache.clear();
   bibliaPrefetchCapJob++;
   bibliaCapsRequestSeq++;
   bibliaVersiculosRequestSeq++;
   bibliaSelecionadoLivro = null;
   bibliaSelecionadoLivroDb = null;
   bibliaSelecionadoCap = null;
-  bibliaAtualizarDestaqueGradeLivros();
+  bibliaFiltroTestamento = null;
+  bibliaReporEstadoBuscaRapida();
   bibliaNavPopupFechar();
+  popularGradeLivros();
+  bibliaReporPainelNavegacao();
 }
 
 /**
