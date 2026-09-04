@@ -5282,6 +5282,10 @@
       box-sizing: border-box;
     }
 
+    .slides-dock-ctrl-label {
+      display: none;
+    }
+
     .slides-dock-zoom-group {
       display: inline-flex;
       align-items: center;
@@ -5291,6 +5295,68 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       flex-shrink: 0;
+    }
+
+    .slides-dock-zoom-btns {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    /*
+      Só no modo slides: o operador escolhe 7, 5 ou 3 chips por linha. Fora desse
+      modo a faixa inferior continua com 7 colunas e este grupo fica escondido.
+    */
+    .slides-dock-cols-group {
+      display: none;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+
+    .slides-dock-cols-btns {
+      display: inline-flex;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+
+    .slides-dock-cols-btn {
+      appearance: none;
+      border: none;
+      border-left: 1px solid var(--border);
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      padding: 4px 9px;
+      min-width: 30px;
+      text-align: center;
+      user-select: none;
+    }
+
+    .slides-dock-cols-btn:first-child { border-left: none; }
+
+    .slides-dock-cols-btn.ativo {
+      color: var(--text);
+      background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    }
+
+    .slides-dock-cols-btn:hover:not(.ativo) {
+      color: var(--text);
+      background: color-mix(in srgb, var(--text) 6%, transparent);
+    }
+
+    .slides-dock-cols-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
 
     /* Faixa ociosa: o grupo continua à vista, apenas sem convidar ao clique. */
@@ -5488,7 +5554,7 @@
       background: var(--accent2);
     }
 
-    /* Grelha: 7 colunas — cartões mais largos para caber linhas inteiras como na projeção (sem scroll horizontal). */
+    /* Grelha: colunas de `1fr` (sem scroll horizontal). Fora do modo slides são 7. */
     .slides-grid {
       flex: 1;
       min-height: 0;
@@ -5509,6 +5575,10 @@
       As linhas NÃO esticam para preencher a altura da faixa — com poucos slides os
       cartões ficariam enormes, com o texto perdido no meio. Cada cartão tem altura
       fixa (`--slide-chip-h`); o que não couber na grelha ganha scroll.
+
+      No modo slides o operador escolhe 7, 5 ou 3 por linha (`data-slides-cols`).
+      Com menos colunas os cartões ficam mais largos; a altura sobe um pouco para
+      o cartão não virar uma faixa achatada.
     */
     body.app-mod-slides .slides-grid {
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -5518,6 +5588,16 @@
       flex: 0 1 auto;
       align-self: stretch;
       max-width: 100%;
+    }
+
+    body.app-mod-slides .slides-grid[data-slides-cols="5"] {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      --slide-chip-h: calc(202px * var(--slide-chip-zoom, 1));
+    }
+
+    body.app-mod-slides .slides-grid[data-slides-cols="3"] {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      --slide-chip-h: calc(252px * var(--slide-chip-zoom, 1));
     }
 
     /* Número no topo (alinhado entre cartões); o texto centra-se no vão restante. */
@@ -6012,19 +6092,21 @@
       */
       --preview-mod-stack-w: 820px;
       /*
-        Playlist lateral fixa. Passou de 230px para 290px: a grelha de slides tem
-        7 colunas de `1fr`, portanto os 60px saem repartidos — cada prévia encolhe
-        cerca de 8px, quase impercetível, enquanto a playlist ganha um quarto de
-        largura e deixa de cortar título e artista.
+        Playlist lateral fixa. Passou de 230px para 290px: a grelha de slides
+        reparte-se em colunas de `1fr`, portanto os 60px saem repartidos — cada
+        prévia encolhe cerca de 8px, quase impercetível, enquanto a playlist ganha
+        um quarto de largura e deixa de cortar título e artista.
       */
       --slides-playlist-w: 290px;
+      --slides-dock-ctrl-w: 216px;
+      --slides-dock-ctrl-h: 38px;
       /*
         Layout do modo slides — 2 colunas × 4 linhas:
 
           ┌───────────────────────────────────────────────┬──────────┐
           │ cabeçalho (linha 1, atravessa tudo)           │          │
           ├───────────────────────────────────────────────┤          │
-          │ SLIDES·nome (?)  [TELÃO][TV]  [zoom][próxima] │ PLAYLIST │
+          │ SLIDES·nome (?)  [TELÃO][TV]  [Qt.|Zoom|Próx.] │ PLAYLIST │
           ├───────────────────────────────────────────────┤ (col 2,  │
           │ divisória arrastável (linha 3)                │  altura  │
           ├───────────────────────────────────────────────┤  total)  │
@@ -6100,6 +6182,7 @@
       grid-column: 2;
       grid-row: 2 / span 3;
       position: relative;
+      z-index: 3;
       width: var(--slides-playlist-w);
       min-width: var(--slides-playlist-w);
       max-width: var(--slides-playlist-w);
@@ -6306,23 +6389,28 @@
     /* ── Barra da faixa (agora ao lado das prévias) — versão enxuta ── */
     body.app-mod-slides .slides-dock-bar {
       display: flex;
+      flex-direction: row;
       flex-wrap: nowrap;
       align-items: center;
       justify-content: space-between;
       gap: 10px;
       padding: 0 18px;
       min-width: 0;
+      width: 100%;
+      max-width: none;
       align-self: center;
+      box-sizing: border-box;
     }
 
     /*
-      Dois vãos fixos ao lado das prévias. A direita NÃO encolhe quando o nome da
-      música aparece — senão zoom e «Avançar música» saltam.
+      Dois vãos fixos ao lado das prévias. A esquerda fica com o nome; a direita
+      com os três controlos, largura fixa — o nome da música não os empurra.
     */
     body.app-mod-slides .slides-dock-bar-left {
       flex: 1 1 0;
       min-width: 0;
       max-width: calc(50% - var(--preview-mod-stack-w) / 2 - 26px);
+      width: auto;
       gap: 7px;
     }
 
@@ -6330,15 +6418,114 @@
       flex-shrink: 0;
     }
 
-    /* Empurra zoom + «Avançar música» para a ponta direita. */
+    /*
+      Os três controlos continuam no vão direito (posição original), empilhados
+      e com a mesma caixa. A playlist pinta por cima se houver overflow.
+    */
     body.app-mod-slides .slides-dock-bar-right {
-      flex: 0 0 auto;
-      min-width: 0;
-      max-width: calc(50% - var(--preview-mod-stack-w) / 2 - 26px);
-      margin-left: auto;
+      display: flex;
       flex-direction: column;
-      align-items: flex-end;
-      gap: 14px;
+      align-items: stretch;
+      justify-content: center;
+      gap: 6px;
+      flex: 0 0 var(--slides-dock-ctrl-w);
+      width: var(--slides-dock-ctrl-w);
+      min-width: var(--slides-dock-ctrl-w);
+      max-width: var(--slides-dock-ctrl-w);
+      margin-left: auto;
+      margin-right: 0;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 1;
+    }
+
+    body.app-mod-slides .slides-dock-ctrl-label {
+      display: block;
+      flex: 1 1 auto;
+      min-width: 0;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+      user-select: none;
+    }
+
+    body.app-mod-slides .slides-dock-bar-right > .slides-dock-cols-group,
+    body.app-mod-slides .slides-dock-bar-right > .slides-dock-zoom-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+      height: var(--slides-dock-ctrl-h);
+      min-height: var(--slides-dock-ctrl-h);
+      max-height: var(--slides-dock-ctrl-h);
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+      flex: 0 0 var(--slides-dock-ctrl-h);
+    }
+
+    body.app-mod-slides .slides-dock-cols-group {
+      display: flex;
+    }
+
+    body.app-mod-slides .slides-dock-cols-btns {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+
+    body.app-mod-slides .slides-dock-cols-btn {
+      padding: 4px 7px;
+      min-width: 26px;
+      font-size: 12px;
+    }
+
+    body.app-mod-slides .slides-dock-zoom-group {
+      padding: 0 8px;
+    }
+
+    body.app-mod-slides .slides-dock-zoom-group .btn.sm {
+      padding: 0 6px;
+      min-width: 22px;
+      height: 24px;
+      line-height: 24px;
+    }
+
+    body.app-mod-slides .slides-zoom-val {
+      min-width: 34px;
+      font-size: 12px;
+    }
+
+    body.app-mod-slides #btn-proxima-musica-playlist {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: var(--slides-dock-ctrl-h);
+      min-height: var(--slides-dock-ctrl-h);
+      max-height: var(--slides-dock-ctrl-h);
+      padding: 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
+      box-sizing: border-box;
+      flex: 0 0 var(--slides-dock-ctrl-h);
+      border-radius: 8px;
+      white-space: nowrap;
     }
 
     /* «›» precisa de mais presença do que o «•» que substitui. */
@@ -6354,8 +6541,8 @@
 
     /*
       As instruções são longas e espremiam a barra. Passam a viver num «?» discreto:
-      a barra fica «SLIDES · nome  (?)  [zoom]  [Avançar música]» e o texto completo
-      abre num balão ao passar o rato. Nada foi removido.
+      a barra fica «SLIDES · nome (?)» à esquerda e os três controlos à direita;
+      o texto completo abre num balão ao passar o rato. Nada foi removido.
     */
     body.app-mod-slides .slides-dock-bar-center {
       flex: 0 0 auto;
@@ -6457,11 +6644,6 @@
     body.app-mod-slides #slides-projecao-instrucoes kbd.slides-dock-kbd {
       padding: 1px 5px;
       margin: 0 1px;
-    }
-
-    body.app-mod-slides .slides-dock-zoom-group {
-      padding: 3px 8px;
-      background: var(--surface);
     }
 
     /* ── Playlist lateral fixa (coluna estreita) — compactação ── */
@@ -10906,6 +11088,7 @@
     .tab,
     .playlist-row .mini,
     .slides-zoom-val,
+    .slides-dock-cols-btn,
     .banco-filtros-checks,
     .v-num,
     .banco-letras-ajuda,
@@ -11569,13 +11752,24 @@
       </div>
     </div>
     <div class="slides-dock-bar-right">
-      <div class="slides-dock-zoom-group" title="Tamanho dos cartões na faixa">
-        <button type="button" class="btn sm" id="slides-zoom-menos" aria-label="Diminuir slides">−</button>
-        <span class="slides-zoom-val" id="slides-zoom-val">100%</span>
-        <button type="button" class="btn sm" id="slides-zoom-mais" aria-label="Aumentar slides">+</button>
+      <div class="slides-dock-ctrl slides-dock-cols-group" role="radiogroup" aria-label="Quantidade de slides por linha" title="Quantos slides por linha no painel central">
+        <span class="slides-dock-ctrl-label">Qt. de Slides</span>
+        <div class="slides-dock-cols-btns">
+          <button type="button" class="slides-dock-cols-btn ativo" data-cols="7" role="radio" aria-checked="true" aria-label="7 slides por linha">7</button>
+          <button type="button" class="slides-dock-cols-btn" data-cols="5" role="radio" aria-checked="false" aria-label="5 slides por linha">5</button>
+          <button type="button" class="slides-dock-cols-btn" data-cols="3" role="radio" aria-checked="false" aria-label="3 slides por linha">3</button>
+        </div>
       </div>
-      <button type="button" class="btn sm primary" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
-        Avançar música
+      <div class="slides-dock-ctrl slides-dock-zoom-group" title="Tamanho dos cartões na faixa">
+        <span class="slides-dock-ctrl-label">Zoom</span>
+        <div class="slides-dock-zoom-btns">
+          <button type="button" class="btn sm" id="slides-zoom-menos" aria-label="Diminuir slides">−</button>
+          <span class="slides-zoom-val" id="slides-zoom-val">100%</span>
+          <button type="button" class="btn sm" id="slides-zoom-mais" aria-label="Aumentar slides">+</button>
+        </div>
+      </div>
+      <button type="button" class="btn sm primary slides-dock-ctrl" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
+        Próxima música
       </button>
     </div>
   </div>
@@ -11590,7 +11784,7 @@
         Escolha uma música na playlist, à direita.
       </div>
     </div>
-    <div class="slides-grid" id="slides-grid"></div>
+    <div class="slides-grid" id="slides-grid" data-slides-cols="7"></div>
   </div>
 </div>
 

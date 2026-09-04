@@ -90,6 +90,8 @@ export const LS_SLIDES_RAIL_PX = 'lyra_slides_rail_px';
 /** Modo slides: altura (px) da faixa de prévias TELÃO/TV — ajustada arrastando a divisória. */
 export const LS_SLIDES_PREVIEW_H_PX = 'lyra_slides_preview_h_px';
 export const LS_SLIDES_CHIP_ZOOM = 'lyra_slides_chip_zoom';
+/** Modo slides: quantos chips cabem por linha no painel central (7, 5 ou 3). */
+export const LS_SLIDES_POR_LINHA = 'lyra_slides_por_linha_v1';
 export const LS_BANCO_FONTE = 'lyra_banco_fonte';
 export const CLOUD_SHARE_URL = 'https://invb-share-api.onrender.com';
 /**

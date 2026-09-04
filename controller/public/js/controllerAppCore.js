@@ -62,6 +62,7 @@ import {
   LS_SLIDES_RAIL_PX,
   LS_SLIDES_PREVIEW_H_PX,
   LS_SLIDES_CHIP_ZOOM,
+  LS_SLIDES_POR_LINHA,
   CLOUD_SHARE_URL,
   CLOUD_INVB_TONS_SYNC_URL,
   LS_INVB_TONS_SYNC_AT,
@@ -5927,6 +5928,55 @@ function setupSlidesChipZoomButtons() {
   mais.addEventListener('click', () => applySlidesChipZoomLevel(slidesChipZoomLevel + 0.07));
 }
 
+/** Opções do painel central no modo slides: 7 (padrão), 5 ou 3 chips por linha. */
+const SLIDES_POR_LINHA_OPCOES = [7, 5, 3];
+const SLIDES_POR_LINHA_PADRAO = 7;
+let slidesPorLinha = SLIDES_POR_LINHA_PADRAO;
+
+function normalizarSlidesPorLinha(n) {
+  const v = parseInt(n, 10);
+  return SLIDES_POR_LINHA_OPCOES.includes(v) ? v : SLIDES_POR_LINHA_PADRAO;
+}
+
+function atualizarBotoesSlidesPorLinha() {
+  document.querySelectorAll('.slides-dock-cols-btn').forEach((btn) => {
+    const ativo = normalizarSlidesPorLinha(btn.dataset.cols) === slidesPorLinha;
+    btn.classList.toggle('ativo', ativo);
+    btn.setAttribute('aria-checked', ativo ? 'true' : 'false');
+  });
+}
+
+/**
+ * Reorganiza a grelha do modo slides (colunas por linha) e persiste a escolha.
+ * O auto-fit das fontes corre a seguir: a largura de cada chip muda.
+ */
+function applySlidesPorLinha(n) {
+  const next = normalizarSlidesPorLinha(n);
+  const mudou = next !== slidesPorLinha;
+  slidesPorLinha = next;
+  const grid = document.getElementById('slides-grid');
+  if (grid) grid.dataset.slidesCols = String(slidesPorLinha);
+  try {
+    localStorage.setItem(LS_SLIDES_POR_LINHA, String(slidesPorLinha));
+  } catch (_) {}
+  atualizarBotoesSlidesPorLinha();
+  if (mudou) queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
+}
+
+function initSlidesPorLinhaFromStorage() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(LS_SLIDES_POR_LINHA);
+  } catch (_) {}
+  applySlidesPorLinha(raw);
+}
+
+function setupSlidesPorLinhaButtons() {
+  document.querySelectorAll('.slides-dock-cols-btn').forEach((btn) => {
+    btn.addEventListener('click', () => applySlidesPorLinha(btn.dataset.cols));
+  });
+}
+
 function readLsMigrate(key, legacyKey) {
   let v = localStorage.getItem(key);
   if (v === null && legacyKey) {
@@ -7007,12 +7057,12 @@ let slidesDockVisivel = false;
 let slidesRailUserRecolhido = false;
 /**
  * Modo slides: a grelha de chips só aparece após escolher música na playlist (não ao carregar do banco na coluna esquerda).
- * Ao entrar no modo slides fica sempre false até clique/dupro na playlist ou «Avançar música».
+ * Ao entrar no modo slides fica sempre false até clique/dupro na playlist ou «Próxima música».
  */
 let faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
 /**
  * Quando false, mudanças de estrofe só atualizam o painel (sem enviar às telas) até o primeiro duplo clique
- * na faixa de slides ou no cartão central — ou até «Avançar música», sincronização do servidor, etc.
+ * na faixa de slides ou no cartão central — ou até «Próxima música», sincronização do servidor, etc.
  */
 let projecaoMusicaEmitidaNoServidor = false;
 /**
@@ -9858,7 +9908,7 @@ function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
   return j < lista.length ? j : -1;
 }
 
-/** Há música seguinte após a actualmente activa (para o botão «Avançar música»). */
+/** Há música seguinte após a actualmente activa (para o botão «Próxima música»). */
 function haProximaMusicaNaPlaylistAtiva() {
   if (!musicaAtiva) return false;
   const pl = getPlaylist(cultoId);
@@ -12705,7 +12755,7 @@ function atualizarSlidesInstrucoes() {
       'Coluna central: <strong>clique</strong> seleciona o slide',
       'Botão direito no chip abre a edição rápida',
       'Último chip = preto',
-      '<strong>Avançar música</strong> carrega a seguinte da playlist',
+      '<strong>Próxima música</strong> carrega a seguinte da playlist',
       ...atalhosProjecao,
     ]);
   }
@@ -12716,7 +12766,7 @@ function atualizarSlidesInstrucoes() {
  *
  * Esconder os botões seria mais limpo e pior: o operador deixaria de saber que o controlo
  * existe. Não exibir diz «existe, ainda não serve para nada» — que é a verdade do estado
- * ocioso. Fica ao lado do «Avançar música», que já seguia esta regra.
+ * ocioso. Fica no mesmo grupo que «Próxima música», que já seguia esta regra.
  *
  * @param {boolean} inertes
  */
@@ -12754,6 +12804,7 @@ function renderSlidesStrip() {
   const dock = document.getElementById('slides-dock');
   const grid = document.getElementById('slides-grid');
   const nomeEl = document.getElementById('slides-musica-nome');
+  if (grid) grid.dataset.slidesCols = String(slidesPorLinha);
 
   try {
   if (ehModoApresentacaoOperador()) {
@@ -21904,6 +21955,8 @@ impedirSelecaoDeTextoNoDuploClique();
 setupSlidesRailResize();
 initSlidesChipZoomFromStorage();
 setupSlidesChipZoomButtons();
+initSlidesPorLinhaFromStorage();
+setupSlidesPorLinhaButtons();
 setupSlidesGridViewportFitObserver();
 setupSlidesStripContextMenuEEdicaoRapida();
 configurarCamposMetadadosMusicaHome();
