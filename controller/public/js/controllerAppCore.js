@@ -1852,11 +1852,14 @@ async function lerVideoComoDataUrlDoCaminho(filePath) {
 }
 
 async function republicarVideoDoCaminhoArquivo(item) {
-  if (!item?.id) return item;
+  if (!item?.id || !item.filePath) return item;
+  /* A cópia por caminho primeiro: é o caminho novo, e não carrega o ficheiro em memória. */
+  const copia = { ...item };
+  if (await importarMidiaApresentacaoPorCaminho(copia)) return copia;
+  /* Falhou (ficheiro movido, disco cheio): o caminho antigo ainda serve de rede. */
   const data = await lerVideoComoDataUrlDoCaminho(item.filePath);
   if (!data) return item;
-  const republicado = { ...item, src: data };
-  return garantirVideoSrcHttp(republicado);
+  return garantirVideoSrcHttp({ ...item, src: data });
 }
 
 function obterThumbVideoApresentacao(item) {
@@ -21317,14 +21320,63 @@ function bibliaTratarKeydownModo(e) {
   return false;
 }
 
+/**
+ * Lê a imagem de fundo já reduzida ao que o monitor consegue mostrar.
+ *
+ * O fundo era guardado como veio da câmara ou do banco de imagens. Um JPEG 4K de 5 MB
+ * vira 6,7 MB de Base64 — que vai para o localStorage (síncrono), para o payload de
+ * configuração e, dentro dele, por um `JSON.parse(JSON.stringify(...))` por janela de
+ * projeção. Medido, isso custava 67 ms por aplicação de configuração; a 1920px de
+ * largura, 4,7 ms.
+ *
+ * Imagem que já cabe na largura alvo passa intacta, no formato original — reduzir só
+ * quando há o que reduzir. Acima disso vai a JPEG: um fundo de projeção ocupa o ecrã
+ * inteiro e não tem o que fazer com transparência.
+ *
+ * @param {File} file
+ * @param {number} [larguraMax] Largura alvo em pixels (padrão: 1920, um telão comum).
+ * @returns {Promise<string>} data URL, ou '' se não deu para ler.
+ */
+function lerImagemFundoReduzida(file, larguraMax = 1920) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = () => {
+      const original = String(reader.result || '');
+      if (!original) return resolve('');
+      const img = new Image();
+      img.onerror = () => resolve(original);
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth || 0;
+          const h = img.naturalHeight || 0;
+          if (w < 2 || h < 2 || w <= larguraMax) return resolve(original);
+          const escala = larguraMax / w;
+          const c = document.createElement('canvas');
+          c.width = Math.max(2, Math.round(w * escala));
+          c.height = Math.max(2, Math.round(h * escala));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          const reduzida = c.toDataURL('image/jpeg', 0.85);
+          /* Só troca se realmente encolheu — imagens muito comprimidas podem crescer. */
+          resolve(reduzida && reduzida.length < original.length ? reduzida : original);
+        } catch (_) {
+          resolve(original);
+        }
+      };
+      img.src = original;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function bibliaEscolherFundo(input) {
   const file = input.files?.[0];
   if (!file) return;
   const id = input.id || '';
   const alvo = id.includes('biblia-min') ? 'ministrante' : 'publico';
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const dataUrl = e.target.result;
+  input.value = '';
+  const dataUrl = await lerImagemFundoReduzida(file);
+  if (dataUrl) {
     if (alvo === 'ministrante') {
       bibliaCfgMinistrante.bgType = 'image';
       bibliaCfgMinistrante.bgImage = dataUrl;
@@ -21338,9 +21390,7 @@ async function bibliaEscolherFundo(input) {
     }
     salvarBibliaCfgNoStorage();
     bibliaAplicarCfgExibicao();
-  };
-  reader.readAsDataURL(file);
-  input.value = '';
+  }
 }
 
 /**
