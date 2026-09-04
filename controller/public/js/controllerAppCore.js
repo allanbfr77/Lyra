@@ -9992,7 +9992,8 @@ const ROTULOS_VERSAO_AUTOMATICOS = new Set([
 
 /**
  * Forma canónica de exibição dos rótulos automáticos. Músicas antigas ainda
- * podem ter «CÓPIA» gravado; na UI passam a «Cópia».
+ * podem ter «CÓPIA» gravado; na UI passam a «Cópia». Tags personalizadas
+ * mantêm exactamente a caixa que o utilizador escreveu.
  */
 const ROTULOS_VERSAO_EXIBICAO = new Map([
   ['cópia'.normalize('NFC'), 'Cópia'],
@@ -10007,7 +10008,7 @@ function formatarRotuloVersaoExibicao(rotulo) {
   const chave = bruto.normalize('NFC').toLocaleLowerCase('pt-BR');
   const automatico = ROTULOS_VERSAO_EXIBICAO.get(chave);
   if (automatico) return automatico;
-  return bruto.toLocaleUpperCase('pt-BR');
+  return bruto;
 }
 
 /** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
@@ -11285,7 +11286,7 @@ async function addMusicaNaPlaylist(meta) {
   let versaoRotulo = '';
   let tituloPl = meta.titulo;
   let artistaPl = meta.artista || '';
-  const opcoesVersao = [{ value: '__ORIGINAL__', label: 'ORIGINAL (SERVIDOR)' }];
+  const opcoesVersao = [{ value: '__ORIGINAL__', label: 'Original' }];
   if (bancoFonte !== 'catalog') {
     try {
       const resV = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/versoes`);
@@ -13360,7 +13361,9 @@ function atualizarTextoPainelLetraCompleta() {
   const ta = document.getElementById('centro-letra-completa-ta');
   if (!ta || !musicaAtiva?.estrofes) return;
   if (!modoLetraCompletaCentral) return;
-  ta.value = juntarEstrofesParaLetraCompleta();
+  const novo = juntarEstrofesParaLetraCompleta();
+  if (ta.value === novo) return;
+  ta.value = novo;
   guiasEstrofesLetraCompleta.agendar();
 }
 
@@ -13519,12 +13522,16 @@ async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
 /** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade. */
 function entrarModoLetraCompletaCentral() {
   if (!musicaAtiva || modoLetraCompletaCentral) return;
-  snapshotLetraCompleta = {
-    estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva,
-  };
   modoLetraCompletaCentral = true;
   aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
+  /* Snapshot do texto já no painel — o ida-e-volta juntar/partir não conta como sujo. */
+  const ta = document.getElementById('centro-letra-completa-ta');
+  snapshotLetraCompleta = {
+    estrofes: ta
+      ? splitTextoLetraCompletaEmEstrofes(ta.value)
+      : musicaAtiva.estrofes.map((s) => String(s ?? '')),
+    estrofeAtiva,
+  };
   sincronizarFlagCaixaLetrasComTextoAtual();
   atualizarToolbarModoEdicao();
 }
@@ -13661,7 +13668,7 @@ function atualizarToolbarModoLetraCompleta() {
 function rotuloVersaoComparativo(v, rootId) {
   if (!v) return '';
   const ehOriginal = v.parent_id == null && Number(v.id) === Number(rootId);
-  if (ehOriginal) return 'ORIGINAL';
+  if (ehOriginal) return 'Original';
   const rotulo = String(v.rotulo || '').trim();
   return formatarRotuloVersaoExibicao(rotulo);
 }
@@ -14610,6 +14617,39 @@ function reaplicarAlturasEstrofesEditor() {
   });
 }
 
+/**
+ * Actualiza o texto dos cartões já montados, sem os destruir.
+ * Devolve false quando a grelha não bate (contagem ou estrutura) e precisa de rebuild.
+ */
+function atualizarEstrofesEditorInPlace() {
+  const wrap = document.getElementById('estrofes-slide-editor');
+  if (!wrap || !musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return false;
+  const cards = [...wrap.querySelectorAll('.estrofe-slide-edit')];
+  const n = musicaAtiva.estrofes.length;
+  if (cards.length !== n) return false;
+  if (modoEdicaoEstrofes) {
+    for (let i = 0; i < n; i++) {
+      const ta = cards[i].querySelector('.estrofe-slide-ta');
+      if (!ta) return false;
+      const txt = String(musicaAtiva.estrofes[i] ?? '');
+      if (ta.value !== txt) {
+        ta.value = txt;
+        aplicarAlturaCardEstrofe(cards[i]);
+      }
+      cards[i].classList.toggle('ativa', estrofeAtiva === i);
+    }
+    return true;
+  }
+  for (let i = 0; i < n; i++) {
+    const body = cards[i].querySelector('.estrofe-slide-view-body');
+    if (!body) return false;
+    const txt = String(musicaAtiva.estrofes[i] ?? '');
+    if (body.textContent !== txt) body.textContent = txt;
+    cards[i].classList.toggle('ativa', estrofeAtiva === i);
+  }
+  return true;
+}
+
 function reorderEstrofesIndices(from, to) {
   if (!musicaAtiva || !modoEdicaoEstrofes) return;
   const arr = musicaAtiva.estrofes;
@@ -15018,12 +15058,13 @@ async function iniciarCriarNovaVersao() {
   const idNum = Number(musicaAtiva.id);
   if (!Number.isFinite(idNum)) return;
 
-  if (modoEdicaoEstrofes || modoLetraCompletaCentral || temEdicaoMusicaNaoGravada()) {
-    const ok = await appConfirm(
+  if (
+    !(await confirmarProsseguirDescartandoEdicaoPendente(
       'Descartar alterações não gravadas e criar uma nova versão a partir do texto gravado no servidor?',
       'Criar nova versão'
-    );
-    if (!ok) return;
+    ))
+  ) {
+    return;
   }
 
   const nome = await appPrompt('Nome da nova versão:', {
@@ -18466,7 +18507,7 @@ function aplicarBaseMusicaSelecionada(base, id, versaoLocalId) {
   const ea = document.getElementById('edit-artista');
   if (et) et.value = musicaAtiva.titulo || '';
   if (ea) ea.value = musicaAtiva.artista || '';
-  void carregarVersoesMusicaServidor(musicaRootId);
+  void sincronizarBarraVersoesAposTroca();
   atualizarToolbarModoEdicao();
 }
 
@@ -18548,6 +18589,38 @@ function iconeVersaoServidorPorRotulo(labelUpper) {
   return SVG_VERSAO.copia;
 }
 
+function idChipVersaoAtiva() {
+  if (musicaVersaoLocalId) return String(musicaVersaoLocalId);
+  if (musicaAtivaEhOriginalServidor()) return '__original__';
+  if (musicaAtiva?.id != null) return String(musicaAtiva.id);
+  return '';
+}
+
+/** Só troca o chip activo — evita reconstruir a barra (e tremer os slides por baixo). */
+function atualizarChipAtivoBarraVersoes() {
+  const bar = document.getElementById('musica-versoes-bar');
+  if (!bar || bar.hidden) return false;
+  const chips = bar.querySelectorAll('.versao-chip[data-versao-id]');
+  if (!chips.length) return false;
+  const ativo = idChipVersaoAtiva();
+  let achou = false;
+  chips.forEach((chip) => {
+    const on = chip.dataset.versaoId === ativo;
+    if (on) achou = true;
+    chip.classList.toggle('versao-musica-ativa', on);
+  });
+  return achou;
+}
+
+function sincronizarBarraVersoesAposTroca() {
+  const root = obterRootIdMusicaAtiva();
+  if (Number(versoesMusicaServidorCache.rootId) === Number(root)) {
+    if (!atualizarChipAtivoBarraVersoes()) renderMusicaVersoesBar();
+    return Promise.resolve();
+  }
+  return carregarVersoesMusicaServidor(root);
+}
+
 function renderMusicaVersoesBar() {
   const bar = document.getElementById('musica-versoes-bar');
   if (!bar) return;
@@ -18583,6 +18656,7 @@ function renderMusicaVersoesBar() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn sm versao-chip' + (ativo ? ' versao-musica-ativa' : '');
+    b.dataset.versaoId = copiaId == null || copiaId === '' ? '__original__' : String(copiaId);
     b.innerHTML = (svg || '') + '<span class="versao-chip-txt"></span>';
     b.querySelector('.versao-chip-txt').textContent = label;
     b.onclick = () => void trocarVersaoMusicaCentral(copiaId);
@@ -18715,14 +18789,17 @@ async function trocarVersaoMusicaCentral(copiaId) {
   if (!musicaAtiva) return;
   const rootId = obterRootIdMusicaAtiva();
   if (!Number.isFinite(rootId)) return;
-  if (modoEdicaoEstrofes || modoLetraCompletaCentral || temEdicaoMusicaNaoGravada()) {
+  if (temEdicaoMusicaNaoGravada()) {
     const ok = await appConfirm(
       'Descartar alterações não gravadas nesta sessão e trocar de versão?',
       'Trocar versão'
     );
     if (!ok) return;
   }
-  limparFlagsModoEdicaoMusica();
+
+  const manterLetraCompleta = modoLetraCompletaCentral;
+  const estrofesAntes = (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
+
   try {
     const vid = copiaId && String(copiaId).trim() ? String(copiaId) : null;
     let url;
@@ -18746,7 +18823,7 @@ async function trocarVersaoMusicaCentral(copiaId) {
       const ea = document.getElementById('edit-artista');
       if (et) et.value = musicaAtiva.titulo || '';
       if (ea) ea.value = musicaAtiva.artista || '';
-      await carregarVersoesMusicaServidor(musicaRootId);
+      await sincronizarBarraVersoesAposTroca();
     } else {
       aplicarBaseMusicaSelecionada(base, rootId, vid);
     }
@@ -18756,13 +18833,47 @@ async function trocarVersaoMusicaCentral(copiaId) {
     );
     projecaoMusicaEmitidaNoServidor = false;
     bloqueioSincronizarEstrofeDoServidor = true;
-    refreshListaBanco();
-    renderPlaylist();
-    renderEstrofesEditor();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
+
+    const mesmaLetra = estrofesArraysIguaisParaEdicao(estrofesAntes, musicaAtiva.estrofes);
+
+    if (manterLetraCompleta) {
+      atualizarTextoPainelLetraCompleta();
+      const ta = document.getElementById('centro-letra-completa-ta');
+      snapshotLetraCompleta = {
+        estrofes: ta
+          ? splitTextoLetraCompletaEmEstrofes(ta.value)
+          : musicaAtiva.estrofes.map((s) => String(s ?? '')),
+        estrofeAtiva,
+      };
+    } else if (!mesmaLetra) {
+      if (!atualizarEstrofesEditorInPlace()) renderEstrofesEditor();
+    } else {
+      marcacaoEstrofeEditor();
+    }
+
+    if (modoEdicaoEstrofes) {
+      snapshotEdicaoEstrofes = {
+        titulo: String(musicaAtiva.titulo || ''),
+        artista: String(musicaAtiva.artista || ''),
+        estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
+        estrofeAtiva,
+      };
+    }
+
+    if (ehModoSlidesOperador()) {
+      if (mesmaLetra) {
+        const grid = document.getElementById('slides-grid');
+        if (grid && musicaAtiva) {
+          grid.dataset.stripMusicaId = String(musicaAtiva.id ?? '');
+          grid.dataset.stripProjecao = projecaoMusicaEmitidaNoServidor ? '1' : '0';
+        }
+        atualizarSomenteAtivoFaixaSlides();
+      } else {
+        renderSlidesStrip();
+      }
+    }
+
     atualizarToolbarModoEdicao();
-    marcacaoEstrofeEditor();
   } catch (e) {
     appAlert(e?.message || 'Não foi possível trocar de versão.');
   }

@@ -1,0 +1,71 @@
+{
+  "updatedAt": "2026-09-03T12:04:51.778Z",
+  "cultosManuais": [],
+  "temasPorCulto": {
+    "__global__": [
+      "ABERTURA",
+      "APÓS A PALAVRA",
+      "CEIA DO SENHOR",
+      "ENTRADA PASTOR",
+      "OFERTÓRIO"
+    ],
+    "culto_2026-08-02_manha": [
+      "ABERTURA",
+      "APÓS A PALAVRA",
+      "CEIA DO SENHOR"
+    ],
+    "culto_2026-08-05_quarta": [
+      "ABERTURA",
+      "APÓS A PALAVRA"
+    ],
+    "culto_2026-08-08_qa": [
+      "[OBJECT OBJECT]"
+    ],
+    "culto_2026-08-16_manha": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-12_quarta": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-09_noite": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-19_quarta": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-23_manha": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-23_noite": [
+      "ABERTURA",
+      "ENTRADA PASTOR",
+      "OFERTÓRIO"
+    ],
+    "culto_2026-08-02_noite": [
+      "ABERTURA",
+      "APÓS A PALAVRA",
+      "CEIA DO SENHOR"
+    ],
+    "culto_2026-08-30_manha": [
+      "ABERTURA"
+    ],
+    "culto_2026-08-30_noite": [
+      "ABERTURA"
+    ],
+    "culto_2026-09-02_quarta": [
+      "ABERTURA"
+    ],
+    "culto_2026-09-06_manha": [
+      "ABERTURA"
+    ]
+  },
+  "aberturaRemovidaPorCulto": {
+    "culto_2026-08-23_manha": true
+  },
+  "ministrantePadraoPorCulto": {
+    "culto_2026-08-23_noite": 3,
+    "culto_2026-08-23_manha": 3,
+    "culto_2026-08-30_noite": 2,
+    "culto_2026-09-02_quarta": 2
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "slides": {
+    "publicoIndex": 1,
+    "ministranteIndex": 2
+  },
+  "apresentacao": {
+    "publicoIndex": -1,
+    "ministranteIndex": -1
+  },
+  "contagem": {
+    "publicoIndex": -1,
+    "ministranteIndex": -1
+  }
+}

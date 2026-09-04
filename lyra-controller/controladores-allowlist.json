@@ -1,0 +1,29 @@
+{
+  "modo": "tofu",
+  "devices": {
+    "2dbe2e95-f881-4db6-a119-85b41b92022f": {
+      "secret": "47153aaa-9adc-4f65-9d6b-89f8f8eaf52b",
+      "nome": "",
+      "aprovadoEm": "2026-08-08T05:04:24.032Z",
+      "pendente": false
+    },
+    "985f8358-3496-4bdb-adb2-c4655c3afa3d": {
+      "secret": "61320b39-2600-4909-bb63-5324a1fc3cd2",
+      "nome": "",
+      "aprovadoEm": "2026-08-08T07:06:14.900Z",
+      "pendente": false
+    },
+    "fb0bae5f-3e29-4458-82a6-89087252f32b": {
+      "secret": "12599063-784f-4f33-9f71-4eea6beddb8e",
+      "nome": "",
+      "aprovadoEm": "2026-08-08T18:38:08.043Z",
+      "pendente": false
+    },
+    "beb893b0-276a-466c-beb0-94253e8ee68f": {
+      "secret": "bf53e14b-7e99-4f63-b2f9-d511a7655e55",
+      "nome": "",
+      "aprovadoEm": "2026-09-02T15:06:10.166Z",
+      "pendente": false
+    }
+  }
+}
