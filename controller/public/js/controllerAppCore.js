@@ -16210,7 +16210,12 @@ function configurarModalPreviewLetras() {
     if (userId != null && fontePend === 'banco-local') {
       // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
       // o seu papel — limpa igual aos demais para manter o painel consistente.
-      await selecionarMusicaDoBanco(userId, { fonte: 'user', preferirCopia: true, origemUi: 'biblioteca' });
+      await selecionarMusicaDoBanco(userId, {
+        fonte: 'user',
+        preferirCopia: true,
+        origemUi: 'biblioteca',
+        abrirEmLetraCompleta: true,
+      });
       limparBuscaLetras();
     } else if (catalogId != null && fontePend === 'banco-local') {
       await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
@@ -18274,7 +18279,12 @@ async function usarMusicaExistenteDoBanco(data) {
     return;
   }
   await carregarMusicas();
-  await selecionarMusicaDoBanco(idExistente, { fonte: 'user', preferirCopia: true, origemUi: 'biblioteca' });
+  await selecionarMusicaDoBanco(idExistente, {
+    fonte: 'user',
+    preferirCopia: true,
+    origemUi: 'biblioteca',
+    abrirEmLetraCompleta: true,
+  });
   limparBuscaLetras();
 }
 
@@ -18303,7 +18313,11 @@ async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decis
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
+    await selecionarMusicaDoBanco(data.id, {
+      preferirCopia: true,
+      origemUi: 'biblioteca',
+      abrirEmLetraCompleta: true,
+    });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar.');
@@ -18330,7 +18344,11 @@ async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide = 
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
+    await selecionarMusicaDoBanco(data.id, {
+      preferirCopia: true,
+      origemUi: 'biblioteca',
+      abrirEmLetraCompleta: true,
+    });
     limparBuscaLetras();
   } catch (e) {
     alert(e.message || 'Falha ao importar do catálogo.');
@@ -18765,6 +18783,9 @@ async function trocarVersaoMusicaCentral(copiaId) {
  *   que o item guardou.
  * @param {'biblioteca'|'playlist'} [opts.origemUi] Coluna que disparou a
  *   seleção. Essa coluna recebe o destaque; a outra é limpa.
+ * @param {boolean} [opts.abrirEmLetraCompleta] No modo completo, abre a letra
+ *   corrida em vez da grade de slides. Usado por clique na Biblioteca/Playlist
+ *   e após importar dos bancos Locais/Online.
  */
 async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
@@ -18875,8 +18896,9 @@ async function selecionarMusicaDoBanco(id, opts) {
     if (!emModoSlides) renderEstrofesEditor();
     renderSlidesStrip();
     atualizarPreviewOperador();
-    /* Clique na Biblioteca/Playlist da Home: abre em letra completa.
-       Outros fluxos (importar, nova versão, próxima música, modo slides) ficam na grade. */
+    /* Home (modo completo): Biblioteca, Playlist e importação (Locais/Online)
+       abrem em letra completa. Outros fluxos (nova versão, próxima música,
+       modo slides) ficam na grade. */
     if (
       opts &&
       opts.abrirEmLetraCompleta &&
