@@ -161,7 +161,7 @@ export function atualizarNotaSlideControladorUI() {
   const ativo = ctx.obterEstrofeAtiva();
   const temMusica = id != null && nSlides > 0;
 
-  bar.hidden = !emSlides || !temMusica;
+  bar.hidden = !emSlides;
   if (!emSlides || !temMusica) {
     exib.hidden = true;
     exib.textContent = '';

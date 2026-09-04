@@ -1916,13 +1916,15 @@
       min-width: 0;
       padding: 2px 6px 4px;
       box-sizing: border-box;
-      /* Mesma altura com ou sem badge: a grelha de slides não sobe nem desce. */
+      /* Sempre 32px — com ou sem música — para a barra de controlos não saltar. */
       height: 32px;
       min-height: 32px;
       max-height: 32px;
     }
     body.app-mod-slides .slide-nota-bar[hidden] {
-      display: none !important;
+      display: flex !important;
+      visibility: hidden;
+      pointer-events: none;
     }
     body.app-mod-slides .slide-nota-cluster {
       display: inline-flex;
@@ -6306,25 +6308,37 @@
       display: flex;
       flex-wrap: nowrap;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: space-between;
       gap: 10px;
       padding: 0 18px;
       min-width: 0;
+      align-self: center;
     }
 
     /*
-      Teto por lado = metade do vão que sobra ao lado das prévias. Em janelas estreitas
-      os grupos encolhem em vez de avançar por cima dos cartões.
+      Dois vãos fixos ao lado das prévias. A direita NÃO encolhe quando o nome da
+      música aparece — senão zoom e «Avançar música» saltam.
     */
-    body.app-mod-slides .slides-dock-bar-left,
-    body.app-mod-slides .slides-dock-bar-right {
-      flex: 0 1 auto;
+    body.app-mod-slides .slides-dock-bar-left {
+      flex: 1 1 0;
       min-width: 0;
       max-width: calc(50% - var(--preview-mod-stack-w) / 2 - 26px);
+      gap: 7px;
     }
 
-    body.app-mod-slides .slides-dock-bar-left {
-      gap: 7px;
+    body.app-mod-slides .slides-dock-bar-left .slides-dock-marca {
+      flex-shrink: 0;
+    }
+
+    /* Empurra zoom + «Avançar música» para a ponta direita. */
+    body.app-mod-slides .slides-dock-bar-right {
+      flex: 0 0 auto;
+      min-width: 0;
+      max-width: calc(50% - var(--preview-mod-stack-w) / 2 - 26px);
+      margin-left: auto;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 14px;
     }
 
     /* «›» precisa de mais presença do que o «•» que substitui. */
@@ -6335,11 +6349,7 @@
 
     body.app-mod-slides .slides-dock-bar-left #slides-musica-nome {
       max-width: 100%;
-    }
-
-    /* Empurra zoom + «Avançar música» para a ponta direita. */
-    body.app-mod-slides .slides-dock-bar-right {
-      margin-left: auto;
+      min-height: 1.15em;
     }
 
     /*
@@ -6444,21 +6454,9 @@
       display: block;
     }
 
-    /* Sobra espaço: o nome da música respira e o grupo da direita encosta na borda. */
-    body.app-mod-slides .slides-dock-bar-left {
-      flex: 0 1 auto;
-    }
-
     body.app-mod-slides #slides-projecao-instrucoes kbd.slides-dock-kbd {
       padding: 1px 5px;
       margin: 0 1px;
-    }
-
-    /* Zoom em cima, «Avançar música» embaixo — empilhados e encostados à direita. */
-    body.app-mod-slides .slides-dock-bar-right {
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 14px;
     }
 
     body.app-mod-slides .slides-dock-zoom-group {
@@ -11566,9 +11564,9 @@
       <span class="slides-dock-marca">Slides</span>
       <span class="slides-dock-sep" aria-hidden="true">•</span>
       <span id="slides-musica-nome"></span>
-    </div>
-    <div class="slides-dock-bar-center">
-      <div id="slides-projecao-instrucoes" aria-live="polite"></div>
+      <div class="slides-dock-bar-center">
+        <div id="slides-projecao-instrucoes" aria-live="polite"></div>
+      </div>
     </div>
     <div class="slides-dock-bar-right">
       <div class="slides-dock-zoom-group" title="Tamanho dos cartões na faixa">
