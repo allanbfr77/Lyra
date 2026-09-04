@@ -104,7 +104,7 @@ export const LS_INVB_TONS_SYNC_AT = 'lyra_invb_tons_sync_at';
 export const LS_FILTRO_TITULO = 'lyra_filtro_busca_titulo';
 export const LS_FILTRO_ARTISTA = 'lyra_filtro_busca_artista';
 export const LS_FILTRO_LETRA = 'lyra_filtro_busca_letra';
-/** Fonte da busca de letras: `banco-local`, `cifraclub` ou `letras-mus-br`. */
+/** Fonte da busca de letras: `banco-local`, `cifraclub`, `letras-mus-br` ou `lyra-online`. */
 export const LS_LETRAS_SITE_FONTE = 'lyra_letras_site_fonte';
 /** Lista SQLite expandida (`1`, padrão) ou recolhida (`0`). */
 export const LS_BANCO_SQLITE_LISTA_ABERTA = 'lyra_banco_sqlite_lista_aberta';

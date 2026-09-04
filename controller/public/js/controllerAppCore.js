@@ -5563,17 +5563,19 @@ let bibFiltroQAplicado = null;
 let resultadosLetrasCache = [];
 let letrasBuscaGeracao = 0;
 let letrasBuscaAbort = null;
-/** Fonte da busca de letras: `banco-local`, `cifraclub` ou `letras-mus-br` (seletor único). */
+/** Fonte da busca de letras: `banco-local`, `cifraclub`, `letras-mus-br` ou `lyra-online`. */
 function normalizarFonteLetrasSite(val) {
   const s = String(val || '').trim();
   if (s === 'letras-mus-br') return 'letras-mus-br';
   if (s === 'cifraclub') return 'cifraclub';
+  if (s === 'lyra-online' || s === 'lyra-songbank') return 'lyra-online';
   return 'banco-local';
 }
 let letrasSiteFonte = 'banco-local';
 
 const BANCO_FONTE_OPCOES = [
   { value: 'banco-local', label: 'HLYRCS' },
+  { value: 'lyra-online', label: 'BANCO ONLINE DO LYRA' },
   { value: 'cifraclub', label: 'CIFRA CLUB' },
   { value: 'letras-mus-br', label: 'LETRAS.MUS.BR' },
 ];
@@ -16121,6 +16123,7 @@ function aplicarPlaceholderBuscaLetras() {
   const f = getLetrasSiteFonteAtual();
   if (f === 'letras-mus-br') inp.placeholder = 'Buscar em letras.mus.br…';
   else if (f === 'banco-local') inp.placeholder = 'Buscar no banco offline…';
+  else if (f === 'lyra-online') inp.placeholder = 'Buscar no banco online do Lyra…';
   else inp.placeholder = 'Buscar em cifraclub.com.br…';
 }
 
@@ -16294,7 +16297,11 @@ async function abrirModalPreviewLetras(path, fonte) {
   letrasPreviewCatalogIdPendente = null;
   letrasPreviewPathPendente = path || '';
   letrasPreviewFontePendente =
-    fonte === 'letras-mus-br' ? 'letras-mus-br' : normalizarFonteLetrasSite(fonte || 'cifraclub');
+    fonte === 'letras-mus-br'
+      ? 'letras-mus-br'
+      : fonte === 'lyra-online' || fonte === 'lyra-songbank'
+        ? 'lyra-online'
+        : normalizarFonteLetrasSite(fonte || 'cifraclub');
   const bd = document.getElementById('letras-preview-backdrop');
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
@@ -16371,7 +16378,9 @@ async function carregarPreviewLetrasNoModal() {
           : 'Catálogo offline'
         : letrasPreviewFontePendente === 'letras-mus-br'
           ? 'Letras.mus.br'
-          : 'Cifra Club';
+          : letrasPreviewFontePendente === 'lyra-online'
+            ? 'Banco online do Lyra'
+            : 'Cifra Club';
     const mostraLinhas =
       letrasPreviewFontePendente !== 'banco-local' ||
       (letrasPreviewFontePendente === 'banco-local' && letrasPreviewOfflineOrigem === 'catalog');
@@ -17397,7 +17406,7 @@ function garantirBuscaLetrasEditavel() {
   busca.removeAttribute('disabled');
 }
 
-/* ── Limpeza da busca de letras (vale para as três fontes) ───────────────── */
+/* ── Limpeza da busca de letras (vale para todas as fontes) ───────────────── */
 
 /** O «x» dentro do campo só aparece havendo texto. */
 function atualizarBotaoLimparBuscaLetras() {
@@ -18330,11 +18339,13 @@ async function buscarLetrasExterno() {
   const titulo = document.getElementById('filtro-busca-titulo').checked;
   const artista = document.getElementById('filtro-busca-artista').checked;
   const letra = document.getElementById('filtro-busca-letra').checked;
-  const fonteLocal = getLetrasSiteFonteAtual() === 'banco-local';
+  const fonteAtual = getLetrasSiteFonteAtual();
+  const fonteLocal = fonteAtual === 'banco-local';
+  const fonteLyraOnline = fonteAtual === 'lyra-online';
 
   if (!q) {
     return alert(
-      fonteLocal
+      fonteLocal || fonteLyraOnline
         ? 'Digite o nome da música/artista ou um trecho da letra'
         : 'Digite o nome da música/artista'
     );
@@ -18394,6 +18405,55 @@ async function buscarLetrasExterno() {
       if (err && err.name === 'AbortError') return;
       if (!vigente()) return;
       alert('Erro de conexão com o banco offline.');
+      resultadosLetrasCache = [];
+      renderizarListaInternet([]);
+    } finally {
+      if (letrasBuscaAbort === ctl) letrasBuscaAbort = null;
+    }
+    return;
+  }
+
+  if (fonteLyraOnline) {
+    const elLista = document.getElementById('lista-internet');
+    if (elLista) elLista.innerHTML = '<div class="placeholder-msg">Buscando no banco online do Lyra…</div>';
+    try {
+      const params = new URLSearchParams({
+        q,
+        titulo: titulo ? '1' : '0',
+        artista: artista ? '1' : '0',
+        letra: letra ? '1' : '0',
+        fonte: 'lyra-online',
+      });
+      const res = await fetch(`${getControllerApiBase()}/api/letras/buscar?${params}`, {
+        signal: ctl.signal,
+      });
+      if (!vigente()) return;
+      const data = await res.json().catch(() => ({}));
+      if (!vigente()) return;
+
+      if (!res.ok) {
+        alert(data.erro || `Erro HTTP ${res.status}`);
+        resultadosLetrasCache = [];
+        renderizarListaInternet([]);
+        return;
+      }
+
+      if (data.sucesso && data.resultados && data.resultados.length > 0) {
+        resultadosLetrasCache = data.resultados.map((r) => ({
+          ...r,
+          fonte: 'lyra-online',
+        }));
+        renderizarListaInternet(resultadosLetrasCache);
+      } else {
+        alert(data.erro || 'Nenhum resultado encontrado');
+        resultadosLetrasCache = [];
+        renderizarListaInternet([]);
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      if (!vigente()) return;
+      console.error('Erro na busca:', e);
+      alert('Erro ao buscar no banco online do Lyra: ' + e.message);
       resultadosLetrasCache = [];
       renderizarListaInternet([]);
     } finally {
@@ -18497,7 +18557,8 @@ async function usarMusicaExistenteDoBanco(data) {
 }
 
 async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decisaoDuplicidade = '') {
-  const fonteEnvio = fonte === 'letras-mus-br' ? 'letras-mus-br' : 'cifraclub';
+  const fonteEnvio =
+    fonte === 'letras-mus-br' ? 'letras-mus-br' : fonte === 'lyra-online' ? 'lyra-online' : 'cifraclub';
   try {
     const res = await fetch(`${getControllerApiBase()}/api/letras/importar`, {
       method: 'POST',

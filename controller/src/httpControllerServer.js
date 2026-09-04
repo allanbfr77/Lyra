@@ -57,6 +57,7 @@ const { SERVER_URL } = require('./lib/projectionServerUrl');
 const cifra = require('./lib/cifraLetras');
 const letrasMus = require('./lib/letrasMusBr');
 const indiceBusca = require('./lib/indiceMusicasBusca');
+const lyraSongbank = require('./lib/lyraSongbank');
 const historicoProjecao = require('./lib/historicoProjecao');
 const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 const {
@@ -1947,9 +1948,32 @@ async function iniciarServidorController(ctx, paths) {
 
   expressApp.get('/api/letras/buscar', async (req, res) => {
     try {
-      const tituloQ = String(req.query.titulo || '').trim();
-      const artistaMarcado = req.query.artista === '1';
       const fonte = String(req.query.fonte || 'cifraclub').toLowerCase();
+      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
+        const q = String(req.query.q || req.query.titulo || '').trim();
+        if (!q) {
+          return res.json({ sucesso: false, erro: 'Parâmetro q obrigatório', resultados: [] });
+        }
+        const wantTit = req.query.q != null ? req.query.titulo === '1' : true;
+        const wantArt = req.query.artista === '1';
+        const wantLetra = req.query.letra === '1';
+        if (req.query.q != null && !wantTit && !wantArt && !wantLetra) {
+          return res.json({
+            sucesso: false,
+            erro: 'Marque pelo menos um critério: Música (título), Artista ou Letra (trecho)',
+            resultados: [],
+          });
+        }
+        const out = await lyraSongbank.buscarMusicas({
+          q,
+          titulo: wantTit,
+          artista: wantArt,
+          letra: wantLetra,
+        });
+        return res.json(out);
+      }
+
+      const tituloQ = String(req.query.titulo || '').trim();
       if (!tituloQ)
         return res.json({ sucesso: false, erro: 'Parâmetro titulo obrigatório', resultados: [] });
 
@@ -1960,7 +1984,7 @@ async function iniciarServidorController(ctx, paths) {
       const fonteNorm = indiceBusca.normalizarFonteLetras(fonte);
       const filtradas = await indiceBusca.buscarNoIndiceDeMusicas({
         texto: tituloQ,
-        filtros: { titulo: true, artista: artistaMarcado, letra: false },
+        filtros: { titulo: true, artista: req.query.artista === '1', letra: false },
         fonte: fonteNorm,
       });
 
@@ -1987,10 +2011,14 @@ async function iniciarServidorController(ctx, paths) {
       const pathRaw = req.body && req.body.path;
       const maxLinhas = req.body && req.body.maxLinhasPorSlide;
       const fonte = String((req.body && req.body.fonte) || 'cifraclub').toLowerCase();
-      const r =
-        fonte === 'letras-mus-br' || fonte === 'letrasmusbr'
-          ? await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas })
-          : await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      let r;
+      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
+        r = await lyraSongbank.extrairLetraParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      } else if (fonte === 'letras-mus-br' || fonte === 'letrasmusbr') {
+        r = await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      } else {
+        r = await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      }
       if (r.erro) return res.status(400).json({ erro: r.erro });
       res.json({
         titulo: r.titulo,
@@ -2009,10 +2037,14 @@ async function iniciarServidorController(ctx, paths) {
       const pathRaw = req.body && req.body.path;
       const maxLinhas = req.body && req.body.maxLinhasPorSlide;
       const fonte = String((req.body && req.body.fonte) || 'cifraclub').toLowerCase();
-      const r =
-        fonte === 'letras-mus-br' || fonte === 'letrasmusbr'
-          ? await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas })
-          : await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      let r;
+      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
+        r = await lyraSongbank.extrairLetraParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      } else if (fonte === 'letras-mus-br' || fonte === 'letrasmusbr') {
+        r = await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      } else {
+        r = await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
+      }
       if (r.erro) return res.status(400).json({ erro: r.erro });
 
       const imp = importarMusicaUsuarioNoDb(r.titulo, r.artista, r.estrofes || [], {
