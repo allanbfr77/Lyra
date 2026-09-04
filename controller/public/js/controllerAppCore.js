@@ -76,6 +76,10 @@ import {
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
 import { resolverProximoCultoPorHorarioBrasilia } from './modules/proximoCulto.js';
+import {
+  deltaScrollGrelhaSlidesAntecipado,
+  indiceChipAntecipacao,
+} from './modules/scrollGrelhaSlides.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import { rotaSlidesParaEnvioComBiblia } from './modules/supressaoCanalSlides.js';
 import { precisaReporRotaSlides, rotaSlidesReposta } from './modules/reposicaoRotaSlides.js';
@@ -5685,11 +5689,23 @@ function obterScrollportGrelhaSlides() {
   return document.getElementById('slides-grid');
 }
 
+function colunasVisiveisGrelhaSlides() {
+  return ehModoSlidesOperador() ? slidesPorLinha : 7;
+}
+
+function obterChipAntecipacaoNaGrelha(idx) {
+  const grid = document.getElementById('slides-grid');
+  if (!grid) return null;
+  const chips = grid.querySelectorAll('.slide-chip');
+  const alvo = indiceChipAntecipacao(idx, colunasVisiveisGrelhaSlides(), chips.length);
+  if (alvo < 0) return null;
+  return obterChipEstrofeNaGrelha(alvo);
+}
+
 /**
- * Traz o chip focado para a área visível, só se estiver cortado.
- * O deslocamento é o mínimo necessário (nearest), medido no viewport actual —
- * não há «N slides visíveis» fixo: 7, 5 ou 3 colunas e a altura do monitor entram
- * na conta pela geometria real.
+ * Traz o chip focado para a área visível e, se couber, revela a linha seguinte.
+ * O slide actual nunca sai do viewport; a antecipação só usa o espaço abaixo.
+ * 7, 5 ou 3 colunas e a altura do monitor entram na conta pela geometria real.
  */
 function revelarChipEstrofeFocado(idx, { suave = true } = {}) {
   if (typeof document !== 'undefined' && document.hidden) return;
@@ -5702,16 +5718,13 @@ function revelarChipEstrofeFocado(idx, { suave = true } = {}) {
   const cr = chip.getBoundingClientRect();
   if (!(vr.height > 8) || !(cr.height > 0)) return;
 
-  const folgaTopo = 8;
-  const folgaFundo = 14;
-  let delta = 0;
-  if (cr.height > vr.height - folgaTopo - folgaFundo) {
-    delta = cr.top - vr.top - folgaTopo;
-  } else if (cr.top < vr.top + folgaTopo) {
-    delta = cr.top - vr.top - folgaTopo;
-  } else if (cr.bottom > vr.bottom - folgaFundo) {
-    delta = cr.bottom - (vr.bottom - folgaFundo);
-  }
+  const chipProx = obterChipAntecipacaoNaGrelha(idx);
+  const lr = chipProx && chipProx !== chip ? chipProx.getBoundingClientRect() : null;
+  const delta = deltaScrollGrelhaSlidesAntecipado({
+    viewport: { top: vr.top, bottom: vr.bottom, height: vr.height },
+    chip: { top: cr.top, bottom: cr.bottom, height: cr.height },
+    lookahead: lr ? { top: lr.top, bottom: lr.bottom, height: lr.height } : null,
+  });
   if (Math.abs(delta) < 1) return;
 
   const maxScroll = Math.max(0, porta.scrollHeight - porta.clientHeight);
