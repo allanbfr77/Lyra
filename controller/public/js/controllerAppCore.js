@@ -5573,7 +5573,7 @@ function normalizarFonteLetrasSite(val) {
 let letrasSiteFonte = 'banco-local';
 
 const BANCO_FONTE_OPCOES = [
-  { value: 'banco-local', label: 'BANCO LOCAL' },
+  { value: 'banco-local', label: 'HLYRCS' },
   { value: 'cifraclub', label: 'CIFRA CLUB' },
   { value: 'letras-mus-br', label: 'LETRAS.MUS.BR' },
 ];
@@ -5648,8 +5648,13 @@ function podeAtualizarSomenteAtivoFaixaSlides() {
   if (String(musicaAtiva.id ?? '') !== grid.dataset.stripMusicaId) return false;
   if (String(n) !== grid.dataset.stripEstrofeCount) return false;
   if (digestEstrofesParaStripFaixa(musicaAtiva.estrofes) !== grid.dataset.stripDigest) return false;
-  const proj = projecaoMusicaEmitidaNoServidor ? '1' : '0';
-  if ((grid.dataset.stripProjecao || '') !== proj) return false;
+  /*
+   * `stripProjecao` NÃO entra nesta conta. O duplo clique só muda o flag de
+   * projeção + o chip activo: se isso forçasse rebuild, a grelha ia ao chão
+   * (`innerHTML = ''`), o auto-fit da fonte corria outra vez e os cartões
+   * tremiam / mudavam de tamanho. O fundo dourado do chip projectado actualiza-se
+   * no sítio, em `atualizarSomenteAtivoFaixaSlides`.
+   */
   const chips = grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)');
   if (chips.length !== n) return false;
   if (!grid.querySelector('.slide-chip--preto')) return false;
@@ -5660,6 +5665,7 @@ function atualizarSomenteAtivoFaixaSlides() {
   const grid = document.getElementById('slides-grid');
   if (!grid || !musicaAtiva || !musicaAtiva.estrofes) return;
   const n = musicaAtiva.estrofes.length;
+  grid.dataset.stripProjecao = projecaoMusicaEmitidaNoServidor ? '1' : '0';
   grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)').forEach((chip, i) => {
     const ativo = estrofeAtiva === i;
     chip.classList.toggle('ativo', ativo);
@@ -12711,6 +12717,14 @@ function emitirEstadoMinistranteAoServidor() {
   ) {
     return;
   }
+  /*
+   * Folhear a playlist ou clicar num chip só selecciona no painel. Se já há
+   * conteúdo no ar e este painel NÃO o emitiu, o título/letra do M3 têm de
+   * continuar os da projeção — senão Galileu fica no slide e o nome vira Deixa.
+   * Quem arma `projecaoMusicaEmitidaNoServidor` (duplo clique, setas, próxima
+   * música) é que pode voltar a mandar `exibir_ministrante`.
+   */
+  if (hayProjecaoAtivaNoServidor() && !projecaoMusicaEmitidaNoServidor) return;
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (!opA || !opP) return;
@@ -19344,8 +19358,11 @@ function exibirEstrofe(index, opts) {
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
   estrofeAtiva = index;
   renderSlidesStrip();
-  const suave = !(opts && opts.suave === false);
-  requestAnimationFrame(() => revelarChipEstrofeFocado(estrofeAtiva, { suave }));
+  const semScroll = !!(opts && opts.semScroll);
+  if (!semScroll) {
+    const suave = !(opts && opts.suave === false);
+    requestAnimationFrame(() => revelarChipEstrofeFocado(estrofeAtiva, { suave }));
+  }
   atualizarPreviewOperador();
   renderPlaylist();
   marcacaoEstrofeEditor();
@@ -19727,7 +19744,9 @@ function projetarPorDuploCliqueCentral(index) {
   slidesDockVisivel = true;
   /** Emitir antes de `exibirEstrofe`: senão `atualizarPreviewOperador` roda com `projecaoMusicaEmitidaNoServidor` ainda false e o painel espelha só o estado antigo do socket (telão físico atualiza, preview não). */
   emitirEstrofeAoServidor(index);
-  exibirEstrofe(index);
+  /* O chip já está debaixo do cursor: um segundo scroll (e, pior, um rebuild)
+     competia com o do primeiro clique e fazia a grelha tremer. */
+  exibirEstrofe(index, { semScroll: true });
 }
 
 /* ═══════════════════════════════════════════════
