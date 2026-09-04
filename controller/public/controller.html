@@ -5494,7 +5494,18 @@
       flex-direction: column;
     }
 
-    body.app-mod-slides .slides-grid-viewport { overflow-y: auto; }
+    body.app-mod-slides .slides-grid-viewport {
+      overflow-x: hidden;
+      overflow-y: auto;
+      scroll-padding: 8px 0 14px;
+      overflow-anchor: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body.app-mod-slides .slides-grid-viewport {
+        scroll-behavior: auto;
+      }
+    }
 
     /*
       Faixa sem slides: ocupa o vão que a grelha deixou, em vez de a mensagem ficar
@@ -5583,9 +5594,8 @@
     body.app-mod-slides .slides-grid {
       grid-template-columns: repeat(7, minmax(0, 1fr));
       align-content: start;
-      overflow-x: hidden;
-      overflow-y: auto;
-      flex: 0 1 auto;
+      overflow: visible;
+      flex: 0 0 auto;
       align-self: stretch;
       max-width: 100%;
     }

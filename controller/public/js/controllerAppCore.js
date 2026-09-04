@@ -5581,8 +5581,20 @@ let cultosManuaisCache = [];
 
 let slidesChipZoomLevel = 1;
 
+/** Passo de 5% para 50%, 100% e 150% caírem sempre na grelha. */
+const SLIDES_CHIP_ZOOM_MIN_PCT = 50;
+const SLIDES_CHIP_ZOOM_MAX_PCT = 150;
+const SLIDES_CHIP_ZOOM_PASSO_PCT = 5;
+
+function zoomPercentualSlides(z) {
+  const pct = Math.round(Number(z) * 100);
+  return Number.isFinite(pct) ? pct : 100;
+}
+
 function clampSlidesChipZoom(z) {
-  return Math.min(1.42, Math.max(0.72, Math.round(z * 100) / 100));
+  const alinhado = Math.round(zoomPercentualSlides(z) / SLIDES_CHIP_ZOOM_PASSO_PCT) * SLIDES_CHIP_ZOOM_PASSO_PCT;
+  const limitado = Math.min(SLIDES_CHIP_ZOOM_MAX_PCT, Math.max(SLIDES_CHIP_ZOOM_MIN_PCT, alinhado));
+  return limitado / 100;
 }
 
 function applySlidesChipZoomLevel(z) {
@@ -5645,10 +5657,74 @@ function atualizarSomenteAtivoFaixaSlides() {
   if (!grid || !musicaAtiva || !musicaAtiva.estrofes) return;
   const n = musicaAtiva.estrofes.length;
   grid.querySelectorAll('.slide-chip:not(.slide-chip--preto)').forEach((chip, i) => {
-    chip.classList.toggle('ativo', estrofeAtiva === i);
+    const ativo = estrofeAtiva === i;
+    chip.classList.toggle('ativo', ativo);
+    chip.setAttribute('aria-current', ativo ? 'true' : 'false');
   });
   const preto = grid.querySelector('.slide-chip--preto');
-  if (preto) preto.classList.toggle('ativo', estrofeAtiva === n);
+  if (preto) {
+    const ativoPreto = estrofeAtiva === n;
+    preto.classList.toggle('ativo', ativoPreto);
+    preto.setAttribute('aria-current', ativoPreto ? 'true' : 'false');
+  }
+}
+
+function obterChipEstrofeNaGrelha(idx) {
+  const grid = document.getElementById('slides-grid');
+  if (!grid || !Number.isFinite(idx) || idx < 0) return null;
+  const porData = grid.querySelector(`.slide-chip[data-i="${idx}"]`);
+  if (porData) return porData;
+  const chips = grid.querySelectorAll('.slide-chip');
+  return chips[idx] || null;
+}
+
+/** Porta de rolagem real da grelha — no modo slides é o viewport, não o grid. */
+function obterScrollportGrelhaSlides() {
+  const viewport = document.getElementById('slides-grid-viewport');
+  if (ehModoSlidesOperador() && viewport) return viewport;
+  return document.getElementById('slides-grid');
+}
+
+/**
+ * Traz o chip focado para a área visível, só se estiver cortado.
+ * O deslocamento é o mínimo necessário (nearest), medido no viewport actual —
+ * não há «N slides visíveis» fixo: 7, 5 ou 3 colunas e a altura do monitor entram
+ * na conta pela geometria real.
+ */
+function revelarChipEstrofeFocado(idx, { suave = true } = {}) {
+  if (typeof document !== 'undefined' && document.hidden) return;
+  const chip = obterChipEstrofeNaGrelha(idx);
+  const porta = obterScrollportGrelhaSlides();
+  if (!chip || !porta) return;
+  void chip.offsetWidth;
+
+  const vr = porta.getBoundingClientRect();
+  const cr = chip.getBoundingClientRect();
+  if (!(vr.height > 8) || !(cr.height > 0)) return;
+
+  const folgaTopo = 8;
+  const folgaFundo = 14;
+  let delta = 0;
+  if (cr.height > vr.height - folgaTopo - folgaFundo) {
+    delta = cr.top - vr.top - folgaTopo;
+  } else if (cr.top < vr.top + folgaTopo) {
+    delta = cr.top - vr.top - folgaTopo;
+  } else if (cr.bottom > vr.bottom - folgaFundo) {
+    delta = cr.bottom - (vr.bottom - folgaFundo);
+  }
+  if (Math.abs(delta) < 1) return;
+
+  const maxScroll = Math.max(0, porta.scrollHeight - porta.clientHeight);
+  const alvo = Math.max(0, Math.min(maxScroll, porta.scrollTop + delta));
+  if (Math.abs(alvo - porta.scrollTop) < 1) return;
+
+  let behavior = 'auto';
+  if (suave) {
+    try {
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) behavior = 'smooth';
+    } catch (_) {}
+  }
+  porta.scrollTo({ top: alvo, behavior });
 }
 
 /**
@@ -5924,8 +6000,12 @@ function setupSlidesChipZoomButtons() {
   const menos = document.getElementById('slides-zoom-menos');
   const mais = document.getElementById('slides-zoom-mais');
   if (!menos || !mais) return;
-  menos.addEventListener('click', () => applySlidesChipZoomLevel(slidesChipZoomLevel - 0.07));
-  mais.addEventListener('click', () => applySlidesChipZoomLevel(slidesChipZoomLevel + 0.07));
+  menos.addEventListener('click', () => {
+    applySlidesChipZoomLevel((zoomPercentualSlides(slidesChipZoomLevel) - SLIDES_CHIP_ZOOM_PASSO_PCT) / 100);
+  });
+  mais.addEventListener('click', () => {
+    applySlidesChipZoomLevel((zoomPercentualSlides(slidesChipZoomLevel) + SLIDES_CHIP_ZOOM_PASSO_PCT) / 100);
+  });
 }
 
 /** Opções do painel central no modo slides: 7 (padrão), 5 ou 3 chips por linha. */
@@ -5960,7 +6040,12 @@ function applySlidesPorLinha(n) {
     localStorage.setItem(LS_SLIDES_POR_LINHA, String(slidesPorLinha));
   } catch (_) {}
   atualizarBotoesSlidesPorLinha();
-  if (mudou) queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
+  if (mudou) {
+    queueMicrotask(() => {
+      ajustarEncaixeGrelhaSlidesModoSlides();
+      requestAnimationFrame(() => revelarChipEstrofeFocado(estrofeAtiva, { suave: false }));
+    });
+  }
 }
 
 function initSlidesPorLinhaFromStorage() {
@@ -12890,6 +12975,8 @@ function renderSlidesStrip() {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'slide-chip' + (estrofeAtiva === i ? ' ativo' : '');
+    chip.dataset.i = String(i);
+    chip.setAttribute('aria-current', estrofeAtiva === i ? 'true' : 'false');
     chip.innerHTML = `
       <span class="slide-num">${i + 1}</span>
       <span class="slide-snippet">${textoSlideSnippetHtmlParaChip(estrofe)}</span>
@@ -12920,8 +13007,10 @@ function renderSlidesStrip() {
   const chipPreto = document.createElement('button');
   chipPreto.type = 'button';
   chipPreto.className = 'slide-chip slide-chip--preto' + (estrofeAtiva === idxSlidePreto ? ' ativo' : '');
+  chipPreto.dataset.i = String(idxSlidePreto);
   chipPreto.innerHTML = '';
   chipPreto.setAttribute('aria-label', 'Slide preto');
+  chipPreto.setAttribute('aria-current', estrofeAtiva === idxSlidePreto ? 'true' : 'false');
   chipPreto.onclick = (ev) => {
     ev.preventDefault();
     if (projecaoMusicaEmitidaNoServidor) {
@@ -19237,11 +19326,13 @@ function emitirEstrofeAoServidor(index) {
 }
 
 /** Atualiza só o painel (estrofe «selecionada»). Não envia às telas — use duplo clique ou setas após projeção iniciada. */
-function exibirEstrofe(index) {
+function exibirEstrofe(index, opts) {
   if (!musicaAtiva) return;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
   estrofeAtiva = index;
   renderSlidesStrip();
+  const suave = !(opts && opts.suave === false);
+  requestAnimationFrame(() => revelarChipEstrofeFocado(estrofeAtiva, { suave }));
   atualizarPreviewOperador();
   renderPlaylist();
   marcacaoEstrofeEditor();
@@ -19295,7 +19386,7 @@ function direcaoTeclaPassadorSlides(tecla, code) {
  * Modo slides + passador: avançar/voltar slide. Só envia ao telão depois que a projeção
  * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só prévia.
  */
-function navegarEstrofePassadorSlides(direcao) {
+function navegarEstrofePassadorSlides(direcao, opts) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
   if (!ehModoSlidesOperador()) {
     navegarEstrofe(direcao);
@@ -19307,7 +19398,7 @@ function navegarEstrofePassadorSlides(direcao) {
   if (base < 0 && direcao > 0) prox = 0;
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
   if (prox === estrofeAtiva && projecaoMusicaEmitidaNoServidor) return;
-  exibirEstrofe(prox);
+  exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
   if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
   }
@@ -19479,30 +19570,22 @@ exporCallbacksParaAtributosHtml({
   onBibliaDivisaoCfgChange,
 });
 
-function navegarEstrofePorSeta(tecla) {
+function navegarEstrofePorSeta(tecla, opts) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
   const idxMaxPreto = musicaAtiva.estrofes.length;
   let base = Number.isFinite(estrofeAtiva) ? estrofeAtiva : -1;
   if (base < 0) base = 0;
   let prox = base;
+  const cols = ehModoSlidesOperador() ? slidesPorLinha : 3;
 
-  if (ehModoSlidesOperador()) {
-    const COLS = 7;
-    if (tecla === 'ArrowRight') prox = base + 1;
-    else if (tecla === 'ArrowLeft') prox = base - 1;
-    else if (tecla === 'ArrowDown') prox = base + COLS;
-    else if (tecla === 'ArrowUp') prox = base - COLS;
-  } else {
-    const COLS = 3;
-    if (tecla === 'ArrowRight') prox = base + 1;
-    else if (tecla === 'ArrowLeft') prox = base - 1;
-    else if (tecla === 'ArrowDown') prox = base + COLS;
-    else if (tecla === 'ArrowUp') prox = base - COLS;
-  }
+  if (tecla === 'ArrowRight') prox = base + 1;
+  else if (tecla === 'ArrowLeft') prox = base - 1;
+  else if (tecla === 'ArrowDown') prox = base + cols;
+  else if (tecla === 'ArrowUp') prox = base - cols;
 
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
   if (prox === estrofeAtiva) return;
-  exibirEstrofe(prox);
+  exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
   if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
   }
@@ -21748,9 +21831,9 @@ document.addEventListener('keydown', (e) => {
         e.key === 'ArrowLeft' ||
         e.key === 'ArrowUp'
       ) {
-        navegarEstrofePorSeta(e.key);
+        navegarEstrofePorSeta(e.key, { repetir: !!e.repeat });
       } else {
-        navegarEstrofePassadorSlides(dirPassador);
+        navegarEstrofePassadorSlides(dirPassador, { repetir: !!e.repeat });
       }
     } else if (
       e.key === 'ArrowRight' ||
@@ -21758,7 +21841,7 @@ document.addEventListener('keydown', (e) => {
       e.key === 'ArrowLeft' ||
       e.key === 'ArrowUp'
     ) {
-      navegarEstrofePorSeta(e.key);
+      navegarEstrofePorSeta(e.key, { repetir: !!e.repeat });
     } else {
       navegarEstrofe(dirPassador);
     }
@@ -21770,7 +21853,7 @@ document.addEventListener('keydown', (e) => {
     if (ehModoBibliaOperador()) {
       bibliaNavegarVersiculosComSeta(e.key);
     } else {
-      navegarEstrofePorSeta(e.key);
+      navegarEstrofePorSeta(e.key, { repetir: !!e.repeat });
     }
   } else if (e.key === 'Escape') {
     if (ehModoApresentacaoOperador()) return;
