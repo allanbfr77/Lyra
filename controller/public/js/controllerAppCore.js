@@ -16154,10 +16154,34 @@ function alternarListaBancoSqlite() {
   atualizarUiToggleListaBancoSqlite();
 }
 
+function fontePreviewUsaEstruturaDoBanco() {
+  return letrasPreviewFontePendente === 'lyra-online' || letrasPreviewFontePendente === 'banco-local';
+}
+
+function configurarSelectLinhasPreviewLetras() {
+  const sel = document.getElementById('letras-preview-max-linhas');
+  if (!sel) return;
+  const usaBanco = fontePreviewUsaEstruturaDoBanco();
+  const optBanco = sel.querySelector('option[value="banco"]');
+  const opt4 = sel.querySelector('option[value="4"]');
+  if (optBanco) {
+    optBanco.hidden = !usaBanco;
+    optBanco.disabled = !usaBanco;
+  }
+  if (opt4) opt4.textContent = usaBanco ? '4 linhas' : '4 linhas (padrão)';
+  sel.value = usaBanco ? 'banco' : '4';
+}
+
 function lerMaxLinhasPreviewLetras() {
-  const raw = parseInt(document.getElementById('letras-preview-max-linhas')?.value || '4', 10);
-  if (raw === 2 || raw === 3 || raw === 4) return raw;
-  return 4;
+  const raw = String(document.getElementById('letras-preview-max-linhas')?.value || '').trim();
+  if (raw === 'banco') return 'banco';
+  const n = parseInt(raw, 10);
+  if (n === 2 || n === 3 || n === 4) return n;
+  return fontePreviewUsaEstruturaDoBanco() ? 'banco' : 4;
+}
+
+function rotuloModoLinhasPreview(valor) {
+  return valor === 'banco' ? 'padrão do banco' : `${valor} linha(s)/slide`;
 }
 
 function modalPreviewLetrasEstaAberto() {
@@ -16295,6 +16319,7 @@ function fecharModalPreviewLetras() {
 
 async function abrirModalPreviewLetras(path, fonte) {
   letrasPreviewCatalogIdPendente = null;
+  letrasPreviewUserIdPendente = null;
   letrasPreviewPathPendente = path || '';
   letrasPreviewFontePendente =
     fonte === 'letras-mus-br'
@@ -16302,6 +16327,9 @@ async function abrirModalPreviewLetras(path, fonte) {
       : fonte === 'lyra-online' || fonte === 'lyra-songbank'
         ? 'lyra-online'
         : normalizarFonteLetrasSite(fonte || 'cifraclub');
+  const btnImp = document.getElementById('letras-preview-import');
+  if (btnImp) btnImp.textContent = 'Importar esta versão';
+  configurarSelectLinhasPreviewLetras();
   const bd = document.getElementById('letras-preview-backdrop');
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
@@ -16318,6 +16346,7 @@ async function abrirModalPreviewLetrasOffline(id, origem) {
   letrasPreviewUserIdPendente = orig === 'user' ? idNum : null;
   letrasPreviewOfflineOrigem = orig;
   letrasPreviewFontePendente = 'banco-local';
+  configurarSelectLinhasPreviewLetras();
   const bd = document.getElementById('letras-preview-backdrop');
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
@@ -16344,8 +16373,7 @@ async function carregarPreviewLetrasNoModal() {
     if (letrasPreviewFontePendente === 'banco-local' && (catalogId != null || userId != null)) {
       const origem = letrasPreviewOfflineOrigem === 'user' ? 'user' : 'catalog';
       const idPreview = origem === 'user' ? userId : catalogId;
-      const paramLinhas =
-        origem === 'catalog' ? `&maxLinhas=${encodeURIComponent(String(letrasPreviewMaxLinhasPorSlide))}` : '';
+      const paramLinhas = `&maxLinhas=${encodeURIComponent(String(letrasPreviewMaxLinhasPorSlide))}`;
       res = await fetch(
         `${getControllerApiBase()}/api/letras/preview-local?id=${encodeURIComponent(String(idPreview))}&origem=${origem}${paramLinhas}`
       );
@@ -16375,16 +16403,13 @@ async function carregarPreviewLetrasNoModal() {
       letrasPreviewFontePendente === 'banco-local'
         ? letrasPreviewOfflineOrigem === 'user'
           ? 'Banco local (suas músicas)'
-          : 'Catálogo offline'
+          : 'HLYRCS'
         : letrasPreviewFontePendente === 'letras-mus-br'
           ? 'Letras.mus.br'
           : letrasPreviewFontePendente === 'lyra-online'
             ? 'Banco online do Lyra'
             : 'Cifra Club';
-    const mostraLinhas =
-      letrasPreviewFontePendente !== 'banco-local' ||
-      (letrasPreviewFontePendente === 'banco-local' && letrasPreviewOfflineOrigem === 'catalog');
-    const metaLinhas = mostraLinhas ? ` · ${letrasPreviewMaxLinhasPorSlide} linha(s)/slide` : '';
+    const metaLinhas = ` · ${rotuloModoLinhasPreview(letrasPreviewMaxLinhasPorSlide)}`;
     meta.innerHTML = `<strong>${escapeHtml(data.titulo || '')}</strong>${data.artista ? ` · ${escapeHtml(data.artista)}` : ''} · ${escapeHtml(fonteLabel)}${metaLinhas}`;
     const parts = Array.isArray(data.estrofes) ? data.estrofes : [];
     letrasPreviewPartesAtuais = parts.slice();

@@ -1879,13 +1879,10 @@ async function iniciarServidorController(ctx, paths) {
         estrofes = [];
       }
 
-      // Para o catálogo offline as estrofes ficam pré-divididas no SQLite; ao
-      // importar reagrupamos as linhas conforme «Linhas por slide» escolhido no
-      // modal (2/3/4), igual ao fluxo das fontes online. As músicas do usuário
-      // já são a versão salva por ele — mantemos como estão.
-      const maxLinhas = cifra.normalizarMaxLinhasPorSlide(req.query.maxLinhas);
-      const estrofesSaida =
-        origem === 'catalog' ? cifra.normalizarEstrofesComMaxLinhas(estrofes, maxLinhas) : estrofes;
+      // HLYRCS: «Padrão do Banco» preserva a estrutura gravada; 2/3/4 só
+      // empacota as linhas originais, sem o fatiamento do Cifra Club / Letras.
+      const modoLinhas = cifra.resolverModoLinhasFonteBanco(req.query.maxLinhas);
+      const estrofesSaida = cifra.aplicarDivisaoEstrofesFonteBanco(estrofes, modoLinhas);
 
       res.json({
         sucesso: true,
@@ -1894,7 +1891,7 @@ async function iniciarServidorController(ctx, paths) {
         estrofes: estrofesSaida,
         fonte: 'banco-local',
         origem,
-        maxLinhasPorSlide: origem === 'catalog' ? maxLinhas : undefined,
+        maxLinhasPorSlide: modoLinhas,
       });
     } catch (err) {
       res.status(500).json({ sucesso: false, erro: err.message });
@@ -1920,10 +1917,9 @@ async function iniciarServidorController(ctx, paths) {
       if (!Array.isArray(estrofes) || !estrofes.length)
         return res.status(400).json({ erro: 'Letra vazia no catálogo' });
 
-      // Reagrupa as linhas conforme «Linhas por slide» escolhido no modal, para
-      // que o que é importado bata com a pré-visualização.
-      const maxLinhas = cifra.normalizarMaxLinhasPorSlide(req.body && req.body.maxLinhasPorSlide);
-      estrofes = cifra.normalizarEstrofesComMaxLinhas(estrofes, maxLinhas);
+      // A importação segue o mesmo modo do preview (padrão do banco ou 2/3/4).
+      const modoLinhas = cifra.resolverModoLinhasFonteBanco(req.body && req.body.maxLinhasPorSlide);
+      estrofes = cifra.aplicarDivisaoEstrofesFonteBanco(estrofes, modoLinhas);
 
       const titulo = String(row.titulo || '').trim();
       const artista = String(row.artista || '').trim();

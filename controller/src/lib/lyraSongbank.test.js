@@ -81,6 +81,20 @@ test('estrofes partem a letra por linha vazia e não puxam cifra misturada', () 
   assert.ok(b.some((bloco) => /Tu és o Deus/.test(bloco)));
 });
 
+test('Padrão do Banco preserva estrofes; 2 linhas só empacota o original', () => {
+  const cifra = require('./cifraLetras');
+  const lyrics =
+    'Se tentaram matar os teus sonhos nesta linha bem longa que o Cifra Club partiria\nSufocando o teu coração\n//(2X)\n\nNão desista, não pare de crer\nOs sonhos de Deus';
+  const brutas = estrofesDeLetraPura(lyrics);
+  const banco = cifra.aplicarDivisaoEstrofesFonteBanco(brutas, 'banco');
+  assert.deepEqual(banco, brutas);
+  assert.ok(banco[0].includes('linha bem longa que o Cifra Club partiria'));
+  const duas = cifra.aplicarDivisaoEstrofesFonteBanco(brutas, 2);
+  assert.equal(duas[0].split('\n').length, 2);
+  assert.ok(duas[0].startsWith('Se tentaram matar'));
+  assert.ok(duas[1].includes('//(2X)'));
+});
+
 test('URLs de busca e música usam os endpoints documentados, sem cifra', () => {
   const busca = urlBusca(ENDPOINTS_FALLBACK, {
     q: 'deus',

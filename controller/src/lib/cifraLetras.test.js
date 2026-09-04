@@ -7,6 +7,11 @@ const {
   quebrarLinhaLonga,
   capitalizarInicialLinha,
   unirLinhasIncompletas,
+  aplicarDivisaoEstrofesFonteBanco,
+  preservarEstrofesDoBanco,
+  empacotarLinhasOriginaisPorSlide,
+  resolverModoLinhasFonteBanco,
+  PADRAO_LINHAS_DO_BANCO,
 } = require('./cifraLetras.js');
 
 // Letra como vem do CifraClub/Letras: linhas longas, uma frase inteira por linha.
@@ -240,5 +245,45 @@ describe('unirLinhasIncompletas', () => {
     assert.deepEqual(slides, [
       'Eu entro na Sua presença\nPra receber o Seu poder\nE quanto mais o tempo passa\nMais quero Deus',
     ]);
+  });
+});
+
+describe('aplicarDivisaoEstrofesFonteBanco', () => {
+  const origem = [
+    'Quando as lutas vierem contra ti e o caminho parecer sem fim ainda\nIrmão, insista, ainda não é o fim\nA tua fé, mesmo fraca, ela é forte',
+    'Destrói muralhas\nO Senhor vai à frente',
+  ];
+
+  it('Padrão do Banco devolve as estrofes originais, sem quebrar linha longa', () => {
+    const slides = aplicarDivisaoEstrofesFonteBanco(origem, 'banco');
+    assert.deepEqual(slides, origem);
+    assert.equal(slides[0].split('\n').length, 3);
+    assert.ok(slides[0].includes('caminho parecer sem fim ainda'));
+  });
+
+  it('ausência de modo equivale a Padrão do Banco', () => {
+    assert.equal(resolverModoLinhasFonteBanco(undefined), PADRAO_LINHAS_DO_BANCO);
+    assert.deepEqual(aplicarDivisaoEstrofesFonteBanco(origem), origem);
+    assert.deepEqual(preservarEstrofesDoBanco(origem), origem);
+  });
+
+  it('2/3/4 empacota linhas originais sem o limite de caracteres do Cifra Club', () => {
+    const duas = empacotarLinhasOriginaisPorSlide(origem, 2);
+    assert.deepEqual(duas, [
+      'Quando as lutas vierem contra ti e o caminho parecer sem fim ainda\nIrmão, insista, ainda não é o fim',
+      'A tua fé, mesmo fraca, ela é forte',
+      'Destrói muralhas\nO Senhor vai à frente',
+    ]);
+    const quatro = aplicarDivisaoEstrofesFonteBanco(origem, 4);
+    assert.ok(quatro[0].includes('caminho parecer sem fim ainda'));
+    assert.notDeepEqual(quatro, normalizarEstrofesComMaxLinhas(origem, 4));
+  });
+
+  it('não junta estrofes distintas ao empacotar', () => {
+    const slides = aplicarDivisaoEstrofesFonteBanco(
+      ['Linha A\nLinha B', 'Linha C\nLinha D'],
+      4
+    );
+    assert.deepEqual(slides, ['Linha A\nLinha B', 'Linha C\nLinha D']);
   });
 });

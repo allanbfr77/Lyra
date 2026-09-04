@@ -642,6 +642,64 @@ function normalizarMaxLinhasPorSlide(valor) {
   return 4;
 }
 
+/** Valor do select «Padrão do Banco»: HLYRCS e banco online do Lyra. */
+const PADRAO_LINHAS_DO_BANCO = 'banco';
+
+function ehPadraoLinhasDoBanco(valor) {
+  const v = String(valor ?? '').trim().toLowerCase();
+  return v === PADRAO_LINHAS_DO_BANCO || v === 'origem' || v === 'padrao' || v === 'padrão';
+}
+
+function resolverModoLinhasFonteBanco(valor) {
+  if (ehPadraoLinhasDoBanco(valor) || valor == null || valor === '') return PADRAO_LINHAS_DO_BANCO;
+  const n = parseInt(valor, 10);
+  if (n === 2 || n === 3 || n === 4) return n;
+  return PADRAO_LINHAS_DO_BANCO;
+}
+
+/**
+ * Estrofes tal como o banco as guarda — sem fatiar, sem limite de caracteres.
+ * Só normaliza CRLF e descarta blocos vazios.
+ */
+function preservarEstrofesDoBanco(estrofes) {
+  if (!Array.isArray(estrofes)) return [];
+  return estrofes
+    .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n'))
+    .filter((s) => s.trim().length > 0);
+}
+
+/**
+ * 2/3/4 linhas por slide a partir das linhas originais: não quebra frase, não
+ * junta estrofes, não aplica MAX_CHARS_POR_LINHA. Cada estrofe do banco continua
+ * uma unidade — só se fatia internamente de N em N linhas.
+ */
+function empacotarLinhasOriginaisPorSlide(estrofes, maxLinhas) {
+  const n = parseInt(maxLinhas, 10);
+  if (n !== 2 && n !== 3 && n !== 4) return preservarEstrofesDoBanco(estrofes);
+  const slides = [];
+  for (const bloco of preservarEstrofesDoBanco(estrofes)) {
+    const linhas = bloco.split('\n').filter((l) => l.length > 0);
+    if (!linhas.length) continue;
+    for (let i = 0; i < linhas.length; i += n) {
+      slides.push(linhas.slice(i, i + n).join('\n'));
+    }
+  }
+  return slides.length ? slides : [''];
+}
+
+/**
+ * Divisão para HLYRCS e banco online do Lyra.
+ * `banco` → estrutura original; 2/3/4 → empacota linhas originais sem reescrever.
+ */
+function aplicarDivisaoEstrofesFonteBanco(estrofes, maxLinhasPorSlide) {
+  const modo = resolverModoLinhasFonteBanco(maxLinhasPorSlide);
+  if (modo === PADRAO_LINHAS_DO_BANCO) {
+    const orig = preservarEstrofesDoBanco(estrofes);
+    return orig.length ? orig : [''];
+  }
+  return empacotarLinhasOriginaisPorSlide(estrofes, modo);
+}
+
 const MIN_CHARS_FRAGMENTO_LINHA = 10;
 
 /**
@@ -1406,6 +1464,12 @@ module.exports = {
   slugsLetrasParaTentar,
   parseCaminhoLetraCifraClub,
   normalizarMaxLinhasPorSlide,
+  PADRAO_LINHAS_DO_BANCO,
+  ehPadraoLinhasDoBanco,
+  resolverModoLinhasFonteBanco,
+  preservarEstrofesDoBanco,
+  empacotarLinhasOriginaisPorSlide,
+  aplicarDivisaoEstrofesFonteBanco,
   normalizarEstrofesComMaxLinhas,
   quebrarLinhaLonga,
   unirLinhasIncompletas,

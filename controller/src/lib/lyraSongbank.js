@@ -224,8 +224,8 @@ async function extrairLetraParaPreviewOuImport(slug, { maxLinhasPorSlide } = {})
   if (!letra) return { erro: 'Letra vazia no banco online do Lyra' };
   const brutas = estrofesDeLetraPura(letra);
   if (!brutas.length) return { erro: 'Letra vazia no banco online do Lyra' };
-  const maxLinhas = cifra.normalizarMaxLinhasPorSlide(maxLinhasPorSlide);
-  const estrofes = cifra.normalizarEstrofesComMaxLinhas(brutas, maxLinhas);
+  const modo = cifra.resolverModoLinhasFonteBanco(maxLinhasPorSlide);
+  const estrofes = cifra.aplicarDivisaoEstrofesFonteBanco(brutas, modo);
   const pathNorm = String(got.song.slug || slug || '').trim();
   const titulo = String(got.song.title || '').trim() || pathNorm;
   const artista = String(got.song.artist || '').trim();
@@ -234,7 +234,7 @@ async function extrairLetraParaPreviewOuImport(slug, { maxLinhasPorSlide } = {})
     artista,
     estrofes,
     path: pathNorm,
-    maxLinhasPorSlide: maxLinhas,
+    maxLinhasPorSlide: modo,
     fonte: FONTE,
   };
 }
