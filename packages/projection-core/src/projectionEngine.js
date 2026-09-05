@@ -247,6 +247,21 @@ function aplicarTopoAbsolutoProjecao(win, opts = {}) {
  *
  * @param {import('electron').BrowserWindow} win
  */
+/**
+ * A janela já compôs o primeiro quadro?
+ *
+ * `ready-to-show` é o único sinal do Electron que garante isso. `did-finish-load` chega
+ * antes: diz que o documento acabou de carregar, não que alguma coisa foi pintada —
+ * mostrar a janela nesse momento deixa ver o quadro ainda vazio, que sai branco.
+ *
+ * A marca é posta em `finalizarJanelaProjecaoNativa`, que corre logo a seguir ao
+ * `new BrowserWindow` de todas as janelas de projeção; por isso o ouvinte está sempre
+ * registado antes de o evento poder disparar.
+ */
+function jaPintouPrimeiroQuadro(win) {
+  return !!(win && !win.isDestroyed() && win.__lyraPrimeiroQuadro);
+}
+
 function mostrarJanelaProjecaoSemFoco(win) {
   if (!win || win.isDestroyed()) return;
   if (typeof win.showInactive === 'function') {
@@ -972,6 +987,9 @@ function createProjectionEngine(paths, deps) {
     }
     win.once('ready-to-show', () => {
       if (win.isDestroyed()) return;
+      /* Antes de qualquer saída: uma janela escondida de propósito também já pintou, e
+         quem for mostrá-la mais tarde precisa de saber disso. Ver `jaPintouPrimeiroQuadro`. */
+      win.__lyraPrimeiroQuadro = true;
       /* Este é o disparo que costumava chegar depois do `hide()` da cadeia de arranque e
          desfazê-lo. Sair cedo se a janela foi escondida de propósito. */
       if (ocultoParaRelogio(win)) return;
@@ -1844,7 +1862,12 @@ function createProjectionEngine(paths, deps) {
       try {
         /* Fullscreen exclusivo NÃO — ver `opcoesBrowserWindowProjecao`. Só topo + show. */
         finalizarJanelaProjecaoNativa(novoWin);
-        if (!novoWin.isVisible()) mostrarJanelaProjecaoSemFoco(novoWin);
+        /* Só se o primeiro quadro já passou. Enquanto não passou, quem mostra é o
+           `ready-to-show` de `finalizarJanelaProjecaoNativa` — e o `aplicarTroca`
+           registado nesse mesmo evento corre logo a seguir, já com a janela visível. */
+        if (jaPintouPrimeiroQuadro(novoWin) && !novoWin.isVisible()) {
+          mostrarJanelaProjecaoSemFoco(novoWin);
+        }
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1902,7 +1925,11 @@ function createProjectionEngine(paths, deps) {
            marca está limpa e nada muda; é no disparo tardio, já depois de a cadeia ter
            escondido a janela, que ela evita a regressão. */
         finalizarJanelaProjecaoNativa(win);
-        if (!win.isVisible() && !ocultoParaRelogio(win)) mostrarJanelaProjecaoSemFoco(win);
+        /* Mesma regra da troca: nada de mostrar antes do primeiro quadro. Este ramo é a
+           rede para o disparo tardio, quando o `ready-to-show` já passou. */
+        if (jaPintouPrimeiroQuadro(win) && !win.isVisible() && !ocultoParaRelogio(win)) {
+          mostrarJanelaProjecaoSemFoco(win);
+        }
       } catch (_) {
   // intencional — erro ignorado
 }

@@ -19,11 +19,25 @@
       src: local('CMG Sans Bold'), local('CMGSans-Bold'), url('./fonts/CMGSans-Bold.woff2') format('woff2');
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /*
+     * Preto desde o primeiro quadro pintado.
+     *
+     * O `body` era `transparent`, herança de quando esta janela nascia com
+     * `transparent: true` — o motor passou a abri-la opaca por causa do vídeo. Com o
+     * fundo transparente e sem fundo no `html`, o primeiro quadro composto não tinha cor
+     * nenhuma e saía branco: era o clarão que aparecia ao abrir o programa e ao trocar de
+     * modo, antes de o `display_config` chegar por IPC e o JS pintar o fundo de verdade.
+     *
+     * O JS continua a mandar aqui (`document.body.style.background`, mais abaixo): isto é
+     * só o valor até ele falar.
+     */
+    html { background: #000000; }
     body {
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: transparent;
+      background: #000000;
       color: #ffffff;
       font-family: 'CMG Sans', 'DM Sans', system-ui, -apple-system, sans-serif;
       display: flex;
