@@ -2015,7 +2015,29 @@ async function restaurarVideosModoApresentacao() {
     const proj = obterItemVideoProjetadoNoPlayer();
     if (proj) {
       const it = await restaurarItemVideoApresentacao(proj);
-      if (it) await prepararPlayerVideoAposProjetar(it);
+      if (it) {
+        /*
+         * Só armar o player quando ele ainda não está armado com este vídeo.
+         *
+         * `prepararPlayerVideoAposProjetar` existe para o instante logo a seguir a
+         * projetar: põe o vídeo no primeiro quadro, em pausa, pronto a arrancar. Correr
+         * outra vez sobre um vídeo que já está no ar fazia exactamente isso — e como ela
+         * emite o estado para o servidor, o telão voltava ao início junto com o painel.
+         *
+         * Bastava o operador ir à Bíblia, aos Slides ou aos Ajustes e voltar a Mídias
+         * para o vídeo recomeçar. E um vídeo pausado de propósito a meio saltava para o
+         * zero pelo mesmo caminho. Entrar no modo para ver o que está a passar não pode
+         * interromper o que está a passar.
+         *
+         * Continua a armar quando é preciso: painel recarregado (elemento sem `src`) ou
+         * outro vídeo no card.
+         */
+        const el = obterElementoVideoLocal();
+        const armadoComEste =
+          !!(el && it.src && (el.getAttribute('src') || el.src || '') === it.src);
+        if (armadoComEste) atualizarUiPlayerAudioRemoto();
+        else await prepararPlayerVideoAposProjetar(it);
+      }
     }
   }
 }
