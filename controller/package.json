@@ -1,6 +1,6 @@
 {
   "name": "lyra-controller",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Controlador Lyra — PC operador",
   "main": "src/main.js",
   "scripts": {
