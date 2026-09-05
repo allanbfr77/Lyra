@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" style="background:#000000;color-scheme:dark">
 <head>
   <meta charset="UTF-8">
+  <meta name="color-scheme" content="dark">
   <title>Lyra — Tela</title>
+  <!-- Preto e color-scheme no primeiro byte de CSS: o canvas do Chromium é branco
+       até haver color-scheme:dark. Sem isto, ready-to-show revela um quadro branco. -->
+  <style>html,body{background:#000000;color-scheme:dark}</style>
   <!--
     Fonte da web sem bloquear a pintura.
     Como `rel="stylesheet"` normal, isto adia o primeiro quadro até a folha chegar — e num
@@ -56,6 +60,7 @@
       overflow: hidden;
       /* O elemento raiz também pinta preto: é o primeiro fundo que o compositor tem. */
       background: #000000;
+      color-scheme: dark;
     }
 
     body {
@@ -355,7 +360,7 @@
     }
   </style>
 </head>
-<body>
+<body class="idle-sem-projecao">
 
 <div class="tela" id="tela">
 

@@ -131,13 +131,70 @@ function attachPublicProjectionRender(ctx) {
     return alvo === 'publico' || alvo === 'ambos';
   }
 
+  const PRETO_TELAO = '#000000';
+
+  function telaoEstaOcioso(st) {
+    const estado = st || {};
+    const ehApresentacao =
+      estado.tipo === 'apresentacao' &&
+      !estado.telaLimpa &&
+      !estado.blackout &&
+      !estado.slidePretoFinal;
+    const ehAviso =
+      estado.tipo === 'aviso' &&
+      !estado.telaLimpa &&
+      !estado.blackout &&
+      !estado.slidePretoFinal &&
+      Array.isArray(estado.linhas) &&
+      estado.linhas.length > 0;
+    const ehContagem = estado.tipo === 'contagem' && !estado.telaLimpa && !estado.blackout && !!estado.contagem;
+    return (
+      !estado.blackout &&
+      !estado.slidePretoFinal &&
+      !ehApresentacao &&
+      !ehAviso &&
+      !ehContagem &&
+      (estado.telaLimpa || !estado.linhas || estado.linhas.length === 0)
+    );
+  }
+
+  /**
+   * Fundo decorativo do telão (sólido / gradiente / imagem). Só com conteúdo projectado.
+   * Em ocioso isto é exactamente o clarão: o painel manda o tema do modo (creme `#f5f2ea`
+   * no default do Controlador) e o `.tela` pinta um quadro antes da classe preta chegar.
+   */
+  function pintarFundoPublico(pb) {
+    const camada = pb || {};
+    if (ctx.document.body) ctx.document.body.style.background = '';
+    if (ctx.elTela) ctx.elTela.style.background = '';
+    if (camada.bgType === 'gradient') {
+      ctx.document.documentElement.style.setProperty('--bg-projecao', camada.bgGradient || PRETO_TELAO);
+    } else if (camada.bgType === 'image' && camada.bgImage) {
+      ctx.document.documentElement.style.setProperty(
+        '--bg-projecao',
+        `url('${camada.bgImage}') center/cover no-repeat`
+      );
+    } else {
+      ctx.document.documentElement.style.setProperty('--bg-projecao', camada.bgColor || PRETO_TELAO);
+    }
+  }
+
+  function forcarFundoPretoOcioso() {
+    ctx.document.documentElement.style.setProperty('--bg-projecao', PRETO_TELAO);
+    if (ctx.document.body) ctx.document.body.style.background = PRETO_TELAO;
+    if (ctx.elTela) ctx.elTela.style.background = PRETO_TELAO;
+  }
+
   function aplicarTransparenciaOciosaTelao(ocioso, cfg) {
     const revelar = ocioso && deveRevelarRelogioTelao(cfg);
     /* Janela de projeção é opaca (vídeo quebrava com transparent:true no monitor físico).
        O relógio ocioso é revelado no main ao esconder a BrowserWindow — não via CSS. */
     ctx.document.body.classList.toggle('idle-sem-projecao', ocioso && !revelar);
-    ctx.document.body.style.background = '';
-    if (ctx.elTela) ctx.elTela.style.background = '';
+    if (ocioso && !revelar) {
+      /* Preto explícito — esvaziar `style.background` deixava o `.tela` a mostrar
+         `--bg-projecao` (creme/imagem do modo) num quadro. */
+      forcarFundoPretoOcioso();
+    }
   }
 
   function normalizarCorHexAviso(valor, fallback) {
@@ -551,17 +608,6 @@ function attachPublicProjectionRender(ctx) {
     invalidarAssinaturaExibirPublico();
 
     const pb = merged.publico || {};
-
-    // ── Fundo da projeção ──────────────────────────────────────────
-    if (pb.bgType === 'gradient') {
-      ctx.document.documentElement.style.setProperty('--bg-projecao', pb.bgGradient || '#000000');
-    } else if (pb.bgType === 'image' && pb.bgImage) {
-      ctx.document.documentElement.style.setProperty('--bg-projecao', `url('${pb.bgImage}') center/cover no-repeat`);
-    } else {
-      ctx.document.documentElement.style.setProperty('--bg-projecao', pb.bgColor || '#000000');
-    }
-
-    // ── Alinhamento do conteúdo na tela ───────────────────────────
     const st = getEstadoAtual() || {};
     const ehBiblia = st.tipo === 'biblia';
     const posY = ehBiblia ? pb.posY || merged.posY || 'center' : merged.posY || 'center';
@@ -572,29 +618,13 @@ function attachPublicProjectionRender(ctx) {
     ocultarRelogioTelao();
 
     /**
-     * Reusa `exibir` quando há conteúdo activo. Em telão ocioso (ex.: ao activar monitor
-     * no modo Bíblia antes do 1.º versículo), só actualiza fundo/alinhamento — evita flash.
+     * Troca de modo (Bíblia / Slides / Home) manda `preview_display_config` com o tema
+     * daquele modo. Se o telão está ocioso, o fundo decorativo NÃO pode chegar ao CSS —
+     * um quadro de creme/imagem é o clarão no M2. A config fica guardada; pinta-se
+     * quando houver conteúdo (`exibir`).
      */
-    const ehApresentacao =
-      st.tipo === 'apresentacao' &&
-      !st.telaLimpa &&
-      !st.blackout &&
-      !st.slidePretoFinal;
-    const ehAviso =
-      st.tipo === 'aviso' &&
-      !st.telaLimpa &&
-      !st.blackout &&
-      !st.slidePretoFinal &&
-      Array.isArray(st.linhas) &&
-      st.linhas.length > 0;
+    const telaoOcioso = telaoEstaOcioso(st);
     const ehContagem = st.tipo === 'contagem' && !st.telaLimpa && !st.blackout && !!st.contagem;
-    const telaoOcioso =
-      !st.blackout &&
-      !st.slidePretoFinal &&
-      !ehApresentacao &&
-      !ehAviso &&
-      !ehContagem &&
-      (st.telaLimpa || !st.linhas || st.linhas.length === 0);
 
     /*
      * A contagem sai deste caminho de propósito.
@@ -607,11 +637,13 @@ function attachPublicProjectionRender(ctx) {
      */
     if (ehContagem) return;
 
-    if (!telaoOcioso && typeof ctx.exibir === 'function') {
-      ctx.exibir(st);
-    } else if (telaoOcioso) {
+    if (telaoOcioso) {
       aplicarTransparenciaOciosaTelao(true, merged);
+      return;
     }
+
+    pintarFundoPublico(pb);
+    if (typeof ctx.exibir === 'function') ctx.exibir(st);
   }
 
   // ─── Exibição de Slides ──────────────────────────────────────────────────
@@ -653,14 +685,11 @@ function attachPublicProjectionRender(ctx) {
 
     // ── Avaliação do modo de exibição ──────────────────────────────
 
-    // Modo apresentação: exibe mídia sem blackout/tela limpa
     const ehApresentacao =
       st.tipo === 'apresentacao' &&
       !st.telaLimpa &&
       !st.blackout &&
       !st.slidePretoFinal;
-
-    // Modo aviso: exibe texto de aviso se houver linhas e sem blackout
     const ehAviso =
       st.tipo === 'aviso' &&
       !st.telaLimpa &&
@@ -668,7 +697,6 @@ function attachPublicProjectionRender(ctx) {
       !st.slidePretoFinal &&
       Array.isArray(st.linhas) &&
       st.linhas.length > 0;
-
     /* Contagem regressiva: os dígitos nascem aqui, não vêm em `linhas` — por isso a
        verificação é sobre `st.contagem` e não sobre o conteúdo de texto. */
     const ehContagem =
@@ -677,15 +705,7 @@ function attachPublicProjectionRender(ctx) {
       !st.blackout &&
       !st.slidePretoFinal &&
       !!st.contagem;
-
-    // Modo idle: sem projeção ativa (tela limpa ou sem linhas, sem blackout)
-    const idleSemProjecao =
-      !st.blackout &&
-      !st.slidePretoFinal &&
-      !ehApresentacao &&
-      !ehAviso &&
-      !ehContagem &&
-      (st.telaLimpa || !st.linhas || st.linhas.length === 0);
+    const idleSemProjecao = telaoEstaOcioso(st);
 
     // ── Atualiza as classes CSS do body para controle visual ───────
     ctx.document.body.classList.toggle('blackout-ativo', !!st.blackout);
@@ -721,6 +741,11 @@ function attachPublicProjectionRender(ctx) {
       ocultarRelogioTelao();
       return;
     }
+
+    /* Conteúdo a caminho: o fundo do tema só pinta agora. Em ocioso ficou preto
+       de propósito — se pintássemos no `display_config` da troca de modo, o M2
+       mostrava um quadro creme/imagem antes do 1.º versículo/estrofe. */
+    if (!ehContagem) pintarFundoPublico(cfg.publico || {});
 
     // ── Modo contagem: dígitos calculados na própria tela ──────────
     if (ehContagem) {
