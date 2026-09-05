@@ -16,6 +16,9 @@ function createUserPaths(userDataRoot) {
     /** Allowlist de controladores autorizados (deviceId + secret). Usada pelo controleAcesso. */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
     errorLogPath: () => path.join(userDataRoot, 'error.log'),
+    /* Diário de bordo das janelas de projeção. Mesmo nome que no Controlador: o motor é
+       o mesmo e quem lê os dois ficheiros não devia ter de aprender dois formatos. */
+    diagnosticoTelasPath: () => path.join(userDataRoot, 'lyra-telas.log'),
   };
 }
 

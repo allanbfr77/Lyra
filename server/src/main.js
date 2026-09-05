@@ -45,6 +45,14 @@ const { registerIpcHandlers } = require('./ipcHandlers');
 const paths = createUserPaths(app.getPath('userData'));
 const logError = createLogger(paths.errorLogPath);
 
+/* Diário de bordo das janelas físicas — o mesmo do Controlador, pelo mesmo motivo.
+   Aqui não há item de menu: quem opera o Servidor abre a pasta do `error.log`, que é
+   a mesma. Ver `janelasDiagnostico.js` no Core. */
+const diagnosticoTelas = projectionCore.criarDiagnosticoJanelas({
+  caminhoArquivo: paths.diagnosticoTelasPath,
+  rotulo: `Servidor ${app.getVersion()}`,
+});
+
 ctx.displayConfig = displayConfigModo.sanitizarConfigSlidesParaJanelas(
   displayConfigLib.loadDisplayConfig(paths.displayConfigPath)
 );
@@ -55,6 +63,7 @@ const WINDOW_TITLE = 'Lyra — Servidor';
 
 const windowsApi = createWindowsApi(ctx, paths, {
   logError,
+  diagnostico: diagnosticoTelas,
   screen,
   BrowserWindow,
   app,
@@ -110,6 +119,7 @@ function broadcastMonitoresParaJanelaControle() {
  * (ver `displayChangePolicy`).
  */
 function aoReorganizarJanelasPorDisplay(etapa) {
+  diagnosticoTelas.registar('display-change', { etapa });
   try {
     windowsApi.garantirTelasAbertasParaProjecao();
   } catch (e) {
@@ -196,6 +206,17 @@ app.whenReady().then(() => {
       app.quit();
     },
   });
+  diagnosticoTelas.registar('app-pronto', { plataforma: process.platform });
+  try {
+    const telas = screen.getAllDisplays();
+    diagnosticoTelas.registar('monitores', {
+      momento: 'app-pronto',
+      total: telas.length,
+      caixas: telas.map((d) => `${d.bounds.width}x${d.bounds.height}+${d.bounds.x}+${d.bounds.y}`),
+    });
+  } catch (_) {
+    // intencional — erro ignorado
+  }
   try {
     windowsApi.garantirTelasAbertasParaProjecao();
   } catch (e) {

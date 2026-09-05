@@ -1,6 +1,6 @@
 'use strict';
 
-const { BrowserWindow, ipcMain, dialog, Menu, app, session } = require('electron');
+const { BrowserWindow, ipcMain, dialog, Menu, app, session, shell } = require('electron');
 const path = require('path');
 /* Só para o pré-voo verificar ficheiros de mídia — ver `lyra-verificar-arquivos`. */
 const fsPreVoo = require('fs');
@@ -449,6 +449,28 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           label: 'Abrir console do ministrante (M3)',
           click: () => {
             abrirConsoleMinistranteServidor(ctx).catch(() => {});
+          },
+        },
+        { type: 'separator' },
+        {
+          /*
+           * O diário de bordo das telas (`lyra-telas.log`).
+           *
+           * Revela o ficheiro no Explorador em vez de o abrir numa janela, porque o que o
+           * operador precisa de fazer com ele é anexá-lo a uma mensagem — não lê-lo aqui. E
+           * fica neste menu, ao lado dos consoles, porque é a mesma família de ferramenta:
+           * o que se usa quando alguma coisa correu mal numa tela.
+           */
+          label: 'Abrir diagnóstico de telas…',
+          enabled: !!ctx.diagnosticoTelas?.caminho(),
+          click: () => {
+            const caminho = ctx.diagnosticoTelas?.caminho();
+            if (!caminho) return;
+            try {
+              shell.showItemInFolder(caminho);
+            } catch (_) {
+  // intencional — erro ignorado
+}
           },
         },
       ],

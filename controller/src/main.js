@@ -2,7 +2,7 @@
 
 require('./lib/loadEnv').loadLocalEnv();
 
-const { app, dialog, session, systemPreferences } = require('electron');
+const { app, dialog, screen, session, systemPreferences } = require('electron');
 const Database = require('better-sqlite3');
 
 /** Permite microfone no renderer (Web Speech API) — usa o dispositivo padrão do sistema (ex.: Boya V2). */
@@ -64,6 +64,7 @@ const { createUpdaterApi } = require('./updater');
 const { createServerCompanionUpdateApi } = require('./serverCompanionUpdate');
 const { caminhoIconeDock } = require('./lib/iconPath');
 const { criarProjecaoLocal } = require('./projecaoLocal');
+const { criarDiagnosticoJanelas } = require('@lyra/projection-core');
 const { buscarMusicaLocalParaProjecao } = require('./lib/musicaParaProjecao');
 
 const updaterApi = createUpdaterApi(ctx, {
@@ -100,6 +101,33 @@ app.whenReady().then(async () => {
   configurarPermissoesMicrofone();
   const userData = app.getPath('userData');
   const paths = createUserPaths(userData);
+
+  /*
+   * Diário de bordo das telas, aberto ANTES de tudo o que possa mexer numa janela.
+   *
+   * Começa aqui, no `whenReady()`, e não quando a projeção liga — de propósito. O
+   * intervalo entre estes dois instantes é exactamente o que ainda não sabemos medir: é
+   * nele que M2 e M3 mostram a área de trabalho, porque no modo «projetar nesta máquina»
+   * o motor só arranca depois de o painel carregar e pedir. Sem carimbo nos dois extremos
+   * não há como dizer quanto tempo isso dura na máquina do operador — e é esse número que
+   * decide se vale a pena mudar a ordem de arranque.
+   */
+  ctx.diagnosticoTelas = criarDiagnosticoJanelas({
+    caminhoArquivo: paths.diagnosticoTelasPath,
+    rotulo: `Controlador ${app.getVersion()}`,
+  });
+  ctx.diagnosticoTelas.registar('app-pronto', { plataforma: process.platform });
+  try {
+    const telas = screen.getAllDisplays();
+    ctx.diagnosticoTelas.registar('monitores', {
+      momento: 'app-pronto',
+      total: telas.length,
+      caixas: telas.map((d) => `${d.bounds.width}x${d.bounds.height}+${d.bounds.x}+${d.bounds.y}`),
+    });
+  } catch (_) {
+    // intencional — sem lista de monitores o resto do arranque segue na mesma
+  }
+
   migrateUserDataFiles(paths, userData);
   initControllerDatabase(paths, Database);
   await iniciarServidorController(ctx, paths);
@@ -110,6 +138,7 @@ app.whenReady().then(async () => {
    */
   ctx.projecaoLocal = criarProjecaoLocal({
     paths,
+    diagnostico: ctx.diagnosticoTelas,
     logError: (rotulo, erro) => console.error(`[projecao-local] ${rotulo}`, erro),
     buscarMusicaPorId: buscarMusicaLocalParaProjecao,
     /* O painel é o cliente que está no mesmo processo — recebe por IPC, não por socket. */
@@ -129,6 +158,9 @@ app.whenReady().then(async () => {
 
   mainWindow.registerMainWindowIpc(ctx, updaterApi, companionApi);
   mainWindow.criarJanela(ctx);
+  /* Carimbo do outro extremo do intervalo: a partir daqui o renderer é que manda, e é
+     ele que vai pedir a projeção local. */
+  ctx.diagnosticoTelas.registar('painel-criado');
   mainWindow.criarMenuAplicativo(ctx, updaterApi, companionApi);
   if (app.isPackaged) {
     updaterApi.configurarAtualizacaoAutomatica();

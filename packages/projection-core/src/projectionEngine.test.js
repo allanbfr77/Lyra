@@ -43,6 +43,7 @@ function janelaFalsa(opts = {}) {
       send: (canal, payload) => win.sends.push({ canal, payload }),
       on: () => {},
       once: () => {},
+      executeJavaScript: () => Promise.resolve(true),
       ipc: { on: () => {} },
     },
     isDestroyed: () => win.destruida,
@@ -342,6 +343,173 @@ test('janela de projeção nunca toma o foco do teclado ao ser mostrada', () => 
   assert.ok(
     abertas.some((e) => e.win.mostrouSemFoco),
     'nenhuma janela chegou a ser mostrada — o teste não provaria nada'
+  );
+});
+
+/**
+ * Janela falsa com ciclo de vida real: nasce oculta, emite eventos, e o
+ * `executeJavaScript` resolve já — o motor só pode mostrar DEPOIS disto.
+ */
+function janelaFalsaRevelacao(opts = {}) {
+  const ouvintesWin = new Map();
+  const ouvintesWc = new Map();
+  const adicionar = (mapa, ev, fn, once) => {
+    if (!mapa.has(ev)) mapa.set(ev, []);
+    mapa.get(ev).push({ fn, once });
+  };
+  const emitir = (mapa, ev, ...args) => {
+    const lista = mapa.get(ev) || [];
+    const ficar = [];
+    for (const item of lista) {
+      item.fn(...args);
+      if (!item.once) ficar.push(item);
+    }
+    mapa.set(ev, ficar);
+  };
+  const win = {
+    destruida: false,
+    visivel: false,
+    fullscreen: false,
+    criadaFullscreen: false,
+    setFullScreenCalls: [],
+    setAlwaysOnTopCalls: [],
+    jsExecs: [],
+    bounds: { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 1920, height: opts.height ?? 1080 },
+    sends: [],
+    paginas: [],
+    opcoesCriacao: opts,
+    isDestroyed: () => win.destruida,
+    isVisible: () => win.visivel,
+    isFullScreen: () => win.fullscreen,
+    getBounds: () => ({ ...win.bounds }),
+    on: (ev, fn) => adicionar(ouvintesWin, ev, fn, false),
+    once: (ev, fn) => adicionar(ouvintesWin, ev, fn, true),
+    emit: (ev, ...args) => emitir(ouvintesWin, ev, ...args),
+    close: () => { win.destruida = true; },
+    setBackgroundColor: () => {},
+    setAlwaysOnTop: (...args) => { win.setAlwaysOnTopCalls.push(args); },
+    moveTop: () => {},
+    setFullScreen: (b) => { win.fullscreen = !!b; win.setFullScreenCalls.push(!!b); },
+    setBounds: (b) => { win.bounds = { ...win.bounds, ...b }; },
+    show: () => { win.visivel = true; win.focouAoMostrar = true; win.emit('show'); },
+    showInactive: () => { win.visivel = true; win.mostrouSemFoco = true; win.emit('show'); },
+    hide: () => { win.visivel = false; },
+    setVisibleOnAllWorkspaces: () => {},
+    setMenuBarVisibility: () => {},
+    setSkipTaskbar: () => {},
+    setIgnoreMouseEvents: () => {},
+    loadFile: (f) => win.paginas.push(f),
+    loadURL: () => {},
+  };
+  win.webContents = {
+    send: (canal, payload) => win.sends.push({ canal, payload }),
+    on: (ev, fn) => adicionar(ouvintesWc, ev, fn, false),
+    once: (ev, fn) => adicionar(ouvintesWc, ev, fn, true),
+    emit: (ev, ...args) => emitir(ouvintesWc, ev, ...args),
+    executeJavaScript: (js) => {
+      win.jsExecs.push(js);
+      return Promise.resolve(true);
+    },
+    ipc: { on: () => {} },
+  };
+  return win;
+}
+
+function montarComRevelacao(over = {}) {
+  const criadas = [];
+  const state = armazemDeProjecao();
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-revelar-'));
+  const routingPath = path.join(dir, 'routing.json');
+  const settingsPath = path.join(dir, 'settings.json');
+  fs.writeFileSync(
+    routingPath,
+    JSON.stringify({
+      version: 2,
+      slides: { publicoIndex: 1, ministranteIndex: 2 },
+      apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    })
+  );
+  fs.writeFileSync(settingsPath, JSON.stringify({ indices: [1, 2] }));
+  const engine = createProjectionEngine(
+    {
+      displayRoutingPath: () => routingPath,
+      displaySettingsPath: () => settingsPath,
+    },
+    {
+      logError: () => {},
+      screen: {
+        getAllDisplays: () => DISPLAYS_TRES,
+        getPrimaryDisplay: () => DISPLAYS_TRES[0],
+        on: () => {},
+      },
+      BrowserWindow: function (opts) {
+        const w = janelaFalsaRevelacao(opts);
+        criadas.push(w);
+        return w;
+      },
+      state,
+      onProjecaoEncerrada: () => {},
+      haOperadorConectado: () => true,
+      resolverPaginaProjecao: (nome) => `/core/paginas/${nome}`,
+      caminhoIconeApp: () => '/core/icone.ico',
+      ...over,
+    }
+  );
+  return { engine, criadas, state };
+}
+
+async function bombearRevelacao(win) {
+  win.emit('ready-to-show');
+  win.webContents.emit('did-finish-load');
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+test('ready-to-show sozinho não revela o telão — o primeiro HWND no Windows ainda é branco', async () => {
+  const { engine, criadas } = montarComRevelacao();
+  engine.abrirTelasConfiguradas();
+  const telao = criadas.find((w) => w.paginas.some((p) => String(p).includes('display.html')));
+  assert.ok(telao, 'o arranque tem de criar o telão');
+  assert.strictEqual(telao.visivel, false, 'nasce oculta');
+
+  telao.emit('ready-to-show');
+  await Promise.resolve();
+  assert.strictEqual(
+    telao.visivel,
+    false,
+    'ready-to-show sem bootstrap ainda não pode mostrar — clarão branco no 1.º ShowWindow'
+  );
+  assert.ok(!telao.mostrouSemFoco);
+
+  telao.webContents.emit('did-finish-load');
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.strictEqual(telao.visivel, true, 'depois do JS preto + bootstrap, revela');
+  assert.ok(telao.mostrouSemFoco, 'revela sem roubar o teclado');
+  assert.ok(
+    telao.jsExecs.some((js) => String(js).includes('#000000')),
+    'força o quadro preto no renderer antes do show'
+  );
+  assert.ok(!telao.focouAoMostrar, 'não usa show() focante');
+});
+
+test('blur da primeira Bíblia não reemite setAlwaysOnTop (SetWindowPos no projetor)', async () => {
+  const { engine, criadas } = montarComRevelacao();
+  engine.abrirTelasConfiguradas();
+  const telao = criadas.find((w) => w.paginas.some((p) => String(p).includes('display.html')));
+  await bombearRevelacao(telao);
+  assert.ok(telao.visivel, 'precisa de já estar revelada para o blur importar');
+
+  const antes = telao.setAlwaysOnTopCalls.length;
+  assert.ok(antes > 0, 'o arranque anota o nível uma vez');
+  telao.emit('blur');
+  assert.strictEqual(
+    telao.setAlwaysOnTopCalls.length,
+    antes,
+    'blur sem forcar não pode ser SetWindowPos — era o clarão da 1.ª Bíblia'
   );
 });
 
@@ -1411,4 +1579,191 @@ test('«Não exibir» no ministrante não afecta o telão do público', () => {
   assert.strictEqual(pub.index, 1);
   const ultimo = pub.win.sends.filter((s) => s.canal === 'atualizar').pop();
   assert.ok(ultimo, 'o telão continua a receber os seus payloads');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+ *  Fase 2 — as três contradições internas que a investigação comprovou.
+ *  Cada teste falha na árvore anterior à correcção; é essa a razão de existirem.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+
+const tituloDaJanela = (w) => String(w?.opcoesCriacao?.title || '');
+const ehChao = (w) => /^Fundo/.test(tituloDaJanela(w));
+const ehTelao = (w) => /^Telão/.test(tituloDaJanela(w));
+const ehRelogio = (w) => w.paginas.some((p) => String(p).includes('display-clock.html'));
+const subiuATopmost = (w) =>
+  w.setAlwaysOnTopCalls.some((args) => args[0] === true && args[1] === 'screen-saver');
+
+/**
+ * Arranque completo com todas as janelas reveladas.
+ *
+ * A cadeia de sincronização é sequencial — cada etapa espera a janela anterior ficar
+ * visível — por isso não basta bombear uma: é preciso ir bombeando a próxima que aparecer.
+ */
+async function arrancarEBombear() {
+  const { engine, criadas, state } = montarComRevelacao();
+  engine.abrirTelasConfiguradas();
+  for (let volta = 0; volta < 12; volta += 1) {
+    const pendente = criadas.find((w) => !w.visivel && !w.destruida);
+    if (!pendente) break;
+    await bombearRevelacao(pendente);
+  }
+  return { engine, criadas, state };
+}
+
+test('C1 — janela sem quadro composto não é mostrada por uma segunda sincronização', async () => {
+  /*
+   * O clarão branco. `sincronizarJanelasRelogio` corre a cada `display_config` — ou seja,
+   * a cada troca de aba e a cada tick de slider — e corre FORA do lock da cadeia principal.
+   * Apanhava rotineiramente uma janela que a passagem anterior ainda estava a carregar e
+   * fazia-lhe `showInactive()`. Um `ShowWindow` num HWND sem quadro composto é branco no
+   * Windows. A guarda `jaPintouPrimeiroQuadro` existia para isto e não era chamada.
+   */
+  const { engine, criadas } = montarComRevelacao();
+  engine.sincronizarJanelasRelogio();
+  const relogio = criadas.find(ehRelogio);
+  assert.ok(relogio, 'a primeira passagem cria a janela do relógio');
+  assert.strictEqual(relogio.visivel, false, 'nasce oculta');
+
+  engine.sincronizarJanelasRelogio();
+
+  assert.strictEqual(relogio.visivel, false, 'segunda passagem não pode mostrá-la: não há quadro');
+  assert.ok(!relogio.mostrouSemFoco, 'nem sequer chegou a chamar showInactive');
+  assert.strictEqual(criadas.filter(ehRelogio).length, 1, 'e não abriu uma segunda janela');
+
+  await bombearRevelacao(relogio);
+  assert.strictEqual(relogio.visivel, true, 'aparece assim que o quadro chega');
+});
+
+test('C1 — a guarda não atrasa a volta do relógio de ocioso ao conteúdo', async () => {
+  /*
+   * A contrapartida da guarda, e o risco real de a ter posto: ela não pode adiar o que é
+   * seguro. Uma janela que esteve visível pintou, por definição — e o motor esconde e volta
+   * a mostrar o ministrante a cada ida e volta entre repouso e conteúdo. Se a guarda
+   * tratasse essa janela como «nunca pintou», a estrofe chegaria ao palco com atraso.
+   *
+   * É por isso que `esconderJanelaProjecao` carimba `__lyraPrimeiroQuadro`. Este teste é o
+   * que impede alguém de tirar esse carimbo achando que é redundante.
+   */
+  const { engine, criadas, state } = await arrancarEBombear();
+  const ministrante = criadas.find((w) =>
+    w.paginas.some((p) => String(p).includes('display-operator.html'))
+  );
+  assert.ok(ministrante?.visivel, 'o M3 arranca com conteúdo no ar');
+
+  /* Repouso: o motor esconde o ministrante para deixar ver o relógio por baixo. */
+  state.ministranteApresentacaoOverride = { modo: 'texto', atual: '', proximo: '', telaLimpa: true };
+  engine.atualizarDisplayMinistrante(state.estadoMinistrante);
+  assert.strictEqual(ministrante.visivel, false, 'escondida para revelar o relógio');
+
+  /* Conteúdo de volta: tem de reaparecer nesta mesma passagem, sem adiamento. */
+  ministrante.mostrouSemFoco = false;
+  state.ministranteApresentacaoOverride = { modo: 'texto', atual: 'linha um', proximo: '' };
+  engine.atualizarDisplayMinistrante(state.estadoMinistrante);
+
+  assert.strictEqual(ministrante.visivel, true, 'a estrofe não pode esperar pelo próximo quadro');
+  assert.ok(ministrante.mostrouSemFoco, 'e continua a aparecer sem roubar o teclado ao painel');
+});
+
+test('A1 — chão e relógio nunca sobem à banda topmost, nem ao serem revelados', async () => {
+  /*
+   * `revelarJanelaProjecaoQuandoPreta` aplicava topo absoluto a TODA janela que revelava,
+   * incluindo as duas que nascem com `definirNivelTopo(win, false)` explícito. O chão ficava
+   * topmost para o resto da sessão e o relógio era rebaixado logo a seguir: o relógio
+   * acabava DEBAIXO do chão preto, e o M3 em repouso mostrava preto em vez das horas.
+   */
+  const { criadas } = await arrancarEBombear();
+  const chaos = criadas.filter(ehChao);
+  const relogios = criadas.filter(ehRelogio);
+  const telao = criadas.find(ehTelao);
+
+  assert.ok(chaos.length, 'o cenário tem de criar chão preto');
+  assert.ok(relogios.length, 'e uma janela de relógio');
+  assert.ok(telao, 'e o telão');
+
+  for (const w of [...chaos, ...relogios]) {
+    assert.ok(
+      !subiuATopmost(w),
+      `${tituloDaJanela(w)} subiu à banda topmost — é o que tapava o relógio no M3`
+    );
+  }
+  assert.ok(
+    subiuATopmost(telao),
+    'o telão continua topmost: é ele que tem de cobrir outro software de projeção'
+  );
+});
+
+test('A3 — o relógio espera o quadro sem levar preto à força', async () => {
+  /*
+   * `JS_FORCAR_QUADRO_PRETO` escreve `body.style.background` inline. `display-clock.html`
+   * aplica o fundo configurado pela MESMA propriedade, e a config nunca é reenviada (vai por
+   * `additionalArguments` e depois é deduplicada). Com o padrão de fábrica — fundo creme,
+   * texto quase preto — o resultado era um relógio invisível.
+   */
+  const { criadas } = await arrancarEBombear();
+  const relogio = criadas.find(ehRelogio);
+  const telao = criadas.find(ehTelao);
+
+  assert.ok(relogio.jsExecs.length, 'continua a esperar dois quadros do compositor');
+  assert.ok(
+    !relogio.jsExecs.some((js) => String(js).includes('#000000')),
+    'mas não pinta preto — isso apagava o fundo que o utilizador configurou'
+  );
+  assert.ok(
+    telao.jsExecs.some((js) => String(js).includes('#000000')),
+    'a tela de conteúdo continua a levar o preto: aí é ele que evita o clarão'
+  );
+  assert.strictEqual(relogio.visivel, true, 'e revela-se na mesma');
+});
+
+test('rede de segurança: janela sem ready-to-show acaba revelada pelo caminho protegido', async (t) => {
+  /*
+   * A guarda de C1 introduz um risco novo: se `ready-to-show` nunca chegar, a janela ficaria
+   * oculta para sempre e o monitor mostraria só o chão preto. A meio de um culto isso é pior
+   * do que um clarão. Passado o tecto, revela-se — mas pelo caminho protegido, que ainda
+   * espera dois quadros do compositor. Ou seja, a rede não traz o branco de volta.
+   */
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { engine, criadas } = montarComRevelacao();
+  engine.sincronizarJanelasRelogio();
+  const relogio = criadas.find(ehRelogio);
+  engine.sincronizarJanelasRelogio();
+  assert.strictEqual(relogio.visivel, false, 'adiada, como manda a guarda');
+
+  t.mock.timers.tick(4001);
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.strictEqual(relogio.visivel, true, 'a rede apanhou-a');
+  assert.ok(relogio.jsExecs.length, 'e mesmo assim esperou o compositor');
+});
+
+test('o diário de bordo regista o ciclo de vida e identifica o papel de cada janela', async () => {
+  const linhas = [];
+  const { engine, criadas } = montarComRevelacao({
+    diagnostico: {
+      registar: (evento, dados) => linhas.push({ evento, dados: dados || {} }),
+      caminho: () => '/tmp/lyra-telas.log',
+    },
+  });
+  engine.abrirTelasConfiguradas();
+  const telao = criadas.find(ehTelao);
+  await bombearRevelacao(telao);
+
+  const eventos = linhas.map((l) => l.evento);
+  for (const esperado of ['sync-inicio', 'abrir', 'ready-to-show', 'bootstrap', 'revelar-fim']) {
+    assert.ok(eventos.includes(esperado), `o diário tem de registar \`${esperado}\``);
+  }
+  const abertura = linhas.find((l) => l.evento === 'abrir' && l.dados.papel === 'publico');
+  assert.ok(abertura, 'a linha de abertura identifica o papel');
+  assert.strictEqual(abertura.dados.indice, 1, 'e o monitor');
+  assert.strictEqual(abertura.dados.pagina, 'display.html');
+});
+
+test('sem diário injectado o motor comporta-se exactamente na mesma', async () => {
+  /* O diário é opcional por construção: é isso que mantém os testes — e um arranque sem
+     `userData` — a exercitar o mesmo motor que corre em produção. */
+  const { criadas } = await arrancarEBombear();
+  assert.ok(criadas.find(ehTelao)?.visivel, 'telão no ar');
+  assert.ok(criadas.find(ehRelogio)?.visivel, 'relógio no ar');
 });

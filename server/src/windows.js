@@ -41,6 +41,9 @@ function createWindowsApi(ctx, paths, deps) {
 
   const engine = createProjectionEngine(paths, {
     logError,
+    /* Mesmo diário de bordo do Controlador. O motor é o mesmo e os defeitos de timing
+       também — não há razão para só um dos hospedeiros os conseguir registar. */
+    diagnostico: deps.diagnostico,
     screen,
     BrowserWindow,
     /* O motor nunca vê o `ctx`. A porta encaminha leitura e escrita para ele enquanto o

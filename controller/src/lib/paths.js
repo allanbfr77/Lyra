@@ -84,6 +84,13 @@ function createUserPaths(userDataRoot) {
     displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
     /** Dispositivos autorizados a comandar a projeção desta máquina (celular, outro PC). */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
+    /**
+     * Diário de bordo das janelas de projeção — ver `janelasDiagnostico.js` no Core.
+     *
+     * Ao lado do resto do `userData` de propósito: quando se pede ao operador «mande os
+     * logs», isto tem de estar na mesma pasta que ele já sabe abrir pelo menu.
+     */
+    diagnosticoTelasPath: () => path.join(userDataRoot, 'lyra-telas.log'),
   };
 }
 

@@ -42,6 +42,10 @@ module.exports = {
   // motor
   createProjectionEngine: require('./projectionEngine').createProjectionEngine,
   createWindowRegistry: require('./windowRegistry').createWindowRegistry,
+  /* Diário de bordo das janelas físicas. O motor aceita-o em `deps.diagnostico`; sem ele,
+     usa o diário nulo e nada muda. Ver `janelasDiagnostico.js`. */
+  criarDiagnosticoJanelas: require('./janelasDiagnostico').criarDiagnosticoJanelas,
+  criarDiagnosticoNulo: require('./janelasDiagnostico').criarDiagnosticoNulo,
   paginaProjecao,
   paginaObs,
 

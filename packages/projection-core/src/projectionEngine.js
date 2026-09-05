@@ -8,6 +8,7 @@ const projectionEncerrar = require('./projectionEncerrar');
 const displayConfigModo = require('./displayConfigModo');
 const { getOrderedDisplays } = require('./monitorsList');
 const { createWindowRegistry } = require('./windowRegistry');
+const { criarDiagnosticoNulo } = require('./janelasDiagnostico');
 /* Lazy no ESC: evita ciclo de carga com commandApplier (que recebe o engine injectado). */
 function estadoBibliaParaObsEsc(state) {
   return require('./commandApplier').estadoBibliaParaObs(state);
@@ -19,14 +20,122 @@ const { indicesJanelasProjecaoDeRoteamentoDual } = displayRoutingMod;
 const PRETO_NATIVO_PROJECAO = '#000000';
 
 /**
+ * Pinta o documento de preto e espera dois quadros do compositor.
+ *
+ * `ready-to-show` no Windows dispara com o primeiro HWND ainda branco — o DWM só
+ * cacheia o quadro preto depois da primeira composição real. Sem este JS + 2 rAF
+ * antes do `showInactive()`, o projetor vê um clarão só na primeira sessão
+ * (primeiro `ShowWindow`) e na primeira janela nova da sessão (ex.: primeira
+ * entrada no modo Bíblia, que cria/reposiciona o telão).
+ */
+const JS_FORCAR_QUADRO_PRETO = `(() => {
+  try {
+    const d = document;
+    if (d.documentElement) {
+      d.documentElement.style.background = '#000000';
+      d.documentElement.style.colorScheme = 'dark';
+    }
+    if (d.body) {
+      d.body.style.background = '#000000';
+      d.body.style.backgroundColor = '#000000';
+      d.body.classList.add('idle-sem-projecao');
+    }
+    const tela = d.getElementById && d.getElementById('tela');
+    if (tela) {
+      tela.style.background = '#000000';
+      tela.style.backgroundColor = '#000000';
+    }
+  } catch (e) {}
+  return new Promise((resolve) => {
+    const raf = typeof requestAnimationFrame === 'function'
+      ? requestAnimationFrame
+      : (fn) => setTimeout(fn, 16);
+    raf(() => raf(() => resolve(true)));
+  });
+})()`;
+
+/**
  * Nível mais alto do Electron no Windows — acima de outros programas de projeção
  * que também usam always-on-top / fullscreen (EasyWorship, ProPresenter, etc.).
  * @see https://www.electronjs.org/docs/latest/api/browser-window#winsetalwaysontopflag-level
  */
 const NIVEL_TOPO_PROJECAO = 'screen-saver';
 
+/**
+ * Espera dois quadros do compositor **sem pintar nada**.
+ *
+ * O objectivo do JS antes do `ShowWindow` nunca foi o preto em si — foi provar que o
+ * renderer está vivo e a compor. Nas telas de conteúdo o preto é bem-vindo (o tema volta
+ * quando chega conteúdo). No chão e no relógio era dano colateral: ver `ROLES_PINTAR_PRETO`.
+ */
+const JS_AGUARDAR_QUADRO = `(() => {
+  return new Promise((resolve) => {
+    const raf = typeof requestAnimationFrame === 'function'
+      ? requestAnimationFrame
+      : (fn) => setTimeout(fn, 16);
+    raf(() => raf(() => resolve(true)));
+  });
+})()`;
+
 /** Roles que devem cobrir o outro software de projeção (relógio fica atrás de propósito). */
 const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
+
+/**
+ * Roles cujo renderer desenha conteúdo — e só esses levam o quadro preto à força.
+ *
+ * `JS_FORCAR_QUADRO_PRETO` escreve `background` INLINE no `body`. Nas telas de conteúdo é o
+ * que se quer: o renderer repinta o fundo do tema quando chega conteúdo. No relógio, não:
+ * `display-clock.html` aplica o fundo configurado pela MESMA propriedade
+ * (`document.body.style.background`), e o inline do motor apagava-o. Como a config do
+ * relógio é entregue por `additionalArguments` e depois deduplicada por `__lyraClockCfgHash`,
+ * ela nunca era reenviada — o fundo ficava preto para sempre. Com o padrão de fábrica
+ * (`clock.bgColor: '#f5f2ea'`, `textColor: '#1c1816'`) isso dá um relógio quase preto sobre
+ * preto: um M3 que parece apagado quando devia estar a mostrar as horas.
+ *
+ * O chão está fora pelo motivo oposto: a página dele já é preta e não tem script nenhum.
+ */
+const ROLES_PINTAR_PRETO = new Set(['publico', 'ministrante', 'escudo']);
+
+/**
+ * Marca o papel na própria janela.
+ *
+ * O registo já sabe o papel de cada uma, mas quem precisa dele aqui são funções que recebem
+ * o `win` e não a entrada — `aplicarTopoAbsolutoProjecao`, `revelarJanelaProjecaoQuandoPreta`
+ * e o diário de bordo. Mesma razão de `__lyraOcultoParaRelogio` e `__lyraSemExibicao`
+ * viverem no `win`.
+ *
+ * @param {import('electron').BrowserWindow} win
+ * @param {'publico'|'ministrante'|'escudo'|'relogio'|'fundo'} papel
+ * @param {number} indice monitor no momento da criação (só para o diário; a verdade é o registo)
+ */
+function marcarPapelDaJanela(win, papel, indice) {
+  if (!win || win.isDestroyed()) return win;
+  try {
+    win.__lyraRole = papel;
+    win.__lyraIndex = indice;
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+  return win;
+}
+
+/** Papel da janela, ou `null` quando a marca não existe. */
+function papelDaJanela(win) {
+  try {
+    return win && !win.isDestroyed() ? win.__lyraRole || null : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Monitor anotado na criação da janela. */
+function indiceDaJanela(win) {
+  try {
+    return win && !win.isDestroyed() ? win.__lyraIndex : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
 
 /**
  * **Camada de fundo permanente.**
@@ -47,7 +156,7 @@ const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
 const ROLE_FUNDO = 'fundo';
 
 /** Página do fundo: preto, sem script, sem integração. Não há nada a carregar mal. */
-const PAGINA_FUNDO = 'data:text/html;charset=utf-8,%3Cbody%20style%3D%22margin%3A0%3Bbackground%3A%23000%22%3E%3C%2Fbody%3E';
+const PAGINA_FUNDO = 'data:text/html;charset=utf-8,%3Chtml%20style%3D%22background%3A%23000%3Bcolor-scheme%3Adark%22%3E%3Cbody%20style%3D%22margin%3A0%3Bbackground%3A%23000%22%3E%3C%2Fbody%3E%3C%2Fhtml%3E';
 
 /**
  * Roles que renderizam conteúdo e por isso recebem `display_config` do telão.
@@ -80,6 +189,12 @@ const LIMITE_ARGV_RELOGIO = 8192;
  * prendia o papel à janela antiga para sempre.
  */
 const TIMEOUT_TROCA_JANELA_MS = 5000;
+
+/**
+ * Tecto do adiamento de um `show` — ver `mostrarJanelaProjecaoQuandoPronta`.
+ * Passado isto, a janela é revelada pelo caminho protegido mesmo sem `ready-to-show`.
+ */
+const TIMEOUT_REVELACAO_ADIADA_MS = 4000;
 
 /**
  * Marca (ou desmarca) uma janela como **ocultada de propósito** para revelar o relógio.
@@ -217,6 +332,23 @@ function definirNivelTopo(win, nivel, opts = {}) {
  */
 function aplicarTopoAbsolutoProjecao(win, opts = {}) {
   if (!win || win.isDestroyed()) return;
+  /*
+   * Ponto de estrangulamento: o chão e o relógio NUNCA sobem à banda topmost.
+   *
+   * A regra já existia em `ROLES_TOPO_ABSOLUTO`, mas só o ciclo de reclaim a aplicava.
+   * `revelarJanelaProjecaoQuandoPreta` chamava esta função em TODAS as janelas que revelava
+   * — incluindo as duas que nascem com `definirNivelTopo(win, false)` explícito. O chão
+   * ficava topmost para o resto da sessão (nada o rebaixa depois) e o relógio era rebaixado
+   * no `sincronizarJanelasRelogio` seguinte: o relógio acabava DEBAIXO do chão preto, e o M3
+   * em repouso mostrava preto em vez das horas. O `moveTop()` que o motor faz no relógio
+   * antes de esconder o ministrante não resolvia — `moveTop` ordena dentro da banda, não
+   * atravessa a fronteira topmost.
+   *
+   * A guarda vive aqui, e não em cada chamador, porque é isso que impede a próxima chamada
+   * esquecida. Janela sem papel marcado passa, para não mudar caminhos não previstos.
+   */
+  const papel = papelDaJanela(win);
+  if (papel && !ROLES_TOPO_ABSOLUTO.has(papel)) return;
   definirNivelTopo(win, NIVEL_TOPO_PROJECAO, opts);
   try {
     win.moveTop();
@@ -248,11 +380,12 @@ function aplicarTopoAbsolutoProjecao(win, opts = {}) {
  * @param {import('electron').BrowserWindow} win
  */
 /**
- * A janela já compôs o primeiro quadro?
+ * A janela já recebeu `ready-to-show`?
  *
- * `ready-to-show` é o único sinal do Electron que garante isso. `did-finish-load` chega
- * antes: diz que o documento acabou de carregar, não que alguma coisa foi pintada —
- * mostrar a janela nesse momento deixa ver o quadro ainda vazio, que sai branco.
+ * Isso NÃO basta para a mostrar: no Windows o primeiro quadro do compositor ainda
+ * sai branco. Quem revela é `revelarJanelaProjecaoQuandoPreta` (bootstrap + JS preto
+ * + 2 rAF). A marca só diz que o Chromium já tem um quadro — a cadeia de sincronização
+ * usa-a para não mostrar cedo demais.
  *
  * A marca é posta em `finalizarJanelaProjecaoNativa`, que corre logo a seguir ao
  * `new BrowserWindow` de todas as janelas de projeção; por isso o ouvinte está sempre
@@ -292,8 +425,11 @@ function opcoesBrowserWindowProjecao(display, title, extra = {}) {
     width: d.bounds.width,
     height: d.bounds.height,
     icon,
-    /* Nasce oculta: só se mostra depois de `ready-to-show`, já no tamanho do monitor. */
+    /* Nasce oculta: só se mostra depois do quadro preto composto — ver
+       `revelarJanelaProjecaoQuandoPreta`. `ready-to-show` sozinho ainda é branco no 1.º HWND. */
     show: false,
+    /* Win11: sem Mica/Acrylic por baixo do canvas — o material do DWM é claro. */
+    ...(process.platform === 'win32' ? { backgroundMaterial: 'none' } : {}),
     /*
      * Sem fullscreen exclusivo. No Windows `fullscreen: true` / `setFullScreen(true)`
      * entra em modo DXGI e o projetor (M2) trata isso como perda de sinal — handshake
@@ -378,6 +514,58 @@ function createProjectionEngine(paths, deps) {
   /* Registo das janelas de projeção — privado ao motor desde o sub-passo 3b. Nada fora
      daqui o manipula; quem precisa de lêr usa `janelasDeProjecao()`. */
   const registro = createWindowRegistry();
+
+  /**
+   * Diário de bordo das janelas — ver `janelasDiagnostico.js` para o que entra e o que não.
+   *
+   * Opcional de propósito: um host que não o injecte (os testes, um arranque sem `userData`)
+   * recebe o diário nulo e o motor não muda de comportamento. É por isso que não há uma
+   * única guarda `if (diario)` no corpo do motor.
+   */
+  const diario = deps.diagnostico || criarDiagnosticoNulo();
+
+  /**
+   * Chamadas do caminho rápido de `garantirTelasAbertasParaProjecao` desde a última linha.
+   *
+   * Essa função corre a cada estrofe e a cada versículo. Uma linha por chamada afogaria o
+   * diário num culto normal, e o caminho rápido não faz nada de interessante — por isso só
+   * conta, e o número viaja na próxima linha que interessa.
+   */
+  let garantirRapidas = 0;
+
+  /** Instantâneo barato do estado nativo de uma janela. Nunca lança. */
+  function instantaneoJanela(win) {
+    if (!win || win.isDestroyed()) return { vivo: false };
+    const linha = {};
+    try { linha.vis = !!win.isVisible(); } catch (_) { /* intencional */ }
+    try { linha.b = win.getBounds(); } catch (_) { /* intencional */ }
+    linha.quadro = !!win.__lyraPrimeiroQuadro;
+    linha.topo = win.__lyraNivelTopo === undefined ? null : String(win.__lyraNivelTopo);
+    return linha;
+  }
+
+  /** Uma linha do diário sobre uma janela. */
+  function diag(evento, win, extra) {
+    try {
+      diario.registar(evento, {
+        papel: papelDaJanela(win),
+        indice: indiceDaJanela(win),
+        ...instantaneoJanela(win),
+        ...(extra || {}),
+      });
+    } catch (_) {
+      // intencional — o diário nunca pode derrubar a projeção
+    }
+  }
+
+  /** Linha do diário que não é sobre uma janela (rota, sincronização, monitores). */
+  function diagGeral(evento, dados) {
+    try {
+      diario.registar(evento, dados || {});
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
 
   function obterDisplaysOrdenados() {
     return getOrderedDisplays(screen);
@@ -734,11 +922,7 @@ function createProjectionEngine(paths, deps) {
   // intencional — erro ignorado
 } });
           if (win.isVisible()) {
-            try {
-              win.hide();
-            } catch (_) {
-              // intencional — erro ignorado
-            }
+            esconderJanelaProjecao(win, 'revelar-relogio');
             entry.ocultoParaRelogio = true;
             marcarOcultoParaRelogio(win, true);
           }
@@ -749,8 +933,9 @@ function createProjectionEngine(paths, deps) {
         marcarOcultoParaRelogio(win, false);
         try {
           if (!win.isVisible()) {
-            mostrarJanelaProjecaoSemFoco(win);
-            aplicarTopoAbsolutoProjecao(win);
+            if (mostrarJanelaProjecaoQuandoPronta(win, 'relogio-para-conteudo')) {
+              aplicarTopoAbsolutoProjecao(win);
+            }
           }
         } catch (_) {
           // intencional — erro ignorado
@@ -828,6 +1013,7 @@ function createProjectionEngine(paths, deps) {
   function fecharTodasJanelasProjecao() {
     registro.todas().forEach((entry) => {
       if (entry?.win && !entry.win.isDestroyed()) {
+        diag('fechar', entry.win, { motivo: 'fechar-todas' });
         try { entry.win.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -963,10 +1149,180 @@ function createProjectionEngine(paths, deps) {
   }
 
   /**
+   * Único caminho que revela uma janela de projeção pela primeira vez.
+   *
+   * Espera o compositor pintar preto (JS + 2 rAF) e só então `showInactive()`.
+   * Idempotente: a segunda chamada não volta a mostrar.
+   */
+  function revelarJanelaProjecaoQuandoPreta(win) {
+    if (!win || win.isDestroyed() || win.__lyraRevelada || win.__lyraRevelando) return;
+    if (ocultoParaRelogio(win)) {
+      win.__lyraPrimeiroQuadro = true;
+      return;
+    }
+    win.__lyraRevelando = true;
+    const papel = papelDaJanela(win);
+    /* Só as telas de conteúdo levam o preto à força — ver `ROLES_PINTAR_PRETO`. */
+    const script = ROLES_PINTAR_PRETO.has(papel) ? JS_FORCAR_QUADRO_PRETO : JS_AGUARDAR_QUADRO;
+    diag('revelar-inicio', win, { preto: ROLES_PINTAR_PRETO.has(papel) });
+
+    const acabar = () => {
+      if (!win || win.isDestroyed() || win.__lyraRevelada) return;
+      win.__lyraRevelada = true;
+      win.__lyraRevelando = false;
+      win.__lyraPrimeiroQuadro = true;
+      if (ocultoParaRelogio(win)) {
+        diag('revelar-suprimido', win, { motivo: 'oculto-para-relogio' });
+        return;
+      }
+      aplicarTopoAbsolutoProjecao(win);
+      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
+        // intencional — erro ignorado
+      }
+      diag('revelar-fim', win);
+      atualizarLoopTopoAbsolutoProjecao();
+    };
+
+    const wc = win.webContents;
+    if (!wc || typeof wc.executeJavaScript !== 'function') {
+      acabar();
+      return;
+    }
+    let p;
+    try {
+      p = wc.executeJavaScript(script, true);
+    } catch (_) {
+      acabar();
+      return;
+    }
+    Promise.resolve(p).then(acabar).catch(acabar);
+  }
+
+  /**
+   * Revela só quando o Chromium tem um quadro (`ready-to-show`) E o bootstrap
+   * ocioso já foi enviado. Qualquer um dos dois sozinho ainda pode ser branco.
+   */
+  function tentarRevelarJanelaProjecao(win) {
+    if (!win || win.isDestroyed() || win.__lyraRevelada) return;
+    if (ocultoParaRelogio(win)) {
+      win.__lyraPrimeiroQuadro = true;
+      return;
+    }
+    if (!win.__lyraPrimeiroQuadro || !win.__lyraBootstrapOk) return;
+    revelarJanelaProjecaoQuandoPreta(win);
+  }
+
+  function marcarBootstrapPronto(win) {
+    if (!win || win.isDestroyed()) return;
+    /* Só a primeira vez: há três sítios a registar `did-finish-load` na mesma janela e o
+       diário ficava com a mesma linha repetida meia dúzia de vezes por carregamento. */
+    if (!win.__lyraBootstrapOk) diag('bootstrap', win);
+    win.__lyraBootstrapOk = true;
+    tentarRevelarJanelaProjecao(win);
+  }
+
+  /**
+   * Esconde uma janela de projeção, registando que ela JÁ TEM quadro composto.
+   *
+   * Uma janela que esteve visível pintou, por definição — foi para o ecrã. Sem esta marca,
+   * uma janela que o próprio motor escondeu (para revelar o relógio, para saltar de monitor,
+   * para tirar um escudo da rota) voltaria a ser tratada como «nunca pintou» por
+   * `mostrarJanelaProjecaoQuandoPronta`, e a guarda adiaria um `show` que é seguro — o
+   * conteúdo dela já está composto, só não está à vista.
+   *
+   * `ready-to-show` continua a ser a outra fonte da marca. Esta cobre o resto do ciclo:
+   * janelas que o motor esconde e volta a mostrar durante o culto inteiro.
+   *
+   * @returns {boolean} escondeu agora
+   */
+  function esconderJanelaProjecao(win, motivo, extra) {
+    if (!win || win.isDestroyed() || !win.isVisible()) return false;
+    win.__lyraPrimeiroQuadro = true;
+    try {
+      win.hide();
+    } catch (_) {
+      return false;
+    }
+    diag('esconder', win, { motivo, ...(extra || {}) });
+    return true;
+  }
+
+  /**
+   * Mostra uma janela que JÁ EXISTE e está oculta — nunca antes do primeiro quadro.
+   *
+   * `jaPintouPrimeiroQuadro()` estava escrita e documentada («a cadeia de sincronização usa-a
+   * para não mostrar cedo demais») e não era chamada em sítio nenhum. Havia quatro
+   * `showInactive()` a mostrar janelas sem perguntar se o compositor já tinha pintado:
+   * `sincronizarJanelasRelogio`, `sincronizarJanelaRole`, `sincronizarJanelasEscudo` e
+   * `moverJanelaRoleEntreMonitores`. Um `ShowWindow` num HWND sem quadro composto é, no
+   * Windows, exactamente o clarão branco que o comentário de `JS_FORCAR_QUADRO_PRETO`
+   * descreve — e chega-se lá sempre que uma segunda sincronização apanha uma janela que a
+   * primeira ainda está a carregar, que é o que acontece a cada troca de aba.
+   *
+   * Sem quadro, em vez de mostrar, entrega a janela ao caminho de revelação: ele mostra-a
+   * quando o quadro chegar. Entretanto o monitor fica com o chão preto — preto a mais nunca
+   * foi o defeito.
+   *
+   * @param {import('electron').BrowserWindow} win
+   * @param {string} origem quem pediu; vai para o diário
+   * @returns {boolean} a janela ficou visível agora
+   */
+  function mostrarJanelaProjecaoQuandoPronta(win, origem) {
+    if (!win || win.isDestroyed()) return false;
+    if (win.isVisible()) return true;
+    if (!jaPintouPrimeiroQuadro(win)) {
+      diag('mostrar-adiado', win, { origem });
+      agendarRevelacaoTardia(win, origem);
+      tentarRevelarJanelaProjecao(win);
+      return !!win.isVisible();
+    }
+    diag('mostrar', win, { origem });
+    mostrarJanelaProjecaoSemFoco(win);
+    return !!win.isVisible();
+  }
+
+  /**
+   * Rede de segurança do adiamento acima.
+   *
+   * Se `ready-to-show` nunca chegar — driver a engasgar, renderer preso numa fonte — a
+   * janela ficaria oculta para sempre e o monitor mostraria só o chão preto. A meio de um
+   * culto isso é pior do que um clarão. Passado o tecto, revela-se pelo caminho protegido:
+   * `revelarJanelaProjecaoQuandoPreta` não depende de `ready-to-show`, e o JS + 2 rAF que
+   * ela corre já provam, por si, que o renderer está vivo e a compor. A rede não
+   * reintroduz o quadro branco.
+   */
+  function agendarRevelacaoTardia(win, origem) {
+    if (!win || win.isDestroyed() || win.__lyraRevelacaoTardia) return;
+    try {
+      const t = setTimeout(() => {
+        win.__lyraRevelacaoTardia = null;
+        if (win.isDestroyed() || win.isVisible() || win.__lyraRevelada) return;
+        diag('revelar-tardio', win, { origem, espera: TIMEOUT_REVELACAO_ADIADA_MS });
+        revelarJanelaProjecaoQuandoPreta(win);
+      }, TIMEOUT_REVELACAO_ADIADA_MS);
+      if (typeof t.unref === 'function') t.unref();
+      win.__lyraRevelacaoTardia = t;
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
+
+  function ouvirPrimeiroQuadroParaRevelar(win) {
+    if (!win || win.isDestroyed() || win.__lyraReadyToShowBound) return;
+    win.__lyraReadyToShowBound = true;
+    win.once('ready-to-show', () => {
+      if (win.isDestroyed()) return;
+      win.__lyraPrimeiroQuadro = true;
+      diag('ready-to-show', win);
+      tentarRevelarJanelaProjecao(win);
+    });
+  }
+
+  /**
    * Garante topo absoluto e fundo nativo assim que a janela existe.
    *
    * **Não mostra a janela** e **não entra em fullscreen exclusivo** — ver
-   * `opcoesBrowserWindowProjecao`. Quem mostra é o `ready-to-show` abaixo.
+   * `opcoesBrowserWindowProjecao`. Quem mostra é `revelarJanelaProjecaoQuandoPreta`.
    */
   function finalizarJanelaProjecaoNativa(win, opts = {}) {
     if (!win || win.isDestroyed()) return;
@@ -980,25 +1336,16 @@ function createProjectionEngine(paths, deps) {
       win.__lyraTopoAbsolutoBlurBound = true;
       win.on('blur', () => {
         if (win.isDestroyed()) return;
-        aplicarTopoAbsolutoProjecao(win, { forcar: true });
+        /* Sem `forcar`: o primeiro blur da sessão (diálogo da Bíblia, painel a
+           recuperar o teclado) reemitia `setAlwaysOnTop` → `SetWindowPos` no HWND
+           do projetor. O DWM ainda não tinha o quadro preto em cache — clarão
+           branco só nessa primeira vez. `moveTop()` basta para reclamar a banda. */
+        aplicarTopoAbsolutoProjecao(win);
         reafirmarTopoTodasJanelasProjecao();
         atualizarLoopTopoAbsolutoProjecao();
       });
     }
-    win.once('ready-to-show', () => {
-      if (win.isDestroyed()) return;
-      /* Antes de qualquer saída: uma janela escondida de propósito também já pintou, e
-         quem for mostrá-la mais tarde precisa de saber disso. Ver `jaPintouPrimeiroQuadro`. */
-      win.__lyraPrimeiroQuadro = true;
-      /* Este é o disparo que costumava chegar depois do `hide()` da cadeia de arranque e
-         desfazê-lo. Sair cedo se a janela foi escondida de propósito. */
-      if (ocultoParaRelogio(win)) return;
-      aplicarTopoAbsolutoProjecao(win);
-      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
-  // intencional — erro ignorado
-}
-      atualizarLoopTopoAbsolutoProjecao();
-    });
+    ouvirPrimeiroQuadroParaRevelar(win);
     atualizarLoopTopoAbsolutoProjecao();
     anexarDiagnosticoViewport(win);
   }
@@ -1012,13 +1359,8 @@ function createProjectionEngine(paths, deps) {
        anotado — assim as resincronizações seguintes não reemitem o `SetWindowPos`. */
     definirNivelTopo(win, false);
     /* Sem `show()` aqui de propósito — a janela ainda não carregou nada. Ver
-       `finalizarJanelaProjecaoNativa`. Quem mostra é o `ready-to-show`. */
-    win.once('ready-to-show', () => {
-      if (win.isDestroyed()) return;
-      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
-  // intencional — erro ignorado
-}
-    });
+       `finalizarJanelaProjecaoNativa`. Quem mostra é `revelarJanelaProjecaoQuandoPreta`. */
+    ouvirPrimeiroQuadroParaRevelar(win);
     anexarDiagnosticoViewport(win);
   }
 
@@ -1269,6 +1611,7 @@ function createProjectionEngine(paths, deps) {
       skipTaskbar: true,
       title: label,
       backgroundColor: PRETO_NATIVO_PROJECAO,
+      ...(process.platform === 'win32' ? { backgroundMaterial: 'none' } : {}),
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
@@ -1279,6 +1622,8 @@ function createProjectionEngine(paths, deps) {
         ...(bootstrap ? { additionalArguments: [bootstrap.arg] } : {}),
       },
     });
+    marcarPapelDaJanela(win, 'relogio', displayIndex);
+    diag('abrir', win, { pagina: 'display-clock.html', bootstrapArgv: !!bootstrap });
     finalizarJanelaRelogioNativa(win);
     /* Config completa entregue antes do primeiro paint: o `did-finish-load` abaixo vai
        deduplicar e não reenviar. Incompleta (bgImage cortada), fica sem assinatura para
@@ -1288,6 +1633,7 @@ function createProjectionEngine(paths, deps) {
     win.setMenuBarVisibility(false);
     win.webContents.on('did-finish-load', () => {
       enviarDisplayConfigParaJanelasRelogio(win);
+      marcarBootstrapPronto(win);
     });
     return win;
   }
@@ -1316,15 +1662,15 @@ function createProjectionEngine(paths, deps) {
       focusable: false,
       title: `Fundo (Monitor ${displayIndex + 1})`,
       backgroundColor: PRETO_NATIVO_PROJECAO,
+      ...(process.platform === 'win32' ? { backgroundMaterial: 'none' } : {}),
       webPreferences: { backgroundThrottling: false },
     });
+    marcarPapelDaJanela(win, ROLE_FUNDO, displayIndex);
+    diag('abrir', win, { pagina: 'data:preto' });
     definirNivelTopo(win, false);
-    win.once('ready-to-show', () => {
-      if (win.isDestroyed()) return;
-      try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
-  // intencional — erro ignorado
-}
-    });
+    /* Fundo não tem bootstrap IPC — o HTML já é preto. Só falta o quadro composto. */
+    win.__lyraBootstrapOk = true;
+    ouvirPrimeiroQuadroParaRevelar(win);
     win.loadURL(PAGINA_FUNDO);
     try { win.setMenuBarVisibility(false); } catch (_) {
   // intencional — erro ignorado
@@ -1372,6 +1718,7 @@ function createProjectionEngine(paths, deps) {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
       if (!desejados.has(entry.index) || !displays[entry.index]) {
+        diag('fechar', win, { motivo: 'monitor-fora-da-gestao' });
         try { win.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1428,12 +1775,15 @@ function createProjectionEngine(paths, deps) {
     if (!win || win.isDestroyed() || !bounds) return false;
     if (boundsIguais(win, bounds)) return false;
     try {
+      let de = null;
+      try { de = win.getBounds(); } catch (_) { /* intencional */ }
       win.setBounds({
         x: bounds.x,
         y: bounds.y,
         width: bounds.width,
         height: bounds.height,
       });
+      diag('mover', win, { de });
       return true;
     } catch (_) {
       return false;
@@ -1523,6 +1873,7 @@ function createProjectionEngine(paths, deps) {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
       if (!desejados.has(entry.index) || !displays[entry.index]) {
+        diag('fechar', win, { motivo: 'monitor-sem-relogio' });
         try { win.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1535,8 +1886,13 @@ function createProjectionEngine(paths, deps) {
         cobrirBoundsDoDisplay(win, d.bounds);
         /* Guardado: sem isto era um `SetWindowPos(HWND_NOTOPMOST)` por tick de slider,
            numa janela que já está em `false` desde `finalizarJanelaRelogioNativa`. */
-        definirNivelTopo(win, false);
-        if (!win.isVisible()) mostrarJanelaProjecaoSemFoco(win);
+        if (definirNivelTopo(win, false)) {
+          /* Se isto disparar, alguém promoveu o relógio à banda topmost — era o defeito
+             que `aplicarTopoAbsolutoProjecao` passou a impedir. Fica registado para o caso
+             de reaparecer por outro caminho. */
+          diag('topo-rebaixado', win, { origem: 'sincronizarJanelasRelogio' });
+        }
+        if (!win.isVisible()) mostrarJanelaProjecaoQuandoPronta(win, 'sincronizarJanelasRelogio');
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1574,6 +1930,8 @@ function createProjectionEngine(paths, deps) {
         backgroundColor: PRETO_NATIVO_PROJECAO,
       }
     );
+    marcarPapelDaJanela(win, 'publico', displayIndex);
+    diag('abrir', win, { pagina: 'display.html' });
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
     win.loadFile(resolverPaginaProjecao('display.html'));
@@ -1581,6 +1939,7 @@ function createProjectionEngine(paths, deps) {
 
     win.webContents.on('did-finish-load', () => {
       enviarBootstrapJanelaPublica(win);
+      marcarBootstrapPronto(win);
     });
 
     win.webContents.on('before-input-event', (event, input) => {
@@ -1606,6 +1965,8 @@ function createProjectionEngine(paths, deps) {
         /* Sem `zoomFactor: scaleFactor` — mesma regra do telão e do relógio. */
       })
     );
+    marcarPapelDaJanela(win, 'escudo', displayIndex);
+    diag('abrir', win, { pagina: 'display.html' });
     finalizarJanelaProjecaoNativa(win);
 
     win.loadFile(resolverPaginaProjecao('display.html'));
@@ -1620,6 +1981,7 @@ function createProjectionEngine(paths, deps) {
       } catch (_) {
   // intencional — erro ignorado
 }
+      marcarBootstrapPronto(win);
     });
 
     return win;
@@ -1639,6 +2001,8 @@ function createProjectionEngine(paths, deps) {
       transparent: false,
       backgroundColor: PRETO_NATIVO_PROJECAO,
     });
+    marcarPapelDaJanela(win, 'ministrante', displayIndex);
+    diag('abrir', win, { pagina: 'display-operator.html' });
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
 
     win.loadFile(resolverPaginaProjecao('display-operator.html'));
@@ -1646,6 +2010,7 @@ function createProjectionEngine(paths, deps) {
 
     win.webContents.on('did-finish-load', () => {
       enviarBootstrapJanelaMinistrante(win);
+      marcarBootstrapPronto(win);
     });
 
     win.webContents.on('before-input-event', (event, input) => {
@@ -1835,6 +2200,7 @@ function createProjectionEngine(paths, deps) {
       entrada.index = displayIndex;
       entrada.win = novoWin;
       if (antiga && !antiga.isDestroyed()) {
+        diag('fechar', antiga, { motivo: 'substituida-na-troca', para: displayIndex });
         try { antiga.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1857,17 +2223,15 @@ function createProjectionEngine(paths, deps) {
     }
     entrada.__trocaPendente = { alvo: displayIndex, win: novoWin, temporizador, aoConcluir: concluir };
 
+    novoWin.once('show', aplicarTroca);
     novoWin.once('ready-to-show', aplicarTroca);
     novoWin.webContents.once('did-finish-load', () => {
       try {
-        /* Fullscreen exclusivo NÃO — ver `opcoesBrowserWindowProjecao`. Só topo + show. */
+        /* Fullscreen exclusivo NÃO — ver `opcoesBrowserWindowProjecao`. Só topo.
+           Quem mostra é `revelarJanelaProjecaoQuandoPreta` — mostrar aqui ainda
+           revela o primeiro HWND branco. */
         finalizarJanelaProjecaoNativa(novoWin);
-        /* Só se o primeiro quadro já passou. Enquanto não passou, quem mostra é o
-           `ready-to-show` de `finalizarJanelaProjecaoNativa` — e o `aplicarTroca`
-           registado nesse mesmo evento corre logo a seguir, já com a janela visível. */
-        if (jaPintouPrimeiroQuadro(novoWin) && !novoWin.isVisible()) {
-          mostrarJanelaProjecaoSemFoco(novoWin);
-        }
+        marcarBootstrapPronto(novoWin);
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1887,6 +2251,7 @@ function createProjectionEngine(paths, deps) {
     const restantes = [];
     registro.todas().forEach((entry) => {
       if (entry?.role === role && entry?.win && !entry.win.isDestroyed()) {
+        diag('fechar', entry.win, { motivo: 'papel-desativado' });
         try { entry.win.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1917,19 +2282,16 @@ function createProjectionEngine(paths, deps) {
       concluiu = true;
       if (typeof cb === 'function') cb();
     };
+    win.once('show', finalizar);
     win.once('ready-to-show', finalizar);
     win.webContents.once('did-finish-load', () => {
       try {
-        /* Topo primeiro, `show()` depois — ver `assentarJanelaOcultaNoDisplay`.
-           E o `show()` respeita quem escondeu a janela de propósito: na primeira passagem a
+        /* Topo primeiro; quem mostra é `revelarJanelaProjecaoQuandoPreta`.
+           O `show()` respeita quem escondeu a janela de propósito: na primeira passagem a
            marca está limpa e nada muda; é no disparo tardio, já depois de a cadeia ter
            escondido a janela, que ela evita a regressão. */
         finalizarJanelaProjecaoNativa(win);
-        /* Mesma regra da troca: nada de mostrar antes do primeiro quadro. Este ramo é a
-           rede para o disparo tardio, quando o `ready-to-show` já passou. */
-        if (jaPintouPrimeiroQuadro(win) && !win.isVisible() && !ocultoParaRelogio(win)) {
-          mostrarJanelaProjecaoSemFoco(win);
-        }
+        marcarBootstrapPronto(win);
       } catch (_) {
   // intencional — erro ignorado
 }
@@ -1958,12 +2320,12 @@ function createProjectionEngine(paths, deps) {
     const mostrar = opts.mostrar !== false;
     try {
       cancelarTrocaPendente(entrada);
-      if (win.isVisible()) win.hide();
+      esconderJanelaProjecao(win, 'mover-de-monitor', { para: displayIndex });
       entrada.ocultoParaRelogio = false;
       marcarOcultoParaRelogio(win, false);
       assentarJanelaOcultaNoDisplay(win, d);
       entrada.index = displayIndex;
-      if (mostrar) mostrarJanelaProjecaoSemFoco(win);
+      if (mostrar) mostrarJanelaProjecaoQuandoPronta(win, 'moverJanelaRoleEntreMonitores');
       return true;
     } catch (_) {
       return false;
@@ -2026,6 +2388,7 @@ function createProjectionEngine(paths, deps) {
     const principal = entradas[0] || null;
     entradas.slice(1).forEach((extra) => {
       if (extra?.win && !extra.win.isDestroyed()) {
+        diag('fechar', extra.win, { motivo: 'duplicada-no-papel' });
         try { extra.win.close(); } catch (_) {
   // intencional — erro ignorado
 }
@@ -2048,7 +2411,7 @@ function createProjectionEngine(paths, deps) {
             principal.ocultoParaRelogio = false;
             marcarOcultoParaRelogio(principal.win, false);
             assentarJanelaOcultaNoDisplay(principal.win, d);
-            mostrarJanelaProjecaoSemFoco(principal.win);
+            mostrarJanelaProjecaoQuandoPronta(principal.win, 'sincronizarJanelaRole');
             principal.index = displayIndex;
           } catch (_) {
   // intencional — erro ignorado
@@ -2105,9 +2468,7 @@ function createProjectionEngine(paths, deps) {
           restantes.push(entry);
           if (!desejados.has(entry.index)) {
             // hide() direto — não mexer nos bounds enquanto visível (evita flash do desktop)
-            try { entry.win.hide(); } catch (_) {
-  // intencional — erro ignorado
-}
+            esconderJanelaProjecao(entry.win, 'escudo-fora-da-rota');
           } else if (
             entry.win.isVisible() &&
             !janelaCobreODisplay(entry, entry.index, obterDisplaysOrdenados())
@@ -2125,7 +2486,7 @@ function createProjectionEngine(paths, deps) {
               entry.ocultoParaRelogio = false;
               marcarOcultoParaRelogio(entry.win, false);
               assentarJanelaOcultaNoDisplay(entry.win, d);
-              mostrarJanelaProjecaoSemFoco(entry.win);
+              mostrarJanelaProjecaoQuandoPronta(entry.win, 'sincronizarJanelasEscudo');
             } catch (_) {
   // intencional — erro ignorado
 }
@@ -2170,6 +2531,7 @@ function createProjectionEngine(paths, deps) {
 
   function finalizarSincronizacaoTelas(onComplete) {
     syncTelasEmAndamento = false;
+    diagGeral('sync-fim', { janelas: registro.tamanho(), reagendar: !!syncTelasReagendar });
     reafirmarTopoTodasJanelasProjecao();
     atualizarLoopTopoAbsolutoProjecao();
     if (typeof onComplete === 'function') {
@@ -2197,6 +2559,9 @@ function createProjectionEngine(paths, deps) {
    */
   function sincronizarTelasComRota(routingDual, onComplete) {
     if (syncTelasEmAndamento) {
+      /* Reentrância: a cadeia anterior ainda não acabou. É o sinal de que dois pedidos
+         chegaram quase juntos — troca de aba em cima de um comando, por exemplo. */
+      diagGeral('sync-adiado', { pendentes: syncTelasCallbacksPendentes.length });
       syncTelasReagendar = true;
       if (typeof onComplete === 'function') syncTelasCallbacksPendentes.push(onComplete);
       return;
@@ -2215,6 +2580,18 @@ function createProjectionEngine(paths, deps) {
     } = resolverIndicesEfetivosProjecao(routingDual);
     const ministranteIndex = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     const escudos = indicesMonitoresEscudoPreto(routingDual);
+
+    diagGeral('sync-inicio', {
+      pub: publicoIndex,
+      min: ministranteIndex,
+      minConteudo: ministranteConteudo,
+      escudos,
+      monitores: obterDisplaysOrdenados().length,
+      suprimido: !!suprimidoPelaGuarda,
+      janelas: registro.tamanho(),
+      rapidas: garantirRapidas,
+    });
+    garantirRapidas = 0;
 
     if (publicoIndex < 0 && ministranteIndex < 0 && escudos.length === 0) {
       /* Ver o ramo gémeo em `garantirTelasAbertasParaProjecao`: supressão pela guarda é
@@ -2483,6 +2860,8 @@ function createProjectionEngine(paths, deps) {
       return;
     }
     if (telasAbertasCorrespondemRota(routingDual)) {
+      /* Caminho rápido: só conta. Ver `garantirRapidas`. */
+      garantirRapidas += 1;
       /* Antes de qualquer envio: as janelas que a rota deixou em «Não exibir» têm de estar
          marcadas, senão os `atualizar*` logo abaixo mandam-lhes conteúdo. */
       marcarCanaisSemExibicao({ publico: pub < 0, ministrante: minConteudo < 0 });
@@ -2505,6 +2884,7 @@ function createProjectionEngine(paths, deps) {
       atualizarLoopTopoAbsolutoProjecao();
       return;
     }
+    diagGeral('garantir-resync', { pub, min, minConteudo, escudos: escudos.length });
     sincronizarTelasComRota(routingDual, () => {
       try {
         const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);

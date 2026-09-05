@@ -57,6 +57,16 @@ const PORTA_OBS = 5001;
  */
 function criarProjecaoLocal(deps) {
   const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel } = deps;
+  /* Diário de bordo das telas, criado pelo `main.js` — aqui só se usa e se repassa ao
+     motor. Sem ele o motor cai no diário nulo e nada muda. */
+  const diario = deps.diagnostico || null;
+  const registarNoDiario = (evento, dados) => {
+    try {
+      diario?.registar(evento, dados || {});
+    } catch (_) {
+      // intencional — o diário nunca pode derrubar a projeção
+    }
+  };
 
   let io = null;
   let servidorApi = null;
@@ -102,6 +112,16 @@ function criarProjecaoLocal(deps) {
         aoListaMonitores: () => {
           if (!activa) return;
           try {
+            const telas = screen.getAllDisplays();
+            registarNoDiario('monitores', {
+              momento: 'evento-de-ecra',
+              total: telas.length,
+              caixas: telas.map((d) => `${d.bounds.width}x${d.bounds.height}+${d.bounds.x}+${d.bounds.y}`),
+            });
+          } catch (_) {
+            // intencional — erro ignorado
+          }
+          try {
             if (typeof aoEmitirParaPainel === 'function') {
               aoEmitirParaPainel('monitores_alterados', buildMonitorsList(screen));
             }
@@ -111,6 +131,7 @@ function criarProjecaoLocal(deps) {
         },
         aoReorganizarJanelas: (etapa) => {
           if (!activa || !engine) return;
+          registarNoDiario('display-change', { etapa });
           try {
             engine.garantirTelasAbertasParaProjecao();
           } catch (e) {
@@ -523,6 +544,7 @@ function criarProjecaoLocal(deps) {
    * @returns {Promise<{ ok: boolean, erro?: string, lanIp?: string, lanIps?: string[] }>}
    */
   async function ligar() {
+    registarNoDiario('projecao-ligar-pedido', { jaActiva: activa });
     if (activa) {
       return { ok: true, lanIp: getPreferredLocalIPv4(), lanIps: listLocalIPv4() };
     }
@@ -619,6 +641,7 @@ function criarProjecaoLocal(deps) {
     });
     engine = createProjectionEngine(paths, {
       logError: registarErro,
+      diagnostico: diario || undefined,
       screen,
       BrowserWindow,
       state: store,
@@ -697,6 +720,7 @@ function criarProjecaoLocal(deps) {
      * Em `try/catch` porque falhar a abrir as telas não pode derrubar um motor que já tem
      * as portas de pé: o painel continua a comandar, e o operador vê o problema nas telas.
      */
+    registarNoDiario('projecao-ligada', { porta: PORTA_PROJECAO });
     try {
       engine.garantirTelasAbertasParaProjecao();
     } catch (e) {
@@ -710,6 +734,7 @@ function criarProjecaoLocal(deps) {
 
   /** Desliga a projeção local e larga as portas. */
   async function desligar() {
+    registarNoDiario('projecao-desligar', {});
     activa = false;
     /* Antes de largar o motor: um evento de monitor a chegar depois disto encontraria
        `engine` a `null`. O guard em `aoMudar` cobre a corrida, isto evita-a. */
