@@ -23,7 +23,8 @@
  *       tipo, URL e item em `modules/midiaApresentacao.js`
  *   C — Cultos, playlists, cópias locais, chaves localStorage;
  *       calendário em `modules/cultosCalendario.js`;
- *       ids/mapa de cópias locais em `modules/copiasLocaisLetra.js`
+ *       ids/mapa de cópias locais em `modules/copiasLocaisLetra.js`;
+ *       fonte da busca de letras em `modules/fonteLetrasSite.js`
  *   D — Slides (dock, zoom, chips, edição de estrofes);
  *       geometria da grelha em `modules/slidesGrelha.js`
  *   E — Pré-visualização telão/ministrante e espelho do estado remoto
@@ -40,6 +41,7 @@
  *   midiaApresentacao.js — tipo, URL segura, item e aviso do card 6
  *   cultosCalendario.js — ids, rótulos e geração do mês / extra manual
  *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
+ *   fonteLetrasSite.js — seletor HLYRCS / online / Cifra Club / letras.mus.br
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
  */
@@ -102,6 +104,10 @@ import {
   ehVersaoServidorId,
   criarMapaCopiasLocais,
 } from './modules/copiasLocaisLetra.js';
+import {
+  BANCO_FONTE_OPCOES,
+  normalizarFonteLetrasSite,
+} from './modules/fonteLetrasSite.js';
 import {
   criarSlidesGrelha,
   digestEstrofesParaStripFaixa,
@@ -5312,22 +5318,7 @@ let bibFiltroQAplicado = null;
 let resultadosLetrasCache = [];
 let letrasBuscaGeracao = 0;
 let letrasBuscaAbort = null;
-/** Fonte da busca de letras: `banco-local`, `cifraclub`, `letras-mus-br` ou `lyra-online`. */
-function normalizarFonteLetrasSite(val) {
-  const s = String(val || '').trim();
-  if (s === 'letras-mus-br') return 'letras-mus-br';
-  if (s === 'cifraclub') return 'cifraclub';
-  if (s === 'lyra-online' || s === 'lyra-songbank') return 'lyra-online';
-  return 'banco-local';
-}
 let letrasSiteFonte = 'banco-local';
-
-const BANCO_FONTE_OPCOES = [
-  { value: 'banco-local', label: 'HLYRCS' },
-  { value: 'lyra-online', label: 'BANCO ONLINE DO LYRA' },
-  { value: 'cifraclub', label: 'CIFRA CLUB' },
-  { value: 'letras-mus-br', label: 'LETRAS.MUS.BR' },
-];
 let listaLocalRenderizada = [];
 /** Lista de músicas SQLite visível (padrão) ou recolhida. */
 let bancoSqliteListaExpandida = true;
@@ -15483,12 +15474,7 @@ async function abrirModalPreviewLetras(path, fonte) {
   letrasPreviewCatalogIdPendente = null;
   letrasPreviewUserIdPendente = null;
   letrasPreviewPathPendente = path || '';
-  letrasPreviewFontePendente =
-    fonte === 'letras-mus-br'
-      ? 'letras-mus-br'
-      : fonte === 'lyra-online' || fonte === 'lyra-songbank'
-        ? 'lyra-online'
-        : normalizarFonteLetrasSite(fonte || 'cifraclub');
+  letrasPreviewFontePendente = normalizarFonteLetrasSite(fonte || 'cifraclub');
   const btnImp = document.getElementById('letras-preview-import');
   if (btnImp) btnImp.textContent = 'Importar esta versão';
   configurarSelectLinhasPreviewLetras();
