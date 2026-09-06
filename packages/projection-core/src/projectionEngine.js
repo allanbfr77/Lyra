@@ -166,6 +166,13 @@ const PAGINA_FUNDO = 'data:text/html;charset=utf-8,%3Chtml%20style%3D%22backgrou
 const ROLES_COM_CONTEUDO = new Set(['publico', 'ministrante']);
 
 /**
+ * Revisão do HTML do M3 (`display-operator.html`). Incrementar quando janelas
+ * permanentes precisarem de `reloadIgnoringCache` para apanhar JS novo
+ * (ex.: letterSpacing) sem reiniciar o processo Electron.
+ */
+const REVISAO_HTML_OPERADOR = 2;
+
+/**
  * Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3.
  *
  * O ciclo só faz `moveTop()`. Reemitir `setAlwaysOnTop('screen-saver')` a cada tick era
@@ -1377,6 +1384,7 @@ function createProjectionEngine(paths, deps) {
     } catch (_) {
   // intencional — erro ignorado
 }
+    injetarLetterSpacingMinistrante(cfg, [{ role: 'ministrante', win }]);
   }
 
   function resolverClockConfigPersistida() {
@@ -1384,6 +1392,51 @@ function createProjectionEngine(paths, deps) {
       ...(displayConfigLib.DEFAULT_DISPLAY_CONFIG.clock || {}),
       ...(((state.displayConfig || {}).clock) || {}),
     };
+  }
+
+  /**
+   * Janela permanente aberta antes de um patch no HTML do operador: sem reload
+   * o renderer continua com o ficheiro antigo em cache e ignora campos novos
+   * (ex.: `ministrante.letterSpacing`). Janelas criadas com o código actual
+   * já nascem com `__lyraRevisaoHtmlOperador` e não recarregam.
+   */
+  function talvezRecarregarHtmlOperador(win) {
+    if (!win || win.isDestroyed()) return;
+    if (win.__lyraRevisaoHtmlOperador === REVISAO_HTML_OPERADOR) return;
+    win.__lyraRevisaoHtmlOperador = REVISAO_HTML_OPERADOR;
+    try {
+      if (typeof win.webContents.isLoading === 'function' && win.webContents.isLoading()) {
+        return;
+      }
+      win.webContents.reloadIgnoringCache();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  }
+
+  /**
+   * Garante letter-spacing no M3 real mesmo se o HTML em memória ainda for
+   * anterior ao patch (janela permanente). O renderer novo também aplica via
+   * `aplicarLetterSpacingMinistrante`; isto é a ponte até o reload.
+   */
+  function injetarLetterSpacingMinistrante(cfg, janelas) {
+    const raw = Number(cfg && cfg.ministrante && cfg.ministrante.letterSpacing);
+    const ls = Number.isFinite(raw) ? Math.min(30, Math.max(-10, raw)) : 0;
+    const lsPx = JSON.stringify(`${ls}px`);
+    const script =
+      '(function(){var a=document.getElementById("atual"),p=document.getElementById("proximo");' +
+      `if(a)a.style.letterSpacing=${lsPx};if(p)p.style.letterSpacing=${lsPx};})();`;
+    for (const entry of janelas || []) {
+      if (entry?.role !== 'ministrante') continue;
+      const win = entry.win;
+      if (!win || win.isDestroyed()) continue;
+      try {
+        const p = win.webContents.executeJavaScript(script, true);
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (_) {
+        // intencional — erro ignorado
+      }
+    }
   }
 
   /**
@@ -1409,14 +1462,24 @@ function createProjectionEngine(paths, deps) {
    *   ocioso lhe dava a classe `idle-sem-projecao`. Recebendo `display_config` ele podia
    *   pintar o fundo do telão (imagem/gradiente) por um frame.
    *
+   * Também: (1) recarrega uma vez o HTML do M3 se a janela permanente for anterior a
+   * `REVISAO_HTML_OPERADOR`; (2) injeta `letterSpacing` no DOM do operador para o
+   * valor chegar ao monitor real mesmo antes/durante esse reload.
+   *
    * @param {{ forcarModo?: 'slides'|'biblia' }} [opts]
    * @returns {object} a config efectivamente enviada
    */
   function aplicarDisplayConfigNasJanelas(opts = {}) {
-    return displayConfigModo.enviarDisplayConfigParaJanelas(state, {
+    const janelas = registro.todas().filter((entry) => ROLES_COM_CONTEUDO.has(entry?.role));
+    for (const entry of janelas) {
+      if (entry?.role === 'ministrante') talvezRecarregarHtmlOperador(entry.win);
+    }
+    const cfg = displayConfigModo.enviarDisplayConfigParaJanelas(state, {
       ...opts,
-      janelas: registro.todas().filter((entry) => ROLES_COM_CONTEUDO.has(entry?.role)),
+      janelas,
     });
+    injetarLetterSpacingMinistrante(cfg, janelas);
+    return cfg;
   }
 
   /** Leitura do registo para diagnóstico e testes. Cópia — ninguém escreve por aqui. */
@@ -1960,6 +2023,8 @@ function createProjectionEngine(paths, deps) {
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
     cobrirMonitorComJanelaNativa(win);
 
+    /* loadFile já traz o HTML actual — marcar revisão para não forçar reload. */
+    win.__lyraRevisaoHtmlOperador = REVISAO_HTML_OPERADOR;
     win.loadFile(resolverPaginaProjecao('display-operator.html'));
     win.setMenuBarVisibility(false);
 

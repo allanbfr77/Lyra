@@ -11158,6 +11158,27 @@ function aplicarEstiloPreviewTituloAbertura() {
   opTit.style.fontSize = `${Math.max(8, Math.round(fontVh * 1.6))}px`;
 }
 
+/**
+ * Tom de cifra: `C`, `C#`, `Bb`, `Cm`, `F#m`, `ORIG.` — o conjunto de `TONS_MUSICAIS`.
+ * Gémeo de `RX_TOM_TITULO_ABERTURA` em `display-operator.html`; alterar os dois juntos.
+ */
+const RX_TOM_TITULO_ABERTURA = /^(?:[A-G](?:#|b)?m?|ORIG\.?)$/;
+
+/**
+ * Separa «♪ Título | Tom» em nome e tom, para o tom escapar à caixa alta do título.
+ *
+ * O tom é o que vem depois do ÚLTIMO ` | `, e só se se parecer mesmo com um tom: uma
+ * música chamada «Aleluia | Ao Vivo» continua a ser nome inteiro, toda em maiúsculas.
+ */
+function partesTituloAberturaM3(titulo) {
+  const t = String(titulo || '').trim();
+  const i = t.lastIndexOf(' | ');
+  if (i < 0) return { nome: t, tom: '' };
+  const tom = t.slice(i + 3).trim();
+  if (!RX_TOM_TITULO_ABERTURA.test(tom)) return { nome: t, tom: '' };
+  return { nome: t.slice(0, i), tom };
+}
+
 /** Título no topo do preview M3 — só no 1.º slide da música. */
 function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
   const opTit = document.getElementById('op-titulo');
@@ -11167,7 +11188,19 @@ function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
     limparPreviewTituloMusicaAbertura();
     return;
   }
-  opTit.textContent = textoSlideMaiusculo(t);
+  const { nome, tom } = partesTituloAberturaM3(t);
+  opTit.textContent = '';
+  const spanNome = document.createElement('span');
+  spanNome.textContent = textoSlideMaiusculo(nome);
+  opTit.appendChild(spanNome);
+  if (tom) {
+    /* Cifra não é texto: `Cm` é dó menor e `CM` seria outra coisa. O `text-transform` do
+       título não pode chegar aqui — ver `.op-titulo-musica-tom` no CSS. */
+    const spanTom = document.createElement('span');
+    spanTom.className = 'op-titulo-musica-tom';
+    spanTom.textContent = ` | ${tom}`;
+    opTit.appendChild(spanTom);
+  }
   opTit.classList.remove('vazio');
   aplicarEstiloPreviewTituloAbertura();
   aplicarRespiroPreviewTituloAbertura();
@@ -22395,8 +22428,13 @@ let currentCfgCtrl = {
     commentColor: '#00c8ff',
     aberturaTituloColor: '#f3c15a',
     aberturaTituloFontSize: 7,
+    fontFamily: 'CMG Sans, sans-serif',
+    negrito: true,
+    italico: false,
+    maiusculo: true,
     fontSize: 4.1,
     lineSpacing: 1.35,
+    letterSpacing: 0,
     wrapLongLines: true,
     autoFitLongLines: false,
   },
@@ -22597,8 +22635,21 @@ function popularFormCfg(cfg) {
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(mbFontProximo));
   setInputVal('cfg-ministrante-linespacing-ctrl', mb.lineSpacing || 1.35);
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(mb.lineSpacing || 1.35));
+  const mbLetter = Number(mb.letterSpacing);
+  const mbLetterOk = Number.isFinite(mbLetter) ? mbLetter : 0;
+  setSelVal('cfg-ministrante-letterspacing-ctrl', String(mbLetterOk));
+  setSpanText('cfg-ministrante-letterspacing-val-ctrl', String(mbLetterOk));
+  if (opACor) opACor.style.letterSpacing = '';
+  if (opPCor) opPCor.style.letterSpacing = '';
   setChkVal('cfg-ministrante-wrap-ctrl', mb.wrapLongLines !== false);
   setChkVal('cfg-ministrante-autofit-ctrl', mb.autoFitLongLines === true);
+  /* Tipografia do M3. `maiusculo` ausente = LIGADO: o ministrante sempre saiu em caixa
+     alta, logo uma config antiga (sem o campo) não pode virar minúsculas ao actualizar. */
+  setSelVal('cfg-ministrante-fontfamily-ctrl', mb.fontFamily || 'CMG Sans, sans-serif');
+  setChkVal('cfg-ministrante-negrito-ctrl', mb.negrito !== false);
+  setChkVal('cfg-ministrante-italico-ctrl', mb.italico === true);
+  setChkVal('cfg-ministrante-maiusculo-ctrl', mb.maiusculo !== false);
+  aplicarTipografiaMinistranteNoPreview(mb);
   setSelVal('cfg-clock-format-ctrl', ck.format || 'HH:MM');
   setChkVal('cfg-clock-show-ctrl', ck.showClock !== false);
   setInputVal('cfg-clock-fontsize-ctrl', ck.fontSize || 13);
@@ -22933,6 +22984,31 @@ function aplicarCorComentarioMinistranteNoPainel(cor) {
   return corComentarioMinistrantePainel;
 }
 
+/**
+ * Espelha na prévia do painel a tipografia do M3 (família, negrito, itálico, maiúsculas).
+ *
+ * Vai por custom properties, não por `style` directo: o CSS só as lê em
+ * `.op-slide-text:not(.vazio)`, de modo que a mensagem de estado («sem slide») continua na
+ * fonte da interface. Inline, o negrito/caixa alta do M3 também a apanhariam.
+ *
+ * Defaults iguais aos do M3 real: negrito e maiúsculas ligados quando o campo não existe.
+ */
+function aplicarTipografiaMinistranteNoPreview(mn = {}) {
+  const familia = String(mn.fontFamily || '').trim();
+  const peso = mn.negrito !== false ? '600' : '400';
+  const estilo = mn.italico === true ? 'italic' : 'normal';
+  const caixa = mn.maiusculo !== false ? 'uppercase' : 'none';
+  for (const id of ['op-atual', 'op-proximo']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (familia) el.style.setProperty('--m3-font-familia', familia);
+    else el.style.removeProperty('--m3-font-familia');
+    el.style.setProperty('--m3-font-peso', peso);
+    el.style.setProperty('--m3-font-estilo', estilo);
+    el.style.setProperty('--m3-font-caixa', caixa);
+  }
+}
+
 function onMinistranteSlideCfgChange() {
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
   currentCfgCtrl.ministrante.textColorAtual =
@@ -22961,6 +23037,19 @@ function onMinistranteSlideCfgChange() {
     'cfg-ministrante-linespacing-ctrl',
     currentCfgCtrl.ministrante.lineSpacing ?? 1.35
   );
+  {
+    const rawLs = parseFloat(
+      document.getElementById('cfg-ministrante-letterspacing-ctrl')?.value ?? '0'
+    );
+    const ls = Number.isFinite(rawLs) ? Math.min(30, Math.max(-10, rawLs)) : 0;
+    currentCfgCtrl.ministrante.letterSpacing = ls;
+    setSpanText('cfg-ministrante-letterspacing-val-ctrl', String(ls));
+  }
+  currentCfgCtrl.ministrante.fontFamily =
+    document.getElementById('cfg-ministrante-fontfamily-ctrl')?.value || 'CMG Sans, sans-serif';
+  currentCfgCtrl.ministrante.negrito = getChkVal('cfg-ministrante-negrito-ctrl');
+  currentCfgCtrl.ministrante.italico = getChkVal('cfg-ministrante-italico-ctrl');
+  currentCfgCtrl.ministrante.maiusculo = getChkVal('cfg-ministrante-maiusculo-ctrl');
   currentCfgCtrl.ministrante.wrapLongLines = getChkVal('cfg-ministrante-wrap-ctrl');
   currentCfgCtrl.ministrante.autoFitLongLines = getChkVal('cfg-ministrante-autofit-ctrl');
   setSpanText('cfg-ministrante-abertura-titulo-fontsize-val-ctrl', String(currentCfgCtrl.ministrante.aberturaTituloFontSize));
@@ -22968,11 +23057,19 @@ function onMinistranteSlideCfgChange() {
   setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
   setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
   aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl.ministrante.commentColor);
+  aplicarTipografiaMinistranteNoPreview(currentCfgCtrl.ministrante);
   aplicarEstiloPreviewTituloAbertura();
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
-  if (opA) opA.style.color = currentCfgCtrl.ministrante.textColorAtual || '#ffffff';
-  if (opP) opP.style.color = currentCfgCtrl.ministrante.textColorProximo || '#f3c15a';
+  if (opA) {
+    opA.style.color = currentCfgCtrl.ministrante.textColorAtual || '#ffffff';
+    /* Prévia do painel não espelha letter-spacing — isso vai só ao M3 real. */
+    opA.style.letterSpacing = '';
+  }
+  if (opP) {
+    opP.style.color = currentCfgCtrl.ministrante.textColorProximo || '#f3c15a';
+    opP.style.letterSpacing = '';
+  }
   debounceSalvarCfg();
 }
 

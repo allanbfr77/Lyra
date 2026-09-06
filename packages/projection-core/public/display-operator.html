@@ -131,6 +131,14 @@
     .titulo-musica-op.oculta {
       display: none;
     }
+    /*
+     * O tom é cifra, não texto: `Cm` é dó MENOR e `CM` seria outra coisa. A caixa alta do
+     * título não pode passar por cima dele — daí sair do `text-transform` do pai em vez de
+     * ser «des-maiusculado» em JS, que não teria como desfazer o CSS.
+     */
+    .titulo-musica-op-tom {
+      text-transform: none;
+    }
     .linha-ministrante {
       display: block;
       /* A tinta do “O” sai da caixa de avance; não recorta o glifo. */
@@ -155,7 +163,6 @@
     .linha-ministrante-comentario,
     #atual .linha-ministrante-comentario,
     #proximo .linha-ministrante-comentario {
-      font-style: italic;
       color: #00c8ff;
     }
     .ref-biblica-op {
@@ -760,6 +767,29 @@
       elTituloMusicaOp.style.fontSize = `${fontVh}vh`;
     }
 
+    /**
+     * Tom de cifra: `C`, `C#`, `Bb`, `Cm`, `F#m`, `ORIG.`. É o mesmo conjunto de
+     * `TONS_MUSICAIS` no controlador, escrito aqui como padrão porque a janela de projeção
+     * não partilha módulos com o painel.
+     */
+    const RX_TOM_TITULO_ABERTURA = /^(?:[A-G](?:#|b)?m?|ORIG\.?)$/;
+
+    /**
+     * Separa «♪ Título | Tom» em nome e tom.
+     *
+     * O tom é o que vem depois do ÚLTIMO ` | ` — e só se se parecer mesmo com um tom. Uma
+     * música chamada «Aleluia | Ao Vivo» não tem tom nenhum: fica toda no nome, em caixa
+     * alta, exactamente como era antes.
+     */
+    function partesTituloAberturaOp(titulo) {
+      const t = String(titulo || '').trim();
+      const i = t.lastIndexOf(' | ');
+      if (i < 0) return { nome: t, tom: '' };
+      const tom = t.slice(i + 3).trim();
+      if (!RX_TOM_TITULO_ABERTURA.test(tom)) return { nome: t, tom: '' };
+      return { nome: t.slice(0, i), tom };
+    }
+
     /** Título da música no topo do M3 — só no 1.º slide. */
     function aplicarTituloMusicaAbertura(payload) {
       if (!elTituloMusicaOp) return;
@@ -778,7 +808,17 @@
         return;
       }
       elTituloMusicaOp.classList.remove('oculta');
-      elTituloMusicaOp.textContent = tit.toUpperCase();
+      const { nome, tom } = partesTituloAberturaOp(tit);
+      elTituloMusicaOp.textContent = '';
+      const spanNome = document.createElement('span');
+      spanNome.textContent = nome.toUpperCase();
+      elTituloMusicaOp.appendChild(spanNome);
+      if (tom) {
+        const spanTom = document.createElement('span');
+        spanTom.className = 'titulo-musica-op-tom';
+        spanTom.textContent = ` | ${tom}`;
+        elTituloMusicaOp.appendChild(spanTom);
+      }
       aplicarEstiloTituloAberturaOp();
       aplicarRespiroTituloAberturaOp();
     }
@@ -842,6 +882,47 @@
       }
     }
 
+    /**
+     * Maiúsculas do ministrante. O default depende do modo: nos Slides o M3 sempre saiu em
+     * caixa alta (config antiga, sem o campo, tem de continuar assim), enquanto na Bíblia o
+     * versículo sai como está escrito salvo indicação contrária.
+     */
+    function maiusculasMinistranteAtivas(mon, ehBiblia) {
+      const m = mon || {};
+      return ehBiblia ? m.maiusculo === true : m.maiusculo !== false;
+    }
+
+    /**
+     * Família, negrito, itálico e maiúsculas da letra do M3. Slides e Bíblia lêem os MESMOS
+     * campos, cada um da sua camada (`displayConfig` vs. overlay da Bíblia) — só o default
+     * de `maiusculo` difere. Aplicado sempre nos dois painéis, mesmo quando o valor é o de
+     * fábrica: só assim trocar de modo não deixa cá o itálico ou a fonte do modo anterior.
+     */
+    function aplicarTipografiaMinistrante(mon, ehBiblia) {
+      const m = mon || {};
+      const caixa = maiusculasMinistranteAtivas(m, ehBiblia) ? 'uppercase' : 'none';
+      const peso = m.negrito !== false ? 'bold' : 'normal';
+      const estilo = m.italico === true ? 'italic' : 'normal';
+      for (const el of [elAtual, elProximo]) {
+        if (!el) continue;
+        el.style.textTransform = caixa;
+        el.style.fontWeight = peso;
+        el.style.fontStyle = estilo;
+        if (m.fontFamily) el.style.fontFamily = m.fontFamily;
+      }
+      if (ehBiblia && elRefBiblicaOp && m.fontFamily) {
+        elRefBiblicaOp.style.fontFamily = m.fontFamily;
+      }
+    }
+
+    function aplicarLetterSpacingMinistrante(mon) {
+      const raw = Number(mon && mon.letterSpacing);
+      const ls = Number.isFinite(raw) ? Math.min(30, Math.max(-10, raw)) : 0;
+      const lsPx = `${ls}px`;
+      if (elAtual) elAtual.style.letterSpacing = lsPx;
+      if (elProximo) elProximo.style.letterSpacing = lsPx;
+    }
+
     function aplicarConfig(cfg) {
       if (!cfg) return;
       displayConfig = {
@@ -891,6 +972,7 @@
       elProximo.style.fontSize = `${baseProximoVh}vh`;
       elAtual.style.lineHeight = String(mon.lineSpacing || 1.35);
       elProximo.style.lineHeight = String(mon.lineSpacing || 1.35);
+      aplicarLetterSpacingMinistrante(mon);
       const wrap = mon.wrapLongLines !== false;
       if (!wrap) {
         elAtual.style.whiteSpace = 'pre';
@@ -914,11 +996,7 @@
       sincronizarCapaRelogioOciosa();
       const ehBibliaCfg =
         ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
-      if (ehBibliaCfg && mon.fontFamily) {
-        elAtual.style.fontFamily = mon.fontFamily;
-        elProximo.style.fontFamily = mon.fontFamily;
-        if (elRefBiblicaOp) elRefBiblicaOp.style.fontFamily = mon.fontFamily;
-      }
+      aplicarTipografiaMinistrante(mon, ehBibliaCfg);
       aplicarPosicaoConteudoMinistrante(mon, ehBibliaCfg);
       ajustarAutoFitSlidesMinistrante();
       /* A config mudou algo visível: invalida a assinatura para o re-render a seguir não ser
@@ -1059,7 +1137,7 @@
       elProximo.style.fontSize = `${baseProximo}vh`;
       const wrapLinhas = mon.wrapLongLines !== false;
       const autoFitLargura = wrapLinhas ? mon.autoFitLongLines === true : true;
-      const usarMaiusculas = ehBiblia ? mon.maiusculo === true : true;
+      const usarMaiusculas = maiusculasMinistranteAtivas(mon, ehBiblia);
       const plMed = ultimoPayloadMinistrante || {};
 
       if (autoFitLargura) {
@@ -1484,7 +1562,10 @@
       const ehBiblia = modoPayload === 'biblia';
 
       const aplicarLinhasMinistrante = () => {
-        const mai = ehBiblia ? (s) => s : (s) => String(s || '').toUpperCase();
+        const mai =
+          !ehBiblia && maiusculasMinistranteAtivas(displayConfig.ministrante, false)
+            ? (s) => String(s || '').toUpperCase()
+            : (s) => s;
         aplicarHtmlMinistrante(elAtual, atualTxt, mai);
         aplicarHtmlMinistrante(elProximo, proxTxt, mai);
         aplicarReferenciaBiblicaMinistrante(tituloRef, modoPayload);
@@ -1500,13 +1581,8 @@
 
       if (ehBiblia) {
         const mon = displayConfig.ministrante || {};
-        const usarMaiusculas = mon.maiusculo === true;
-        const usarNegrito = mon.negrito !== false;
         const wrap = mon.wrapLongLines !== false;
-        elAtual.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
-        elProximo.style.textTransform = usarMaiusculas ? 'uppercase' : 'none';
-        elAtual.style.fontWeight = usarNegrito ? 'bold' : 'normal';
-        elProximo.style.fontWeight = usarNegrito ? 'bold' : 'normal';
+        aplicarTipografiaMinistrante(mon, true);
         if (!wrap) {
           elAtual.style.whiteSpace = 'pre';
           elAtual.style.overflowWrap = 'normal';
@@ -1522,15 +1598,12 @@
           elProximo.style.overflowWrap = 'break-word';
           elProximo.style.wordBreak = 'normal';
         }
-        if (mon.fontFamily) {
-          elAtual.style.fontFamily = mon.fontFamily;
-          elProximo.style.fontFamily = mon.fontFamily;
-          if (elRefBiblicaOp) elRefBiblicaOp.style.fontFamily = mon.fontFamily;
-        }
+        aplicarLetterSpacingMinistrante(mon);
         aplicarPosicaoConteudoMinistrante(mon, true);
       } else {
-        elAtual.style.textTransform = 'uppercase';
-        elProximo.style.textTransform = 'uppercase';
+        const mon = displayConfig.ministrante || {};
+        aplicarTipografiaMinistrante(mon, false);
+        aplicarLetterSpacingMinistrante(mon);
         aplicarPosicaoConteudoMinistrante({}, false);
       }
       elAtual.classList.toggle('vazio', !payload.atual);

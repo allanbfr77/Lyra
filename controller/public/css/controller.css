@@ -4220,6 +4220,21 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   overflow: hidden;
 }
 
+/*
+ * Tipografia do M3 na prévia — Ajustes > Slides > Ministrante.
+ *
+ * As custom properties são escritas em `#op-atual`/`#op-proximo` por
+ * `aplicarTipografiaMinistranteNoPreview`. Ficam aqui, e não em `style` inline, porque
+ * `:not(.vazio)` tem de as poder ignorar: a prévia sem slide é texto de estado, na fonte
+ * da interface — o negrito e as maiúsculas do ministrante não lhe dizem respeito.
+ */
+.op-slide-text:not(.vazio) {
+  font-family: var(--m3-font-familia, var(--slide-font));
+  font-weight: var(--m3-font-peso, 600);
+  font-style: var(--m3-font-estilo, normal);
+  text-transform: var(--m3-font-caixa, uppercase);
+}
+
 .op-slide-text.vazio,
 .pl-slide-text.vazio {
   font-family: var(--font-ui);
@@ -4249,6 +4264,10 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 .op-titulo-musica.vazio {
   display: none;
 }
+/* O tom mantém a capitalização da cifra — ver `.titulo-musica-op-tom` no M3 real. */
+.op-titulo-musica-tom {
+  text-transform: none;
+}
 
 .op-slide-text .preview-linha {
   display: block;
@@ -4263,7 +4282,6 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 .op-slide-text .preview-linha--ministrante-comentario,
 #op-atual .preview-linha--ministrante-comentario,
 #op-proximo:not(.vazio) .preview-linha--ministrante-comentario {
-  font-style: italic;
   color: #00c8ff;
 }
 

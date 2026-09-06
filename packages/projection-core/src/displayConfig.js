@@ -37,10 +37,20 @@ const DEFAULT_DISPLAY_CONFIG = {
     /** Título da música no 1.º slide do M3 (`♪ Título | Tom`). */
     aberturaTituloColor: '#f3c15a',
     aberturaTituloFontSize: 7,
+    fontFamily: 'CMG Sans, sans-serif',
+    negrito: true,
+    italico: false,
+    /*
+     * `maiusculo` fica DE FORA de propósito. A camada `ministrante` serve os dois modos
+     * (Slides usa `displayConfig`, a Bíblia usa o overlay `displayConfigBiblia` sobre
+     * estes mesmos defaults) e o default da caixa alta não é o mesmo nos dois: Slides
+     * ligado, Bíblia desligado. Quem decide é `maiusculasMinistranteAtivas`, no M3.
+     */
     fontSize: 4.1,
     fontSizeAtual: 4.1,
     fontSizeProximo: 4.1,
     lineSpacing: 1.35,
+    letterSpacing: 0,
     wrapLongLines: true,
     autoFitLongLines: false,
   },

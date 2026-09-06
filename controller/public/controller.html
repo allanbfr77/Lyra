@@ -1232,6 +1232,43 @@
           </section>
 
           <section class="cfg-card">
+            <div class="cfg-card-head"><span class="cfg-card-titulo">Tipografia</span></div>
+            <div class="cfg-card-corpo">
+              <div class="cfg-row" data-busca="familia da fonte tipografia ministrante slides m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Família da fonte</div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-ministrante-fontfamily-ctrl" onchange="onMinistranteSlideCfgChange()">
+                    <option value="CMG Sans, sans-serif">CMG Sans</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                  </select>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="negrito ministrante slides m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-ministrante-negrito-ctrl" role="switch" aria-checked="true" aria-label="Negrito" onclick="toggleCfgSwitch(this); onMinistranteSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="italico ministrante slides m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Itálico</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch" id="cfg-ministrante-italico-ctrl" role="switch" aria-checked="false" aria-label="Itálico" onclick="toggleCfgSwitch(this); onMinistranteSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+              <div class="cfg-row" data-busca="maiusculas caixa alta ministrante slides m3">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
+                <div class="cfg-row-controlo">
+                  <button type="button" class="cfg-switch cfg-switch--on" id="cfg-ministrante-maiusculo-ctrl" role="switch" aria-checked="true" aria-label="Maiúsculas" onclick="toggleCfgSwitch(this); onMinistranteSlideCfgChange();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cfg-card">
             <div class="cfg-card-head"><span class="cfg-card-titulo">Cores do texto</span></div>
             <div class="cfg-card-corpo">
               <div class="cfg-row" data-busca="cor da letra atual ministrante slides">
@@ -1267,6 +1304,16 @@
               </div>
               <div class="cfg-row cfg-row--slider" data-busca="espacamento entre linhas ministrante slides">
                 <input type="range" class="cfg-slider" id="cfg-ministrante-linespacing-ctrl" min="1.0" max="2.4" step="0.05" value="1.35" data-sce-label="Espaçamento entre linhas" data-sce-unidade="" oninput="onMinistranteSlideCfgChange()">
+              </div>
+              <div class="cfg-row" data-busca="espacamento entre caracteres letras ministrante slides">
+                <div class="cfg-row-copy"><div class="cfg-row-label">Espaçamento entre caracteres <span class="cfg-row-val" id="cfg-ministrante-letterspacing-val-ctrl">0</span></div></div>
+                <div class="cfg-row-controlo">
+                  <select class="cfg-form-select" id="cfg-ministrante-letterspacing-ctrl" onchange="onMinistranteSlideCfgChange()">
+                    <option value="-10">-10</option><option value="-5">-5</option><option value="0" selected>0</option>
+                    <option value="5">5</option><option value="10">10</option><option value="15">15</option>
+                    <option value="20">20</option><option value="25">25</option><option value="30">30</option>
+                  </select>
+                </div>
               </div>
             </div>
           </section>
