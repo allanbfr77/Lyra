@@ -22,7 +22,8 @@
  *   B — Modo apresentação (ficheiros, áudio, grelha, HTTP :3001);
  *       tipo, URL e item em `modules/midiaApresentacao.js`
  *   C — Cultos, playlists, cópias locais, chaves localStorage;
- *       calendário (ids/rótulos) em `modules/cultosCalendario.js`
+ *       calendário em `modules/cultosCalendario.js`;
+ *       ids/mapa de cópias locais em `modules/copiasLocaisLetra.js`
  *   D — Slides (dock, zoom, chips, edição de estrofes);
  *       geometria da grelha em `modules/slidesGrelha.js`
  *   E — Pré-visualização telão/ministrante e espelho do estado remoto
@@ -38,6 +39,7 @@
  *   slidesGrelha.js — zoom, colunas, auto-fit e digest da faixa de slides
  *   midiaApresentacao.js — tipo, URL segura, item e aviso do card 6
  *   cultosCalendario.js — ids, rótulos e geração do mês / extra manual
+ *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
  */
@@ -63,7 +65,6 @@ import {
   LS_PLAYLIST_MINISTRANTE_PADRAO,
   TEMA_PADRAO_ABERTURA,
   PLAYLIST_TIPO_MARCADOR_TEMA,
-  LS_COPIAS_LOCAIS,
   LS_IP_KEY,
   LS_IP_LEGACY,
   LS_IP_LEMBRAR,
@@ -96,6 +97,11 @@ import {
   parseLabelCulto,
   labelFallbackDeCultoIdImport,
 } from './modules/cultosCalendario.js';
+import {
+  ehVersaoLocalLegada,
+  ehVersaoServidorId,
+  criarMapaCopiasLocais,
+} from './modules/copiasLocaisLetra.js';
 import {
   criarSlidesGrelha,
   digestEstrofesParaStripFaixa,
@@ -5175,52 +5181,14 @@ function migrarPlaylistsCultosAntigos() {
   if (mudou) savePlaylists();
 }
 
-function loadCopiasLocaisMapBruto() {
-  try {
-    const raw = localStorage.getItem(LS_COPIAS_LOCAIS);
-    if (!raw) return {};
-    const p = JSON.parse(raw);
-    return p && typeof p === 'object' ? p : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-let musicasCopiasLocais = loadCopiasLocaisMapBruto();
-
-function saveCopiasLocaisMap() {
-  try {
-    localStorage.setItem(LS_COPIAS_LOCAIS, JSON.stringify(musicasCopiasLocais));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function listaCopiasMusicaInterno(idMusica) {
-  const k = String(idMusica);
-  if (!Array.isArray(musicasCopiasLocais[k])) musicasCopiasLocais[k] = [];
-  return musicasCopiasLocais[k];
-}
+const mapaCopiasLocais = criarMapaCopiasLocais();
 
 function getCopiasParaMusica(idMusica) {
-  return [...listaCopiasMusicaInterno(idMusica)].sort((a, b) =>
-    String(a.rotulo || '').localeCompare(String(b.rotulo || ''), 'pt-BR', { sensitivity: 'base' })
-  );
+  return mapaCopiasLocais.getCopiasParaMusica(idMusica);
 }
 
 function encontrarCopiaLocal(idMusica, copiaId) {
-  if (copiaId == null || copiaId === '') return null;
-  return listaCopiasMusicaInterno(idMusica).find((c) => c.id === copiaId) || null;
-}
-
-function ehVersaoLocalLegada(versaoId) {
-  return !!(versaoId && String(versaoId).trim().startsWith('c_'));
-}
-
-function ehVersaoServidorId(versaoId) {
-  if (versaoId == null || versaoId === '') return false;
-  if (ehVersaoLocalLegada(versaoId)) return false;
-  return Number.isFinite(Number(versaoId));
+  return mapaCopiasLocais.encontrar(idMusica, copiaId);
 }
 
 function obterRootIdMusicaAtiva() {
@@ -5301,20 +5269,9 @@ async function carregarVersoesMusicaServidor(rootId) {
 }
 
 function atualizarCopiaLocal(idMusica, copiaId, data) {
-  const list = listaCopiasMusicaInterno(idMusica);
-  const c = list.find((x) => x.id === copiaId);
-  if (!c) return { ok: false, erro: 'Cópia não encontrada.' };
-  if (data.titulo != null) c.titulo = String(data.titulo || '').trim();
-  if (data.artista != null) c.artista = String(data.artista || '').trim();
-  if (data.estrofes != null) {
-    c.estrofes = Array.isArray(data.estrofes) ? data.estrofes.map((s) => String(s ?? '')) : [''];
-  }
-  if (data.rotulo != null) {
-    const rotulo = String(data.rotulo || '').trim().slice(0, 40);
-    if (!rotulo) return { ok: false, erro: 'Informe um nome para a versão.' };
-    c.rotulo = rotulo;
-  }
-  saveCopiasLocaisMap();
+  const up = mapaCopiasLocais.atualizarCampos(idMusica, copiaId, data);
+  if (!up.ok) return up;
+  const c = up.copia;
   const idN = Number(idMusica);
   const vid = String(copiaId);
   if (
@@ -5336,18 +5293,11 @@ function atualizarCopiaLocal(idMusica, copiaId, data) {
 }
 
 function removerCopiaLocal(idMusica, copiaId) {
-  const list = listaCopiasMusicaInterno(idMusica);
-  const idx = list.findIndex((c) => c.id === copiaId);
-  if (idx === -1) return false;
-  list.splice(idx, 1);
-  musicasCopiasLocais[String(idMusica)] = list;
-  saveCopiasLocaisMap();
-  return true;
+  return mapaCopiasLocais.remover(idMusica, copiaId);
 }
 
 function removerCopiasLocaisDaMusica(idMusica) {
-  delete musicasCopiasLocais[String(idMusica)];
-  saveCopiasLocaisMap();
+  mapaCopiasLocais.removerTodas(idMusica);
 }
 let filtrarLocalTimer = null;
 /** Gerações da busca da Biblioteca: descartar resultado/trabalho de uma tecla já ultrapassada. */
