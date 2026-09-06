@@ -6,6 +6,7 @@
  * para facilitar leitura, comentários e futuras divisões em módulos.
  *
  * ORDEM DE CARREGAMENTO (controller.html)
+ *   0. css/controller.css — folha do painel (antes extraída do HTML)
  *   1. publicDisplayConfig.js — defaults de configuração de telas (partilhado)
  *   2. controllerApp.js (entrada ES module) → carrega este ficheiro
  *   3. controllerAppCore.js — toda a lógica deste painel (estado, UI, Socket.IO)
@@ -24250,7 +24251,7 @@ function onPublicoBgImageCtrlChange() {
 
 /**
  * Regista a cor efectiva dos comentários. Não escreve custom property nenhuma: a cor entra
- * por `style` inline no render da prévia (ver nota na folha de estilo do `controller.html`).
+ * por `style` inline no render da prévia (ver nota em `css/controller.css`).
  */
 function aplicarCorComentarioMinistranteNoPainel(cor) {
   corComentarioMinistrantePainel = normalizarCorComentarioMinistrante(

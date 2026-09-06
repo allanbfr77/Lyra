@@ -9,7 +9,7 @@
  * que era acidental divergia: só o dos temas fechava ao perder o foco da janela.
  *
  * Aqui o markup é gerado a partir da lista de itens, a aparência vem de um só bloco CSS
- * (`.menu-flutuante`, em `controller.html`) e o fecho é resolvido por listeners globais
+ * (`.menu-flutuante`, em `css/controller.css`) e o fecho é resolvido por listeners globais
  * instalados uma única vez. Acrescentar um menu passa a ser descrever os seus itens.
  *
  * ## Um menu aberto por vez
