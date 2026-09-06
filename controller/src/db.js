@@ -19,6 +19,7 @@ module.exports.getDb = getDb;
 module.exports.getCatalog = getCatalog;
 const musicasDb = require('./db/musicas');
 const ministrantesDb = require('./db/ministrantes');
+const historicoDb = require('./db/historico');
 
 function getBibliaDb(traducao) {
   const codigo = String(traducao || '').trim().toUpperCase();
@@ -87,141 +88,6 @@ function resolveCatalogDatabasePath(paths) {
     if (fs.existsSync(p)) return p;
   }
   return paths.catalogBundledDbPath?.() || paths.catalogPath();
-}
-
-/**
- * Histórico do que foi projetado.
- *
- * ## Porque é que quase tudo está desnormalizado
- *
- * Título, artista, tom, ministrante e culto estão gravados por extenso, ao lado dos ids.
- * Não é descuido: o histórico é registo do passado, e o passado não pode mudar porque
- * alguém apagou uma música, renomeou um culto ou corrigiu o nome de um ministrante. Um
- * relatório de direitos autorais que perde as linhas das músicas entretanto apagadas é
- * exactamente o relatório que não serve para prestar contas.
- *
- * Por isso também não há chaves estrangeiras aqui. Apagar uma música tem de deixar o
- * histórico de pé.
- *
- * ## Os índices
- *
- * `projetado_em` serve a consulta que a janela faz sempre — um período. `root_id` mais
- * `banco_fonte` servem o agrupamento do repertório, que junta original e cópias da mesma
- * música.
- */
-function initHistoricoProjecaoDB() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS historico_projecao (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      musica_id INTEGER,
-      root_id INTEGER,
-      banco_fonte TEXT NOT NULL DEFAULT 'user',
-      titulo TEXT NOT NULL,
-      artista TEXT,
-      rotulo TEXT,
-      tom TEXT,
-      ministrante_id INTEGER,
-      ministrante_nome TEXT,
-      culto_id TEXT,
-      culto_nome TEXT,
-      projetado_em INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_historico_projetado_em
-      ON historico_projecao(projetado_em);
-    CREATE INDEX IF NOT EXISTS idx_historico_raiz
-      ON historico_projecao(root_id, banco_fonte);
-  `);
-}
-
-/** Uma linha do banco no formato que `lib/historicoProjecao.js` conhece. */
-function rowHistoricoParaJson(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    musicaId: row.musica_id != null ? Number(row.musica_id) : null,
-    rootId: row.root_id != null ? Number(row.root_id) : null,
-    bancoFonte: row.banco_fonte === 'catalog' ? 'catalog' : 'user',
-    titulo: String(row.titulo || ''),
-    artista: String(row.artista || ''),
-    rotulo: String(row.rotulo || ''),
-    tom: String(row.tom || ''),
-    ministranteId: row.ministrante_id != null ? Number(row.ministrante_id) : null,
-    ministranteNome: String(row.ministrante_nome || ''),
-    cultoId: String(row.culto_id || ''),
-    cultoNome: String(row.culto_nome || ''),
-    projetadoEm: Number(row.projetado_em) || 0,
-  };
-}
-
-/**
- * @param {object} reg Já normalizado por `lib/historicoProjecao.normalizarRegisto`.
- * @returns {number} `id` da linha criada.
- */
-function inserirHistoricoProjecaoNoDb(reg) {
-  const info = db
-    .prepare(
-      `INSERT INTO historico_projecao
-         (musica_id, root_id, banco_fonte, titulo, artista, rotulo, tom,
-          ministrante_id, ministrante_nome, culto_id, culto_nome, projetado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      reg.musicaId,
-      reg.rootId,
-      reg.bancoFonte,
-      reg.titulo,
-      reg.artista,
-      reg.rotulo,
-      reg.tom,
-      reg.ministranteId,
-      reg.ministranteNome,
-      reg.cultoId,
-      reg.cultoNome,
-      reg.projetadoEm
-    );
-  return Number(info.lastInsertRowid);
-}
-
-/**
- * @param {{ de?: number, ate?: number, limite?: number }} [filtro]
- * @returns {object[]} Mais recentes primeiro.
- */
-function listarHistoricoProjecaoNoDb(filtro = {}) {
-  const de = Number.isFinite(Number(filtro.de)) ? Number(filtro.de) : 0;
-  const ate = Number.isFinite(Number(filtro.ate)) ? Number(filtro.ate) : Number.MAX_SAFE_INTEGER;
-  /* Tecto alto em vez de nenhum: a janela mostra tudo o que couber, mas uma consulta sem
-     limite num histórico de anos bloquearia o painel enquanto carrega. */
-  const limite = Math.min(Math.max(1, Number(filtro.limite) || 5000), 20000);
-  return db
-    .prepare(
-      `SELECT * FROM historico_projecao
-        WHERE projetado_em >= ? AND projetado_em <= ?
-        ORDER BY projetado_em DESC, id DESC
-        LIMIT ?`
-    )
-    .all(de, ate, limite)
-    .map(rowHistoricoParaJson);
-}
-
-/** @param {number} id */
-function apagarHistoricoProjecaoNoDb(id) {
-  const n = parseInt(id, 10);
-  if (!Number.isFinite(n)) return false;
-  return db.prepare('DELETE FROM historico_projecao WHERE id = ?').run(n).changes > 0;
-}
-
-/**
- * Apaga um período inteiro.
- * @param {number} de
- * @param {number} ate
- * @returns {number} Linhas removidas.
- */
-function apagarHistoricoProjecaoPorPeriodoNoDb(de, ate) {
-  const d = Number.isFinite(Number(de)) ? Number(de) : 0;
-  const a = Number.isFinite(Number(ate)) ? Number(ate) : Number.MAX_SAFE_INTEGER;
-  return db
-    .prepare('DELETE FROM historico_projecao WHERE projetado_em >= ? AND projetado_em <= ?')
-    .run(d, a).changes;
 }
 
 function initApresentacoesDB() {
@@ -335,7 +201,7 @@ function initControllerDatabase(paths, Database) {
 
   initApresentacoesDB();
   ministrantesDb.initMinistrantesETomMemoriaDB();
-  initHistoricoProjecaoDB();
+  historicoDb.initHistoricoProjecaoDB();
   musicasDb.migrarRotuloCopiaCapitalizacao();
   ministrantesDb.migrarMinistranteCrisMedeirosParaCris(paths?.playlistsJsonPath);
   ministrantesDb.migrarMinistrantesAgrupadosDoSite(paths?.playlistsJsonPath);
@@ -345,11 +211,7 @@ function initControllerDatabase(paths, Database) {
 module.exports = {
   ...musicasDb,
   ...ministrantesDb,
-  inserirHistoricoProjecaoNoDb,
-  listarHistoricoProjecaoNoDb,
-  apagarHistoricoProjecaoNoDb,
-  apagarHistoricoProjecaoPorPeriodoNoDb,
-  rowHistoricoParaJson,
+  ...historicoDb,
   initControllerDatabase,
   getDb,
   getCatalog,
