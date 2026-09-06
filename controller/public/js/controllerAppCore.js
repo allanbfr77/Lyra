@@ -24,12 +24,14 @@
  *   D — Slides (dock, zoom, chips, edição de estrofes)
  *   E — Pré-visualização telão/ministrante e espelho do estado remoto
  *   F — Ligação IP, HTTP :3001 (músicas, bíblia, playlists, debounces)
- *   G — Socket.IO (estado em tempo real, sync playlists/músicas)
+ *   G — Socket.IO (estado em tempo real, sync playlists/músicas);
+ *       handshake e IP em `modules/socketPainel.js`
  *   H — Tema escuro, modal de configuração de exibição, atalhos
  *
  * Módulos ES (`js/modules/`):
  *   chavesArmazenamentoLocal.js — chaves localStorage, URLs, SVG estáticos
  *   ponteHtmlWindow.js — expõe no `window` as funções chamadas pelo HTML inline
+ *   socketPainel.js — handshake :5510, IP, badge e reassumir motor local
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
  */
@@ -160,7 +162,7 @@ import {
   rotaCobreAlvo,
   resolverEnvioBiblia,
 } from './modules/rotaEnvioBiblia.js';
-import { deveAbortarLigacaoIpLocalSemServidor } from './modules/ligarServidorGuard.js';
+import { criarSocketPainel } from './modules/socketPainel.js';
 import { bnpNumeroEntradaCompleta } from './modules/bnpNumeroEntradaCompleta.js';
 import {
   PRESETS_CONTAGEM_MIN,
@@ -6721,6 +6723,9 @@ function setupSlidesRailResize() {
 }
 
 let socket = null;
+let companionHandoffEmCurso = false;
+let autoConectarAoIniciarEmCurso = false;
+let reassumirLocalEmCurso = false;
 // Write-lock: papel deste controlador conforme o servidor (null = ainda desconhecido).
 // { primario: boolean, podeEscrever: boolean, donoAtual: string|null }
 let papelControladorLocal = null;
@@ -7252,8 +7257,6 @@ window.addEventListener('resize', () => {
     reaplicarAlturasEstrofesEditor();
   });
 });
-
-let socketScriptLoading = false;
 
 function loadPlaylists() {
   try {
@@ -15383,61 +15386,7 @@ function atualizarUiConexao(conectado) {
 
 // --- SECÇÃO F — Ligação ao servidor (IP), pedidos HTTP ao controlador :3001, filas e debounces ---
 async function conectar() {
-  /*
-   * O modo de operação NÃO se grava — nem aqui, nem no `socket.on('connect')`. Ligar ao
-   * Servidor vale para esta sessão; o arranque seguinte volta a projetar nesta máquina.
-   * Ver o bloco sobre persistência junto a `projecaoLocalEmCurso`.
-   *
-   * O IP só fica guardado (`LS_IP_KEY`) se «Lembrar IP» estiver ligado — poupa
-   * redigitação e não liga nada sozinho. Sem a preferência, o endereço vale só nesta sessão.
-   */
-
-  /* Sem Servidor a que ligar (campo vazio, ou a 5510 desta máquina servida pelo próprio
-     Controlador): nada acontece. O local fica intacto e o badge permanece em LOCAL. */
-  await refrescarIpsDestaMaquina();
-  const ip = ipRemotoAlvo();
-  if (!ip) return;
-  /*
-   * Endereço desta própria máquina não é, sozinho, motivo para recusar.
-   *
-   * Servidor e Controlador convivem no mesmo PC sem disputar porta nenhuma — o Servidor
-   * tem a 5510 e a 5001, o Controlador tem a 3001, e só o modo «projetar nesta máquina»
-   * quer a 5510. E esse arranjo não é exótico: é ele que permite sincronizar o banco
-   * entre dois PCs quando um deles é o que hospeda o Servidor, porque a sincronização
-   * exige os dois Controladores registados no MESMO Servidor.
-   *
-   * Quem decide é a identidade de quem atende a 5510, não o IP.
-   *
-   * Se não há Servidor (`role !== 'server'`), a tentativa aborta em silêncio — sem alert
-   * nem Socket.IO — para o auto-reconectar (foco/visibilidade) não interromper o operador.
-   */
-  if (deveAbortarLigacaoIpLocalSemServidor(
-    ehEnderecoDestaMaquina(ip),
-    await consultarPapelHost5510(ip),
-  )) {
-    return;
-  }
-
-  /* A projeção local NÃO se derruba aqui. Enquanto a ligação ao Servidor não confirmar, o
-     local continua a projetar — uma tentativa que falha não faz perder a projeção. A troca
-     para o Servidor acontece só no `socket.on('connect')`, quando há de facto ligação.
-     O badge passa a «conectando» já na tentativa e só a SERVIDOR (verde) no sucesso. */
-  if (typeof io !== 'undefined') {
-    setStatusServidorRemoto('conectando');
-    iniciarSocket(ip);
-    return;
-  }
-  if (socketScriptLoading) return;
-  setStatusServidorRemoto('conectando');
-  socketScriptLoading = true;
-  const script = document.createElement('script');
-  script.src = `http://${ip}:5510/socket.io/socket.io.js`;
-  script.onload = () => { socketScriptLoading = false; iniciarSocket(ip); };
-  script.onerror = () => {
-    socketScriptLoading = false;
-    tratarFalhaLigacaoServidor();
-  };
-  document.head.appendChild(script);
+  return socketPainel.conectar();
 }
 
 /* ─── Modo «projetar nesta máquina» ─────────────────────────────────────────────
@@ -16573,34 +16522,6 @@ async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   projetarPorDuploCliqueCentral(0);
 }
 
-/**
- * Identidade persistente deste controlador (localStorage) para autenticação na allowlist.
- * Gera deviceId + secret na primeira execução e reaproveita depois — o operador não digita nada.
- */
-function obterIdentidadeDispositivoLocal() {
-  try {
-    const gen = () =>
-      window.crypto && crypto.randomUUID
-        ? crypto.randomUUID()
-        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = (Math.random() * 16) | 0;
-            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-          });
-    let deviceId = localStorage.getItem('lyra_device_id');
-    let secret = localStorage.getItem('lyra_device_secret');
-    if (!deviceId || !secret) {
-      deviceId = deviceId || gen();
-      secret = secret || gen();
-      localStorage.setItem('lyra_device_id', deviceId);
-      localStorage.setItem('lyra_device_secret', secret);
-    }
-    const nome = localStorage.getItem('lyra_device_nome') || '';
-    return { deviceId, secret, nome };
-  } catch (_) {
-    return {};
-  }
-}
-
 /** true quando o servidor já informou que este controlador está em somente-leitura (write-lock). */
 function controladorSomenteLeitura() {
   return !!(papelControladorLocal && papelControladorLocal.podeEscrever === false);
@@ -16786,607 +16707,113 @@ projecao.aoReceber('monitores_alterados', () => {
   });
 });
 
-// --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
-function iniciarSocket(ip) {
-  if (socket) {
-    socket.off('disconnect');
-    socket.off('connect_error');
-    socket.off('connect');
-    // `estado` já não consta desta lista: vive na porta de projeção, que reinscreve
-    // sozinha ao trocar de transporte (ver `usarTransporte`, abaixo).
-    socket.off('apresentacao_state_atualizada');
-    socket.off('solicitar_playlists_controlador');
-    socket.off('musicas_sincronizadas');
-    socket.off('pedido_sincronizacao_banco');
-    socket.off('servidor_a_encerrar');
-    socket.disconnect();
-  }
-
-  let _conectandoEmAndamento = false;
-  // auth no handshake: credencial de dispositivo para a allowlist do servidor (etapa 3).
-  socket = io(`http://${ip}:5510`, { auth: obterIdentidadeDispositivoLocal() });
-  /* O transporte do socket NÃO se adota já: enquanto a ligação não vinga, quem projeta
-     continua a ser o transporte em vigor (local, se estava a projetar aqui). A adoção
-     acontece no `connect`, abaixo. */
-
-socket.on('connect', async () => {
-  if (_conectandoEmAndamento) {
-    return;
-  }
-  await refrescarIpsDestaMaquina();
-  const ehLocal = ehEnderecoDestaMaquina(ip);
-
-  /* Quem atende a 5510 do outro lado: o app Servidor, ou um Controlador em modo local?
-     Consultado ANTES de se olhar para o endereço — é a identidade, e não o IP, que
-     responde à pergunta que interessa. */
-  const papelRemoto = await consultarPapelHost5510(ip);
-
-  if (papelRemoto === 'controller-local') {
-    try { socket.disconnect(); } catch (_) { /* intencional */ }
-    tratarFalhaLigacaoServidor(
-      ehLocal
-        ? 'A porta 5510 deste PC está a ser servida pelo próprio Controlador, em modo ' +
-          '«projetar nesta máquina» — não pelo app Servidor.\n\n' +
-          'Para ligar ao Servidor deste mesmo PC: desmarque Ferramentas › Projetar nesta ' +
-          'máquina, abra o app Servidor e tente de novo.'
-        : 'O PC de destino está em modo «projetar nesta máquina», não é um Servidor.\n\n' +
-          'Nesse PC: desmarque Ferramentas › Projetar nesta máquina, ou abra o app ' +
-          'Servidor ANTES do Controlador.'
-    );
-    return;
-  }
-
-  /*
-   * Endereço desta própria máquina só é recusado quando falta prova de que há um Servidor
-   * do outro lado.
-   *
-   * O guard anterior recusava qualquer endereço local sem olhar mais nada. Protegia do
-   * caso certo — o socket a «ligar-se» ao motor local e o badge a ir a SERVIDOR sem
-   * Servidor nenhum — mas de caminho proibia o arranjo legítimo de Servidor e Controlador
-   * no mesmo PC, que não disputa porta com ninguém: o Servidor tem a 5510 e a 5001, o
-   * Controlador tem a 3001, e só o modo «projetar nesta máquina» quer a 5510.
-   *
-   * O efeito colateral era grave e silencioso: nesse PC o Controlador nunca se registava
-   * no Servidor, e a sincronização de banco — que exige os dois lados registados no MESMO
-   * Servidor, um para depositar o snapshot e outro para ser avisado — não tinha como
-   * concluir. Quem carregava no botão via sempre «nenhum controlador conectado».
-   *
-   * `role: 'server'` é a prova, e a recusa mantém-se sem ela: aí o outro lado pode
-   * perfeitamente ser o motor local deste mesmo processo.
-   */
-  if (deveAbortarLigacaoIpLocalSemServidor(ehLocal, papelRemoto)) {
-    try { socket.disconnect(); } catch (_) { /* intencional */ }
-    tratarFalhaLigacaoServidor();
-    return;
-  }
-  _conectandoEmAndamento = true;
-  try {
-    /* Ligação confirmada: só agora se abandona a projeção local e se adota o transporte do
-       Servidor. Feito por esta ordem, a projeção nunca fica sem transporte no meio. */
-    if (projecaoLocalActiva) await desligarProjecaoNestaMaquina();
-    /* Modo remoto: quem projeta é o Servidor, do outro lado deste socket. O transporte
-       prende-se a ESTA instância — daí ser adotado a cada ligação. */
-    projecao.usarTransporte(criarTransporteSocket(socket));
-    // Papel desconhecido a cada (re)conexão até o servidor reenviar 'papel_controlador'.
-    // Enquanto desconhecido, o boot pode empurrar preview (compat com servidor antigo);
-    // se formos somente-leitura, o servidor rejeita e o papel_controlador corrige o painel.
-    papelControladorLocal = null;
-    socket.emit('registrar_controlador');
-    /* Companion: se o Servidor for remoto, só informar — nunca instalar a partir daqui. */
-    if (!ehLocal && window.lyraElectron?.verificarCompanionServidor) {
-      void window.lyraElectron.verificarCompanionServidor({ hostRemoto: ip, manual: false });
-    }
-    migrarTemasParaGlobal();
-    temasPorCulto = loadTemasPorCulto();
-    temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
-    aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
-    ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
-    /* Fecha Ajustes sem perguntar por alterações por salvar: a ligação não descarta o
-       rascunho (`cfgDirtyCtrl` mantém-se). `fecharCfgModal()` pediria confirmação e
-       atrapalhava o feedback de sucesso. */
-    document.getElementById('cfg-modal-overlay-ctrl')?.classList.remove('aberto');
-    setStatusServidorRemoto('conectado');
-    /* Ligação confirmada — e é só isso que acontece. O modo remoto NÃO se grava: vale para
-       esta sessão e acaba com ela. No próximo arranque o Controlador volta a projetar
-       nesta máquina, e ligar ao Servidor exige de novo o acto explícito do operador. */
-    atualizarUiConexao(true);
-    document.getElementById('info-ip').textContent = ip;
-    atualizarUrlsObs();
-    try { persistirIpServidor(ip); } catch (_) {
-  // intencional — erro ignorado
+/**
+ * Hidrata o painel depois do handshake remoto — temas, banco, rotas, slides.
+ * Vive no núcleo de propósito: não é protocolo Socket.IO.
+ */
+async function aoLigarSocketRemoto(_ip) {
+  migrarTemasParaGlobal();
+  temasPorCulto = loadTemasPorCulto();
+  temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
+  aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
+  ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
+  forcarRepinturaCompositorLyra();
+  await carregarMusicas(_ip);
+  await carregarRoteamentoTelasDoServidor();
+  await carregarEstadoModoApresentacaoDoServidor();
+  if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
+  else slidesAplicarCfgArmazenada();
+  renderSlidesStrip();
+  emitirEstadoMinistranteAoServidor();
+  emitirPlaylistsDoControlador();
+  enviarPlaylistsParaServidor();
+  forcarRepinturaCompositorLyra();
+  setTimeout(() => forcarRepinturaCompositorLyra(), 50);
+  setTimeout(() => forcarRepinturaCompositorLyra(), 400);
 }
-    forcarRepinturaCompositorLyra();
-    await carregarMusicas(ip);
-    await carregarRoteamentoTelasDoServidor();
-    await carregarEstadoModoApresentacaoDoServidor();
-    if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
-    else slidesAplicarCfgArmazenada();
-    renderSlidesStrip();
-    emitirEstadoMinistranteAoServidor();
-    emitirPlaylistsDoControlador();
-    enviarPlaylistsParaServidor();
-    forcarRepinturaCompositorLyra();
-    setTimeout(() => forcarRepinturaCompositorLyra(), 50);
-    setTimeout(() => forcarRepinturaCompositorLyra(), 400);
-} finally {
-    _conectandoEmAndamento = false;
+
+function aoDisconnectSocketPainel({ descarteCliente }) {
+  atualizarUiConexao(false);
+  if (descarteCliente) {
+    apresentacaoMidiaProjetadaId = null;
   }
+  renderSlidesStrip();
+  atualizarPreviewOperador();
+  atualizarBtnModoApresentacao();
+  try {
+    if (ehModoApresentacaoOperador()) {
+      if (descarteCliente) {
+        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'DESCONECTADO — sem ligação ao servidor.' });
+      } else if (emModoProjecaoLocal()) {
+        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a projetar nesta máquina.' });
+      } else {
+        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a reassumir projeção local…' });
+      }
+    }
+  } catch (_) {
+    // intencional
+  }
+}
+
+const socketPainel = criarSocketPainel({
+  getSocket: () => socket,
+  setSocket: (s) => { socket = s; },
+  io: () => (typeof io !== 'undefined' ? io : undefined),
+  getProjecaoLocalActiva: () => projecaoLocalActiva,
+  getProjecaoLocalEmCurso: () => projecaoLocalEmCurso,
+  desligarProjecaoNestaMaquina,
+  ligarProjecaoNestaMaquina,
+  emModoProjecaoLocal,
+  ponteProjecaoLocal,
+  adotarTransporteSocket: (sock) => {
+    projecao.usarTransporte(criarTransporteSocket(sock));
+  },
+  getPapelControlador: () => papelControladorLocal,
+  setPapelControlador: (p) => { papelControladorLocal = p; },
+  getCompanionHandoffEmCurso: () => companionHandoffEmCurso,
+  getAutoConectarAoIniciarEmCurso: () => autoConectarAoIniciarEmCurso,
+  setAutoConectarAoIniciarEmCurso: (v) => { autoConectarAoIniciarEmCurso = !!v; },
+  getReassumirLocalEmCurso: () => reassumirLocalEmCurso,
+  setReassumirLocalEmCurso: (v) => { reassumirLocalEmCurso = !!v; },
+  getServidorLanIpObs: () => servidorLanIpObs,
+  setServidorLanIpObs: (v) => { servidorLanIpObs = v; },
+  setServidorObsPort: (v) => { servidorObsPort = v; },
+  getUltimaDisplayConfig: () => ultimaDisplayConfigServidor,
+  controladorSomenteLeitura,
+  aplicarDisplayConfigDoServidor: aplicarDisplayConfigDoServidorNoPainel,
+  atualizarUiConexao,
+  atualizarUrlsObs,
+  readLsMigrate,
+  setCfgSwitchState,
+  aoLigarRemoto: aoLigarSocketRemoto,
+  aoDisconnectPainel: aoDisconnectSocketPainel,
+  aoApresentacaoStateAtualizada: () => { carregarEstadoModoApresentacaoDoServidor(); },
+  processarMusicasSincronizadas: processarMusicasSincronizadasPayload,
+  tratarPedidoSincronizacaoBanco,
 });
 
-  // O servidor informa o próprio IP de LAN e a porta do OBS — usados para montar as URLs
-  // de Browser Source (o OBS pode estar noutro PC, então `localhost` não serve).
-  socket.on('server_info', (info) => {
-    if (info && info.lanIp) servidorLanIpObs = String(info.lanIp).trim();
-    if (info && Number(info.obsPort) > 0) servidorObsPort = Number(info.obsPort);
-    atualizarUrlsObs();
-  });
-
-  socket.off('apresentacao_state_atualizada');
-  socket.on('apresentacao_state_atualizada', () => {
-    carregarEstadoModoApresentacaoDoServidor();
-  });
-
-
-  socket.off('musicas_sincronizadas');
-  socket.on('musicas_sincronizadas', async (payload) => {
-    await processarMusicasSincronizadasPayload(payload);
-  });
-
-  socket.off('pedido_sincronizacao_banco');
-  socket.on('pedido_sincronizacao_banco', (payload) => {
-    tratarPedidoSincronizacaoBanco(payload).catch(() => {});
-  });
-
-  /**
-   * Config autoritativa vinda do servidor. Pull-by-role:
-   *  - somente-leitura: reflete a config do servidor no painel (fonte de verdade);
-   *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
-   */
-
-  // Heartbeat de aplicação: responde a cada ping do servidor. SEM isto, o servidor
-  // consideraria este controlador (o socket registrado) "sem resposta" após N ciclos e
-  // liberaria o bastão / fecharia a projeção mesmo com o socket ainda ligado.
-  socket.on('ping_app', () => {
-    try { socket.emit('pong_app'); } catch (_) {
-      // intencional — socket pode estar em reconexão
-    }
-  });
-
-  /* Servidor a sair por comando remoto: cortar reconnect e fechar o socket já,
-     para o handler de disconnect reassumir o modo local sem esperar timeout de ping. */
-  socket.on('servidor_a_encerrar', () => {
-    interromperReconexaoSocket();
-    try { socket.disconnect(); } catch (_) { /* intencional */ }
-  });
-
-  /**
-   * Papel deste controlador no write-lock. Ao saber que é somente-leitura, faz o pull
-   * imediato da última config do servidor (o display_config normalmente já chegou antes).
-   */
-  socket.on('papel_controlador', (papel) => {
-    papelControladorLocal = papel && typeof papel === 'object' ? papel : null;
-    try { atualizarUiConexao(!!(socket && socket.connected)); } catch (_) {
-      // intencional
-    }
-    if (controladorSomenteLeitura() && ultimaDisplayConfigServidor) {
-      aplicarDisplayConfigDoServidorNoPainel(ultimaDisplayConfigServidor);
-    }
-    // TODO (UX): indicar visualmente "PC X no controle" e desabilitar comandos quando read-only.
-  });
-
-  // Status global de quem detém o controle (para exibir "PC X no controle").
-  socket.on('controle_status', (status) => {
-    if (papelControladorLocal && status && typeof status === 'object') {
-      papelControladorLocal.donoAtual = status.donoAtual || null;
-    }
-    // TODO (UX): atualizar o rótulo de dono do controle no painel.
-  });
-
-  // Comando recusado por este controlador estar em somente-leitura — feedback ao operador.
-  socket.on('comando_recusado', (info) => {
-    const motivo = (info && info.erro) || 'recusado';
-    const dono = info && info.donoAtual ? ` — ${info.donoAtual} está no controle` : '';
-    console.warn(`[controle] comando recusado (${motivo})${dono}`);
-    // TODO (UX): trocar por um toast no painel em vez de console.
-  });
-
-
-
-  socket.on('disconnect', (motivo) => {
-    atualizarUiConexao(false);
-    /**
-     * Só reposicionar «AO VIVO» quando o próprio cliente desliga o socket ou encerra sessão.
-     * Quedas do Servidor passam a reassumir o motor local (abaixo) — o badge «Este PC»
-     * tem de corresponder ao transporte real, não só à UI.
-     */
-    const m = String(motivo || '');
-    const descarteCliente = m === 'io client disconnect' || m.includes('forced close');
-    /* Não limpar o id só por ter saído do modo Mídias — a mídia pode continuar no telão. */
-    if (descarteCliente) {
-      apresentacaoMidiaProjetadaId = null;
-    }
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    atualizarBtnModoApresentacao();
-    try {
-      if (ehModoApresentacaoOperador()) {
-        if (descarteCliente) {
-          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'DESCONECTADO — sem ligação ao servidor.' });
-        } else if (emModoProjecaoLocal()) {
-          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a projetar nesta máquina.' });
-        } else {
-          atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a reassumir projeção local…' });
-        }
-      }
-    } catch (_) {
-  // intencional — erro ignorado
-}
-
-    /* `ligarProjecaoNestaMaquina` desliga o socket de propósito: esse disconnect não deve
-       disparar outro reassumir. */
-    if (emModoProjecaoLocal() || projecaoLocalEmCurso || reassumirLocalEmCurso) {
-      setStatusServidorRemoto('ocioso');
-      return;
-    }
-    interromperReconexaoSocket();
-    void reassumirProjecaoLocalAposQuedaRemota();
-  });
-  socket.on('connect_error', () => {
-    /* Tentativa falhada: se o local ainda está de pé, só actualiza o badge. Se já não
-       está (queda após ligação remota bem-sucedida), reassume o motor local — o mesmo
-       caminho do `disconnect`, para o badge «Este PC» não mentir. */
-    tratarFalhaLigacaoServidor();
-  });
-}
-
-/** True enquanto o companion vai encerrar este Controlador (não reassumir a 5510). */
-let companionHandoffEmCurso = false;
-
-/** True enquanto o arranque com «Conectar automaticamente» está a sondar/ligar. */
-let autoConectarAoIniciarEmCurso = false;
-
-/** Liga ao servidor se há IP gravado. */
-function tentarAutoConectarSeDesconectado() {
-  /* Em modo local não há Servidor a procurar — e procurá-lo não era só inútil: o
-     auto-reconectar dispara ao mudar de foco, o que acontece precisamente quando as
-     janelas de projeção abrem. O painel passava de «iniciando projeção local» para
-     «servidor não encontrado» e o modo local ficava por baixo, sem ninguém a apontar
-     para ele. */
-  if (emModoProjecaoLocal()) return;
-  /* Não disputar com «Conectar automaticamente» no arranque (probe + um único conectar). */
-  if (autoConectarAoIniciarEmCurso) return;
-  const ip = (document.getElementById('ip-input')?.value || '').trim();
-  if (!ip) return;
-  if (socket && socket.connected) return;
-  conectar();
-}
-
-function configurarAutoConectarAoAlternarJanelas() {
-  const rodar = () => tentarAutoConectarSeDesconectado();
-  window.addEventListener('focus', rodar);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') rodar();
-  });
-  window.addEventListener('storage', (e) => {
-    if (e.key !== LS_IP_KEY && e.key !== LS_IP_LEGACY) return;
-    const ipInput = document.getElementById('ip-input');
-    if (!ipInput) return;
-    const novo = (e.newValue || '').trim();
-    if (novo) ipInput.value = novo;
-    rodar();
-  });
-}
-
-/**
- * Badge do canto superior direito — só status, sem clique.
- *
- * Três estados (sempre alinhados ao transporte real):
- *   - `ocioso`      → «Este PC» ativo   — motor local a projetar (ou a reassumir após queda);
- *   - `conectando`  → «Servidor» amarelo (pulse) — tentativa remota em curso;
- *   - `conectado`   → «Servidor» verde  — ligado a um Servidor remoto.
- *
- * Falha (`tratarFalhaLigacaoServidor`) volta a `ocioso`. Qualquer valor desconhecido
- * também cai em `ocioso`.
- */
-function setStatusServidorRemoto(estado) {
-  const badge = document.getElementById('status-conn-badge');
-  if (!badge) return;
-  let classe = 'status-seg--local';
-  let titulo = 'A projetar nesta máquina';
-  if (estado === 'conectado') {
-    classe = 'status-seg--remoto';
-    titulo = 'Ligado ao Servidor remoto';
-  } else if (estado === 'conectando') {
-    classe = 'status-seg--conectando';
-    titulo = 'A ligar ao Servidor…';
-  }
-  badge.className = 'status-seg ' + classe;
-  badge.title = titulo;
-  try {
-    window.lyraElectron?.informarEstadoRemoto?.(estado === 'conectado');
-  } catch (_) {
-    // intencional — fora do Electron ou preload antigo
-  }
-}
-
-/** IPs desta máquina (LAN + loopback lógico). Evita tratar o motor local como Servidor remoto. */
-const ipsDestaMaquina = new Set();
-
-function recordarIpsDestaMaquina(lista, preferido) {
-  if (preferido) ipsDestaMaquina.add(String(preferido).trim().toLowerCase());
-  for (const ip of lista || []) {
-    const n = String(ip || '').trim().toLowerCase();
-    if (n) ipsDestaMaquina.add(n);
-  }
-  if (servidorLanIpObs) ipsDestaMaquina.add(String(servidorLanIpObs).trim().toLowerCase());
-}
-
-async function refrescarIpsDestaMaquina() {
-  const ponte = ponteProjecaoLocal();
-  if (!ponte?.estado) return;
-  try {
-    const st = await ponte.estado();
-    recordarIpsDestaMaquina(st?.lanIps, st?.lanIp);
-  } catch (_) {
-    // intencional — sem lista completa, o guard ainda cobre localhost e o IP já conhecido
-  }
-}
-
-/** IP alvo da ligação remota: o que está no campo de Ajustes, ou o último gravado. */
-function ipRemotoAlvo() {
-  const doCampo = (document.getElementById('ip-input')?.value || '').trim();
-  if (doCampo) return doCampo;
-  try { return (readLsMigrate(LS_IP_KEY, LS_IP_LEGACY) || '').trim(); } catch (_) { return ''; }
-}
-
-/**
- * Preferência «Lembrar IP»: omissão (chave ausente) = lembrar, para não mudar o hábito
- * de quem já tinha o endereço guardado.
- */
-function preferenciaLembrarIp() {
-  try {
-    const v = localStorage.getItem(LS_IP_LEMBRAR);
-    if (v === null || v === undefined || v === '') return true;
-    return v === '1' || v === 'true';
-  } catch (_) {
-    return true;
-  }
-}
-
-function limparIpGuardado() {
-  try {
-    localStorage.removeItem(LS_IP_KEY);
-    localStorage.removeItem(LS_IP_LEGACY);
-  } catch (_) {
-    // intencional — armazenamento indisponível
-  }
-}
-
-/** Grava ou apaga o IP conforme «Lembrar IP». O valor no campo da sessão não é alterado. */
-function persistirIpServidor(ip) {
-  if (!preferenciaLembrarIp()) {
-    limparIpGuardado();
-    return;
-  }
-  const valor = String(ip || '').trim();
-  try {
-    if (valor) localStorage.setItem(LS_IP_KEY, valor);
-    else limparIpGuardado();
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-function sincronizarUiLembrarIp() {
-  const el = document.getElementById('cfg-lembrar-ip');
-  if (!el) return;
-  setCfgSwitchState(el, preferenciaLembrarIp());
-}
-
-function onCfgLembrarIpChange(ligado) {
-  const ativo = !!ligado;
-  try {
-    localStorage.setItem(LS_IP_LEMBRAR, ativo ? '1' : '0');
-  } catch (_) {
-    // intencional
-  }
-  sincronizarUiLembrarIp();
-  if (ativo) {
-    persistirIpServidor(document.getElementById('ip-input')?.value);
-  } else {
-    limparIpGuardado();
-  }
-}
-
-/** Preferência «Conectar automaticamente»: omissão = desligado. */
-function preferenciaAutoConectar() {
-  try {
-    const v = localStorage.getItem(LS_AUTO_CONECTAR);
-    return v === '1' || v === 'true';
-  } catch (_) {
-    return false;
-  }
-}
-
-function sincronizarUiAutoConectar() {
-  const el = document.getElementById('cfg-auto-conectar');
-  if (!el) return;
-  el.checked = preferenciaAutoConectar();
-}
-
-function onCfgAutoConectarChange(ligado) {
-  try {
-    localStorage.setItem(LS_AUTO_CONECTAR, ligado ? '1' : '0');
-  } catch (_) {
-    // intencional
-  }
-  sincronizarUiAutoConectar();
-}
-
-/**
- * No arranque: se a opção estiver ligada e houver IP guardado, só tenta ligar quando o
- * Servidor responde como `role: 'server'`. Caso contrário ignora em silêncio — sem badge
- * «conectando», sem alert.
- *
- * Um único voo por arranque: se o local falhou (Servidor nesta máquina), o fallback antigo
- * `tentarAutoConectarSeDesconectado` NÃO deve correr em paralelo — dois `conectar()` em
- * corrida fazem o segundo `iniciarSocket` desligar o primeiro e o handler de `disconnect`
- * tenta reassumir o local, deixando o badge em «Este PC» sem Servidor.
- */
-async function tentarConectarAutomaticoAoIniciar() {
-  if (!preferenciaAutoConectar()) {
-    autoConectarAoIniciarEmCurso = false;
-    return;
-  }
-  /* Pode já estar true (bloqueio antecipado no boot) — assumimos este voo. */
-  autoConectarAoIniciarEmCurso = true;
-  try {
-    let ip = '';
-    try { ip = (readLsMigrate(LS_IP_KEY, LS_IP_LEGACY) || '').trim(); } catch (_) { ip = ''; }
-    if (!ip) ip = (document.getElementById('ip-input')?.value || '').trim();
-    const badgeRemoto = !!document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto');
-    if (!ip) return;
-    /* Só abortar se a ligação remota está de facto reflectida na UI.
-       `socket.connected` sozinho pode ser fantasma criado pelo auto-reconectar de foco —
-       nesse caso seguimos para `conectar()`, que via `iniciarSocket` substitui o socket
-       sem disparar o reassumir do handler de `disconnect` (remove o listener antes). */
-    if (socket && socket.connected && badgeRemoto) return;
-    let disponivel = false;
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 2000);
-      try {
-        const r = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store', signal: ctrl.signal });
-        if (r.ok) disponivel = (await r.json())?.role === 'server';
-      } finally {
-        clearTimeout(t);
-      }
-    } catch (_) {
-      disponivel = false;
-    }
-    if (!disponivel) return;
-    if (socket && socket.connected) {
-      const okUi = !!document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto');
-      if (okUi) return;
-    }
-    await conectar();
-    for (let i = 0; i < 50; i++) {
-      if (socket && socket.connected
-        && document.getElementById('status-conn-badge')?.classList.contains('status-seg--remoto')) {
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  } finally {
-    autoConectarAoIniciarEmCurso = false;
-  }
-}
-
-/**
- * O endereço aponta para esta própria máquina? Ligar a si mesmo não é «remoto» — com o
- * modo local a servir a 5510, o socket «ligava» ao próprio motor e o badge ia a SERVIDOR
- * sem o app Servidor existir.
- */
-function ehEnderecoDestaMaquina(ip) {
-  const h = String(ip || '').trim().toLowerCase();
-  if (!h) return true;
-  if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') return true;
-  if (servidorLanIpObs && h === String(servidorLanIpObs).trim().toLowerCase()) return true;
-  return ipsDestaMaquina.has(h);
-}
-
-/**
- * Quem atende a porta 5510 em `ip`: o app Servidor (`'server'`), um Controlador em modo
- * local (`'controller-local'`), ou desconhecido (`null`).
- *
- * `null` cobre duas situações que daqui não se distinguem — Servidor antigo, sem a rota,
- * e rede a falhar — e por isso nunca vale como prova de nada. Quem chama é que decide o
- * que fazer com a ausência de prova: para um endereço remoto segue-se em frente, por
- * compatibilidade; para um endereço desta própria máquina, não, porque o outro lado pode
- * muito bem ser o motor local deste mesmo processo.
- *
- * @param {string} ip
- * @returns {Promise<'server'|'controller-local'|null>}
- */
-async function consultarPapelHost5510(ip) {
-  try {
-    const r = await fetch(`http://${ip}:5510/api/identity`, { cache: 'no-store' });
-    if (!r.ok) return null;
-    return (await r.json())?.role || null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
- * Não achou Servidor (ou a ligação caiu).
- *
- * Se o modo local ainda está de pé — típico de uma tentativa de «Conectar» que falhou
- * antes do `connect` bem-sucedido —, só actualiza o badge: a tentativa nunca derruba o
- * local.
- *
- * Se o local já tinha sido abandonado (estávamos a comandar o Servidor), «Este PC» no
- * badge sem reassumir o motor mentia: a projeção ficava sem transporte até reiniciar ou
- * até Ferramentas › Projetar nesta máquina. Por isso reassumimos aqui também.
- *
- * As retentativas do Socket.IO são cortadas antes do reassumir, para não repetir o
- * ciclo antigo (local sobe → reconnect remoto derruba → local sobe de novo).
- */
-function tratarFalhaLigacaoServidor(mensagem) {
-  if (emModoProjecaoLocal() || projecaoLocalEmCurso || reassumirLocalEmCurso) {
-    setStatusServidorRemoto('ocioso');
-  } else {
-    interromperReconexaoSocket();
-    void reassumirProjecaoLocalAposQuedaRemota();
-  }
-  if (mensagem) alert(mensagem);
-}
-
-/** Impede o Socket.IO de continuar a tentar o Servidor depois de decidirmos voltar ao local. */
-function interromperReconexaoSocket() {
-  try {
-    if (socket?.io && typeof socket.io.reconnection === 'function') {
-      socket.io.reconnection(false);
-    }
-  } catch (_) {
-    // intencional
-  }
-}
-
-/**
- * Após queda do Servidor remoto: liga o motor local para o badge «Este PC» e o
- * transporte de projeção ficarem alinhados. Retenta com pausas curtas — no mesmo PC a
- * porta 5510 pode ainda estar a libertar-se nos milissegundos a seguir ao fecho do Servidor.
- */
-let reassumirLocalEmCurso = false;
-
-async function reassumirProjecaoLocalAposQuedaRemota() {
-  if (companionHandoffEmCurso) {
-    setStatusServidorRemoto('ocioso');
-    return;
-  }
-  if (reassumirLocalEmCurso || emModoProjecaoLocal() || projecaoLocalEmCurso) {
-    setStatusServidorRemoto('ocioso');
-    return;
-  }
-  if (!ponteProjecaoLocal()) {
-    setStatusServidorRemoto('ocioso');
-    return;
-  }
-  reassumirLocalEmCurso = true;
-  setStatusServidorRemoto('ocioso');
-  try {
-    const atrasosMs = [0, 500, 1500];
-    for (const espera of atrasosMs) {
-      if (espera) await new Promise((r) => setTimeout(r, espera));
-      if (emModoProjecaoLocal()) return;
-      const r = await ligarProjecaoNestaMaquina();
-      if (r?.ok) return;
-    }
-  } finally {
-    reassumirLocalEmCurso = false;
-  }
-}
+// --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
+function iniciarSocket(ip) { socketPainel.iniciarSocket(ip); }
+function tentarAutoConectarSeDesconectado() { socketPainel.tentarAutoConectarSeDesconectado(); }
+function configurarAutoConectarAoAlternarJanelas() { socketPainel.configurarAutoConectarAoAlternarJanelas(); }
+function setStatusServidorRemoto(estado) { socketPainel.setStatusServidorRemoto(estado); }
+function recordarIpsDestaMaquina(lista, preferido) { socketPainel.recordarIpsDestaMaquina(lista, preferido); }
+async function refrescarIpsDestaMaquina() { return socketPainel.refrescarIpsDestaMaquina(); }
+function ipRemotoAlvo() { return socketPainel.ipRemotoAlvo(); }
+function persistirIpServidor(ip) { socketPainel.persistirIpServidor(ip); }
+function sincronizarUiLembrarIp() { socketPainel.sincronizarUiLembrarIp(); }
+function onCfgLembrarIpChange(ligado) { socketPainel.onCfgLembrarIpChange(ligado); }
+function sincronizarUiAutoConectar() { socketPainel.sincronizarUiAutoConectar(); }
+function onCfgAutoConectarChange(ligado) { socketPainel.onCfgAutoConectarChange(ligado); }
+async function tentarConectarAutomaticoAoIniciar() { return socketPainel.tentarConectarAutomaticoAoIniciar(); }
+function ehEnderecoDestaMaquina(ip) { return socketPainel.ehEnderecoDestaMaquina(ip); }
+async function consultarPapelHost5510(ip) { return socketPainel.consultarPapelHost5510(ip); }
+function tratarFalhaLigacaoServidor(mensagem) { socketPainel.tratarFalhaLigacaoServidor(mensagem); }
+function interromperReconexaoSocket() { socketPainel.interromperReconexaoSocket(); }
+async function reassumirProjecaoLocalAposQuedaRemota() { return socketPainel.reassumirProjecaoLocalAposQuedaRemota(); }
+function preferenciaLembrarIp() { return socketPainel.preferenciaLembrarIp(); }
+function preferenciaAutoConectar() { return socketPainel.preferenciaAutoConectar(); }
+function limparIpGuardado() { socketPainel.limparIpGuardado(); }
 
 async function carregarMusicas() {
   try {
