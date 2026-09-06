@@ -124,13 +124,6 @@ function attachPublicProjectionRender(ctx) {
     if (typeof ctx.pararRelogio === 'function') ctx.pararRelogio();
   }
 
-  function deveRevelarRelogioTelao(cfg) {
-    const clk = (cfg && cfg.clock) || {};
-    if (clk.showClock === false) return false;
-    const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
-    return alvo === 'publico' || alvo === 'ambos';
-  }
-
   const PRETO_TELAO = '#000000';
 
   function telaoEstaOcioso(st) {
@@ -185,14 +178,11 @@ function attachPublicProjectionRender(ctx) {
     if (ctx.elTela) ctx.elTela.style.background = PRETO_TELAO;
   }
 
-  function aplicarTransparenciaOciosaTelao(ocioso, cfg) {
-    const revelar = ocioso && deveRevelarRelogioTelao(cfg);
-    /* Janela de projeção é opaca (vídeo quebrava com transparent:true no monitor físico).
-       O relógio ocioso é revelado no main ao esconder a BrowserWindow — não via CSS. */
-    ctx.document.body.classList.toggle('idle-sem-projecao', ocioso && !revelar);
-    if (ocioso && !revelar) {
-      /* Preto explícito — esvaziar `style.background` deixava o `.tela` a mostrar
-         `--bg-projecao` (creme/imagem do modo) num quadro. */
+  function aplicarTransparenciaOciosaTelao(ocioso, _cfg) {
+    /* M2 ocioso é sempre preto — o relógio vive no M3, dentro da mesma janela.
+       Esconder esta janela para revelar outra era o que deixava o desktop à vista. */
+    ctx.document.body.classList.toggle('idle-sem-projecao', !!ocioso);
+    if (ocioso) {
       forcarFundoPretoOcioso();
     }
   }

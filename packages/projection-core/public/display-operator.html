@@ -201,6 +201,58 @@
       display: none !important;
     }
 
+    /* Relógio ocioso — estado padrão do M3, na MESMA janela. Nunca outra HWND. */
+    .capa-relogio-op {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      color: #ffffff;
+      padding: 3vh 4vw;
+      box-sizing: border-box;
+      cursor: none;
+    }
+    .capa-relogio-op[hidden] { display: none !important; }
+    .relogio-op-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6vh;
+      width: 100%;
+      max-width: 100%;
+      height: 100%;
+      text-align: center;
+    }
+    .relogio-op-digital {
+      font-size: 13vh;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .relogio-op-meta {
+      max-width: 92%;
+      font-size: 2.4vh;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      opacity: 0.86;
+    }
+    #clock-date { flex-shrink: 0; }
+    #clock-verse {
+      flex-shrink: 0;
+      align-self: stretch;
+      width: auto;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      padding-inline: 4%;
+    }
+
     /* ─── Contagem regressiva ───
        Cobre o monitor inteiro, como o aviso. As classes de dentro (`contagem-digitos`,
        `contagem-msg`, `piscando`) têm os mesmos nomes do telão de propósito: é o mesmo
@@ -282,6 +334,16 @@
   </style>
 </head>
 <body>
+  <div id="capa-relogio-op" class="capa-relogio-op">
+    <div class="relogio-op-wrap">
+      <div id="clock-digital" class="relogio-op-digital"></div>
+      <div id="clock-analog-wrap" style="display:none;line-height:0">
+        <canvas id="clock-canvas" width="320" height="320"></canvas>
+      </div>
+      <div id="clock-date" class="relogio-op-meta"></div>
+      <div id="clock-verse" class="relogio-op-meta"></div>
+    </div>
+  </div>
   <div id="capa-apresentacao-op" class="capa-apresentacao-op" hidden></div>
   <div id="capa-aviso-op" class="capa-aviso-op" hidden><pre id="capa-aviso-op-texto"></pre></div>
   <div id="capa-contagem-op" class="capa-contagem-op" hidden>
@@ -305,6 +367,13 @@
     const elCapaAviso = document.getElementById('capa-aviso-op');
     const elCapaAvisoTexto = document.getElementById('capa-aviso-op-texto');
     const elCapaContagem = document.getElementById('capa-contagem-op');
+    const elCapaRelogio = document.getElementById('capa-relogio-op');
+    const elClockDigital = document.getElementById('clock-digital');
+    const elClockAnalogWrap = document.getElementById('clock-analog-wrap');
+    const elClockCanvas = document.getElementById('clock-canvas');
+    const elClockDate = document.getElementById('clock-date');
+    const elClockVerse = document.getElementById('clock-verse');
+    let clockTimerOp = null;
 
     /*
      * Contagem: o MESMO desenho do telão, não uma segunda implementação.
@@ -371,7 +440,12 @@
       clock: {
         format: 'HH:MM',
         fontSize: 13,
+        dateFontSize: 2.4,
+        verseFontSize: 2.4,
         showClock: true,
+        showDate: true,
+        showVerse: false,
+        verse: '',
         monitorRelogio: 'ministrante',
         bgType: 'solid',
         bgColor: '#000000',
@@ -445,10 +519,157 @@
       return alvo === 'ministrante' || alvo === 'ambos';
     }
 
+    function corRelogioOp(clk) {
+      return clk.textColor || '#ffffff';
+    }
+
+    function aplicarFundoRelogioOp(clk) {
+      if (!elCapaRelogio) return;
+      if (clk.bgType === 'gradient') {
+        elCapaRelogio.style.background = clk.bgGradient || '#000000';
+      } else if (clk.bgType === 'image' && clk.bgImage) {
+        elCapaRelogio.style.background = `url('${clk.bgImage}') center/cover no-repeat`;
+      } else {
+        elCapaRelogio.style.background = clk.bgColor || '#000000';
+      }
+    }
+
+    function desenharRelogioAnalogicoOp(now, cor) {
+      if (!elClockCanvas) return;
+      const ctxCv = elClockCanvas.getContext('2d');
+      const W = elClockCanvas.width;
+      const H = elClockCanvas.height;
+      const cx = W / 2;
+      const cy = H / 2;
+      const r = W / 2 - 14;
+      ctxCv.clearRect(0, 0, W, H);
+      ctxCv.beginPath();
+      ctxCv.arc(cx, cy, r, 0, 2 * Math.PI);
+      ctxCv.strokeStyle = cor;
+      ctxCv.globalAlpha = 0.28;
+      ctxCv.lineWidth = 2;
+      ctxCv.stroke();
+      ctxCv.globalAlpha = 1;
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * 2 * Math.PI - Math.PI / 2;
+        const maior = i % 3 === 0;
+        const inner = maior ? r - 22 : r - 10;
+        ctxCv.beginPath();
+        ctxCv.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+        ctxCv.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+        ctxCv.strokeStyle = cor;
+        ctxCv.globalAlpha = maior ? 0.85 : 0.38;
+        ctxCv.lineWidth = maior ? 3 : 1.5;
+        ctxCv.stroke();
+        ctxCv.globalAlpha = 1;
+      }
+      const sec = now.getSeconds();
+      const min = now.getMinutes() + sec / 60;
+      const hr = (now.getHours() % 12) + min / 60;
+      const desenharMao = (frac, len, largura, alpha) => {
+        const ang = frac * 2 * Math.PI - Math.PI / 2;
+        ctxCv.beginPath();
+        ctxCv.moveTo(cx, cy);
+        ctxCv.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+        ctxCv.strokeStyle = cor;
+        ctxCv.globalAlpha = alpha;
+        ctxCv.lineWidth = largura;
+        ctxCv.lineCap = 'round';
+        ctxCv.stroke();
+        ctxCv.globalAlpha = 1;
+      };
+      desenharMao(hr / 12, r * 0.52, 9, 0.95);
+      desenharMao(min / 60, r * 0.73, 5.5, 0.88);
+      desenharMao(sec / 60, r * 0.82, 2, 0.65);
+      ctxCv.beginPath();
+      ctxCv.arc(cx, cy, 7, 0, 2 * Math.PI);
+      ctxCv.fillStyle = cor;
+      ctxCv.globalAlpha = 0.9;
+      ctxCv.fill();
+      ctxCv.globalAlpha = 1;
+    }
+
+    function tickRelogioOp() {
+      if (!elClockDigital) return;
+      const clk = displayConfig.clock || {};
+      const now = new Date();
+      const fmt = String(clk.format || 'HH:MM');
+      const lowerFmt = fmt.toLowerCase();
+      const color = corRelogioOp(clk);
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const analogico = lowerFmt === 'analog';
+      elClockDigital.style.display = analogico || lowerFmt === 'none' ? 'none' : '';
+      if (elClockAnalogWrap) elClockAnalogWrap.style.display = analogico ? '' : 'none';
+      if (lowerFmt === 'hh:mm:ss') elClockDigital.textContent = `${h}:${m}:${s}`;
+      else if (lowerFmt !== 'none' && !analogico) elClockDigital.textContent = `${h}:${m}`;
+      else elClockDigital.textContent = '';
+      elClockDigital.style.color = color;
+      elClockDigital.style.fontSize = `${Math.max(7, Number(clk.fontSize || 13))}vh`;
+      if (analogico) desenharRelogioAnalogicoOp(now, color);
+      if (elClockDate) {
+        if (clk.showDate !== false) {
+          elClockDate.textContent = now.toLocaleDateString('pt-BR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+          });
+          elClockDate.style.display = '';
+          elClockDate.style.color = clk.dateColor || color;
+          elClockDate.style.fontSize = `${Math.max(0.8, Number(clk.dateFontSize || 2.4))}vh`;
+        } else {
+          elClockDate.textContent = '';
+          elClockDate.style.display = 'none';
+        }
+      }
+      if (elClockVerse) {
+        const verseTxt = clk.showVerse && clk.verse ? String(clk.verse) : '';
+        if (verseTxt) {
+          elClockVerse.textContent = verseTxt;
+          elClockVerse.style.display = '';
+          elClockVerse.style.color = clk.verseColor || color;
+          elClockVerse.style.fontSize = `${Math.max(0.8, Number(clk.verseFontSize || 2.4))}vh`;
+        } else {
+          elClockVerse.textContent = '';
+          elClockVerse.style.display = 'none';
+        }
+      }
+      aplicarFundoRelogioOp(clk);
+    }
+
+    function iniciarRelogioOp() {
+      tickRelogioOp();
+      if (!clockTimerOp) clockTimerOp = setInterval(tickRelogioOp, 1000);
+    }
+
+    function pararRelogioOp() {
+      if (clockTimerOp) {
+        clearInterval(clockTimerOp);
+        clockTimerOp = null;
+      }
+    }
+
+    function mostrarRelogioOcioso() {
+      if (!deveRevelarRelogioMinistrante()) {
+        esconderRelogioOcioso();
+        document.body.style.background = '#000000';
+        return;
+      }
+      if (elCapaRelogio) elCapaRelogio.hidden = false;
+      if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
+      document.body.style.background = '#000000';
+      iniciarRelogioOp();
+    }
+
+    function esconderRelogioOcioso() {
+      if (elCapaRelogio) elCapaRelogio.hidden = true;
+      pararRelogioOp();
+    }
+
     function aplicarFundoMinistrantePorProjecao(ativa) {
       const mon = displayConfig.ministrante || {};
       if (!ativa) {
-        /* Opaca: relógio ocioso é revelado escondendo a janela (main), não via transparent. */
         document.body.style.background = '#000000';
         return;
       }
@@ -643,7 +864,13 @@
       /* Só a camada `ministrante` — é a única que esta função lê. Assinar a config inteira
          arrastaria o base64 do fundo do telão a cada estrofe, sem nada a decidir com ele. */
       const assinatura = assinaturaConfigMinistrante(mon);
-      if (assinatura !== null && assinatura === assinaturaConfigMinistranteAplicada) return;
+      const clockChegou = !!(cfg.clock && typeof cfg.clock === 'object');
+      if (assinatura !== null && assinatura === assinaturaConfigMinistranteAplicada) {
+        /* Slider de data/versículo só mexe em `clock`. Sem redesenhar aqui o M3
+           ficava com o tamanho antigo. */
+        if (clockChegou) tickRelogioOp();
+        return;
+      }
       assinaturaConfigMinistranteAplicada = assinatura;
       definirCorComentarioMinistrante(corComentario);
       aplicarEstiloTituloAberturaOp();
@@ -675,6 +902,8 @@
       }
       const projecaoAtiva = payloadMinistranteTemConteudoAtivo(ultimoPayloadMinistrante);
       aplicarFundoMinistrantePorProjecao(projecaoAtiva);
+      if (!projecaoAtiva) mostrarRelogioOcioso();
+      else esconderRelogioOcioso();
       const ehBibliaCfg =
         ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
       if (ehBibliaCfg && mon.fontFamily) {
@@ -1168,6 +1397,7 @@
 
       /* Slide preto (= slide sem letra) ou blackout: fundo preto puro nos dois monitores. */
       if (slidePreto) {
+        esconderRelogioOcioso();
         limparCapasApresentacaoOuAviso();
         if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
         limparHtmlMinistrante(elAtual);
@@ -1188,7 +1418,6 @@
 
       if (vazio) {
         limparCapasApresentacaoOuAviso();
-        if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
         limparHtmlMinistrante(elAtual);
         limparHtmlMinistrante(elProximo);
         aplicarReferenciaBiblicaMinistrante('', 'texto');
@@ -1198,9 +1427,12 @@
         const wrapOcioso = document.querySelector('.wrap');
         if (wrapOcioso) wrapOcioso.style.background = '';
         aplicarFundoMinistrantePorProjecao(false);
+        mostrarRelogioOcioso();
         return;
       }
 
+      esconderRelogioOcioso();
+      if (elWrapLetras) elWrapLetras.style.visibility = 'visible';
       aplicarFundoMinistrantePorProjecao(true);
       if (elWrapLetras) elWrapLetras.style.background = '';
 

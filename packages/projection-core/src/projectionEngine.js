@@ -724,7 +724,7 @@ function createProjectionEngine(paths, deps) {
 }
     });
 
-    ajustarVisibilidadeProjecaoParaRelogio('publico', !hayProjecaoAtivaPublica());
+    ajustarVisibilidadeProjecaoParaRelogio('publico');
 
     if (state.windowControl && !state.windowControl.isDestroyed()) {
       state.windowControl.webContents.send('estado_atualizado', payload);
@@ -788,7 +788,7 @@ function createProjectionEngine(paths, deps) {
 }
       });
 
-    ajustarVisibilidadeProjecaoParaRelogio('ministrante', !hayProjecaoAtivaMinistrante());
+    ajustarVisibilidadeProjecaoParaRelogio('ministrante');
   }
 
   function estadoPublicoParaSocketsOuApi() {
@@ -872,73 +872,32 @@ function createProjectionEngine(paths, deps) {
     return !!(String(snap.atual || '').trim() || String(snap.proximo || '').trim());
   }
 
-  /** Relógio ocioso deixa de usar janela transparente — esconde a projeção por cima. */
-  function deveRevelarRelogioNoRole(role) {
-    try {
-      const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
-      const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
-      const clk = (cfg && cfg.clock) || {};
-      if (clk.showClock === false) return false;
-      const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
-      if (role === 'publico') return alvo === 'publico' || alvo === 'ambos';
-      if (role === 'ministrante') return alvo === 'ministrante' || alvo === 'ambos';
-    } catch (_) {
-      // intencional — erro ignorado
-    }
-    return false;
-  }
-
   /**
-   * Existe mesmo uma janela de relógio viva a cobrir este monitor?
+   * Relógio e preto ocioso passam a ser **conteúdo interno** da janela permanente.
    *
-   * A decisão de esconder a projeção para «revelar o relógio» vinha só da configuração,
-   * nunca do registo. Com `showClock` ligado mas sem janela de relógio — porque a criação
-   * falhou, ou porque a etapa que as cria ainda não correu — o `hide()` não revelava
-   * relógio nenhum: revelava o que estivesse por baixo.
+   * Esconder a BrowserWindow para «revelar» outra por baixo (relógio / chão) era o
+   * caminho que deixava o desktop e a barra de tarefas à vista: `hide()` no Windows
+   * revela o que estiver por baixo no instante seguinte, e esse instante não é
+   * controlável. A janela de saída de M2/M3 nunca mais se esconde.
    */
-  function haRelogioVivoNoMonitor(displayIndex) {
-    return registro.todas().some(
-      (e) => e?.role === 'relogio'
-        && e.index === displayIndex
-        && e.win
-        && !e.win.isDestroyed()
-    );
-  }
-
-  function ajustarVisibilidadeProjecaoParaRelogio(role, ocioso) {
-    const revelarPelaConfig = !!ocioso && deveRevelarRelogioNoRole(role);
+  function ajustarVisibilidadeProjecaoParaRelogio(role) {
     registro.todas()
       .filter((entry) => entry?.role === role)
       .forEach((entry) => {
         const win = entry?.win;
         if (!win || win.isDestroyed()) return;
-        const revelar = revelarPelaConfig && haRelogioVivoNoMonitor(entry.index);
-        if (revelar) {
-          /* O relógio partilha a banda normal com o chão preto. Sem o trazer à frente ao
-             ser revelado, podia ficar por baixo dele e o monitor mostrava só preto. */
-          registro.todas()
-            .filter((e) => e?.role === 'relogio' && e.index === entry.index)
-            .forEach((e) => { try { e.win.moveTop(); } catch (_) {
-  // intencional — erro ignorado
-} });
-          if (win.isVisible()) {
-            esconderJanelaProjecao(win, 'revelar-relogio');
-            entry.ocultoParaRelogio = true;
-            marcarOcultoParaRelogio(win, true);
-          }
-          return;
+        if (entry.ocultoParaRelogio) {
+          entry.ocultoParaRelogio = false;
+          marcarOcultoParaRelogio(win, false);
         }
-        if (!entry.ocultoParaRelogio) return;
-        entry.ocultoParaRelogio = false;
-        marcarOcultoParaRelogio(win, false);
-        try {
-          if (!win.isVisible()) {
-            if (mostrarJanelaProjecaoQuandoPronta(win, 'relogio-para-conteudo')) {
+        if (!win.isVisible()) {
+          try {
+            if (mostrarJanelaProjecaoQuandoPronta(win, 'restaurar-janela-permanente')) {
               aplicarTopoAbsolutoProjecao(win);
             }
+          } catch (_) {
+            // intencional — erro ignorado
           }
-        } catch (_) {
-          // intencional — erro ignorado
         }
       });
     reafirmarTopoTodasJanelasProjecao();
@@ -1237,6 +1196,12 @@ function createProjectionEngine(paths, deps) {
    */
   function esconderJanelaProjecao(win, motivo, extra) {
     if (!win || win.isDestroyed() || !win.isVisible()) return false;
+    const papel = papelDaJanela(win);
+    if (papel === 'publico' || papel === 'ministrante') {
+      /* M2 e M3 são janelas permanentes: hide() revela o desktop no Windows. */
+      diag('esconder-recusado', win, { motivo, razao: 'janela-permanente', ...(extra || {}) });
+      return false;
+    }
     win.__lyraPrimeiroQuadro = true;
     try {
       win.hide();
@@ -1245,6 +1210,25 @@ function createProjectionEngine(paths, deps) {
     }
     diag('esconder', win, { motivo, ...(extra || {}) });
     return true;
+  }
+
+  /**
+   * Cobre o monitor no instante em que a HWND existe — fundo nativo preto, sem esperar
+   * o HTML. É isto que impede o desktop de aparecer entre `new BrowserWindow` e o
+   * primeiro quadro do Chromium.
+   */
+  function cobrirMonitorComJanelaNativa(win) {
+    if (!win || win.isDestroyed()) return;
+    try { win.setBackgroundColor(PRETO_NATIVO_PROJECAO); } catch (_) {
+      // intencional — erro ignorado
+    }
+    aplicarTopoAbsolutoProjecao(win);
+    win.__lyraPrimeiroQuadro = true;
+    try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
+      // intencional — erro ignorado
+    }
+    win.__lyraRevelada = true;
+    diag('revelar-nativo', win, { origem: 'cobertura-imediata' });
   }
 
   /**
@@ -1465,14 +1449,18 @@ function createProjectionEngine(paths, deps) {
    * A assinatura vive no `win` porque é dela que depende o próximo envio àquela janela;
    * uma janela nova nasce sem assinatura e recebe sempre a primeira config.
    *
-   * @param {object} [targetWin] janela específica; omitido, todas as de papel `relogio`
+   * @param {object} [targetWin] janela específica; omitido, M3 (e M2 se o alvo incluir o público)
    */
   function enviarDisplayConfigParaJanelasRelogio(targetWin = null) {
     const cfg = { clock: resolverClockConfigPersistida() };
     const assinatura = assinaturaConfigRelogio(cfg);
+    const alvo = String((cfg.clock && cfg.clock.monitorRelogio) || 'ministrante').toLowerCase();
+    const papeis = new Set(['relogio']);
+    if (alvo === 'publico' || alvo === 'ambos') papeis.add('publico');
+    if (alvo === 'ministrante' || alvo === 'ambos' || !alvo) papeis.add('ministrante');
     const entradas = targetWin
       ? [{ win: targetWin }]
-      : registro.todas().filter((entry) => entry?.role === 'relogio');
+      : registro.todas().filter((entry) => papeis.has(entry?.role));
     entradas.forEach((entry) => {
       const win = entry?.win;
       if (!win || win.isDestroyed()) return;
@@ -1502,56 +1490,15 @@ function createProjectionEngine(paths, deps) {
    * Com a rota, num setup de dois monitores sem ministrante configurado o relógio
    * simplesmente não abre — que é o que já se via em ecrã.
    *
-   * O relógio no monitor do público continua a existir quando é isso que a configuração
-   * pede (`monitorRelogio: 'publico'` ou `'ambos'`): aí é intencional, e o telão esconde-se
-   * para o revelar.
+   * O relógio deixou de ser uma BrowserWindow à parte. No M3 é um estado interno da
+   * janela permanente (`display-operator.html`). No M2 o ocioso é preto, também interno.
+   * Abrir uma segunda janela no mesmo monitor — e esconder a de cima para a revelar —
+   * era exactamente o intervalo em que o Windows mostrava o desktop.
    *
-   * @param {object} [routingDual] rota já carregada; omitida, lê-se do disco
+   * @param {object} [routingDual] ignorado — a assinatura mantém-se para os chamadores
    */
-  function indicesMonitoresRelogioDesejados(routingDual) {
-    const ck = resolverClockConfigPersistida();
-    if (ck.showClock === false) return [];
-    const alvo = String(ck.monitorRelogio || 'ministrante').toLowerCase();
-    const displays = obterDisplaysOrdenados();
-    const rota = routingDual || loadDisplayRouting();
-
-    /* A rota manda quando diz alguma coisa. O ficheiro de índices legado continua a ser o
-       recurso da primeira abertura, quando ainda não há nada roteado — tirá-lo deixava o
-       relógio sem monitor nenhum em instalação nova. */
-    const efetivos = resolverIndicesEfetivosProjecao(rota);
-    const fixos = loadDisplayIndices()
-      .filter((i) => i >= 0 && i < displays.length)
-      .map((i) => indiceProjecaoSeguro(i, displays))
-      .filter((i) => i >= 0);
-
-    const publicoRoteado = efetivos.publicoIndex >= 0;
-    const publicoIndex = publicoRoteado
-      ? efetivos.publicoIndex
-      : (fixos[0] != null ? fixos[0] : primeiroIndiceDeProjecao(displays));
-
-    let ministranteIndex = resolverIndiceJanelaPersistenteMinistrante(rota);
-    if (ministranteIndex < 0) {
-      if (fixos[1] != null) ministranteIndex = fixos[1];
-      /* Cair no monitor do público só é aceitável quando lá NÃO há telão — nesse caso o
-         relógio é a única coisa naquele ecrã e é isso que se quer ver em repouso. Com o
-         público roteado, um relógio ali nasceria por baixo de uma janela que nunca o
-         revela (`deveRevelarRelogioNoRole('publico')` é falso quando o alvo é o
-         ministrante): invisível para sempre, e mais uma superfície a cobrir o projetor e
-         a disputar z-order com o telão a cada `moveTop()` do reclaim. Era o que a linha
-         `ministranteIndex = fixos[1] ?? publicoIndex` fazia com dois monitores. */
-      else if (!publicoRoteado) ministranteIndex = publicoIndex;
-    }
-
-    const desejados = new Set();
-    if ((alvo === 'publico' || alvo === 'ambos') && publicoIndex >= 0) desejados.add(publicoIndex);
-    if (
-      (alvo === 'ministrante' || alvo === 'ambos') &&
-      ministranteIndex >= 0 &&
-      (!publicoRoteado || ministranteIndex !== efetivos.publicoIndex)
-    ) {
-      desejados.add(ministranteIndex);
-    }
-    return Array.from(desejados);
+  function indicesMonitoresRelogioDesejados(_routingDual) {
+    return [];
   }
 
   function podeAbrirJanelaSecundaria() {
@@ -1668,10 +1615,15 @@ function createProjectionEngine(paths, deps) {
     marcarPapelDaJanela(win, ROLE_FUNDO, displayIndex);
     diag('abrir', win, { pagina: 'data:preto' });
     definirNivelTopo(win, false);
-    /* Fundo não tem bootstrap IPC — o HTML já é preto. Só falta o quadro composto. */
+    /* Fundo não tem bootstrap IPC — o HTML já é preto. Cobre o monitor no instante. */
     win.__lyraBootstrapOk = true;
     ouvirPrimeiroQuadroParaRevelar(win);
     win.loadURL(PAGINA_FUNDO);
+    try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
+      // intencional — erro ignorado
+    }
+    win.__lyraRevelada = true;
+    win.__lyraPrimeiroQuadro = true;
     try { win.setMenuBarVisibility(false); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1692,7 +1644,7 @@ function createProjectionEngine(paths, deps) {
       if (indiceProjecaoSeguro(i, displays) < 0) return;
       set.add(i);
     };
-    juntar(resolverIndicesEfetivosProjecao(routingDual).publicoIndex);
+    juntar(resolverIndiceJanelaPersistentePublico(routingDual));
     juntar(resolverIndiceJanelaPersistenteMinistrante(routingDual));
     indicesMonitoresRelogioDesejados(routingDual).forEach(juntar);
     loadDisplayIndices().forEach(juntar);
@@ -1908,6 +1860,10 @@ function createProjectionEngine(paths, deps) {
       if (!win) return;
       registro.adicionar({ role: 'relogio', index: displayIndex, win });
     });
+
+    /* O relógio vive dentro do M3. Sem janela `relogio`, o envio acima não corre —
+       e o slider de data/versículo morria em silêncio. */
+    enviarDisplayConfigParaJanelasRelogio();
   }
 
   function abrirJanelaTela(displayIndex, label) {
@@ -1917,7 +1873,7 @@ function createProjectionEngine(paths, deps) {
     const d = displays[displayIndex];
 
     /* Janela opaca: transparent:true + <video> no Windows deixa o quadro preto em
-       monitores físicos (DirectComposition). Relógio ocioso revela-se escondendo esta janela. */
+       monitores físicos (DirectComposition). Ocioso é preto interno — a HWND não se esconde. */
     const win = new BrowserWindow(
       {
         ...opcoesBrowserWindowProjecao(d, label, {
@@ -1933,6 +1889,7 @@ function createProjectionEngine(paths, deps) {
     marcarPapelDaJanela(win, 'publico', displayIndex);
     diag('abrir', win, { pagina: 'display.html' });
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
+    cobrirMonitorComJanelaNativa(win);
 
     win.loadFile(resolverPaginaProjecao('display.html'));
     win.setMenuBarVisibility(false);
@@ -2004,6 +1961,7 @@ function createProjectionEngine(paths, deps) {
     marcarPapelDaJanela(win, 'ministrante', displayIndex);
     diag('abrir', win, { pagina: 'display-operator.html' });
     finalizarJanelaProjecaoNativa(win, { backgroundColor: PRETO_NATIVO_PROJECAO });
+    cobrirMonitorComJanelaNativa(win);
 
     win.loadFile(resolverPaginaProjecao('display-operator.html'));
     win.setMenuBarVisibility(false);
@@ -2083,13 +2041,33 @@ function createProjectionEngine(paths, deps) {
    * ciclo do reclaim, cada uma a tapar a outra: o monitor a piscar sem parar. Se o monitor
    * já é do público, não há janela de recurso a abrir.
    */
+  /**
+   * Monitor da janela permanente do telão (M2).
+   *
+   * Mesma ideia da persistente do ministrante: com o público em «Não exibir», a janela
+   * continua no monitor de recurso — preto — para a rota voltar a preenchê-la sem nascer
+   * uma HWND nova à vista. Sem isto, o arranque com rota vazia deixava o M2 a mostrar o
+   * desktop até o painel gravar o primeiro roteamento.
+   */
+  function resolverIndiceJanelaPersistentePublico(routingDual) {
+    const { publicoIndex, displays } = resolverIndicesEfetivosProjecao(routingDual);
+    if (publicoIndex >= 0) return publicoIndex;
+    if (!controladorAtivo()) return -1;
+    const fixos = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
+    const recurso = fixos[0] != null
+      ? indiceProjecaoSeguro(fixos[0], displays)
+      : primeiroIndiceDeProjecao(displays);
+    return recurso;
+  }
+
   function resolverIndiceJanelaPersistenteMinistrante(routingDual) {
     const { publicoIndex, ministranteIndex, displays } = resolverIndicesEfetivosProjecao(routingDual);
     if (ministranteIndex >= 0) return ministranteIndex;
     if (!controladorAtivo()) return -1;
     const fixos = loadDisplayIndices().filter((i) => i >= 0 && i < displays.length);
     const recurso = fixos[1] != null ? indiceProjecaoSeguro(fixos[1], displays) : -1;
-    if (recurso >= 0 && recurso === publicoIndex) return -1;
+    const pubPersistente = resolverIndiceJanelaPersistentePublico(routingDual);
+    if (recurso >= 0 && (recurso === publicoIndex || recurso === pubPersistente)) return -1;
     return recurso;
   }
 
@@ -2098,7 +2076,8 @@ function createProjectionEngine(paths, deps) {
    * Ex.: Bíblia só no M2 → escudo no M3; não altera índices de roteamento público/ministrante.
    */
   function indicesMonitoresEscudoPreto(routingDual) {
-    const { publicoIndex, displays } = resolverIndicesEfetivosProjecao(routingDual);
+    const displays = obterDisplaysOrdenados();
+    const publicoIndex = resolverIndiceJanelaPersistentePublico(routingDual);
     const ministranteIndex = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     const emUso = new Set();
     if (publicoIndex >= 0) emUso.add(publicoIndex);
@@ -2317,15 +2296,16 @@ function createProjectionEngine(paths, deps) {
     const d = displays[displayIndex];
     const win = entrada?.win;
     if (!d || !win || win.isDestroyed()) return false;
-    const mostrar = opts.mostrar !== false;
     try {
       cancelarTrocaPendente(entrada);
-      esconderJanelaProjecao(win, 'mover-de-monitor', { para: displayIndex });
       entrada.ocultoParaRelogio = false;
       marcarOcultoParaRelogio(win, false);
-      assentarJanelaOcultaNoDisplay(win, d);
+      cobrirBoundsDoDisplay(win, d.bounds);
+      aplicarTopoAbsolutoProjecao(win);
       entrada.index = displayIndex;
-      if (mostrar) mostrarJanelaProjecaoQuandoPronta(win, 'moverJanelaRoleEntreMonitores');
+      if (!win.isVisible() && opts.mostrar !== false) {
+        mostrarJanelaProjecaoQuandoPronta(win, 'moverJanelaRoleEntreMonitores');
+      }
       return true;
     } catch (_) {
       return false;
@@ -2574,16 +2554,18 @@ function createProjectionEngine(paths, deps) {
     sincronizarJanelasFundo(routingDual);
 
     const {
-      publicoIndex,
+      publicoIndex: publicoConteudo,
       ministranteIndex: ministranteConteudo,
       suprimidoPelaGuarda,
     } = resolverIndicesEfetivosProjecao(routingDual);
+    const publicoIndex = resolverIndiceJanelaPersistentePublico(routingDual);
     const ministranteIndex = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     const escudos = indicesMonitoresEscudoPreto(routingDual);
 
     diagGeral('sync-inicio', {
       pub: publicoIndex,
       min: ministranteIndex,
+      pubConteudo: publicoConteudo,
       minConteudo: ministranteConteudo,
       escudos,
       monitores: obterDisplaysOrdenados().length,
@@ -2636,7 +2618,7 @@ function createProjectionEngine(paths, deps) {
                * estrofe. Era este o buraco entre a prévia e o monitor físico.
                */
               marcarCanaisSemExibicao({
-                publico: publicoIndex < 0,
+                publico: publicoConteudo < 0,
                 ministrante: ministranteConteudo < 0,
               });
               finalizarSincronizacaoTelas(onComplete);
@@ -2660,21 +2642,18 @@ function createProjectionEngine(paths, deps) {
     const routingDual = routingDualOuLegado?.version === 2
       ? routingDualOuLegado
       : displayRoutingMod.normalizarRoteamentoDual(routingDualOuLegado);
-    const { publicoIndex: pub, ministranteIndex: minConteudo } =
+    const { publicoIndex: pubConteudo, ministranteIndex: minConteudo } =
       resolverIndicesEfetivosProjecao(routingDual);
     /*
-     * Duas perguntas diferentes sobre o ministrante, e confundi-las era o defeito:
+     * Duas perguntas diferentes sobre cada canal, e confundi-las era o defeito:
      *
-     * - `min` — ONDE a janela vive. Com a rota em «Não exibir», o motor mantém na mesma uma
-     *   janela no monitor de recurso, para activar o ministrante mais tarde não custar uma
-     *   janela a nascer à vista (ver `resolverIndiceJanelaPersistenteMinistrante`).
-     * - `minConteudo` — SE essa janela leva conteúdo. Vem da rota, e é -1 em «Não exibir».
-     *
-     * Como só existia `min`, um «Não exibir» no ministrante virava o índice de recurso e a
-     * janela persistente passava a ser tratada como canal activo: a prévia do painel
-     * escondia o ministrante (ela olha para a rota) e o monitor físico continuava a mostrar
-     * a estrofe. Painel e telão a discordar, que é exactamente o que o operador via.
+     * - `pub` / `min` — ONDE a janela vive. Com a rota em «Não exibir», o motor mantém na
+     *   mesma uma janela no monitor de recurso, para a próxima projeção não custar uma
+     *   HWND nova à vista.
+     * - `pubConteudo` / `minConteudo` — SE essa janela leva conteúdo. Vem da rota, e é -1
+     *   em «Não exibir».
      */
+    const pub = resolverIndiceJanelaPersistentePublico(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
     /*
      * Conta como presente a janela **visível** ou a **escondida de propósito** para o
@@ -2726,12 +2705,13 @@ function createProjectionEngine(paths, deps) {
     const displaysAgora = obterDisplaysOrdenados();
 
     if (pub < 0) {
-      /* «Não exibir»: as janelas ficam onde estão — exige-se só que estejam pretas. */
+      /* Sem janela persistente (um só monitor / sem operador): exige-se só que o que
+         restar esteja preto. */
       if (pubWins.some((e) => !estaSemExibicao(e.win))) return false;
     } else if (
       pubWins.length !== 1 ||
       !noIndicePedido(pubWins[0], pub) ||
-      !marcaCoerente(pubWins[0], false) ||
+      !marcaCoerente(pubWins[0], pubConteudo < 0) ||
       (!trocaEmCursoPara(pubWins[0], pub) && !janelaCobreODisplay(pubWins[0], pub, displaysAgora))
     ) {
       return false;
@@ -2834,12 +2814,12 @@ function createProjectionEngine(paths, deps) {
     }
 
     const {
-      publicoIndex: pub,
+      publicoIndex: pubConteudo,
       ministranteIndex: minConteudo,
       suprimidoPelaGuarda,
     } = resolverIndicesEfetivosProjecao(routingDual);
-    /* `min` é onde a janela do ministrante vive; `minConteudo` é se ela leva conteúdo.
-       Ver `telasAbertasCorrespondemRota`. */
+    /* `pub`/`min` é onde a janela vive; `*Conteudo` é se ela leva conteúdo. */
+    const pub = resolverIndiceJanelaPersistentePublico(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
 
     const escudos = indicesMonitoresEscudoPreto(routingDual);
@@ -2864,7 +2844,7 @@ function createProjectionEngine(paths, deps) {
       garantirRapidas += 1;
       /* Antes de qualquer envio: as janelas que a rota deixou em «Não exibir» têm de estar
          marcadas, senão os `atualizar*` logo abaixo mandam-lhes conteúdo. */
-      marcarCanaisSemExibicao({ publico: pub < 0, ministrante: minConteudo < 0 });
+      marcarCanaisSemExibicao({ publico: pubConteudo < 0, ministrante: minConteudo < 0 });
       if (!hayProjecaoAtivaPublica() && obterEntradasPorRole('publico').length) {
         atualizarDisplays(estadoOciosoPublico());
       }
@@ -2884,7 +2864,7 @@ function createProjectionEngine(paths, deps) {
       atualizarLoopTopoAbsolutoProjecao();
       return;
     }
-    diagGeral('garantir-resync', { pub, min, minConteudo, escudos: escudos.length });
+    diagGeral('garantir-resync', { pub, min, pubConteudo, minConteudo, escudos: escudos.length });
     sincronizarTelasComRota(routingDual, () => {
       try {
         const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);

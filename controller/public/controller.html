@@ -230,7 +230,7 @@
         <div class="busca-letras-panel" id="busca-letras-panel">
           <div class="busca-letras-row2">
             <div class="search-box-limpavel">
-              <input type="text" class="search-box" id="busca-letras-q" placeholder="Buscar em cifraclub.com.br…" oninput="onBuscaLetrasInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarLetrasExterno();}">
+              <input type="text" class="search-box" id="busca-letras-q" placeholder="Buscar no Cifra Club…" oninput="onBuscaLetrasInput()" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarLetrasExterno();}">
               <button type="button" class="search-box-limpar" id="busca-letras-limpar" title="Limpar busca" aria-label="Limpar busca" hidden onclick="limparBuscaLetras({ focar: true })">×</button>
             </div>
             <button type="button" class="btn sm primary" onclick="buscarLetrasExterno()">Buscar</button>
@@ -1064,7 +1064,7 @@
               </div>
               <div class="cfg-row" id="cfg-publico-bg-solid-ctrl" data-busca="cor de fundo telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-bg-color-ctrl" value="#000000" oninput="onPublicoBgColorCtrlInput()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-bg-color-ctrl" value="#000000" onchange="onPublicoBgColorCtrlInput()"></div>
               </div>
               <div class="cfg-row cfg-row--largo" id="cfg-publico-bg-gradient-wrap-ctrl" style="display:none" data-busca="gradiente css fundo telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
@@ -1098,7 +1098,7 @@
               </div>
               <div class="cfg-row" data-busca="cor da letra texto telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-text-color-ctrl" value="#ffffff" oninput="onPublicoSlideCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-publico-text-color-ctrl" value="#ffffff" onchange="onPublicoSlideCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="negrito telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
@@ -1218,7 +1218,7 @@
               </div>
               <div class="cfg-row" id="cfg-ministrante-bg-solid-ctrl" data-busca="cor de fundo ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-bg-color-ctrl" value="#000000" oninput="onMinistranteBgColorCtrlInput()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-bg-color-ctrl" value="#000000" onchange="onMinistranteBgColorCtrlInput()"></div>
               </div>
               <div class="cfg-row cfg-row--largo" id="cfg-ministrante-bg-gradient-wrap-ctrl" style="display:none" data-busca="gradiente css fundo ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
@@ -1236,19 +1236,19 @@
             <div class="cfg-card-corpo">
               <div class="cfg-row" data-busca="cor da letra atual ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra (atual)</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-atual-ctrl" value="#ffffff" oninput="onMinistranteSlideCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-atual-ctrl" value="#ffffff" onchange="onMinistranteSlideCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="cor da letra proximo ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra (próximo)</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-proximo-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-text-color-proximo-ctrl" value="#f3c15a" onchange="onMinistranteSlideCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="cor do comentario ministrante slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor do comentário</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" oninput="onMinistranteSlideCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-comment-color-ctrl" value="#00c8ff" onchange="onMinistranteSlideCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="cor do titulo slide 1 abertura musica ministrante m3">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor do título (1.º slide)</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-abertura-titulo-color-ctrl" value="#f3c15a" oninput="onMinistranteSlideCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-ministrante-abertura-titulo-color-ctrl" value="#f3c15a" onchange="onMinistranteSlideCfgChange()"></div>
               </div>
             </div>
           </section>
@@ -1332,16 +1332,16 @@
               </div>
               <div class="cfg-row" id="cfg-biblia-pub-bg-solid-ctrl" data-busca="cor de fundo biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-color-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-color-ctrl" value="#000000" onchange="onBibliaPublicoCfgChange()"></div>
               </div>
               <div id="cfg-biblia-pub-bg-gradient-wrap-ctrl" style="display:none">
                 <div class="cfg-row" data-busca="cor inicial do gradiente fundo biblia telao">
                   <div class="cfg-row-copy"><div class="cfg-row-label">Cor inicial do gradiente</div></div>
-                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaPublicoCfgChange()"></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-from-ctrl" value="#000000" onchange="onBibliaPublicoCfgChange()"></div>
                 </div>
                 <div class="cfg-row" data-busca="cor final do gradiente fundo biblia telao">
                   <div class="cfg-row-copy"><div class="cfg-row-label">Cor final do gradiente</div></div>
-                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaPublicoCfgChange()"></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-bg-gradient-to-ctrl" value="#161616" onchange="onBibliaPublicoCfgChange()"></div>
                 </div>
               </div>
               <div class="cfg-row" id="cfg-biblia-pub-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo biblia telao">
@@ -1371,7 +1371,7 @@
               </div>
               <div class="cfg-row" data-busca="cor da letra versiculo biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-text-color-ctrl" value="#ffffff" oninput="onBibliaPublicoCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-text-color-ctrl" value="#ffffff" onchange="onBibliaPublicoCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="maiusculas caixa alta versiculo biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
@@ -1408,7 +1408,7 @@
               </div>
               <div class="cfg-row" data-busca="cor da referencia biblia telao">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-ref-color-ctrl" value="#fbf904" oninput="onBibliaPublicoCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-pub-ref-color-ctrl" value="#fbf904" onchange="onBibliaPublicoCfgChange()"></div>
               </div>
             </div>
           </section>
@@ -1463,16 +1463,16 @@
               </div>
               <div class="cfg-row" id="cfg-biblia-min-bg-solid-ctrl" data-busca="cor de fundo biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-color-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-color-ctrl" value="#000000" onchange="onBibliaMinistranteCfgChange()"></div>
               </div>
               <div id="cfg-biblia-min-bg-gradient-wrap-ctrl" style="display:none">
                 <div class="cfg-row" data-busca="cor inicial do gradiente fundo biblia ministrante">
                   <div class="cfg-row-copy"><div class="cfg-row-label">Cor inicial do gradiente</div></div>
-                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-from-ctrl" value="#000000" oninput="onBibliaMinistranteCfgChange()"></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-from-ctrl" value="#000000" onchange="onBibliaMinistranteCfgChange()"></div>
                 </div>
                 <div class="cfg-row" data-busca="cor final do gradiente fundo biblia ministrante">
                   <div class="cfg-row-copy"><div class="cfg-row-label">Cor final do gradiente</div></div>
-                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-to-ctrl" value="#161616" oninput="onBibliaMinistranteCfgChange()"></div>
+                  <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-bg-gradient-to-ctrl" value="#161616" onchange="onBibliaMinistranteCfgChange()"></div>
                 </div>
               </div>
               <div class="cfg-row" id="cfg-biblia-min-bg-image-wrap-ctrl" style="display:none" data-busca="imagem de fundo biblia ministrante">
@@ -1502,7 +1502,7 @@
               </div>
               <div class="cfg-row" data-busca="cor da letra versiculo biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-text-color-ctrl" value="#ffffff" oninput="onBibliaMinistranteCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-text-color-ctrl" value="#ffffff" onchange="onBibliaMinistranteCfgChange()"></div>
               </div>
               <div class="cfg-row" data-busca="maiusculas caixa alta versiculo biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Maiúsculas</div></div>
@@ -1539,7 +1539,7 @@
               </div>
               <div class="cfg-row" data-busca="cor da referencia biblia ministrante">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da referência</div></div>
-                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-ref-color-ctrl" value="#fbf904" oninput="onBibliaMinistranteCfgChange()"></div>
+                <div class="cfg-row-controlo"><input type="color" id="cfg-biblia-min-ref-color-ctrl" value="#fbf904" onchange="onBibliaMinistranteCfgChange()"></div>
               </div>
             </div>
           </section>
@@ -1704,7 +1704,7 @@
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
               <div class="cfg-row-controlo">
                 <div class="cfg-color-row">
-                  <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <input type="color" id="cfg-clock-text-color-ctrl" value="#1c1816" onchange="aplicarCfgRelogio()">
                   <span class="cfg-color-val" id="cfg-clock-text-color-val-ctrl">#1c1816</span>
                 </div>
               </div>
@@ -1722,13 +1722,13 @@
               </div>
             </div>
             <div class="cfg-row cfg-row--slider" data-busca="tamanho da data relogio">
-              <input type="range" class="cfg-slider" id="cfg-clock-date-fontsize-ctrl" min="0.8" max="14" step="1" value="2.4" data-sce-label="Tamanho da data" data-sce-unidade="vh" oninput="onClockDateFontSizeCtrlInput()">
+              <input type="range" class="cfg-slider" id="cfg-clock-date-fontsize-ctrl" min="0.8" max="14" step="0.1" value="2.4" data-sce-label="Tamanho da data" data-sce-unidade="vh" oninput="onClockDateFontSizeCtrlInput()">
             </div>
             <div class="cfg-row" data-busca="cor da data relogio">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor da data</div></div>
               <div class="cfg-row-controlo">
                 <div class="cfg-color-row">
-                  <input type="color" id="cfg-clock-date-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <input type="color" id="cfg-clock-date-color-ctrl" value="#1c1816" onchange="aplicarCfgRelogio()">
                   <span class="cfg-color-val" id="cfg-clock-date-color-val-ctrl">#1c1816</span>
                 </div>
               </div>
@@ -1750,13 +1750,13 @@
               <div class="cfg-row-controlo"><input class="cfg-form-input" type="text" id="cfg-verse-ctrl" placeholder="Ex.: João 3:16" oninput="aplicarCfgRelogio()"></div>
             </div>
             <div class="cfg-row cfg-row--slider" data-busca="tamanho do versiculo relogio">
-              <input type="range" class="cfg-slider" id="cfg-clock-verse-fontsize-ctrl" min="0.8" max="14" step="1" value="2.4" data-sce-label="Tamanho do versículo" data-sce-unidade="vh" oninput="onClockVerseFontSizeCtrlInput()">
+              <input type="range" class="cfg-slider" id="cfg-clock-verse-fontsize-ctrl" min="0.8" max="14" step="0.1" value="2.4" data-sce-label="Tamanho do versículo" data-sce-unidade="vh" oninput="onClockVerseFontSizeCtrlInput()">
             </div>
             <div class="cfg-row" data-busca="cor do versiculo relogio">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor do versículo</div></div>
               <div class="cfg-row-controlo">
                 <div class="cfg-color-row">
-                  <input type="color" id="cfg-clock-verse-color-ctrl" value="#1c1816" oninput="aplicarCfgRelogio()">
+                  <input type="color" id="cfg-clock-verse-color-ctrl" value="#1c1816" onchange="aplicarCfgRelogio()">
                   <span class="cfg-color-val" id="cfg-clock-verse-color-val-ctrl">#1c1816</span>
                 </div>
               </div>
@@ -1785,7 +1785,7 @@
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
               <div class="cfg-row-controlo">
                 <div class="cfg-color-row">
-                  <input type="color" id="cfg-clock-bg-color-ctrl" value="#f5f2ea" oninput="aplicarCfgRelogio()">
+                  <input type="color" id="cfg-clock-bg-color-ctrl" value="#f5f2ea" onchange="aplicarCfgRelogio()">
                   <span class="cfg-color-val" id="cfg-clock-bg-color-val-ctrl">#f5f2ea</span>
                 </div>
               </div>
@@ -1904,7 +1904,7 @@
             </div>
             <div class="cfg-row" id="cfg-contagem-bg-solid-wrap" data-busca="cor de fundo contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor de fundo</div></div>
-              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-bg-color" value="#000000" oninput="onContagemCfgChange()"></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-bg-color" value="#000000" onchange="onContagemCfgChange()"></div>
             </div>
             <div class="cfg-row cfg-row--largo" id="cfg-contagem-bg-gradient-wrap" style="display:none" data-busca="gradiente css fundo contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Gradiente CSS</div></div>
@@ -1948,7 +1948,7 @@
             </div>
             <div class="cfg-row" data-busca="cor dos digitos texto contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor</div></div>
-              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-text-color" value="#ffffff" oninput="onContagemCfgChange()"></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-text-color" value="#ffffff" onchange="onContagemCfgChange()"></div>
             </div>
             <div class="cfg-row" data-busca="negrito digitos contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Negrito</div></div>
@@ -1970,14 +1970,14 @@
             </div>
             <div class="cfg-row" data-busca="cor mensagem acima topo contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Acima — cor</div></div>
-              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-topo-color" value="#f3c15a" oninput="onContagemCfgChange()"></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-topo-color" value="#f3c15a" onchange="onContagemCfgChange()"></div>
             </div>
             <div class="cfg-row cfg-row--slider" data-busca="tamanho mensagem abaixo rodape contagem regressiva">
               <input type="range" class="cfg-slider" id="cfg-contagem-rodape-size" min="1" max="15" step="1" value="3" data-sce-label="Abaixo — tamanho" data-sce-unidade="vh" oninput="onContagemCfgChange()">
             </div>
             <div class="cfg-row" data-busca="cor mensagem abaixo rodape contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Abaixo — cor</div></div>
-              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-rodape-color" value="#ffffff" oninput="onContagemCfgChange()"></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-rodape-color" value="#ffffff" onchange="onContagemCfgChange()"></div>
             </div>
           </div>
         </section>
@@ -2019,7 +2019,7 @@
             </div>
             <div class="cfg-row" data-busca="cor do alerta final contagem regressiva">
               <div class="cfg-row-copy"><div class="cfg-row-label">Cor do alerta</div></div>
-              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-alerta-color" value="#ff5a5a" oninput="onContagemCfgChange()"></div>
+              <div class="cfg-row-controlo"><input type="color" id="cfg-contagem-alerta-color" value="#ff5a5a" onchange="onContagemCfgChange()"></div>
             </div>
             <div class="cfg-row" data-busca="piscar no final contagem regressiva">
               <div class="cfg-row-copy">

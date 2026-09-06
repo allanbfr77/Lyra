@@ -152,19 +152,47 @@ app.whenReady().then(async () => {
     obterJanelaPainel: () => mainWindow.getJanelaPrincipal(ctx),
   });
 
+  /*
+   * Vestir M2 e M3 ANTES da UI do operador.
+   *
+   * Sem isto o painel nascia primeiro e só depois pedia a projeção local — e nesse
+   * intervalo os monitores de saída mostravam o desktop. `ligar()` é idempotente: o
+   * renderer volta a chamá-lo ao carregar e só aponta o transporte.
+   */
+  try {
+    const r = await ctx.projecaoLocal.ligar();
+    ctx.diagnosticoTelas.registar('projecao-arranque', {
+      ok: !!r?.ok,
+      erro: r?.erro || null,
+    });
+  } catch (e) {
+    ctx.diagnosticoTelas.registar('projecao-arranque', {
+      ok: false,
+      erro: e?.message || String(e),
+    });
+  }
+
   /* Antes de criar a janela principal: o menu já pode abrir o histórico, e um clique
      rápido não pode encontrar os handlers por registar. */
   historicoWindow.registarIpcHistorico(() => mainWindow.getJanelaPrincipal(ctx));
 
   mainWindow.registerMainWindowIpc(ctx, updaterApi, companionApi);
   mainWindow.criarJanela(ctx);
-  /* Carimbo do outro extremo do intervalo: a partir daqui o renderer é que manda, e é
-     ele que vai pedir a projeção local. */
   ctx.diagnosticoTelas.registar('painel-criado');
   mainWindow.criarMenuAplicativo(ctx, updaterApi, companionApi);
   if (app.isPackaged) {
     updaterApi.configurarAtualizacaoAutomatica();
     companionApi.configurarVerificacaoCompanion();
+  }
+});
+
+app.on('before-quit', () => {
+  try {
+    if (ctx.projecaoLocal?.estaActiva?.()) {
+      void ctx.projecaoLocal.desligar();
+    }
+  } catch (_) {
+    // intencional — o encerramento não pode falhar por causa das telas
   }
 });
 

@@ -31,8 +31,8 @@ export function normalizarFonteLetrasSite(val) {
 export function placeholderBuscaLetrasPorFonte(fonte) {
   if (fonte === FONTE_LETRAS_LETRAS_MUS) return 'Buscar em letras.mus.br…';
   if (fonte === FONTE_LETRAS_BANCO_LOCAL) return 'Buscar no banco offline…';
-  if (fonte === FONTE_LETRAS_LYRA_ONLINE) return 'Buscar no banco online do Lyra…';
-  return 'Buscar em cifraclub.com.br…';
+  if (fonte === FONTE_LETRAS_LYRA_ONLINE) return 'Buscar no banco online…';
+  return 'Buscar no Cifra Club…';
 }
 
 /**

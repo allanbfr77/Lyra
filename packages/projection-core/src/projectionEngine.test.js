@@ -121,20 +121,20 @@ test('deps.state é obrigatório — sem armazém não há motor', () => {
 
 test('abre as janelas e carrega as páginas que o host resolveu', () => {
   const { engine } = montar();
-  engine.sincronizarJanelasRelogio();
+  engine.abrirTelasConfiguradas();
 
   const abertas = engine.janelasDeProjecao();
-  assert.ok(abertas.length > 0, 'devia ter aberto pelo menos a janela de relógio');
+  assert.ok(abertas.length > 0, 'devia ter aberto a janela permanente de saída');
   const paginas = abertas.flatMap((e) => e.win.paginas);
   assert.ok(
-    paginas.every((p) => String(p).startsWith('/core/paginas/')),
+    paginas.filter(Boolean).every((p) => String(p).startsWith('/core/paginas/') || String(p).startsWith('data:')),
     `motor devia usar só o resolvedor do host; carregou: ${paginas}`
   );
 });
 
 test('renderiza o estado do armazém nas janelas', () => {
   const { state, engine } = montar();
-  engine.sincronizarJanelasRelogio();
+  engine.abrirTelasConfiguradas();
   engine.atualizarDisplays(state.estadoAtual);
   // não lança e o registo continua coerente
   assert.ok(Array.isArray(engine.janelasDeProjecao()));
@@ -266,7 +266,7 @@ test('dois motores no mesmo processo não partilham estado', () => {
      processo; e os testes acima já dependem de instâncias independentes. */
   const a = montar();
   const b = montar();
-  a.engine.sincronizarJanelasRelogio();
+  a.engine.abrirTelasConfiguradas();
   assert.ok(a.engine.janelasDeProjecao().length > 0);
   assert.strictEqual(b.engine.janelasDeProjecao().length, 0);
 });
@@ -468,32 +468,19 @@ async function bombearRevelacao(win) {
   await Promise.resolve();
 }
 
-test('ready-to-show sozinho não revela o telão — o primeiro HWND no Windows ainda é branco', async () => {
+test('M2 cobre o monitor no instante em que a HWND existe — sem esperar o HTML', async () => {
   const { engine, criadas } = montarComRevelacao();
   engine.abrirTelasConfiguradas();
   const telao = criadas.find((w) => w.paginas.some((p) => String(p).includes('display.html')));
   assert.ok(telao, 'o arranque tem de criar o telão');
-  assert.strictEqual(telao.visivel, false, 'nasce oculta');
-
-  telao.emit('ready-to-show');
-  await Promise.resolve();
-  assert.strictEqual(
-    telao.visivel,
-    false,
-    'ready-to-show sem bootstrap ainda não pode mostrar — clarão branco no 1.º ShowWindow'
-  );
-  assert.ok(!telao.mostrouSemFoco);
-
-  telao.webContents.emit('did-finish-load');
-  await Promise.resolve();
-  await Promise.resolve();
-  assert.strictEqual(telao.visivel, true, 'depois do JS preto + bootstrap, revela');
+  assert.strictEqual(telao.visivel, true, 'fundo nativo preto já tapa o desktop');
   assert.ok(telao.mostrouSemFoco, 'revela sem roubar o teclado');
-  assert.ok(
-    telao.jsExecs.some((js) => String(js).includes('#000000')),
-    'força o quadro preto no renderer antes do show'
-  );
   assert.ok(!telao.focouAoMostrar, 'não usa show() focante');
+  assert.strictEqual(
+    telao.opcoesCriacao.backgroundColor,
+    '#000000',
+    'a HWND já nasce com fundo preto'
+  );
 });
 
 test('blur da primeira Bíblia não reemite setAlwaysOnTop (SetWindowPos no projetor)', async () => {
@@ -1229,9 +1216,7 @@ test('relógio do ministrante não nasce no monitor do público (dois ecrãs, pr
   );
 });
 
-test('relógio ainda abre no monitor de recurso quando o público não está roteado', () => {
-  /* Contraparte: a correção acima não pode apagar o relógio de uma instalação nova, onde
-     ainda não há rota nenhuma e o relógio é a única coisa no ecrã secundário. */
+test('com operador ligado, rota vazia ainda veste o M2 permanente', () => {
   const rotaVazia = {
     version: 2,
     slides: { publicoIndex: -1, ministranteIndex: -1 },
@@ -1241,23 +1226,34 @@ test('relógio ainda abre no monitor de recurso quando o público não está rot
   const { engine } = montarComEcransMutaveis(rotaVazia, [1, 2], DISPLAYS, {
     clock: { showClock: true, monitorRelogio: 'ministrante' },
   });
-  engine.sincronizarJanelasRelogio();
+  engine.garantirTelasAbertasParaProjecao();
 
-  assert.ok(
-    engine.janelasDeProjecao().some((e) => e.role === 'relogio' && e.index === 1),
-    'sem telão no M2 o relógio de recurso continua a abrir lá'
+  const pub = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(pub, 'M2 permanente nasce mesmo sem rota gravada');
+  assert.strictEqual(pub.index, 1);
+  assert.strictEqual(pub.win.visivel, true);
+  assert.strictEqual(pub.win.destruida, false);
+  assert.strictEqual(
+    engine.janelasDeProjecao().filter((e) => e.role === 'relogio').length,
+    0,
+    'sem janela à parte de relógio — o ocioso do M2 é preto interno'
   );
 });
 
-test('relógio no monitor do público continua a existir quando é isso que a config pede', () => {
+test('M2 ocioso não ganha janela de relógio mesmo com alvo «publico»', () => {
   const { engine } = montarComEcransMutaveis(ROTA_PUBLICO_NO_1, [1, 2], DISPLAYS, {
     clock: { showClock: true, monitorRelogio: 'publico' },
   });
   engine.garantirTelasAbertasParaProjecao();
 
   assert.ok(
-    engine.janelasDeProjecao().some((e) => e.role === 'relogio' && e.index === 1),
-    'alvo «publico» é intencional: o telão esconde-se para revelar o relógio'
+    engine.janelasDeProjecao().some((e) => e.role === 'publico' && e.index === 1 && e.win.visivel),
+    'M2 permanente e visível'
+  );
+  assert.strictEqual(
+    engine.janelasDeProjecao().filter((e) => e.role === 'relogio').length,
+    0,
+    'M2 ocioso é preto interno — hide() para revelar relógio revelaria o desktop'
   );
 });
 
@@ -1563,6 +1559,39 @@ test('Ministrante em «Não exibir» é estável: nada recriado a cada passagem'
   assert.strictEqual(ultimoPayloadMinistrante(engine).telaLimpa, true, 'e continua preta');
 });
 
+test('com três monitores, rota vazia veste M2 e M3 permanentes', () => {
+  const rotaVazia = {
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: -1 },
+    apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  };
+  const { engine } = montarComEcransMutaveis(rotaVazia, [1, 2], DISPLAYS_TRES, {
+    clock: { showClock: true, monitorRelogio: 'ministrante' },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+
+  const pub = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  const min = engine.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.ok(pub, 'M2 permanente');
+  assert.ok(min, 'M3 permanente');
+  assert.strictEqual(pub.index, 1);
+  assert.strictEqual(min.index, 2);
+  assert.ok(pub.win.visivel && min.win.visivel, 'ambas visíveis desde o arranque');
+  assert.strictEqual(pub.win, engine.janelasDeProjecao().find((e) => e.role === 'publico').win);
+  engine.garantirTelasAbertasParaProjecao();
+  assert.strictEqual(
+    engine.janelasDeProjecao().find((e) => e.role === 'publico').win,
+    pub.win,
+    'segunda passagem não recria o M2'
+  );
+  assert.strictEqual(
+    engine.janelasDeProjecao().find((e) => e.role === 'ministrante').win,
+    min.win,
+    'segunda passagem não recria o M3'
+  );
+});
+
 test('«Não exibir» no ministrante não afecta o telão do público', () => {
   const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
     clock: SEM_RELOGIO,
@@ -1610,80 +1639,37 @@ async function arrancarEBombear() {
   return { engine, criadas, state };
 }
 
-test('C1 — janela sem quadro composto não é mostrada por uma segunda sincronização', async () => {
-  /*
-   * O clarão branco. `sincronizarJanelasRelogio` corre a cada `display_config` — ou seja,
-   * a cada troca de aba e a cada tick de slider — e corre FORA do lock da cadeia principal.
-   * Apanhava rotineiramente uma janela que a passagem anterior ainda estava a carregar e
-   * fazia-lhe `showInactive()`. Um `ShowWindow` num HWND sem quadro composto é branco no
-   * Windows. A guarda `jaPintouPrimeiroQuadro` existia para isto e não era chamada.
-   */
-  const { engine, criadas } = montarComRevelacao();
-  engine.sincronizarJanelasRelogio();
-  const relogio = criadas.find(ehRelogio);
-  assert.ok(relogio, 'a primeira passagem cria a janela do relógio');
-  assert.strictEqual(relogio.visivel, false, 'nasce oculta');
-
-  engine.sincronizarJanelasRelogio();
-
-  assert.strictEqual(relogio.visivel, false, 'segunda passagem não pode mostrá-la: não há quadro');
-  assert.ok(!relogio.mostrouSemFoco, 'nem sequer chegou a chamar showInactive');
-  assert.strictEqual(criadas.filter(ehRelogio).length, 1, 'e não abriu uma segunda janela');
-
-  await bombearRevelacao(relogio);
-  assert.strictEqual(relogio.visivel, true, 'aparece assim que o quadro chega');
-});
-
-test('C1 — a guarda não atrasa a volta do relógio de ocioso ao conteúdo', async () => {
-  /*
-   * A contrapartida da guarda, e o risco real de a ter posto: ela não pode adiar o que é
-   * seguro. Uma janela que esteve visível pintou, por definição — e o motor esconde e volta
-   * a mostrar o ministrante a cada ida e volta entre repouso e conteúdo. Se a guarda
-   * tratasse essa janela como «nunca pintou», a estrofe chegaria ao palco com atraso.
-   *
-   * É por isso que `esconderJanelaProjecao` carimba `__lyraPrimeiroQuadro`. Este teste é o
-   * que impede alguém de tirar esse carimbo achando que é redundante.
-   */
+test('M3 ocioso não esconde a janela — o relógio é conteúdo interno', async () => {
   const { engine, criadas, state } = await arrancarEBombear();
   const ministrante = criadas.find((w) =>
     w.paginas.some((p) => String(p).includes('display-operator.html'))
   );
-  assert.ok(ministrante?.visivel, 'o M3 arranca com conteúdo no ar');
+  assert.ok(ministrante?.visivel, 'o M3 arranca visível');
+  const winAntes = ministrante;
 
-  /* Repouso: o motor esconde o ministrante para deixar ver o relógio por baixo. */
   state.ministranteApresentacaoOverride = { modo: 'texto', atual: '', proximo: '', telaLimpa: true };
   engine.atualizarDisplayMinistrante(state.estadoMinistrante);
-  assert.strictEqual(ministrante.visivel, false, 'escondida para revelar o relógio');
+  assert.strictEqual(ministrante.visivel, true, 'ocioso não pode hide() — revelaria o desktop');
+  assert.strictEqual(ministrante, winAntes, 'é a mesma HWND');
+  assert.strictEqual(criadas.filter(ehRelogio).length, 0, 'não nasce uma segunda janela de relógio');
 
-  /* Conteúdo de volta: tem de reaparecer nesta mesma passagem, sem adiamento. */
-  ministrante.mostrouSemFoco = false;
   state.ministranteApresentacaoOverride = { modo: 'texto', atual: 'linha um', proximo: '' };
   engine.atualizarDisplayMinistrante(state.estadoMinistrante);
-
-  assert.strictEqual(ministrante.visivel, true, 'a estrofe não pode esperar pelo próximo quadro');
-  assert.ok(ministrante.mostrouSemFoco, 'e continua a aparecer sem roubar o teclado ao painel');
+  assert.strictEqual(ministrante.visivel, true, 'conteúdo volta na mesma janela');
 });
 
-test('A1 — chão e relógio nunca sobem à banda topmost, nem ao serem revelados', async () => {
-  /*
-   * `revelarJanelaProjecaoQuandoPreta` aplicava topo absoluto a TODA janela que revelava,
-   * incluindo as duas que nascem com `definirNivelTopo(win, false)` explícito. O chão ficava
-   * topmost para o resto da sessão e o relógio era rebaixado logo a seguir: o relógio
-   * acabava DEBAIXO do chão preto, e o M3 em repouso mostrava preto em vez das horas.
-   */
+test('A1 — o chão nunca sobe à banda topmost', async () => {
   const { criadas } = await arrancarEBombear();
   const chaos = criadas.filter(ehChao);
-  const relogios = criadas.filter(ehRelogio);
   const telao = criadas.find(ehTelao);
 
   assert.ok(chaos.length, 'o cenário tem de criar chão preto');
-  assert.ok(relogios.length, 'e uma janela de relógio');
   assert.ok(telao, 'e o telão');
 
-  for (const w of [...chaos, ...relogios]) {
+  for (const w of chaos) {
     assert.ok(
       !subiuATopmost(w),
-      `${tituloDaJanela(w)} subiu à banda topmost — é o que tapava o relógio no M3`
+      `${tituloDaJanela(w)} subiu à banda topmost — taparia o conteúdo do M2/M3`
     );
   }
   assert.ok(
@@ -1692,50 +1678,15 @@ test('A1 — chão e relógio nunca sobem à banda topmost, nem ao serem revelad
   );
 });
 
-test('A3 — o relógio espera o quadro sem levar preto à força', async () => {
-  /*
-   * `JS_FORCAR_QUADRO_PRETO` escreve `body.style.background` inline. `display-clock.html`
-   * aplica o fundo configurado pela MESMA propriedade, e a config nunca é reenviada (vai por
-   * `additionalArguments` e depois é deduplicada). Com o padrão de fábrica — fundo creme,
-   * texto quase preto — o resultado era um relógio invisível.
-   */
+test('não há janela à parte de relógio nos monitores de saída', async () => {
   const { criadas } = await arrancarEBombear();
-  const relogio = criadas.find(ehRelogio);
-  const telao = criadas.find(ehTelao);
-
-  assert.ok(relogio.jsExecs.length, 'continua a esperar dois quadros do compositor');
-  assert.ok(
-    !relogio.jsExecs.some((js) => String(js).includes('#000000')),
-    'mas não pinta preto — isso apagava o fundo que o utilizador configurou'
+  assert.strictEqual(
+    criadas.filter(ehRelogio).length,
+    0,
+    'o relógio vive dentro do M3 — uma segunda HWND no mesmo monitor era o hide() que revelava o desktop'
   );
-  assert.ok(
-    telao.jsExecs.some((js) => String(js).includes('#000000')),
-    'a tela de conteúdo continua a levar o preto: aí é ele que evita o clarão'
-  );
-  assert.strictEqual(relogio.visivel, true, 'e revela-se na mesma');
-});
-
-test('rede de segurança: janela sem ready-to-show acaba revelada pelo caminho protegido', async (t) => {
-  /*
-   * A guarda de C1 introduz um risco novo: se `ready-to-show` nunca chegar, a janela ficaria
-   * oculta para sempre e o monitor mostraria só o chão preto. A meio de um culto isso é pior
-   * do que um clarão. Passado o tecto, revela-se — mas pelo caminho protegido, que ainda
-   * espera dois quadros do compositor. Ou seja, a rede não traz o branco de volta.
-   */
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { engine, criadas } = montarComRevelacao();
-  engine.sincronizarJanelasRelogio();
-  const relogio = criadas.find(ehRelogio);
-  engine.sincronizarJanelasRelogio();
-  assert.strictEqual(relogio.visivel, false, 'adiada, como manda a guarda');
-
-  t.mock.timers.tick(4001);
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
-
-  assert.strictEqual(relogio.visivel, true, 'a rede apanhou-a');
-  assert.ok(relogio.jsExecs.length, 'e mesmo assim esperou o compositor');
+  const m3 = criadas.find((w) => w.paginas.some((p) => String(p).includes('display-operator.html')));
+  assert.ok(m3?.visivel, 'M3 permanente e visível');
 });
 
 test('o diário de bordo regista o ciclo de vida e identifica o papel de cada janela', async () => {
@@ -1751,7 +1702,7 @@ test('o diário de bordo regista o ciclo de vida e identifica o papel de cada ja
   await bombearRevelacao(telao);
 
   const eventos = linhas.map((l) => l.evento);
-  for (const esperado of ['sync-inicio', 'abrir', 'ready-to-show', 'bootstrap', 'revelar-fim']) {
+  for (const esperado of ['sync-inicio', 'abrir', 'revelar-nativo']) {
     assert.ok(eventos.includes(esperado), `o diário tem de registar \`${esperado}\``);
   }
   const abertura = linhas.find((l) => l.evento === 'abrir' && l.dados.papel === 'publico');
@@ -1765,5 +1716,8 @@ test('sem diário injectado o motor comporta-se exactamente na mesma', async () 
      `userData` — a exercitar o mesmo motor que corre em produção. */
   const { criadas } = await arrancarEBombear();
   assert.ok(criadas.find(ehTelao)?.visivel, 'telão no ar');
-  assert.ok(criadas.find(ehRelogio)?.visivel, 'relógio no ar');
+  assert.ok(
+    criadas.find((w) => w.paginas.some((p) => String(p).includes('display-operator.html')))?.visivel,
+    'M3 no ar'
+  );
 });

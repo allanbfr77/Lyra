@@ -4761,14 +4761,16 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   flex: 1;
   min-width: 0;
 }
-/* Texto um pouco menor: o espaço reservado ao «x» cortava o fim do
-   placeholder mais longo («Buscar no banco offline…»). */
 .search-box-limpavel .search-box {
-  padding-right: 26px;
   font-size: 15px;
   /* Mesma altura do «Buscar» ao lado: sem isto, campo e botão só coincidiam
      por acaso, através do `stretch` que foi removido acima. */
   height: var(--banco-btn-h);
+}
+/* Só reserva espaço ao «x» quando ele está visível — senão o placeholder
+   mais longo («Buscar no banco online…») morria cortado à direita. */
+.search-box-limpavel:has(.search-box-limpar:not([hidden])) .search-box {
+  padding-right: 26px;
 }
 .search-box-limpar {
   position: absolute;

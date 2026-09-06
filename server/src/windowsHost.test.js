@@ -102,6 +102,7 @@ function fakeWin(opts = {}) {
     setAlwaysOnTop: (...args) => { win.nativas.push(`setAlwaysOnTop(${args.join(',')})`); },
     moveTop: () => { win.nativas.push('moveTop'); },
     show: () => { win.visivel = true; win.nativas.push('show'); },
+    showInactive: () => { win.visivel = true; win.nativas.push('showInactive'); },
     hide: () => { win.visivel = false; win.nativas.push('hide'); },
     setVisibleOnAllWorkspaces: () => {}, setMenuBarVisibility: () => {},
     setSkipTaskbar: () => {}, setIgnoreMouseEvents: () => {},
@@ -240,9 +241,16 @@ test('o motor carrega a página que o host resolveu, não um caminho próprio', 
   const pedidas = [];
   const { ctx, api } = montar({ resolverPaginaProjecao: (nome) => { pedidas.push(nome); return `/host/${nome}`; } });
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
-  api.sincronizarJanelasRelogio();
+  api.garantirTelasAbertasParaProjecao();
 
-  assert.ok(pedidas.includes('display-clock.html'), `host devia ter resolvido a página do relógio; pediu: ${pedidas}`);
+  assert.ok(
+    pedidas.includes('display.html') || pedidas.includes('display-operator.html'),
+    `host devia ter resolvido a página permanente de M2/M3; pediu: ${pedidas}`
+  );
+  assert.ok(
+    !pedidas.includes('display-clock.html'),
+    `relógio já não é uma HWND à parte; pediu: ${pedidas}`
+  );
 });
 
 test('encerrar por Esc avisa o host (e o motor não toca em transporte)', () => {
@@ -368,21 +376,21 @@ test('a config do telão NÃO chega ao escudo', () => {
   verificarNaoRecebeuConfig(api, 'escudo');
 });
 
-test('a config do telão NÃO chega ao relógio', () => {
-  /* Ministrante num monitor próprio (M3): é a condição para o relógio dele chegar a abrir. */
+test('não há janela à parte de relógio — o relógio vive dentro do M3', () => {
   const api = montarComTresEcras(
     { publicoIndex: 1, ministranteIndex: 2 },
     { showClock: true, monitorRelogio: 'ministrante' }
   );
-  verificarNaoRecebeuConfig(api, 'relogio');
+  const papeis = api.janelasDeProjecao().map((e) => e.role);
+  assert.ok(papeis.includes('ministrante'), `M3 permanente em falta; papéis: ${papeis}`);
+  assert.ok(!papeis.includes('relogio'), `HWND extra de relógio revelaria o desktop; papéis: ${papeis}`);
 });
 
-test('nenhuma janela de projeção nasce visível', () => {
+test('M2 e M3 cobrem o monitor no instante da HWND', () => {
   /*
-   * Regressão: `abrirJanelaTela`/`abrirJanelaMinistrante` passavam `show: false`, mas a
-   * linha seguinte chamava `finalizarJanelaProjecaoNativa`, que fazia `show()` ANTES do
-   * `loadFile` — o `show: false` não valia nada. O escudo nem sequer o pedia (`show: true`).
-   * Resultado: rectângulo preto vazio no monitor até o conteúdo pintar.
+   * O construtor continua com `show: false` (evita o branco padrão do Electron).
+   * Logo a seguir a HWND existe, a janela permanente é revelada com fundo nativo
+   * preto — esperar o HTML deixava o desktop à vista.
    */
   const { ctx, api } = montar({ paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }) });
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
@@ -390,13 +398,10 @@ test('nenhuma janela de projeção nasce visível', () => {
 
   const abertas = api.janelasDeProjecao();
   assert.ok(abertas.length > 0, 'cenário precisa de janelas abertas');
-  verificarNasceramOcultas(abertas);
+  verificarCoberturaImediataPermanentes(abertas);
 });
 
-test('nenhuma janela de projeção nasce visível — com escudo (3 monitores)', () => {
-  /* O escudo é o caso que faltava: `opcoesBrowserWindowProjecao` dava-lhe `show: true` e o
-     telão/ministrante mascaravam-no porque sobrepõem `show: false` no seu próprio spread.
-     Com três ecrãs, o M3 fica sem canal e ganha escudo. */
+test('M2 e M3 cobrem o monitor no instante da HWND — com escudo (3 monitores)', () => {
   const { ctx, api } = montar({
     paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 1 }),
     screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
@@ -409,15 +414,15 @@ test('nenhuma janela de projeção nasce visível — com escudo (3 monitores)',
     abertas.some((e) => e.role === 'escudo'),
     `cenário precisa de escudo; papéis abertos: ${abertas.map((e) => e.role)}`
   );
-  verificarNasceramOcultas(abertas);
+  verificarCoberturaImediataPermanentes(abertas);
 });
 
-/** Invariante partilhado: nasce oculta e só se mostra depois de carregar a página. */
-function verificarNasceramOcultas(abertas) {
+/** Construtor seguro + M2/M3 visíveis no instante em que a HWND existe. */
+function verificarCoberturaImediataPermanentes(abertas) {
   abertas.forEach((e) => {
     assert.strictEqual(
       e.win.criadaVisivel, false,
-      `janela de papel «${e.role}» nasceu visível`
+      `janela de papel «${e.role}» nasceu com show:true (clarão do Electron)`
     );
     assert.strictEqual(
       e.win.criadaFullscreen, false,
@@ -428,13 +433,23 @@ function verificarNasceramOcultas(abertas) {
       `janela de papel «${e.role}» chamou setFullScreen: ${e.win.nativas}`
     );
     const iLoad = primeiroIndice(e.win.nativas, 'loadFile');
-    const iShow = primeiroIndice(e.win.nativas, 'show');
     assert.ok(iLoad >= 0, `janela de papel «${e.role}» devia ter carregado uma página`);
-    assert.ok(
-      iShow === -1 || iShow > iLoad,
-      `janela de papel «${e.role}» foi mostrada antes de carregar a página: ${e.win.nativas}`
-    );
+    if (e.role === 'publico' || e.role === 'ministrante') {
+      assert.ok(e.win.isVisible(), `«${e.role}» tem de cobrir o monitor no instante da HWND`);
+      const iShow = primeiroIndiceShow(e.win.nativas);
+      assert.ok(iShow >= 0, `«${e.role}» nunca foi revelada: ${e.win.nativas}`);
+      assert.ok(
+        iShow < iLoad,
+        `«${e.role}» esperou o HTML antes de cobrir o monitor: ${e.win.nativas}`
+      );
+    }
   });
+}
+
+function primeiroIndiceShow(nativas) {
+  const iInactive = primeiroIndice(nativas, 'showInactive');
+  if (iInactive >= 0) return iInactive;
+  return nativas.findIndex((n) => n === 'show');
 }
 
 test('reexibir janela oculta: sem sair do fullscreen e com show() por último', () => {
@@ -682,79 +697,60 @@ test('troca de monitor pendente não gera janelas órfãs', () => {
   assert.strictEqual(pub.index, 2, 'o registo tem de apontar ao monitor novo');
 });
 
-test('relógio não recebe display_config repetida quando a config não mudou', () => {
-  /*
-   * `sincronizarJanelasRelogio` roda a cada tick de arrasto de slider e a cada
-   * estrofe/versículo. Reenviar bytes idênticos faz o renderer reescrever cor, quatro
-   * `fontSize` e o fundo do `body`, e chamar `tick()` — repintura por nada.
-   */
-  const { ctx, api } = montar();
-  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
-  api.sincronizarJanelasRelogio();
-
-  const relogios = api.janelasDeProjecao().filter((e) => e.role === 'relogio');
-  assert.ok(relogios.length > 0, 'cenário precisa de janela de relógio');
-  relogios.forEach((e) => { e.win.sends.length = 0; });
-
-  api.sincronizarJanelasRelogio();
-  api.sincronizarJanelasRelogio();
-  relogios.forEach((e) => {
-    assert.deepStrictEqual(
-      e.win.sends.filter((s) => s.canal === 'display_config'),
-      [],
-      'config igual não devia ser reenviada'
-    );
+test('tamanho de data e versículo do relógio chega ao M3 permanente', () => {
+  const { ctx, api } = montar({
+    paths: pathsComRota({ publicoIndex: 1, ministranteIndex: 2 }),
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
   });
-
-  // O contrapeso: mudar a config de verdade tem de voltar a enviar.
-  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante', fontSize: 21 };
+  ctx.displayConfig.clock = {
+    showClock: true,
+    monitorRelogio: 'ministrante',
+    dateFontSize: 8.2,
+    verseFontSize: 6.5,
+    showDate: true,
+    showVerse: true,
+    verse: 'João 3:16',
+  };
+  api.garantirTelasAbertasParaProjecao();
+  const m3 = api.janelasDeProjecao().find((e) => e.role === 'ministrante');
+  assert.ok(m3, 'cenário precisa do M3 permanente');
+  m3.win.sends.length = 0;
+  m3.win.__lyraClockCfgHash = null;
   api.sincronizarJanelasRelogio();
-  relogios.forEach((e) => {
-    assert.ok(
-      e.win.sends.some((s) => s.canal === 'display_config'),
-      'config nova tem de chegar'
-    );
-  });
+  const enviosClock = m3.win.sends.filter((s) => s.canal === 'display_config' && s.payload?.clock);
+  assert.ok(enviosClock.length > 0, 'M3 tem de receber a config do relógio');
+  const clk = enviosClock[enviosClock.length - 1].payload.clock;
+  assert.strictEqual(clk.dateFontSize, 8.2);
+  assert.strictEqual(clk.verseFontSize, 6.5);
 });
 
-test('resincronizar o relógio com a janela já no lugar não mexe na janela nativa', () => {
-  /* Regressão: `sincronizarJanelasRelogio` roda a cada `preview_display_config`, ou seja
-     a cada tick do arrasto de um slider. Fazer sair/entrar de fullscreen a cada tick pisca
-     a barra de tarefas do Windows — visível sempre que o relógio é a janela da frente no
-     monitor (modo Bíblia). Sem bounds novos, não deve haver chamada nativa nenhuma. */
-  const { ctx, api } = montar();
+test('sincronizarJanelasRelogio não cria HWND de relógio nem mexe nas permanentes', () => {
+  const { ctx, api } = montar({
+    paths: pathsComRota({ publicoIndex: 1, ministranteIndex: -1 }),
+    screen: { getAllDisplays: () => DISPLAYS_TRES, getPrimaryDisplay: () => DISPLAYS_TRES[0], on: () => {} },
+  });
   ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
+  api.garantirTelasAbertasParaProjecao();
+
+  const permanentes = api.janelasDeProjecao().filter((e) => e.role === 'publico' || e.role === 'ministrante');
+  assert.ok(permanentes.length > 0, 'cenário precisa das janelas permanentes');
+  permanentes.forEach((e) => { e.win.nativas.length = 0; e.win.sends.length = 0; });
+
+  api.sincronizarJanelasRelogio();
   api.sincronizarJanelasRelogio();
 
-  const relogios = api.janelasDeProjecao().filter((e) => e.role === 'relogio');
-  assert.ok(relogios.length > 0, 'o cenário precisa de pelo menos uma janela de relógio aberta');
-  relogios.forEach((e) => { e.win.nativas.length = 0; });
-
-  api.sincronizarJanelasRelogio();
-  api.sincronizarJanelasRelogio();
-
-  relogios.forEach((e) => {
+  assert.strictEqual(
+    api.janelasDeProjecao().filter((e) => e.role === 'relogio').length,
+    0,
+    'relógio já não é uma BrowserWindow à parte'
+  );
+  permanentes.forEach((e) => {
     assert.deepStrictEqual(
       e.win.nativas, [],
-      `janela de relógio do monitor ${e.index} sofreu churn nativo: ${e.win.nativas.join(', ')}`
+      `janela permanente «${e.role}» sofreu churn nativo no tick do relógio: ${e.win.nativas.join(', ')}`
     );
+    assert.ok(e.win.isVisible(), `«${e.role}» não pode esconder-se no tick do relógio`);
   });
-});
-
-test('relógio num monitor que mudou de posição é reposicionado', () => {
-  // O contrapeso do teste acima: a guarda não pode impedir o reposicionamento legítimo.
-  const { ctx, api } = montar();
-  ctx.displayConfig.clock = { showClock: true, monitorRelogio: 'ministrante' };
-  api.sincronizarJanelasRelogio();
-  const relogio = api.janelasDeProjecao().find((e) => e.role === 'relogio');
-  assert.ok(relogio, 'cenário precisa de janela de relógio');
-
-  relogio.win.nativas.length = 0;
-  relogio.win.bounds = { x: -5000, y: -5000, width: 800, height: 600 };
-  api.sincronizarJanelasRelogio();
-
-  assert.ok(relogio.win.nativas.includes('setBounds'), 'devia reposicionar');
-  assert.deepStrictEqual(relogio.win.getBounds(), DISPLAYS[relogio.index].bounds);
 });
 
 test('o predicado é consultado a cada decisão, não memorizado na construção', () => {

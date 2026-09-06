@@ -24,7 +24,7 @@
  *   C — Cultos, playlists, cópias locais, chaves localStorage;
  *       calendário em `modules/cultosCalendario.js`;
  *       ids/mapa de cópias locais em `modules/copiasLocaisLetra.js`;
- *       id de versão da playlist em `modules/playlistVersaoMusica.js`;
+ *       id e igualdade de item da playlist em `modules/playlistVersaoMusica.js`;
  *       fonte da busca de letras em `modules/fonteLetrasSite.js`
  *   D — Slides (dock, zoom, chips, edição de estrofes);
  *       geometria da grelha em `modules/slidesGrelha.js`
@@ -12176,6 +12176,14 @@ function renderSlidesStrip() {
     return;
   }
 
+  /* Home + letra completa: a faixa não é o destino. Não montar chips. */
+  if (modoLetraCompletaCentral && !ehModoSlidesOperador()) {
+    dock.classList.add('oculto');
+    document.body.classList.remove('slides-rail-aberto');
+    atualizarSlidesInstrucoes();
+    return;
+  }
+
   definirControlosZoomFaixaSlidesInertes(false);
   definirVazioDaFaixaSlidesVisivel(false);
 
@@ -12870,11 +12878,20 @@ function limparFlagsModoEdicaoMusica() {
 
 /**
  * Se houver edições só em memória, pede confirmação antes de trocar de música/contexto.
+ * @param {string} [mensagem]
+ * @param {string} [titulo]
+ * @param {{ manterLetraCompleta?: boolean }} [opts] — Clique na Biblioteca/Playlist no
+ *   Home: não sai da letra corrida (evita montar a grade só para a esconder de novo).
  * @returns {Promise<boolean>} true para prosseguir (descartando ou sem sujo).
  */
-async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
+async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo, opts) {
+  const manterLetra = !!(opts && opts.manterLetraCompleta);
   if (!temEdicaoMusicaNaoGravada()) {
     if (modoEdicaoEstrofes || modoLetraCompletaCentral || modoComparativoCentral) {
+      if (manterLetra && modoLetraCompletaCentral && !modoEdicaoEstrofes && !modoComparativoCentral) {
+        snapshotLetraCompleta = null;
+        return true;
+      }
       limparFlagsModoEdicaoMusica();
     }
     return true;
@@ -12884,13 +12901,25 @@ async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo) {
     titulo || 'Alterações não gravadas'
   );
   if (!ok) return false;
-  limparFlagsModoEdicaoMusica();
+  if (manterLetra) {
+    snapshotEdicaoEstrofes = null;
+    modoEdicaoEstrofes = false;
+    snapshotLetraCompleta = null;
+    modoComparativoCentral = false;
+    comparativoLados = null;
+    snapshotComparativo = null;
+    aplicarLayoutModoComparativo();
+    aplicarLayoutModoLetraCompleta();
+  } else {
+    limparFlagsModoEdicaoMusica();
+  }
   return true;
 }
 
-/** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade. */
+/** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade.
+ *  Se já estiver neste modo, só atualiza o texto da música atual. */
 function entrarModoLetraCompletaCentral() {
-  if (!musicaAtiva || modoLetraCompletaCentral) return;
+  if (!musicaAtiva) return;
   modoLetraCompletaCentral = true;
   aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
   /* Snapshot do texto já no painel — o ida-e-volta juntar/partir não conta como sujo. */
@@ -12936,6 +12965,8 @@ function sairDoModoLetraCompletaParaGrade() {
   snapshotLetraCompleta = null;
   modoLetraCompletaCentral = false;
   aplicarLayoutModoLetraCompleta();
+  renderEstrofesEditor();
+  if (ehModoSlidesOperador()) renderSlidesStrip();
   atualizarToolbarModoEdicao();
 }
 
@@ -17768,12 +17799,17 @@ async function trocarVersaoMusicaCentral(copiaId) {
 async function selecionarMusicaDoBanco(id, opts) {
   const fonteBanco = fonteBancoNormalizada(opts && opts.fonte);
   const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
+  const abrirLetraCompleta =
+    !!(opts && opts.abrirEmLetraCompleta) &&
+    modoRoteamentoAtual() === 'completo' &&
+    !ehModoSlidesOperador();
   try {
     if (!(opts && opts.pularConfirmacaoDescarte)) {
       if (
         !(await confirmarProsseguirDescartandoEdicaoPendente(
           'Há alterações não gravadas nesta sessão. Descartar e carregar outra música?',
-          'Alterações não gravadas'
+          'Alterações não gravadas',
+          { manterLetraCompleta: abrirLetraCompleta }
         ))
       ) {
         return false;
@@ -17871,18 +17907,15 @@ async function selecionarMusicaDoBanco(id, opts) {
       agendarRenderizacoesOcultasDoModoSlides();
     } else refreshListaBanco();
     renderPlaylist();
-    if (!emModoSlides) renderEstrofesEditor();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    /* Home (modo completo): Biblioteca, Playlist e importação (Locais/Online)
-       abrem em letra completa. Outros fluxos (nova versão, próxima música,
-       modo slides) ficam na grade. */
-    if (
-      opts &&
-      opts.abrirEmLetraCompleta &&
-      modoRoteamentoAtual() === 'completo'
-    ) {
+    /* Home: clique na Biblioteca/Playlist abre só a letra corrida.
+       Montar a grade (cartões + chips) aqui era trabalho inútil e visível. */
+    if (abrirLetraCompleta) {
+      atualizarPreviewOperador();
       entrarModoLetraCompletaCentral();
+    } else {
+      if (!emModoSlides) renderEstrofesEditor();
+      renderSlidesStrip();
+      atualizarPreviewOperador();
     }
     return true;
   } catch (e) {
@@ -19015,6 +19048,14 @@ function setPosAvisoCard6CtrlBtn(val) {
   });
 }
 
+function sincronizarEstadoCorFundoAvisoCard6() {
+  const cfg = normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg);
+  const bgColor = document.getElementById('cfg-card6-bg-color-ctrl');
+  if (!bgColor) return;
+  bgColor.disabled = cfg.transparentBackground;
+  bgColor.title = cfg.transparentBackground ? 'Desative o fundo transparente para escolher uma cor.' : '';
+}
+
 function popularFormCfgAvisoCard6() {
   const cfg = normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg);
   setInputVal('cfg-card6-fontsize-ctrl', cfg.fontSize);
@@ -19025,11 +19066,7 @@ function popularFormCfgAvisoCard6() {
   setChkVal('cfg-card6-wrap-ctrl', cfg.wrapLongLines);
   setChkVal('cfg-card6-italic-ctrl', cfg.italic);
   setPosAvisoCard6CtrlBtn(cfg.verticalPosition);
-  const bgColor = document.getElementById('cfg-card6-bg-color-ctrl');
-  if (bgColor) {
-    bgColor.disabled = cfg.transparentBackground;
-    bgColor.title = cfg.transparentBackground ? 'Desative o fundo transparente para escolher uma cor.' : '';
-  }
+  sincronizarEstadoCorFundoAvisoCard6();
 }
 
 function persistirCfgAvisoCard6(opts = {}) {
@@ -19052,7 +19089,7 @@ function lerCfgAvisoCard6DoFormulario() {
 
 function onAvisoCard6CfgChange() {
   apresentacaoCard6AvisoCfg = lerCfgAvisoCard6DoFormulario();
-  popularFormCfgAvisoCard6();
+  sincronizarEstadoCorFundoAvisoCard6();
   persistirCfgAvisoCard6();
 }
 
@@ -19955,12 +19992,19 @@ function bibliaPayloadCfgExibicao() {
   };
 }
 
+let bibliaPreviewTimer = null;
+const BIBLIA_PREVIEW_DEBOUNCE_MS = 140;
+
 function bibliaAplicarCfgExibicao() {
-  salvarBibliaCfgNoStorage();
-  enviarPreviewDisplayConfig(null, {
-    modoConfig: 'biblia',
-    forcarModo: 'biblia',
-  });
+  clearTimeout(bibliaPreviewTimer);
+  bibliaPreviewTimer = setTimeout(() => {
+    bibliaPreviewTimer = null;
+    salvarBibliaCfgNoStorage();
+    enviarPreviewDisplayConfig(null, {
+      modoConfig: 'biblia',
+      forcarModo: 'biblia',
+    });
+  }, BIBLIA_PREVIEW_DEBOUNCE_MS);
 }
 
 function bibliaNavPopupAberto() {
@@ -22586,6 +22630,15 @@ function toggleCfgSwitch(el) {
 function setInputVal(id, v) {
   const el = document.getElementById(id);
   if (!el) return;
+  /* Reescrever o valor no meio do arrasto do seletor nativo (Windows) trava a paleta. */
+  if (el.type === 'color') {
+    const atual = String(el.value || '').trim().toLowerCase();
+    const novo = String(v ?? '').trim().toLowerCase();
+    if (atual === novo) return;
+  } else if (String(el.value) === String(v)) {
+    if (el.dataset.sceMontado === '1') sincronizarSliderComEdicao(el);
+    return;
+  }
   el.value = v;
   if (el.dataset.sceMontado === '1') sincronizarSliderComEdicao(el);
 }
@@ -22712,11 +22765,7 @@ function onClockFontSizeCtrlInput() {
 }
 
 function onClockDateFontSizeCtrlInput() {
-  const val = lerNumeroInput('cfg-clock-date-fontsize-ctrl', currentCfgCtrl.clock?.dateFontSize ?? 2.4);
-  if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
-  currentCfgCtrl.clock.dateFontSize = val;
-  setSpanText('cfg-clock-date-fontsize-val-ctrl', String(val));
-  debounceSalvarCfg();
+  aplicarCfgRelogio();
 }
 
 function onClockVerseFontSizeCtrlInput() {
@@ -22961,7 +23010,7 @@ function debounceSalvarCfg() {
       return;
     }
     aplicarPreviewCfgNoServidor();
-  }, 60);
+  }, 120);
 }
 
 async function salvarCfgNoServidor() {
@@ -23110,22 +23159,35 @@ function aprimorarControlesVisuaisCfg() {
   });
 
   document.querySelectorAll('.cfg-modal input[type=color]').forEach((input) => {
-    if (input.closest('.cfg-color-row')) {
-      const existing = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
-      if (existing) existing.textContent = String(input.value || '#000000').toUpperCase();
-      return;
+    /*
+     * Windows + Electron: o diálogo nativo de cor dispara `input` a cada pixel.
+     * Qualquer trabalho pesado aí (ler formulário, preview, IPC) trava a paleta.
+     * No arrasto só atualizamos o hex; a aplicação vai no `change` (ao confirmar).
+     */
+    if (!input.dataset.lyraCorLigada) {
+      input.dataset.lyraCorLigada = '1';
+      const aplicarArrasto = input.oninput;
+      if (typeof aplicarArrasto === 'function') {
+        input.oninput = null;
+        input.removeAttribute('oninput');
+        input.addEventListener('change', (ev) => aplicarArrasto.call(input, ev));
+      }
+      input.addEventListener('input', () => {
+        const hex = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
+        if (hex) hex.textContent = String(input.value || '#000000').toUpperCase();
+      });
     }
-    const row = document.createElement('div');
-    row.className = 'cfg-color-row';
-    const val = document.createElement('span');
-    val.className = 'cfg-color-val';
-    val.textContent = String(input.value || '#000000').toUpperCase();
-    input.parentNode.insertBefore(row, input);
-    row.appendChild(input);
-    row.appendChild(val);
-    input.addEventListener('input', () => {
-      val.textContent = String(input.value || '#000000').toUpperCase();
-    });
+    if (!input.closest('.cfg-color-row')) {
+      const row = document.createElement('div');
+      row.className = 'cfg-color-row';
+      const val = document.createElement('span');
+      val.className = 'cfg-color-val';
+      input.parentNode.insertBefore(row, input);
+      row.appendChild(input);
+      row.appendChild(val);
+    }
+    const hex = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
+    if (hex) hex.textContent = String(input.value || '#000000').toUpperCase();
   });
 }
 
@@ -23464,7 +23526,8 @@ function lerCfgContagemDoFormulario() {
  */
 function onContagemCfgChange() {
   contagemCfg = lerCfgContagemDoFormulario();
-  popularFormCfgContagem();
+  atualizarVisibilidadeFundoContagem();
+  atualizarPreviewContagem();
   sincronizarCamposMensagemContagem();
   persistirCfgContagem();
 }

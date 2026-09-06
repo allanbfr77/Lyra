@@ -42,9 +42,9 @@ test('BANCO_FONTE_OPCOES tem as quatro fontes do seletor', () => {
 test('placeholderBuscaLetrasPorFonte segue a fonte já normalizada', () => {
   assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_LETRAS_MUS), 'Buscar em letras.mus.br…');
   assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_BANCO_LOCAL), 'Buscar no banco offline…');
-  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_LYRA_ONLINE), 'Buscar no banco online do Lyra…');
-  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_CIFRACLUB), 'Buscar em cifraclub.com.br…');
-  assert.equal(placeholderBuscaLetrasPorFonte('lixo'), 'Buscar em cifraclub.com.br…');
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_LYRA_ONLINE), 'Buscar no banco online…');
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_CIFRACLUB), 'Buscar no Cifra Club…');
+  assert.equal(placeholderBuscaLetrasPorFonte('lixo'), 'Buscar no Cifra Club…');
 });
 
 test('fonteEnvioImportarLetras: lyra-songbank vai ao online; banco-local não', () => {
