@@ -207,6 +207,7 @@ import {
   dividirVersiculos,
   indicePrimeiraParteDoVersiculo,
 } from './modules/dividirVersiculos.js';
+import { deltaScrollListaVersiculos } from './modules/scrollListaVersiculos.js';
 import {
   compararLetras,
   resumirComparacao,
@@ -18589,7 +18590,6 @@ async function bibliaNavegarEProjetarPorReferencia(livroNome, capitulo, versicul
     const v = idx >= 0 ? bibliaVersiculosCapitulo[idx] : null;
     if (!v) return false;
     const card = bibliaMarcarVersiculoNaUi(v, idx);
-    if (card) card.scrollIntoView({ block: 'center' });
     await bibliaProjetarVersiculo(v, card);
     return true;
   } catch (_) {
@@ -19882,6 +19882,7 @@ function bibliaClicarVersiculo(v, cardEl, index) {
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
   cardEl.classList.add('selecionado');
   bibliaVersiculoSelecionadoIdx = index;
+  bibliaRolarListaParaContextoDoFoco(cardEl);
   if (jaSelecionado || bibliaParteProjetadaChave !== null) {
     bibliaProjetarVersiculo(v, cardEl);
   }
@@ -20202,7 +20203,6 @@ async function bnpConfirmarVer(val) {
   /* O objeto projetado sai da lista, não do DOM: ler o texto do card traria as reticências
      decorativas para dentro da projeção e perderia `livro`/`capitulo` (referência vazia). */
   const card = bibliaMarcarVersiculoNaUi(v, idx);
-  if (card) card.scrollIntoView({ block: 'center' });
   await bibliaProjetarVersiculo(v, card);
 }
 
@@ -20265,6 +20265,40 @@ function bibliaIndicePorTeclaNavegacao(key, idxAtual, total) {
 }
 
 /**
+ * Rola a coluna para o versículo focado + 1 (ou 2, se couber) seguintes visíveis.
+ * Suave na projeção ao vivo; instantâneo se o sistema pede menos movimento.
+ */
+function bibliaRolarListaParaContextoDoFoco(card) {
+  const col = document.getElementById('biblia-col-versiculos');
+  if (!col || !card || !col.contains(card)) return;
+  const cards = [...col.querySelectorAll('.biblia-v-card')];
+  const idx = cards.indexOf(card);
+  if (idx < 0) return;
+
+  const colRect = col.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const seguintes = [];
+  for (let k = 1; k <= 2; k++) {
+    const el = cards[idx + k];
+    if (!el) break;
+    const r = el.getBoundingClientRect();
+    seguintes.push({ top: r.top, bottom: r.bottom, height: r.height });
+  }
+
+  const delta = deltaScrollListaVersiculos({
+    viewport: { top: colRect.top, bottom: colRect.bottom, height: colRect.height },
+    foco: { top: cardRect.top, bottom: cardRect.bottom, height: cardRect.height },
+    seguintes,
+  });
+  if (Math.abs(delta) < 1) return;
+
+  col.scrollTo({
+    top: col.scrollTop + delta,
+    behavior: preferenciaMovimentoReduzido() ? 'auto' : 'smooth',
+  });
+}
+
+/**
  * Marca a parte de índice `idx` como selecionada.
  *
  * Procura por `data-indice` e não por `data-versiculo`: com a divisão ligada o número do
@@ -20275,7 +20309,7 @@ function bibliaMarcarVersiculoNaUi(v, idx) {
   document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
   if (card) {
     card.classList.add('selecionado');
-    card.scrollIntoView({ block: 'nearest' });
+    bibliaRolarListaParaContextoDoFoco(card);
   }
   bibliaVersiculoSelecionadoIdx = idx;
   return card;
@@ -20291,7 +20325,6 @@ function bibliaNavegarVersiculosComSeta(key) {
     idx = bibliaIndicePorTeclaNavegacao(key, idx, cards.length);
     if (idx === bibliaVersiculoSelecionadoIdx && bibliaParteProjetadaChave != null) return;
     bibliaVersiculoSelecionadoIdx = idx;
-    cards[idx].scrollIntoView({ block: 'nearest' });
     cards[idx].click();
     return;
   }
