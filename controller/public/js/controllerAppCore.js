@@ -24,6 +24,7 @@
  *   C — Cultos, playlists, cópias locais, chaves localStorage;
  *       calendário em `modules/cultosCalendario.js`;
  *       ids/mapa de cópias locais em `modules/copiasLocaisLetra.js`;
+ *       id de versão da playlist em `modules/playlistVersaoMusica.js`;
  *       fonte da busca de letras em `modules/fonteLetrasSite.js`
  *   D — Slides (dock, zoom, chips, edição de estrofes);
  *       geometria da grelha em `modules/slidesGrelha.js`
@@ -41,6 +42,7 @@
  *   midiaApresentacao.js — tipo, URL segura, item e aviso do card 6
  *   cultosCalendario.js — ids, rótulos e geração do mês / extra manual
  *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
+ *   playlistVersaoMusica.js — id de fetch/pré-voo e fonte catalog|user
  *   fonteLetrasSite.js — seletor, placeholder e fonte do POST importar
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
@@ -104,6 +106,13 @@ import {
   ehVersaoServidorId,
   criarMapaCopiasLocais,
 } from './modules/copiasLocaisLetra.js';
+import {
+  versaoLocalIdTrimado,
+  idFetchMusicaPlaylist,
+  idMusicaParaPreVoo,
+  fonteBancoNormalizada,
+  fonteBancoItemPlaylist,
+} from './modules/playlistVersaoMusica.js';
 import {
   BANCO_FONTE_OPCOES,
   normalizarFonteLetrasSite,
@@ -6834,7 +6843,7 @@ async function camposMinistranteTomParaNovaMusicaNaPlaylist(cid, meta) {
         getControllerApiBase(),
         padrao,
         Number(meta?.id),
-        meta?.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        fonteBancoItemPlaylist(meta),
         meta?.titulo
       )) || '';
   } catch (_) {
@@ -7172,7 +7181,7 @@ async function copiarCodigoCompartilhar(btn, codigo) {
  */
 async function conteudoMusicaParaShare(it) {
   const extrasShare = camposMinistranteTomParaShare(it);
-  const vid = it.versaoLocalId != null && String(it.versaoLocalId).trim() ? String(it.versaoLocalId).trim() : '';
+  const vid = versaoLocalIdTrimado(it.versaoLocalId);
   if (vid && ehVersaoLocalLegada(vid)) {
     const c = encontrarCopiaLocal(it.id, vid);
     if (c) {
@@ -7187,8 +7196,8 @@ async function conteudoMusicaParaShare(it) {
       };
     }
   }
-  const idFetch = vid && ehVersaoServidorId(vid) ? vid : it.id;
-  const fonte = it.bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const idFetch = idFetchMusicaPlaylist(it);
+  const fonte = fonteBancoItemPlaylist(it);
   const res = await fetch(
     `${getControllerApiBase()}/api/musicas/${encodeURIComponent(idFetch)}?fonte=${fonte}`
   );
@@ -9169,12 +9178,9 @@ function getPlaylist(cid) {
     return {
       ...it,
       tema: normalizarTemaPlaylist(it?.tema),
-      versaoLocalId:
-        it.versaoLocalId !== undefined && it.versaoLocalId !== null && String(it.versaoLocalId).trim()
-          ? String(it.versaoLocalId).trim()
-          : null,
+      versaoLocalId: versaoLocalIdTrimado(it.versaoLocalId) || null,
       versaoRotulo: String(it.versaoRotulo || '').trim(),
-      bancoFonte: it.bancoFonte === 'catalog' ? 'catalog' : 'user',
+      bancoFonte: fonteBancoItemPlaylist(it),
       ministranteId: normalizarMinistranteIdPlaylist(it.ministranteId),
       tom: normalizarTomPlaylist(it.tom),
     };
@@ -9189,8 +9195,8 @@ function playlistItemMesmaVersaoQueAtiva(it) {
   if (!Number.isFinite(rootAtivo) || !Number.isFinite(itRoot) || itRoot !== rootAtivo) return false;
   const va = versaoAtivaParaCompararPlaylist();
   const vb = it.versaoLocalId ? String(it.versaoLocalId) : '';
-  const itBf = it.bancoFonte === 'catalog' ? 'catalog' : 'user';
-  const curBf = musicaBancoFonte === 'catalog' ? 'catalog' : 'user';
+  const itBf = fonteBancoItemPlaylist(it);
+  const curBf = fonteBancoNormalizada(musicaBancoFonte);
   return va === vb && itBf === curBf;
 }
 
@@ -9202,7 +9208,7 @@ function aplicarSelecaoUiBiblioteca(id, fonte) {
   }
   selecaoUiBiblioteca = {
     id: n,
-    fonte: fonte === 'catalog' ? 'catalog' : 'user',
+    fonte: fonteBancoNormalizada(fonte),
   };
   selecaoUiPlaylist = null;
 }
@@ -9216,7 +9222,7 @@ function aplicarSelecaoUiPlaylist(id, versaoLocalId, fonte) {
   selecaoUiPlaylist = {
     id: n,
     versaoLocalId: versaoLocalId ? String(versaoLocalId) : '',
-    fonte: fonte === 'catalog' ? 'catalog' : 'user',
+    fonte: fonteBancoNormalizada(fonte),
   };
   selecaoUiBiblioteca = null;
 }
@@ -9227,8 +9233,8 @@ function playlistItemMesmaVersaoQueSelecaoUi(it) {
   if (!Number.isFinite(itRoot) || itRoot !== Number(selecaoUiPlaylist.id)) return false;
   const va = selecaoUiPlaylist.versaoLocalId ? String(selecaoUiPlaylist.versaoLocalId) : '';
   const vb = it.versaoLocalId ? String(it.versaoLocalId) : '';
-  const itBf = it.bancoFonte === 'catalog' ? 'catalog' : 'user';
-  const selBf = selecaoUiPlaylist.fonte === 'catalog' ? 'catalog' : 'user';
+  const itBf = fonteBancoItemPlaylist(it);
+  const selBf = fonteBancoNormalizada(selecaoUiPlaylist.fonte);
   return va === vb && itBf === selBf;
 }
 
@@ -9487,7 +9493,7 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
       selecionarMusicaDoBanco(idNum, {
         habilitarFaixaModoSlides: true,
         versaoLocalId: item.versaoLocalId || undefined,
-        fonte: item.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        fonte: fonteBancoItemPlaylist(item),
         origemUi: 'playlist',
         abrirEmLetraCompleta: true,
       });
@@ -9553,7 +9559,7 @@ async function aplicarMinistranteETonsEmTodasMusicas(pl, ministranteId) {
         api,
         mid,
         Number(it.id),
-        it.bancoFonte === 'catalog' ? 'catalog' : 'user',
+        fonteBancoItemPlaylist(it),
         it.titulo
       );
       it.tom = normalizarTomPlaylist(tomMem);
@@ -10648,12 +10654,12 @@ async function solicitarRemoverMarcadorTemaPlaylist(idx) {
 
 function playlistJaContemMesmaMusicaEVersao(pl, idMusica, versaoLocalId, bancoFonte) {
   const va = versaoLocalId ? String(versaoLocalId) : '';
-  const bf = bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const bf = fonteBancoNormalizada(bancoFonte);
   return pl.some((x) => {
     if (ehMarcadorTemaPlaylist(x)) return false;
     if (Number(x.id) !== Number(idMusica)) return false;
     const vb = x.versaoLocalId ? String(x.versaoLocalId) : '';
-    const xbf = x.bancoFonte === 'catalog' ? 'catalog' : 'user';
+    const xbf = fonteBancoItemPlaylist(x);
     return va === vb && xbf === bf;
   });
 }
@@ -10664,7 +10670,7 @@ async function addMusicaNaPlaylist(meta) {
     return;
   }
   const idNum = Number(meta.id);
-  const bancoFonte = meta.bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const bancoFonte = fonteBancoItemPlaylist(meta);
   let versaoLocalId = null;
   let versaoRotulo = '';
   let tituloPl = meta.titulo;
@@ -10791,8 +10797,8 @@ async function addMusicaNaPlaylist(meta) {
 async function addMusicaNaPlaylistParaCulto(cid, meta) {
   if (!cid || meta == null || meta.id == null) return;
   const pl = getPlaylist(cid);
-  const vid = meta.versaoLocalId != null && String(meta.versaoLocalId).trim() ? String(meta.versaoLocalId).trim() : null;
-  const bfAdd = meta.bancoFonte === 'catalog' ? 'catalog' : 'user';
+  const vid = versaoLocalIdTrimado(meta.versaoLocalId) || null;
+  const bfAdd = fonteBancoItemPlaylist(meta);
   if (playlistJaContemMesmaMusicaEVersao(pl, meta.id, vid, bfAdd)) return;
   let tema = normalizarTemaPlaylist(meta.tema);
   if (playlistPossuiMarcadoresTema(pl)) {
@@ -15670,8 +15676,8 @@ async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   const rootAtivo = obterRootIdMusicaAtiva();
   const va = versaoAtivaParaCompararPlaylist();
   const vb = item.versaoLocalId ? String(item.versaoLocalId) : '';
-  const itemBf = item.bancoFonte === 'catalog' ? 'catalog' : 'user';
-  const curBf = musicaBancoFonte === 'catalog' ? 'catalog' : 'user';
+  const itemBf = fonteBancoItemPlaylist(item);
+  const curBf = fonteBancoNormalizada(musicaBancoFonte);
   const mesmaMusicaEVersao =
     musicaAtiva &&
     Number.isFinite(rootAtivo) &&
@@ -15682,7 +15688,7 @@ async function playlistDuploCliqueIniciarProjecao(itemOuId) {
     await selecionarMusicaDoBanco(idNum, {
       habilitarFaixaModoSlides: true,
       versaoLocalId: item.versaoLocalId || undefined,
-      fonte: itemBf === 'catalog' ? 'catalog' : 'user',
+      fonte: fonteBancoNormalizada(itemBf),
       origemUi: 'playlist',
     });
   } else {
@@ -16440,7 +16446,7 @@ function bibLetraDeAgrupamento(titulo) {
 
 /** Chave de identidade de uma música na playlist: mesmo id E mesma origem. */
 function bibChaveMusica(id, bancoFonte) {
-  return `${bancoFonte === 'catalog' ? 'catalog' : 'user'}:${Number(id)}`;
+  return `${fonteBancoNormalizada(bancoFonte)}:${Number(id)}`;
 }
 
 /**
@@ -16498,7 +16504,7 @@ function bibAdicionarLinha(linha) {
     id: m.id,
     titulo: m.titulo,
     artista: m.artista,
-    bancoFonte: linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+    bancoFonte: fonteBancoNormalizada(linha.dataset.bibFonte),
   });
 }
 
@@ -16547,7 +16553,7 @@ function bibTeclasLista(ev) {
     ev.preventDefault();
     if (ev.ctrlKey || ev.metaKey) {
       selecionarMusicaDoBanco(bibMusicaDaLinha(atual)?.id, {
-        fonte: atual.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+        fonte: fonteBancoNormalizada(atual.dataset.bibFonte),
         preferirCopia: true,
         origemUi: 'biblioteca',
         abrirEmLetraCompleta: true,
@@ -16620,7 +16626,7 @@ function bibEnterGlobal(ev) {
   ev.preventDefault();
   if (ev.ctrlKey || ev.metaKey) {
     selecionarMusicaDoBanco(bibMusicaDaLinha(bibLinhaSobCursor)?.id, {
-      fonte: bibLinhaSobCursor.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+      fonte: fonteBancoNormalizada(bibLinhaSobCursor.dataset.bibFonte),
       preferirCopia: true,
       origemUi: 'biblioteca',
       abrirEmLetraCompleta: true,
@@ -16659,7 +16665,7 @@ function bibGarantirTeclado() {
       const m = bibMusicaDaLinha(linha);
       if (!m) return;
       selecionarMusicaDoBanco(m.id, {
-        fonte: linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user',
+        fonte: fonteBancoNormalizada(linha.dataset.bibFonte),
         preferirCopia: true,
         origemUi: 'biblioteca',
         abrirEmLetraCompleta: true,
@@ -16752,7 +16758,7 @@ function renderizarListaLocal(lista) {
   let linhaAtiva = null;
 
   listaLocalRenderizada.forEach((m, idx) => {
-    const rowFonte = m.fonte === 'catalog' ? 'catalog' : 'user';
+    const rowFonte = fonteBancoNormalizada(m.fonte);
 
     const letra = bibLetraDeAgrupamento(m.titulo);
     if (letra !== letraAtual) {
@@ -16892,7 +16898,7 @@ function aplicarVisibilidadeBiblioteca(predicado, qAplicada) {
   el.querySelectorAll('.item').forEach((linha) => {
     const m = bibMusicaDaLinha(linha);
     if (!m) return;
-    const rowFonte = linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user';
+    const rowFonte = fonteBancoNormalizada(linha.dataset.bibFonte);
     const ativo =
       !!selecaoUiBiblioteca &&
       Number(selecaoUiBiblioteca.id) === Number(m.id) &&
@@ -16971,7 +16977,7 @@ async function aplicarFiltroBiblioteca(geracao) {
       if (m && (!m.fonte || m.fonte === 'user')) ids.add(Number(m.id));
     }
     aplicarVisibilidadeBiblioteca((m, linha) => {
-      const fonte = linha.dataset.bibFonte === 'catalog' ? 'catalog' : 'user';
+      const fonte = fonteBancoNormalizada(linha.dataset.bibFonte);
       return fonte === 'user' && ids.has(Number(m.id));
     }, q);
   } catch (e) {
@@ -17775,7 +17781,7 @@ async function trocarVersaoMusicaCentral(copiaId) {
  *   e após importar dos bancos Locais/Online.
  */
 async function selecionarMusicaDoBanco(id, opts) {
-  const fonteBanco = opts && opts.fonte === 'catalog' ? 'catalog' : 'user';
+  const fonteBanco = fonteBancoNormalizada(opts && opts.fonte);
   const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
   try {
     if (!(opts && opts.pularConfirmacaoDescarte)) {
@@ -17942,7 +17948,7 @@ async function projecaoProximaMusicaPlaylist() {
   const ok = await selecionarMusicaDoBanco(Number(next.id), {
     habilitarFaixaModoSlides: true,
     versaoLocalId: next.versaoLocalId || undefined,
-    fonte: next.bancoFonte === 'catalog' ? 'catalog' : 'user',
+    fonte: fonteBancoItemPlaylist(next),
     pularConfirmacaoDescarte: true,
     origemUi: 'playlist',
     aoCarregarAntesDeRenderizar: () => {
@@ -18030,7 +18036,7 @@ function registarProjecaoNoHistorico() {
   const corpo = {
     musicaId: Number(musicaAtiva.id) || null,
     rootId: obterRootIdMusicaAtiva(),
-    bancoFonte: musicaBancoFonte === 'catalog' ? 'catalog' : 'user',
+    bancoFonte: fonteBancoNormalizada(musicaBancoFonte),
     titulo: String(musicaAtiva.titulo || '').trim(),
     artista: String(musicaAtiva.artista || '').trim(),
     rotulo: String(musicaAtiva.rotulo || '').trim(),
@@ -24350,29 +24356,6 @@ function musicasDoCultoParaPreVoo() {
   const pl = getPlaylist(cultoId);
   if (!Array.isArray(pl)) return [];
   return pl.filter((it) => it && !ehMarcadorTemaPlaylist(it));
-}
-
-/**
- * Qual id pedir ao servidor por um item da playlist.
- *
- * Repete a escolha que o carregamento real faz ao clicar na música, e tem de a repetir: um
- * pré-voo que resolvesse ids de outra maneira acusaria de «música apagada» exactamente as
- * que abrem sem problema nenhum — e o operador aprenderia a ignorar a lista.
- *
- * As cópias legadas (`c_*`) vivem no `localStorage` e não têm id no servidor; para essas
- * pede-se o original, que é de onde a cópia herda as estrofes.
- *
- * @param {object} item
- * @returns {number | null}
- */
-function idMusicaParaPreVoo(item) {
-  const vid = item?.versaoLocalId ? String(item.versaoLocalId).trim() : '';
-  if (vid && !ehVersaoLocalLegada(vid)) {
-    const n = Number(vid);
-    if (Number.isFinite(n)) return n;
-  }
-  const raiz = Number(item?.id);
-  return Number.isFinite(raiz) ? raiz : null;
 }
 
 /**
