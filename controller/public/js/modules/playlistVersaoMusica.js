@@ -1,12 +1,23 @@
 /**
- * Versão da música num item de playlist (id de fetch, pré-voo e fonte do banco).
+ * Versão da música num item de playlist (id de fetch, pré-voo, fonte e igualdade).
  *
  * Extraído do AppCore sem unificar os dois ids: o share manda a string do
  * `versaoLocalId` numérico; o pré-voo manda número e trata `c_*` como o root.
- * `c_*` não existe no servidor. O fetch e o clique no telão ficam no núcleo.
+ * A igualdade de item NÃO faz trim (diferente de `versaoLocalIdTrimado`).
+ * Marcador de tema nunca conta como música. O fetch e o DOM ficam no núcleo.
  */
 
+import { PLAYLIST_TIPO_MARCADOR_TEMA } from './chavesArmazenamentoLocal.js';
 import { ehVersaoLocalLegada, ehVersaoServidorId } from './copiasLocaisLetra.js';
+
+export function ehMarcadorTemaPlaylist(it) {
+  return !!(it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA);
+}
+
+/** Comparação de versão na playlist: sem trim; `0` é falsy e conta como vazio. */
+export function versaoLocalIdParaComparar(versaoId) {
+  return versaoId ? String(versaoId) : '';
+}
 
 export function versaoLocalIdTrimado(versaoId) {
   return versaoId != null && String(versaoId).trim() ? String(versaoId).trim() : '';
@@ -40,4 +51,31 @@ export function fonteBancoNormalizada(bancoFonte) {
 
 export function fonteBancoItemPlaylist(it) {
   return fonteBancoNormalizada(it?.bancoFonte);
+}
+
+export function itemPlaylistMesmaMusicaEVersao(it, idMusica, versaoLocalId, bancoFonte) {
+  if (!it || ehMarcadorTemaPlaylist(it)) return false;
+  if (Number(it.id) !== Number(idMusica)) return false;
+  return (
+    versaoLocalIdParaComparar(it.versaoLocalId) === versaoLocalIdParaComparar(versaoLocalId) &&
+    fonteBancoItemPlaylist(it) === fonteBancoNormalizada(bancoFonte)
+  );
+}
+
+export function playlistJaContemMesmaMusicaEVersao(pl, idMusica, versaoLocalId, bancoFonte) {
+  return pl.some((x) => itemPlaylistMesmaMusicaEVersao(x, idMusica, versaoLocalId, bancoFonte));
+}
+
+/**
+ * Mesmo root + mesma versão + mesma fonte.
+ * `raizId` entra cru: `null` falha (`Number.isFinite(null)` é falso), como no AppCore.
+ */
+export function playlistItemMesmaVersaoQueRaiz(it, raizId, versaoLocalId, bancoFonte) {
+  if (!it || ehMarcadorTemaPlaylist(it)) return false;
+  const itRoot = Number(it.id);
+  if (!Number.isFinite(raizId) || !Number.isFinite(itRoot) || itRoot !== raizId) return false;
+  return (
+    versaoLocalIdParaComparar(versaoLocalId) === versaoLocalIdParaComparar(it.versaoLocalId) &&
+    fonteBancoItemPlaylist(it) === fonteBancoNormalizada(bancoFonte)
+  );
 }

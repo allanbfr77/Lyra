@@ -42,7 +42,7 @@
  *   midiaApresentacao.js — tipo, URL segura, item e aviso do card 6
  *   cultosCalendario.js — ids, rótulos e geração do mês / extra manual
  *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
- *   playlistVersaoMusica.js — id de fetch/pré-voo e fonte catalog|user
+ *   playlistVersaoMusica.js — id de fetch/pré-voo, fonte e igualdade de item
  *   fonteLetrasSite.js — seletor, placeholder e fonte do POST importar
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
@@ -112,6 +112,9 @@ import {
   idMusicaParaPreVoo,
   fonteBancoNormalizada,
   fonteBancoItemPlaylist,
+  ehMarcadorTemaPlaylist,
+  playlistJaContemMesmaMusicaEVersao,
+  playlistItemMesmaVersaoQueRaiz,
 } from './modules/playlistVersaoMusica.js';
 import {
   BANCO_FONTE_OPCOES,
@@ -6518,10 +6521,6 @@ function normalizarListaTemas(arr) {
   return out;
 }
 
-function ehMarcadorTemaPlaylist(it) {
-  return it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA;
-}
-
 /**
  * Remove marcadores do tema e todas as músicas desse bloco (ordem dos marcadores na playlist).
  * O cabeçalho visual segue o marcador anterior; muitas linhas podem ter `tema` vazio ou desactualizado.
@@ -9189,15 +9188,13 @@ function getPlaylist(cid) {
 }
 
 function playlistItemMesmaVersaoQueAtiva(it) {
-  if (!musicaAtiva || !it || ehMarcadorTemaPlaylist(it)) return false;
-  const rootAtivo = obterRootIdMusicaAtiva();
-  const itRoot = Number(it.id);
-  if (!Number.isFinite(rootAtivo) || !Number.isFinite(itRoot) || itRoot !== rootAtivo) return false;
-  const va = versaoAtivaParaCompararPlaylist();
-  const vb = it.versaoLocalId ? String(it.versaoLocalId) : '';
-  const itBf = fonteBancoItemPlaylist(it);
-  const curBf = fonteBancoNormalizada(musicaBancoFonte);
-  return va === vb && itBf === curBf;
+  if (!musicaAtiva) return false;
+  return playlistItemMesmaVersaoQueRaiz(
+    it,
+    obterRootIdMusicaAtiva(),
+    versaoAtivaParaCompararPlaylist(),
+    musicaBancoFonte
+  );
 }
 
 function aplicarSelecaoUiBiblioteca(id, fonte) {
@@ -9228,14 +9225,13 @@ function aplicarSelecaoUiPlaylist(id, versaoLocalId, fonte) {
 }
 
 function playlistItemMesmaVersaoQueSelecaoUi(it) {
-  if (!selecaoUiPlaylist || !it || ehMarcadorTemaPlaylist(it)) return false;
-  const itRoot = Number(it.id);
-  if (!Number.isFinite(itRoot) || itRoot !== Number(selecaoUiPlaylist.id)) return false;
-  const va = selecaoUiPlaylist.versaoLocalId ? String(selecaoUiPlaylist.versaoLocalId) : '';
-  const vb = it.versaoLocalId ? String(it.versaoLocalId) : '';
-  const itBf = fonteBancoItemPlaylist(it);
-  const selBf = fonteBancoNormalizada(selecaoUiPlaylist.fonte);
-  return va === vb && itBf === selBf;
+  if (!selecaoUiPlaylist) return false;
+  return playlistItemMesmaVersaoQueRaiz(
+    it,
+    Number(selecaoUiPlaylist.id),
+    selecaoUiPlaylist.versaoLocalId,
+    selecaoUiPlaylist.fonte
+  );
 }
 
 /** Índice da próxima música real na playlist (salta marcadores de tema). -1 se não houver. */
@@ -10652,17 +10648,6 @@ async function solicitarRemoverMarcadorTemaPlaylist(idx) {
   renderPlaylist();
 }
 
-function playlistJaContemMesmaMusicaEVersao(pl, idMusica, versaoLocalId, bancoFonte) {
-  const va = versaoLocalId ? String(versaoLocalId) : '';
-  const bf = fonteBancoNormalizada(bancoFonte);
-  return pl.some((x) => {
-    if (ehMarcadorTemaPlaylist(x)) return false;
-    if (Number(x.id) !== Number(idMusica)) return false;
-    const vb = x.versaoLocalId ? String(x.versaoLocalId) : '';
-    const xbf = fonteBancoItemPlaylist(x);
-    return va === vb && xbf === bf;
-  });
-}
 
 async function addMusicaNaPlaylist(meta) {
   if (!cultoId) {
