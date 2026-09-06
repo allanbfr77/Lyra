@@ -33,7 +33,7 @@ const {
  *   varrerMusicasPorCriterios: Function,
  *   marcarBancoCompartilhadoAlterado: Function,
  *   notificarBancoCompartilhadoAlterado: Function,
- *   ctx: object,
+ *   notificarMusicasSincronizadasNoPainel: Function,
  * }} deps
  */
 function registrarRotasMusicas(expressApp, deps) {
@@ -43,7 +43,7 @@ function registrarRotasMusicas(expressApp, deps) {
     varrerMusicasPorCriterios,
     marcarBancoCompartilhadoAlterado,
     notificarBancoCompartilhadoAlterado,
-    ctx,
+    notificarMusicasSincronizadasNoPainel,
   } = deps;
 
   expressApp.get('/api/musicas', (_req, res) => {
@@ -366,17 +366,6 @@ function registrarRotasMusicas(expressApp, deps) {
 
   expressApp.delete('/api/musicas/:id', (req, res) => apagarMusicaHandler(req.params.id, res));
   expressApp.post('/api/musicas/:id/excluir', (req, res) => apagarMusicaHandler(req.params.id, res));
-
-  function notificarMusicasSincronizadasNoPainel(musicasOk) {
-    if (!musicasOk?.length) return;
-    try {
-      if (ctx.windowMain && !ctx.windowMain.isDestroyed()) {
-        ctx.windowMain.webContents.send('musicas-sincronizadas', { musicas: musicasOk });
-      }
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
 
   expressApp.post('/api/musicas/sincronizar', (req, res) => {
     try {
