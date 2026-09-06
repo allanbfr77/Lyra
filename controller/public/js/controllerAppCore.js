@@ -41,7 +41,7 @@
  *   midiaApresentacao.js — tipo, URL segura, item e aviso do card 6
  *   cultosCalendario.js — ids, rótulos e geração do mês / extra manual
  *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
- *   fonteLetrasSite.js — seletor HLYRCS / online / Cifra Club / letras.mus.br
+ *   fonteLetrasSite.js — seletor, placeholder e fonte do POST importar
  * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
  * =============================================================================
  */
@@ -107,6 +107,8 @@ import {
 import {
   BANCO_FONTE_OPCOES,
   normalizarFonteLetrasSite,
+  placeholderBuscaLetrasPorFonte,
+  fonteEnvioImportarLetras,
 } from './modules/fonteLetrasSite.js';
 import {
   criarSlidesGrelha,
@@ -15273,11 +15275,7 @@ function getLetrasSiteFonteAtual() {
 function aplicarPlaceholderBuscaLetras() {
   const inp = document.getElementById('busca-letras-q');
   if (!inp) return;
-  const f = getLetrasSiteFonteAtual();
-  if (f === 'letras-mus-br') inp.placeholder = 'Buscar em letras.mus.br…';
-  else if (f === 'banco-local') inp.placeholder = 'Buscar no banco offline…';
-  else if (f === 'lyra-online') inp.placeholder = 'Buscar no banco online do Lyra…';
-  else inp.placeholder = 'Buscar em cifraclub.com.br…';
+  inp.placeholder = placeholderBuscaLetrasPorFonte(getLetrasSiteFonteAtual());
 }
 
 function atualizarUiToggleListaBancoSqlite() {
@@ -17208,8 +17206,7 @@ async function usarMusicaExistenteDoBanco(data) {
 }
 
 async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decisaoDuplicidade = '') {
-  const fonteEnvio =
-    fonte === 'letras-mus-br' ? 'letras-mus-br' : fonte === 'lyra-online' ? 'lyra-online' : 'cifraclub';
+  const fonteEnvio = fonteEnvioImportarLetras(fonte);
   try {
     const res = await fetch(`${getControllerApiBase()}/api/letras/importar`, {
       method: 'POST',

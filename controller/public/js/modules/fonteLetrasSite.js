@@ -1,9 +1,10 @@
 /**
- * Fonte da busca de letras no painel (seletor HLYRCS / online / sites).
+ * Fonte da busca de letras no painel (seletor, placeholder e POST de importar).
  *
- * Extraído do AppCore (secção C/F) sem mudar o critério: `lyra-songbank`
- * vira `lyra-online`; qualquer outro valor cai em `banco-local`. Debounce,
- * abort HTTP e o POST de importação continuam no núcleo.
+ * Extraído do AppCore (secção C/F) sem unificar os dois critérios:
+ * na busca, `lyra-songbank` vira `lyra-online` e o resto cai em `banco-local`;
+ * no importar, `banco-local` e `lyra-songbank` viram `cifraclub`. Debounce,
+ * abort HTTP e o fetch continuam no núcleo.
  */
 
 export const FONTE_LETRAS_BANCO_LOCAL = 'banco-local';
@@ -25,4 +26,23 @@ export function normalizarFonteLetrasSite(val) {
   if (s === FONTE_LETRAS_CIFRACLUB) return FONTE_LETRAS_CIFRACLUB;
   if (s === FONTE_LETRAS_LYRA_ONLINE || s === 'lyra-songbank') return FONTE_LETRAS_LYRA_ONLINE;
   return FONTE_LETRAS_BANCO_LOCAL;
+}
+
+export function placeholderBuscaLetrasPorFonte(fonte) {
+  if (fonte === FONTE_LETRAS_LETRAS_MUS) return 'Buscar em letras.mus.br…';
+  if (fonte === FONTE_LETRAS_BANCO_LOCAL) return 'Buscar no banco offline…';
+  if (fonte === FONTE_LETRAS_LYRA_ONLINE) return 'Buscar no banco online do Lyra…';
+  return 'Buscar em cifraclub.com.br…';
+}
+
+/**
+ * Fonte no body de POST /api/letras/importar.
+ * Não usa `normalizarFonteLetrasSite`: banco local e aliases antigos vão para Cifra Club.
+ */
+export function fonteEnvioImportarLetras(fonte) {
+  return fonte === FONTE_LETRAS_LETRAS_MUS
+    ? FONTE_LETRAS_LETRAS_MUS
+    : fonte === FONTE_LETRAS_LYRA_ONLINE
+      ? FONTE_LETRAS_LYRA_ONLINE
+      : FONTE_LETRAS_CIFRACLUB;
 }

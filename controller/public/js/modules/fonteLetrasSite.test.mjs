@@ -7,6 +7,8 @@ import {
   FONTE_LETRAS_LETRAS_MUS,
   FONTE_LETRAS_LYRA_ONLINE,
   normalizarFonteLetrasSite,
+  placeholderBuscaLetrasPorFonte,
+  fonteEnvioImportarLetras,
 } from './fonteLetrasSite.js';
 
 test('normalizarFonteLetrasSite: alias lyra-songbank vira lyra-online', () => {
@@ -35,4 +37,24 @@ test('BANCO_FONTE_OPCOES tem as quatro fontes do seletor', () => {
     ]
   );
   assert.equal(BANCO_FONTE_OPCOES.find((o) => o.value === FONTE_LETRAS_BANCO_LOCAL).label, 'HLYRCS');
+});
+
+test('placeholderBuscaLetrasPorFonte segue a fonte já normalizada', () => {
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_LETRAS_MUS), 'Buscar em letras.mus.br…');
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_BANCO_LOCAL), 'Buscar no banco offline…');
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_LYRA_ONLINE), 'Buscar no banco online do Lyra…');
+  assert.equal(placeholderBuscaLetrasPorFonte(FONTE_LETRAS_CIFRACLUB), 'Buscar em cifraclub.com.br…');
+  assert.equal(placeholderBuscaLetrasPorFonte('lixo'), 'Buscar em cifraclub.com.br…');
+});
+
+test('fonteEnvioImportarLetras não segue o normalizador da busca', () => {
+  assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_LETRAS_MUS), FONTE_LETRAS_LETRAS_MUS);
+  assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_LYRA_ONLINE), FONTE_LETRAS_LYRA_ONLINE);
+  assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_BANCO_LOCAL), FONTE_LETRAS_CIFRACLUB);
+  assert.equal(fonteEnvioImportarLetras('lyra-songbank'), FONTE_LETRAS_CIFRACLUB);
+  assert.equal(fonteEnvioImportarLetras(''), FONTE_LETRAS_CIFRACLUB);
+  assert.notEqual(
+    fonteEnvioImportarLetras('lyra-songbank'),
+    normalizarFonteLetrasSite('lyra-songbank')
+  );
 });
