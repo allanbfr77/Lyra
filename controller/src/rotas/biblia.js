@@ -8,6 +8,7 @@
 'use strict';
 
 const { getBibliaDb, getBibliaTraducoesDisponiveis } = require('../db');
+const { fold } = require('../lib/buscaMusicasOffline');
 
 const NOMES_TRADUCAO_BIBLIA = {
   ARA: 'Almeida Revista e Atualizada',
@@ -32,11 +33,8 @@ function nomeTraducaoBiblia(codigo) {
 
 /**
  * @param {import('express').Express} expressApp
- * @param {{ fold: (s: string) => string }} deps
  */
-function registrarRotasBiblia(expressApp, deps) {
-  const { fold } = deps;
-
+function registrarRotasBiblia(expressApp) {
   function foldLivroBiblia(s) {
     return fold(s).toLowerCase().replace(/\s+/g, ' ').trim();
   }

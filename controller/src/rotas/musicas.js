@@ -2,7 +2,7 @@
  * Rotas HTTP :3001 do domínio músicas.
  *
  * Extraído do servidor do controlador sem mudar paths nem JSON.
- * Sync de banco partilhado e importação via /api/letras* ficam no núcleo.
+ * Sync de banco partilhado fica no núcleo; importação via /api/letras* está em rotas/letras.
  */
 
 'use strict';
@@ -24,13 +24,13 @@ const {
   atualizarRotuloVersaoNoDb,
   apagarMusicaUsuarioNoDb,
 } = require('../db');
+const { fold, varrerMusicasPorCriterios } = require('../lib/buscaMusicasOffline');
+const { modoDuplicidadeDoBody, responderDuplicidade } = require('../lib/duplicidadeHttp');
 
 /**
  * @param {import('express').Express} expressApp
  * @param {{
  *   db: object,
- *   fold: (s: string) => string,
- *   varrerMusicasPorCriterios: Function,
  *   marcarBancoCompartilhadoAlterado: Function,
  *   notificarBancoCompartilhadoAlterado: Function,
  *   notificarMusicasSincronizadasNoPainel: Function,
@@ -39,8 +39,6 @@ const {
 function registrarRotasMusicas(expressApp, deps) {
   const {
     db,
-    fold,
-    varrerMusicasPorCriterios,
     marcarBancoCompartilhadoAlterado,
     notificarBancoCompartilhadoAlterado,
     notificarMusicasSincronizadasNoPainel,
@@ -110,28 +108,6 @@ function registrarRotasMusicas(expressApp, deps) {
       res.status(500).json({ erro: e.message || String(e) });
     }
   });
-
-  /**
-   * Modo de resolução de duplicidade a partir do corpo da requisição.
-   *
-   * Sem `decisaoDuplicidade` o backend apenas **detecta** e devolve 409, sem
-   * gravar: quem decide é o usuário, no diálogo do controlador. Com
-   * `decisaoDuplicidade: 'criar'` a escolha já foi feita e a cópia é gravada.
-   */
-  function modoDuplicidadeDoBody(body) {
-    const decisao = String((body && body.decisaoDuplicidade) || '').trim().toLowerCase();
-    return decisao === 'criar' ? 'copiar' : 'perguntar';
-  }
-
-  /** Resposta padrão de duplicidade detectada (nada foi gravado no banco). */
-  function responderDuplicidade(res, resultado, titulo, artista) {
-    return res.status(409).json({
-      duplicado: true,
-      existente: resultado.existente,
-      titulo: String(titulo || '').trim(),
-      artista: String(artista || '').trim(),
-    });
-  }
 
   expressApp.post('/api/musicas', (req, res) => {
     try {

@@ -5,20 +5,12 @@ const https = require('https');
 const path = require('path');
 const { URL } = require('url');
 const express = require('express');
-const {
-  getDb,
-  getCatalog,
-  importarMusicaUsuarioNoDb,
-} = require('./db');
+const { getDb } = require('./db');
 const {
   loadSharedSyncMeta,
   saveSharedSyncMeta,
 } = require('./lib/sharedSyncMetaStore');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
-const cifra = require('./lib/cifraLetras');
-const letrasMus = require('./lib/letrasMusBr');
-const indiceBusca = require('./lib/indiceMusicasBusca');
-const lyraSongbank = require('./lib/lyraSongbank');
 const { registrarRotasMusicas } = require('./rotas/musicas');
 const { registrarRotasPlaylists } = require('./rotas/playlists');
 const { registrarRotasMinistrantes } = require('./rotas/ministrantes');
@@ -27,6 +19,7 @@ const { registrarRotasApresentacao } = require('./rotas/apresentacao');
 const { registrarRotasSyncBanco } = require('./rotas/syncBanco');
 const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
+const { registrarRotasLetras } = require('./rotas/letras');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -72,100 +65,7 @@ function proxyJsonToProjection(method, pathname, jsonBody) {
 }
 
 /**
- * Normaliza texto para a busca offline (banco local + catálogo).
- *
- * Além de acentos/caixa, remove pontuação (ex.: vírgula em «Ah, Jesus»),
- * para que «ah jesus» encontre o título cadastrado. Os modos online já
- * toleram isso via casamento por palavra no índice; aqui o match é
- * `includes` no texto inteiro, então a pontuação precisa sumir.
- */
-function fold(s) {
-  return cifra
-    .foldAccents(String(s || ''))
-    .replace(/[.,;:!?¡¿"'’‘“”`´^~(){}[\]<>/\\|@#$%&*+=_-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-const BUSCA_MUSICAS_LOTE = 40;
-
-function matchTituloArtistaBusca(titulo, artista, foldQ, wantTit, wantArt) {
-  if (!foldQ) return true;
-  if (wantTit && fold(titulo).includes(foldQ)) return true;
-  if (wantArt && fold(artista).includes(foldQ)) return true;
-  return false;
-}
-
-function matchLetraBusca(estrofesJson, foldQ) {
-  if (!foldQ) return false;
-  try {
-    const arr = JSON.parse(estrofesJson || '[]');
-    const letraTxt = fold(Array.isArray(arr) ? arr.join('\n') : String(arr));
-    return letraTxt.includes(foldQ);
-  } catch (_) {
-    return false;
-  }
-}
-
-/**
- * Varre um SQLite de músicas sem carregar todas as letras de uma vez.
- * Percorre a tabela na ordem original (como o scan antigo); título/artista
- * resolvem-se na meta e as estrofes vêm em lotes, com `setImmediate` entre
- * eles, para o processo principal do Electron não congelar a digitação.
- *
- * @param {import('better-sqlite3').Database | null} sqliteDb
- * @param {{ foldQ: string, wantTit: boolean, wantArt: boolean, wantLetra: boolean, soRaiz?: boolean, limite?: number }} opts
- * @returns {Promise<Array<{ id: number, titulo: string, artista: string }>>}
- */
-async function varrerMusicasPorCriterios(sqliteDb, opts) {
-  const wantTit = !!opts.wantTit;
-  const wantArt = !!opts.wantArt;
-  const wantLetra = !!opts.wantLetra;
-  const foldQ = opts.foldQ;
-  const limite = Number.isFinite(opts.limite) && opts.limite > 0 ? opts.limite : Infinity;
-  if (!sqliteDb || (!wantTit && !wantArt && !wantLetra)) return [];
-
-  const sql = opts.soRaiz
-    ? 'SELECT id, titulo, artista FROM musicas WHERE parent_id IS NULL'
-    : 'SELECT id, titulo, artista FROM musicas';
-  const metas = sqliteDb.prepare(sql).all();
-  const out = [];
-
-  for (let i = 0; i < metas.length && out.length < limite; i += BUSCA_MUSICAS_LOTE) {
-    if (wantLetra && i > 0) await new Promise((r) => setImmediate(r));
-    const chunk = metas.slice(i, i + BUSCA_MUSICAS_LOTE);
-    const idsLetra = [];
-    const hitTitArt = new Set();
-    for (const r of chunk) {
-      if (matchTituloArtistaBusca(r.titulo, r.artista, foldQ, wantTit, wantArt)) {
-        hitTitArt.add(r.id);
-      } else if (wantLetra) {
-        idsLetra.push(r.id);
-      }
-    }
-    const hitLetra = new Set();
-    if (idsLetra.length) {
-      const ph = idsLetra.map(() => '?').join(',');
-      const rows = sqliteDb
-        .prepare(`SELECT id, estrofes FROM musicas WHERE id IN (${ph})`)
-        .all(...idsLetra);
-      for (const row of rows) {
-        if (matchLetraBusca(row.estrofes, foldQ)) hitLetra.add(row.id);
-      }
-    }
-    for (const r of chunk) {
-      if (out.length >= limite) break;
-      if (hitTitArt.has(r.id) || hitLetra.has(r.id)) {
-        out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '' });
-      }
-    }
-  }
-
-  return limite === Infinity ? out : out.slice(0, limite);
-}
-
-/**
- * API HTTP local do controlador (músicas, bíblia, letras, playlists, proxy de display-config).
+ * API HTTP local do controlador: monta o Express e regista as rotas por domínio.
  * @param {object} ctx Estado mutável (`controllerContext.js`).
  * @param {object} paths Caminhos (`createUserPaths`).
  */
@@ -324,265 +224,17 @@ async function iniciarServidorController(ctx, paths) {
 
   registrarRotasMusicas(expressApp, {
     db,
-    fold,
-    varrerMusicasPorCriterios,
     marcarBancoCompartilhadoAlterado,
     notificarBancoCompartilhadoAlterado,
     notificarMusicasSincronizadasNoPainel,
   });
 
-  registrarRotasBiblia(expressApp, { fold });
+  registrarRotasBiblia(expressApp);
 
-  expressApp.get('/api/letras/buscar-local', (req, res) => {
-    const qRaw = String(req.query.q || req.query.titulo || '').trim();
-    const wantTit = req.query.titulo === '1';
-    const wantArt = req.query.artista === '1';
-    const wantLetra = req.query.letra === '1';
-    if (!qRaw) return res.json({ sucesso: false, erro: 'Informe o texto da busca', resultados: [] });
-    if (!wantTit && !wantArt && !wantLetra) {
-      return res.json({
-        sucesso: false,
-        erro: 'Marque pelo menos um critério: Música (título), Artista ou Letra (trecho)',
-        resultados: [],
-      });
-    }
-
-    const catalogDb = getCatalog();
-    void (async () => {
-      try {
-        const rows = await varrerMusicasPorCriterios(catalogDb, {
-          foldQ: fold(qRaw),
-          wantTit,
-          wantArt,
-          wantLetra,
-          limite: 40,
-        });
-        const resultados = rows.map((r) => ({
-          id: r.id,
-          titulo: r.titulo,
-          artista: r.artista || '',
-          fonte: 'banco-local',
-          origem: 'catalog',
-        }));
-        res.json({
-          sucesso: true,
-          resultados,
-          total: resultados.length,
-          offline: true,
-          catalogDisponivel: !!catalogDb,
-        });
-      } catch (err) {
-        if (!res.headersSent) res.json({ sucesso: false, erro: err.message, resultados: [] });
-      }
-    })();
-  });
-
-  expressApp.get('/api/letras/preview-local', (req, res) => {
-    try {
-      const idRaw = parseInt(req.query.id, 10);
-      if (!Number.isFinite(idRaw)) return res.status(400).json({ sucesso: false, erro: 'id inválido' });
-
-      const origem = String(req.query.origem || 'catalog').toLowerCase() === 'user' ? 'user' : 'catalog';
-      const catalogDb = getCatalog();
-      const row =
-        origem === 'user'
-          ? db.prepare('SELECT titulo, artista, estrofes FROM musicas WHERE id = ?').get(idRaw)
-          : catalogDb
-            ? catalogDb.prepare('SELECT titulo, artista, estrofes FROM musicas WHERE id = ?').get(idRaw)
-            : null;
-
-      if (origem === 'catalog' && !catalogDb) {
-        return res.status(400).json({ sucesso: false, erro: 'Catálogo offline não disponível' });
-      }
-
-      if (!row) return res.status(404).json({ sucesso: false, erro: 'Música não encontrada' });
-
-      let estrofes = [];
-      try {
-        estrofes = JSON.parse(row.estrofes || '[]');
-      } catch (_) {
-        estrofes = [];
-      }
-
-      // HLYRCS: «Padrão do Banco» preserva a estrutura gravada; 2/3/4 só
-      // empacota as linhas originais, sem o fatiamento do Cifra Club / Letras.
-      const modoLinhas = cifra.resolverModoLinhasFonteBanco(req.query.maxLinhas);
-      const estrofesSaida = cifra.aplicarDivisaoEstrofesFonteBanco(estrofes, modoLinhas);
-
-      res.json({
-        sucesso: true,
-        titulo: row.titulo,
-        artista: row.artista || '',
-        estrofes: estrofesSaida,
-        fonte: 'banco-local',
-        origem,
-        maxLinhasPorSlide: modoLinhas,
-      });
-    } catch (err) {
-      res.status(500).json({ sucesso: false, erro: err.message });
-    }
-  });
-
-  expressApp.post('/api/letras/importar-do-catalogo', (req, res) => {
-    try {
-      const idRaw = parseInt((req.body && req.body.id) || '', 10);
-      if (!Number.isFinite(idRaw)) return res.status(400).json({ erro: 'id inválido' });
-      const catalogDb = getCatalog();
-      if (!catalogDb) return res.status(400).json({ erro: 'Banco offline não disponível' });
-
-      const row = catalogDb.prepare('SELECT titulo, artista, estrofes FROM musicas WHERE id = ?').get(idRaw);
-      if (!row) return res.status(404).json({ erro: 'Música não encontrada' });
-
-      let estrofes = [];
-      try {
-        estrofes = JSON.parse(row.estrofes || '[]');
-      } catch (_) {
-        estrofes = [];
-      }
-      if (!Array.isArray(estrofes) || !estrofes.length)
-        return res.status(400).json({ erro: 'Letra vazia no catálogo' });
-
-      // A importação segue o mesmo modo do preview (padrão do banco ou 2/3/4).
-      const modoLinhas = cifra.resolverModoLinhasFonteBanco(req.body && req.body.maxLinhasPorSlide);
-      estrofes = cifra.aplicarDivisaoEstrofesFonteBanco(estrofes, modoLinhas);
-
-      const titulo = String(row.titulo || '').trim();
-      const artista = String(row.artista || '').trim();
-      if (!titulo) return res.status(400).json({ erro: 'Título obrigatório' });
-
-      const imp = importarMusicaUsuarioNoDb(titulo, artista, estrofes, {
-        aoDuplicar: modoDuplicidadeDoBody(req.body),
-      });
-      if (imp.duplicado) return responderDuplicidade(res, imp, titulo, artista);
-      if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
-      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
-      notificarBancoCompartilhadoAlterado(meta.updatedAt);
-      return res.json({
-        id: imp.id,
-        rootId: imp.rootId,
-        copyImportada: !!imp.copyImportada,
-      });
-    } catch (e) {
-      res.status(500).json({ erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.get('/api/letras/buscar', async (req, res) => {
-    try {
-      const fonte = String(req.query.fonte || 'cifraclub').toLowerCase();
-      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
-        const q = String(req.query.q || req.query.titulo || '').trim();
-        if (!q) {
-          return res.json({ sucesso: false, erro: 'Parâmetro q obrigatório', resultados: [] });
-        }
-        const wantTit = req.query.q != null ? req.query.titulo === '1' : true;
-        const wantArt = req.query.artista === '1';
-        const wantLetra = req.query.letra === '1';
-        if (req.query.q != null && !wantTit && !wantArt && !wantLetra) {
-          return res.json({
-            sucesso: false,
-            erro: 'Marque pelo menos um critério: Música (título), Artista ou Letra (trecho)',
-            resultados: [],
-          });
-        }
-        const out = await lyraSongbank.buscarMusicas({
-          q,
-          titulo: wantTit,
-          artista: wantArt,
-          letra: wantLetra,
-        });
-        return res.json(out);
-      }
-
-      const tituloQ = String(req.query.titulo || '').trim();
-      if (!tituloQ)
-        return res.json({ sucesso: false, erro: 'Parâmetro titulo obrigatório', resultados: [] });
-
-      // Um caminho só para as duas fontes: o índice da Studio Sol atende CifraClub
-      // e Letras.mus.br, porque os slugs são compartilhados entre os dois sites.
-      // Antes eram dois caminhos distintos, ambos por scraping — o do Yahoo passou
-      // a dar timeout e o de /busca/ do Letras a responder 404.
-      const fonteNorm = indiceBusca.normalizarFonteLetras(fonte);
-      const filtradas = await indiceBusca.buscarNoIndiceDeMusicas({
-        texto: tituloQ,
-        filtros: { titulo: true, artista: req.query.artista === '1', letra: false },
-        fonte: fonteNorm,
-      });
-
-      // O índice já traz título e artista reais — não é mais preciso derivá-los
-      // do slug da URL.
-      const resultados = filtradas.slice(0, 40).map((row) => ({
-        path: row.path,
-        titulo: row.titulo || cifra.slugParaTituloExibicao((row.path.split('/').filter(Boolean))[1] || ''),
-        artista: row.artista || cifra.slugParaTituloExibicao((row.path.split('/').filter(Boolean))[0] || ''),
-        fonte: fonteNorm,
-      }));
-
-      if (!resultados.length)
-        return res.json({ sucesso: false, erro: 'Nenhum resultado encontrado', resultados: [] });
-      res.json({ sucesso: true, resultados });
-    } catch (e) {
-      console.error('[Controller HTTP] letras/buscar', e);
-      res.status(500).json({ sucesso: false, erro: e.message || String(e), resultados: [] });
-    }
-  });
-
-  expressApp.post('/api/letras/preview', async (req, res) => {
-    try {
-      const pathRaw = req.body && req.body.path;
-      const maxLinhas = req.body && req.body.maxLinhasPorSlide;
-      const fonte = String((req.body && req.body.fonte) || 'cifraclub').toLowerCase();
-      let r;
-      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
-        r = await lyraSongbank.extrairLetraParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      } else if (fonte === 'letras-mus-br' || fonte === 'letrasmusbr') {
-        r = await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      } else {
-        r = await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      }
-      if (r.erro) return res.status(400).json({ erro: r.erro });
-      res.json({
-        titulo: r.titulo,
-        artista: r.artista,
-        estrofes: r.estrofes,
-        path: r.path,
-        maxLinhasPorSlide: r.maxLinhasPorSlide,
-      });
-    } catch (e) {
-      res.status(500).json({ erro: e.message || String(e) });
-    }
-  });
-
-  expressApp.post('/api/letras/importar', async (req, res) => {
-    try {
-      const pathRaw = req.body && req.body.path;
-      const maxLinhas = req.body && req.body.maxLinhasPorSlide;
-      const fonte = String((req.body && req.body.fonte) || 'cifraclub').toLowerCase();
-      let r;
-      if (lyraSongbank.ehFonteLyraOnline(fonte)) {
-        r = await lyraSongbank.extrairLetraParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      } else if (fonte === 'letras-mus-br' || fonte === 'letrasmusbr') {
-        r = await letrasMus.extrairLetraLetrasMusParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      } else {
-        r = await cifra.extrairLetraCifraClubParaPreviewOuImport(pathRaw, { maxLinhasPorSlide: maxLinhas });
-      }
-      if (r.erro) return res.status(400).json({ erro: r.erro });
-
-      const imp = importarMusicaUsuarioNoDb(r.titulo, r.artista, r.estrofes || [], {
-        aoDuplicar: modoDuplicidadeDoBody(req.body),
-      });
-      if (imp.duplicado) return responderDuplicidade(res, imp, r.titulo, r.artista);
-      if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
-      const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
-      notificarBancoCompartilhadoAlterado(meta.updatedAt);
-      res.json({
-        id: imp.id,
-        rootId: imp.rootId,
-        copyImportada: !!imp.copyImportada,
-      });
-    } catch (e) {
-      res.status(500).json({ erro: e.message || String(e) });
-    }
+  registrarRotasLetras(expressApp, {
+    db,
+    marcarBancoCompartilhadoAlterado,
+    notificarBancoCompartilhadoAlterado,
   });
 
   async function proxyDisplay(req, res, pathname) {
