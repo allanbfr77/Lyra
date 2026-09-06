@@ -173,6 +173,7 @@ import { inicializarSlidersComEdicao, sincronizarSliderComEdicao } from './modul
 import {
   htmlCorpoLinhaPlaylistComTom,
   htmlCorpoLinhaPlaylistSimples,
+  rotuloArtistaLista,
   carregarMinistrantesDoServidor,
   criarMinistranteNoServidor,
   garantirMinistrantePorNomeNoServidor,
@@ -16486,7 +16487,8 @@ function bibConjuntoMusicasNaPlaylist() {
 /** Rótulo lido em voz alta pelo leitor de ecrã. O estado nunca depende só da cor. */
 function bibRotuloAcessivel(m, jaAdicionada) {
   const partes = [String(m.titulo || 'Sem título')];
-  if (m.artista) partes.push(`de ${m.artista}`);
+  const artista = String(m.artista || '').trim();
+  partes.push(artista ? `de ${artista}` : 'sem artista');
   if (jaAdicionada) partes.push('já na playlist deste culto');
   return partes.join(', ') + '.';
 }
@@ -16817,12 +16819,10 @@ function renderizarListaLocal(lista) {
     tit.className = 'titulo';
     tit.textContent = m.titulo || '';
     meta.appendChild(tit);
-    if (m.artista) {
-      const sub = document.createElement('div');
-      sub.className = 'sub';
-      sub.textContent = m.artista;
-      meta.appendChild(sub);
-    }
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    sub.textContent = rotuloArtistaLista(m.artista);
+    meta.appendChild(sub);
 
     const acoes = document.createElement('div');
     acoes.className = 'item-acoes-banco';

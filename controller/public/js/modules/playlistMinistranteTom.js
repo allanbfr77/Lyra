@@ -196,6 +196,12 @@ const SVG_LIMPAR_MESTRE =
   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
 
+/** Legenda de artista nas listas: campo vazio vira «Sem artista». */
+export function rotuloArtistaLista(artista) {
+  const t = String(artista || '').trim();
+  return t || 'Sem artista';
+}
+
 /**
  * @param {object} item
  * @param {number} songNum
@@ -205,7 +211,7 @@ const SVG_LIMPAR_MESTRE =
  *           temaAcima?: string, temaAbaixo?: string }} [opts]
  */
 export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
-  const artista = String(item?.artista || '').trim();
+  const artista = rotuloArtistaLista(item?.artista);
   const titulo = String(item?.titulo || '');
   /*
    * Seta circular, no lugar do antigo `∅`.
@@ -225,7 +231,7 @@ export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, es
         <div class="pl-col pl-col-meta">
           ${htmlNumeroMusicaPlaylist(songNum)}
           <div class="pl-col-titulo tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
-          <div class="pl-col-artista"${artista ? ` data-dica="${escapeAttr(artista)}"` : ''}>${artista ? escapeHtml(artista) : '—'}</div>
+          <div class="pl-col-artista" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>
         </div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
         <div class="playlist-btns">
@@ -242,14 +248,14 @@ export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, es
  * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
 export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
-  const artista = String(item?.artista || '').trim();
+  const artista = rotuloArtistaLista(item?.artista);
   const titulo = String(item?.titulo || '');
   return `
       <div class="pl-linha-simples">
         ${htmlNumeroMusicaPlaylist(songNum)}
         <div class="pl-linha-simples-txt">
           <div class="tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
-          ${artista ? `<div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>` : ''}
+          <div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>
         </div>
       </div>
       <div class="playlist-btns">
