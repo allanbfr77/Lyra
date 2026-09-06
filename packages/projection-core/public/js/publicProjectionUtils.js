@@ -7,7 +7,7 @@
  *  - Validação de números
  *  - Cálculo da área útil do container
  *  - Renderização de linhas de texto como spans estilizados
- *  - Tamanho em vh (1–14 nos slides; aviso até 40 via `fontSizeMaxVh`) e line-height (1–2.4) alinhados ao painel Ministrante
+ *  - Tamanho em vh (0–12 nos slides; aviso até 40 via `fontSizeMaxVh`) e line-height (1.0–2.4)
  *  - Autoajuste horizontal (mesma regra que `display-operator.html`)
  *  - Aplicação imediata de wrap de texto
  *
@@ -17,6 +17,7 @@
  * @param {Object} ctx - Contexto compartilhado com referências ao DOM e helpers.
  */
 function attachPublicProjectionUtils(ctx) {
+  const escalaTipografiaPublico = require('./escalaTipografiaPublico');
 
   let layoutDiagnostico = null;
   try {
@@ -65,31 +66,12 @@ function attachPublicProjectionUtils(ctx) {
     return ctx.elLetras;
   }
 
-  /**
-   * Escala vh do telão público.
-   *
-   * Teto por omissão: 14 (slides / bíblia). O aviso pode pedir até 40 via
-   * `pb.fontSizeMaxVh` — sem isso, valores acima de 14 cairiam no ramo legado 2–40 e
-   * seriam remapeados, e o seletor «aumentava» sem o texto crescer.
-   */
   function fontSizeVhPublico(pb) {
-    const maxPedido = Number(pb && pb.fontSizeMaxVh);
-    const teto = Number.isFinite(maxPedido) && maxPedido >= 2.2 ? maxPedido : 14;
-    const v = Number(pb && pb.fontSize);
-    if (!Number.isFinite(v)) return 5.5;
-    if (v >= 1 && v <= teto) return v;
-    /* JSON antigo 2–40 → só quando o valor está claramente fora do slider novo. */
-    if (teto <= 14 && v > teto && v <= 40) return teto;
-    return Math.min(teto, Math.max(1, v));
+    return escalaTipografiaPublico.fontSizeVhPublico(pb);
   }
 
-  /** Line-height CSS absoluto (1–2.4), igual ministrante; legado: incremento −0.5…1 → 1+valor. */
   function lineHeightCssPublico(pb) {
-    const raw = Number(pb && pb.lineSpacing);
-    if (!Number.isFinite(raw)) return '1.35';
-    if (raw >= 1.05 && raw <= 2.401) return String(Math.min(2.4, Math.max(1, raw)));
-    if (raw >= -0.501 && raw < 1.05) return String(Math.min(2.8, Math.max(0.55, 1 + raw)));
-    return String(Math.min(2.4, Math.max(1, raw)));
+    return escalaTipografiaPublico.lineHeightCssPublico(pb);
   }
 
   function zoomFactorDestaJanela() {

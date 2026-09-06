@@ -514,9 +514,7 @@
 
     function deveRevelarRelogioMinistrante() {
       const clk = displayConfig.clock || {};
-      if (clk.showClock === false) return false;
-      const alvo = String(clk.monitorRelogio || 'ministrante').toLowerCase();
-      return alvo === 'ministrante' || alvo === 'ambos';
+      return clk.showClock !== false;
     }
 
     function corRelogioOp(clk) {
@@ -665,6 +663,13 @@
     function esconderRelogioOcioso() {
       if (elCapaRelogio) elCapaRelogio.hidden = true;
       pararRelogioOp();
+    }
+
+    /** Liga/desliga a capa quando só a config do relógio muda (ex.: «Exibir relógio»). */
+    function sincronizarCapaRelogioOciosa() {
+      const projecaoAtiva = payloadMinistranteTemConteudoAtivo(ultimoPayloadMinistrante);
+      if (projecaoAtiva) esconderRelogioOcioso();
+      else mostrarRelogioOcioso();
     }
 
     function aplicarFundoMinistrantePorProjecao(ativa) {
@@ -867,8 +872,12 @@
       const clockChegou = !!(cfg.clock && typeof cfg.clock === 'object');
       if (assinatura !== null && assinatura === assinaturaConfigMinistranteAplicada) {
         /* Slider de data/versículo só mexe em `clock`. Sem redesenhar aqui o M3
-           ficava com o tamanho antigo. */
-        if (clockChegou) tickRelogioOp();
+           ficava com o tamanho antigo. O toggle «Exibir relógio» também cai aqui:
+           a camada ministrante não muda, então só a capa ociosa precisa de sync. */
+        if (clockChegou) {
+          tickRelogioOp();
+          sincronizarCapaRelogioOciosa();
+        }
         return;
       }
       assinaturaConfigMinistranteAplicada = assinatura;
@@ -902,8 +911,7 @@
       }
       const projecaoAtiva = payloadMinistranteTemConteudoAtivo(ultimoPayloadMinistrante);
       aplicarFundoMinistrantePorProjecao(projecaoAtiva);
-      if (!projecaoAtiva) mostrarRelogioOcioso();
-      else esconderRelogioOcioso();
+      sincronizarCapaRelogioOciosa();
       const ehBibliaCfg =
         ultimoPayloadMinistrante && String(ultimoPayloadMinistrante.modo || '') === 'biblia';
       if (ehBibliaCfg && mon.fontFamily) {

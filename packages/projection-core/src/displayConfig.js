@@ -51,6 +51,7 @@ const DEFAULT_DISPLAY_CONFIG = {
     verseFontSize: 2.4,
     showDate: true,
     showClock: true,
+    /* Campo legado: o relógio vive só no M3. Mantém-se no JSON para não partir configs antigas. */
     monitorRelogio: 'ministrante',
     showVerse: false,
     verse: '',
@@ -77,7 +78,11 @@ function mergeDisplayConfigLayers(base, overlay) {
     ...o,
     publico: { ...base.publico, ...(o.publico || {}) },
     ministrante: { ...base.ministrante, ...(o.ministrante || {}) },
-    clock: { ...base.clock, ...(o.clock || {}) },
+    clock: {
+      ...base.clock,
+      ...(o.clock || {}),
+      monitorRelogio: 'ministrante',
+    },
   };
 }
 

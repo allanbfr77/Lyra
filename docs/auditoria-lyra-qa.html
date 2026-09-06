@@ -1,0 +1,2171 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Teste do Lyra Antes de Entregar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#faf8f4; --panel:#ffffff; --panel-2:#f3efe7; --sunk:#efeade;
+  --ink:#1b1916; --ink-2:#4e483e; --ink-3:#827a6c;
+  --line:#e0d9cb; --line-2:#cdc4b2;
+  --brass:#8f6a22; --brass-soft:#f2e8d2;
+  --ok:#2f7d4e; --warn:#a9770a; --bad:#a83228; --na:#7a7368;
+  --ok-bg:#e6f2ea; --warn-bg:#fbf1d8; --bad-bg:#f9e6e3; --na-bg:#eeebe5;
+  --m-prep:#6b6155; --m-abrir:#7a6a3a; --m-barra:#2d6f8a; --m-home:#8b7355;
+  --m-musicas:#2d6f8a; --m-letras:#3a6f4e; --m-tom:#8b6225; --m-lista:#4a6fa5;
+  --m-slides:#257956; --m-culto:#1c7a52; --m-biblia:#b24942; --m-midias:#735fa7;
+  --m-avisos:#a05a2c; --m-contagem:#b5603a; --m-voz:#ac4676; --m-ajustes:#317283;
+  --m-telas:#b03028; --m-janelas:#5b7c99; --m-rede:#2b7a6b; --m-salvar:#7a6a3a;
+  --m-completo:#8c2f6d; --m-final:#1f1f1f; --m-dev:#5c5750;
+  --shadow:0 1px 2px rgba(40,32,18,.05),0 8px 22px -14px rgba(40,32,18,.2);
+  color-scheme:light;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme:dark){
+    --ground:#141317; --panel:#1c1b20; --panel-2:#232228; --sunk:#191820;
+    --ink:#eceae4; --ink-2:#b6b0a5; --ink-3:#867f74;
+    --line:#33313a; --line-2:#474450;
+    --brass:#cda44e; --brass-soft:#3a3122;
+    --ok:#57bd80; --warn:#dcae43; --bad:#e0736a; --na:#8d867b;
+    --ok-bg:#1b2f24; --warn-bg:#332c17; --bad-bg:#33201e; --na-bg:#26252b;
+    --m-prep:#a79a89; --m-abrir:#c3b06a; --m-barra:#67b3d4; --m-home:#c2a683;
+    --m-musicas:#67b3d4; --m-letras:#6fbf90; --m-tom:#d1a250; --m-lista:#8aabdf;
+    --m-slides:#5cc79b; --m-culto:#57cf9c; --m-biblia:#e58a83; --m-midias:#a894e0;
+    --m-avisos:#d99a63; --m-contagem:#e29070; --m-voz:#e0839f; --m-ajustes:#6fb2c4;
+    --m-telas:#e8756a; --m-janelas:#9bbad6; --m-rede:#5fbfad; --m-salvar:#c3b06a;
+    --m-completo:#d47bb6; --m-final:#c9c4bb; --m-dev:#a09a92;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 26px -16px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#141317; --panel:#1c1b20; --panel-2:#232228; --sunk:#191820;
+  --ink:#eceae4; --ink-2:#b6b0a5; --ink-3:#867f74;
+  --line:#33313a; --line-2:#474450;
+  --brass:#cda44e; --brass-soft:#3a3122;
+  --ok:#57bd80; --warn:#dcae43; --bad:#e0736a; --na:#8d867b;
+  --ok-bg:#1b2f24; --warn-bg:#332c17; --bad-bg:#33201e; --na-bg:#26252b;
+  --m-prep:#a79a89; --m-abrir:#c3b06a; --m-barra:#67b3d4; --m-home:#c2a683;
+  --m-musicas:#67b3d4; --m-letras:#6fbf90; --m-tom:#d1a250; --m-lista:#8aabdf;
+  --m-slides:#5cc79b; --m-culto:#57cf9c; --m-biblia:#e58a83; --m-midias:#a894e0;
+  --m-avisos:#d99a63; --m-contagem:#e29070; --m-voz:#e0839f; --m-ajustes:#6fb2c4;
+  --m-telas:#e8756a; --m-janelas:#9bbad6; --m-rede:#5fbfad; --m-salvar:#c3b06a;
+  --m-completo:#d47bb6; --m-final:#c9c4bb; --m-dev:#a09a92;
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 10px 26px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:Archivo,"Segoe UI",system-ui,sans-serif;font-size:15.5px;line-height:1.6;
+  -webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+code,kbd,.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+
+.topbar{position:sticky;top:0;z-index:40;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:10px 22px}
+.brandmark{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brandmark b{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:19px;letter-spacing:-.01em}
+.brandmark span{font-size:11.5px;color:var(--ink-3);letter-spacing:.09em;text-transform:uppercase}
+.meter{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-2)}
+.meter .bar{width:190px;height:8px;border-radius:99px;background:var(--sunk);border:1px solid var(--line);overflow:hidden;display:flex}
+.meter .bar i{display:block;height:100%}
+.meter .bar .s-ok{background:var(--ok)}.meter .bar .s-warn{background:var(--warn)}
+.meter .bar .s-bad{background:var(--bad)}.meter .bar .s-na{background:var(--na)}
+.meter b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button.tool{font:inherit;font-size:13px;padding:6px 11px;border-radius:8px;
+  border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);cursor:pointer}
+button.tool:hover{border-color:var(--brass);color:var(--brass)}
+button.tool[aria-pressed="true"]{background:var(--brass-soft);border-color:var(--brass);color:var(--brass)}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:6px}
+
+.shell{display:grid;grid-template-columns:270px minmax(0,1fr)}
+.rail{position:sticky;top:57px;max-height:calc(100vh - 57px);overflow:auto;
+  border-right:1px solid var(--line);padding:16px 12px 40px;background:var(--panel)}
+.rail h4{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:14px 8px 7px}
+.rail a{display:grid;grid-template-columns:3px 1fr auto;gap:9px;align-items:center;
+  text-decoration:none;color:var(--ink-2);font-size:13.4px;padding:5px 8px;border-radius:7px}
+.rail a i.tick{display:block;height:16px;border-radius:2px;background:var(--acc)}
+.rail a:hover{background:var(--panel-2);color:var(--ink)}
+.rail a.on{background:var(--panel-2);color:var(--ink);font-weight:600}
+.rail a em{font-style:normal;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+main{padding:26px 34px 120px;min-width:0;max-width:1000px}
+
+.lede{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:26px}
+.lede h1{font-family:Fraunces,Georgia,serif;font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.08}
+.lede p.sub{margin:12px 0 0;color:var(--ink-2);max-width:60ch;font-size:16.5px}
+
+.howto{border:1px solid var(--line);background:var(--panel);border-radius:12px;
+  padding:18px 20px;margin:22px 0 6px;box-shadow:var(--shadow)}
+.howto h3{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px}
+.howto ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:7px}
+.howto li{font-size:14.6px;color:var(--ink-2)}
+.howto li b{color:var(--ink)}
+.legend{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:15px;border-top:1px dashed var(--line)}
+.legend div{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:baseline;font-size:14px;color:var(--ink-2)}
+.legend .lb{font-size:9.8px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
+.legend .lb.f{color:var(--brass)}.legend .lb.d{color:var(--ok)}.legend .lb.x{color:var(--bad)}
+.factbar{display:flex;flex-wrap:wrap;gap:8px 10px;margin-top:20px}
+.fact{display:flex;gap:7px;align-items:baseline;font-size:12.5px;padding:5px 10px;
+  border:1px solid var(--line);border-radius:99px;background:var(--panel)}
+.fact b{color:var(--ink);font-variant-numeric:tabular-nums}
+.fact span{color:var(--ink-3)}
+
+section.mod{margin:0 0 36px;scroll-margin-top:70px}
+.modhead{display:grid;grid-template-columns:4px 1fr;gap:14px;border-bottom:1px solid var(--line);
+  padding-bottom:13px;margin-bottom:16px}
+.modhead .rail-color{background:var(--acc);border-radius:99px}
+.modhead h2{font-family:Fraunces,Georgia,serif;font-size:25px;font-weight:700;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.modhead h2 .num{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:600;
+  color:var(--acc);letter-spacing:.06em;padding-top:4px}
+.modhead p{margin:7px 0 0;color:var(--ink-2);font-size:15px;max-width:68ch}
+.modstat{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.pill{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line-2);
+  color:var(--ink-3);font-variant-numeric:tabular-nums}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
+.pill.bad{color:var(--bad);border-color:var(--bad);background:var(--bad-bg)}
+.pill.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
+
+h3.blk{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  margin:24px 0 10px;padding-bottom:5px;border-bottom:1px dashed var(--line)}
+
+.note{border:1px solid var(--line);background:var(--panel-2);border-radius:10px;
+  padding:13px 16px;font-size:14.6px;color:var(--ink-2);margin:0 0 18px}
+.note b{color:var(--ink)}
+
+ul.tem{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
+ul.tem li{flex:1 1 270px;padding:10px 13px;font-size:14px;color:var(--ink-2);
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+ul.tem li b{display:block;color:var(--ink);font-weight:600;font-size:14.2px;margin-bottom:1px}
+
+ol.tests{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+li.t{border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  padding:12px 15px;box-shadow:var(--shadow)}
+li.t[data-st="ok"]{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+li.t[data-st="bad"]{border-color:var(--bad);background:linear-gradient(92deg,var(--bad-bg),var(--panel) 50%)}
+li.t[data-st="warn"]{border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+li.t[data-st="na"]{opacity:.6}
+.thead{display:flex;align-items:baseline;gap:9px;margin-bottom:8px;flex-wrap:wrap}
+.thead .tid{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--ink-3)}
+.thead .must{font-size:9.6px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;
+  color:var(--bad);background:var(--bad-bg);border-radius:99px;padding:2px 8px}
+.lines{display:flex;flex-direction:column;gap:6px}
+.lines .ln{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:baseline}
+.lines .ln>b{font-size:9.8px;letter-spacing:.09em;text-transform:uppercase;font-weight:700;
+  color:var(--ink-3);padding-top:4px}
+.lines .ln>span{font-size:15px;color:var(--ink)}
+.lines .ln.f>b{color:var(--brass)}
+.lines .ln.d>b{color:var(--ok)}   .lines .ln.d>span{color:var(--ink-2)}
+.lines .ln.x>b{color:var(--bad)}  .lines .ln.x>span{color:var(--ink-2)}
+.trow{display:flex;gap:7px;align-items:center;margin-top:11px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden}
+.seg button{font:inherit;font-size:11.6px;font-weight:500;padding:4px 11px;border:0;cursor:pointer;
+  background:var(--panel-2);color:var(--ink-3);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"][data-v="ok"]{background:var(--ok);color:#fff}
+.seg button[aria-pressed="true"][data-v="warn"]{background:var(--warn);color:#241c05}
+.seg button[aria-pressed="true"][data-v="bad"]{background:var(--bad);color:#fff}
+.seg button[aria-pressed="true"][data-v="na"]{background:var(--na);color:#fff}
+input.nota{flex:1;min-width:160px;font:inherit;font-size:13px;padding:5px 10px;
+  border:1px solid var(--line);border-radius:7px;background:var(--sunk);color:var(--ink)}
+input.nota::placeholder{color:var(--ink-3)}
+li.t code{background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:12.4px}
+kbd{background:var(--sunk);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;
+  padding:0 5px;font-size:12.4px}
+
+ul.risks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+ul.risks li{font-size:14.6px;color:var(--ink-2);border-left:3px solid var(--acc);padding:4px 0 4px 13px}
+ul.risks li b{color:var(--ink)}
+ul.flows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ul.flows li{font-size:14.6px;color:var(--ink-2);padding-left:18px;position:relative}
+ul.flows li::before{content:"→";position:absolute;left:0;color:var(--acc);font-weight:700}
+
+.finding{border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:10px;
+  background:var(--panel);padding:14px 16px;margin-bottom:11px}
+.finding h4{font-size:15.4px;margin-bottom:7px;display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.finding h4 .sev{font-size:9.6px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:99px}
+.sev.grave{background:var(--bad-bg);color:var(--bad)}
+.sev.medio{background:var(--warn-bg);color:var(--warn)}
+.sev.leve{background:var(--na-bg);color:var(--ink-3)}
+.sev.bom{background:var(--ok-bg);color:var(--ok)}
+.finding p{margin:0 0 7px;font-size:14.6px;color:var(--ink-2)}
+.finding p.tech{font-size:13.2px;color:var(--ink-3);border-top:1px dashed var(--line);padding-top:8px;margin-bottom:0}
+.finding p.tech b{color:var(--ink-2)}
+.savestate{font-size:11.5px;color:var(--ink-3);min-width:104px;text-align:right}
+
+@media (max-width:960px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
+  main{padding:20px 18px 90px}
+  .lede h1{font-size:29px}
+  .lines .ln,.legend div{grid-template-columns:1fr;gap:2px}
+  .lines .ln>b{padding-top:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="topbar">
+  <div class="brandmark"><b>Teste do Lyra</b><span>antes de entregar · v1.1.1</span></div>
+  <div class="meter">
+    <div class="bar" id="bar" role="img" aria-label="Progresso do teste">
+      <i class="s-ok" id="b-ok"></i><i class="s-warn" id="b-warn"></i><i class="s-bad" id="b-bad"></i><i class="s-na" id="b-na"></i>
+    </div>
+    <span><b id="m-done">0</b>/<b id="m-tot">0</b> feitos · <b id="m-bad" style="color:var(--bad)">0</b> com problema</span>
+  </div>
+  <div class="tools">
+    <button class="tool" id="f-must" aria-pressed="false" title="Mostrar só os testes obrigatórios">Só obrigatórios</button>
+    <button class="tool" id="f-open" aria-pressed="false" title="Mostrar só o que ainda não foi testado">Só o que falta</button>
+    <button class="tool" id="f-bad" aria-pressed="false" title="Mostrar só o que deu problema">Só problemas</button>
+    <button class="tool" id="btn-export" title="Baixar a lista de resultados">Baixar resultado</button>
+    <button class="tool" id="btn-reset" title="Apagar todas as marcações">Zerar</button>
+    <span class="savestate" id="savestate">local</span>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Partes do programa"></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+const DADOS = /*DADOS*/[
+
+{
+id:"prep", nome:"Antes de começar", cor:"prep",
+oque:"Cinco minutos de preparação que fazem o resto da lista valer. Sem isso, muitos testes vão dar «não testei» e o problema aparece só no domingo.",
+nota:"Faça o teste no **programa instalado**, não na versão de desenvolvimento. Muita coisa (o catálogo de músicas, os comandos de voz) só falha na versão final, porque depende de arquivos que precisam ser empacotados junto.",
+itens:[
+ {id:"PREP-1", p:1,
+  f:"Ligue dois monitores no computador além da tela onde você trabalha. Se não tiver dois, use um monitor e a TV, ou o projetor.",
+  d:"O Windows mostra as três telas em Configurações → Vídeo.",
+  x:"Você só tem uma tela. Aí boa parte da lista não pode ser testada, e a parte de telas e projetor é justamente a mais importante."},
+ {id:"PREP-2", p:1,
+  f:"Instale a versão final do Lyra num computador que nunca teve o programa.",
+  d:"Instala e abre normalmente.",
+  x:"Pede algum arquivo, dá erro na instalação, ou abre com a tela em branco."},
+ {id:"PREP-3",
+  f:"Num segundo computador (se você tiver), instale também, para poder testar a parte de dois computadores mais adiante.",
+  d:"Os dois abrem e se veem na rede.",
+  x:"Não conseguiu instalar no segundo. Marque «não testei» na parte de rede."},
+ {id:"PREP-4",
+  f:"Deixe preparada uma lista de músicas de um culto de verdade: umas 8 músicas, com tom e quem vai cantar.",
+  d:"A lista está montada e você consegue projetar qualquer uma delas.",
+  x:"Você não tem material real para testar. Testar com uma música só esconde a maioria dos problemas."},
+ {id:"PREP-5",
+  f:"Separe um vídeo, uma imagem, um PDF e um áudio no computador, para testar a parte de mídias.",
+  d:"Os quatro arquivos abrem normalmente fora do Lyra.",
+  x:"Você não tem os arquivos. Sem eles, a parte de mídias fica sem teste."},
+ {id:"PREP-6",
+  f:"Deixe o cronômetro do celular à mão e reserve **uma hora e meia** sem interrupção para a lista inteira.",
+  d:"Você consegue ir do começo ao fim sem parar no meio.",
+  x:"Testar aos pedaços, em dias diferentes, faz você perder justamente os erros que só aparecem depois de o programa ficar um tempo aberto."}
+],
+olho:[
+ "Faça a lista **na ordem**. As últimas partes (ensaio de culto completo) dependem de você já ter tudo montado nas anteriores.",
+ "Se um teste der erro, **não conserte na hora**. Anote na nota e siga. Consertar no meio muda o estado do programa e invalida os testes seguintes."
+]
+},
+
+{
+id:"abrir", nome:"Abrir e fechar o programa", cor:"abrir",
+oque:"O que acontece nos primeiros segundos: o programa carrega o banco de músicas, a Bíblia, o catálogo de 10 mil músicas e se prepara para usar as telas. Erro aqui deixa o programa aberto mas com metade das coisas sem funcionar.",
+tem:[
+ {n:"Banco de músicas",o:"Onde ficam guardadas as músicas que você cadastrou."},
+ {n:"Catálogo de músicas",o:"Uma lista de 10.318 músicas que vem junto com o programa, para pesquisar sem internet."},
+ {n:"Bíblia",o:"Seis traduções instaladas: ACF, ARA, ARC, NAA, NTLH, NVI."},
+ {n:"Aviso de atualização",o:"Uma faixa no alto avisando que existe versão nova."},
+ {n:"Menu de cima",o:"Culto, Janelas, Conexão, Servidor e Ajuda."}
+],
+itens:[
+ {id:"ABR-1", p:1,
+  f:"Abra o programa e conte quanto tempo leva até você conseguir clicar em algo.",
+  d:"Menos de 10 segundos, com a tela inicial montada e a lista de músicas do lado esquerdo.",
+  x:"Passa de 20 segundos, ou aparece uma tela branca/cinza antes de montar."},
+ {id:"ABR-2", p:1,
+  f:"Pesquise uma música conhecida na caixa de busca do lado esquerdo, com a fonte «HLYRCS» selecionada.",
+  d:"Aparecem resultados. Isso prova que o catálogo de 10 mil músicas foi instalado junto com o programa.",
+  x:"Nenhum resultado, ou a lista fica «carregando» para sempre. Significa que o catálogo não veio na instalação."},
+ {id:"ABR-3", p:1,
+  f:"Abra a Bíblia e escolha um livro e um capítulo em cada uma das seis traduções.",
+  d:"Os versículos aparecem em todas as seis.",
+  x:"Alguma tradução não carrega nada."},
+ {id:"ABR-4",
+  f:"Se você já usava uma versão antiga do Lyra nesse computador, abra a versão nova e confira as músicas, listas de culto e ajustes.",
+  d:"Tudo continua lá, sem nada duplicado.",
+  x:"Alguma coisa desapareceu, ou apareceu em dobro. Isso não tem volta fácil — pare e avise."},
+ {id:"ABR-5",
+  f:"Ative o tema escuro nos ajustes, feche o programa e abra de novo. Olhe bem o primeiro instante em que a janela aparece.",
+  d:"Já abre escuro.",
+  x:"Pisca branco por uma fração de segundo antes de ficar escuro."},
+ {id:"ABR-6", p:1,
+  f:"Projete uma música e, com ela no ar, feche o programa pelo X da janela.",
+  d:"O telão e a TV apagam junto. Nenhuma janela preta ou com letra fica sobrando na tela.",
+  x:"Sobrou uma janela na frente de tudo, que você não consegue fechar sem abrir o Gerenciador de Tarefas. Esse é um dos piores erros possíveis."},
+ {id:"ABR-7",
+  f:"Abra o menu de cima e clique em cada item de Culto, Janelas, Conexão, Servidor e Ajuda.",
+  d:"Todos abrem algo que faz sentido.",
+  x:"Algum item abre uma janela vazia, ou não faz nada."},
+ {id:"ABR-8",
+  f:"Desconecte o cabo de rede / desligue o Wi-Fi e abra o programa.",
+  d:"Abre normalmente. Só as funções que precisam de internet (buscar letra em site, sincronizar tons) avisam que estão sem rede.",
+  x:"O programa demora muito para abrir, ou trava esperando a internet."}
+],
+olho:[
+ "Se o programa der algum erro nessa parte, ele quase sempre **não avisa na tela** — só grava no registro interno. Por isso o teste é abrir e conferir se cada coisa funciona, não esperar uma mensagem de erro."
+],
+junto:[
+ "Abrir o programa → conferir se a lista de músicas, a lista do culto e os seletores de tela já vêm preenchidos sem você clicar em nada.",
+ "Abrir com o projetor desligado → ligar o projetor depois → veja a parte de Telas e projetor."
+]
+},
+
+{
+id:"barra", nome:"A barra de cima — escolher as telas", cor:"barra",
+oque:"A faixa no alto da janela. É por ali que você escolha **para qual tela** o conteúdo vai: uma para o público (telão) e outra para quem está cantando ou pregando (TV de retorno). É a parte que você mais usa durante o culto.",
+tem:[
+ {n:"Público",o:"Escolhe a tela do telão, que a igreja vê."},
+ {n:"Ministrante",o:"Escolhe a TV de retorno, que quem canta ou prega vê."},
+ {n:"Lembrar monitor",o:"Guarda a tela que você escolheu, para não ter que escolher de novo na próxima vez."},
+ {n:"Botão X (encerrar)",o:"Apaga o que está sendo projetado, sem fechar as janelas."},
+ {n:"LIVE → OBS",o:"Acende quando a projeção também está indo para a transmissão."},
+ {n:"Este PC / Servidor",o:"Mostra qual computador está comandando as telas."},
+ {n:"Botões de modo",o:"Home, Contador, Bíblia, Slide e Mídias."},
+ {n:"Recarregar",o:"Redesenha o painel sem fechar o programa."}
+],
+itens:[
+ {id:"BAR-1", p:1,
+  f:"Desligue os monitores extras, deixando só a tela do computador. Abra as duas listas (Público e Ministrante).",
+  d:"As duas só oferecem «Não exibir». A tela onde você trabalha **não** aparece na lista.",
+  x:"A sua própria tela aparece como opção. Se alguém clicar nela, a letra do hino cobre o painel do operador no meio do culto."},
+ {id:"BAR-2", p:1,
+  f:"Com dois monitores ligados, escolha o mesmo monitor em Público e em Ministrante.",
+  d:"O programa não deixa os dois ficarem na mesma tela — ele recusa, ou muda o outro automaticamente.",
+  x:"Os dois ficam no mesmo monitor. Aí duas janelas se sobrepõem e você não vê nenhuma direito."},
+ {id:"BAR-3", p:1,
+  f:"Coloque Público em «Não exibir». Agora entre no modo Slide, volte para a Home, entre de novo, volte — cinco vezes.",
+  d:"Continua em «Não exibir» todas as vezes.",
+  x:"O programa preenche sozinho com um monitor. Sua escolha foi apagada."},
+ {id:"BAR-4", p:1,
+  f:"Entre na Bíblia, marque «Lembrar monitor», escolha uma tela. Clique no X para encerrar. Saia da Bíblia e entre de novo.",
+  d:"O seletor volta já com a tela escolhida, **mas nada está sendo projetado**. Lembrar a tela não é o mesmo que voltar a projetar.",
+  x:"O versículo volta a aparecer no telão sozinho, sem você mandar."},
+ {id:"BAR-5", p:1,
+  f:"Repita o teste acima, mas **desligue a TV** antes de entrar na Bíblia de novo.",
+  d:"Volta para «Não exibir» e aparece um aviso dizendo qual tela está faltando. Sua preferência **não** é apagada — quando a TV voltar, ela volta a aparecer.",
+  x:"O programa esquece a tela para sempre, ou não avisa nada e você fica sem entender por que não projeta."},
+ {id:"BAR-6", p:1,
+  f:"Projete uma música. Depois clique no botão X da barra de cima.",
+  d:"O telão apaga **e** a TV do ministrante apaga também. As janelas ficam abertas e pretas.",
+  x:"O telão apaga mas a TV continua mostrando o nome da música ou a estrofe anterior. Este é um dos pontos mais suspeitos do programa — teste com atenção."},
+ {id:"BAR-7",
+  f:"Projete uma música e olhe o indicador «LIVE → OBS». Depois encerre.",
+  d:"Acende quando está projetando e apaga quando encerra.",
+  x:"Fica aceso depois de encerrar, dando a impressão de que ainda está no ar na transmissão."},
+ {id:"BAR-8", p:1,
+  f:"Com uma música projetada no ar, troque o monitor do Público para o outro monitor.",
+  d:"A letra aparece no monitor novo e o antigo apaga. Sem piscar branco no meio.",
+  x:"Pisca branco, some por alguns segundos, ou aparece nos dois ao mesmo tempo."},
+ {id:"BAR-9",
+  f:"Com uma música projetada, clique no botão de recarregar (as duas flechas em círculo).",
+  d:"O painel se redesenha, mas a projeção **não pisca nem apaga**. Depois de recarregar, o painel volta a mostrar o que está no telão.",
+  x:"A projeção apaga, ou o painel volta mostrando coisa diferente do que está na tela."},
+ {id:"BAR-10",
+  f:"Abra a lista de monitores e, com ela aberta, desligue e ligue um monitor.",
+  d:"A lista fecha ou se atualiza. Nunca continua mostrando uma tela que já não existe.",
+  x:"A lista mostra uma tela que você desligou. Clicar nela projeta no lugar errado."},
+ {id:"BAR-11",
+  f:"Use só o teclado ([[Tab]] para andar, [[Enter]] para clicar) e chegue nos cinco botões de modo.",
+  d:"Dá para alcançar todos, e dá para ver onde o foco está.",
+  x:"Algum botão só funciona com o mouse. Num aperto no culto, isso custa tempo."},
+ {id:"BAR-12",
+  f:"Confira o indicador «Este PC / Servidor» ao usar o programa sozinho e ao conectar num servidor.",
+  d:"Mostra corretamente quem está comandando as telas.",
+  x:"Mostra errado. Você vai mexer no computador errado no meio do culto."}
+],
+olho:[
+ "O teste **BAR-6** é o mais importante desta parte. A suspeita técnica é que o comando enviado ao encerrar limpa o telão mas não a TV do ministrante. Se a TV não apagar, anote exatamente o que ficou escrito nela.",
+ "«Lembrar monitor» só existe nos modos **Bíblia** e **Mídias**. Nos outros, a escolha de tela funciona de outro jeito — não estranhe se a caixinha não aparecer."
+],
+junto:[
+ "Modo Slide projetando → trocar a tela do Público → entrar na Bíblia → voltar ao Slide: a tela do Slide tem de ser a que você deixou.",
+ "Contagem regressiva num monitor + Bíblia no outro ao mesmo tempo: nenhuma pode fechar a janela da outra.",
+ "Vídeo no telão + slides na TV do ministrante ao mesmo tempo."
+]
+},
+
+{
+id:"home", nome:"Tela inicial (Home)", cor:"home",
+oque:"A tela de trabalho normal: músicas à esquerda, letra no meio, lista do culto à direita, quadradinhos dos slides embaixo. É onde você volta sempre que sai de um modo.",
+tem:[
+ {n:"Botão Home",o:"Sai do modo em que você está e volta para esta tela."},
+ {n:"Artista e Título",o:"Campos para corrigir o nome da música."},
+ {n:"Etiquetas de versão",o:"Mostram se você está vendo a letra original ou uma cópia sua."},
+ {n:"Prévia TELÃO e prévia TV",o:"Mostram o que está (ou vai) aparecer em cada tela."},
+ {n:"Nota do slide",o:"Uma anotação só para você. Nunca vai para as telas."},
+ {n:"Flechas ‹ ›",o:"Andam de estrofe em estrofe."},
+ {n:"Tecla Esc",o:"Solta a música do painel."}
+],
+itens:[
+ {id:"HOM-1",
+  f:"Abra o programa e não toque em nada por 2 minutos. Fique olhando.",
+  d:"Nada pisca, nada muda sozinho, nenhuma mensagem aparece e desaparece.",
+  x:"Algum texto ou caixa aparece e some sozinho, ou fica uma mensagem antiga presa na tela."},
+ {id:"HOM-2", p:1,
+  f:"Entre na Home vindo de cada um dos outros modos, um por um: do Slide, da Bíblia, das Mídias e do Contador.",
+  d:"Nas quatro vezes a tela volta completa: músicas à esquerda, letra no meio, lista à direita.",
+  x:"Alguma coluna fica sumida, muito estreita, ou os quadradinhos dos slides não voltam."},
+ {id:"HOM-3", p:1,
+  f:"Entre e saia da Home dez vezes seguidas, o mais rápido que conseguir.",
+  d:"Nenhuma tela branca, nada travado, e o programa continua respondendo aos cliques.",
+  x:"Em algum momento os cliques param de funcionar (parece que tem um vidro invisível na frente), ou o programa fica lento."},
+ {id:"HOM-4", p:1,
+  f:"Selecione uma música, mude o título, **não salve** e tente ir para outro modo.",
+  d:"O programa avisa que tem alteração não salva e pergunta o que fazer.",
+  x:"Troca de modo e perde o que você digitou, sem avisar. Perder texto digitado sem aviso é inaceitável."},
+ {id:"HOM-5",
+  f:"Com uma música selecionada e projetada, aperte [[Esc]].",
+  d:"A música é soltada do painel e a projeção encerra.",
+  x:"Nada acontece, ou acontece só metade (a música sai do painel mas continua no telão)."},
+ {id:"HOM-6", p:1,
+  f:"Abra a janela de Ajustes e aperte [[Esc]]. Depois abra o calendário de culto e aperte [[Esc]]. Depois abra o menu do botão direito num quadradinho de slide e aperte [[Esc]].",
+  d:"Cada [[Esc]] fecha só a janelinha que está na frente. A música **não** é soltada nessas vezes — só quando não tem nada aberto por cima.",
+  x:"O [[Esc]] fecha a janelinha **e** solta a música ao mesmo tempo. Você perde a música selecionada sem querer."},
+ {id:"HOM-7",
+  f:"Esconda as duas prévias (TELÃO e TV) usando os botõezinhos de olho. Feche o programa e abra de novo.",
+  d:"Continuam escondidas.",
+  x:"Voltam a aparecer. Você teria que esconder de novo todo domingo."},
+ {id:"HOM-8",
+  f:"Arraste a divisória dos quadradinhos de slides para cima até o limite, e depois para baixo até o limite.",
+  d:"Nos dois extremos ainda sobra espaço utilizável. Feche e abra: a altura fica guardada.",
+  x:"Dá para arrastar até a área do meio desaparecer, e você não consegue mais voltar."},
+ {id:"HOM-9", p:1,
+  f:"Escreva uma nota num slide. Feche a janelinha, troque de música, volte para a primeira. Depois projete esse slide.",
+  d:"A nota volta no slide certo. E **nunca** aparece no telão nem na TV.",
+  x:"A nota apareceu numa tela de projeção, ou migrou para a música errada."},
+ {id:"HOM-10",
+  f:"Ande com as flechas até passar do último slide da música.",
+  d:"Chega numa tela preta (é de propósito: o fim da música) e para ali.",
+  x:"Continua andando, ou dá algum erro."},
+ {id:"HOM-11",
+  f:"Sem nenhuma música selecionada, clique em todos os botões da barra do meio.",
+  d:"Todos estão apagados ou não fazem nada.",
+  x:"Algum botão faz algo estranho ou o programa para de responder."}
+],
+olho:[
+ "O teste **HOM-6** existe porque a tecla [[Esc]] faz coisas diferentes conforme o que está aberto. É um dos lugares mais fáceis de dar errado.",
+ "**HOM-3** é o teste de «entrar e sair muito»: erros de tela travada quase sempre só aparecem depois da quinta ou sexta troca."
+],
+junto:[
+ "Home → escolher música → Modo Slide → projetar → voltar para a Home: a música continua selecionada e a projeção continua no ar.",
+ "Home → Mídias (projetar uma imagem) → voltar para a Home: a imagem continua no telão e a prévia da Home mostra isso.",
+ "Home → Bíblia → projetar versículo → voltar para a Home: o meio da tela volta a mostrar a letra, sem apagar o versículo do telão."
+]
+},
+
+{
+id:"musicas", nome:"Procurar e cadastrar músicas", cor:"musicas",
+oque:"A coluna da esquerda. Você pode procurar em quatro lugares: no catálogo que já vem instalado (sem internet), no Cifra Club, no Letras.mus.br e no Lyra Online. E pode cadastrar música na mão.",
+tem:[
+ {n:"Fonte da busca",o:"Escolhe onde procurar: HLYRCS (offline), Cifra Club, Letras.mus.br ou Lyra Online."},
+ {n:"Caixinhas de filtro",o:"Procurar pelo nome da música, pelo artista ou por um trecho da letra."},
+ {n:"Buscar",o:"Procura no site escolhido. A tecla [[Enter]] também busca."},
+ {n:"Lista de músicas salvas",o:"O seu banco. Dá para recolher para ganhar espaço."},
+ {n:"+ Nova música manual",o:"Cadastrar uma música colando a letra."},
+ {n:"Botão direito na música",o:"Duplicar, renomear, remover, adicionar na lista do culto."},
+ {n:"Prévia da letra",o:"Vê a letra antes de importar, e escolhe quantas linhas por slide."}
+],
+itens:[
+ {id:"MUS-1",
+  f:"Troque a fonte de busca entre as quatro opções e olhe o texto cinza dentro da caixa de busca.",
+  d:"O texto muda para a fonte escolhida («Buscar no Cifra Club…», etc.). Feche e abra o programa: a fonte escolhida continua.",
+  x:"O texto cinza diz um site e a busca acontece em outro. Você procura no lugar errado sem saber."},
+ {id:"MUS-2",
+  f:"Desmarque as três caixinhas de filtro (música, artista, letra) e busque algo.",
+  d:"O programa avisa que precisa de pelo menos um filtro, ou remarca um sozinho.",
+  x:"Não acha nada e não explica por quê. Você acha que a música não existe."},
+ {id:"MUS-3", p:1,
+  f:"Digite uma busca em site (Cifra Club) e, **antes de a resposta chegar**, mude de modo. Depois volte.",
+  d:"A busca é cancelada. Ao voltar, a lista não é preenchida com o resultado atrasado.",
+  x:"Segundos depois, a lista se preenche sozinha com a busca antiga, por cima do que você estava vendo."},
+ {id:"MUS-4",
+  f:"Desligue a internet e busque numa fonte de site.",
+  d:"Mensagem clara dizendo que está sem rede. A busca no catálogo offline (HLYRCS) continua funcionando.",
+  x:"Fica «carregando» para sempre, sem explicar nada."},
+ {id:"MUS-5",
+  f:"Marque o filtro «Letra (trecho)» e busque uma palavra comum, tipo «graça».",
+  d:"Responde em menos de 1 segundo e mostra quantos resultados achou.",
+  x:"O programa congela por vários segundos."},
+ {id:"MUS-6",
+  f:"Ande pela lista de músicas usando só as flechas do teclado, e aperte [[Enter]] numa música.",
+  d:"Você vê onde o foco está, a música em foco fica sempre visível na tela, e o [[Enter]] adiciona ela na lista do culto.",
+  x:"O foco desaparece, ou o [[Enter]] não faz nada."},
+ {id:"MUS-7",
+  f:"Recolha a lista de músicas salvas (o botãozinho no cabeçalho dela), troque de modo, e volte.",
+  d:"Continua recolhida, e aparece um aviso explicando que a lista está escondida.",
+  x:"A lista fica escondida sem nenhum aviso. Parece que o banco de músicas ficou vazio."},
+ {id:"MUS-8", p:1,
+  f:"Importe do Cifra Club uma música que **já existe** no seu banco (mesmo nome e artista).",
+  d:"O programa avisa que já existe e oferece: usar a que você já tem, criar uma segunda, ou substituir.",
+  x:"Importa em silêncio e você fica com duas iguais na lista, sem saber qual é qual."},
+ {id:"MUS-9",
+  f:"Duplique a mesma música duas vezes seguidas (botão direito → duplicar).",
+  d:"As duas cópias ganham nomes diferentes, dá para distinguir na lista.",
+  x:"Ficam duas com o nome idêntico. Na lista do culto você não sabe qual escolheu."},
+ {id:"MUS-10",
+  f:"Crie uma música manual preenchendo **só o título** — sem artista e sem letra. Salve.",
+  d:"Ou o programa avisa o que falta, ou salva uma música vazia que dá para completar depois.",
+  x:"Salva e depois dá erro quando você tenta projetar."},
+ {id:"MUS-11", p:1,
+  f:"Escolha uma música que esteja **em duas listas de culto diferentes** e remova ela do banco.",
+  d:"Sai das duas listas e some do painel, sem sobrar nenhum resto.",
+  x:"Fica uma linha na lista do culto apontando para uma música que não existe mais, e dá erro ao clicar nela."},
+ {id:"MUS-12", p:1,
+  f:"Projete uma música e, com ela no ar, remova ela do banco.",
+  d:"A projeção encerra de forma limpa, ou continua mostrando o slide até você mudar. Mas nunca dá erro na tela do público.",
+  x:"Aparece mensagem de erro, ou a tela do telão fica em branco/estranha."},
+ {id:"MUS-13",
+  f:"Abra a prévia da letra de uma música, selecione tudo com o mouse, copie, e cole no Bloco de Notas.",
+  d:"As estrofes vêm separadas por linhas em branco, do mesmo jeito que estavam.",
+  x:"Vem tudo colado num bloco só. Perde a divisão dos slides."},
+ {id:"MUS-14",
+  f:"Abra o menu do botão direito numa música e, **com o menu aberto**, troque de modo. Volte.",
+  d:"O menu fecha ao trocar. Ao voltar, não tem nenhum menuzinho sobrando na tela.",
+  x:"Fica um menu solto flutuando na tela, que não fecha com clique nem com [[Esc]]."}
+],
+olho:[
+ "**MUS-3** é o erro mais escondido desta parte: a resposta de um site chega depois de você já ter mudado de tela, e sobrescreve o que você está vendo.",
+ "A fonte «Lyra Online» é a mais nova e a menos testada de todas. Vale insistir nela."
+],
+junto:[
+ "Achar música na biblioteca → adicionar na lista do culto → Modo Slide → projetar: a que aparece no telão é a versão certa.",
+ "Importar do Cifra Club → corrigir a letra → salvar → conferir se a lista do culto mostra o nome novo.",
+ "Remover música do banco → olhar a lista do culto: a linha some sem deixar buraco na numeração."
+]
+},
+
+{
+id:"letras", nome:"Escrever e corrigir a letra", cor:"letras",
+oque:"O meio da tela. Aqui você divide a música em slides, escreve, corrige, compara duas versões lado a lado e alterna entre MAIÚSCULAS e letra normal. Também é onde você cria cópias suas da letra, sem mexer na original.",
+tem:[
+ {n:"Editar letra",o:"Entra no modo de escrever."},
+ {n:"Nova estrofe",o:"Acrescenta um slide vazio no fim."},
+ {n:"Salvar",o:"Grava a letra."},
+ {n:"Letra completa",o:"Junta tudo num texto só, onde linha em branco separa os slides."},
+ {n:"Comparar",o:"Duas versões lado a lado, com as diferenças destacadas."},
+ {n:"Botão aA",o:"Alterna entre MAIÚSCULAS e letra normal em toda a música."},
+ {n:"Etiquetas de versão",o:"Trocar, renomear e apagar as cópias da letra (até 5 por música)."}
+],
+itens:[
+ {id:"LET-1", p:1,
+  f:"Entre em editar, mude uma estrofe, e clique em «Encerrar edição» sem salvar.",
+  d:"O programa avisa que tem alteração não salva e deixa você escolher.",
+  x:"Sai e perde o que você escreveu, sem perguntar nada."},
+ {id:"LET-2", p:1,
+  f:"Entre em editar, mude uma estrofe, e sem salvar tente ir para o Slide, para a Bíblia e para as Mídias.",
+  d:"O mesmo aviso aparece nas três vezes.",
+  x:"Num desses caminhos ele deixa sair calado e perde a edição. Teste os três, não só um."},
+ {id:"LET-3",
+  f:"Abra «Letra completa», cole um texto de uma música inteira com linhas em branco separando as estrofes, e volte para os quadradinhos.",
+  d:"Cada bloco virou um slide. Não sobrou nenhum slide vazio no fim.",
+  x:"Ficou tudo num slide só, ou sobraram slides vazios."},
+ {id:"LET-4",
+  f:"Abra «Letra completa», mude o texto, clique em cancelar, e abra de novo.",
+  d:"Aparece o texto original — o cancelar realmente descartou.",
+  x:"Aparece o texto que você tinha cancelado."},
+ {id:"LET-5",
+  f:"Abra o «Comparar» entre a letra original e uma cópia sua. Role os dois lados.",
+  d:"As diferenças ficam destacadas nos dois lados, e o destaque acompanha o texto ao rolar.",
+  x:"O destaque fica desalinhado do texto, marcando a linha errada."},
+ {id:"LET-6",
+  f:"No comparativo, corrija o lado da direita, salve, e olhe a lista do culto.",
+  d:"A etiqueta da versão na lista do culto foi atualizada.",
+  x:"A lista continua mostrando o nome antigo, ou aponta para uma versão que não existe mais."},
+ {id:"LET-7",
+  f:"Numa letra que está toda em MAIÚSCULAS, clique no botão aA.",
+  d:"Volta para letra normal (primeira maiúscula, resto minúsculo). Clique de novo: volta para MAIÚSCULAS.",
+  x:"O botão não faz nada, ou faz só na primeira vez."},
+ {id:"LET-8",
+  f:"Coloque o cursor no meio de uma estrofe e clique no botão aA.",
+  d:"O cursor fica onde estava.",
+  x:"O cursor salta para o fim do texto. Digitar fica impossível."},
+ {id:"LET-9",
+  f:"Crie cinco cópias da mesma música e tente criar a sexta.",
+  d:"Ele avisa que chegou no limite de cinco.",
+  x:"Cria a sexta em silêncio e depois alguma coisa quebra."},
+ {id:"LET-10",
+  f:"Com uma música projetada, renomeie a versão que está no ar.",
+  d:"A etiqueta, a lista do culto e as prévias mudam de nome. A projeção não pisca.",
+  x:"A projeção pisca ou reinicia."},
+ {id:"LET-11", p:1,
+  f:"Apague a cópia da letra que está sendo usada na lista do culto.",
+  d:"A lista volta a apontar para a letra original, em vez de ficar apontando para o vazio.",
+  x:"A linha da lista fica quebrada e dá erro ao clicar."},
+ {id:"LET-12",
+  f:"Corrija o título de uma música na Home e projete a primeira estrofe.",
+  d:"O nome novo é o que aparece na TV do ministrante.",
+  x:"A TV mostra o nome antigo."},
+ {id:"LET-13", p:1,
+  f:"Projete uma estrofe e, com ela no telão, comece a digitar naquela mesma estrofe.",
+  d:"O telão só muda quando você salvar ou projetar de novo. O que você está digitando não aparece na tela do público.",
+  x:"O texto meio escrito aparece na TV ou no telão enquanto você digita."},
+ {id:"LET-14",
+  f:"Cole uma estrofe muito longa (10 linhas) e depois mude o zoom dos quadradinhos.",
+  d:"O quadradinho se ajusta e nenhum texto fica cortado.",
+  x:"A última linha fica escondida, e você projeta sem saber que tem mais texto."}
+],
+olho:[
+ "Existem **três** modos de mexer na letra ao mesmo tempo: os quadradinhos, a letra completa e o comparativo. Teste passar de um para o outro **com alteração pendente** — é aí que dá errado.",
+ "**LET-13** é importante porque a TV do ministrante acompanha o que você digita com atraso de menos de meio segundo. Se ela mostrar texto meio escrito, quem está cantando se perde."
+],
+junto:[
+ "Letra completa aberta → entrar no Modo Slide: o meio da tela tem de trocar direito, sem deixar edição pendente escondida.",
+ "Comparativo aberto → ir para a Bíblia → voltar: o comparativo tem de estar fechado, não escondido.",
+ "Corrigir letra → salvar → lista do culto → «Próxima música» → voltar: a versão corrigida é a que projeta."
+]
+},
+
+{
+id:"tom", nome:"Tom e quem vai cantar", cor:"tom",
+oque:"O tom de cada música e o nome de quem vai ministrar. O programa lembra o tom que cada pessoa usou em cada música, e dá para importar tons de um arquivo ou puxar do site.",
+tem:[
+ {n:"Ministrante do culto",o:"Quem vai cantar. Músicas novas na lista já nascem com esse nome."},
+ {n:"Tom em cada linha",o:"O tom daquela música naquele culto."},
+ {n:"Memória de tom",o:"Sugere o tom que aquela pessoa já usou naquela música."},
+ {n:"Aplicar a todas",o:"Passa o ministrante e os tons para toda a lista de uma vez."},
+ {n:"Cadastro de ministrantes",o:"Em Ajustes → Ministrantes: adicionar, renomear, excluir."},
+ {n:"Importar tons",o:"Carrega um arquivo com tons e ministrantes."},
+ {n:"Sincronizar do site",o:"Puxa os tons cadastrados no site."}
+],
+itens:[
+ {id:"TOM-1",
+  f:"Escolha o ministrante do culto e depois adicione uma música nova na lista.",
+  d:"A música nova já vem com o nome do ministrante e, se tiver memória, com o tom que ele usa.",
+  x:"A música nasce sem ministrante nem tom, e você tem que preencher na mão."},
+ {id:"TOM-2", p:1,
+  f:"Monte a lista do culto com tons preenchidos na mão. **Depois** troque o ministrante do culto.",
+  d:"O programa pergunta se você quer aplicar em todas ou só nas próximas. Ele nunca apaga os tons que você digitou sem perguntar.",
+  x:"Apaga os tons que você acabou de preencher. Faltando 10 minutos para o culto, isso é grave."},
+ {id:"TOM-3",
+  f:"Preencha um tom na mão, use «limpar tudo», e escolha de novo o mesmo ministrante.",
+  d:"A memória traz de volta o tom que aquela pessoa usava naquela música.",
+  x:"Vem em branco, ou vem o tom de outra pessoa."},
+ {id:"TOM-4",
+  f:"Renomeie um ministrante que está sendo usado em três cultos.",
+  d:"O nome novo aparece nos três, e os tons continuam ligados a ele.",
+  x:"Algum culto continua com o nome antigo, ou os tons se perdem."},
+ {id:"TOM-5",
+  f:"Exclua um ministrante que está em uso.",
+  d:"Avisa antes. Depois de confirmar, as listas ficam sem o nome mas mantêm os tons.",
+  x:"Exclui calado e as listas ficam com um nome vazio ou com erro."},
+ {id:"TOM-6",
+  f:"Importe um arquivo de tons válido. Depois importe um arquivo estragado de propósito (abra num editor de texto e apague algumas linhas).",
+  d:"O válido diz quantos tons aplicou. O estragado dá erro claro e **não muda nada**.",
+  x:"O estragado aplica metade e deixa o banco num meio caminho."},
+ {id:"TOM-7",
+  f:"Clique em «Sincronizar agora» com internet e depois sem internet.",
+  d:"Com internet: diz quantos itens aplicou. Sem internet: mensagem clara.",
+  x:"Trava, ou toda vez importa tudo de novo desde o começo."},
+ {id:"TOM-8",
+  f:"Deixe o programa aberto por umas horas e desligue a internet no meio.",
+  d:"Quando a internet volta, a sincronização automática volta a funcionar.",
+  x:"Depois do primeiro erro, nunca mais sincroniza até você reabrir o programa."}
+],
+olho:[
+ "O tom fica guardado em **dois lugares**: na lista do culto e na memória do ministrante. Se os dois discordarem depois de sincronizar, é aí que está o problema.",
+ "Esta parte do programa foi mexida horas antes deste teste. Vale testar com mais cuidado que o resto."
+],
+junto:[
+ "Cadastrar ministrantes → montar lista do culto → compartilhar a lista: os tons e os nomes têm de viajar junto no código de compartilhamento.",
+ "Importar lista por código → conferir se os tons chegaram e se ministrantes que não existiam foram criados.",
+ "Rodar a verificação de véspera ([[F9]]): ela tem de acusar música sem tom antes do culto."
+]
+}
+
+,
+
+{
+id:"lista", nome:"Lista do culto (playlist)", cor:"lista",
+oque:"A coluna da direita. Escolher a data do culto, montar a ordem das músicas, separar em blocos por tema, compartilhar a lista com outro computador e receber lista de alguém por código.",
+tem:[
+ {n:"Data do culto",o:"Lista os cultos do mês. Dá para adicionar culto numa data qualquer."},
+ {n:"Blocos por tema",o:"Divide a lista em partes (ABERTURA, LOUVOR, etc.). Dá para recolher cada bloco."},
+ {n:"Arrastar",o:"Muda a ordem das músicas, e também move um bloco inteiro."},
+ {n:"Flechas ▲▼",o:"Sobe e desce a música uma posição."},
+ {n:"Copiar nomes",o:"Copia a lista numerada, só com os nomes das músicas."},
+ {n:"Botão S",o:"Sincroniza o banco de músicas com outro computador da rede."},
+ {n:"Botão C",o:"Gera um código para outra pessoa importar a sua lista."},
+ {n:"Botão I",o:"Importa uma lista a partir de um código."},
+ {n:"Duplo clique",o:"Começa a projetar aquela música."}
+],
+itens:[
+ {id:"LIS-1",
+  f:"Abra o programa num sábado à noite e depois num domingo de manhã. Olhe qual culto vem escolhido.",
+  d:"Vem o próximo culto, pelo horário.",
+  x:"Vem o culto da semana passada, ou um culto errado. Se acontecer na virada do mês, anote a data exata."},
+ {id:"LIS-2",
+  f:"Adicione um culto manual numa data que já tem culto.",
+  d:"Ou ele não duplica, ou dá para distinguir os dois claramente.",
+  x:"Ficam dois cultos idênticos na lista, e a lista de músicas de um aparece no outro."},
+ {id:"LIS-3",
+  f:"No calendário, navegue para o mês anterior e para o seguinte e adicione um culto em cada.",
+  d:"Os dois aparecem na lista de cultos.",
+  x:"Você adiciona e o culto não aparece em lugar nenhum."},
+ {id:"LIS-4",
+  f:"Exclua um culto manual **que já tem lista de músicas montada**.",
+  d:"Pede confirmação e apaga tudo daquele culto junto.",
+  x:"Some da lista mas, se você criar um culto na mesma data depois, a lista antiga volta do nada."},
+ {id:"LIS-5",
+  f:"Remova o bloco ABERTURA da lista, feche o programa e abra de novo.",
+  d:"Continua sem o ABERTURA.",
+  x:"O bloco volta sozinho a cada vez que você abre o programa."},
+ {id:"LIS-6", p:1,
+  f:"Crie três blocos de tema com músicas em cada. Arraste o cabeçalho de um bloco para outra posição.",
+  d:"Todas as músicas daquele bloco vão junto com ele.",
+  x:"O cabeçalho do bloco vai sozinho e as músicas ficam para trás, embaralhando a lista."},
+ {id:"LIS-7",
+  f:"Recolha dois blocos, troque de culto, e volte para o primeiro culto.",
+  d:"Os blocos recolhidos são de cada culto separadamente — o que você recolheu num não afeta o outro.",
+  x:"Recolher num culto recolhe em todos."},
+ {id:"LIS-8",
+  f:"Suba uma música com a flecha até o topo da lista, e desça outra até o fim.",
+  d:"No topo, a flecha de subir apaga. No fim, a de descer apaga. O foco continua no botão que você clicou.",
+  x:"O foco pula para outro lugar e você tem que caçar o botão com o mouse a cada clique."},
+ {id:"LIS-9",
+  f:"Clique em «Copiar nomes» e cole no WhatsApp ou no Bloco de Notas.",
+  d:"Sai uma lista numerada, só com os nomes.",
+  x:"Sai com códigos, tags ou tons no meio."},
+ {id:"LIS-10", p:1,
+  f:"Compartilhe uma lista (botão C), pegue o código, e importe no outro computador (botão I). Faça de forma que **três músicas já existam** lá.",
+  d:"Para cada música repetida, ele mostra a sua ao lado da que chegou e deixa escolher: substituir, manter a sua, ou ficar com as duas. A opção «aplicar aos demais» respeita a sua escolha nas seguintes.",
+  x:"Substitui em silêncio, ou a opção «aplicar aos demais» faz a escolha errada nas próximas."},
+ {id:"LIS-11", p:1,
+  f:"Comece a importar uma lista e tente fechar a janela **no meio** do processo.",
+  d:"Ele não deixa fechar enquanto está importando. Quando termina, libera.",
+  x:"Fecha no meio e você fica com metade das músicas importadas."},
+ {id:"LIS-12",
+  f:"Importe uma lista para uma data de culto que ainda não existe na sua lista.",
+  d:"Ele cria a data e já deixa ela selecionada.",
+  x:"Importa e você não encontra onde foi."},
+ {id:"LIS-13",
+  f:"Tente importar: um código inventado, um código de uma lista antiga, e um código vazio.",
+  d:"Três mensagens diferentes e compreensíveis.",
+  x:"Sempre a mesma mensagem genérica, que não diz o que fazer."},
+ {id:"LIS-14", p:1,
+  f:"Com uma música projetada, dê duplo clique em outra linha da lista.",
+  d:"Troca de música direto, sem o telão piscar preto no meio.",
+  x:"Pisca preto entre uma música e outra. No meio do louvor, isso é bem visível."},
+ {id:"LIS-15",
+  f:"Esconda a prévia do slide (botãozinho de olho no alto da coluna), troque de modo, e volte.",
+  d:"Continua escondida.",
+  x:"Volta a aparecer."},
+ {id:"LIS-16",
+  f:"Adicione 40 músicas na lista, role até o fim, e depois troque a música projetada.",
+  d:"A lista rola sozinha para mostrar a música que está no ar.",
+  x:"Você perde de vista qual linha está tocando e tem que procurar."},
+ {id:"LIS-17",
+  f:"Adicione a mesma música duas vezes: uma na letra original e outra numa cópia sua.",
+  d:"As duas linhas ficam na lista e dá para diferenciar pela etiqueta de versão.",
+  x:"Ele bloqueia a segunda dizendo que já está na lista, mesmo sendo versão diferente."},
+ {id:"LIS-18",
+  f:"Altere a lista (mova uma música) e feche o programa **em menos de 1 segundo**.",
+  d:"Ao reabrir, a alteração está lá.",
+  x:"A última alteração se perdeu."}
+],
+olho:[
+ "**LIS-18** é o risco de perder dados nº 1 do programa: as alterações são gravadas com um pequeno atraso, e fechar rápido pode pegar esse atraso no meio.",
+ "A importação por código passa por quatro janelinhas seguidas. Teste apertar [[Esc]] e clicar fora em **cada uma** delas."
+],
+junto:[
+ "Lista do culto → botão «Próxima música» nos slides: tem de avançar na ordem que você está vendo, respeitando os blocos de tema.",
+ "Lista → Modo Slide → projetar → voltar para a Home: a linha da música continua destacada.",
+ "Sincronizar banco entre dois computadores → aparece uma janelinha oferecendo as músicas novas → adicionar na lista do culto certo."
+]
+},
+
+{
+id:"slides", nome:"Os quadradinhos da música (slides)", cor:"slides",
+oque:"A faixa de baixo, com um quadradinho para cada parte da música. Dá para mudar quantos cabem por linha, aumentar o tamanho, corrigir um slide na hora e pular para a próxima música sem apagar o telão.",
+tem:[
+ {n:"Quadradinhos",o:"Cada um é uma estrofe. O que está no ar fica destacado."},
+ {n:"Qt. de Slides (7 · 5 · 3)",o:"Quantos cabem por linha."},
+ {n:"Zoom − / +",o:"Aumenta e diminui os quadradinhos."},
+ {n:"Divisória",o:"Arraste para dar mais ou menos espaço para a faixa."},
+ {n:"Botão direito no quadradinho",o:"Editar, excluir, escrever nota."},
+ {n:"Próxima música",o:"Carrega a próxima da lista e já projeta a primeira estrofe, sem fechar as telas."}
+],
+itens:[
+ {id:"SLI-1",
+  f:"Numa música com umas 20 estrofes, troque entre 7, 5 e 3 slides por linha.",
+  d:"Os quadradinhos mudam de tamanho, e o que está no ar continua visível na tela sem você rolar.",
+  x:"Depois de trocar, o slide ativo sai da área visível e você tem que procurar rolando."},
+ {id:"SLI-2",
+  f:"Diminua o zoom até o mínimo e aumente até o máximo. Feche e abra o programa.",
+  d:"Nos dois extremos ainda dá para ler. O valor em % acompanha e fica guardado.",
+  x:"Fica tão pequeno que não se lê nada, ou tão grande que sai da tela."},
+ {id:"SLI-3",
+  f:"Arraste a divisória da faixa até tapar quase toda a área do meio, e depois até o mínimo.",
+  d:"Nos dois extremos sobra área utilizável.",
+  x:"Dá para deixar num tamanho onde você não consegue mais trabalhar nem voltar atrás."},
+ {id:"SLI-4",
+  f:"Com a faixa cheia de quadradinhos, redimensione a janela do Lyra arrastando a borda.",
+  d:"Os quadradinhos se reencaixam sem tremer.",
+  x:"Fica tremendo, piscando, ou o texto dentro deles vira um borrão."},
+ {id:"SLI-5", p:1,
+  f:"Com um slide projetado no telão, corrija o texto dele pelo botão direito → editar. Salve.",
+  d:"O telão atualiza com o texto corrigido.",
+  x:"O telão continua com o texto antigo, ou pisca."},
+ {id:"SLI-6",
+  f:"Repita o teste acima mas clique em **cancelar** em vez de salvar.",
+  d:"Nada muda no telão.",
+  x:"Aplica mesmo assim."},
+ {id:"SLI-7", p:1,
+  f:"Exclua o slide que está sendo projetado naquele momento.",
+  d:"A projeção pula para um slide que existe.",
+  x:"O telão fica em branco, ou aparece erro."},
+ {id:"SLI-8",
+  f:"Exclua o **último** slide da música e depois ande com a flecha para a direita.",
+  d:"Chega no fim (tela preta) contando certo o novo total.",
+  x:"Passa do fim, ou fica travado num slide que não existe."},
+ {id:"SLI-9",
+  f:"Abra o menu do botão direito num quadradinho e feche de três formas: clicando fora, apertando [[Esc]] e trocando de modo.",
+  d:"Fecha nas três.",
+  x:"Numa delas o menu fica solto na tela."},
+ {id:"SLI-10",
+  f:"Escreva uma nota num slide, troque para outra música, e volte.",
+  d:"A nota está no slide certo, e os slides com nota têm um sinalzinho.",
+  x:"A nota apareceu na música errada."},
+ {id:"SLI-11", p:1,
+  f:"Com uma música projetada, clique em «Próxima música» cinco vezes seguidas, bem rápido.",
+  d:"Avança de música em música sem fechar as telas nem piscar preto, e para quando chega no fim da lista.",
+  x:"Pula uma música, projeta a errada, ou dá erro no fim da lista."},
+ {id:"SLI-12",
+  f:"Clique em «Próxima música» estando na **última** música da lista.",
+  d:"O botão está apagado, ou não faz nada.",
+  x:"Dá erro, ou volta para a primeira sem avisar."},
+ {id:"SLI-13",
+  f:"Selecione uma música que não tem nenhuma estrofe cadastrada.",
+  d:"Aparece uma mensagem explicando (tipo «escolha uma música na lista»), não um espaço em branco.",
+  x:"Fica um vazio sem explicação e parece que o programa travou."},
+ {id:"SLI-14",
+  f:"Role a faixa até o fim e escolha outra música na lista.",
+  d:"A faixa volta para o começo, mostrando o primeiro slide.",
+  x:"Fica rolada no meio, mostrando slides da música nova fora de ordem visual."}
+],
+olho:[
+ "Os quadradinhos usam um encaixe automático que roda em três etapas encadeadas. Teste **mudar quantidade por linha, zoom e tamanho da janela em sequência rápida**, não um de cada vez — é aí que ele erra."
+],
+junto:[
+ "Lista do culto → duplo clique numa música → a faixa carrega e já projeta a primeira estrofe.",
+ "Corrigir um slide → as prévias TELÃO e TV atualizam, mas o telão de verdade só muda quando você projeta.",
+ "Modo Slide → a faixa é o comando principal; fora dele é só consulta. O rótulo da faixa muda («Música atual ›» no modo Slide, «Slides •» fora dele)."
+]
+},
+
+{
+id:"culto", nome:"Modo Slide — o modo do culto", cor:"culto",
+oque:"O modo em que você passa quase todo o culto: tela enxuta, quadradinhos grandes, lista do culto estreita e o passador de slides funcionando. É o modo mais importante depois de Telas e projetor.",
+tem:[
+ {n:"Passador",o:"[[PageDown]] / [[PageUp]], as quatro flechas, [[Enter]], [[Retrocesso]], [[Barra de Espaço]] e os números 2, 3, 4, 6, 8, 9 do teclado numérico."},
+ {n:"Duplo clique num quadradinho",o:"Começa a projetar aquela estrofe."},
+ {n:"Tela preta do fim",o:"Um slide a mais no fim da música, de propósito."},
+ {n:"[[F10]]",o:"Escurece o telão sem perder o que está projetado."},
+ {n:"[[Esc]]",o:"Encerra a projeção e solta a música."},
+ {n:"Prévias TELÃO e TV",o:"Espelho do que está em cada tela."}
+],
+itens:[
+ {id:"CUL-1", p:1,
+  f:"Entre no modo Slide vindo da Home, depois da Bíblia, depois das Mídias, depois do Contador.",
+  d:"Nas quatro vezes a tela monta certo: lista estreita à direita, quadradinhos grandes no meio.",
+  x:"Numa das vindas a tela fica meio montada, ou a lista não estreita."},
+ {id:"CUL-2", p:1,
+  f:"Com uma música projetada, entre e saia do modo Slide dez vezes.",
+  d:"A projeção continua no ar nas dez vezes.",
+  x:"Em algum momento a projeção encerra sozinha. Se isso acontece durante o louvor, é grave."},
+ {id:"CUL-3", p:1,
+  f:"Teste **cada tecla** do passador, uma por uma: [[PageDown]], [[PageUp]], as quatro flechas, [[Enter]], [[Retrocesso]], [[Barra de Espaço]], e os números 2, 3, 4, 6, 8, 9 do teclado numérico.",
+  d:"Todas andam para frente ou para trás. A [[Barra de Espaço]] só funciona dentro do modo Slide.",
+  x:"Alguma tecla não faz nada, ou anda para o lado errado. Anote qual."},
+ {id:"CUL-4",
+  f:"Se você tem um passador de slides sem fio, teste ele também (avançar e voltar).",
+  d:"Funciona igual ao teclado.",
+  x:"Só um dos dois botões funciona."},
+ {id:"CUL-5", p:1,
+  f:"Antes de começar a projetar, use o passador para andar pelos slides.",
+  d:"Só a prévia no painel muda. **Nada** aparece no telão até você projetar de verdade.",
+  x:"Já começa a aparecer no telão sem você mandar."},
+ {id:"CUL-6",
+  f:"Segure a tecla de avançar por 3 segundos (deixe repetir sozinha).",
+  d:"Avança rápido, sem pular slide e sem travar.",
+  x:"Pula slides, ou o programa engasga e depois anda tudo de uma vez."},
+ {id:"CUL-7",
+  f:"Chegue na tela preta do fim da música e continue apertando avançar.",
+  d:"Fica no preto. Não pula para a música seguinte sozinho.",
+  x:"Vai para a próxima música sem você mandar."},
+ {id:"CUL-8",
+  f:"Aperte [[F10]] (escurece o telão), ande dois slides, e aperte [[F10]] de novo.",
+  d:"Quando volta, aparece o slide certo — o que estava por baixo acompanhou a navegação.",
+  x:"Volta mostrando o slide antigo, de antes do [[F10]]."},
+ {id:"CUL-9", p:1,
+  f:"Com uma música projetada, aperte [[Esc]]. Olhe as **duas** telas.",
+  d:"O telão apaga, a TV do ministrante apaga, a música sai do painel e os quadradinhos escondem.",
+  x:"O telão apaga mas a TV continua com o nome da música ou a estrofe. Igual ao teste BAR-6 — se falhar nos dois, anote."},
+ {id:"CUL-10",
+  f:"Coloque Ministrante em «Não exibir» e projete uma música. Ande pelos slides.",
+  d:"O telão funciona normal. Nenhuma janela abre para o ministrante.",
+  x:"Abre uma janela de ministrante mesmo com «Não exibir»."},
+ {id:"CUL-11",
+  f:"Esconda a prévia do TELÃO e depois a da TV. Projete e ande pelos slides.",
+  d:"A projeção de verdade não muda nada — só o painel esconde os quadros.",
+  x:"Esconder a prévia faz a TV do ministrante parar de receber."},
+ {id:"CUL-12",
+  f:"Com uma música projetada, saia do modo Slide e entre de novo na hora.",
+  d:"Os quadradinhos voltam com o slide certo destacado, e a projeção continua.",
+  x:"Alguma coisa fica sem desenhar, ou o destaque está no slide errado."},
+ {id:"CUL-13", p:1,
+  f:"Clique em «Próxima música» e, imediatamente, use o passador.",
+  d:"O passador anda na música **nova**.",
+  x:"O passador anda na música anterior, e o que aparece no telão não bate com o que você está vendo."}
+],
+olho:[
+ "O passador aceita **mais teclas** do que a janela «Atalhos de teclado» mostra (números 3 e 8 do teclado numérico, e as teclas de mídia). Não é erro de funcionamento, é a ajuda que está incompleta — confira e avise.",
+ "**CUL-9** e **BAR-6** testam a mesma suspeita por dois caminhos. Faça os dois."
+],
+junto:[
+ "Modo Slide projetando → Bíblia → projetar versículo → voltar ao Slide: veja qual das duas coisas ficou no telão e se a outra realmente saiu.",
+ "Modo Slide → Mídias (projetar vídeo) → voltar: a tela escolhida para os slides não pode ter sido apagada.",
+ "Modo Slide → Contador → encerrar a contagem → voltar: a música volta ao ar ou o telão fica preto? Decida o que é o certo e confira.",
+ "Modo Slide com microfone ligado → Bíblia: o microfone tem de trocar de função ou desligar."
+]
+},
+
+{
+id:"biblia", nome:"Bíblia", cor:"biblia",
+oque:"Três colunas: livros (coloridos por grupo), capítulos e versículos. Dá para escolher a tradução, filtrar só Antigo ou Novo Testamento, digitar a referência direto e partir versículos muito longos em pedaços.",
+tem:[
+ {n:"Tradução",o:"ACF, ARA, ARC, NAA, NTLH, NVI. Ele pergunta ao entrar."},
+ {n:"AT / NT",o:"Mostra só um dos testamentos. Clicar de novo volta a mostrar todos."},
+ {n:"Busca rápida",o:"Digite qualquer letra e abre uma caixinha: sigla do livro, capítulo, versículo."},
+ {n:"Clique no versículo",o:"Projeta aquele versículo."},
+ {n:"Partir versículo longo",o:"Em Ajustes → Bíblia: divide versículos grandes em pedaços."},
+ {n:"Três destinos",o:"Telão, TV do ministrante e leitura ampliada, cada um com aparência própria."}
+],
+itens:[
+ {id:"BIB-1",
+  f:"Entre na Bíblia pela primeira vez depois de abrir o programa.",
+  d:"Ele pergunta qual tradução usar, e só monta as colunas depois de você escolher.",
+  x:"As colunas aparecem vazias e você não entende por quê."},
+ {id:"BIB-2",
+  f:"Saia da Bíblia e entre de novo, sem fechar o programa.",
+  d:"Não pergunta a tradução outra vez — mantém a que você escolheu.",
+  x:"Pergunta toda vez. No meio da pregação, isso atrasa."},
+ {id:"BIB-3",
+  f:"Feche o programa e abra de novo. Entre na Bíblia.",
+  d:"Pergunta a tradução de novo — isso é de propósito, é uma escolha por sessão.",
+  x:"Se você achar que devia lembrar, anote como «estranho» e comente na nota."},
+ {id:"BIB-4", p:1,
+  f:"Projete um versículo e, com ele no telão, troque de tradução.",
+  d:"O versículo no telão passa para a tradução nova, ou o programa avisa que você precisa projetar de novo.",
+  x:"O painel mostra uma tradução e o telão continua na outra. A congregação lê uma coisa e o pregador outra."},
+ {id:"BIB-5",
+  f:"Clique em AT, depois em NT, depois em AT de novo.",
+  d:"O terceiro clique volta a mostrar todos os 66 livros.",
+  x:"Fica travado escondendo metade da Bíblia e você não consegue voltar."},
+ {id:"BIB-6",
+  f:"Abra Salmos 119 (o capítulo mais longo) e role a lista de versículos até o fim.",
+  d:"Todos os versículos carregam e a rolagem é suave.",
+  x:"O programa congela por segundos."},
+ {id:"BIB-7", p:1,
+  f:"Digite `jo 3 16` na busca rápida, apertando [[Enter]] em cada etapa.",
+  d:"Vai para João 3:16 e projeta.",
+  x:"Vai para Joel, Jonas, Jó ou 1 João. Teste também `1jo`, `jl`, `jn` e `jó` para ver se ele distingue."},
+ {id:"BIB-8", p:1,
+  f:"Com um versículo projetado, abra a busca rápida e aperte [[Esc]]. Depois aperte [[Esc]] de novo.",
+  d:"O primeiro [[Esc]] fecha só a busca e o versículo continua no telão. O segundo encerra a projeção.",
+  x:"O primeiro [[Esc]] já apaga o versículo do telão no meio da pregação."},
+ {id:"BIB-9",
+  f:"Digite um número de versículo que não existe naquele capítulo (por exemplo, versículo 99 de um capítulo com 10).",
+  d:"Recusa ou avisa.",
+  x:"Projeta um versículo em branco no telão."},
+ {id:"BIB-10",
+  f:"Ligue «partir versículo longo» com limite de 100 caracteres e projete um versículo bem grande (Ester 8:9).",
+  d:"Divide em pedaços, e as flechas andam pelos pedaços na ordem. A referência aparece no primeiro pedaço.",
+  x:"Corta no meio de uma palavra, ou pula um pedaço."},
+ {id:"BIB-11",
+  f:"Com um versículo dividido no telão, mude o limite de caracteres nos Ajustes.",
+  d:"A divisão é refeita e o telão continua no mesmo versículo.",
+  x:"Salta para outro versículo, ou o telão fica em branco."},
+ {id:"BIB-12",
+  f:"Projete um versículo, saia da Bíblia e entre de novo.",
+  d:"Nenhum versículo fica marcado como «no ar» se não estiver mesmo.",
+  x:"Um versículo fica destacado como se estivesse sendo projetado, mas não está."},
+ {id:"BIB-13", p:1,
+  f:"Configure os três destinos da Bíblia (telão, TV, leitura) com cores de fundo bem diferentes e projete.",
+  d:"Cada tela usa a cor que você configurou para ela.",
+  x:"Uma tela usa a configuração da outra."},
+ {id:"BIB-14",
+  f:"Ligue o microfone dentro da Bíblia e dite uma referência. Depois saia do modo Bíblia.",
+  d:"Navega e projeta pela voz. Ao sair do modo, o microfone desliga.",
+  x:"O microfone continua ligado fora do modo Bíblia."},
+ {id:"BIB-15",
+  f:"Com o OBS ligado na fonte da Bíblia, projete um versículo e depois encerre.",
+  d:"A transmissão mostra o versículo e limpa quando você encerra.",
+  x:"O versículo fica preso na transmissão depois de você apagar do telão."}
+],
+olho:[
+ "A tecla [[Esc]] tem **dois significados** aqui: fechar a busca rápida e encerrar a projeção. O teste **BIB-8** verifica se ele acerta a ordem. Teste também com a busca fechada e sem projeção.",
+ "A Bíblia e as Mídias usam o **mesmo caminho interno** para chegar nas telas. Projetar um vídeo e depois um versículo (ou o contrário) é onde é mais provável dar conflito."
+],
+junto:[
+ "Bíblia com versículo no ar → Modo Slide → projetar música: o versículo tem de sair do telão, e a lista de versículos não pode ficar marcada.",
+ "Bíblia → Mídias → voltar para a Bíblia: o versículo anterior não pode reaparecer sozinho.",
+ "Bíblia → encerrar → Contador: a contagem aparece no monitor certo, sem herdar a tela da Bíblia.",
+ "Com duas telas: versículo no telão e leitura ampliada na TV, ao mesmo tempo."
+]
+},
+
+{
+id:"midias", nome:"Vídeos, imagens e áudio", cor:"midias",
+oque:"Os cartões de mídia: imagem, vídeo, PDF e PowerPoint. Tem também um tocador de áudio e vídeo completo, e uma fila de vídeos que passa um atrás do outro sozinha.",
+tem:[
+ {n:"Cartões",o:"Seis quadros. Cada um recebe um arquivo e projeta ele."},
+ {n:"Arquivos no menu",o:"Uma lista de arquivos guardados para usar rápido."},
+ {n:"Tocador",o:"Play, pause, parar, barra de tempo, volume, mudo e repetir."},
+ {n:"Fila de vídeos",o:"Vários vídeos em sequência, manual ou automático, com atraso entre eles."},
+ {n:"Miniaturas",o:"O primeiro quadro do vídeo aparece no cartão."}
+],
+itens:[
+ {id:"MID-1",
+  f:"Entre no modo Mídias com todos os cartões vazios.",
+  d:"Os seis cartões aparecem vazios com um convite claro para adicionar arquivo.",
+  x:"Fica um vazio sem explicação e você não sabe por onde começar."},
+ {id:"MID-2", p:1,
+  f:"Adicione quatro arquivos, um de cada tipo: uma imagem, um vídeo, um PDF e um PowerPoint.",
+  d:"Cada um é reconhecido com o ícone e o nome do tipo certo.",
+  x:"Um tipo não é reconhecido, ou vira o ícone de outro."},
+ {id:"MID-3", p:1,
+  f:"Projete cada um dos quatro e olhe o monitor de verdade (não a prévia).",
+  d:"Ocupa a tela toda, sem faixas preta nas laterais, sem cortar as beiradas e sem esticar a imagem.",
+  x:"Fica cortado, esticado, ou com tarja preta. Anote em qual monitor e com qual tipo de arquivo."},
+ {id:"MID-4", p:1,
+  f:"Projete um vídeo e use **todos** os controles: play, pause, parar, arrastar a barra de tempo, subir e baixar volume, mudo, repetir.",
+  d:"Cada botão age no vídeo que está no telão. O contador de tempo acompanha.",
+  x:"Algum botão só mexe na prévia do painel e o vídeo no telão continua igual."},
+ {id:"MID-5",
+  f:"Adicione um arquivo, **apague ele do computador**, e reabra o programa.",
+  d:"O cartão avisa que o arquivo não está mais lá.",
+  x:"Tenta projetar e dá tela preta ou erro."},
+ {id:"MID-6", p:1,
+  f:"Monte uma fila de três vídeos em modo automático, com 3 segundos de atraso. Deixe rodar até o fim.",
+  d:"Passa de um para o outro sozinho, respeitando os 3 segundos.",
+  x:"Pula um vídeo, ou passa sem esperar, ou fica parado no primeiro."},
+ {id:"MID-7", p:1,
+  f:"Com a fila rodando em automático, **troque de modo** (vá para a Home).",
+  d:"Ou o vídeo continua e a fila continua, ou os dois pausam. Mas de forma previsível.",
+  x:"O vídeo continua avançando sozinho no telão mesmo depois de você sair do modo, e você não tem mais como controlar."},
+ {id:"MID-8",
+  f:"Com um vídeo tocando, clique em «Limpar playlist».",
+  d:"Para de tocar e a fila esvazia. O telão não fica com o último quadro congelado.",
+  x:"O último quadro do vídeo fica parado no telão."},
+ {id:"MID-9",
+  f:"Com um vídeo tocando, arraste outro vídeo da fila para outra posição.",
+  d:"O vídeo que está tocando continua sendo o mesmo, corretamente identificado.",
+  x:"Ele troca o vídeo que está tocando, ou perde a marcação de qual está no ar."},
+ {id:"MID-10",
+  f:"Ligue o repetir num áudio e deixe chegar no fim.",
+  d:"Recomeça sozinho e o botão fica marcado.",
+  x:"Não repete, ou repete mas o botão diz que está desligado."},
+ {id:"MID-11", p:1,
+  f:"Projete uma mídia no telão e depois entre no modo Slide.",
+  d:"O programa resolve o conflito de tela de forma clara, sem apagar a sua escolha de monitor.",
+  x:"As duas coisas brigam pela mesma tela, ou a sua escolha de monitor é apagada."},
+ {id:"MID-12",
+  f:"Adicione 20 vídeos grandes na fila e olhe o consumo de memória no Gerenciador de Tarefas (Ctrl+Shift+Esc).",
+  d:"A memória sobe e estabiliza.",
+  x:"A memória sobe e nunca para de subir, até o programa ficar lento."},
+ {id:"MID-13", p:1,
+  f:"Feche o programa com uma mídia projetada e abra de novo.",
+  d:"Os cartões voltam preenchidos, mas **nada é projetado sozinho**. As telas ficam limpas.",
+  x:"O vídeo ou a imagem volta a aparecer no telão sem você mandar."},
+ {id:"MID-14",
+  f:"Encerre a mídia pelo botão X da barra de cima e olhe o seletor de monitor.",
+  d:"O seletor continua mostrando o monitor escolhido, sem voltar a projetar.",
+  x:"Fica em branco e você tem que escolher a tela de novo."}
+],
+olho:[
+ "O tocador funciona de dois jeitos diferentes: quando o Lyra projeta sozinho e quando existe um computador servidor. **Teste todos os botões nos dois casos** — é o par de caminhos que mais divergem.",
+ "PDF e PowerPoint dependem de programas de fora. Confira o que acontece no computador da igreja, que pode não ter o mesmo software que o seu."
+],
+junto:[
+ "Vídeo no ar → Bíblia → projetar versículo: os dois usam o mesmo caminho interno. Veja qual ganha.",
+ "Mídias → Slide → Mídias: o vídeo continua de onde estava ou volta ao começo? Decida qual é o certo e confira.",
+ "Aviso escrito na TV do ministrante e vídeo no telão, ao mesmo tempo.",
+ "Contagem regressiva ligada: ela não pode fechar a janela do vídeo."
+]
+},
+
+{
+id:"avisos", nome:"Aviso escrito na tela", cor:"avisos",
+oque:"O cartão de texto livre dentro das Mídias. Você digita uma mensagem e ela aparece na tela escolhida, com tamanho, cor e posição que você configura. Serve para «celular no silencioso», «ofertório», etc.",
+tem:[
+ {n:"Campo de texto",o:"Onde você escreve o aviso."},
+ {n:"Seletor de tela",o:"Escolhe a tela do aviso, separado da tela do vídeo."},
+ {n:"Aparência",o:"Em Ajustes → Avisos: tamanho, cor da letra, cor do fundo, fundo transparente, itálico e posição."}
+],
+itens:[
+ {id:"AVI-1",
+  f:"Escreva um aviso e projete.",
+  d:"Aparece na tela escolhida, com o tamanho e a cor configurados.",
+  x:"Não aparece, ou aparece na tela errada sem avisar."},
+ {id:"AVI-2",
+  f:"Com o aviso já no telão, continue digitando.",
+  d:"O texto no telão vai se atualizando conforme você digita, sem piscar a cada letra.",
+  x:"Pisca a cada letra digitada, ou só atualiza quando você projeta de novo."},
+ {id:"AVI-3", p:1,
+  f:"Escolha para o aviso uma tela **diferente** da do vídeo, e projete os dois ao mesmo tempo.",
+  d:"Vídeo numa tela e aviso na outra, juntos.",
+  x:"Um fecha a janela do outro."},
+ {id:"AVI-4",
+  f:"Escolha para o aviso a **mesma** tela do vídeo.",
+  d:"Ou o aviso fica por cima do vídeo, ou o programa recusa. Mas fica claro o que aconteceu.",
+  x:"Fica ambíguo: você não sabe se está no ar ou não."},
+ {id:"AVI-5",
+  f:"Ligue «fundo transparente» com um vídeo passando por baixo.",
+  d:"O texto aparece sobre o vídeo, sem caixa de fundo.",
+  x:"O texto fica ilegível porque o vídeo tem partes claras. Se acontecer, anote — pode ser preciso um contorno na letra."},
+ {id:"AVI-6",
+  f:"Desligue a quebra de linha e escreva um parágrafo bem longo.",
+  d:"Fica em uma linha só, sem sair da tela.",
+  x:"O texto continua para fora da tela e você perde o fim da frase."},
+ {id:"AVI-7", p:1,
+  f:"Teste as três posições (topo, meio, rodapé) com o mesmo texto, olhando o monitor de verdade.",
+  d:"As três ficam visivelmente diferentes e nenhuma é cortada na beirada.",
+  x:"No rodapé o texto fica cortado. Isso é comum em TV — anote qual TV e qual posição."},
+ {id:"AVI-8",
+  f:"Escreva um aviso, saia do modo Mídias e volte.",
+  d:"O texto continua no campo, mas **não é projetado sozinho**.",
+  x:"O texto se perdeu, ou voltou a aparecer no telão sem você mandar."},
+ {id:"AVI-9", p:1,
+  f:"Com aviso e vídeo os dois no ar, encerre **só o aviso**.",
+  d:"O aviso sai e o vídeo continua.",
+  x:"Os dois saem juntos."},
+ {id:"AVI-10",
+  f:"Com o aviso no ar, mude o tamanho da letra em Ajustes → Avisos.",
+  d:"Muda no telão na hora, sem piscar.",
+  x:"Pisca preto, ou só muda depois de projetar de novo."}
+],
+olho:[
+ "O aviso e o vídeo são duas camadas do mesmo caminho. Teste **todas as combinações de encerrar**: só o aviso, só o vídeo, e os dois juntos."
+],
+junto:[
+ "Aviso no ar → Modo Slide → projetar música: o aviso sai ou fica? Decida qual é o certo e confira.",
+ "Aviso na TV do ministrante + Bíblia no telão ao mesmo tempo.",
+ "Aviso no ar → encerrar tudo pelo botão X da barra: as duas camadas têm de sair."
+]
+},
+
+{
+id:"contagem", nome:"Contagem regressiva", cor:"contagem",
+oque:"O relógio de contagem antes do culto começar. Você põe os minutos, escreve mensagens em cima e embaixo, e ele conta no telão. Dá para pausar, tirar ou somar um minuto ao vivo e reiniciar.",
+tem:[
+ {n:"Minutos e segundos",o:"O tempo inicial. Tem botões de tempo rápido."},
+ {n:"Mensagens",o:"Texto livre acima e abaixo dos números."},
+ {n:"Iniciar / Pausar",o:"O mesmo botão muda de função conforme o estado."},
+ {n:"−1 min / +1 min",o:"Ajusta o tempo sem parar a contagem."},
+ {n:"Reiniciar",o:"Volta para o tempo que está nos campos."},
+ {n:"Aparência…",o:"Fonte, cores, fundo, mostrar segundos, piscar no fim e o que fazer ao chegar em zero."},
+ {n:"Tela própria",o:"A contagem tem seu próprio monitor, separado dos outros modos."}
+],
+itens:[
+ {id:"CON-1",
+  f:"Abra o painel da contagem vindo de cada modo: Home, Slide, Bíblia e Mídias.",
+  d:"O painel abre por cima e, ao fechar, o modo de antes está intacto.",
+  x:"Fechar o painel da contagem apaga a música selecionada, ou desmonta o modo."},
+ {id:"CON-2", p:1,
+  f:"Coloque 5 minutos e deixe chegar em zero.",
+  d:"Acontece o que você configurou em «Aparência» (ficar em 00:00, mostrar um texto, ou encerrar).",
+  x:"Não acontece nada, ou acontece duas vezes, ou o número fica negativo."},
+ {id:"CON-3",
+  f:"Pause a contagem, espere 30 segundos, e retome.",
+  d:"Retoma exatamente de onde parou, e o telão mostra o mesmo número do painel.",
+  x:"O painel e o telão mostram tempos diferentes."},
+ {id:"CON-4",
+  f:"Com a contagem correndo, clique cinco vezes em +1 min e cinco vezes em −1 min.",
+  d:"O tempo ajusta na hora, sem parar de contar, e nunca fica negativo.",
+  x:"Fica negativo, ou a contagem para ao clicar."},
+ {id:"CON-5",
+  f:"Reinicie a contagem no meio.",
+  d:"Volta para o tempo dos campos, mantendo as mensagens que você escreveu.",
+  x:"Apaga as mensagens."},
+ {id:"CON-6",
+  f:"Com a contagem no ar, mude a mensagem de cima.",
+  d:"O telão atualiza a mensagem sem reiniciar a contagem.",
+  x:"A contagem volta ao começo, ou o tempo salta."},
+ {id:"CON-7", p:1,
+  f:"Encerre a contagem. **Depois** disso, vá em Ajustes → Contagem e mude uma cor.",
+  d:"Nada aparece no telão. A contagem encerrada não volta.",
+  x:"A contagem volta a aparecer no telão só porque você mexeu numa cor. Isso é um erro específico que já foi consertado uma vez — confirme que continua consertado."},
+ {id:"CON-8", p:1,
+  f:"Coloque a contagem numa tela e projete a Bíblia na outra, ao mesmo tempo.",
+  d:"Contagem numa tela e versículo na outra, as duas juntas.",
+  x:"Uma fecha a janela da outra."},
+ {id:"CON-9",
+  f:"Com a contagem fixada numa tela, mude a tela da Bíblia nos Ajustes.",
+  d:"A contagem continua na tela dela.",
+  x:"Mexer na Bíblia derruba a contagem."},
+ {id:"CON-10",
+  f:"Com a contagem no ar, aperte [[F10]] e depois [[Esc]].",
+  d:"O [[F10]] escurece cobrindo a contagem (não apaga ela). O [[Esc]] age conforme o esperado.",
+  x:"O [[F10]] apaga a contagem em vez de cobrir."},
+ {id:"CON-11",
+  f:"Configure «piscar no fim» e aviso de reta final em 30 segundos.",
+  d:"Aos 30 segundos os números mudam de cor, e no fim piscam. Colocando o aviso em zero, a função desliga.",
+  x:"Continua piscando depois de você encerrar."},
+ {id:"CON-12",
+  f:"Escolha uma imagem de fundo, remova ela, e volte para cor sólida.",
+  d:"A imagem sai de verdade e a prévia acompanha.",
+  x:"A imagem sai da tela de ajustes mas continua aparecendo no telão."},
+ {id:"CON-13", p:1,
+  f:"Feche o programa com a contagem correndo e abra de novo.",
+  d:"O último tempo fica nos campos, mas a contagem **não começa sozinha**.",
+  x:"A contagem começa a correr no telão sem ninguém mandar."},
+ {id:"CON-14",
+  f:"Recolha o painel da contagem (botão de retrair), troque de modo, e volte.",
+  d:"Continua recolhido.",
+  x:"Volta aberto, tapando a área de trabalho."},
+ {id:"CON-15",
+  f:"Clique em «Restaurar» na aparência, com a contagem no ar.",
+  d:"O telão volta ao visual padrão, sem parar a contagem.",
+  x:"A contagem para."},
+ {id:"CON-16",
+  f:"Fixe a contagem **só na TV do ministrante** e projete uma mídia no telão.",
+  d:"Contagem na TV e mídia no telão, ao mesmo tempo.",
+  x:"Uma delas não aparece. Este é um caso raro e pouco testado — vale a atenção."}
+],
+olho:[
+ "A contagem tem uma tela própria que se combina com as telas dos outros modos. Teste as **quatro combinações**: contagem só no telão, só na TV, nas duas, e em nenhuma.",
+ "**CON-7** e **CON-13** são os dois testes em que a contagem «volta dos mortos». Faça os dois com atenção."
+],
+junto:[
+ "Contagem no ar → começar o culto no modo Slide: a contagem sai quando a música entra, ou fica na tela fixada.",
+ "Contagem + Mídias em telas diferentes ao mesmo tempo.",
+ "Contagem no ar → desligar a tela onde ela está: tem de aparecer um aviso, e nada pode abrir na tela do computador.",
+ "Com dois computadores: iniciar a contagem num e ver se o outro mostra o mesmo tempo."
+]
+}
+
+,
+
+{
+id:"voz", nome:"Comandos de voz", cor:"voz",
+oque:"O microfone que deixa você passar slides e versículos falando. Serve para quem opera sozinho e precisa das mãos livres.",
+tem:[
+ {n:"Botão do microfone",o:"Na barra de cima e num botãozinho flutuante."},
+ {n:"Comandos de slide",o:"«avançar», «voltar», «slide 3», «encerrar»."},
+ {n:"Comandos de Bíblia",o:"Ditar a referência para navegar e projetar."}
+],
+itens:[
+ {id:"VOZ-1",
+  f:"No modo Slide, ligue o microfone e diga: «avançar», «voltar», «slide 5», «encerrar».",
+  d:"Cada comando funciona, e o indicador do microfone pisca quando ele ouve.",
+  x:"Algum comando não funciona, ou faz outra coisa. Anote qual."},
+ {id:"VOZ-2",
+  f:"Tente ligar o microfone estando na Home (fora dos modos Slide e Bíblia).",
+  d:"Não liga, e o botão deixa claro por quê.",
+  x:"Liga e fica ouvindo sem servir para nada."},
+ {id:"VOZ-3",
+  f:"Ligue no modo Slide, troque para a Bíblia, e dite uma referência.",
+  d:"Ele entende comandos de Bíblia agora, não de slide.",
+  x:"Continua tentando passar slide, ou não entende nada."},
+ {id:"VOZ-4",
+  f:"Ligue o microfone e volte para a Home.",
+  d:"O microfone desliga e o indicador apaga.",
+  x:"Continua ouvindo em segundo plano e pode disparar um comando fora de hora."},
+ {id:"VOZ-5",
+  f:"Nas configurações do Windows, bloqueie o acesso do Lyra ao microfone. Tente ligar.",
+  d:"Mensagem clara, e o botão fica desabilitado.",
+  x:"O botão parece ligado mas nunca ouve nada, e você não descobre por quê."},
+ {id:"VOZ-6", p:1,
+  f:"Ligue o microfone e deixe o louvor tocando alto perto dele por uns 5 minutos, sem falar comandos.",
+  d:"Nada acontece por conta própria. Especialmente, ele **não encerra a projeção**.",
+  x:"Ele encerra a projeção sozinho, ou pula slides no meio da música. É o pior erro possível desta função."},
+ {id:"VOZ-7", p:1,
+  f:"Na versão instalada (não na de desenvolvimento), ligue o microfone e teste um comando.",
+  d:"Funciona.",
+  x:"Não funciona na versão instalada mas funciona na de desenvolvimento — significa que o arquivo de reconhecimento não foi empacotado."}
+],
+olho:[
+ "**VOZ-6** é o teste mais importante desta parte. Se o microfone puder encerrar a projeção por engano no meio do culto, é melhor deixar essa função desligada por padrão até resolver."
+],
+junto:[
+ "Microfone ligado → trocar de modo cinco vezes rápido → só pode ter um reconhecimento ativo no fim.",
+ "Dizer «encerrar» tem de fazer exatamente o mesmo que apertar [[Esc]]."
+]
+},
+
+{
+id:"ajustes", nome:"Ajustes de aparência das telas", cor:"ajustes",
+oque:"A janela grande de configuração, com oito abas: Geral, Conexão, Slides, Bíblia, Ministrantes, Relógio, Avisos e Contagem. São mais de 200 controles — fonte, tamanho, cores, fundo e posição de cada tela.",
+nota:"Você não precisa testar os 200 controles um por um. O que importa é: **cada controle abre com o valor que você deixou salvo**, e **mudar um controle muda o telão na hora**. Se esses dois funcionarem em cada aba, o resto vem junto.",
+tem:[
+ {n:"Busca dentro da janela",o:"Digite «fonte» ou «cor» e ele destaca as linhas certas em todas as abas."},
+ {n:"Destinos",o:"Slides tem telão e ministrante. Bíblia tem telão, ministrante e leitura. Cada um com ajustes próprios."},
+ {n:"Aba Conexão",o:"IP do servidor, conectar sozinho ao abrir, e os endereços para colar no OBS."},
+ {n:"Aba Relógio",o:"O relógio que aparece na TV do ministrante quando não tem nada no ar."},
+ {n:"Aplicar / Fechar",o:"As mudanças já valem na hora; o Aplicar grava."}
+],
+itens:[
+ {id:"AJU-1",
+  f:"Abra os Ajustes a partir de cada modo: do Slide, da Bíblia, do Contador e das Mídias.",
+  d:"Abre já na aba daquele modo (do Slide abre em Slides, da Bíblia em Bíblia, e assim por diante).",
+  x:"Abre sempre em Geral e você tem que caçar a aba no meio do culto."},
+ {id:"AJU-2",
+  f:"Na busca da janela, digite «fonte», depois «cor», depois «monitor», e depois uma palavra que não existe (tipo «abacaxi»).",
+  d:"As três primeiras destacam as linhas certas. A última mostra uma mensagem de «nada encontrado».",
+  x:"Alguma busca esconde tudo e você não consegue voltar."},
+ {id:"AJU-3",
+  f:"Depois de buscar, clique no × para limpar a busca.",
+  d:"Todas as linhas voltam, sem nenhum destaque sobrando.",
+  x:"Ficam linhas escondidas até você fechar e abrir a janela de novo."},
+ {id:"AJU-4", p:1,
+  f:"Percorra as oito abas e confira se todos os controles estão com valor. Olhe especialmente os que mostram cor e os que têm barra deslizante.",
+  d:"Nenhuma barra em zero por engano, nenhuma cor em preto por falta de valor.",
+  x:"Algum controle abre vazio ou em zero. Se você tocar nele, ele grava um valor errado."},
+ {id:"AJU-5", p:1,
+  f:"Com uma música projetada, aumente o tamanho da fonte do telão.",
+  d:"O telão acompanha na hora, sem piscar preto.",
+  x:"O slide pisca preto a cada ajuste."},
+ {id:"AJU-6",
+  f:"Ligue o «ajustar automático» e depois desligue a «quebra de linha».",
+  d:"O programa desabilita a combinação que não faz sentido.",
+  x:"Deixa você combinar as duas e o texto sai cortado no telão."},
+ {id:"AJU-7",
+  f:"Escolha uma imagem de fundo bem grande (8 MB ou mais).",
+  d:"Ele reduz a imagem antes de guardar, e a prévia mostra o resultado.",
+  x:"Trava, ou dá erro de espaço, ou perde outros ajustes depois disso."},
+ {id:"AJU-8",
+  f:"Mude dez controles seguidos bem rápido e feche a janela na hora.",
+  d:"Ao reabrir, todas as dez mudanças estão lá.",
+  x:"As últimas mudanças se perderam."},
+ {id:"AJU-9",
+  f:"Mude alguns valores e clique em «Fechar» em vez de «Aplicar».",
+  d:"Ou as mudanças ficam (porque já valeram na hora), ou ele desfaz. Mas o comportamento é claro e sempre o mesmo.",
+  x:"Às vezes fica, às vezes desfaz. Se não estiver claro, marque como «estranho» — é confuso mesmo que funcione."},
+ {id:"AJU-10",
+  f:"Copie os dois endereços do OBS e cole numa fonte de navegador no OBS. Projete e depois encerre.",
+  d:"Os dois carregam, mostram a projeção e limpam quando você encerra. O botão de copiar dá um retorno visual.",
+  x:"Algum endereço não carrega, ou fica preso com o conteúdo antigo."},
+ {id:"AJU-11",
+  f:"Preencha o IP de um servidor, ligue «lembrar IP» e «conectar automaticamente», e reinicie o programa.",
+  d:"Conecta sozinho. Se o servidor não estiver ligado, avisa e não trava o programa.",
+  x:"Fica tentando conectar em loop e o programa não abre."},
+ {id:"AJU-12",
+  f:"Desligue «lembrar IP» e reinicie o programa.",
+  d:"O campo de IP volta vazio.",
+  x:"O IP continua lá contra a sua preferência."},
+ {id:"AJU-13",
+  f:"Configure o relógio do ministrante e deixe a TV sem nada no ar por 1 minuto.",
+  d:"O relógio aparece com a hora, a data e o versículo que você configurou. Quando você projeta algo, ele sai na hora.",
+  x:"O relógio aparece **por cima** de um slide que está no ar."}
+],
+olho:[
+ "Esta é a janela com mais controles do programa. O teste **AJU-4** (conferir se todos abrem com valor) vale mais que testar cada botão isoladamente.",
+ "Se você achar um controle que abre vazio, anote **o nome exato dele e a aba** — é a informação que permite consertar."
+],
+junto:[
+ "Ajustes → Slides → mudar a fonte → Modo Slide → projetar: a fonte nova é a que aparece.",
+ "Ajustes → Bíblia → mudar o fundo → projetar versículo, com a Bíblia já no ar.",
+ "Ajustes → Contagem → mudar cor com a contagem no ar (veja CON-7).",
+ "Ajustes → Conexão → conectar num servidor: a lista de monitores passa a ser a do servidor, não a do seu computador."
+]
+},
+
+{
+id:"telas", nome:"Telas, TV e projetor — o mais importante", cor:"telas",
+oque:"A parte que o público vê. Se algo aqui falhar, a igreja inteira percebe. É a parte com mais testes e a que você não pode deixar de fazer.",
+nota:"Um aviso importante: os erros clássicos desta parte — **piscar branco antes de aparecer**, **a janela nascer na tela errada** e **o Windows travar com a janela na frente de tudo** — já foram tratados no programa. Esta lista não serve para descobrir se eles foram resolvidos, e sim para **confirmar que continuam resolvidos** depois das mudanças recentes. Faça todos, mesmo os que parecerem óbvios.",
+tem:[
+ {n:"Janela do público",o:"O telão. Nasce preta, invisível, e só aparece depois de estar pronta."},
+ {n:"Janela do ministrante",o:"A TV de retorno, com título, estrofe atual e a próxima."},
+ {n:"Fica na frente de tudo",o:"As janelas de projeção ficam sempre por cima de outros programas."},
+ {n:"[[Esc]] na própria janela",o:"Apertar [[Esc]] com o foco na janela de projeção encerra o que está nela."},
+ {n:"Diagnóstico de telas",o:"Menu → Janelas → «Abrir diagnóstico de telas». Grava tudo o que acontece com as janelas."}
+],
+itens:[
+ {id:"TEL-1", p:1,
+  f:"Desligue **todos** os monitores extras, deixando só a tela do computador. Entre em cada modo e tente projetar.",
+  d:"Nada abre na sua tela, em nenhum modo. As listas só oferecem «Não exibir».",
+  x:"Abre uma janela cobrindo o seu painel. Anote em qual modo aconteceu."},
+ {id:"TEL-2", p:1,
+  f:"Com um monitor extra ligado, projete uma música e olhe **o primeiro instante** em que a imagem aparece no telão. Fique com os olhos no telão, não no painel.",
+  d:"Preto, depois a letra. Nada de branco, nada de área de trabalho do Windows aparecendo.",
+  x:"Pisca branco, ou você vê a área de trabalho por um instante, ou a janela aparece na sua tela antes de ir para o telão."},
+ {id:"TEL-3", p:1,
+  f:"Repita o teste acima **dez vezes seguidas**: projetar, encerrar, projetar, encerrar…",
+  d:"Nas dez vezes é igual: preto e depois a letra.",
+  x:"Numa delas pisca. Anote em qual repetição — se foi na primeira, é um caso diferente de se foi na sétima."},
+ {id:"TEL-4", p:1,
+  f:"Com dois monitores extras, coloque Público num e Ministrante no outro. Projete.",
+  d:"Cada conteúdo na sua tela, ocupando a tela toda, nada cortado.",
+  x:"As telas estão trocadas, ou uma delas não recebe nada."},
+ {id:"TEL-5", p:1,
+  f:"Com o programa **já aberto**, ligue o projetor (ou o segundo monitor). Abra a lista de telas.",
+  d:"A tela nova aparece na lista sozinha, sem você reiniciar o programa.",
+  x:"A lista continua igual e você tem que fechar e abrir o Lyra."},
+ {id:"TEL-6", p:1,
+  f:"Com uma música projetada, **desligue o monitor** onde ela está.",
+  d:"A janela não vem para a sua tela. O painel avisa. Ao religar o monitor, volta para o lugar certo.",
+  x:"A letra do hino aparece cobrindo o seu painel de operação. É a falha mais visível que existe."},
+ {id:"TEL-7", p:1,
+  f:"Com uma música projetada, desligue e religue o monitor **cinco vezes**.",
+  d:"Nas cinco vezes recupera. Nenhuma janela extra fica sobrando.",
+  x:"Depois de algumas vezes, sobram janelas abertas, ou uma delas fica preta e não volta."},
+ {id:"TEL-8", p:1,
+  f:"Com conteúdo no telão, mude a resolução daquele monitor nas configurações do Windows.",
+  d:"O conteúdo se reajusta e continua ocupando a tela toda. O texto não fica cortado.",
+  x:"A janela fica menor que a tela, ou o texto sai pelas bordas."},
+ {id:"TEL-9", p:1,
+  f:"Coloque escalas diferentes no Windows: 100% na sua tela e 150% no telão. Projete e olhe o telão.",
+  d:"Ocupa a tela toda e a letra tem o tamanho que você configurou.",
+  x:"A letra fica gigante (ou minúscula), ou a janela não cobre a tela toda. Esta é a causa mais comum de conteúdo cortado — teste com cuidado."},
+ {id:"TEL-10", p:1,
+  f:"Use um monitor de 1920×1080 e uma TV de 1280×720 ao mesmo tempo.",
+  d:"Cada tela ocupa o seu tamanho, e o texto se ajusta em cada uma.",
+  x:"A letra que fica boa no telão estoura na TV menor."},
+ {id:"TEL-11",
+  f:"Ligue um projetor que demora alguns segundos para sincronizar e projete logo em seguida.",
+  d:"O programa espera a tela existir de verdade antes de abrir a janela.",
+  x:"A janela abre no canto superior esquerdo da sua tela enquanto o projetor acorda."},
+ {id:"TEL-12", p:1,
+  f:"Mude qual é o monitor principal do Windows e abra o Lyra de novo.",
+  d:"O telão continua sendo o mesmo monitor físico que você havia escolhido. Nada projeta na sua tela.",
+  x:"O programa projeta na tela errada porque o Windows renumerou os monitores."},
+ {id:"TEL-13",
+  f:"Troque a ordem dos cabos HDMI e abra o Lyra de novo.",
+  d:"Mesmo resultado do teste anterior: reconhece pelo modelo da tela, não pela posição.",
+  x:"Projeta na tela errada."},
+ {id:"TEL-14", p:1,
+  f:"Salve uma tela lembrada. Feche o programa, **desligue a TV**, abra o programa, e depois ligue a TV.",
+  d:"Abre em «Não exibir» com aviso. Quando a TV liga, ela reaparece na lista, mas **não começa a projetar sozinha**.",
+  x:"Ou perde a preferência para sempre, ou começa a projetar sem você mandar."},
+ {id:"TEL-15", p:1,
+  f:"Faça esta sequência **dez vezes**, alternando os modos: abrir → projetar → encerrar → trocar de aba → projetar de novo. Use Slide, Bíblia e Mídias.",
+  d:"Nas dez vezes: nenhum piscar, nenhuma janela sobrando, sempre no monitor certo. Olhe também a memória no Gerenciador de Tarefas: ela não pode subir sem parar.",
+  x:"Qualquer coisa diferente. Este é o teste mais importante da lista inteira — se ele falhar, não entregue."},
+ {id:"TEL-16",
+  f:"Com uma projeção no ar, abra outro programa em tela cheia por cima (PowerPoint, ou um vídeo no YouTube em tela cheia) no mesmo monitor.",
+  d:"A janela do Lyra volta para a frente sem piscar.",
+  x:"O outro programa fica na frente e o telão mostra a coisa errada."},
+ {id:"TEL-17",
+  f:"Clique na janela do telão para dar foco nela e aperte [[Esc]]. Depois faça o mesmo na janela do ministrante.",
+  d:"Encerra o que está naquela tela. Se tinha mídia, encerra a mídia; se tinha versículo, encerra o versículo.",
+  x:"O [[Esc]] na TV do ministrante apaga o telão inteiro também."},
+ {id:"TEL-18",
+  f:"Abra Menu → Janelas → «Abrir diagnóstico de telas» e deixe aberto enquanto faz um culto simulado de 15 minutos.",
+  d:"O registro grava tudo, sem linhas de alerta.",
+  x:"Aparecem sinais de alerta. Salve o arquivo e mande junto com a nota."},
+ {id:"TEL-19", p:1,
+  f:"Projete uma música e, sem clicar em nada, tente digitar no painel.",
+  d:"Você digita normalmente. A janela de projeção não roubou o foco.",
+  x:"Você tem que clicar de volta no painel a cada projeção."},
+ {id:"TEL-20",
+  f:"Projete, minimize o Lyra, espere 30 segundos e restaure.",
+  d:"A projeção continuou no ar todo o tempo.",
+  x:"O telão ficou preto enquanto o Lyra estava minimizado."},
+ {id:"TEL-21", p:1,
+  f:"Projete um vídeo no telão e olhe o monitor de verdade.",
+  d:"O vídeo aparece e roda normalmente.",
+  x:"A tela fica preta mas o áudio toca. Se acontecer, anote a placa de vídeo do computador."},
+ {id:"TEL-22",
+  f:"Com dois monitores configurados, **inverta** os dois seletores (o que era Público vira Ministrante e vice-versa).",
+  d:"O conteúdo troca de tela. Nenhuma tela fica com as duas janelas.",
+  x:"Uma tela fica com as duas janelas sobrepostas."}
+],
+olho:[
+ "**Nenhum teste automático do programa cobre esta parte.** Criação de janela, monitor e escala do Windows só podem ser testados na mão, com telas de verdade. É por isso que esta é a parte mais longa da lista.",
+ "O arquivo que controla as janelas de projeção foi mexido no último dia antes deste teste. Considere **tudo aqui** como possível problema novo, mesmo o que já funcionava antes."
+],
+junto:[
+ "Projeção no ar num monitor + abrir Mídias e projetar no outro: as duas janelas coexistem.",
+ "Projeção no ar → trocar o monitor na barra de cima: o conteúdo muda de tela sem piscar.",
+ "Projeção no ar → recarregar o painel: a projeção sobrevive.",
+ "Projeção no ar → conectar num servidor: a projeção do seu computador encerra antes de a do servidor assumir.",
+ "Projeção no ar → fechar o programa: nenhuma janela fica sobrando."
+]
+},
+
+{
+id:"janelas", nome:"Janelas extras", cor:"janelas",
+oque:"O que abre fora do painel: histórico do que foi projetado, verificação de véspera, diagnóstico, manual, atalhos e as janelinhas de confirmação.",
+tem:[
+ {n:"Histórico ([[Ctrl+H]])",o:"O que foi projetado em cada culto, com exportação para planilha."},
+ {n:"Verificação de véspera ([[F9]])",o:"Confere telas, tons, letras e mídias antes do culto."},
+ {n:"Manual e Atalhos",o:"Em Ajuda: manual do usuário, atalhos de teclado e Sobre."},
+ {n:"Janelinhas de confirmação",o:"Catorze janelas diferentes de aviso, edição e escolha."}
+],
+itens:[
+ {id:"JAN-1",
+  f:"Com uma música projetada, abra e feche o Histórico ([[Ctrl+H]]) cinco vezes.",
+  d:"A projeção não pisca, e a janela do histórico não vai para cima do telão.",
+  x:"O telão pisca, ou a janela do histórico abre na tela do público."},
+ {id:"JAN-2",
+  f:"Projete cinco músicas, abra o Histórico e exporte para planilha (CSV). Abra o arquivo no Excel.",
+  d:"Abre com os acentos corretos e as colunas separadas.",
+  x:"Os acentos viram símbolos estranhos, ou tudo fica numa coluna só."},
+ {id:"JAN-3", p:1,
+  f:"Rode a verificação de véspera ([[F9]]) em três situações: com a lista de culto vazia, com uma música sem letra, e com um arquivo de mídia apagado do computador.",
+  d:"Nas três ela aponta o problema, e diz quais são graves o suficiente para impedir o culto.",
+  x:"Passa batido em algum dos três."},
+ {id:"JAN-4",
+  f:"Rode a verificação, troque de culto, e rode de novo.",
+  d:"O resultado muda para o culto novo, e o resultado antigo não fica na tela.",
+  x:"Mostra o resultado do culto anterior e você conserta a coisa errada."},
+ {id:"JAN-5",
+  f:"Na verificação, clique em «Verificar de novo» três vezes bem rápido.",
+  d:"Não empilha. O último resultado é o que vale.",
+  x:"Mistura resultados, ou fica carregando para sempre."},
+ {id:"JAN-6",
+  f:"Abra Ajuda → Manual, Ajuda → Atalhos e Ajuda → Sobre.",
+  d:"Os três abrem, e o Sobre mostra o número da versão de verdade.",
+  x:"O Sobre diz «Não disponível» no lugar da versão."},
+ {id:"JAN-7", p:1,
+  f:"Compare a tabela de Atalhos com o que você testou no modo Slide (teste CUL-3).",
+  d:"Batem.",
+  x:"Falta atalho na tabela. Sabemos que faltam pelo menos: [[F9]], [[Ctrl+H]] e os números 3 e 8 do teclado numérico. Confirme e anote se achar mais."},
+ {id:"JAN-8", p:1,
+  f:"Abra cada janelinha do programa e feche de três formas: [[Esc]], o × e clicando fora dela.",
+  d:"As três funcionam em todas. Nenhuma deixa um véu cinza na tela nem impede os cliques.",
+  x:"Depois de fechar alguma, os cliques param de funcionar (parece que tem um vidro na frente)."},
+ {id:"JAN-9",
+  f:"Abra duas janelinhas em cadeia (por exemplo, botão direito numa música → excluir) e feche só a de cima.",
+  d:"A de baixo continua funcionando, e o [[Esc]] fecha uma por vez.",
+  x:"Fechar a de cima fecha as duas."},
+ {id:"JAN-10", p:1,
+  f:"Abra uma janelinha e, com ela aberta, troque de modo pela barra de cima.",
+  d:"A janelinha fecha na troca, e nada fica bloqueando os cliques.",
+  x:"Fica um véu invisível e você tem que reiniciar o programa."},
+ {id:"JAN-11",
+  f:"Nas janelinhas de confirmação, teste [[Enter]] e [[Esc]].",
+  d:"[[Enter]] confirma, [[Esc]] cancela, e o cursor já começa no lugar certo.",
+  x:"Você tem que usar o mouse porque o teclado não funciona ali."},
+ {id:"JAN-12",
+  f:"Com os três endereços do OBS ligados, rode um culto simulado de 10 minutos.",
+  d:"Slides, Bíblia e o painel geral acompanham a projeção e limpam quando você encerra.",
+  x:"Algum deles fica preso mostrando conteúdo antigo na transmissão."},
+ {id:"JAN-13",
+  f:"Use Menu → Servidor → «Limpar cache», «Reiniciar servidor» e «Encerrar Server» com uma projeção no ar.",
+  d:"Cada uma avisa o que vai acontecer antes de fazer.",
+  x:"Alguma delas derruba a projeção sem perguntar. No meio do culto, isso é grave — são três cliques de distância."},
+ {id:"JAN-14",
+  f:"Deixe a TV do ministrante sem nada no ar por 1 minuto.",
+  d:"Entra o relógio de repouso. Quando você projeta algo, ele sai na hora.",
+  x:"O relógio aparece por cima de um slide, ou não sai depois."}
+],
+olho:[
+ "O programa tem **catorze** janelinhas diferentes, e o mecanismo que fecha todas ao trocar de modo conhece apenas **sete** delas. Por isso o teste JAN-10 é obrigatório: teste com o máximo de janelinhas diferentes que conseguir."
+],
+junto:[
+ "Verificação de véspera ([[F9]]) → consertar o que ela apontou → rodar de novo → entrar no modo Slide e projetar.",
+ "Histórico aberto → projetar cinco músicas → o registro aparece sem você fechar e abrir a janela."
+]
+},
+
+{
+id:"rede", nome:"Dois computadores, celular e transmissão", cor:"rede",
+oque:"Como o Lyra funciona quando não está sozinho: um computador comandando e outro projetando, o celular como controle remoto, e a transmissão pelo OBS.",
+nota:"Se você só tem um computador, marque «não testei» nesta parte inteira e diga isso na entrega. É melhor entregar sabendo que não foi testado do que achar que foi.",
+itens:[
+ {id:"RED-1",
+  f:"Conecte num servidor remoto e depois **reinicie** o Lyra.",
+  d:"Ao abrir, ele volta a projetar no próprio computador. A escolha de servidor vale só para aquela sessão — isso é de propósito.",
+  x:"Ele fica tentando conectar num servidor que já não está ligado e você não consegue projetar."},
+ {id:"RED-2", p:1,
+  f:"Com o programa Servidor já rodando na mesma máquina, tente usar «Projetar nesta máquina» no Controlador.",
+  d:"Ele recusa e avisa, em vez de os dois brigarem pelas telas.",
+  x:"Os dois assumem as telas ao mesmo tempo e o telão fica alternando entre eles."},
+ {id:"RED-3", p:1,
+  f:"Com uma projeção no ar pelo servidor, feche o programa Servidor no outro computador.",
+  d:"O Controlador avisa. Se estiver configurado, ele assume a projeção no próprio computador.",
+  x:"O painel continua mostrando conteúdo que já não está em tela nenhuma."},
+ {id:"RED-4",
+  f:"Conecte dois computadores no mesmo servidor e tente projetar nos dois.",
+  d:"Um deles fica no comando e o outro mostra quem está comandando.",
+  x:"Os dois mandam ao mesmo tempo e o telão fica alternando."},
+ {id:"RED-5",
+  f:"Sincronize o banco de músicas entre dois computadores que têm músicas diferentes.",
+  d:"Os dois ficam com tudo, e as músicas repetidas passam pela tela de conflito.",
+  x:"Substitui em silêncio o trabalho do outro operador."},
+ {id:"RED-6",
+  f:"Tente sincronizar com um IP inventado, um IP de fora da rede, e o IP certo.",
+  d:"Nos dois primeiros, ele avisa rápido que o endereço não serve. No terceiro, funciona.",
+  x:"Fica esperando minutos sem dizer nada."},
+ {id:"RED-7", p:1,
+  f:"Comece uma sincronização e desligue o Wi-Fi no meio.",
+  d:"Dá erro e o seu banco de músicas continua intacto.",
+  x:"O banco fica com metade das músicas, ou corrompido. Faça backup antes deste teste."},
+ {id:"RED-8",
+  f:"Ligue o aplicativo do celular e passe slides por ele durante 10 minutos.",
+  d:"Avança e volta, e o painel do computador mostra o mesmo que o celular.",
+  x:"O celular e o computador mostram slides diferentes."},
+ {id:"RED-9",
+  f:"Conectado num servidor, olhe os endereços do OBS nos Ajustes.",
+  d:"Apontam para o IP do servidor.",
+  x:"Continuam apontando para o seu próprio computador, e o OBS não mostra nada."},
+ {id:"RED-10",
+  f:"Com a rede lenta (ou o Wi-Fi longe), projete e ande rápido pelos slides.",
+  d:"Os slides chegam na ordem certa.",
+  x:"Pula ou repete slide."}
+],
+olho:[
+ "Com dois computadores, **tudo** o que você testou na parte de telas precisa ser testado de novo, porque a rede muda a ordem em que as coisas acontecem. Pelo menos o teste TEL-15 deve ser repetido no modo dois computadores."
+],
+junto:[
+ "Dois computadores → mudar um ajuste de aparência num → conferir no outro.",
+ "Dois computadores → projetar num, encerrar no outro.",
+ "Computador + celular + OBS ligados ao mesmo tempo, com projeção no ar."
+]
+},
+
+{
+id:"salvar", nome:"O que precisa ficar salvo", cor:"salvar",
+oque:"O que sobrevive quando você fecha o programa — e, igualmente importante, o que **não pode** sobreviver. Nenhuma projeção pode voltar sozinha ao abrir o programa.",
+nota:"Para cada teste desta parte, o roteiro é o mesmo: **1.** mude a coisa · **2.** salve · **3.** troque de aba · **4.** feche o programa · **5.** abra de novo · **6.** confira. O que falha mais é fechar o programa **logo depois** de mudar algo.",
+itens:[
+ {id:"SAL-1",
+  f:"Ligue o tema escuro, feche e abra.",
+  d:"Abre escuro, sem piscar branco.",
+  x:"Volta ao tema claro, ou pisca."},
+ {id:"SAL-2", p:1,
+  f:"Escolha as telas no modo Slide, feche e abra.",
+  d:"Volta nas mesmas telas físicas, mesmo que o Windows tenha renumerado os monitores.",
+  x:"Volta na tela errada."},
+ {id:"SAL-3",
+  f:"Escolha uma tela na Bíblia **sem** marcar «Lembrar monitor». Feche e abra.",
+  d:"Volta em «Não exibir» — isso é de propósito, para nenhuma projeção voltar sozinha.",
+  x:"Se voltar projetando, é erro."},
+ {id:"SAL-4",
+  f:"Marque «Lembrar monitor» na Bíblia, feche, abra e entre na Bíblia.",
+  d:"O seletor já vem preenchido, mas nada é projetado.",
+  x:"Vem em branco (perdeu a memória) ou vem projetando (não devia)."},
+ {id:"SAL-5", p:1,
+  f:"Coloque Público em «Não exibir» no modo Slide, feche e abra.",
+  d:"Continua em «Não exibir».",
+  x:"O programa preenche sozinho com uma tela."},
+ {id:"SAL-6", p:1,
+  f:"Monte uma lista de culto com três blocos de tema, tons e ministrante. Feche e abra.",
+  d:"Tudo intacto: as músicas, a ordem, os blocos, os tons e o ministrante.",
+  x:"Alguma dessas quatro coisas se perdeu ou embaralhou."},
+ {id:"SAL-7", p:1,
+  f:"Adicione uma música na lista e feche o programa **em menos de 1 segundo**.",
+  d:"A música está lá quando você abrir.",
+  x:"A música se perdeu. Este é o risco de perder dados mais provável do programa."},
+ {id:"SAL-8",
+  f:"Crie uma cópia da letra, renomeie, feche e abra.",
+  d:"A cópia e o nome continuam, e a lista do culto continua apontando para ela.",
+  x:"A cópia sumiu ou a lista aponta para o vazio."},
+ {id:"SAL-9",
+  f:"Escreva notas em três slides, feche e abra.",
+  d:"As três notas voltam nos slides certos.",
+  x:"Voltam nos slides errados, ou na música errada."},
+ {id:"SAL-10",
+  f:"Ajuste o zoom, a quantidade de slides por linha, a altura da faixa, a altura das prévias e esconda as duas prévias. Feche e abra.",
+  d:"Todos os cinco ajustes voltam.",
+  x:"Algum deles voltou ao padrão."},
+ {id:"SAL-11",
+  f:"Configure a aparência da contagem e deixe um tempo nos campos. Feche e abra.",
+  d:"A aparência e o tempo voltam, mas a contagem **não começa sozinha**.",
+  x:"Começa a contar sozinha."},
+ {id:"SAL-12", p:1,
+  f:"Projete uma música e feche o programa com ela no ar. Abra de novo e olhe as telas.",
+  d:"As telas estão limpas. Nada é projetado no arranque.",
+  x:"A música volta para o telão sozinha, sem ninguém no computador. Num culto, isso aparece no meio de outra coisa."},
+ {id:"SAL-13",
+  f:"Escolha uma imagem de fundo bem grande em vários lugares dos Ajustes, até o programa reclamar de espaço.",
+  d:"Ele avisa que não caberia mais, em vez de perder os ajustes que você já tinha.",
+  x:"Perde ajustes em silêncio e você só descobre depois."},
+ {id:"SAL-14", p:1,
+  f:"Conecte num servidor, configure as telas lá, e volte a projetar no seu computador.",
+  d:"As telas do seu computador continuam como você deixou. A configuração do servidor não se mistura com a sua.",
+  x:"A configuração do servidor sobrescreve a sua, ou vice-versa."},
+ {id:"SAL-15",
+  f:"Copie a pasta de dados do Lyra para um pendrive, apague tudo do programa, e restaure a pasta.",
+  d:"O Lyra volta exatamente como estava: músicas, listas, ajustes e telas.",
+  x:"Alguma coisa não voltou. Anote **o que** não voltou — significa que o backup não cobre tudo."}
+],
+olho:[
+ "Muitos ajustes deste programa são gravados com um pequeno atraso. Fechar o programa logo depois de mudar algo é o teste que mais encontra problema aqui — por isso o **SAL-7** existe.",
+ "**SAL-12** é o mais grave desta parte. Nenhuma projeção pode voltar ao abrir o programa, em nenhuma situação."
+],
+junto:[
+ "Mude tudo o que é ajustável numa sessão → feche → abra → percorra todas as abas conferindo item por item.",
+ "Troque de culto → mude os temas → volte para o culto anterior: cada culto mantém os seus próprios temas."
+]
+},
+
+{
+id:"completo", nome:"Ensaio de culto completo", cor:"completo",
+oque:"Os testes que só falham em sequência. Nenhum deles testa uma função isolada — todos testam o que acontece quando você usa o programa como usa de verdade: rápido, fora de ordem e sob pressão.",
+nota:"Faça esta parte **por último**, com o programa já aberto há pelo menos meia hora e com dois monitores ligados. Vários problemas só aparecem depois de o programa acumular uso.",
+itens:[
+ {id:"ENS-1", p:1,
+  f:"Troque de aba 30 vezes seguidas, o mais rápido que der: Home → Slide → Bíblia → Mídias → Contador → Home…",
+  d:"Nenhuma tela branca, nenhuma janelinha sobrando, e o consumo de memória não sobe sem parar.",
+  x:"Em algum momento os cliques param, ou o programa fica visivelmente mais lento."},
+ {id:"ENS-2", p:1,
+  f:"Com projeção no ar, troque de música 20 vezes seguidas na lista do culto.",
+  d:"Cada troca projeta a primeira estrofe da música certa, sem piscar preto.",
+  x:"Projeta a música errada, ou pisca preto entre elas."},
+ {id:"ENS-3", p:1,
+  f:"Faça esta sequência **dez vezes**: projetar música → ir para a Bíblia → projetar versículo → voltar ao Slide → projetar → encerrar.",
+  d:"Cada coisa encerra a sua, e nenhuma sobra escondida no telão.",
+  x:"Em algum momento fica um conteúdo antigo no telão, ou uma coisa encerra a outra sem você mandar."},
+ {id:"ENS-4",
+  f:"Avance 10 músicas com o botão «Próxima música» e volte 10 com o passador.",
+  d:"A lista e os quadradinhos concordam sobre onde você está.",
+  x:"A lista destaca uma música e o telão mostra outra."},
+ {id:"ENS-5", p:1,
+  f:"Encerre a projeção e comece outra **imediatamente** (menos de meio segundo), dez vezes.",
+  d:"Sem piscar, sem janela sobrando, e o primeiro instante nunca mostra o conteúdo antigo.",
+  x:"Aparece um resto da projeção anterior por um instante."},
+ {id:"ENS-6",
+  f:"Com conteúdo no ar, troque o monitor do Público dez vezes.",
+  d:"Migra sempre. Nenhuma tela fica com duas janelas.",
+  x:"Sobram janelas, ou uma tela fica com duas."},
+ {id:"ENS-7", p:1,
+  f:"Com uma música projetada, abra uma mídia e projete ela.",
+  d:"O conflito de tela é resolvido de forma clara, e a sua escolha de monitor não é apagada.",
+  x:"As duas brigam pela mesma tela, ou a sua escolha se perde."},
+ {id:"ENS-8", p:1,
+  f:"Nesta ordem, **sem encerrar nada**: comece a contagem, projete uma mídia, projete um versículo, e projete uma música.",
+  d:"Cada coisa vai para a tela que você configurou, e nenhuma fecha a janela da outra por engano.",
+  x:"Alguma janela fecha, ou o conteúdo aparece na tela errada. Este é o cenário mais difícil do programa."},
+ {id:"ENS-9",
+  f:"Faça 50 projeções seguidas (projetar → encerrar → projetar…) e olhe a memória no Gerenciador de Tarefas antes e depois.",
+  d:"A memória sobe no começo e depois estabiliza.",
+  x:"A memória sobe sem parar. Anote o valor inicial e o final."},
+ {id:"ENS-10",
+  f:"Abra e feche rapidamente todas as janelinhas em cadeia, cinco vezes.",
+  d:"Nenhum véu cinza fica na tela e os cliques continuam funcionando.",
+  x:"Trava e você precisa reiniciar o programa."},
+ {id:"ENS-11", p:1,
+  f:"Deixe uma edição de letra pendente (sem salvar) e percorra todos os modos.",
+  d:"O aviso de alteração não salva aparece em **todos** os caminhos de saída.",
+  x:"Num deles ele sai calado e perde a edição. Anote qual caminho."},
+ {id:"ENS-12",
+  f:"Com projeção no ar, clique em recarregar o painel cinco vezes seguidas.",
+  d:"A projeção sobrevive às cinco, e o painel volta mostrando o que está no telão de verdade.",
+  x:"A projeção cai, ou o painel mostra coisa diferente do telão."},
+ {id:"ENS-13", p:1,
+  f:"Simule um culto completo de 60 minutos: contagem regressiva → 8 músicas de louvor → leitura bíblica → um vídeo → um aviso → mais 2 músicas → encerrar.",
+  d:"Nada errado aparece no telão em nenhum momento dos 60 minutos.",
+  x:"Qualquer coisa. Este é o teste que mais se parece com o uso real — faça antes de entregar."},
+ {id:"ENS-14",
+  f:"Repita o culto simulado no modo dois computadores.",
+  d:"Mesmo resultado, com o servidor projetando.",
+  x:"A rede muda a ordem das coisas e algo aparece fora de hora."},
+ {id:"ENS-15", p:1,
+  f:"Durante o culto simulado, desligue e religue um monitor duas vezes em momentos aleatórios.",
+  d:"Recupera nas duas vezes, sem você precisar mexer em nada.",
+  x:"Precisa de intervenção manual, ou o conteúdo vai para a tela errada."},
+ {id:"ENS-16",
+  f:"Rode o culto simulado inteiro com o microfone ligado.",
+  d:"Nenhum comando dispara por engano nos 60 minutos.",
+  x:"Ele encerra a projeção ou pula slide sozinho."},
+ {id:"ENS-17",
+  f:"Deixe o programa aberto 4 horas com o relógio de repouso na TV do ministrante.",
+  d:"O relógio continua certo, o consumo de memória está estável, e nenhuma janela ficou preta.",
+  x:"A TV ficou preta, ou o relógio parou."}
+],
+olho:[
+ "**ENS-3**, **ENS-5** e **ENS-13** são os três testes que representam melhor o uso de verdade. Se algum deles falhar, o programa não está pronto.",
+ "Faça esta parte com o diagnóstico de telas aberto (teste TEL-18). Se algo der errado, o registro é o que permite consertar."
+],
+junto:[
+ "Todos os testes desta parte **já são** testes de integração. Faça com dois monitores de verdade e o OBS ligado."
+]
+},
+
+{
+id:"final", nome:"Lista final antes de entregar", cor:"final",
+oque:"A lista curta da véspera. Se todos estes passarem, num computador com o programa instalado e dois monitores de verdade, a versão está pronta para o usuário final.",
+nota:"Cada item aqui resume uma parte inteira da lista. Se um falhar, volte para a parte que o cobre em detalhe.",
+itens:[
+ {id:"FIN-1", p:1,
+  f:"Instale a versão final num computador limpo, sem nada do Lyra antes.",
+  d:"Abre, carrega tudo e você consegue usar em menos de 10 segundos.",
+  x:"Volte para a parte «Abrir e fechar o programa»."},
+ {id:"FIN-2", p:1,
+  f:"Instale a versão final sobre um computador que já usava a versão anterior.",
+  d:"Músicas, listas de culto, ajustes e telas todos preservados.",
+  x:"Volte para o teste ABR-4."},
+ {id:"FIN-3", p:1,
+  f:"Passe pelas onze abas e modos, entrando em cada uma vindo de todas as outras.",
+  d:"Nenhuma tela branca, nenhum resto de estado antigo, nenhuma janelinha presa.",
+  x:"Volte para a parte correspondente."},
+ {id:"FIN-4", p:1,
+  f:"Faça a parte «Telas, TV e projetor» **inteira**, com dois monitores de verdade.",
+  d:"Os 22 testes passam.",
+  x:"É a parte mais importante da lista. Se falhar, não entregue."},
+ {id:"FIN-5", p:1,
+  f:"Abrir → projetar → encerrar → trocar de aba → projetar de novo, **dez vezes**.",
+  d:"Sem piscar, sem janela sobrando, sempre no monitor certo.",
+  x:"Volte para os testes TEL-15 e ENS-5."},
+ {id:"FIN-6", p:1,
+  f:"Rode o culto simulado de 60 minutos (teste ENS-13).",
+  d:"Nada errado no telão em nenhum momento.",
+  x:"Não entregue com este falhando."},
+ {id:"FIN-7",
+  f:"Rode o culto simulado no modo dois computadores.",
+  d:"Mesmo resultado.",
+  x:"Se você não tem dois computadores, marque «não testei» e diga isso na entrega."},
+ {id:"FIN-8", p:1,
+  f:"Mude tudo o que é ajustável, feche e abra (a parte «O que precisa ficar salvo» inteira).",
+  d:"O que deve ficar salvo fica; o que não deve, não fica.",
+  x:"Volte para a parte correspondente."},
+ {id:"FIN-9", p:1,
+  f:"Abra o programa e olhe as telas de projeção antes de tocar em nada.",
+  d:"Limpas. Sempre.",
+  x:"Alguma coisa está sendo projetada sozinha. Volte para o teste SAL-12."},
+ {id:"FIN-10", p:1,
+  f:"Encerre uma música e depois um versículo, e olhe a **TV do ministrante** nas duas vezes.",
+  d:"O telão e a TV apagam juntos.",
+  x:"Esta é a suspeita técnica mais forte de toda a auditoria. Se falhar, é a primeira coisa a consertar."},
+ {id:"FIN-11",
+  f:"Rode a verificação de véspera ([[F9]]) num culto real montado.",
+  d:"Aponta o que falta e nada além disso.",
+  x:"Volte para o teste JAN-3."},
+ {id:"FIN-12",
+  f:"Teste os três endereços do OBS num culto simulado.",
+  d:"Acompanham e limpam corretamente.",
+  x:"Volte para o teste JAN-12."},
+ {id:"FIN-13",
+  f:"Ligue o celular e controle a projeção por 10 minutos.",
+  d:"Sem sair de sincronia com o painel.",
+  x:"Volte para o teste RED-8."},
+ {id:"FIN-14",
+  f:"Compare a janela «Atalhos de teclado» com o que você testou de verdade.",
+  d:"A ajuda e o programa dizem a mesma coisa.",
+  x:"Faltam atalhos na ajuda. Volte para o teste JAN-7."},
+ {id:"FIN-15",
+  f:"Confira o número da versão em Ajuda → Sobre, na versão instalada.",
+  d:"Mostra o número de verdade.",
+  x:"Diz «Não disponível»."},
+ {id:"FIN-16", p:1,
+  f:"Feche o programa com projeção no ar e olhe a tela e o Gerenciador de Tarefas.",
+  d:"Nenhuma janela sobrando e nenhum processo do Lyra rodando.",
+  x:"Volte para o teste ABR-6."},
+ {id:"FIN-17",
+  f:"Confira, na versão instalada, se o catálogo de músicas e o microfone funcionam.",
+  d:"A busca HLYRCS devolve resultados e a voz responde.",
+  x:"Algum arquivo não foi empacotado na instalação. Volte para ABR-2 e VOZ-7."},
+ {id:"FIN-18",
+  f:"Clique em «Baixar resultado» aqui no alto e guarde o arquivo junto da versão entregue.",
+  d:"O arquivo tem tudo o que você marcou e a lista do que ficou pendente.",
+  x:"Sem esse arquivo, ninguém sabe o que foi testado."}
+],
+olho:[
+ "Se **FIN-4**, **FIN-5**, **FIN-6** ou **FIN-10** falharem, não entregue. São os quatro que o usuário vai perceber durante um culto."
+]
+},
+
+{
+id:"dev", nome:"Para quem mexe no código", cor:"dev",
+oque:"O que a leitura do código encontrou, antes de qualquer teste. Esta parte é a única com linguagem técnica — se você não programa, pode pular, mas vale mandar ela para quem for consertar.",
+nota:"Cada item aqui é uma **suspeita**, não um erro confirmado. Código correto não prova comportamento correto: é por isso que cada suspeita indica qual teste da lista confirma ou descarta ela.",
+achados:[
+ {sev:"grave", t:"1 · Encerrar os slides pode não limpar a TV do ministrante",
+  d:"Quando você aperta [[Esc]] ou clica no X da barra, o programa manda o comando de limpar a tela do público. No motor de projeção, esse comando limpa o estado do telão mas **não mexe** no estado do ministrante, e não manda redesenhar a janela dele. Só o comando de «encerrar tudo» limpa os dois. Na prática, a TV depende de um observador que reage às prévias do painel com meio segundo de atraso — e esse observador tem três condições que podem impedi-lo de mandar. **Confirme com os testes BAR-6, CUL-9 e FIN-10.**",
+  tec:"`commandApplier.js:424` (`limpar_tela`) → `projectionEncerrar.js` (`encerrarCamadaSlides`) não toca em `ctx.estadoMinistrante` nem chama `engine.atualizarDisplayMinistrante()`. O painel envia `limpar_tela` em `controllerAppCore.js:18414`. A limpeza da TV depende do `MutationObserver` (40 ms) sobre `#op-atual`/`#op-proximo` → `emitirEstadoMinistranteAoServidor()`, que retorna cedo em três guardas."},
+ {sev:"grave", t:"2 · O mesmo padrão ao encerrar a Bíblia",
+  d:"Encerrar a projeção bíblica limpa o telão e limpa a TV **apenas se** ela estivesse mostrando conteúdo bíblico. Se estivesse mostrando outra coisa, aquilo continua. Pode ser de propósito (camadas independentes), mas precisa de confirmação visual. **Confirme com o teste BIB-12.**",
+  tec:"`projectionEncerrar.js` (`encerrarCamadaBiblia`) só anula `ministranteApresentacaoOverride` quando `.modo === 'biblia'`. Ver `commandApplier.js:431`."},
+ {sev:"medio", t:"3 · Seis testes automáticos falham fora do Windows",
+  d:"A suíte do repositório deu **712 de 718** nesta auditoria. As seis falhas são de resolução dos pacotes internos do projeto e acontecem porque a máquina que fez a auditoria não lê os atalhos de pasta criados pelo Windows. Não é defeito do produto — mas **é obrigatório rodar `npm test` no PC de desenvolvimento** antes de gerar o instalador, para confirmar 718 de 718.",
+  tec:"`MODULE_NOT_FOUND` de `@lyra/projection-core` e `@lyra/letras-fontes` em: `controller/src/lib/{cifraLetras,indiceMusicasBusca,lyraSongbank}.test.js`, `server/src/windowsHost.test.js`, `server/src/lib/projectionState.test.js`."},
+ {sev:"medio", t:"4 · A janela «Atalhos de teclado» está desatualizada",
+  d:"O passador de slides aceita mais teclas do que a ajuda mostra: os números 3 e 8 do teclado numérico e as teclas de mídia de faixa anterior/seguinte. E o menu do programa define [[F9]] para a verificação de véspera e [[Ctrl+H]] para o histórico, que também não aparecem na tabela. Quem lê só a ajuda não descobre metade do que existe. **Confirme com os testes CUL-3 e JAN-7.**",
+  tec:"`direcaoTeclaPassadorSlides()` em `controllerAppCore.js:18121` aceita `Numpad3`, `Numpad8`, `MediaTrackNext`, `MediaTrackPrevious` — ausentes de `LYRA_SHORTCUT_GROUPS`. Aceleradores em `mainWindow.js:405,411`."},
+ {sev:"medio", t:"5 · A limpeza de janelinhas ao trocar de modo conhece só sete delas",
+  d:"A função que fecha tudo ao trocar de modo enumera sete janelinhas por nome. O painel tem hoje pelo menos catorze. Algumas têm o seu próprio jeito de fechar, mas vale confirmar uma por uma que nenhuma sobrevive à troca de modo — uma janelinha invisível que fica na frente bloqueia todos os cliques. **Confirme com os testes JAN-8 e JAN-10.**",
+  tec:"`liberarBloqueioUiModos()` em `controllerAppCore.js:284` lista `slide-quick-edit`, `slide-nota`, `slide-delete-confirm`, `letras-preview`, `musica-excluir`, `nova-musica-manual`, `culto-calendario`. Fora da lista: `sync-playlist`, `confirmar-import`, `conflito-import`, `prevoo`, `contagem`, `lyra-menu`, `app-dialog`, `cfg-modal`."},
+ {sev:"medio", t:"6 · Quatro erros de análise de código sem resolver",
+  d:"O verificador de código acusa 4 erros e 287 avisos. Os erros são três blocos de tratamento de erro vazios na geometria dos quadradinhos de slide, e um laço de repetição na sincronização de tons que não tem limite de voltas — se o servidor responder de forma inesperada, ele pode ficar girando. Os 287 avisos são quase todos de estilo de comparação; são dívida aceitável, mas vale decidir isso por escrito antes de entregar.",
+  tec:"`no-empty` em `controller/public/js/modules/slidesGrelha.js:211,466,480`. `no-constant-condition` em `controller/src/lib/invbTonsFromSupabase.js:503` — `while(true)` cuja saída depende de o Supabase honrar o cabeçalho `Range`. 287 avisos `eqeqeq`."},
+ {sev:"leve", t:"7 · Uma variável declarada e nunca usada no motor de projeção",
+  d:"Num arquivo de 123 KB que foi mexido no último dia, existe uma variável criada e nunca utilizada. Vale conferir se é resto de uma reorganização do código ou se é lógica que ficou por conectar.",
+  tec:"`_routingDual` em `packages/projection-core/src/projectionEngine.js:1500`."},
+ {sev:"leve", t:"8 · Os ajustes de desempenho do banco falham em silêncio",
+  d:"O programa tenta ligar um modo de gravação mais rápido no banco de músicas. Se falhar, só grava um aviso no registro interno e ninguém percebe — o sintoma é o programa ficar lento ao importar músicas, especialmente em computador com disco antigo. Dá para confirmar se está ligado olhando se aparece um arquivo terminado em `-wal` ao lado do banco.",
+  tec:"`aplicarPragmasDesempenho()` em `controller/src/db.js:138` envolve `pragma('journal_mode = WAL')` num `try/catch` com `console.warn`."},
+ {sev:"bom", t:"9 · Nenhuma marca de trabalho inacabado no código",
+  d:"Uma varredura por marcas de trabalho pendente (`TODO`, `FIXME`, `HACK`, `BUG`) em todo o código de produção não achou nenhuma. É um bom sinal: não há função conscientemente deixada pela metade.",
+  tec:"Varredura em `controller/src`, `controller/public/js`, `packages/*/src` e `server/src`: zero resultados."},
+ {sev:"bom", t:"10 · As proteções contra piscar e tela errada já estão no código",
+  d:"O motor de projeção já implementa, e documenta, todas as defesas clássicas: a janela nasce invisível e preta, não usa tela cheia exclusiva do Windows (só se encaixa no retângulo do monitor), espera o Windows confirmar que pintou preto antes de aparecer, e usa uma janela-escudo preta na transição. A parte «Telas, TV e projetor» desta lista serve para confirmar que continuam funcionando depois das mudanças recentes, não para descobrir se existem.",
+  tec:"`packages/projection-core/src/projectionEngine.js` — `show:false`, `backgroundColor` preto nativo, sem `fullscreen`, `ready-to-show` + 2 rAF antes de `showInactive()`, ciclo de topo só com `moveTop()`."}
+],
+olho:[
+ "**Arquivos mexidos nas 48 h antes desta auditoria** (maior risco de problema novo): o painel principal, o HTML e o CSS do painel, o motor de projeção, a tela do ministrante, o desenho da projeção pública, tons e ministrantes, a fonte de busca de letras, a rolagem de versículos, a grelha de slides, as mídias, a conexão, o banco e todas as rotas internas. Priorize os testes das partes correspondentes.",
+ "**Nenhum teste automático toca em janelas, monitores ou escala do Windows.** A parte «Telas, TV e projetor» é obrigatoriamente manual, e é a de maior risco do produto.",
+ "O painel expõe cerca de 997 funções para os botões do HTML chamarem por nome. Uma renomeação quebraria um botão em silêncio. Uma verificação automática que compare os nomes usados nos botões com os expostos pelo código seria uma rede de segurança barata."
+],
+junto:[
+ "Depois de consertar qualquer item desta parte, refaça os testes da parte correspondente **e** a parte «Ensaio de culto completo» inteira — consertos em ciclo de vida costumam mover o problema, não removê-lo."
+]
+}
+
+]/*FIMDADOS*/;
+</script>
+<script>
+const LS='lyra_teste_simples_v1';
+let estado={},dbDoc=null,salvarTimer=null;
+function lerLocal(){try{return JSON.parse(localStorage.getItem(LS)||'{}')}catch(_){return{}}}
+function gravarLocal(){try{localStorage.setItem(LS,JSON.stringify(estado))}catch(_){}}
+function agendarGravar(){gravarLocal();if(!dbDoc)return;clearTimeout(salvarTimer);
+  salvarTimer=setTimeout(()=>{dbDoc.set({itens:estado,atualizadoEm:new Date().toISOString()}).catch(()=>sinal('só neste PC'))},700)}
+function sinal(t){const e=document.getElementById('savestate');if(e)e.textContent=t}
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function rich(s){return esc(s)
+  .replace(/`([^`]+)`/g,'<code>$1</code>')
+  .replace(/\[\[([^\]]+)\]\]/g,'<kbd>$1</kbd>')
+  .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')}
+
+function renderSecao(sec,i){
+  const n=String(i+1).padStart(2,'0');
+  let h=`<section class="mod" id="s-${sec.id}" style="--acc:var(--m-${sec.cor})">
+    <div class="modhead"><div class="rail-color"></div><div>
+      <h2><span class="num">${n}</span>${esc(sec.nome)}</h2>
+      <p>${rich(sec.oque)}</p><div class="modstat" id="stat-${sec.id}"></div>
+    </div></div>`;
+  if(sec.nota) h+=`<div class="note">${rich(sec.nota)}</div>`;
+  if(sec.tem&&sec.tem.length){
+    h+=`<h3 class="blk">O que tem nesta parte</h3><ul class="tem">`;
+    for(const t of sec.tem) h+=`<li><b>${rich(t.n)}</b>${rich(t.o)}</li>`;
+    h+=`</ul>`;
+  }
+  if(sec.itens&&sec.itens.length){
+    h+=`<h3 class="blk">Testes — marque o resultado de cada um</h3><ol class="tests">`;
+    for(const t of sec.itens){
+      h+=`<li class="t" data-id="${t.id}" data-must="${t.p?1:0}" data-st="">
+        <div class="thead"><span class="tid">${t.id}</span>${t.p?'<span class="must">obrigatório</span>':''}</div>
+        <div class="lines">
+          <div class="ln f"><b>Faça</b><span>${rich(t.f)}</span></div>
+          <div class="ln d"><b>Deve acontecer</b><span>${rich(t.d)}</span></div>
+          ${t.x?`<div class="ln x"><b>Está errado se</b><span>${rich(t.x)}</span></div>`:''}
+        </div>
+        <div class="trow">
+          <div class="seg" role="group" aria-label="Resultado de ${t.id}">
+            <button data-v="ok" aria-pressed="false" title="Funcionou">Funcionou</button>
+            <button data-v="warn" aria-pressed="false" title="Funcionou, mas com algo estranho">Estranho</button>
+            <button data-v="bad" aria-pressed="false" title="Não funcionou">Deu erro</button>
+            <button data-v="na" aria-pressed="false" title="Não consigo testar aqui">Não testei</button>
+          </div>
+          <input class="nota" placeholder="O que você viu? (monitor, hora, o que fez antes…)" aria-label="Nota de ${t.id}">
+        </div></li>`;
+    }
+    h+=`</ol>`;
+  }
+  if(sec.olho&&sec.olho.length){
+    h+=`<h3 class="blk">Fique de olho</h3><ul class="risks">`;
+    for(const p of sec.olho) h+=`<li>${rich(p)}</li>`;
+    h+=`</ul>`;
+  }
+  if(sec.achados&&sec.achados.length){
+    h+=`<h3 class="blk">Detalhe técnico</h3>`;
+    for(const a of sec.achados){
+      h+=`<div class="finding"><h4>${esc(a.t)}<span class="sev ${a.sev}">${a.sev}</span></h4>
+        <p>${rich(a.d)}</p>${a.tec?`<p class="tech">${rich(a.tec)}</p>`:''}</div>`;
+    }
+  }
+  if(sec.junto&&sec.junto.length){
+    h+=`<h3 class="blk">Teste junto com outras partes</h3><ul class="flows">`;
+    for(const f of sec.junto) h+=`<li>${rich(f)}</li>`;
+    h+=`</ul>`;
+  }
+  return h+`</section>`;
+}
+
+function montar(){
+  const tot=DADOS.reduce((a,s)=>a+(s.itens?s.itens.length:0),0);
+  const must=DADOS.reduce((a,s)=>a+(s.itens||[]).filter(i=>i.p).length,0);
+  document.getElementById('main').innerHTML=
+   `<div class="lede">
+      <h1>Teste do Lyra antes de entregar</h1>
+      <p class="sub">Uma lista de coisas para fazer no programa e conferir se o resultado é o certo.
+      Não precisa entender de programação: cada teste diz <b>o que fazer</b>, <b>o que deve acontecer</b>
+      e <b>o que significa estar errado</b>.</p>
+      <div class="howto">
+        <h3>Como usar esta lista</h3>
+        <ol>
+          <li>Ligue <b>dois monitores</b> (ou um monitor e a TV/projetor) antes de começar. Boa parte dos testes só faz sentido com telas de verdade ligadas.</li>
+          <li>Vá de cima para baixo. Faça o que está escrito em <b>Faça</b> e compare com <b>Deve acontecer</b>.</li>
+          <li>Marque o resultado no botão. Se algo der errado, escreva na caixa de nota <b>o que você viu e o que fez antes</b> — isso é o que permite consertar depois.</li>
+          <li>Os testes marcados <b>obrigatório</b> são os que não podem falhar. Se um deles der erro, o programa não está pronto para entregar.</li>
+          <li>Ao terminar, clique em <b>Baixar resultado</b> para guardar um arquivo com tudo o que você marcou.</li>
+        </ol>
+        <div class="legend">
+          <div><span class="lb f">Faça</span><span>A ação, passo a passo. Faça exatamente isso.</span></div>
+          <div><span class="lb d">Deve acontecer</span><span>O resultado correto. Se foi isso, marque <b>Funcionou</b>.</span></div>
+          <div><span class="lb x">Está errado se</span><span>O sinal de problema. Se viu isso, marque <b>Deu erro</b> e escreva a nota.</span></div>
+        </div>
+      </div>
+      <div class="factbar">
+        <span class="fact"><b>${DADOS.length}</b><span>partes do programa</span></span>
+        <span class="fact"><b>${tot}</b><span>testes</span></span>
+        <span class="fact"><b>${must}</b><span>obrigatórios</span></span>
+      </div>
+    </div>`+DADOS.map(renderSecao).join('');
+  document.getElementById('rail').innerHTML=`<h4>Partes do programa</h4>`+DADOS.map(s=>
+    `<a href="#s-${s.id}" data-id="${s.id}" style="--acc:var(--m-${s.cor})"><i class="tick"></i><span>${esc(s.nome)}</span><em id="rail-${s.id}"></em></a>`).join('');
+  document.getElementById('m-tot').textContent=tot;
+}
+
+function aplicarEstadoNoDom(){
+  document.querySelectorAll('li.t').forEach(li=>{
+    const e=estado[li.dataset.id]||{};
+    li.dataset.st=e.s||'';
+    li.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===e.s?'true':'false'));
+    const inp=li.querySelector('input.nota');
+    if(document.activeElement!==inp) inp.value=e.n||'';
+  });
+  recalcular();aplicarFiltros();
+}
+function recalcular(){
+  let ok=0,warn=0,bad=0,na=0,tot=0;
+  for(const sec of DADOS){
+    let so=0,sw=0,sb=0,sn=0;const st=(sec.itens||[]).length;
+    for(const t of (sec.itens||[])){const s=(estado[t.id]||{}).s;
+      if(s==='ok')so++;else if(s==='warn')sw++;else if(s==='bad')sb++;else if(s==='na')sn++}
+    ok+=so;warn+=sw;bad+=sb;na+=sn;tot+=st;
+    const feito=so+sw+sb+sn;
+    const r=document.getElementById('rail-'+sec.id);
+    if(r){r.textContent=st?(feito+'/'+st):'';r.style.color=sb?'var(--bad)':(feito===st&&st?'var(--ok)':'')}
+    const stat=document.getElementById('stat-'+sec.id);
+    if(stat) stat.innerHTML=(st?`<span class="pill">${st} testes</span>`:'')+
+      (so?`<span class="pill ok">${so} ok</span>`:'')+
+      (sw?`<span class="pill warn">${sw} estranho</span>`:'')+
+      (sb?`<span class="pill bad">${sb} erro</span>`:'')+
+      (sn?`<span class="pill">${sn} não testei</span>`:'');
+  }
+  const done=ok+warn+bad+na;
+  document.getElementById('m-done').textContent=done;
+  document.getElementById('m-bad').textContent=bad;
+  const p=v=>tot?(v/tot*100).toFixed(2)+'%':'0%';
+  document.getElementById('b-ok').style.width=p(ok);
+  document.getElementById('b-warn').style.width=p(warn);
+  document.getElementById('b-bad').style.width=p(bad);
+  document.getElementById('b-na').style.width=p(na);
+}
+let fOpen=false,fBad=false,fMust=false;
+function aplicarFiltros(){
+  document.querySelectorAll('li.t').forEach(li=>{
+    const s=(estado[li.dataset.id]||{}).s;let m=true;
+    if(fMust && li.dataset.must!=='1') m=false;
+    if(fOpen && s) m=false;
+    if(fBad && !(s==='bad'||s==='warn')) m=false;
+    li.hidden=!m;
+  });
+  document.querySelectorAll('section.mod').forEach(sec=>{
+    const itens=sec.querySelectorAll('li.t');if(!itens.length)return;
+    sec.hidden=(fOpen||fBad||fMust)&&![...itens].some(li=>!li.hidden);
+  });
+}
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('.seg button');if(!b)return;
+  const li=b.closest('li.t'),id=li.dataset.id,v=b.dataset.v;
+  const atual=(estado[id]||{}).s;
+  estado[id]=Object.assign({},estado[id],{s:atual===v?'':v});
+  if(!estado[id].s&&!estado[id].n) delete estado[id];
+  agendarGravar();aplicarEstadoNoDom();
+});
+document.addEventListener('input',ev=>{
+  const inp=ev.target.closest('input.nota');if(!inp)return;
+  const id=inp.closest('li.t').dataset.id;
+  estado[id]=Object.assign({},estado[id],{n:inp.value});
+  if(!estado[id].s&&!estado[id].n) delete estado[id];
+  agendarGravar();recalcular();
+});
+function botaoFiltro(idBtn,setter){
+  document.getElementById(idBtn).addEventListener('click',()=>{
+    setter();
+    document.getElementById('f-must').setAttribute('aria-pressed',fMust);
+    document.getElementById('f-open').setAttribute('aria-pressed',fOpen);
+    document.getElementById('f-bad').setAttribute('aria-pressed',fBad);
+    aplicarFiltros();
+  });
+}
+botaoFiltro('f-must',()=>{fMust=!fMust});
+botaoFiltro('f-open',()=>{fOpen=!fOpen;if(fOpen)fBad=false});
+botaoFiltro('f-bad',()=>{fBad=!fBad;if(fBad)fOpen=false});
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  if(!confirm('Apagar todas as marcações?'))return;
+  estado={};agendarGravar();aplicarEstadoNoDom();
+});
+const obs=new IntersectionObserver(es=>{for(const e of es){if(!e.isIntersecting)continue;
+  const id=e.target.id.replace(/^s-/,'');
+  document.querySelectorAll('.rail a').forEach(a=>a.classList.toggle('on',a.dataset.id===id))}},
+  {rootMargin:'-70px 0px -75% 0px'});
+
+function relatorio(){
+  const L=['# Teste do Lyra — resultado',''];
+  L.push('Data: '+new Date().toLocaleString('pt-BR'),'');
+  let ok=0,warn=0,bad=0,na=0,tot=0;
+  for(const s of DADOS) for(const t of (s.itens||[])){tot++;const v=(estado[t.id]||{}).s;
+    if(v==='ok')ok++;else if(v==='warn')warn++;else if(v==='bad')bad++;else if(v==='na')na++}
+  L.push(`${ok+warn+bad+na} de ${tot} testes feitos — ${ok} funcionaram, ${warn} estranhos, ${bad} com erro, ${na} não testados.`,'');
+  const problemas=[];
+  for(const s of DADOS){
+    const feitos=(s.itens||[]).filter(t=>estado[t.id]&&estado[t.id].s);
+    if(!feitos.length)continue;
+    L.push('## '+s.nome,'');
+    for(const t of feitos){
+      const e=estado[t.id];
+      const rot={ok:'FUNCIONOU',warn:'ESTRANHO',bad:'DEU ERRO',na:'NÃO TESTEI'}[e.s]||'—';
+      L.push(`- **[${rot}] ${t.id}${t.p?' (obrigatório)':''}** — ${t.f}`);
+      if(e.n) L.push(`  - Nota: ${e.n}`);
+      if(e.s==='bad'||e.s==='warn') problemas.push(`- [${rot}] ${t.id} — ${s.nome} — ${t.f}${e.n?` — ${e.n}`:''}`);
+    }
+    L.push('');
+  }
+  if(problemas.length) L.push('## Consertar antes de entregar','',...problemas,'');
+  const naoFeitos=[];
+  for(const s of DADOS) for(const t of (s.itens||[])) if(t.p && !(estado[t.id]&&estado[t.id].s)) naoFeitos.push(`- ${t.id} — ${s.nome} — ${t.f}`);
+  if(naoFeitos.length) L.push('## Obrigatórios ainda não testados','',...naoFeitos,'');
+  return L.join('\n');
+}
+document.getElementById('btn-export').addEventListener('click',async()=>{
+  const md=relatorio(),nome='teste-lyra-'+new Date().toISOString().slice(0,10)+'.md';
+  try{const dl=await claude.use('downloads');if(dl){await dl.save({filename:nome,data:md});return}}catch(_){}
+  try{await navigator.clipboard.writeText(md);alert('Resultado copiado. Cole num arquivo de texto para guardar.')}
+  catch(_){alert('Não foi possível baixar nem copiar aqui.')}
+});
+
+montar();
+estado=lerLocal();
+aplicarEstadoNoDom();
+document.querySelectorAll('section.mod').forEach(s=>obs.observe(s));
+(async()=>{
+  let db=null;try{db=await claude.use('db')}catch(_){}
+  if(!db){sinal('só neste PC');return}
+  dbDoc=db.doc('qa/simples');sinal('salvo na conta');
+  dbDoc.onSnapshot(snap=>{
+    if(!snap.exists||snap.metadata.hasPendingWrites)return;
+    const itens=(snap.data()||{}).itens;
+    if(!itens||typeof itens!=='object')return;
+    estado=itens;gravarLocal();aplicarEstadoNoDom();
+  },()=>{dbDoc=null;sinal('só neste PC')});
+})();
+</script>
+
+</body>
+</html>

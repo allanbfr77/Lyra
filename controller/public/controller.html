@@ -1094,7 +1094,7 @@
                 </div>
               </div>
               <div class="cfg-row cfg-row--slider" data-busca="tamanho da fonte letra telao slides">
-                <input type="range" class="cfg-slider" id="cfg-publico-fontsize-ctrl" min="1" max="14" step="1" value="6" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onPublicoSlideCfgChange()">
+                <input type="range" class="cfg-slider" id="cfg-publico-fontsize-ctrl" min="0" max="12" step="1" value="6" data-sce-label="Tamanho" data-sce-unidade="vh" oninput="onPublicoSlideCfgChange()">
               </div>
               <div class="cfg-row" data-busca="cor da letra texto telao slides">
                 <div class="cfg-row-copy"><div class="cfg-row-label">Cor da letra</div></div>
@@ -1674,16 +1674,6 @@
               <div class="cfg-row-copy"><div class="cfg-row-label">Exibir relógio</div></div>
               <div class="cfg-row-controlo">
                 <button type="button" class="cfg-switch cfg-switch--on" id="cfg-clock-show-ctrl" role="switch" aria-checked="true" aria-label="Exibir relógio" onclick="toggleCfgSwitch(this); aplicarCfgRelogio();"><span class="cfg-switch-thumb" aria-hidden="true"></span></button>
-              </div>
-            </div>
-            <div class="cfg-row" data-busca="monitor do relogio ministrante publico ambos">
-              <div class="cfg-row-copy"><div class="cfg-row-label">Em qual monitor</div></div>
-              <div class="cfg-row-controlo">
-                <select class="cfg-form-select" id="cfg-clock-monitor-ctrl" onchange="aplicarCfgRelogio()">
-                  <option value="ministrante">Apenas ministrante</option>
-                  <option value="publico">Apenas público</option>
-                  <option value="ambos">Ambos</option>
-                </select>
               </div>
             </div>
             <div class="cfg-row" data-busca="estilo do relogio digital analogico formato">

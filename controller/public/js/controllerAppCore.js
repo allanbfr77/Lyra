@@ -22601,7 +22601,6 @@ function popularFormCfg(cfg) {
   setChkVal('cfg-ministrante-autofit-ctrl', mb.autoFitLongLines === true);
   setSelVal('cfg-clock-format-ctrl', ck.format || 'HH:MM');
   setChkVal('cfg-clock-show-ctrl', ck.showClock !== false);
-  setSelVal('cfg-clock-monitor-ctrl', ck.monitorRelogio || 'ministrante');
   setInputVal('cfg-clock-fontsize-ctrl', ck.fontSize || 13);
   setSpanText('cfg-clock-fontsize-val-ctrl', String(ck.fontSize || 13));
   setInputVal('cfg-clock-date-fontsize-ctrl', ck.dateFontSize || 2.4);
@@ -22761,7 +22760,7 @@ function aplicarCfgRelogio() {
   const ck = currentCfgCtrl.clock || {};
   ck.format       = document.getElementById('cfg-clock-format-ctrl')?.value || 'HH:MM';
   ck.showClock    = (document.getElementById('cfg-clock-show-ctrl') ? getChkVal('cfg-clock-show-ctrl') : true);
-  ck.monitorRelogio = document.getElementById('cfg-clock-monitor-ctrl')?.value || 'ministrante';
+  ck.monitorRelogio = 'ministrante';
   ck.fontSize     = lerNumeroInput('cfg-clock-fontsize-ctrl', ck.fontSize ?? 13);
   ck.dateFontSize = lerNumeroInput('cfg-clock-date-fontsize-ctrl', ck.dateFontSize ?? 2.4);
   ck.verseFontSize = lerNumeroInput('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize ?? 2.4);

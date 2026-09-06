@@ -1449,15 +1449,12 @@ function createProjectionEngine(paths, deps) {
    * A assinatura vive no `win` porque é dela que depende o próximo envio àquela janela;
    * uma janela nova nasce sem assinatura e recebe sempre a primeira config.
    *
-   * @param {object} [targetWin] janela específica; omitido, M3 (e M2 se o alvo incluir o público)
+   * @param {object} [targetWin] janela específica; omitido, só o M3 (relógio já não vai ao M2)
    */
   function enviarDisplayConfigParaJanelasRelogio(targetWin = null) {
     const cfg = { clock: resolverClockConfigPersistida() };
     const assinatura = assinaturaConfigRelogio(cfg);
-    const alvo = String((cfg.clock && cfg.clock.monitorRelogio) || 'ministrante').toLowerCase();
-    const papeis = new Set(['relogio']);
-    if (alvo === 'publico' || alvo === 'ambos') papeis.add('publico');
-    if (alvo === 'ministrante' || alvo === 'ambos' || !alvo) papeis.add('ministrante');
+    const papeis = new Set(['relogio', 'ministrante']);
     const entradas = targetWin
       ? [{ win: targetWin }]
       : registro.todas().filter((entry) => papeis.has(entry?.role));
