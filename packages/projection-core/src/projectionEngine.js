@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const displayRoutingMod = require('./displayRouting');
 const displayIndicesMod = require('./displayIndices');
 const displayConfigLib = require('./displayConfig');
@@ -169,8 +170,18 @@ const ROLES_COM_CONTEUDO = new Set(['publico', 'ministrante']);
  * Revisão do HTML do M3 (`display-operator.html`). Incrementar quando janelas
  * permanentes precisarem de `reloadIgnoringCache` para apanhar JS novo
  * (ex.: letterSpacing) sem reiniciar o processo Electron.
+ *
+ * O número sozinho nunca dispara nada: quem cria a janela é este mesmo processo, logo ela
+ * nasce com o valor actual. E o M3 é permanente — é criado uma vez, ao abrir o Lyra, e
+ * fica com aquela cópia da página em memória até o app fechar. Era isto que fazia uma
+ * alteração ao `display-operator.html` aparecer na prévia (o painel é servido por HTTP e
+ * recarrega) e não no monitor real. Por isso a revisão efectiva junta o número com a data
+ * do ficheiro em disco — ver `revisaoHtmlOperador`.
  */
 const REVISAO_HTML_OPERADOR = 2;
+
+/** Só se lê o `mtime` uma vez por segundo: isto corre a cada envio de config. */
+const TTL_REVISAO_HTML_OPERADOR_MS = 1000;
 
 /**
  * Intervalo do reclaim global — outro TOPMOST no M2 sobe a z-order sem tirar foco do M3.
@@ -1394,20 +1405,50 @@ function createProjectionEngine(paths, deps) {
     };
   }
 
+  let cacheRevisaoHtmlOperador = { lidoEm: 0, valor: '' };
+
   /**
-   * Janela permanente aberta antes de um patch no HTML do operador: sem reload
-   * o renderer continua com o ficheiro antigo em cache e ignora campos novos
-   * (ex.: `ministrante.letterSpacing`). Janelas criadas com o código actual
+   * Identidade da página do M3 em disco: revisão manual + `mtime` do ficheiro.
+   *
+   * Num build empacotado o ficheiro nunca muda, então isto é uma constante e nada
+   * recarrega. A correr a partir do repositório, editar a página passa a chegar ao monitor
+   * real no envio de config seguinte — sem fechar o Lyra a meio de um culto para ver uma
+   * mudança de tipografia.
+   */
+  function revisaoHtmlOperador() {
+    const agora = Date.now();
+    if (cacheRevisaoHtmlOperador.valor && agora - cacheRevisaoHtmlOperador.lidoEm < TTL_REVISAO_HTML_OPERADOR_MS) {
+      return cacheRevisaoHtmlOperador.valor;
+    }
+    let marca = 0;
+    try {
+      marca = Math.round(fs.statSync(resolverPaginaProjecao('display-operator.html')).mtimeMs || 0);
+    } catch (_) {
+      /* Sem stat (asar exótico, permissão): fica só a revisão manual. */
+      marca = 0;
+    }
+    const valor = `${REVISAO_HTML_OPERADOR}:${marca}`;
+    cacheRevisaoHtmlOperador = { lidoEm: agora, valor };
+    return valor;
+  }
+
+  /**
+   * Janela permanente aberta com uma versão anterior da página do operador: sem reload o
+   * renderer continua com o ficheiro antigo em memória e ignora campos novos (ex.:
+   * `ministrante.letterSpacing`, a tipografia do M3). Janelas criadas com a página actual
    * já nascem com `__lyraRevisaoHtmlOperador` e não recarregam.
    */
   function talvezRecarregarHtmlOperador(win) {
     if (!win || win.isDestroyed()) return;
-    if (win.__lyraRevisaoHtmlOperador === REVISAO_HTML_OPERADOR) return;
-    win.__lyraRevisaoHtmlOperador = REVISAO_HTML_OPERADOR;
+    const revisao = revisaoHtmlOperador();
+    if (win.__lyraRevisaoHtmlOperador === revisao) return;
     try {
+      /* A recarregar agora: marcar já seria dizer que a página nova está no ar. Fica para
+         a próxima config — o `did-finish-load` volta a mandar bootstrap de qualquer forma. */
       if (typeof win.webContents.isLoading === 'function' && win.webContents.isLoading()) {
         return;
       }
+      win.__lyraRevisaoHtmlOperador = revisao;
       win.webContents.reloadIgnoringCache();
     } catch (_) {
       // intencional — erro ignorado
@@ -2024,7 +2065,7 @@ function createProjectionEngine(paths, deps) {
     cobrirMonitorComJanelaNativa(win);
 
     /* loadFile já traz o HTML actual — marcar revisão para não forçar reload. */
-    win.__lyraRevisaoHtmlOperador = REVISAO_HTML_OPERADOR;
+    win.__lyraRevisaoHtmlOperador = revisaoHtmlOperador();
     win.loadFile(resolverPaginaProjecao('display-operator.html'));
     win.setMenuBarVisibility(false);
 

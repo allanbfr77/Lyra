@@ -765,6 +765,10 @@
       const fontVh = Number.isFinite(vh) && vh > 0 ? Math.min(20, vh) : 7;
       elTituloMusicaOp.style.color = cor;
       elTituloMusicaOp.style.fontSize = `${fontVh}vh`;
+      /* A família acompanha a letra: cor e tamanho do título têm ajuste próprio, a fonte
+         não — o ecrã inteiro numa fonte e o título noutra lê-se como defeito. Negrito e
+         caixa alta ficam como estão: são a identidade do título, não do slide. */
+      if (mon.fontFamily) elTituloMusicaOp.style.fontFamily = mon.fontFamily;
     }
 
     /**
