@@ -14,6 +14,7 @@
     "build:dir": "electron-builder --dir"
   },
   "dependencies": {
+    "@lyra/letras-fontes": "file:../packages/letras-fontes",
     "@lyra/projection-core": "file:../packages/projection-core",
     "better-sqlite3": "^9.x.x",
     "electron-updater": "^6.3.9",

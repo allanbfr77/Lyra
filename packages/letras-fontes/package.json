@@ -1,0 +1,13 @@
+{
+  "name": "@lyra/letras-fontes",
+  "version": "1.1.1",
+  "private": true,
+  "description": "Núcleo puro das fontes de letra (Cifra Club, Letras.mus.br, índice)",
+  "main": "src/index.js",
+  "files": [
+    "src/**/*.js"
+  ],
+  "scripts": {
+    "test": "node --test src/index.test.js"
+  }
+}

@@ -11,7 +11,7 @@
  * timeout completo (15s sem resposta) e `/busca/?q=` respondia HTTP 404. Era essa
  * a causa real de a busca de letras não retornar nada — no app e aqui no desktop.
  *
- * Espelha `mobile/src/letrasWebClient.js` — manter alinhado.
+ * Filtro e slugs do índice vivem em `@lyra/letras-fontes` (partilhados com o mobile).
  *
  * Formato de cada `doc` da resposta:
  *   t        tipo — "1" artista, "2" música
@@ -21,6 +21,12 @@
  *   txt      título da música  (ex.: "Galileu")
  *   full_txt título + artista
  */
+
+const {
+  slugParaTituloExibicao,
+  normalizarFonteLetras,
+  resultadoDoIndiceCombina,
+} = require('@lyra/letras-fontes');
 
 const INDICE_BUSCA_URL = 'https://solr.sscdn.co/cifraclub/h/';
 const INDICE_TIPO_MUSICA = '2';
@@ -38,67 +44,10 @@ const MARCADORES_BLOQUEIO = [
   'cf-browser-verification',
 ];
 
-function foldAccents(str) {
-  return String(str || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
-}
-
-function slugParaTituloExibicao(slug) {
-  return String(slug || '')
-    .split('-')
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-    .trim();
-}
-
-function normalizarFonteLetras(fonte) {
-  const f = String(fonte || '').toLowerCase();
-  return f === 'letras-mus-br' || f === 'letrasmusbr' ? 'letras-mus-br' : 'cifraclub';
-}
-
 function pareceBloqueio(corpo) {
   const amostra = String(corpo || '').slice(0, 4000).toLowerCase();
   if (!amostra) return false;
   return MARCADORES_BLOQUEIO.some((m) => amostra.includes(m));
-}
-
-/**
- * Um resultado do índice combina com o que o usuário pediu?
- *
- * Mais tolerante que o antigo `candidatoCombinaBusca`, que casava o termo contra
- * os *slugs* da URL. O índice já ordenou por relevância sobre "título + artista",
- * então filtrar de novo pelo slug descartava acertos bons: buscar
- * "fernandinho galileu" não casava com o slug `galileu` nem com `fernandinho`
- * isoladamente. Aqui o casamento é sobre os nomes reais, e por palavra.
- *
- * @param {{ titulo: string, artista: string }} row
- * @param {string} qBruto
- * @param {{ titulo?: boolean, artista?: boolean, letra?: boolean }} filtros
- * @returns {boolean}
- */
-function resultadoDoIndiceCombina(row, qBruto, filtros = {}) {
-  const q = foldAccents(String(qBruto || '').trim());
-  if (!q) return true;
-
-  const titulo = filtros.titulo !== false;
-  const artista = !!filtros.artista;
-  const letra = !!filtros.letra;
-
-  const tit = foldAccents(row.titulo);
-  const art = foldAccents(row.artista);
-
-  if (titulo && tit.includes(q)) return true;
-  if (artista && art.includes(q)) return true;
-
-  // Termo que mistura título e artista, ou busca por trecho: confia na relevância
-  // do índice, exigindo só que todas as palavras apareçam no par título+artista.
-  const combinado = `${tit} ${art}`;
-  if (letra || combinado.includes(q)) return true;
-  const palavras = q.split(/\s+/).filter(Boolean);
-  return palavras.length > 1 && palavras.every((p) => combinado.includes(p));
 }
 
 /**

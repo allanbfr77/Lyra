@@ -3,6 +3,9 @@
 const { buscarNoIndiceDeMusicas } = require('./indiceMusicasBusca');
 
 const {
+  parseCaminhoLetraLetrasMusBr,
+} = require('@lyra/letras-fontes');
+const {
   foldAccents,
   slugParaTituloExibicao,
   normalizarMaxLinhasPorSlide,
@@ -16,40 +19,6 @@ const {
 } = require('./cifraLetras');
 
 const LETRAS_ORIGIN = 'https://www.letras.mus.br';
-
-const LETRAS_SEG_RESERVADOS = new Set([
-  'busca',
-  'letra',
-  'letras',
-  'mais-acessadas',
-  'top',
-  'playlists',
-  'blog',
-  'sobre',
-  'contato',
-  'enviar',
-  'login',
-  'signup',
-  'premium',
-  'academy',
-  'ccid',
-]);
-
-function parseCaminhoLetraLetrasMusBr(decodedUrl) {
-  try {
-    const u = new URL(decodedUrl);
-    const host = u.hostname.replace(/^www\./i, '');
-    if (host !== 'letras.mus.br') return null;
-    const parts = u.pathname.split('/').filter(Boolean);
-    if (parts.length !== 2) return null;
-    const [artist, song] = parts;
-    if (!/^[a-z0-9_-]+$/i.test(artist) || !/^[a-z0-9_-]+$/i.test(song)) return null;
-    if (LETRAS_SEG_RESERVADOS.has(artist.toLowerCase())) return null;
-    return `/${artist}/${song}/`;
-  } catch (_) {
-    return null;
-  }
-}
 
 /**
  * Busca no Letras.mus.br.
