@@ -6,33 +6,12 @@ import {
   compararMomentoBrasilia,
   obterAgoraBrasilia,
 } from './proximoCulto.js';
+import { gerarCultosDoMes, cultoIdPertenceAoMes } from './cultosCalendario.js';
 
 /** Brasília UTC-3 → Date UTC */
 function emBrasilia(iso, hora, minuto = 0) {
   const [y, mo, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, mo - 1, d, hora + 3, minuto));
-}
-
-function gerarCultosDoMes(dataRef) {
-  const y = dataRef.getFullYear();
-  const m0 = dataRef.getMonth();
-  const lastD = new Date(y, m0 + 1, 0).getDate();
-  const mm = String(m0 + 1).padStart(2, '0');
-  const out = [];
-  for (let d = 1; d <= lastD; d++) {
-    const dt = new Date(y, m0, d);
-    const dow = dt.getDay();
-    const dd = String(d).padStart(2, '0');
-    const iso = `${y}-${mm}-${dd}`;
-    if (dow === 0) {
-      out.push({ id: `culto_${iso}_manha`, label: `${dd}/${mm} | DOMINGO | MANHÃ` });
-      out.push({ id: `culto_${iso}_noite`, label: `${dd}/${mm} | DOMINGO | NOITE` });
-    }
-    if (dow === 3) {
-      out.push({ id: `culto_${iso}_quarta`, label: `${dd}/${mm} | QUARTA-FEIRA` });
-    }
-  }
-  return out;
 }
 
 const cultosManuais = [];
@@ -41,12 +20,9 @@ function listarCultosDisponiveis(dataRef = new Date()) {
   const ref = dataRef instanceof Date ? dataRef : new Date(dataRef);
   const auto = gerarCultosDoMes(ref);
   const idsAuto = new Set(auto.map((c) => c.id));
-  const manual = cultosManuais.filter((c) => {
-    const m = /^culto_(\d{4}-\d{2}-\d{2})_/.exec(c.id);
-    if (!m) return false;
-    const [y, mo] = m[1].split('-').map(Number);
-    return y === ref.getFullYear() && mo === ref.getMonth() + 1 && !idsAuto.has(c.id);
-  });
+  const manual = cultosManuais.filter(
+    (c) => !idsAuto.has(c.id) && cultoIdPertenceAoMes(c.id, ref)
+  );
   return [...auto, ...manual].sort((a, b) => a.id.localeCompare(b.id));
 }
 
