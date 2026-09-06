@@ -47,13 +47,13 @@ test('placeholderBuscaLetrasPorFonte segue a fonte já normalizada', () => {
   assert.equal(placeholderBuscaLetrasPorFonte('lixo'), 'Buscar em cifraclub.com.br…');
 });
 
-test('fonteEnvioImportarLetras não segue o normalizador da busca', () => {
+test('fonteEnvioImportarLetras: lyra-songbank vai ao online; banco-local não', () => {
   assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_LETRAS_MUS), FONTE_LETRAS_LETRAS_MUS);
   assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_LYRA_ONLINE), FONTE_LETRAS_LYRA_ONLINE);
+  assert.equal(fonteEnvioImportarLetras('lyra-songbank'), FONTE_LETRAS_LYRA_ONLINE);
   assert.equal(fonteEnvioImportarLetras(FONTE_LETRAS_BANCO_LOCAL), FONTE_LETRAS_CIFRACLUB);
-  assert.equal(fonteEnvioImportarLetras('lyra-songbank'), FONTE_LETRAS_CIFRACLUB);
   assert.equal(fonteEnvioImportarLetras(''), FONTE_LETRAS_CIFRACLUB);
-  assert.notEqual(
+  assert.equal(
     fonteEnvioImportarLetras('lyra-songbank'),
     normalizarFonteLetrasSite('lyra-songbank')
   );

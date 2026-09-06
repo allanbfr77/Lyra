@@ -1,14 +1,14 @@
 /**
  * Fonte da busca de letras no painel (seletor, placeholder e POST de importar).
  *
- * Extraído do AppCore (secção C/F) sem unificar os dois critérios:
- * na busca, `lyra-songbank` vira `lyra-online` e o resto cai em `banco-local`;
- * no importar, `banco-local` e `lyra-songbank` viram `cifraclub`. Debounce,
- * abort HTTP e o fetch continuam no núcleo.
+ * `lyra-songbank` é o alias antigo do banco online — na busca e no importar
+ * vira `lyra-online`. `banco-local` não vai no POST de importar (cai em
+ * Cifra Club). Debounce, abort HTTP e o fetch continuam no núcleo.
  */
 
 export const FONTE_LETRAS_BANCO_LOCAL = 'banco-local';
 export const FONTE_LETRAS_LYRA_ONLINE = 'lyra-online';
+export const FONTE_LETRAS_LYRA_SONGBANK = 'lyra-songbank';
 export const FONTE_LETRAS_CIFRACLUB = 'cifraclub';
 export const FONTE_LETRAS_LETRAS_MUS = 'letras-mus-br';
 
@@ -24,7 +24,7 @@ export function normalizarFonteLetrasSite(val) {
   const s = String(val || '').trim();
   if (s === FONTE_LETRAS_LETRAS_MUS) return FONTE_LETRAS_LETRAS_MUS;
   if (s === FONTE_LETRAS_CIFRACLUB) return FONTE_LETRAS_CIFRACLUB;
-  if (s === FONTE_LETRAS_LYRA_ONLINE || s === 'lyra-songbank') return FONTE_LETRAS_LYRA_ONLINE;
+  if (s === FONTE_LETRAS_LYRA_ONLINE || s === FONTE_LETRAS_LYRA_SONGBANK) return FONTE_LETRAS_LYRA_ONLINE;
   return FONTE_LETRAS_BANCO_LOCAL;
 }
 
@@ -37,12 +37,12 @@ export function placeholderBuscaLetrasPorFonte(fonte) {
 
 /**
  * Fonte no body de POST /api/letras/importar.
- * Não usa `normalizarFonteLetrasSite`: banco local e aliases antigos vão para Cifra Club.
+ * Banco local continua fora (vira Cifra Club). O alias `lyra-songbank` segue o online.
  */
 export function fonteEnvioImportarLetras(fonte) {
-  return fonte === FONTE_LETRAS_LETRAS_MUS
-    ? FONTE_LETRAS_LETRAS_MUS
-    : fonte === FONTE_LETRAS_LYRA_ONLINE
-      ? FONTE_LETRAS_LYRA_ONLINE
-      : FONTE_LETRAS_CIFRACLUB;
+  if (fonte === FONTE_LETRAS_LETRAS_MUS) return FONTE_LETRAS_LETRAS_MUS;
+  if (fonte === FONTE_LETRAS_LYRA_ONLINE || fonte === FONTE_LETRAS_LYRA_SONGBANK) {
+    return FONTE_LETRAS_LYRA_ONLINE;
+  }
+  return FONTE_LETRAS_CIFRACLUB;
 }
