@@ -113,6 +113,7 @@ import {
   fonteBancoNormalizada,
   fonteBancoItemPlaylist,
   ehMarcadorTemaPlaylist,
+  opcoesVersaoDistintasPorConteudo,
   playlistJaContemMesmaMusicaEVersao,
   playlistItemMesmaVersaoQueRaiz,
 } from './modules/playlistVersaoMusica.js';
@@ -10669,11 +10670,16 @@ async function addMusicaNaPlaylist(meta) {
         const dataV = await resV.json();
         const rootId = Number(dataV.rootId) || idNum;
         for (const v of dataV.versoes || []) {
-          if (Number(v.id) === rootId || v.parent_id == null) continue;
+          if (Number(v.id) === rootId || v.parent_id == null) {
+            // Conteúdo da Original, para comparar com o das outras versões.
+            if (Number(v.id) === rootId) opcoesVersao[0].conteudo = v;
+            continue;
+          }
           const rotulo = String(v.rotulo || '').trim() || 'Cópia';
           opcoesVersao.push({
             value: String(v.id),
             label: formatarRotuloVersaoExibicao(rotulo),
+            conteudo: v,
           });
         }
       }
@@ -10684,11 +10690,16 @@ async function addMusicaNaPlaylist(meta) {
       opcoesVersao.push({
         value: c.id,
         label: `${formatarRotuloVersaoExibicao(c.rotulo)} (LOCAL)`,
+        conteudo: c,
       });
     }
   }
-  if (opcoesVersao.length > 1) {
-    const esc = await appEscolherOpcao('Qual versão deseja adicionar à playlist?', opcoesVersao);
+  // Versões rigorosamente idênticas (mesmo título, artista e estrofes, caractere
+  // por caractere) contam como uma só. Se sobrar apenas a Original, importa a
+  // Original sem perguntar; senão, pergunta só entre as versões distintas.
+  const opcoesVersaoDistintas = opcoesVersaoDistintasPorConteudo(opcoesVersao);
+  if (opcoesVersaoDistintas.length > 1) {
+    const esc = await appEscolherOpcao('Qual versão deseja adicionar à playlist?', opcoesVersaoDistintas);
     if (esc == null) return;
     if (esc !== '__ORIGINAL__') {
       versaoLocalId = esc;

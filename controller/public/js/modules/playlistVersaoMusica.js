@@ -14,6 +14,55 @@ export function ehMarcadorTemaPlaylist(it) {
   return !!(it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA);
 }
 
+/**
+ * Assinatura do CONTEÚDO de uma versão: título, artista e estrofes, exatamente
+ * como estão — caractere por caractere, sem trim nem normalização. Rótulo, id,
+ * data de criação e tipo da versão ficam de fora: não são conteúdo.
+ *
+ * Devolve `null` quando o conteúdo não é conhecido (sem objeto ou sem estrofes).
+ * `null` nunca é igual a nada: sem conteúdo não dá para afirmar que é idêntico.
+ */
+export function assinaturaConteudoVersao(conteudo) {
+  if (!conteudo || typeof conteudo !== 'object') return null;
+  if (!Array.isArray(conteudo.estrofes)) return null;
+  const titulo = conteudo.titulo == null ? '' : String(conteudo.titulo);
+  const artista = conteudo.artista == null ? '' : String(conteudo.artista);
+  const estrofes = conteudo.estrofes.map((s) => (s == null ? '' : String(s)));
+  return JSON.stringify([titulo, artista, estrofes]);
+}
+
+/** Duas versões só são iguais se o conteúdo das duas for conhecido e idêntico. */
+export function versoesConteudoRigorosamenteIdentico(a, b) {
+  const sa = assinaturaConteudoVersao(a);
+  const sb = assinaturaConteudoVersao(b);
+  return sa != null && sb != null && sa === sb;
+}
+
+/**
+ * Reduz as opções de versão às que têm conteúdo realmente diferente.
+ *
+ * A lista chega com a Original em primeiro lugar, então ela tem prioridade:
+ * toda versão rigorosamente idêntica a ela sai da lista. Entre as demais, fica
+ * a primeira de cada conteúdo repetido. Opções cujo `conteudo` não é conhecido
+ * ficam sempre — não há como afirmar que são iguais a outra.
+ *
+ * Sobrando só a Original, quem chama não pergunta nada e importa a Original.
+ */
+export function opcoesVersaoDistintasPorConteudo(opcoes) {
+  const lista = Array.isArray(opcoes) ? opcoes : [];
+  const vistas = new Set();
+  const distintas = [];
+  for (const op of lista) {
+    const sig = assinaturaConteudoVersao(op && op.conteudo);
+    if (sig != null) {
+      if (vistas.has(sig)) continue;
+      vistas.add(sig);
+    }
+    distintas.push(op);
+  }
+  return distintas;
+}
+
 /** Comparação de versão na playlist: sem trim; `0` é falsy e conta como vazio. */
 export function versaoLocalIdParaComparar(versaoId) {
   return versaoId ? String(versaoId) : '';
