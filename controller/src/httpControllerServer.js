@@ -20,6 +20,7 @@ const { registrarRotasSyncBanco } = require('./rotas/syncBanco');
 const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
 const { registrarRotasLetras } = require('./rotas/letras');
+const { registrarRotasSyncInvbPlaylist } = require('./rotas/syncInvbPlaylist');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -236,6 +237,14 @@ async function iniciarServidorController(ctx, paths) {
     marcarBancoCompartilhadoAlterado,
     notificarBancoCompartilhadoAlterado,
   });
+
+  registrarRotasSyncInvbPlaylist(expressApp, {
+    db,
+    marcarBancoCompartilhadoAlterado,
+    notificarBancoCompartilhadoAlterado,
+    paths,
+  });
+
 
   async function proxyDisplay(req, res, pathname) {
     try {

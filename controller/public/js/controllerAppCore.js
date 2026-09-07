@@ -10010,6 +10010,37 @@ async function onCfgSyncTonsInvbClick() {
   }
 }
 
+async function onSincronizarPlaylistLyraClick() {
+  const btn = document.getElementById('btn-sync-invb-playlist');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando…'; }
+  try {
+    const res = await fetch(getControllerApiBase() + '/api/sync-invb-playlist', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Erro ao sincronizar: ' + (data.erro || res.status));
+      return;
+    }
+    // Recarregar playlists do servidor
+    const resP = await fetch(getControllerApiBase() + '/api/playlists');
+    if (resP.ok) {
+      playlists = await resP.json();
+      localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists));
+      await renderListaCfgMinistrantes();
+      renderPlaylist();
+    }
+    let msg = 'Sincronização concluída\n' + data.adicionadas + ' músicas adicionadas';
+    if (data.naoEncontradas && data.naoEncontradas.length > 0) {
+      msg += '\n' + data.naoEncontradas.length + ' músicas não encontradas:\n';
+      msg += data.naoEncontradas.map(m => '  • ' + m.nome + ' (' + m.tipo + ')').join('\n');
+    }
+    alert(msg);
+  } catch (e) {
+    alert('Erro ao sincronizar playlist: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sincronizar com Lyra'; }
+  }
+}
+
 let invbTonsSyncTimer = null;
 function iniciarSyncPeriodicoTonsInvb() {
   clearInterval(invbTonsSyncTimer);
@@ -18416,6 +18447,7 @@ exporCallbacksParaAtributosHtml({
   onCfgMinistranteAdicionar,
   onCfgImportTonsArquivoChange,
   onCfgSyncTonsInvbClick,
+  onSincronizarPlaylistLyraClick,
   setPosCtrl,
   salvarCfgNoServidor,
   onBancoFonteChange,
