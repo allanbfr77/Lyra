@@ -15370,6 +15370,7 @@ function atualizarUiToggleListaBancoSqlite() {
   const btn = document.getElementById('btn-banco-sqlite-toggle-lista');
   const lista = document.getElementById('lista');
   const aviso = document.getElementById('banco-sqlite-lista-recolhida-aviso');
+  const legenda = document.getElementById('bib-origem-legenda');
   if (btn) {
     btn.setAttribute('aria-expanded', bancoSqliteListaExpandida ? 'true' : 'false');
     btn.title = bancoSqliteListaExpandida ? 'Recolher lista de músicas' : 'Expandir lista de músicas';
@@ -15377,6 +15378,9 @@ function atualizarUiToggleListaBancoSqlite() {
   if (lista) {
     lista.classList.toggle('lista-sqlite--recolhida', !bancoSqliteListaExpandida);
     lista.setAttribute('aria-hidden', bancoSqliteListaExpandida ? 'false' : 'true');
+  }
+  if (legenda) {
+    legenda.hidden = !bancoSqliteListaExpandida;
   }
   if (aviso) {
     aviso.hidden = bancoSqliteListaExpandida;
@@ -16801,6 +16805,48 @@ function atualizarEstadoAdicionadasListaLocal() {
   });
 }
 
+/** Origem de importação na Biblioteca — bolinha no hover + legenda. */
+const BIB_ORIGEM_META = Object.freeze({
+  'banco-local': Object.freeze({ classe: 'bib-origem--hlyrcs', tooltip: 'HLYRCS', legenda: 'HLYRCS' }),
+  'lyra-online': Object.freeze({
+    classe: 'bib-origem--lyra',
+    tooltip: 'LYRA',
+    legenda: 'LYRA',
+  }),
+  cifraclub: Object.freeze({
+    classe: 'bib-origem--cifra',
+    tooltip: 'CIFRA CLUB',
+    legenda: 'CIFRA CLUB',
+  }),
+  'letras-mus-br': Object.freeze({
+    classe: 'bib-origem--letras',
+    tooltip: 'LETRAS.MUS',
+    legenda: 'LETRAS.MUS',
+  }),
+  manual: Object.freeze({
+    classe: 'bib-origem--manual',
+    tooltip: 'ADICIONADA MANUALMENTE',
+    legenda: 'MANUAL',
+  }),
+});
+
+function bibMetaOrigemImportacao(origem) {
+  const key = String(origem || '').trim().toLowerCase();
+  if (key === 'lyra-songbank') return BIB_ORIGEM_META['lyra-online'];
+  if (key === 'letrasmusbr') return BIB_ORIGEM_META['letras-mus-br'];
+  return BIB_ORIGEM_META[key] || null;
+}
+
+function bibCriarBolinhaOrigem(origem) {
+  const meta = bibMetaOrigemImportacao(origem);
+  if (!meta) return null;
+  const el = document.createElement('span');
+  el.className = `bib-origem ${meta.classe}`;
+  el.title = meta.tooltip;
+  el.setAttribute('aria-hidden', 'true');
+  return el;
+}
+
 function renderizarListaLocal(lista) {
   const el = document.getElementById('lista');
   if (!el) return;
@@ -16880,10 +16926,15 @@ function renderizarListaLocal(lista) {
       'Clique para abrir a música. Pressione Enter ou clique em + para adicionar à playlist.';
 
     const meta = document.createElement('div');
+    const titLinha = document.createElement('div');
+    titLinha.className = 'bib-titulo-linha';
     const tit = document.createElement('div');
     tit.className = 'titulo';
     tit.textContent = m.titulo || '';
-    meta.appendChild(tit);
+    titLinha.appendChild(tit);
+    const bolinha = bibCriarBolinhaOrigem(m.origem_importacao);
+    if (bolinha) titLinha.appendChild(bolinha);
+    meta.appendChild(titLinha);
     const sub = document.createElement('div');
     sub.className = 'sub';
     sub.textContent = rotuloArtistaLista(m.artista);

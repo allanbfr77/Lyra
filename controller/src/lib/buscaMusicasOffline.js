@@ -63,8 +63,8 @@ async function varrerMusicasPorCriterios(sqliteDb, opts) {
   if (!sqliteDb || (!wantTit && !wantArt && !wantLetra)) return [];
 
   const sql = opts.soRaiz
-    ? 'SELECT id, titulo, artista FROM musicas WHERE parent_id IS NULL'
-    : 'SELECT id, titulo, artista FROM musicas';
+    ? 'SELECT id, titulo, artista, origem_importacao FROM musicas WHERE parent_id IS NULL'
+    : 'SELECT id, titulo, artista, origem_importacao FROM musicas';
   const metas = sqliteDb.prepare(sql).all();
   const out = [];
 
@@ -93,7 +93,12 @@ async function varrerMusicasPorCriterios(sqliteDb, opts) {
     for (const r of chunk) {
       if (out.length >= limite) break;
       if (hitTitArt.has(r.id) || hitLetra.has(r.id)) {
-        out.push({ id: r.id, titulo: r.titulo, artista: r.artista || '' });
+        out.push({
+          id: r.id,
+          titulo: r.titulo,
+          artista: r.artista || '',
+          origem_importacao: r.origem_importacao || null,
+        });
       }
     }
   }

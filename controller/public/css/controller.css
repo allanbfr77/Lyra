@@ -4705,7 +4705,8 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 /* Título + seta de recolher e o campo «Filtrar o banco local…» ficam fixos. */
 .banco-secao-sqlite .banco-secao-titulo-linha,
 .banco-secao-sqlite .banco-busca-local-wrap,
-.banco-secao-sqlite .banco-sqlite-lista-recolhida-aviso {
+.banco-secao-sqlite .banco-sqlite-lista-recolhida-aviso,
+.banco-secao-sqlite .bib-origem-legenda {
   flex: 0 0 auto;
 }
 
@@ -5155,6 +5156,97 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 .lista-sqlite .item:focus .bib-add {
   display: inline-flex;
 }
+
+/* ── Origem de importação (bolinha no hover) ──
+   Em repouso some para não poluir a varredura; no hover/foco aparece DEPOIS
+   do título, sem deslocar o nome para a direita. A legenda fixa no fundo da
+   coluna explica as cores. */
+.lista-sqlite .bib-titulo-linha {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+}
+.lista-sqlite .bib-titulo-linha .titulo {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.lista-sqlite .bib-origem {
+  flex: 0 0 auto;
+  width: 0;
+  height: 7px;
+  margin-left: 0;
+  border-radius: 50%;
+  opacity: 0;
+  overflow: hidden;
+  transform: scale(0.85);
+  transition: opacity 0.12s ease, transform 0.12s ease, width 0.12s ease, margin-left 0.12s ease;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
+}
+.lista-sqlite .item:hover .bib-origem,
+.lista-sqlite .item:focus .bib-origem,
+.lista-sqlite .item:focus-visible .bib-origem {
+  width: 7px;
+  margin-left: 6px;
+  opacity: 1;
+  transform: scale(1);
+}
+.lista-sqlite .bib-origem--hlyrcs { background: #3b82f6; }
+.lista-sqlite .bib-origem--lyra {
+  background: #f5f5f4;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 28%, transparent);
+}
+.lista-sqlite .bib-origem--cifra { background: #eab308; }
+.lista-sqlite .bib-origem--letras { background: #22c55e; }
+.lista-sqlite .bib-origem--manual { background: #ef4444; }
+
+/* Rodapé fixo da coluna Biblioteca: fora do scroll da lista. */
+.banco-secao-sqlite .bib-origem-legenda {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin: 0 calc(-1 * var(--banco-lista-pad-x));
+  padding: 6px var(--banco-lista-pad-x) 0;
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 8.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 42%, transparent);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.banco-secao-sqlite .bib-origem-legenda[hidden] {
+  display: none !important;
+}
+.banco-secao-sqlite .bib-origem-legenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.banco-secao-sqlite .bib-origem {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
+}
+.banco-secao-sqlite .bib-origem--legenda {
+  opacity: 1;
+  transform: none;
+}
+.banco-secao-sqlite .bib-origem--hlyrcs { background: #3b82f6; }
+.banco-secao-sqlite .bib-origem--lyra {
+  background: #f5f5f4;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 28%, transparent);
+}
+.banco-secao-sqlite .bib-origem--cifra { background: #eab308; }
+.banco-secao-sqlite .bib-origem--letras { background: #22c55e; }
+.banco-secao-sqlite .bib-origem--manual { background: #ef4444; }
 
 /* ── Já adicionada ao culto ──
    Sem fundo e sem preenchimento: a linha continua clicável e legível, apenas

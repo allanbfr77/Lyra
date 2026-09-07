@@ -146,6 +146,7 @@ function registrarRotasLetras(expressApp, deps) {
 
       const imp = importarMusicaUsuarioNoDb(titulo, artista, estrofes, {
         aoDuplicar: modoDuplicidadeDoBody(req.body),
+        origem: 'banco-local',
       });
       if (imp.duplicado) return responderDuplicidade(res, imp, titulo, artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });
@@ -264,6 +265,7 @@ function registrarRotasLetras(expressApp, deps) {
 
       const imp = importarMusicaUsuarioNoDb(r.titulo, r.artista, r.estrofes || [], {
         aoDuplicar: modoDuplicidadeDoBody(req.body),
+        origem: fonte,
       });
       if (imp.duplicado) return responderDuplicidade(res, imp, r.titulo, r.artista);
       if (!imp.ok) return res.status(500).json({ erro: imp.erro || 'Falha ao importar' });

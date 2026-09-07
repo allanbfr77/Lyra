@@ -190,7 +190,8 @@ function initControllerDatabase(paths, Database) {
       parent_id INTEGER,
       root_id INTEGER,
       is_immutable INTEGER NOT NULL DEFAULT 0,
-      rotulo TEXT
+      rotulo TEXT,
+      origem_importacao TEXT
     );
   `);
 

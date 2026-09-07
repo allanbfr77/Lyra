@@ -49,7 +49,7 @@ function registrarRotasMusicas(expressApp, deps) {
       const out = [];
       const rowsU = db
         .prepare(
-          `SELECT id, titulo, artista FROM musicas
+          `SELECT id, titulo, artista, origem_importacao FROM musicas
            WHERE parent_id IS NULL
            ORDER BY titulo COLLATE NOCASE`
         )

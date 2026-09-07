@@ -30,6 +30,32 @@ const ROTULO_COPIA_MANUAL = 'Cópia/Manual';
  */
 const ROTULO_COPIA_PADRAO = 'Cópia';
 
+/** Origem real da importação/cadastro na Biblioteca (persistida em `origem_importacao`). */
+const ORIGEM_BANCO_LOCAL = 'banco-local';
+const ORIGEM_LYRA_ONLINE = 'lyra-online';
+const ORIGEM_CIFRACLUB = 'cifraclub';
+const ORIGEM_LETRAS_MUS = 'letras-mus-br';
+const ORIGEM_MANUAL = 'manual';
+
+const ORIGENS_IMPORTACAO = Object.freeze([
+  ORIGEM_BANCO_LOCAL,
+  ORIGEM_LYRA_ONLINE,
+  ORIGEM_CIFRACLUB,
+  ORIGEM_LETRAS_MUS,
+  ORIGEM_MANUAL,
+]);
+
+const ORIGENS_IMPORTACAO_SET = new Set(ORIGENS_IMPORTACAO);
+
+/** Normaliza aliases da UI/API para o valor gravado na coluna. */
+function normalizarOrigemImportacao(val) {
+  const s = String(val || '').trim().toLowerCase();
+  if (!s) return null;
+  if (s === 'lyra-songbank') return ORIGEM_LYRA_ONLINE;
+  if (s === 'letrasmusbr') return ORIGEM_LETRAS_MUS;
+  return ORIGENS_IMPORTACAO_SET.has(s) ? s : null;
+}
+
 /** Marcas de acentuação isoladas pela decomposição NFD (U+0300..U+036F). */
 const REGEX_MARCAS_ACENTO = /[\u0300-\u036f]/g;
 
@@ -76,6 +102,9 @@ function migrarMusicasImutabilidade() {
     ['root_id', 'INTEGER'],
     ['is_immutable', 'INTEGER NOT NULL DEFAULT 0'],
     ['rotulo', 'TEXT'],
+    /* Origem da importação/cadastro (HLYRCS, Cifra Club, manual, …). Null em
+       músicas antigas — a UI só mostra a bolinha quando o valor existe. */
+    ['origem_importacao', 'TEXT'],
   ];
   for (const [nome, tipo] of adds) {
     if (!colunaExiste('musicas', nome)) {
@@ -125,6 +154,7 @@ function rowMusicaParaJson(row, extras = {}) {
   if (!row) return null;
   const estrofes = parseEstrofesJson(row.estrofes);
   const rootId = row.root_id != null ? row.root_id : row.id;
+  const origem = normalizarOrigemImportacao(row.origem_importacao);
   return {
     id: row.id,
     titulo: String(row.titulo || '').trim(),
@@ -134,6 +164,7 @@ function rowMusicaParaJson(row, extras = {}) {
     root_id: rootId,
     is_immutable: Number(row.is_immutable) === 1 ? 1 : 0,
     rotulo: row.rotulo != null ? String(row.rotulo) : '',
+    origem_importacao: origem,
     criado_em: row.criado_em,
     ...extras,
   };
@@ -164,10 +195,11 @@ function finalizarMusicaOriginalAposInsert(id) {
  * `atualizarMusicaNoDb`. O `id` devolvido continua sendo o do original — é ele
  * que a lista do banco e as playlists usam como âncora (`root_id`).
  */
-function inserirMusicaUsuario(titulo, artista, estrofes) {
+function inserirMusicaUsuario(titulo, artista, estrofes, opts = {}) {
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
   const tituloTrim = String(titulo).trim();
   const artistaTrim = String(artista || '').trim();
+  const origem = normalizarOrigemImportacao(opts.origem);
 
   /*
    * Cadastrar uma música são três escritas — o original, o `root_id` que se aponta a si
@@ -180,8 +212,10 @@ function inserirMusicaUsuario(titulo, artista, estrofes) {
    */
   const gravar = () => {
     const info = getDb()
-      .prepare('INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)')
-      .run(tituloTrim, artistaTrim, JSON.stringify(norm));
+      .prepare(
+        'INSERT INTO musicas (titulo, artista, estrofes, is_immutable, origem_importacao) VALUES (?, ?, ?, 1, ?)'
+      )
+      .run(tituloTrim, artistaTrim, JSON.stringify(norm), origem);
     const newId = info.lastInsertRowid;
     finalizarMusicaOriginalAposInsert(newId);
 
@@ -190,6 +224,7 @@ function inserirMusicaUsuario(titulo, artista, estrofes) {
     if (originalRow) {
       const copia = inserirCopiaMusica(originalRow, tituloTrim, artistaTrim, norm, {
         rotulo: ROTULO_COPIA_PADRAO,
+        origem,
       });
       if (copia && copia.ok) copiaId = copia.id;
     }
@@ -209,10 +244,15 @@ function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
   const rootId = parentRow.root_id != null ? parentRow.root_id : parentRow.id;
   const rotulo = opts.rotulo != null ? String(opts.rotulo).trim().slice(0, 40) : '';
+  /* Nova importação/manual passa `opts.origem`; forks de versão herdam do pai. */
+  const origem =
+    opts.origem !== undefined
+      ? normalizarOrigemImportacao(opts.origem)
+      : normalizarOrigemImportacao(parentRow && parentRow.origem_importacao);
   const info = getDb()
     .prepare(
-      `INSERT INTO musicas (titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo)
-       VALUES (?, ?, ?, ?, ?, 0, ?)`
+      `INSERT INTO musicas (titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo, origem_importacao)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?)`
     )
     .run(
       String(titulo).trim(),
@@ -220,7 +260,8 @@ function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
       JSON.stringify(norm),
       parentRow.id,
       rootId,
-      rotulo || null
+      rotulo || null,
+      origem
     );
   return { ok: true, id: info.lastInsertRowid, rootId, parentId: parentRow.id };
 }
@@ -421,10 +462,10 @@ function prepararEntradaMusicaUsuario(titulo, artista, estrofes) {
  * Grava a música quando já existe uma equivalente: sempre como cópia filha,
  * preservando o original intacto.
  */
-function gravarComoCopiaDeExistente(existente, tituloTrim, artistaTrim, norm, rotulo) {
+function gravarComoCopiaDeExistente(existente, tituloTrim, artistaTrim, norm, rotulo, origem) {
   const row = obterMusicaUsuarioPorId(existente.id);
   if (!row) return { ok: false, erro: 'Não encontrado' };
-  const fork = inserirCopiaMusica(row, tituloTrim, artistaTrim, norm, { rotulo });
+  const fork = inserirCopiaMusica(row, tituloTrim, artistaTrim, norm, { rotulo, origem });
   // Aqui o registro gravado já é a própria cópia editável.
   return { ok: true, id: fork.id, rootId: fork.rootId, copiaId: fork.id, copyImportada: true };
 }
@@ -437,16 +478,18 @@ function gravarComoCopiaDeExistente(existente, tituloTrim, artistaTrim, norm, ro
  *   comportamento automático usado pelos fluxos em lote do celular. `perguntar`
  *   **não grava nada** ao detectar duplicidade e devolve `{ duplicado: true }`
  *   para que a decisão seja do usuário.
+ * @param {string} [opts.origem] Origem da importação (`banco-local`, `lyra-online`, …).
  */
 function importarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
   const entrada = prepararEntradaMusicaUsuario(titulo, artista, estrofes);
   if (entrada.erro) return { ok: false, erro: entrada.erro };
   const { tituloTrim, artistaTrim, norm } = entrada;
+  const origem = normalizarOrigemImportacao(opts.origem);
 
   const existente = encontrarMusicaUsuarioDuplicada(tituloTrim, artistaTrim);
 
   if (!existente) {
-    const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
+    const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm, { origem });
     if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
     return { ok: true, id: ins.id, rootId: ins.id, copiaId: ins.copiaId, copyImportada: false };
   }
@@ -460,7 +503,8 @@ function importarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
     tituloTrim,
     artistaTrim,
     norm,
-    ROTULO_COPIA_IMPORTADA
+    ROTULO_COPIA_IMPORTADA,
+    origem
   );
 }
 
@@ -471,16 +515,18 @@ function importarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
  *
  * @param {object} [opts]
  * @param {'copiar'|'perguntar'} [opts.aoDuplicar] Ver `importarMusicaUsuarioNoDb`.
+ * @param {string} [opts.origem] Sobrescreve a origem; padrão `manual`.
  */
 function criarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
   const entrada = prepararEntradaMusicaUsuario(titulo, artista, estrofes);
   if (entrada.erro) return { ok: false, erro: entrada.erro };
   const { tituloTrim, artistaTrim, norm } = entrada;
+  const origem = normalizarOrigemImportacao(opts.origem) || ORIGEM_MANUAL;
 
   const existente = encontrarMusicaUsuarioDuplicada(tituloTrim, artistaTrim);
 
   if (!existente) {
-    const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm);
+    const ins = inserirMusicaUsuario(tituloTrim, artistaTrim, norm, { origem });
     if (!ins.ok) return { ok: false, erro: ins.erro || 'Falha ao inserir' };
     return { ok: true, id: ins.id, rootId: ins.id, copiaId: ins.copiaId, copyImportada: false };
   }
@@ -494,7 +540,8 @@ function criarMusicaUsuarioNoDb(titulo, artista, estrofes, opts = {}) {
     tituloTrim,
     artistaTrim,
     norm,
-    ROTULO_COPIA_MANUAL
+    ROTULO_COPIA_MANUAL,
+    origem
   );
 }
 
@@ -753,6 +800,7 @@ function normalizarMusicasUsuarioParaSync(musicas) {
     }
 
     const rotulo = raw.rotulo != null ? String(raw.rotulo).trim().slice(0, 40) : '';
+    const origem_importacao = normalizarOrigemImportacao(raw.origem_importacao);
 
     const item = {
       titulo,
@@ -762,6 +810,7 @@ function normalizarMusicasUsuarioParaSync(musicas) {
       root_id,
       is_immutable,
       rotulo,
+      origem_importacao,
     };
     if (hasId) {
       ids.add(id);
@@ -786,7 +835,7 @@ function normalizarMusicasUsuarioParaSync(musicas) {
 function listarMusicasUsuarioParaSync() {
   return getDb()
     .prepare(
-      `SELECT id, titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo
+      `SELECT id, titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo, origem_importacao
        FROM musicas
        ORDER BY CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END, id ASC`
     )
@@ -810,6 +859,7 @@ function listarMusicasUsuarioParaSync() {
         root_id,
         is_immutable: Number(row.is_immutable) === 1 ? 1 : 0,
         rotulo: row.rotulo != null ? String(row.rotulo) : '',
+        origem_importacao: normalizarOrigemImportacao(row.origem_importacao),
       };
     })
     .filter((row) => row.titulo && row.estrofes.length);
@@ -818,11 +868,11 @@ function listarMusicasUsuarioParaSync() {
 function substituirMusicasUsuarioParaSync(musicas) {
   const itens = normalizarMusicasUsuarioParaSync(musicas);
   const insertWithId = getDb().prepare(
-    `INSERT INTO musicas (id, titulo, artista, estrofes, is_immutable, parent_id, root_id, rotulo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO musicas (id, titulo, artista, estrofes, is_immutable, parent_id, root_id, rotulo, origem_importacao)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertAuto = getDb().prepare(
-    'INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)'
+    'INSERT INTO musicas (titulo, artista, estrofes, is_immutable, origem_importacao) VALUES (?, ?, ?, 1, ?)'
   );
 
   const aplicar = (lista) => {
@@ -834,6 +884,7 @@ function substituirMusicasUsuarioParaSync(musicas) {
     }
     for (const item of lista) {
       const estrofesJson = JSON.stringify(item.estrofes);
+      const origem = normalizarOrigemImportacao(item.origem_importacao);
       if (Number.isFinite(item.id) && item.id > 0) {
         const id = Math.trunc(item.id);
         const parent_id = item.parent_id != null ? item.parent_id : null;
@@ -849,11 +900,12 @@ function substituirMusicasUsuarioParaSync(musicas) {
           is_immutable,
           parent_id,
           root_id,
-          rotulo
+          rotulo,
+          origem
         );
       } else {
         // Sem id só aceitamos originais (compat com snapshots antigos).
-        const info = insertAuto.run(item.titulo, item.artista, estrofesJson);
+        const info = insertAuto.run(item.titulo, item.artista, estrofesJson, origem);
         finalizarMusicaOriginalAposInsert(info.lastInsertRowid);
       }
     }
@@ -875,6 +927,13 @@ module.exports = {
   ROTULO_COPIA_IMPORTADA,
   ROTULO_COPIA_MANUAL,
   ROTULO_COPIA_PADRAO,
+  ORIGEM_BANCO_LOCAL,
+  ORIGEM_LYRA_ONLINE,
+  ORIGEM_CIFRACLUB,
+  ORIGEM_LETRAS_MUS,
+  ORIGEM_MANUAL,
+  ORIGENS_IMPORTACAO,
+  normalizarOrigemImportacao,
   normalizarChaveComparacao,
   normalizarArtistaComparacao,
   parseEstrofesJson,
