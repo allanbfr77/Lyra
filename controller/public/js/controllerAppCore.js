@@ -9399,6 +9399,11 @@ function formatarRotuloVersaoExibicao(rotulo) {
   return bruto;
 }
 
+/** Só exibição: o nome da versão aparece sempre em maiúsculas. O dado gravado não muda. */
+function rotuloVersaoMaiusculo(rotulo) {
+  return String(rotulo || '').toLocaleUpperCase('pt-BR');
+}
+
 /** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
 function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
   const r = String(rotulo || '').trim();
@@ -10662,7 +10667,7 @@ async function addMusicaNaPlaylist(meta) {
   let versaoLocalId = null;
   let tituloPl = meta.titulo;
   let artistaPl = meta.artista || '';
-  const opcoesVersao = [{ value: '__ORIGINAL__', label: 'Original' }];
+  const opcoesVersao = [{ value: '__ORIGINAL__', label: rotuloVersaoMaiusculo('Original') }];
   if (bancoFonte !== 'catalog') {
     try {
       const resV = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/versoes`);
@@ -10678,7 +10683,7 @@ async function addMusicaNaPlaylist(meta) {
           const rotulo = String(v.rotulo || '').trim() || 'Cópia';
           opcoesVersao.push({
             value: String(v.id),
-            label: formatarRotuloVersaoExibicao(rotulo),
+            label: rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(rotulo)),
             conteudo: v,
           });
         }
@@ -10689,7 +10694,7 @@ async function addMusicaNaPlaylist(meta) {
     for (const c of getCopiasParaMusica(idNum)) {
       opcoesVersao.push({
         value: c.id,
-        label: `${formatarRotuloVersaoExibicao(c.rotulo)} (LOCAL)`,
+        label: `${rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(c.rotulo))} (LOCAL)`,
         conteudo: c,
       });
     }
@@ -17627,7 +17632,7 @@ function renderMusicaVersoesBar() {
   bar.appendChild(lbl);
 
   const originalAtivo = musicaAtivaEhOriginalServidor() && !musicaVersaoLocalId;
-  bar.appendChild(mkChip('Original', null, originalAtivo, SVG_VERSAO.original));
+  bar.appendChild(mkChip(rotuloVersaoMaiusculo('Original'), null, originalAtivo, SVG_VERSAO.original));
 
   for (const v of versoesSrv) {
     if (v.parent_id == null && Number(v.id) === rootId) continue;
@@ -17636,11 +17641,13 @@ function renderMusicaVersoesBar() {
     const ativo = !musicaVersaoLocalId && Number(musicaAtiva.id) === Number(v.id);
     const rotulo = rotuloExibicaoVersaoServidor(v);
     /* Só o nome/badge — editar e apagar ficam no menu inferior contextual. */
-    bar.appendChild(mkChip(rotulo, vid, ativo, iconeVersaoServidorPorRotulo(rotulo)));
+    bar.appendChild(
+      mkChip(rotuloVersaoMaiusculo(rotulo), vid, ativo, iconeVersaoServidorPorRotulo(rotulo))
+    );
   }
 
   copiasLocais.forEach((c) => {
-    const rotuloVis = `${formatarRotuloVersaoExibicao(c.rotulo)} (LOCAL)`;
+    const rotuloVis = `${rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(c.rotulo))} (LOCAL)`;
     bar.appendChild(mkChip(rotuloVis, c.id, musicaVersaoLocalId === c.id, SVG_VERSAO.local));
   });
 
