@@ -339,16 +339,24 @@ function atualizarMusicaNoDb(idRaw, titulo, artista, estrofes) {
   const tituloTrim = String(titulo).trim();
   const artistaTrim = String(artista || '').trim();
 
+  // root_id da família: título/artista são um dado único compartilhado por todas as versões.
+  const familiaRootId = row.root_id != null ? row.root_id : row.id;
+
   if (Number(row.is_immutable) === 1) {
     const letraAlterada = !estrofesIguaisNoBanco(row.estrofes, normalized);
     if (letraAlterada) {
+      // Letra alterada: cria cópia na Biblioteca.
       const fork = inserirCopiaMusica(
         row,
-        String(row.titulo || '').trim(),
-        String(row.artista ?? '').trim(),
+        tituloTrim,
+        artistaTrim,
         normalized,
         { rotulo: ROTULO_COPIA_MODIFICADA }
       );
+      // Propaga título/artista a toda a família (inclusive o registro raiz).
+      getDb()
+        .prepare('UPDATE musicas SET titulo=?, artista=? WHERE root_id=? OR id=?')
+        .run(tituloTrim, artistaTrim, familiaRootId, familiaRootId);
       return {
         ok: true,
         forked: true,
@@ -357,19 +365,21 @@ function atualizarMusicaNoDb(idRaw, titulo, artista, estrofes) {
         rootId: fork.rootId,
       };
     }
-    const rMeta = getDb()
-      .prepare('UPDATE musicas SET titulo=?, artista=? WHERE id=? AND is_immutable = 1')
-      .run(tituloTrim, artistaTrim, id);
-    if (rMeta.changes === 0) return { ok: false, erro: 'Não encontrado' };
+    // Apenas metadados: propaga título/artista a toda a família (sem criar cópia).
+    getDb()
+      .prepare('UPDATE musicas SET titulo=?, artista=? WHERE root_id=? OR id=?')
+      .run(tituloTrim, artistaTrim, familiaRootId, familiaRootId);
     return { ok: true, forked: false, id, titulo: tituloTrim };
   }
 
+  // is_immutable=0: salva estrofes do registro específico e propaga título/artista a toda a família.
   const r = getDb()
-    .prepare(
-      'UPDATE musicas SET titulo=?, artista=?, estrofes=? WHERE id=? AND is_immutable = 0'
-    )
-    .run(tituloTrim, artistaTrim, JSON.stringify(normalized), id);
+    .prepare('UPDATE musicas SET estrofes=? WHERE id=? AND is_immutable=0')
+    .run(JSON.stringify(normalized), id);
   if (r.changes === 0) return { ok: false, erro: 'Não encontrado' };
+  getDb()
+    .prepare('UPDATE musicas SET titulo=?, artista=? WHERE root_id=? OR id=?')
+    .run(tituloTrim, artistaTrim, familiaRootId, familiaRootId);
   return { ok: true, forked: false, id, titulo: tituloTrim };
 }
 

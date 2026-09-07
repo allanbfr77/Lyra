@@ -10659,7 +10659,6 @@ async function addMusicaNaPlaylist(meta) {
   const idNum = Number(meta.id);
   const bancoFonte = fonteBancoItemPlaylist(meta);
   let versaoLocalId = null;
-  let versaoRotulo = '';
   let tituloPl = meta.titulo;
   let artistaPl = meta.artista || '';
   const opcoesVersao = [{ value: '__ORIGINAL__', label: 'Original' }];
@@ -10700,7 +10699,6 @@ async function addMusicaNaPlaylist(meta) {
             const m = await resM.json();
             tituloPl = m.titulo || tituloPl;
             artistaPl = m.artista || artistaPl;
-            versaoRotulo = String(m.rotulo || '').trim();
           }
         } catch (_) {
           // intencional — falha ao carregar metadados da versão
@@ -10710,7 +10708,6 @@ async function addMusicaNaPlaylist(meta) {
         if (c) {
           tituloPl = c.titulo;
           artistaPl = c.artista || '';
-          versaoRotulo = c.rotulo || '';
         }
       }
     }
@@ -10765,7 +10762,8 @@ async function addMusicaNaPlaylist(meta) {
     artista: artistaPl,
     tema,
     versaoLocalId,
-    versaoRotulo,
+    // Tags (rótulos de versão) nunca entram na playlist, seja qual for a versão escolhida.
+    versaoRotulo: '',
     bancoFonte,
     ministranteId: mt.ministranteId,
     tom: mt.tom,
@@ -10809,7 +10807,8 @@ async function addMusicaNaPlaylistParaCulto(cid, meta) {
     artista: meta.artista || '',
     tema,
     versaoLocalId: vid,
-    versaoRotulo: String(meta.versaoRotulo || '').trim(),
+    // Tags (rótulos de versão) nunca entram na playlist, qualquer que seja a origem do import.
+    versaoRotulo: '',
     bancoFonte: bfAdd,
     ministranteId: mt.ministranteId,
     tom: mt.tom,
@@ -12513,8 +12512,13 @@ function atualizarToolbarModoEdicao() {
   document.getElementById('btn-editar-letra').style.display = (m && !ed && !full) ? '' : 'none';
   document.getElementById('btn-encerrar-edicao').style.display = (m && ed) ? '' : 'none';
   if (btnSalvar) {
-    btnSalvar.style.display = (m && (ed || metadadosSujos) && !fromCatalog) ? '' : 'none';
-    btnSalvar.disabled = !m || fromCatalog || (!ed && !metadadosSujos);
+    /* No modo letra completa o botao «Salvar alterações» ja existe na propria
+       barra (alterna com «Modo letra completa» — ver atualizarToolbarModoLetraCompleta).
+       Nao mostrar este aqui tambem, senao duplica o botao quando o artista/titulo
+       e editado enquanto a letra completa esta aberta. */
+    const mostrarSalvar = ed || (metadadosSujos && !full);
+    btnSalvar.style.display = (m && mostrarSalvar && !fromCatalog) ? '' : 'none';
+    btnSalvar.disabled = !m || fromCatalog || !mostrarSalvar;
   }
   document.getElementById('btn-nova-estrofe').style.display = (m && ed && !full) ? '' : 'none';
   document.getElementById('btn-nova-estrofe').disabled = !m || !ed || full;
@@ -12972,7 +12976,14 @@ function entrarModoLetraCompletaCentral() {
 async function alternarModoLetraCompletaCentral() {
   if (!musicaAtiva) return;
   if (modoLetraCompletaCentral) {
-    const suja = letraCompletaSujaVsSnapshot();
+    const suja = letraCompletaSujaVsSnapshot() || metadadosMusicaSujosNaHome();
+    // Captura titulo/artista dos inputs ANTES da sincronizacao: renderEstrofesEditor()
+    // (chamado dentro da sync) sobrescreve os inputs com musicaAtiva.titulo/artista,
+    // apagando as edicoes do usuario antes de persistirMusicaAtivaNoServidor() le-las.
+    const _etLC = document.getElementById('edit-titulo');
+    const _eaLC = document.getElementById('edit-artista');
+    if (_etLC) musicaAtiva.titulo = _etLC.value;
+    if (_eaLC) musicaAtiva.artista = _eaLC.value;
     sincronizarEstrofesDesdeTextareaLetraCompleta();
     if (suja) {
       if (musicaBancoFonte === 'catalog') {
@@ -13070,7 +13081,10 @@ function atualizarToolbarModoLetraCompleta() {
   }
   // Toggle explícito: inativo = outline neutro, ativo = preenchido.
   btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
-  btn.classList.toggle('ativo', !!modoLetraCompletaCentral);
+  /* Aceso (dourado) só quando há alteração por gravar — não apenas por estar no modo. */
+  const temAlteracaoNaoSalva =
+    modoLetraCompletaCentral && (letraCompletaSujaVsSnapshot() || metadadosMusicaSujosNaHome());
+  btn.classList.toggle('ativo', temAlteracaoNaoSalva);
   btn.title = modoLetraCompletaCentral
     ? 'Gravar a letra no banco local e voltar aos cartões por slide'
     : 'Editar ou copiar a letra inteira num só texto';
@@ -13939,6 +13953,7 @@ function configurarCamposMetadadosMusicaHome() {
       if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
         guiasEstrofesLetraCompleta.agendar();
       }
+      atualizarToolbarModoLetraCompleta();
     });
   }
   const btnCaixa = document.getElementById('btn-caixa-letras-edicao');

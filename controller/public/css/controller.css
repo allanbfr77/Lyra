@@ -3198,9 +3198,12 @@ body:not(.app-mod-slides) .centro-col-letras {
 .centro-toolbar-acoes .btn-toolbar-letra-completa {
   font-weight: 600;
   border-style: solid;
+  border-width: 1px;  /* fixado para não mudar entre estados */
   border-color: var(--border);
   color: var(--text);
   background: var(--surface2);
+  /* animar apenas propriedades visuais — nunca layout */
+  transition: background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
 }
 
 .centro-toolbar-acoes .btn-toolbar-letra-completa:hover:not(:disabled) {
@@ -3214,7 +3217,7 @@ body:not(.app-mod-slides) .centro-col-letras {
   background: var(--accent);
   color: var(--on-accent);
   border-color: var(--accent);
-  font-weight: var(--fw-bold);
+  /* font-weight mantido igual ao estado inativo (600) para não deslocar o botão */
 }
 
 .centro-toolbar-acoes .btn-toolbar-letra-completa.ativo:hover:not(:disabled) {
