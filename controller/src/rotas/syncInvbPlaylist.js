@@ -35,27 +35,83 @@ function buscarCopiaLyraExistente(db, rootId) {
   `).get(rootId, ORIGEM_LYRA_ONLINE) || null;
 }
 
+/** True se a linha (original) veio do banco do Lyra. */
+function ehOriginalDoLyra(row) {
+  return !!(row && String(row.origem_importacao || '').trim() === ORIGEM_LYRA_ONLINE);
+}
+
 /**
- * Verifica se um rootId já está na lista de itens de uma playlist.
+ * Índice do item de música (por root) na playlist, ou -1.
+ * Compara com Number() — ids no JSON podem ser number ou string.
  */
-function rootIdJaNaPlaylist(itensPlaylist, rootId) {
-  return itensPlaylist.some(item =>
-    item && item.tipo !== PLAYLIST_TIPO_MARCADOR_TEMA &&
-    item.id === rootId
+function indiceRootNaPlaylist(itensPlaylist, rootId) {
+  const alvo = Number(rootId);
+  if (!Number.isFinite(alvo)) return -1;
+  return itensPlaylist.findIndex(
+    (item) =>
+      item &&
+      item.tipo !== PLAYLIST_TIPO_MARCADOR_TEMA &&
+      Number(item.id) === alvo
   );
 }
 
 /**
- * Constrói um item de playlist a partir de uma linha do banco e do cultoId.
+ * Constrói um item de playlist a partir da versão Lyra a utilizar.
+ * `id` é sempre o root (âncora da família). Quando a versão Lyra é uma
+ * Cópia/Importada (filho), grava versaoLocalId — senão a UI abre o Original.
  */
-function construirItemPlaylist(musicaRow, cultoId) {
-  return {
-    id: musicaRow.root_id,
-    titulo: musicaRow.titulo,
-    artista: musicaRow.artista || '',
+function construirItemPlaylist(rootRow, cultoId, versaoLyra = null) {
+  const rootId = Number(rootRow.root_id != null ? rootRow.root_id : rootRow.id);
+  const item = {
+    id: rootId,
+    titulo: String((versaoLyra && versaoLyra.titulo) || rootRow.titulo || '').trim(),
+    artista: String((versaoLyra && versaoLyra.artista) || rootRow.artista || '').trim(),
     bancoFonte: 'user',
     cultoId,
   };
+  const versaoId = versaoLyra != null ? Number(versaoLyra.id) : NaN;
+  // Filho do root (ex.: Cópia/Importada) → playlist DEVE apontar para esse id
+  if (Number.isFinite(versaoId) && versaoId !== rootId) {
+    item.versaoLocalId = String(versaoId);
+    item.versaoRotulo =
+      String(versaoLyra.rotulo || ROTULO_COPIA_IMPORTADA).trim() || ROTULO_COPIA_IMPORTADA;
+  }
+  return item;
+}
+
+/**
+ * Garante que o item existente da playlist use a versão Lyra resolvida.
+ * Retorna true se alterou o vínculo.
+ */
+function aplicarVinculoVersaoLyraNoItem(itemExistente, itemCorreto) {
+  if (!itemExistente || !itemCorreto) return false;
+  const vidAntes =
+    itemExistente.versaoLocalId != null ? String(itemExistente.versaoLocalId).trim() : '';
+  const vidDepois =
+    itemCorreto.versaoLocalId != null ? String(itemCorreto.versaoLocalId).trim() : '';
+  const rotAntes = String(itemExistente.versaoRotulo || '').trim();
+  const rotDepois = String(itemCorreto.versaoRotulo || '').trim();
+
+  let mudou = false;
+  if (vidAntes !== vidDepois || rotAntes !== rotDepois) {
+    if (vidDepois) {
+      itemExistente.versaoLocalId = vidDepois;
+      itemExistente.versaoRotulo = rotDepois || ROTULO_COPIA_IMPORTADA;
+    } else {
+      delete itemExistente.versaoLocalId;
+      delete itemExistente.versaoRotulo;
+    }
+    mudou = true;
+  }
+  if (itemCorreto.titulo && itemExistente.titulo !== itemCorreto.titulo) {
+    itemExistente.titulo = itemCorreto.titulo;
+    mudou = true;
+  }
+  if (itemCorreto.artista != null && itemExistente.artista !== itemCorreto.artista) {
+    itemExistente.artista = itemCorreto.artista;
+    mudou = true;
+  }
+  return mudou;
 }
 
 /**
@@ -119,12 +175,12 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
       continue;
     }
 
-    // 3. Obter/criar música no banco local
-    // Cenários:
-    //  (1) Já existe versão do Lyra → só reutilizar (sem nova Cópia/Importada)
-    //  (2) Não existe na biblioteca → importação normal (Original + Cópia)
-    //  (3) Existe só de outro banco → acrescentar Cópia/Importada do Lyra
-    let musicaRow = null;
+    // 3. Obter/criar música no banco local — playlist SEMPRE usa versão do Lyra
+    //  (1) Original do Lyra já existe → usar esse original
+    //  (2) Não existe na biblioteca → criar Original + Cópia do Lyra; usar o original
+    //  (3) Existe só de outro banco → criar/reutilizar Cópia/Importada do Lyra e usá-la
+    let rootRow = null;
+    let versaoLyraParaPlaylist = null;
     let rootId = null;
     try {
       // Passo 3a: tentar inserir com 'perguntar' para descobrir se já existe
@@ -136,45 +192,61 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
       );
 
       if (check.ok) {
-        // Cenário 2: música nova — Original + Cópia padrão; sem Cópia/Importada
+        // Regra 2: música nova — Original + Cópia padrão; playlist usa o Original do Lyra
         rootId = check.rootId;
-        musicaRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+        rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+        versaoLyraParaPlaylist = rootRow;
       } else if (check.duplicado && check.existente) {
-        // Já existe equivalente na biblioteca
-        rootId = check.existente.root_id || check.existente.id;
-        let copiaLyra = buscarCopiaLyraExistente(db, rootId);
+        rootId = check.existente.root_id || check.existente.rootId || check.existente.id;
+        rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
 
-        if (!copiaLyra) {
-          // Cenário 3: existe de outro banco — acrescentar Cópia/Importada do Lyra
-          const parentRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
-          if (parentRow) {
-            const nova = inserirCopiaMusica(parentRow, dadosLyra.titulo, dadosLyra.artista || '', dadosLyra.estrofes || [], { rotulo: ROTULO_COPIA_IMPORTADA, origem: ORIGEM_LYRA_ONLINE });
+        if (!rootRow) {
+          naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+          continue;
+        }
+
+        if (ehOriginalDoLyra(rootRow)) {
+          // Regra 1: original do Lyra já na biblioteca — usar essa versão
+          versaoLyraParaPlaylist = rootRow;
+        } else {
+          // Regra 3: só existe de outro banco — Cópia/Importada do Lyra na playlist
+          let copiaLyra = buscarCopiaLyraExistente(db, rootId);
+          if (!copiaLyra) {
+            const nova = inserirCopiaMusica(
+              rootRow,
+              dadosLyra.titulo,
+              dadosLyra.artista || '',
+              dadosLyra.estrofes || [],
+              { rotulo: ROTULO_COPIA_IMPORTADA, origem: ORIGEM_LYRA_ONLINE }
+            );
             if (nova && nova.ok) {
               copiaLyra = db.prepare('SELECT * FROM musicas WHERE id = ?').get(nova.id);
             }
           }
+          if (!copiaLyra) {
+            naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+            continue;
+          }
+          versaoLyraParaPlaylist = copiaLyra;
         }
-        // Cenário 1: já havia cópia lyra-online → reutilizar sem criar outra
-
-        musicaRow = copiaLyra || db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
       } else {
         naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
         continue;
       }
 
-      if (!musicaRow || !rootId) {
+      if (!rootRow || !rootId || !versaoLyraParaPlaylist) {
         naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
         continue;
       }
 
-      // Garantir root_id no objeto
-      musicaRow = { ...musicaRow, root_id: rootId };
+      // Item da playlist SEMPRE com a versão Lyra resolvida (Original Lyra ou Cópia/Importada)
+      const itemPlaylist = construirItemPlaylist(rootRow, cultoId, versaoLyraParaPlaylist);
 
-      let copiaLyra = musicaRow; // já é a cópia correta
-
-      // 4. Verificar duplicata na playlist
-      if (rootIdJaNaPlaylist(playlistAtual, rootId)) {
-        continue; // já está, respeitar comportamento existente
+      // 4. Se já está na playlist: atualizar vínculo para a versão Lyra (não manter Original de outro banco)
+      const idxExistente = indiceRootNaPlaylist(playlistAtual, rootId);
+      if (idxExistente >= 0) {
+        aplicarVinculoVersaoLyraNoItem(playlistAtual[idxExistente], itemPlaylist);
+        continue;
       }
 
       // 5. Inserir marcador de tema se necessário
@@ -183,8 +255,7 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
         temaAtualNaPlaylist = tema;
       }
 
-      // 6. Adicionar item à playlist
-      const itemPlaylist = construirItemPlaylist(musicaRow, cultoId);
+      // 6. Adicionar item novo já vinculado à versão Lyra
       playlistAtual.push(itemPlaylist);
       adicionadas++;
     } catch (e) {
