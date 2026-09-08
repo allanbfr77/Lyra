@@ -41,22 +41,27 @@ const MUSICAS_SEED = [
   },
 ];
 
+// ── ID do culto de teste (formato exigido pelo app: culto_YYYY-MM-DD_sufixo) ──
+const _hoje = new Date();
+const _yy  = _hoje.getFullYear();
+const _mm  = String(_hoje.getMonth() + 1).padStart(2, '0');
+const _dd  = String(_hoje.getDate()).padStart(2, '0');
+const CULTO_E2E_ID    = `culto_${_yy}-${_mm}-${_dd}_e2e`;
+const CULTO_E2E_LABEL = `${_dd}/${_mm} | Culto de Teste E2E`;
+
 // ── Seed mínimo de playlist (arquivo JSON) ────────────────────────────────────
 function buildPlaylistSeed(musicaIds) {
+  // Formato correto: { cultoId: [array de itens] }  (igual ao localStorage)
   return {
-    'culto-e2e-001': {
-      titulo: 'Culto de Teste E2E',
-      data: '2099-01-01',
-      itens: musicaIds.slice(0, 2).map((id, i) => ({
-        id,
-        titulo: MUSICAS_SEED[i].titulo,
-        artista: MUSICAS_SEED[i].artista,
-        bancoFonte: 'user',
-        cultoId: 'culto-e2e-001',
-        versaoLocalId: null,
-        versaoRotulo: '',
-      })),
-    },
+    [CULTO_E2E_ID]: musicaIds.slice(0, 2).map((id, i) => ({
+      id,
+      titulo:       MUSICAS_SEED[i].titulo,
+      artista:      MUSICAS_SEED[i].artista,
+      bancoFonte:   'user',
+      cultoId:      CULTO_E2E_ID,
+      versaoLocalId: null,
+      versaoRotulo:  '',
+    })),
   };
 }
 

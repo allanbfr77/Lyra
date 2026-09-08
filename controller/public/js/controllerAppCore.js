@@ -624,6 +624,9 @@ function registrarEscolhaMonitorDoOperador() {
 function aplicarMonitorLembradoAoEntrarNoModo(modo) {
   if (!MODOS_COM_MEMORIA.includes(modo)) return false;
   if (hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
+  /* Slides no ar: repor o monitor lembrado da Bíblia/Mídias reivindica o canal
+     partilhado e o merge do servidor apaga a letra — trocar de aba não pode fazer isso. */
+  if (projecaoMusicaEmitidaNoServidor) return false;
   /* Sem lista de monitores não se conclui nada: entrar no modo antes de o servidor
      responder daria «monitor não encontrado» para um monitor que está ligado e bem. A
      entrada seguinte, já com a lista, repõe. */
@@ -4359,19 +4362,24 @@ function onTraducaoBibliaChange() {
 
 async function alternarModoBiblia() {
   const ativo = document.body.classList.contains('app-mod-biblia');
-  /* Slide → Bíblia tem de encerrar a projeção, tal como Slide → Home. */
+  /* Slide → Bíblia: só troca de aba. A projeção de slides, se existir, permanece. */
   const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
   if (!ativo) {
-    /* Antes de `carregarTraducoes()`, que já desenha a grade: o modo abre sempre com
-       os 66 livros, seja qual for o filtro deixado da última vez. A navegação
-       (livro/capítulo/versículos) já foi limpa ao sair; isto reforça o painel
-       vazio se o operador voltar no mesmo instante. */
-    bibliaFiltroTestamento = null;
+    const preservarNav = hayProjecaoBibliaAtivaParaPreservarEstado() && !!bibliaSelecionadoLivro;
+    /* Sem estado a preservar: abre sempre com os 66 livros e painel vazio. */
+    if (!preservarNav) {
+      bibliaFiltroTestamento = null;
+    }
     const trad = await perguntarTraducaoBibliaSeNecessario();
     if (!trad) return;
     await carregarTraducoes();
     aplicarTraducaoBibliaNoSelect(trad);
-    bibliaReporPainelNavegacao();
+    if (preservarNav) {
+      /* DOM de caps/versículos sobrevive à troca de modo; só re-sincroniza o destaque. */
+      bibliaAtualizarDestaqueGradeLivros();
+    } else {
+      bibliaReporPainelNavegacao();
+    }
   }
   executarComTransicaoUi(() => {
     document.body.classList.remove('app-mod-slides', 'app-mod-apresentacao');
@@ -4383,7 +4391,7 @@ async function alternarModoBiblia() {
         try { localStorage.setItem(LS_UI_MODO_SLIDES, '0'); } catch (_) {
           // intencional — erro ignorado
         }
-        encerrarProjecaoAoSairDoModoSlides();
+        limparUiAoSairDoModoSlides();
         renderSlidesStrip();
         atualizarPreviewOperador();
       }
@@ -4394,6 +4402,11 @@ async function alternarModoBiblia() {
       } else if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
         rotasPorModo.biblia = rotaDesativada();
         marcarRotaLiveNoDom(false);
+        /* Slides no ar: limpar rota partilhada residual para o merge do servidor não
+           preferir `apresentacao` vazio e apagar a letra nos monitores. */
+        if (projecaoMusicaEmitidaNoServidor && !hayProjecaoApresentacaoModoAtiva()) {
+          rotasPorModo.apresentacao = rotaDesativada();
+        }
       }
       aplicarMonitorLembradoAoEntrarNoModo('biblia');
       sincronizarCheckboxLembrarMonitor();
@@ -4406,8 +4419,8 @@ async function alternarModoBiblia() {
       document.title = 'Lyra — Controlador';
       bibliaSairModo();
       liberarBloqueioUiModos();
-      /* Sair do modo Bíblia encerra a projeção — rotas transitórias voltam a Não exibir. */
-      void desativarRotasModosTransitorios({ sincronizarServidor: true, forcar: true });
+      /* Navegação não encerra projeção: sem `forcar`, rotas com Bíblia/mídia no ar ficam. */
+      void desativarRotasModosTransitorios({ sincronizarServidor: true });
       aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
     }
     atualizarBtnModoBiblia();
@@ -4742,13 +4755,18 @@ function limparEspelhoLocalSoCamadaSlides() {
 }
 
 /**
- * Ao sair do modo slides: público sem projeção e ministrante em relógio (telaLimpa).
- * Partilhado por todas as saídas do modo slides (Home, Bíblia, Apresentação) para que
- * a transição encerre sempre a projeção de música.
+ * Ao sair do modo slides.
+ * Sem projeção: limpa faixa/seleção de slides (comportamento clássico).
+ * Com projeção activa: preserva música, estrofe e faixa para retomar ao voltar.
+ * Nunca encerra a projeção real — isso fica para ESC / Encerrar.
  */
-function encerrarProjecaoAoSairDoModoSlides() {
-  estrofeAtiva = -1;
+function limparUiAoSairDoModoSlides() {
   slidesDockVisivel = false;
+  if (projecaoMusicaEmitidaNoServidor) {
+    /* Projeção no ar: mantém musicaAtiva, estrofeAtiva e a faixa armada. */
+    return;
+  }
+  estrofeAtiva = -1;
   projecaoMusicaEmitidaNoServidor = false;
   bloqueioSincronizarEstrofeDoServidor = false;
   /**
@@ -4759,31 +4777,36 @@ function encerrarProjecaoAoSairDoModoSlides() {
    */
   faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
   limparEspelhoLocalSoCamadaSlides();
-  projecao.enviar('limpar_tela');
 }
 
 async function alternarModoSlidesOperador(opts = {}) {
   const permitirDesativar = opts.permitirDesativar === true;
   if (ehModoSlidesOperador() && !permitirDesativar) return;
   if (ehModoBibliaOperador()) {
-    rotasPorModo.biblia = rotaDesativada();
     /*
-     * Devolver o canal partilhado, e não só largar a rota da Bíblia.
-     *
-     * Bíblia e Mídias escrevem ambas em `rotasPorModo.apresentacao`, e o motor dá-lhe
-     * precedência sobre o canal do Slides (`a.publicoIndex >= 0 ? a : s`). Este caminho —
-     * Bíblia direto para Slides, sem passar pela Home — limpava a rota da Bíblia e deixava
-     * o monitor dela reservado no canal partilhado. O Slides ficava com o seletor a dizer
-     * M3 e a projeção a sair no M2 da Bíblia: a interface a afirmar uma coisa e o projetor
-     * a fazer outra, sem nada apagado que denunciasse o problema.
-     *
-     * A guarda é a mesma de `desativarRotasModosTransitorios`: com mídia no ar o canal não
-     * se toca, senão fechavam-se as janelas do que está a projetar.
+     * Só desliga rotas transitórias se nada de Bíblia/mídia estiver no ar.
+     * Com projeção activa, os monitores continuam — trocar para Slides é só navegação.
      */
-    if (!hayProjecaoApresentacaoModoAtiva()) {
-      rotasPorModo.apresentacao = rotaDesativada();
+    if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
+      rotasPorModo.biblia = rotaDesativada();
+      /*
+       * Devolver o canal partilhado, e não só largar a rota da Bíblia.
+       *
+       * Bíblia e Mídias escrevem ambas em `rotasPorModo.apresentacao`, e o motor dá-lhe
+       * precedência sobre o canal do Slides (`a.publicoIndex >= 0 ? a : s`). Este caminho —
+       * Bíblia direto para Slides, sem passar pela Home — limpava a rota da Bíblia e deixava
+       * o monitor dela reservado no canal partilhado. O Slides ficava com o seletor a dizer
+       * M3 e a projeção a sair no M2 da Bíblia: a interface a afirmar uma coisa e o projetor
+       * a fazer outra, sem nada apagado que denunciasse o problema.
+       *
+       * A guarda é a mesma de `desativarRotasModosTransitorios`: com mídia no ar o canal não
+       * se toca, senão fechavam-se as janelas do que está a projetar.
+       */
+      if (!hayProjecaoApresentacaoModoAtiva()) {
+        rotasPorModo.apresentacao = rotaDesativada();
+      }
+      marcarRotaLiveNoDom(false);
     }
-    marcarRotaLiveNoDom(false);
   }
   executarComTransicaoUi(() => {
     if (ehModoApresentacaoOperador()) {
@@ -4813,7 +4836,13 @@ async function alternarModoSlidesOperador(opts = {}) {
 }
     if (ativo) {
       slidesRailUserRecolhido = false;
-      faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+      if (projecaoMusicaEmitidaNoServidor && musicaAtiva) {
+        /* Retoma a faixa no ponto da projeção que ficou no ar. */
+        faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+        slidesDockVisivel = true;
+      } else {
+        faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+      }
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
       /*
@@ -4841,7 +4870,7 @@ async function alternarModoSlidesOperador(opts = {}) {
       slidesAplicarCfgArmazenada();
       syncRoteamentoTelasModoSlidesNaUi();
     } else {
-      encerrarProjecaoAoSairDoModoSlides();
+      limparUiAoSairDoModoSlides();
     }
     atualizarBtnToggleModoSlides();
     atualizarBtnModoApresentacao();
@@ -20398,10 +20427,34 @@ function encerrarProjecaoModoBiblia() {
 }
 
 /**
- * Ao sair do modo Bíblia: encerra projeção no telão (se houver), limpa estado local
- * e repõe config de Slides nos monitores.
+ * Há versículo da Bíblia activo no telão (ou marcado como projetado neste painel).
+ */
+function hayProjecaoBibliaAtivaParaPreservarEstado() {
+  if (bibliaParteProjetadaChave != null) return true;
+  const e = estadoServidor;
+  return !!(
+    e &&
+    e.tipo === 'biblia' &&
+    !e.telaLimpa &&
+    Array.isArray(e.linhas) &&
+    e.linhas.length
+  );
+}
+
+/**
+ * Ao sair do modo Bíblia.
+ * Sem projeção: limpa livro/capítulo/versículo (comportamento clássico).
+ * Com projeção activa: preserva a navegação para retomar ao voltar.
  */
 function bibliaSairModo() {
+  if (hayProjecaoBibliaAtivaParaPreservarEstado()) {
+    try {
+      atualizarPreviewOperador();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+    return;
+  }
   encerrarCamadaBibliaNoControlador();
   slidesAplicarCfgArmazenada();
   try {
