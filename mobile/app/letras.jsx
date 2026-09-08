@@ -355,24 +355,6 @@ export default function LetrasMusScreen() {
     await importarDesdePath(path);
   }
 
-  /**
-   * Exibe confirmação antes de guardar uma música da lista de resultados.
-   * Evita toques acidentais no botão "Guardar".
-   *
-   * @param {{ path: string, titulo: string, artista: string }} item
-   */
-  function confirmarGuardarNaLista(item) {
-    const nome = `${item.titulo || ''}${item.artista ? ` · ${item.artista}` : ''}`;
-    Alert.alert(
-      'Guardar no celular',
-      `${nome}\n\nA letra será baixada do site e guardada na biblioteca local. Na igreja, envie ao servidor pela tela inicial.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Guardar', onPress: () => guardarNoCelular(item.path) },
-      ]
-    );
-  }
-
   // --- Cabeçalho da lista com filtros e busca ---
   const header = (
     <View style={styles.headerBlock}>
@@ -461,7 +443,7 @@ export default function LetrasMusScreen() {
               <TouchableOpacity style={styles.btnSec} onPress={() => abrirPrevia(item.path)}>
                 <Text style={styles.btnSecTxt}>PRÉVIA</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPri} onPress={() => confirmarGuardarNaLista(item)}>
+              <TouchableOpacity style={styles.btnPri} onPress={() => guardarNoCelular(item.path)}>
                 <Text style={styles.btnPriTxt}>GUARDAR</Text>
               </TouchableOpacity>
             </View>

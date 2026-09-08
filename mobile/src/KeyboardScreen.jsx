@@ -14,10 +14,11 @@ import {
   KeyboardAwareScrollView,
   KeyboardAvoidingView,
 } from 'react-native-keyboard-controller';
-import { HeaderHeightContext } from '@react-navigation/elements';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
 
 /**
- * Mesma fonte de dados que `useHeaderHeight()` do `@react-navigation/elements`,
+ * Mesma fonte de dados que `useHeaderHeight()` do React Navigation
+ * (via `expo-router/react-navigation` no SDK 56+),
  * sem lançar erro fora de telas com header (index sem header, modais, etc.).
  * @returns {number}
  */

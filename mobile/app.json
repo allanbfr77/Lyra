@@ -10,9 +10,6 @@
     "ios": {
       "icon": "../brand/lyra-light-1024.png"
     },
-    "splash": {
-      "backgroundColor": "#f5f3ee"
-    },
     "android": {
       "icon": "../brand/lyra-light-1024.png",
       "adaptiveIcon": {
@@ -50,7 +47,17 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f5f3ee",
+          "image": "../brand/lyra-light-1024.png",
+          "imageWidth": 200
+        }
+      ],
+      "expo-font",
+      "expo-status-bar"
     ],
     "extra": {
       "router": {},

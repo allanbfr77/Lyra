@@ -64,7 +64,8 @@ async function abrirBanco() {
   const precisaCopiar = !destino.exists || (origem.size > 0 && destino.size !== origem.size);
   if (precisaCopiar) {
     if (destino.exists) destino.delete();
-    origem.copy(destino);
+    // SDK 56+: copy() é assíncrono (usar copySync só se for preciso sincronismo).
+    await origem.copy(destino);
   }
 
   return SQLite.openDatabaseAsync(NOME_DB);

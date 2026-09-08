@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Animated,
+  Easing,
+  AccessibilityInfo,
 } from 'react-native';
 import {
   splitTextoEmEstrofesPorLinhaVaziaStrict,
@@ -16,10 +19,19 @@ import SegmentedControl from './SegmentedControl';
 import KeyboardScreen, { KeyboardFlatList } from './KeyboardScreen';
 import { COLORS, FONTS } from './theme';
 
+/*
+ * Mesmo conceito da reordenação da playlist no Controlador (FLIP + flash):
+ * medir posição → trocar dados → traduzir de volta ao sítio antigo → animar a 0.
+ * Duração/easing alinhados a PLAYLIST_MOVE_* do controllerAppCore.js.
+ */
+const ORDEM_ANIM_MS = 260;
+const ORDEM_FLASH_MS = 640;
+const ORDEM_EASING = Easing.bezier(0.22, 0.68, 0.28, 1);
+
 /** Opções do toggle Slides ↔ Letra completa (mesmos modos do controlador PC). */
 const OPCOES_MODO = [
-  { valor: 'slides', label: 'Slides' },
   { valor: 'completa', label: 'Letra completa' },
+  { valor: 'slides', label: 'Slides' },
 ];
 
 /**
@@ -54,13 +66,90 @@ export default function SlideEditorPanel({
   listHeaderComponent,
   listFooterComponent,
 }) {
-  const [modo, setModo] = useState('slides');
+  const [modo, setModo] = useState('completa');
   const [rows, setRows] = useState(() => paraLinhas(initialSlides));
   const [letraFull, setLetraFull] = useState(() =>
     juntarEstrofesParaLetraCompleta(
       Array.isArray(initialSlides) && initialSlides.length ? initialSlides : ['']
     )
   );
+  /** IDs com flash de realce (equivalente a playlist-row--flash-* no PC). */
+  const [flashIds, setFlashIds] = useState(() => new Set());
+  const cardRefs = useRef(new Map());
+  const animById = useRef(new Map());
+  const pendingFlip = useRef(null);
+  const trocandoRef = useRef(false);
+
+  function animTranslateY(id) {
+    if (!animById.current.has(id)) {
+      animById.current.set(id, new Animated.Value(0));
+    }
+    return animById.current.get(id);
+  }
+
+  function medirY(id) {
+    return new Promise((resolve) => {
+      const node = cardRefs.current.get(id);
+      if (!node || typeof node.measureInWindow !== 'function') {
+        resolve(null);
+        return;
+      }
+      node.measureInWindow((_x, y) => resolve(y));
+    });
+  }
+
+  /* Após o swap, aplica o FLIP (translateY do sítio antigo → 0), como no Controlador. */
+  useEffect(() => {
+    const pend = pendingFlip.current;
+    if (!pend) return;
+    pendingFlip.current = null;
+
+    const rodarFlip = () => {
+      Promise.all([medirY(pend.idMovido), medirY(pend.idDeslocado)]).then(
+        ([yMovidoNovo, yDeslocadoNovo]) => {
+          const anims = [];
+          const pares = [
+            [pend.idMovido, pend.yMovido, yMovidoNovo],
+            [pend.idDeslocado, pend.yDeslocado, yDeslocadoNovo],
+          ];
+          pares.forEach(([id, yAntes, yDepois]) => {
+            if (yAntes == null || yDepois == null) return;
+            const delta = yAntes - yDepois;
+            if (!Number.isFinite(delta) || Math.abs(delta) < 0.5) return;
+            const anim = animTranslateY(id);
+            anim.setValue(delta);
+            anims.push(
+              Animated.timing(anim, {
+                toValue: 0,
+                duration: ORDEM_ANIM_MS,
+                easing: ORDEM_EASING,
+                useNativeDriver: true,
+              })
+            );
+          });
+
+          if (anims.length) {
+            Animated.parallel(anims).start(() => {
+              trocandoRef.current = false;
+            });
+          } else {
+            trocandoRef.current = false;
+          }
+        }
+      );
+    };
+
+    /* Dois rAFs: garante layout novo antes de medir (equiv. ao reflow do PC). */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(rodarFlip);
+    });
+  }, [rows]);
+
+  useEffect(() => {
+    if (!flashIds.size) return undefined;
+    const t = setTimeout(() => setFlashIds(new Set()), ORDEM_FLASH_MS);
+    return () => clearTimeout(t);
+  }, [flashIds]);
 
   /**
    * Alterna entre modos, convertendo o conteúdo atual para não perder edições.
@@ -134,13 +223,35 @@ export default function SlideEditorPanel({
   }
 
   function mover(index, delta) {
-    setRows((prev) => {
-      const j = index + delta;
-      if (j < 0 || j >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[index], copy[j]] = [copy[j], copy[index]];
-      onSlidesChange(copy.map((r) => r.text));
-      return copy;
+    const j = index + delta;
+    if (j < 0 || j >= rows.length || trocandoRef.current) return;
+
+    const idMovido = rows[index].id;
+    const idDeslocado = rows[j].id;
+
+    const aplicarTroca = () => {
+      setRows((prev) => {
+        const copy = [...prev];
+        [copy[index], copy[j]] = [copy[j], copy[index]];
+        onSlidesChange(copy.map((r) => r.text));
+        return copy;
+      });
+      setFlashIds(new Set([idMovido]));
+    };
+
+    trocandoRef.current = true;
+
+    AccessibilityInfo.isReduceMotionEnabled().then((reduzir) => {
+      if (reduzir) {
+        aplicarTroca();
+        trocandoRef.current = false;
+        return;
+      }
+
+      Promise.all([medirY(idMovido), medirY(idDeslocado)]).then(([yMovido, yDeslocado]) => {
+        pendingFlip.current = { idMovido, idDeslocado, yMovido, yDeslocado };
+        aplicarTroca();
+      });
     });
   }
 
@@ -235,7 +346,17 @@ export default function SlideEditorPanel({
         ListHeaderComponent={HeaderSlides}
         ListFooterComponent={listFooterComponent}
         renderItem={({ item, index }) => (
-          <View style={styles.slideCard}>
+          <Animated.View
+            ref={(node) => {
+              if (node) cardRefs.current.set(item.id, node);
+              else cardRefs.current.delete(item.id);
+            }}
+            style={[
+              styles.slideCard,
+              flashIds.has(item.id) && styles.slideCardFlash,
+              { transform: [{ translateY: animTranslateY(item.id) }] },
+            ]}
+          >
             <View style={styles.slideCardTop}>
               <View style={styles.ordemBtns}>
                 <TouchableOpacity
@@ -277,7 +398,7 @@ export default function SlideEditorPanel({
               multiline
               textAlignVertical="top"
             />
-          </View>
+          </Animated.View>
         )}
       />
     </View>
@@ -351,6 +472,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 12,
     marginBottom: 12,
+  },
+  /* Flash breve na troca — eco do realce da playlist no Controlador. */
+  slideCardFlash: {
+    borderColor: COLORS.accent,
+    backgroundColor: 'rgba(166, 124, 45, 0.08)',
   },
   slideCardTop: {
     flexDirection: 'row',

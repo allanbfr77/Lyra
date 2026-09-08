@@ -177,18 +177,6 @@ export default function CatalogoLocalScreen() {
     }
   }
 
-  function confirmarGuardarNaLista(item) {
-    const nome = `${item.titulo || ''}${item.artista ? ` · ${item.artista}` : ''}`;
-    Alert.alert(
-      'Guardar no celular',
-      `${nome}\n\nA letra vem do banco offline do app e fica na biblioteca local. Na igreja, envie ao servidor pela tela inicial.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Guardar', onPress: () => guardarNoCelular(item) },
-      ]
-    );
-  }
-
   async function aoEscolherCultoParaLocal(culto) {
     const m = aguardandoCulto;
     setAguardandoCulto(null);
@@ -289,7 +277,7 @@ export default function CatalogoLocalScreen() {
               <TouchableOpacity style={styles.btnSec} onPress={() => abrirPrevia(item)}>
                 <Text style={styles.btnSecTxt}>PRÉVIA</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPri} onPress={() => confirmarGuardarNaLista(item)}>
+              <TouchableOpacity style={styles.btnPri} onPress={() => guardarNoCelular(item)}>
                 <Text style={styles.btnPriTxt}>GUARDAR</Text>
               </TouchableOpacity>
             </View>
