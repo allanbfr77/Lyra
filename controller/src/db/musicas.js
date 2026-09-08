@@ -19,14 +19,12 @@ function aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista) {
   return require('../db').aplicarTonsPendentesParaMusica(musicaIdRaw, titulo, artista);
 }
 
-const ROTULO_COPIA_MODIFICADA = 'Cópia';
+/** Rótulo do fork criado ao gravar alteração sobre o Original imutável. */
+const ROTULO_COPIA_MODIFICADA = 'Editada';
 const ROTULO_COPIA_IMPORTADA = 'Cópia/Importada';
 const ROTULO_COPIA_MANUAL = 'Cópia/Manual';
 /**
  * Rótulo da cópia editável que nasce junto com o original.
- *
- * Mesmo texto de `ROTULO_COPIA_MODIFICADA` de propósito: para o usuário é a
- * mesma coisa («a cópia»), e a barra de versões já sabe desenhar esse rótulo.
  */
 const ROTULO_COPIA_PADRAO = 'Cópia';
 

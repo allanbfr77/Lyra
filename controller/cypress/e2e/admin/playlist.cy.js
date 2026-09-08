@@ -4,91 +4,115 @@
  * Estratégia de isolamento:
  *  • cy.task('resetDb')  → reseta o banco SQLite (músicas IDs 1-2-3).
  *  • onBeforeLoad        → injeta seed em localStorage antes do JS do app correr.
- *    - lyra_playlists_v1      : playlist com 2 músicas do culto de teste.
- *    - lyra_cultos_manuais_v1 : culto manual com ID no formato culto_YYYY-MM-DD_e2e.
- *  • selecionarCulto()   → abre o dropdown e clica no item do culto de teste.
+ *    - lyra_playlists_v1 : playlist com 2 músicas para TODOS os cultos
+ *      auto-gerados do mês (domingos _manha/_noite e quartas _quarta).
+ *      Não usa cultos manuais — evita interferência de aplicarSnapshotCompartilhado.
+ *  • selecionarCulto()   → abre o dropdown e clica no PRIMEIRO item disponível.
  *
- * Nota sobre IDs do culto:
- *  O app filtra cultos manuais pela função cultoIdPertenceAoMes(), que extrai
- *  YYYY-MM do ID via regex /^culto_(\d{4}-\d{2}-\d{2})_/i. O ID precisa ser
- *  do mês corrente para aparecer no dropdown.
+ * Por que não usar cultos manuais:
+ *  A função aplicarSnapshotCompartilhadoNoRenderer pode sobrescrever
+ *  cultosManuaisCache em memória após o onBeforeLoad, removendo o culto
+ *  injetado antes de initCultoSelect() popular o dropdown.
+ *  Os cultos auto-gerados (domingos/quartas) são sempre reconstruídos pelo
+ *  app a partir da data do sistema, independente de localStorage.
  */
 
-// ── Helpers de culto dinâmico (mês corrente) ─────────────────────────────────
-function cultoE2eId() {
-  const d = new Date();
-  const yy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `culto_${yy}-${mm}-${dd}_e2e`;
+// ── Gera IDs de todos os cultos auto-gerados do mês corrente ────────────────
+function gerarCultosDoMes() {
+  const hoje = new Date();
+  const ano  = hoje.getFullYear();
+  const mes  = hoje.getMonth(); // 0-indexed
+  const dias = new Date(ano, mes + 1, 0).getDate();
+  const cultos = [];
+
+  for (let dia = 1; dia <= dias; dia++) {
+    const dow = new Date(ano, mes, dia).getDay(); // 0=dom, 3=qua
+    const yy  = ano;
+    const mm  = String(mes + 1).padStart(2, '0');
+    const dd  = String(dia).padStart(2, '0');
+    const iso = `${yy}-${mm}-${dd}`;
+
+    if (dow === 0) {            // domingo
+      cultos.push(`culto_${iso}_manha`);
+      cultos.push(`culto_${iso}_noite`);
+    } else if (dow === 3) {     // quarta-feira
+      cultos.push(`culto_${iso}_quarta`);
+    }
+  }
+
+  return cultos; // ex: ["culto_2026-09-02_quarta", "culto_2026-09-06_manha", ...]
 }
 
-function cultoE2eLabel() {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${dd}/${mm} | Culto de Teste E2E`;
+// ── Seed de playlist para um culto ──────────────────────────────────────────
+function seedItensCulto(cultoId) {
+  return [
+    {
+      id: 1, titulo: 'Música Teste A', artista: 'Artista Teste',
+      bancoFonte: 'user', cultoId, versaoLocalId: null, versaoRotulo: '',
+    },
+    {
+      id: 2, titulo: 'Música Teste B', artista: 'Artista Teste',
+      bancoFonte: 'user', cultoId, versaoLocalId: null, versaoRotulo: '',
+    },
+  ];
 }
 
-// ── Seed de playlist (formato localStorage: { cultoId: [itens] }) ─────────────
-function seedPlaylist(cultoId) {
-  return {
-    [cultoId]: [
-      {
-        id: 1, titulo: 'Música Teste A', artista: 'Artista Teste',
-        bancoFonte: 'user', cultoId, versaoLocalId: null, versaoRotulo: '',
-      },
-      {
-        id: 2, titulo: 'Música Teste B', artista: 'Artista Teste',
-        bancoFonte: 'user', cultoId, versaoLocalId: null, versaoRotulo: '',
-      },
-    ],
-  };
+// Gera { cultoId1: [...], cultoId2: [...], ... } para todos os cultos do mês
+function buildPlaylistSeedCompleto() {
+  const cultos = gerarCultosDoMes();
+  const obj = {};
+  for (const id of cultos) {
+    obj[id] = seedItensCulto(id);
+  }
+  return obj;
 }
 
-// ── Comandos reutilizáveis ────────────────────────────────────────────────────
-function visitComSeed(cultoId, cultoLabel) {
+// ── Comandos reutilizáveis ───────────────────────────────────────────────────
+function visitComSeed() {
   cy.visit('/controller.html', {
     onBeforeLoad(win) {
       win.localStorage.setItem(
         'lyra_playlists_v1',
-        JSON.stringify(seedPlaylist(cultoId))
+        JSON.stringify(buildPlaylistSeedCompleto())
       );
-      win.localStorage.setItem(
-        'lyra_cultos_manuais_v1',
-        JSON.stringify([{ id: cultoId, label: cultoLabel }])
-      );
+      // NÃO injetamos lyra_cultos_manuais_v1 — usamos apenas cultos auto-gerados
     },
   });
 }
 
-function selecionarCulto(cultoId) {
+/**
+ * Abre o dropdown e clica no primeiro culto disponível (data-value não vazio).
+ * Armazena o ID selecionado no alias @cultoId para uso nos testes.
+ */
+function selecionarCulto() {
   cy.get('#culto-dd-btn').click();
   cy.get('#culto-dd-menu').should('not.have.attr', 'hidden');
-  cy.get(`#culto-dd-menu .culto-dd-item[data-value="${cultoId}"]`).click();
+
+  // Pega o primeiro item real (não o placeholder vazio) e clica
+  cy.get('#culto-dd-menu .culto-dd-item[data-value]')
+    .not('[data-value=""]')
+    .first()
+    .then(($el) => {
+      const id = $el.attr('data-value');
+      cy.wrap(id).as('cultoId'); // @cultoId disponível nos testes
+      cy.wrap($el).click();
+    });
+
   cy.get('#culto-dd-menu').should('have.attr', 'hidden');
 }
 
-// ── Suite ─────────────────────────────────────────────────────────────────────
+// ── Suite ────────────────────────────────────────────────────────────────────
 describe('Playlist — gestão de músicas do culto', () => {
-  let cultoId;
-  let cultoLabel;
-
-  before(() => {
-    cultoId    = cultoE2eId();
-    cultoLabel = cultoE2eLabel();
-  });
-
   beforeEach(() => {
     cy.task('resetDb');
-    visitComSeed(cultoId, cultoLabel);
-    selecionarCulto(cultoId);
+    visitComSeed();
+    selecionarCulto();
   });
 
   // ── Seleção de culto ──────────────────────────────────────────────────────
-  it('dropdown mostra o culto de teste e atualiza a label do botão', () => {
-    cy.get('#culto-sel').should('have.value', cultoId);
-    cy.get('#culto-dd-desc').should('contain.text', 'Culto de Teste E2E');
+  it('dropdown seleciona um culto e atualiza a label do botão', function () {
+    cy.get('#culto-sel').invoke('val').should('match', /^culto_\d{4}-\d{2}-\d{2}_/);
+    cy.get('#culto-dd-desc').invoke('text').should('not.be.empty');
   });
 
   // ── Renderização inicial ──────────────────────────────────────────────────
@@ -127,7 +151,6 @@ describe('Playlist — gestão de músicas do culto', () => {
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-descer')
       .should('not.be.disabled')
       .click();
-    // Após troca: A passa para idx 1, B passa para idx 0
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"]')
       .should('contain.text', 'Música Teste B');
     cy.get('#playlist-list .playlist-row[data-pl-idx="1"]')

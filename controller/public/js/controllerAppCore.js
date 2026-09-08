@@ -9739,8 +9739,9 @@ function onCultoChange() {
 
 /**
  * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
- * em controller/src/db.js → «Cópia»). Como quase toda a entrada da playlist acaba por ser
- * uma cópia, repeti-lo em cada linha é ruído — só nomes dados pelo operador dizem algo.
+ * em controller/src/db/musicas.js → «Editada»; bases antigas podem ter «Cópia»).
+ * Como quase toda a entrada da playlist acaba por ser uma cópia, repeti-lo em cada
+ * linha é ruído — só nomes dados pelo operador dizem algo.
  * Comparação insensível a maiúsculas e normalizada; aceita também o rótulo legado
  * «cópia/modificada» já gravado em bases antigas.
  */
@@ -15043,7 +15044,7 @@ async function persistirMusicaAtivaNoServidor() {
     renderSlidesStrip();
     atualizarPreviewOperador();
     atualizarToolbarModoEdicao();
-    if (forked) {
+    if (forked && !ehModoSlidesOperador()) {
       await appAlert(
         'As alterações foram gravadas numa nova cópia. O original no servidor foi preservado.',
         'Cópia criada'
