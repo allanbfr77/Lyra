@@ -17649,11 +17649,11 @@ async function confirmarRemoverVersaoLocal(idMusica, copiaId) {
   const idNum = Number(idMusica);
   if (musicaAtiva && Number(musicaAtiva.id) === idNum && musicaVersaoLocalId === copiaId) {
     await trocarVersaoMusicaCentral(null);
-  } else {
-    renderMusicaVersoesBar();
-    renderPlaylist();
-    refreshListaBanco();
   }
+  renderMusicaVersoesBar();
+  renderPlaylist();
+  await carregarMusicas();
+  atualizarToolbarModoEdicao();
 }
 
 function rotuloExibicaoVersaoServidor(v) {
@@ -17889,6 +17889,14 @@ async function confirmarRemoverVersaoServidor(rootId, versaoId) {
   if (!ok) return;
   const idNum = parseInt(versaoId, 10);
   if (!Number.isFinite(idNum)) return;
+  /* Original nunca se exclui como versão individual — só pela Biblioteca (música inteira). */
+  if (Number(rootId) === idNum) {
+    await appAlert(
+      'A Original não pode ser excluída individualmente. Exclua a música pela Biblioteca.',
+      'Remover versão'
+    );
+    return;
+  }
   try {
     let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/excluir`, {
       method: 'POST',
@@ -17904,11 +17912,13 @@ async function confirmarRemoverVersaoServidor(rootId, versaoId) {
     removerVersaoLocalDasPlaylists(rootId, String(versaoId));
     if (musicaAtiva && Number(musicaAtiva.id) === idNum) {
       await trocarVersaoMusicaCentral(null);
-    } else {
-      await carregarVersoesMusicaServidor(rootId);
-      renderPlaylist();
-      refreshListaBanco();
     }
+    /* Sempre recarregar do servidor: o cache da barra mantinha a versão apagada
+       (ex.: «Cópia»), parecendo que a exclusão não tinha funcionado. */
+    await carregarVersoesMusicaServidor(rootId);
+    renderPlaylist();
+    await carregarMusicas();
+    atualizarToolbarModoEdicao();
   } catch (e) {
     appAlert(e?.message || 'Não foi possível remover a versão.');
   }
