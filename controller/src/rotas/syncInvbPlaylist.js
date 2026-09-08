@@ -249,9 +249,18 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
         continue;
       }
 
-      // 5. Inserir marcador de tema se necessário
+      // 5. Inserir marcador de tema se necessário (não duplicar tema/tag/flag já na playlist)
       if (temaAtualNaPlaylist !== tema) {
-        playlistAtual.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema });
+        const temaNorm = String(tema || '').trim().toLocaleUpperCase('pt-BR');
+        const temaJaNaPlaylist = playlistAtual.some(
+          (it) =>
+            it &&
+            it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA &&
+            String(it.tema || '').trim().toLocaleUpperCase('pt-BR') === temaNorm
+        );
+        if (!temaJaNaPlaylist) {
+          playlistAtual.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema });
+        }
         temaAtualNaPlaylist = tema;
       }
 

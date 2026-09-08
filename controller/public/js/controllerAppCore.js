@@ -9456,10 +9456,11 @@ function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
   return ROTULOS_VERSAO_AUTOMATICOS.has(r.normalize('NFC').toLowerCase()) ? '' : r;
 }
 
-/** Sufixo « · NOME» da linha da playlist, já escapado (vazio se não houver nome próprio). */
-function sufixoRotuloVersaoPlaylist(item) {
-  const r = rotuloVersaoParaExibicaoNaPlaylist(item?.versaoRotulo);
-  return r ? ` · ${escapeHtml(r)}` : '';
+/** Sufixo de versão na linha da playlist — sempre vazio.
+ * O vínculo interno (`versaoLocalId` / `versaoRotulo`) continua a existir;
+ * a playlist não mostra tag visual de versão. */
+function sufixoRotuloVersaoPlaylist(_item) {
+  return '';
 }
 
 /* Última linha ativa já rolada para a vista — evita brigar com o scroll manual do operador. */
@@ -10103,6 +10104,9 @@ async function onSincronizarPlaylistLyraClick() {
     }
 
     await renderListaCfgMinistrantes();
+    // Biblioteca: refletir de imediato as músicas acabadas de importar no DB
+    await carregarMusicas();
+    refreshListaBanco();
     renderPlaylist();
 
     let msg = 'Sincronização concluída\n' + data.adicionadas + ' músicas adicionadas';
