@@ -13,7 +13,6 @@ import {
   Alert,
   Vibration,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Pressable,
   Platform,
@@ -244,11 +243,14 @@ export default function BibliaScreen() {
     const { texto, partesTotal } = textoParaProjecao(hit, livro.nome, cap);
     return {
       ref: `${livro.nome} ${cap}:${ver}`,
+      /** Ex.: Gn.1:12 — abreviação para a barra ‹ › do rodapé. */
+      refCurta: `${livro.sigla}.${cap}:${ver}`,
       traducao,
       monitor: monitor === 'm2' ? 'M2 · Público' : 'M3 · Ministrante',
       texto,
       partesTotal,
       livro: livro.nome,
+      sigla: livro.sigla,
       capitulo: cap,
       versiculo: ver,
     };
@@ -372,47 +374,6 @@ export default function BibliaScreen() {
     return () => clearTimeout(t);
   }, [host, traducao, livroInput, capitulo, versiculo]);
 
-  async function projetar() {
-    if (!host) {
-      Alert.alert('Atenção', 'Conecte-se na tela inicial (IP do controlador).');
-      return;
-    }
-    if (!socketRef.current?.connected) {
-      Alert.alert(
-        'Desconectado',
-        'Sem ligação à projeção (porta 5510). Confirme que o Controlador (modo local) ou o app Servidor está aberto no PC.'
-      );
-      return;
-    }
-
-    const livro = resolverLivroBiblia(livroInput);
-    if (!livro) {
-      Alert.alert('Livro', 'Não reconheci o livro. Use o nome ou abreviação (ex.: jo, sl, 1co, gn).');
-      return;
-    }
-
-    const cap = parseInt(String(capitulo).trim(), 10);
-    const ver = parseInt(String(versiculo).trim(), 10);
-    if (!Number.isFinite(cap) || cap < 1) {
-      Alert.alert('Atenção', 'Informe o capítulo (número).');
-      return;
-    }
-    if (!Number.isFinite(ver) || ver < 1) {
-      Alert.alert('Atenção', 'Informe o versículo (número).');
-      return;
-    }
-
-    setCarregando(true);
-    try {
-      const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
-      await projetarVersiculoResolvido(livro, cap, ver, hit, rows);
-    } catch (e) {
-      Alert.alert('Erro', e.message || 'Não foi possível projetar.');
-    } finally {
-      setCarregando(false);
-    }
-  }
-
   /**
    * Toque num card da lista — mesmo padrão das estrofes:
    * - Sem projeção ao vivo: 1.º toque selecciona, 2.º no mesmo versículo projeta.
@@ -471,6 +432,70 @@ export default function BibliaScreen() {
     await tocarVersiculo({ versiculo: preview.versiculo });
   }
 
+  /**
+   * Versículos do capítulo em ordem (cache + foco atual).
+   * @returns {{ versiculo: number, texto?: string }[]}
+   */
+  function versiculosOrdenadosDoCapitulo() {
+    if (!preview) return [];
+    const livroNome = preview.livro;
+    const cap = Number(preview.capitulo);
+    const chave = `${traducao}|${livroNome}|${cap}`;
+    const cached =
+      capituloCacheRef.current.chave === chave ? capituloCacheRef.current.rows : null;
+    if (Array.isArray(cached) && cached.length) {
+      return [...cached].sort((a, b) => Number(a.versiculo) - Number(b.versiculo));
+    }
+    return [
+      ...versiculosCapitulo,
+      { versiculo: preview.versiculo, texto: preview.texto },
+    ].sort((a, b) => Number(a.versiculo) - Number(b.versiculo));
+  }
+
+  /**
+   * Navega ao versículo anterior/próximo e projeta (igual às setas das estrofes).
+   *
+   * @param {-1|1} dir
+   */
+  async function navegarVersiculo(dir) {
+    if (!preview || carregando) return;
+    const ordenados = versiculosOrdenadosDoCapitulo();
+    if (!ordenados.length) return;
+
+    const atual = Number(preview.versiculo);
+    const idx = ordenados.findIndex((r) => Number(r.versiculo) === atual);
+    const proxIdx = idx + dir;
+    if (idx < 0 || proxIdx < 0 || proxIdx >= ordenados.length) return;
+
+    const item = ordenados[proxIdx];
+    const livro =
+      resolverLivroBiblia(preview.livro) ||
+      resolverLivroBiblia(livroInput) ||
+      (preview.sigla ? { nome: preview.livro, sigla: preview.sigla } : null);
+    const cap = Number(preview.capitulo);
+    const ver = Number(item.versiculo);
+    if (!livro?.nome || !Number.isFinite(cap) || !Number.isFinite(ver)) return;
+
+    if (!host) {
+      Alert.alert('Atenção', 'Conecte-se na tela inicial (IP do controlador).');
+      return;
+    }
+    if (!socketRef.current?.connected) {
+      Alert.alert('Desconectado', 'Sem ligação à projeção.');
+      return;
+    }
+
+    setCarregando(true);
+    try {
+      const { hit, rows } = await carregarCapituloEVersiculo(livro.nome, cap, ver);
+      await projetarVersiculoResolvido(livro, cap, ver, hit, rows);
+    } catch (e) {
+      Alert.alert('Erro', e.message || 'Não foi possível projetar.');
+    } finally {
+      setCarregando(false);
+    }
+  }
+
   function limparTela() {
     if (!socketRef.current?.connected) {
       Alert.alert('Desconectado', 'Sem ligação à projeção.');
@@ -510,6 +535,18 @@ export default function BibliaScreen() {
     const t = setTimeout(trazerCardAtivoParaVista, 80);
     return () => clearTimeout(t);
   }, [preview?.livro, preview?.capitulo, preview?.versiculo, versiculosCapitulo.length]);
+
+  const versiculosNav = versiculosOrdenadosDoCapitulo();
+  const idxVersiculoNav = preview
+    ? versiculosNav.findIndex((r) => Number(r.versiculo) === Number(preview.versiculo))
+    : -1;
+  const podeVoltarVersiculo = idxVersiculoNav > 0 && !carregando;
+  const podeAvancarVersiculo =
+    idxVersiculoNav >= 0 && idxVersiculoNav < versiculosNav.length - 1 && !carregando;
+  const rotuloVersiculoNav = preview
+    ? preview.refCurta ||
+      `${preview.sigla || resolverLivroBiblia(preview.livro)?.sigla || '?'}.${preview.capitulo}:${preview.versiculo}`
+    : '—';
 
   return (
     <View style={styles.container}>
@@ -726,18 +763,33 @@ export default function BibliaScreen() {
           { paddingBottom: Math.max(insets.bottom, 12) + 4 },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.btnProjetar, carregando && styles.btnDisabled]}
-          onPress={projetar}
-          disabled={carregando}
-          activeOpacity={0.85}
-        >
-          {carregando ? (
-            <ActivityIndicator color={COLORS.onAccent} />
-          ) : (
-            <Text style={styles.btnProjetarTxt}>PROJETAR</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.rodapeNavRow}>
+          <TouchableOpacity
+            style={[styles.rodapeNavBtn, !podeVoltarVersiculo && styles.rodapeNavBtnDisabled]}
+            onPress={() => navegarVersiculo(-1)}
+            disabled={!podeVoltarVersiculo}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Versículo anterior"
+          >
+            <Text style={styles.rodapeNavBtnTxt}>‹</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.rodapeNavRef} numberOfLines={1}>
+            {rotuloVersiculoNav}
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.rodapeNavBtn, !podeAvancarVersiculo && styles.rodapeNavBtnDisabled]}
+            onPress={() => navegarVersiculo(1)}
+            disabled={!podeAvancarVersiculo}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Próximo versículo"
+          >
+            <Text style={styles.rodapeNavBtnTxt}>›</Text>
+          </TouchableOpacity>
+        </View>
         <BotaoEncerrarProjecao onPress={limparTela} />
       </View>
 
@@ -944,19 +996,28 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 10,
   },
-  btnProjetar: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-  },
-  btnDisabled: { opacity: 0.65 },
-  btnProjetarTxt: {
-    color: COLORS.onAccent,
+  rodapeNavRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rodapeNavRef: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    letterSpacing: 0.5,
+    color: COLORS.text,
     fontFamily: FONTS.bold,
-    fontSize: 16,
-    letterSpacing: 2,
   },
+  rodapeNavBtn: {
+    width: 52,
+    height: 48,
+    backgroundColor: COLORS.surface2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rodapeNavBtnDisabled: { opacity: 0.3 },
+  rodapeNavBtnTxt: { fontSize: 28, color: COLORS.accent, lineHeight: 32 },
+  btnDisabled: { opacity: 0.65 },
 
   navegacaoWrap: { marginTop: 20, gap: 10 },
   navegacaoTitulo: {

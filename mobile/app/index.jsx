@@ -169,7 +169,7 @@ export default function HomeScreen() {
         <View style={styles.card}>
           {/* Cabeçalho: label + badge de status */}
           <View style={styles.cardHead}>
-            <Text style={styles.cardTitle}>CONTROLADOR (OPCIONAL)</Text>
+            <Text style={styles.cardTitle}>CONTROLADOR</Text>
             <View style={styles.statusBadge}>
               <View
                 style={[

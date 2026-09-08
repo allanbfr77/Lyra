@@ -7,16 +7,18 @@
  *
  * Tabela: musicas(id, titulo, artista, estrofes TEXT JSON, criado_em)
  *
- * O arquivo do APK é somente leitura, então na primeira utilização copiamos o
- * asset para a pasta `SQLite` do app — é o caminho que o expo-sqlite abre.
+ * A importação usa a API nativa do expo-sqlite (`importDatabaseFromAssetAsync`).
+ * Se o arquivo local estiver vazio/corrompido (ex.: cópia antiga falhou e o
+ * SQLite criou um .db sem tabelas), forçamos a reimportação do asset.
  */
 
-import { Asset } from 'expo-asset';
-import { Directory, File, Paths } from 'expo-file-system';
 import * as SQLite from 'expo-sqlite';
 
 /** Nome do arquivo dentro da pasta SQLite do app. */
 const NOME_DB = 'lyra-catalog.db';
+
+/** Asset Metro do catálogo HLYRCS (exige `db` em `metro.config.js` → assetExts). */
+const ASSET_CATALOGO = require('../assets/catalogo/catalog.db');
 
 /** Máximo de resultados devolvidos por busca (mesmo teto do controlador). */
 export const LIMITE_RESULTADOS = 40;
@@ -46,29 +48,51 @@ export function dobrarTexto(s) {
 }
 
 /**
- * Copia o banco do bundle para a pasta SQLite (só na primeira vez) e abre a conexão.
+ * @param {import('expo-sqlite').SQLiteDatabase} db
+ * @returns {Promise<boolean>}
+ */
+async function catalogoTemTabelaMusicas(db) {
+  try {
+    const row = await db.getFirstAsync(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'musicas' LIMIT 1"
+    );
+    return !!row?.name;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Importa o catalog.db do bundle e abre a conexão.
+ * Se o arquivo local existir sem a tabela `musicas`, força overwrite do asset.
  *
  * @returns {Promise<import('expo-sqlite').SQLiteDatabase>}
  */
 async function abrirBanco() {
-  const pastaSQLite = new Directory(Paths.document, 'SQLite');
-  if (!pastaSQLite.exists) pastaSQLite.create({ intermediates: true, idempotent: true });
+  const importarDoAsset = (forceOverwrite) =>
+    SQLite.importDatabaseFromAssetAsync(NOME_DB, {
+      assetId: ASSET_CATALOGO,
+      forceOverwrite,
+    });
 
-  const destino = new File(pastaSQLite, NOME_DB);
-  const asset = Asset.fromModule(require('../assets/catalogo/catalog.db'));
-  await asset.downloadAsync();
+  await importarDoAsset(false);
+  let db = await SQLite.openDatabaseAsync(NOME_DB);
 
-  // Recopia se o arquivo ainda não existe ou se o catálogo do app mudou de tamanho
-  // (novo build com catálogo atualizado).
-  const origem = new File(asset.localUri || asset.uri);
-  const precisaCopiar = !destino.exists || (origem.size > 0 && destino.size !== origem.size);
-  if (precisaCopiar) {
-    if (destino.exists) destino.delete();
-    // SDK 56+: copy() é assíncrono (usar copySync só se for preciso sincronismo).
-    await origem.copy(destino);
+  if (!(await catalogoTemTabelaMusicas(db))) {
+    await db.closeAsync().catch(() => {});
+    // Cache local vazio/corrompido — comum quando uma cópia antiga falhou e o
+    // SQLite criou um lyra-catalog.db sem tabelas.
+    await importarDoAsset(true);
+    db = await SQLite.openDatabaseAsync(NOME_DB);
+    if (!(await catalogoTemTabelaMusicas(db))) {
+      await db.closeAsync().catch(() => {});
+      throw new Error(
+        'Catálogo offline inválido (tabela musicas ausente). Reinstale o app ou limpe os dados do Lyra.'
+      );
+    }
   }
 
-  return SQLite.openDatabaseAsync(NOME_DB);
+  return db;
 }
 
 /**

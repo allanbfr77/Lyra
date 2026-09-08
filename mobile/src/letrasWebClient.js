@@ -22,6 +22,10 @@ import { urlApiControlador } from './lyraEndpoints.js';
 import { fetchComTimeout } from './fetchComTimeout.js';
 import { registrarHop } from './diagnosticoRede.js';
 import letrasFontes from '@lyra/letras-fontes';
+import {
+  preservarEstrofesDoBanco,
+  normalizarEstrofesComMaxLinhas,
+} from './estrofesImportacao.js';
 
 const {
   CIFRA_ORIGIN,
@@ -75,6 +79,22 @@ const {
 const INDICE_BUSCA_URL = 'https://solr.sscdn.co/cifraclub/h/';
 const INDICE_TIPO_MUSICA = '2';
 const MAX_RESULTADOS_INDICE = 40;
+
+/** Mesma API pública do desktop (`controller/src/lib/lyraSongbank.js`). */
+const LYRA_SONGBANK_BASE = 'https://lyra-music-database.vercel.app/api/v1';
+const FONTE_LYRA_ONLINE = 'lyra-online';
+const MAX_RESULTADOS_LYRA = 40;
+
+function ehFonteLyraOnline(fonte) {
+  const f = String(fonte || '').trim().toLowerCase();
+  return f === 'lyra-online' || f === 'lyra-songbank' || f === 'banco-online-lyra';
+}
+
+/** Preserva `lyra-online`; demais fontes seguem o normalizador de Cifra/Letras. */
+function normalizarFonteBusca(fonte) {
+  if (ehFonteLyraOnline(fonte)) return FONTE_LYRA_ONLINE;
+  return normalizarFonteLetras(fonte);
+}
 
 /**
  * Timeouts por tipo de hop.
@@ -181,14 +201,24 @@ async function buscarNoIndiceDeMusicas({ texto, filtros, fonte, signal }) {
  *
  * @returns {Promise<{ resultados: object[], falhas: object[] }>}
  */
-async function buscarLetrasViaControlador({ base, texto, artista, fonte, signal }) {
+async function buscarLetrasViaControlador({ base, texto, titulo, artista, letra, fonte, signal }) {
   if (!base) return { resultados: [], falhas: [] };
 
-  const params = new URLSearchParams({
-    titulo: texto,
-    artista: artista ? '1' : '0',
-    fonte: normalizarFonteLetras(fonte),
-  });
+  const fonteNorm = normalizarFonteBusca(fonte);
+  const params =
+    fonteNorm === FONTE_LYRA_ONLINE
+      ? new URLSearchParams({
+          q: texto,
+          titulo: titulo ? '1' : '0',
+          artista: artista ? '1' : '0',
+          letra: letra ? '1' : '0',
+          fonte: FONTE_LYRA_ONLINE,
+        })
+      : new URLSearchParams({
+          titulo: texto,
+          artista: artista ? '1' : '0',
+          fonte: fonteNorm,
+        });
 
   const res = await fetchComTimeout(
     `${base}/api/letras/buscar?${params}`,
@@ -215,9 +245,155 @@ async function buscarLetrasViaControlador({ base, texto, artista, fonte, signal 
       path: row.path,
       titulo: row.titulo || '',
       artista: row.artista || '',
-      fonte: normalizarFonteLetras(fonte),
+      fonte: fonteNorm,
     })),
     falhas: [],
+  };
+}
+
+/**
+ * Checkboxes da busca → parâmetro `fields` da API do banco online do Lyra.
+ * Sem nenhum critério, a API procura nos três (padrão documentado).
+ */
+function montarFieldsLyraOnline({ titulo, artista, letra } = {}) {
+  const campos = [];
+  if (titulo) campos.push('title');
+  if (artista) campos.push('artist');
+  if (letra) campos.push('lyrics');
+  return campos.length ? campos.join(',') : 'title,artist,lyrics';
+}
+
+/**
+ * Busca direta na API pública do banco online do Lyra (sem PC).
+ * Mesmo contrato do desktop: slug vira `path` para prévia/guardar.
+ */
+async function buscarNoLyraOnline({ texto, titulo, artista, letra, signal }) {
+  const fields = montarFieldsLyraOnline({ titulo, artista, letra });
+  const url = `${LYRA_SONGBANK_BASE}/songs?q=${encodeURIComponent(String(texto || '').trim())}&fields=${encodeURIComponent(fields)}&limit=${MAX_RESULTADOS_LYRA}&offset=0`;
+
+  const corpo = await fetchTexto(
+    url,
+    {
+      headers: { Accept: 'application/json' },
+      signal,
+      rotulo: 'lyra-online/busca',
+    },
+    TIMEOUT_WEB_MS
+  );
+
+  let data = null;
+  try {
+    data = JSON.parse(corpo);
+  } catch (_) {
+    const err = new Error('banco online do Lyra devolveu resposta inesperada');
+    err.motivo = 'http';
+    throw err;
+  }
+
+  const bruto = Array.isArray(data?.results) ? data.results : [];
+  const resultados = [];
+  for (const row of bruto) {
+    const slug = String(row?.slug || '').trim();
+    if (!slug) continue;
+    resultados.push({
+      path: slug,
+      titulo: String(row.title || '').trim() || slug,
+      artista: String(row.artist || '').trim(),
+      fonte: FONTE_LYRA_ONLINE,
+    });
+    if (resultados.length >= MAX_RESULTADOS_LYRA) break;
+  }
+
+  return { resultados };
+}
+
+/** Palavra real na linha (não é cifra). Alinhado a `lyraSongbank.js`. */
+function linhaTemPalavraDeLetraLyra(linha) {
+  const t = String(linha || '').trim();
+  if (!t) return false;
+  if (/^\/\/\(/.test(t)) return true;
+  const semMarcacao = t.replace(/\[[^\]]*\]/g, ' ');
+  return /[a-záàâãéêíóôõúç]{3,}/i.test(semMarcacao);
+}
+
+const RE_ACORDE_LYRA =
+  /^[A-G](#|b)?(?:m|maj|min|sus|add|dim|aug|º|°)?[0-9]*(?:sus[0-9]+)?(?:\([^)]+\))?(?:\/[A-G](#|b)?)?$/i;
+
+function linhaESoAcordesLyra(linha) {
+  const t = String(linha || '').trim();
+  if (!t) return false;
+  if (linhaTemPalavraDeLetraLyra(t)) return false;
+  const semSecao = t.replace(/^\[[^\]]+\]\s*/, '');
+  if (!semSecao) return /^\[[^\]]+\]$/.test(t);
+  const tokens = semSecao.split(/[\s|]+/).filter(Boolean);
+  if (!tokens.length) return false;
+  return tokens.every((tok) => RE_ACORDE_LYRA.test(tok));
+}
+
+/** Parte `lyrics` em estrofes, descartando linhas só de acorde. */
+function estrofesDeLetraPuraLyra(lyrics) {
+  const t = String(lyrics || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+  if (!t) return [];
+  return t
+    .split(/\n\s*\n/)
+    .map((bloco) =>
+      bloco
+        .split('\n')
+        .filter((l) => !linhaESoAcordesLyra(l))
+        .join('\n')
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+/** Prévia/import direto: GET /songs/{slug} na API pública. */
+async function previewLyraOnlineDireto(slugRaw, signal) {
+  const slug = String(slugRaw || '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
+  if (!slug) return { erro: 'Slug da música inválido.' };
+
+  const url = `${LYRA_SONGBANK_BASE}/songs/${encodeURIComponent(slug)}`;
+  let corpo;
+  try {
+    corpo = await fetchTexto(
+      url,
+      {
+        headers: { Accept: 'application/json' },
+        signal,
+        rotulo: 'lyra-online/musica',
+      },
+      TIMEOUT_WEB_MS
+    );
+  } catch (e) {
+    if (e?.motivo === 'cancelado') throw e;
+    if (e?.status === 404) return { erro: 'Música não encontrada no banco online do Lyra.' };
+    return { erro: e?.message || 'Falha ao carregar a letra no banco online do Lyra.', motivo: e?.motivo || null };
+  }
+
+  let song = null;
+  try {
+    song = JSON.parse(corpo);
+  } catch (_) {
+    return { erro: 'Resposta inválida do banco online do Lyra.' };
+  }
+
+  const letra = String(song?.lyrics || '').trim();
+  if (!letra) return { erro: 'Letra vazia no banco online do Lyra.' };
+  const brutas = estrofesDeLetraPuraLyra(letra);
+  if (!brutas.length) return { erro: 'Letra vazia no banco online do Lyra.' };
+
+  const pathNorm = String(song.slug || slug).trim();
+  const preservadas = preservarEstrofesDoBanco(brutas);
+  return {
+    titulo: String(song.title || '').trim() || pathNorm,
+    artista: String(song.artist || '').trim(),
+    estrofes: preservadas.length ? preservadas : [''],
+    path: pathNorm,
+    fonte: FONTE_LYRA_ONLINE,
   };
 }
 
@@ -527,207 +703,7 @@ async function fetchHtmlLetrasMus(dns, slugMusica, signal) {
   return html;
 }
 
-/** Limite de caracteres por linha antes do fatiamento (alinhado ao controlador). */
-const MAX_CHARS_POR_LINHA = 45;
-
-const MIN_CHARS_FRAGMENTO_LINHA = 15;
-
-const CONJUNCOES_QUEBRA_LINHA = [
-  'porém', 'porque', 'portanto', 'contudo', 'todavia', 'então',
-  'quando', 'pois', 'assim', 'como', 'mas', 'que', 'se', 'ou', 'e',
-];
-
-function escRegexQuebra(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function encontrarPontoQuebraNatural(rest, limite) {
-  const len = rest.length;
-  const minCut = MIN_CHARS_FRAGMENTO_LINHA;
-  const maxCut = Math.min(limite, len - MIN_CHARS_FRAGMENTO_LINHA);
-  const alvo = Math.floor(len / 2);
-
-  const medidas = (cut) => {
-    const head = rest.slice(0, cut).trim().replace(/[,;]\s*$/, '').trim();
-    const tail = rest.slice(cut).trim();
-    return { headLen: head.length, tailLen: tail.length };
-  };
-
-  const cutValido = (cut) => {
-    if (cut < minCut || cut > maxCut) return null;
-    const { headLen, tailLen } = medidas(cut);
-    if (headLen < MIN_CHARS_FRAGMENTO_LINHA || tailLen < MIN_CHARS_FRAGMENTO_LINHA) return null;
-    if (headLen > limite) return null;
-    return { cut, headLen, tailLen };
-  };
-
-  const virgulas = [];
-  const reVirg = /,\s*/g;
-  let m;
-  while ((m = reVirg.exec(rest)) !== null) {
-    const info = cutValido(m.index + m[0].length);
-    if (info) {
-      virgulas.push({
-        cut: info.cut,
-        desbalance: Math.abs(info.headLen - info.tailLen),
-        dist: Math.abs(info.cut - alvo),
-      });
-    }
-  }
-  if (virgulas.length) {
-    virgulas.sort((a, b) => a.desbalance - b.desbalance || a.dist - b.dist);
-    return virgulas[0].cut;
-  }
-
-  const candidatos = [];
-  const registrar = (prioridade, cut) => {
-    const info = cutValido(cut);
-    if (!info) return;
-    candidatos.push({ prioridade, cut: info.cut, dist: Math.abs(info.cut - alvo) });
-  };
-
-  const altConj = CONJUNCOES_QUEBRA_LINHA.map(escRegexQuebra).join('|');
-  const reConj = new RegExp(`(?:^|[\\s,;])(?:(${altConj}))(?=[\\s,;]|$)`, 'gi');
-  while ((m = reConj.exec(rest)) !== null) {
-    registrar(2, m.index + m[0].length - m[1].length);
-  }
-
-  const rePunct = /;\s*/g;
-  while ((m = rePunct.exec(rest)) !== null) {
-    registrar(2, m.index + m[0].length);
-  }
-
-  for (let cut = minCut; cut <= maxCut; cut += 1) {
-    if (rest[cut - 1] === ' ') registrar(3, cut);
-  }
-  const sp = rest.lastIndexOf(' ', maxCut);
-  if (sp >= minCut) registrar(3, sp);
-
-  if (!candidatos.length) {
-    let cut = rest.lastIndexOf(' ', limite);
-    if (cut < minCut) cut = Math.max(minCut, Math.min(limite, len - MIN_CHARS_FRAGMENTO_LINHA));
-    if (cut <= 0) cut = limite;
-    return cut;
-  }
-
-  candidatos.sort((a, b) => a.prioridade - b.prioridade || a.dist - b.dist);
-  return candidatos[0].cut;
-}
-
-function quebrarLinhaLonga(linha, limite = MAX_CHARS_POR_LINHA) {
-  const s = String(linha ?? '').trim();
-  if (!s || s.length <= limite) return s ? [s] : [];
-
-  const partes = [];
-  let rest = s;
-  while (rest.length > limite) {
-    const cut = encontrarPontoQuebraNatural(rest, limite);
-    let head = rest.slice(0, cut).trim().replace(/[,;]\s*$/, '').trim();
-    rest = rest.slice(cut).trim();
-    if (head) partes.push(head);
-  }
-  if (rest) partes.push(rest);
-  return partes.length ? partes : [s];
-}
-
-function expandirLinhasLongas(linhas, limite = MAX_CHARS_POR_LINHA) {
-  const out = [];
-  for (const l of linhas) out.push(...quebrarLinhaLonga(l, limite));
-  return out;
-}
-
-function linhasNaoVaziasDoSlide(slide) {
-  return String(slide || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length);
-}
-
-function eliminarSlidesOrfaos(slides, maxLinhas, totalLinhasMusica) {
-  if (!slides.length || totalLinhasMusica < 2) return slides;
-
-  const out = [...slides];
-  let i = 0;
-  while (i < out.length) {
-    const linhas = linhasNaoVaziasDoSlide(out[i]);
-    if (linhas.length !== 1) {
-      i += 1;
-      continue;
-    }
-
-    const orphan = linhas[0];
-
-    if (i > 0) {
-      const prev = linhasNaoVaziasDoSlide(out[i - 1]);
-      if (prev.length < maxLinhas) {
-        out[i - 1] = [...prev, orphan].join('\n');
-        out.splice(i, 1);
-        continue;
-      }
-    }
-
-    if (i < out.length - 1) {
-      const next = linhasNaoVaziasDoSlide(out[i + 1]);
-      if (next.length < maxLinhas) {
-        out[i + 1] = [orphan, ...next].join('\n');
-        out.splice(i, 1);
-        continue;
-      }
-    }
-
-    if (i > 0) {
-      const prev = linhasNaoVaziasDoSlide(out[i - 1]);
-      if (prev.length >= 2) {
-        const moved = prev.pop();
-        out[i - 1] = prev.join('\n');
-        out[i] = [moved, orphan].join('\n');
-        i += 1;
-        continue;
-      }
-    }
-
-    i += 1;
-  }
-  return out;
-}
-
-function fatiarLinhasEmSlides(rawLines, maxLinhas, totalLinhasMusica) {
-  const slides = [];
-  for (let i = 0; i < rawLines.length; i += maxLinhas) {
-    slides.push(rawLines.slice(i, i + maxLinhas).join('\n'));
-  }
-  return eliminarSlidesOrfaos(slides, maxLinhas, totalLinhasMusica);
-}
-
-/**
- * Normaliza estrofes para grupos de no máximo 4 linhas por slide,
- * conforme a regra de projeção do controlador Lyra.
- *
- * @param {string[]} estrofes - Array de blocos de versos
- * @returns {string[]} Estrofes normalizadas (nunca vazio; mínimo `['']`)
- */
-function normalizarEstrofesQuatroLinhas(estrofes) {
-  const inArr = Array.isArray(estrofes) ? estrofes : [];
-  const maxLinhas = 4;
-
-  // Alinhado ao controlador: fatia a letra inteira em grupos de no máximo 4.
-  const todasLinhas = [];
-  for (const bloco of inArr) {
-    const t = String(bloco || '')
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .trim();
-    if (!t) continue;
-
-    const rawLines = expandirLinhasLongas(
-      t.split('\n').map((l) => l.trim()).filter((l) => l.length)
-    );
-    todasLinhas.push(...rawLines);
-  }
-
-  if (!todasLinhas.length) return [''];
-  return fatiarLinhasEmSlides(todasLinhas, maxLinhas, todasLinhas.length);
-}
+/** Limite de caracteres por linha e divisão de slides: ver `estrofesImportacao.js`. */
 
 async function fetchHtmlLetraCifraClubComFallback(pathRel, signal) {
   const pathNorm = (pathRel.startsWith('/') ? pathRel : `/${pathRel}`).replace(/\/?$/, '/');
@@ -773,7 +749,7 @@ async function fetchHtmlLetraCifraClubComFallback(pathRel, signal) {
 // --- API Pública ---
 
 /**
- * Busca letras na fonte escolhida (CifraClub ou Letras.mus.br).
+ * Busca letras na fonte escolhida (CifraClub, Letras.mus.br ou banco online do Lyra).
  * Com IP do controlador, tenta a API HTTP do PC (mesmo módulo do desktop).
  *
  * @param {{ q: string, titulo: boolean, artista: boolean, letra: boolean, fonte?: string, hostControlador?: string }} params
@@ -793,7 +769,7 @@ export async function buscarLetrasNaWeb({ q, titulo, artista, letra, fonte, host
     throw err;
   }
 
-  const fonteNorm = normalizarFonteLetras(fonte);
+  const fonteNorm = normalizarFonteBusca(fonte);
   const host = hostControlador ? String(hostControlador).trim() : '';
   const base = host ? urlApiControlador(host) : '';
 
@@ -806,16 +782,31 @@ export async function buscarLetrasNaWeb({ q, titulo, artista, letra, fonte, host
     tarefas.push({
       nome: 'controlador',
       executar: (signal) =>
-        buscarLetrasViaControlador({ base, texto, artista, fonte: fonteNorm, signal }),
+        buscarLetrasViaControlador({
+          base,
+          texto,
+          titulo,
+          artista,
+          letra,
+          fonte: fonteNorm,
+          signal,
+        }),
     });
   }
 
-  // Um único hop de busca na web: o índice da Studio Sol serve CifraClub e
-  // Letras.mus.br, porque os slugs são os mesmos nos dois sites.
-  tarefas.push({
-    nome: 'indice',
-    executar: (signal) => buscarNoIndiceDeMusicas({ texto, filtros, fonte: fonteNorm, signal }),
-  });
+  if (fonteNorm === FONTE_LYRA_ONLINE) {
+    tarefas.push({
+      nome: 'lyra-online',
+      executar: (signal) =>
+        buscarNoLyraOnline({ texto, titulo, artista, letra, signal }),
+    });
+  } else {
+    // Índice da Studio Sol: serve CifraClub e Letras.mus.br (slugs compartilhados).
+    tarefas.push({
+      nome: 'indice',
+      executar: (signal) => buscarNoIndiceDeMusicas({ texto, filtros, fonte: fonteNorm, signal }),
+    });
+  }
 
   const { vencedor, valor, falhas } = await corridaPrimeiroNaoVazio(
     tarefas,
@@ -948,7 +939,7 @@ async function extrairLetraLetrasMusDireto(pathRaw, signal) {
     };
   }
 
-  estrofes = normalizarEstrofesQuatroLinhas(estrofes);
+  estrofes = normalizarEstrofesComMaxLinhas(estrofes, 4);
   titulo = titulo || slugParaTituloExibicao(slug) || 'Sem título';
   artista = artista || slugParaTituloExibicao(dns);
   return { titulo, artista, estrofes, path: pathNorm };
@@ -958,7 +949,7 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
   const trimmed = pathRaw != null ? String(pathRaw).trim() : '';
   if (!trimmed) return { erro: 'path inválido.' };
 
-  const fonteNorm = normalizarFonteLetras(opts.fonte);
+  const fonteNorm = normalizarFonteBusca(opts.fonte);
   const hostControlador = opts.hostControlador ? String(opts.hostControlador).trim() : '';
   const base = hostControlador ? urlApiControlador(hostControlador) : '';
 
@@ -973,7 +964,10 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
 
   tarefas.push({
     nome: 'web',
-    executar: (signal) => previewDiretoNaWeb(trimmed, fonteNorm, signal),
+    executar: (signal) =>
+      fonteNorm === FONTE_LYRA_ONLINE
+        ? previewLyraOnlineDireto(trimmed, signal)
+        : previewDiretoNaWeb(trimmed, fonteNorm, signal),
   });
 
   const { vencedor, valor, falhas } = await corridaPrimeiroNaoVazio(
@@ -985,6 +979,16 @@ export async function extrairLetraParaPreviewOuImport(pathRaw, opts = {}) {
 
   const daWeb = falhasDaWeb(falhas);
   const bloqueado = daWeb.some(falhaEhBloqueio);
+  if (fonteNorm === FONTE_LYRA_ONLINE) {
+    const semRede = daWeb.some((f) => f?.motivo === 'timeout' || f?.motivo === 'rede');
+    return {
+      erro: semRede
+        ? 'Sem resposta da Internet ao baixar a letra. Verifique a conexão e tente novamente.'
+        : 'Não foi possível ler a letra no banco online do Lyra.',
+      falhas,
+      diagnostico: resumirFalhas(falhas),
+    };
+  }
   if (bloqueado) {
     return {
       erro: base
@@ -1031,7 +1035,8 @@ async function previewViaControlador({ base, path, fonte, signal }) {
   return {
     titulo: data.titulo || '',
     artista: data.artista || '',
-    estrofes: normalizarEstrofesQuatroLinhas(data.estrofes),
+    // O controlador já aplicou a regra da fonte (banco vs web) — não reprocessar.
+    estrofes: data.estrofes,
     path: data.path || path,
   };
 }
@@ -1167,7 +1172,7 @@ async function previewDiretoNaWeb(trimmed, fonteNorm, signal) {
     };
   }
 
-  estrofes = normalizarEstrofesQuatroLinhas(estrofes);
+  estrofes = normalizarEstrofesComMaxLinhas(estrofes, 4);
 
   const titulo =
     String(tituloLetras || tHtmlEarly || '').trim() ||

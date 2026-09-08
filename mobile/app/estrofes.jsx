@@ -579,33 +579,40 @@ export default function EstrofesScreen() {
           const ativa = estrofeAtiva === row.index;
           const selecionada = !ativa && estrofeAtiva < 0 && estrofeSelecionada === row.index;
           const numEtiqueta = row.index + 1; // Exibição 1-based para o usuário
+          const ehFinal = row.kind === 'final';
           return (
             <TouchableOpacity
               style={[
                 styles.estrofeCard,
+                ehFinal && styles.estrofeCardFinal,
                 selecionada && styles.estrofeCardSelecionada,
-                ativa && styles.estrofeCardAtiva,
+                ativa && (ehFinal ? styles.estrofeCardFinalAtiva : styles.estrofeCardAtiva),
               ]}
               onPress={() => tocarEstrofe(row.index)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel={
                 ativa
-                  ? `Slide ${numEtiqueta}, ao vivo`
+                  ? ehFinal
+                    ? `Slide ${numEtiqueta}, fundo preto, ao vivo`
+                    : `Slide ${numEtiqueta}, ao vivo`
                   : selecionada
                     ? `Slide ${numEtiqueta} seleccionado, toque novamente para projetar`
-                    : `Slide ${numEtiqueta}`
+                    : ehFinal
+                      ? `Slide ${numEtiqueta}, fundo preto`
+                      : `Slide ${numEtiqueta}`
               }
             >
               <View style={styles.estrofeHeader}>
                 <Text
                   style={[
                     styles.estrofeNum,
-                    selecionada && styles.estrofeNumSelecionada,
-                    ativa && styles.estrofeNumAtiva,
+                    ehFinal && styles.estrofeNumFinal,
+                    selecionada && !ehFinal && styles.estrofeNumSelecionada,
+                    ativa && !ehFinal && styles.estrofeNumAtiva,
                   ]}
                 >
-                  {row.kind === 'final' ? `SLIDE ${numEtiqueta} · FUNDO` : `SLIDE ${numEtiqueta}`}
+                  {ehFinal ? `SLIDE ${numEtiqueta} - FUNDO PRETO` : `SLIDE ${numEtiqueta}`}
                 </Text>
                 {/* Badge "AO VIVO" no slide atualmente projetado */}
                 {ativa && (
@@ -615,13 +622,15 @@ export default function EstrofesScreen() {
                 )}
                 {/* Pré-selecção: pede confirmação antes de projetar */}
                 {selecionada && (
-                  <View style={styles.selecionadaBadge}>
-                    <Text style={styles.selecionadaTxt}>TOQUE P/ PROJETAR</Text>
+                  <View style={[styles.selecionadaBadge, ehFinal && styles.selecionadaBadgeFinal]}>
+                    <Text style={[styles.selecionadaTxt, ehFinal && styles.selecionadaTxtFinal]}>
+                      TOQUE P/ PROJETAR
+                    </Text>
                   </View>
                 )}
               </View>
               {/* O slide final não exibe texto */}
-              {row.kind === 'final' ? null : (
+              {ehFinal ? null : (
                 <Text style={[styles.estrofeTxt, ativa && styles.estrofeTxtAtiva]}>{row.texto}</Text>
               )}
             </TouchableOpacity>
@@ -740,10 +749,24 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 16,
   },
+  /** Representação na lista do slide final (fundo preto) — só UI, não a projeção. */
+  estrofeCardFinal: {
+    backgroundColor: '#000000',
+    borderColor: '#222222',
+  },
   /** Destaque visual no slide atualmente projetado */
   estrofeCardAtiva: {
     borderColor: COLORS.accent,
     backgroundColor: COLORS.surface2,
+    shadowColor: COLORS.accent,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  /** AO VIVO no card de fundo preto: mantém o fundo preto, só reforça a borda. */
+  estrofeCardFinalAtiva: {
+    borderColor: COLORS.accent,
+    backgroundColor: '#000000',
     shadowColor: COLORS.accent,
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -757,6 +780,7 @@ const styles = StyleSheet.create({
   },
   estrofeHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   estrofeNum: { fontFamily: FONTS.semibold, fontSize: 12, letterSpacing: 2, color: COLORS.textDim },
+  estrofeNumFinal: { color: '#ffffff' },
   estrofeNumAtiva: { color: COLORS.accent },
   estrofeNumSelecionada: { color: COLORS.accent2 },
   aovivoBadge: { backgroundColor: COLORS.accent, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
@@ -769,6 +793,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   selecionadaTxt: { fontSize: 11, color: COLORS.accent2, fontFamily: FONTS.bold, letterSpacing: 1 },
+  selecionadaBadgeFinal: { borderColor: '#ffffff' },
+  selecionadaTxtFinal: { color: '#ffffff' },
   estrofeTxt: { fontSize: 18, color: COLORS.text, lineHeight: 26, fontFamily: FONTS.regular },
   estrofeTxtAtiva: { color: COLORS.accent },
   /** Barra de controle fixada na parte inferior da tela */

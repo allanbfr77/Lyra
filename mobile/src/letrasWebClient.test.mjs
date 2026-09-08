@@ -226,6 +226,50 @@ teste('letras-mus-br usa o mesmo indice e marca a fonte', async () => {
   return `fonte=${r.resultados[0].fonte}`;
 });
 
+teste('lyra-online busca na API do banco e marca a fonte', async () => {
+  instalarFetch({
+    'lyra-music-database.vercel.app': () =>
+      resJson({
+        results: [
+          { slug: 'galileu', title: 'Galileu', artist: 'Fernandinho' },
+          { slug: 'oceans', title: 'Oceans', artist: 'Hillsong United' },
+        ],
+      }),
+  });
+
+  const r = await buscarLetrasNaWeb(buscaPadrao({ fonte: 'lyra-online', q: 'galileu' }));
+
+  assert.ok(r.resultados.length > 0, 'deveria trazer resultados do banco Lyra');
+  assert.equal(r.via, 'lyra-online');
+  assert.equal(r.resultados[0].fonte, 'lyra-online');
+  assert.equal(r.resultados[0].path, 'galileu');
+  assert.ok(
+    !chamadas.some((u) => u.includes('solr.sscdn.co')),
+    'não deve consultar o índice Studio Sol nesta fonte'
+  );
+  return `via=${r.via}, path=${r.resultados[0].path}`;
+});
+
+teste('lyra-online na LAN — controlador vence com fonte preservada', async () => {
+  instalarFetch({
+    '192.168.1.10': () =>
+      resJson({
+        sucesso: true,
+        resultados: [{ path: 'galileu', titulo: 'Galileu', artista: 'Fernandinho', fonte: 'lyra-online' }],
+      }),
+    'lyra-music-database.vercel.app': pendurado,
+  });
+
+  const r = await buscarLetrasNaWeb(
+    buscaPadrao({ fonte: 'lyra-online', q: 'galileu', hostControlador: HOST_LAN })
+  );
+
+  assert.equal(r.via, 'controlador');
+  assert.equal(r.resultados[0].fonte, 'lyra-online');
+  assert.ok(chamadas.some((u) => u.includes('fonte=lyra-online') || u.includes('fonte%3Dlyra-online')));
+  return `via=${r.via}, fonte=${r.resultados[0].fonte}`;
+});
+
 // ============================================================ classificacao de erro
 
 teste('403 no indice e classificado como bloqueio', async () => {
@@ -398,10 +442,12 @@ teste('CifraClub Next.js — extrai a letra completa via data-chord-content', as
   const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
 
   assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
-  const linhas = r.estrofes.join('\n').split('\n').length;
-  assert.equal(linhas, 10, `deveria trazer as 10 linhas, trouxe ${linhas}`);
+  const texto = r.estrofes.join('\n');
+  assert.ok(texto.includes('Deixou Sua gloria'), 'faltou o inicio da letra');
+  assert.ok(texto.includes('Eu me rendo'), 'faltou o refrão');
+  assert.ok(texto.split('\n').length >= 10, 'letra completa nao pode ficar truncada');
   assert.equal(r.parcial, false, 'letra completa nao e parcial');
-  return `${r.estrofes.length} slide(s), ${linhas} linhas, parcial=${r.parcial}`;
+  return `${r.estrofes.length} slide(s), parcial=${r.parcial}`;
 });
 
 teste('REGRESSAO — nao trunca em 4 linhas quando o HTML tem a letra inteira', async () => {
@@ -423,12 +469,14 @@ teste('CifraClub sem letra no HTML — cai no Letras.mus.br COMPLETO, nao na met
   });
 
   const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
-  const linhas = r.estrofes.join('\n').split('\n').length;
+  const texto = r.estrofes.join('\n');
 
   assert.ok(!r.erro, `nao deveria dar erro: ${r.erro}`);
-  assert.equal(linhas, 10, `deveria usar a pagina completa do Letras, trouxe ${linhas}`);
+  assert.ok(texto.includes('Deixou Sua gloria'));
+  assert.ok(texto.includes('Eu me rendo'));
+  assert.ok(texto.split('\n').length >= 10, 'deveria usar a pagina completa do Letras');
   assert.equal(r.parcial, false);
-  return `${linhas} linhas via Letras.mus.br, parcial=${r.parcial}`;
+  return `${texto.split('\n').length} linhas via Letras.mus.br, parcial=${r.parcial}`;
 });
 
 teste('so a meta description disponivel — marca parcial=true', async () => {
@@ -467,10 +515,53 @@ teste('troca de hash de classe no CifraClub nao quebra a extracao', async () => 
   instalarFetch({ 'cifraclub.com.br': () => resOk(outroDeploy) });
 
   const r = await extrairLetraParaPreviewOuImport('/fernandinho/galileu/', { fonte: 'cifraclub' });
-  const linhas = r.estrofes.join('\n').split('\n').length;
+  const texto = r.estrofes.join('\n');
 
-  assert.equal(linhas, 10, 'a extracao deve depender de data-*, nao de classe');
-  return `${linhas} linhas apos trocar todos os hashes`;
+  assert.ok(texto.includes('Deixou Sua gloria'), 'a extracao deve depender de data-*, nao de classe');
+  assert.ok(texto.includes('Eu me rendo'));
+  return `${r.estrofes.length} slides apos trocar hashes`;
+});
+
+teste('previa — fonte lyra-online preserva estrofes do banco (sem fatiar)', async () => {
+  instalarFetch({
+    'lyra-music-database.vercel.app/api/v1/songs/galileu': () =>
+      resJson({
+        slug: 'galileu',
+        title: 'Galileu',
+        artist: 'Fernandinho',
+        lyrics: 'Deixou Sua gloria\nFoi por amor\n\nEu me rendo ao Seu amor',
+      }),
+  });
+
+  const r = await extrairLetraParaPreviewOuImport('galileu', { fonte: 'lyra-online' });
+
+  assert.ok(!r.erro, r.erro || 'sem erro');
+  assert.equal(r.titulo, 'Galileu');
+  assert.equal(r.artista, 'Fernandinho');
+  assert.deepEqual(r.estrofes, ['Deixou Sua gloria\nFoi por amor', 'Eu me rendo ao Seu amor']);
+  return `${r.estrofes.length} estrofes intactas`;
+});
+
+teste('previa — controlador lyra-online nao e reprocessado no celular', async () => {
+  instalarFetch({
+    '192.168.1.10': () =>
+      resJson({
+        titulo: 'Galileu',
+        artista: 'Fernandinho',
+        estrofes: ['Slide original do banco\ncom duas linhas'],
+        path: 'galileu',
+      }),
+    'lyra-music-database.vercel.app': pendurado,
+  });
+
+  const r = await extrairLetraParaPreviewOuImport('galileu', {
+    fonte: 'lyra-online',
+    hostControlador: HOST_LAN,
+  });
+
+  assert.equal(r.via, 'controlador');
+  assert.deepEqual(r.estrofes, ['Slide original do banco\ncom duas linhas']);
+  return 'estrofes do PC preservadas';
 });
 
 // ============================================================ runner

@@ -47,9 +47,16 @@ import { COLORS, FONTS } from '../src/theme';
 const FONTES_LETRAS = [
   { valor: 'cifraclub', label: 'CifraClub' },
   { valor: 'letras-mus-br', label: 'Letras.mus.br' },
+  { valor: 'lyra-online', label: 'Lyra' },
 ];
 
 const LS_LETRAS_SITE_FONTE = 'lyra_letras_site_fonte';
+
+function normalizarFonteUi(fonte) {
+  if (fonte === 'letras-mus-br') return 'letras-mus-br';
+  if (fonte === 'lyra-online' || fonte === 'lyra-songbank') return 'lyra-online';
+  return 'cifraclub';
+}
 
 /**
  * Tela de busca de letras na web (CifraClub ou Letras.mus.br) no próprio celular.
@@ -79,7 +86,7 @@ export default function LetrasMusScreen() {
   /** Log de rede por hop, para relatar bug sem precisar de build de desenvolvimento. */
   const [modalDiag, setModalDiag] = useState(false);
   const [textoDiag, setTextoDiag] = useState('');
-  /** `cifraclub` (padrão) ou `letras-mus-br` */
+  /** `cifraclub` (padrão), `letras-mus-br` ou `lyra-online` */
   const [fonteLetras, setFonteLetras] = useState('cifraclub');
 
   // --- Estado do modal de pré-visualização ---
@@ -103,9 +110,8 @@ export default function LetrasMusScreen() {
     AsyncStorage.getItem('server_ip').then((saved) => {
       if (saved) hostControladorRef.current = String(saved).trim();
     });
-    AsyncStorage.getItem(LS_LETRAS_SITE_FONTE).then((gravado) => {
-      if (gravado === 'letras-mus-br') setFonteLetras('letras-mus-br');
-    });
+    // Ao abrir «Buscar Online», a fonte padrão é sempre CifraClub
+    // (não restaura a última escolha gravada).
   }, []);
 
   function optsLetrasPreview() {
@@ -113,7 +119,7 @@ export default function LetrasMusScreen() {
   }
 
   function escolherFonteLetras(novaFonte) {
-    const f = novaFonte === 'letras-mus-br' ? 'letras-mus-br' : 'cifraclub';
+    const f = normalizarFonteUi(novaFonte);
     setFonteLetras(f);
     AsyncStorage.setItem(LS_LETRAS_SITE_FONTE, f).catch(() => {});
     setResultados([]);
@@ -137,13 +143,15 @@ export default function LetrasMusScreen() {
   }
 
   function labelFonteLetras() {
-    return fonteLetras === 'letras-mus-br' ? 'Letras.mus.br' : 'CifraClub';
+    if (fonteLetras === 'letras-mus-br') return 'Letras.mus.br';
+    if (fonteLetras === 'lyra-online') return 'banco online do Lyra';
+    return 'CifraClub';
   }
 
   function placeholderBusca() {
-    return fonteLetras === 'letras-mus-br'
-      ? 'Buscar em letras.mus.br…'
-      : 'Buscar em cifraclub.com.br…';
+    if (fonteLetras === 'letras-mus-br') return 'Buscar em letras.mus.br…';
+    if (fonteLetras === 'lyra-online') return 'Buscar no banco online…';
+    return 'Buscar em cifraclub.com.br…';
   }
 
   // --- Utilitários ---
@@ -156,6 +164,9 @@ export default function LetrasMusScreen() {
    */
   function mensagemWebDiretaFalhou(e) {
     if (e?.name === 'AbortError') {
+      if (fonteLetras === 'lyra-online') {
+        return 'Tempo esgotado ao contactar o banco online do Lyra. Verifique a Internet.';
+      }
       const site = fonteLetras === 'letras-mus-br' ? 'letras.mus.br' : 'cifraclub.com.br';
       return `Tempo esgotado ao contactar Yahoo ou ${site}. Verifique a Internet; em redes restritas a busca pode falhar.`;
     }
@@ -201,8 +212,10 @@ export default function LetrasMusScreen() {
       if (lista.length === 0) {
         if (resposta.bloqueado) {
           setAvisoVazio(
-            `O ${labelFonteLetras()} ou o Yahoo bloquearam a busca a partir desta rede. ` +
-              'Isso é comum em dados móveis (4G/5G). Tente pelo Wi‑Fi, ou conecte ao IP do controlador na tela inicial para buscar pelo PC.'
+            fonteLetras === 'lyra-online'
+              ? 'O banco online do Lyra não respondeu a partir desta rede. Verifique a Internet ou conecte ao IP do controlador na tela inicial para buscar pelo PC.'
+              : `O ${labelFonteLetras()} ou o Yahoo bloquearam a busca a partir desta rede. ` +
+                  'Isso é comum em dados móveis (4G/5G). Tente pelo Wi‑Fi, ou conecte ao IP do controlador na tela inicial para buscar pelo PC.'
           );
         } else if (resposta.semRede) {
           setAvisoVazio('Sem resposta da Internet. Verifique a conexão e tente de novo.');
@@ -359,7 +372,7 @@ export default function LetrasMusScreen() {
   const header = (
     <View style={styles.headerBlock}>
       <Text style={styles.ajuda}>
-        Busque no Cifra Club ou Letras.mus.br e guarde na biblioteca.
+        Busque no Cifra Club, Letras.mus.br ou no banco do Lyra e guarde na biblioteca.
       </Text>
 
       {/* Seletor de fonte — segmented control, lado ativo preenchido */}
@@ -434,7 +447,13 @@ export default function LetrasMusScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.cardMain}>
-              <Text style={styles.badge}>{item.fonte === 'letras-mus-br' ? 'Letras.mus.br' : 'CifraClub'}</Text>
+              <Text style={styles.badge}>
+                {item.fonte === 'lyra-online'
+                  ? 'Lyra'
+                  : item.fonte === 'letras-mus-br'
+                    ? 'Letras.mus.br'
+                    : 'CifraClub'}
+              </Text>
               <Text style={styles.cardTitulo}>{item.titulo}</Text>
               {item.artista ? <Text style={styles.cardArtista}>{item.artista}</Text> : null}
             </View>
