@@ -156,6 +156,10 @@ export default function EstrofesScreen() {
   const [proximaCarregando, setProximaCarregando] = useState(false);
 
   const socketRef = useRef(null);
+  /** Lista de slides — usada para auto scroll ao navegar pelas setas. */
+  const listaRef = useRef(null);
+  /** viewPosition do último auto scroll (para retry em onScrollToIndexFailed). */
+  const scrollViewPosRef = useRef(0.12);
   /** Flag para não projetar o slide inicial mais de uma vez por navegação. */
   const projetaInicialFeito = useRef('');
   /**
@@ -410,6 +414,24 @@ export default function EstrofesScreen() {
     const prox = estrofeAtiva + dir;
     if (prox >= 0 && prox <= maxIx) {
       exibirEstrofe(prox);
+      /*
+       * Auto scroll: slide projetado em foco + vizinho visível.
+       * Avançar → atual perto do topo (próximo aparece abaixo).
+       * Voltar → atual um pouco mais abaixo (anterior aparece acima).
+       */
+      const viewPosition = dir > 0 ? 0.12 : 0.55;
+      scrollViewPosRef.current = viewPosition;
+      requestAnimationFrame(() => {
+        try {
+          listaRef.current?.scrollToIndex({
+            index: prox,
+            animated: true,
+            viewPosition,
+          });
+        } catch (_) {
+          /* FlatList pode falhar se o item ainda não foi medido — onScrollToIndexFailed cobre. */
+        }
+      });
     }
   }
 
@@ -540,8 +562,19 @@ export default function EstrofesScreen() {
 
       {/* Lista de slides — o último é sempre o "slide final" sem letra */}
       <FlatList
+        ref={listaRef}
         data={slidesLista}
         keyExtractor={(row) => (row.kind === 'final' ? 'slide-final' : String(row.index))}
+        onScrollToIndexFailed={(info) => {
+          /* Itens de altura variável: espera layout e tenta de novo. */
+          setTimeout(() => {
+            listaRef.current?.scrollToIndex({
+              index: info.index,
+              animated: true,
+              viewPosition: scrollViewPosRef.current,
+            });
+          }, 80);
+        }}
         renderItem={({ item: row }) => {
           const ativa = estrofeAtiva === row.index;
           const selecionada = !ativa && estrofeAtiva < 0 && estrofeSelecionada === row.index;

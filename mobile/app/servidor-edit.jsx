@@ -17,6 +17,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SlideEditorPanel from '../src/SlideEditorPanel';
 import AlertaAmbar from '../src/AlertaAmbar';
 import { COLORS, FONTS } from '../src/theme';
@@ -41,6 +42,7 @@ function qsFonteMusica(fonte) {
 
 export default function ServidorEditScreen() {
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const ip = normParam(params.ip);
   const musicaId = normParam(params.musicaId);
   const musicaFonte = normParam(params.musicaFonte) || 'user';
@@ -231,12 +233,15 @@ export default function ServidorEditScreen() {
               />
             </View>
           }
-          listFooterComponent={
-            <TouchableOpacity style={styles.btnSalvar} onPress={guardar}>
-              <Text style={styles.btnSalvarTxt}>GUARDAR NO CONTROLADOR</Text>
-            </TouchableOpacity>
-          }
         />
+
+        {/* Fixo fora do scroll — visível em Slides e Letra completa */}
+        <TouchableOpacity
+          style={[styles.btnSalvar, { marginBottom: Math.max(insets.bottom, 12) }]}
+          onPress={guardar}
+        >
+          <Text style={styles.btnSalvarTxt}>GUARDAR NO CONTROLADOR</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -272,7 +277,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
-    marginBottom: 24,
   },
   btnSalvarTxt: {
     color: COLORS.onAccent,
