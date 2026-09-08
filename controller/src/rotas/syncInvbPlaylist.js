@@ -8,7 +8,13 @@
 
 const { buscarCultosInvb } = require('../lib/invbPlaylistFetch');
 const lyraSongbank = require('../lib/lyraSongbank');
-const { importarMusicaUsuarioNoDb, ROTULO_COPIA_IMPORTADA, ORIGEM_LYRA_ONLINE } = require('../db/musicas');
+const {
+  importarMusicaUsuarioNoDb,
+  inserirCopiaMusica,
+  ROTULO_COPIA_IMPORTADA,
+  ORIGEM_LYRA_ONLINE,
+  garantirColunaOrigemImportacao,
+} = require('../db/musicas');
 const { loadPlaylistsJson, savePlaylistsJson } = require('../lib/playlistsStore');
 
 const TEMA_PADRAO = 'ABERTURA';
@@ -34,8 +40,8 @@ function buscarCopiaLyraExistente(db, rootId) {
  */
 function rootIdJaNaPlaylist(itensPlaylist, rootId) {
   return itensPlaylist.some(item =>
-    item.tipo !== PLAYLIST_TIPO_MARCADOR_TEMA &&
-    (item.rootId === rootId || item.id === rootId)
+    item && item.tipo !== PLAYLIST_TIPO_MARCADOR_TEMA &&
+    item.id === rootId
   );
 }
 
@@ -45,13 +51,10 @@ function rootIdJaNaPlaylist(itensPlaylist, rootId) {
 function construirItemPlaylist(musicaRow, cultoId) {
   return {
     id: musicaRow.root_id,
-    rootId: musicaRow.root_id,
     titulo: musicaRow.titulo,
     artista: musicaRow.artista || '',
     bancoFonte: 'user',
     cultoId,
-    versaoLocalId: musicaRow.id,
-    versaoRotulo: musicaRow.rotulo || 'Cópia/Importada',
   };
 }
 
@@ -73,7 +76,13 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
 
   // Agrupar itens por tema mantendo a ordem
   // Vamos processar cada item na ordem, inserindo marcadores de tema quando necessário
+  // Descobrir qual o último marcador de tema já presente na playlist
   let temaAtualNaPlaylist = null;
+  for (const it of playlistAtual) {
+    if (it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA && it.tema) {
+      temaAtualNaPlaylist = it.tema;
+    }
+  }
 
   for (const item of itens) {
     const nomeMusica = (item.nome || item.titulo || item.title || '').trim();
@@ -110,42 +119,58 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
       continue;
     }
 
-    // 3. Importar/obter do banco local
+    // 3. Obter/criar música no banco local
+    // Cenários:
+    //  (1) Já existe versão do Lyra → só reutilizar (sem nova Cópia/Importada)
+    //  (2) Não existe na biblioteca → importação normal (Original + Cópia)
+    //  (3) Existe só de outro banco → acrescentar Cópia/Importada do Lyra
     let musicaRow = null;
+    let rootId = null;
     try {
-      const resultado = await importarMusicaUsuarioNoDb(
+      // Passo 3a: tentar inserir com 'perguntar' para descobrir se já existe
+      const check = importarMusicaUsuarioNoDb(
         dadosLyra.titulo,
         dadosLyra.artista || '',
         dadosLyra.estrofes || [],
-        { aoDuplicar: 'copiar', origem: ORIGEM_LYRA_ONLINE }
+        { aoDuplicar: 'perguntar', origem: ORIGEM_LYRA_ONLINE }
       );
 
-      if (!resultado.ok) {
-        naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
-        continue;
-      }
+      if (check.ok) {
+        // Cenário 2: música nova — Original + Cópia padrão; sem Cópia/Importada
+        rootId = check.rootId;
+        musicaRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+      } else if (check.duplicado && check.existente) {
+        // Já existe equivalente na biblioteca
+        rootId = check.existente.root_id || check.existente.id;
+        let copiaLyra = buscarCopiaLyraExistente(db, rootId);
 
-      const rootId = resultado.rootId;
-
-      // Verificar se já tem cópia de origem lyra no banco
-      let copiaLyra = buscarCopiaLyraExistente(db, rootId);
-
-      if (!copiaLyra) {
-        // Usar a cópia recém-criada
-        if (resultado.copiaId) {
-          copiaLyra = db.prepare('SELECT * FROM musicas WHERE id = ?').get(resultado.copiaId);
+        if (!copiaLyra) {
+          // Cenário 3: existe de outro banco — acrescentar Cópia/Importada do Lyra
+          const parentRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+          if (parentRow) {
+            const nova = inserirCopiaMusica(parentRow, dadosLyra.titulo, dadosLyra.artista || '', dadosLyra.estrofes || [], { rotulo: ROTULO_COPIA_IMPORTADA, origem: ORIGEM_LYRA_ONLINE });
+            if (nova && nova.ok) {
+              copiaLyra = db.prepare('SELECT * FROM musicas WHERE id = ?').get(nova.id);
+            }
+          }
         }
-      }
+        // Cenário 1: já havia cópia lyra-online → reutilizar sem criar outra
 
-      if (!copiaLyra) {
-        // Fallback: usar o root
-        copiaLyra = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
-      }
-
-      if (!copiaLyra) {
+        musicaRow = copiaLyra || db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+      } else {
         naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
         continue;
       }
+
+      if (!musicaRow || !rootId) {
+        naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+        continue;
+      }
+
+      // Garantir root_id no objeto
+      musicaRow = { ...musicaRow, root_id: rootId };
+
+      let copiaLyra = musicaRow; // já é a cópia correta
 
       // 4. Verificar duplicata na playlist
       if (rootIdJaNaPlaylist(playlistAtual, rootId)) {
@@ -159,7 +184,7 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
       }
 
       // 6. Adicionar item à playlist
-      const itemPlaylist = construirItemPlaylist({ ...copiaLyra, root_id: rootId }, cultoId);
+      const itemPlaylist = construirItemPlaylist(musicaRow, cultoId);
       playlistAtual.push(itemPlaylist);
       adicionadas++;
     } catch (e) {
@@ -174,6 +199,11 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
  * Registra a rota POST /api/sync-invb-playlist
  */
 function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilhadoAlterado, notificarBancoCompartilhadoAlterado, paths }) {
+  try {
+    garantirColunaOrigemImportacao();
+  } catch (e) {
+    console.warn('[syncInvbPlaylist] Não foi possível garantir coluna origem_importacao:', e.message);
+  }
   // DEBUG TEMPORÁRIO — remover após investigação
   expressApp.get('/api/sync-invb-playlist/debug', async (req, res) => {
     try {
@@ -216,12 +246,16 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
 
       let totalAdicionadas = 0;
       const todasNaoEncontradas = [];
+      const ministrantePorCulto = {}; // cultoId → nome do ministrante
 
       // 3. Processar cada culto
       for (const culto of cultos) {
         const resultado = await sincronizarCulto({ culto, db, playlistsJson, paths });
         totalAdicionadas += resultado.adicionadas;
         todasNaoEncontradas.push(...resultado.naoEncontradas);
+        if (culto.ministranteNome) {
+          ministrantePorCulto[culto.cultoId] = culto.ministranteNome;
+        }
       }
 
       // 4. Salvar playlists atualizadas
@@ -237,6 +271,7 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
       return res.json({
         adicionadas: totalAdicionadas,
         naoEncontradas: todasNaoEncontradas,
+        ministrantePorCulto,
       });
     } catch (e) {
       console.error('[syncInvbPlaylist] Erro inesperado:', e);

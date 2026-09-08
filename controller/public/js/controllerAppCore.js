@@ -6771,6 +6771,28 @@ let aberturaRemovidaPorCulto = {};
 /** Ministrante padrão por culto — herdado por músicas novas na playlist. */
 let ministrantePadraoPorCulto = {};
 
+/** Há pelo menos uma música (não marcador de tema) na playlist do culto. */
+function cultoTemMusicaNaPlaylist(cid) {
+  const id = String(cid || '').trim();
+  if (!id) return false;
+  const pl = playlists[id];
+  if (!Array.isArray(pl)) return false;
+  return pl.some((it) => it && !ehMarcadorTemaPlaylist(it));
+}
+
+/**
+ * Mapa só com cultos que têm música — é o que pode sobreviver a reload/sair.
+ * Sem música na playlist, a seleção do ministrante é só da sessão actual.
+ */
+function mapaMinistrantePadraoPersistivel() {
+  const src = normalizarMinistrantePadraoPorCulto(ministrantePadraoPorCulto);
+  const out = {};
+  for (const [cid, mid] of Object.entries(src)) {
+    if (cultoTemMusicaNaPlaylist(cid)) out[cid] = mid;
+  }
+  return out;
+}
+
 function loadMinistrantePadraoPorCulto() {
   try {
     const raw = localStorage.getItem(LS_PLAYLIST_MINISTRANTE_PADRAO);
@@ -6781,13 +6803,16 @@ function loadMinistrantePadraoPorCulto() {
   }
 }
 
-function saveMinistrantePadraoPorCulto() {
+function persistirMinistrantePadraoNoLocalStorage() {
   try {
-    ministrantePadraoPorCulto = normalizarMinistrantePadraoPorCulto(ministrantePadraoPorCulto);
-    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(ministrantePadraoPorCulto || {}));
+    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(mapaMinistrantePadraoPersistivel()));
   } catch (_) {
     // intencional — erro ignorado
   }
+}
+
+function saveMinistrantePadraoPorCulto() {
+  persistirMinistrantePadraoNoLocalStorage();
   marcarBancoCompartilhadoAlterado();
 }
 
@@ -6798,6 +6823,22 @@ function setMinistrantePadraoCulto(cid, ministranteId) {
   if (mid) ministrantePadraoPorCulto[id] = mid;
   else delete ministrantePadraoPorCulto[id];
   saveMinistrantePadraoPorCulto();
+}
+
+/**
+ * No arranque/reload: descarta selecções gravadas de cultos sem músicas.
+ * A UI fica limpa; só permanece o que ainda tem playlist com música.
+ */
+function podarMinistrantePadraoSemMusicasNaPlaylist() {
+  let mudou = false;
+  for (const cid of Object.keys(ministrantePadraoPorCulto || {})) {
+    if (!cultoTemMusicaNaPlaylist(cid)) {
+      delete ministrantePadraoPorCulto[cid];
+      mudou = true;
+    }
+  }
+  if (mudou) saveMinistrantePadraoPorCulto();
+  return mudou;
 }
 
 /**
@@ -8409,10 +8450,7 @@ function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpda
     temasPorCulto: temasPorCulto && typeof temasPorCulto === 'object' ? temasPorCulto : {},
     aberturaRemovidaPorCulto:
       aberturaRemovidaPorCulto && typeof aberturaRemovidaPorCulto === 'object' ? aberturaRemovidaPorCulto : {},
-    ministrantePadraoPorCulto:
-      ministrantePadraoPorCulto && typeof ministrantePadraoPorCulto === 'object'
-        ? ministrantePadraoPorCulto
-        : {},
+    ministrantePadraoPorCulto: mapaMinistrantePadraoPersistivel(),
   };
   if (incluirPlaylists) payload.playlists = playlists && typeof playlists === 'object' ? playlists : {};
   if (!preservarUpdatedAt && sharedBancoLocalUpdatedAt) payload.updatedAt = sharedBancoLocalUpdatedAt;
@@ -8490,6 +8528,7 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
       ? src.aberturaRemovidaPorCulto
       : {};
   ministrantePadraoPorCulto = normalizarMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto);
+  podarMinistrantePadraoSemMusicasNaPlaylist();
 
   try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists)); } catch (_) {
     // intencional — erro ignorado
@@ -8506,7 +8545,10 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
     // intencional — erro ignorado
   }
   try {
-    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(ministrantePadraoPorCulto || {}));
+    localStorage.setItem(
+      LS_PLAYLIST_MINISTRANTE_PADRAO,
+      JSON.stringify(mapaMinistrantePadraoPersistivel())
+    );
   } catch (_) {
     // intencional — erro ignorado
   }
@@ -8957,6 +8999,9 @@ function emitirPlaylistsDoControladorDebounced() {
 
 function savePlaylists() {
   localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists));
+  /* Se o culto ganhou a 1.ª música com ministrante só em sessão, passa a
+     persistir; se ficou sem músicas, some do disco para o próximo reload. */
+  persistirMinistrantePadraoNoLocalStorage();
   enviarPlaylistsParaServidorDebounced();
   emitirPlaylistsDoControladorDebounced();
   marcarBancoCompartilhadoAlterado(new Date().toISOString(), { incluirPlaylists: true });
@@ -10012,7 +10057,16 @@ async function onCfgSyncTonsInvbClick() {
 
 async function onSincronizarPlaylistLyraClick() {
   const btn = document.getElementById('btn-sync-invb-playlist');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando…'; }
+  const btnShortcut = document.getElementById('playlist-sync-lyra-btn');
+  const setLoading = (on) => {
+    if (btn) { btn.disabled = on; btn.textContent = on ? 'Sincronizando…' : 'Sincronizar com Lyra'; }
+    if (btnShortcut) {
+      btnShortcut.disabled = on;
+      btnShortcut.textContent = on ? '…' : 'L';
+      btnShortcut.title = on ? 'Sincronizando com Lyra…' : 'Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra';
+    }
+  };
+  setLoading(true);
   try {
     const res = await fetch(getControllerApiBase() + '/api/sync-invb-playlist', { method: 'POST' });
     const data = await res.json();
@@ -10025,9 +10079,32 @@ async function onSincronizarPlaylistLyraClick() {
     if (resP.ok) {
       playlists = await resP.json();
       localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists));
-      await renderListaCfgMinistrantes();
-      renderPlaylist();
     }
+
+    // Selecionar ministrante e aplicar tons automaticamente por cultoId
+    if (data.ministrantePorCulto && typeof data.ministrantePorCulto === 'object') {
+      const ministrantes = obterCacheMinistrantes();
+      for (const [cultoId, nomeRaw] of Object.entries(data.ministrantePorCulto)) {
+        if (!nomeRaw) continue;
+        const nomeBusca = nomeRaw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const encontrado = ministrantes.find(m => {
+          const n = String(m.nome || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+          return n === nomeBusca || n.startsWith(nomeBusca) || nomeBusca.startsWith(n);
+        });
+        if (encontrado) {
+          setMinistrantePadraoCulto(cultoId, encontrado.id);
+          const pl = playlists[cultoId];
+          if (Array.isArray(pl)) {
+            await aplicarMinistranteETonsEmTodasMusicas(pl, encontrado.id);
+          }
+        }
+      }
+      savePlaylists();
+    }
+
+    await renderListaCfgMinistrantes();
+    renderPlaylist();
+
     let msg = 'Sincronização concluída\n' + data.adicionadas + ' músicas adicionadas';
     if (data.naoEncontradas && data.naoEncontradas.length > 0) {
       msg += '\n' + data.naoEncontradas.length + ' músicas não encontradas:\n';
@@ -10037,7 +10114,7 @@ async function onSincronizarPlaylistLyraClick() {
   } catch (e) {
     alert('Erro ao sincronizar playlist: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sincronizar com Lyra'; }
+    setLoading(false);
   }
 }
 
@@ -16014,6 +16091,7 @@ async function aoLigarSocketRemoto(_ip) {
   temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
   aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
   ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
+  podarMinistrantePadraoSemMusicasNaPlaylist();
   forcarRepinturaCompositorLyra();
   await carregarMusicas(_ip);
   await carregarRoteamentoTelasDoServidor();
@@ -20867,6 +20945,7 @@ try {
   temasPorCulto = loadTemasPorCulto();
   aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
   ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
+  podarMinistrantePadraoSemMusicasNaPlaylist();
   migrarPlaylistsCultosAntigos();
   carregarEstadoModoApresentacaoDoStorage();
   const avisoCard6CfgSalva = carregarAvisoCard6CfgDoStorage();

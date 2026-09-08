@@ -12,7 +12,7 @@ const INVB_SUPABASE_REST_BASE = 'https://rosvseljurczmzdycbxs.supabase.co/rest/v
 
 const SECTION_FLAGS = [
   { flag: 'ofertorio', tema: 'OFERTÓRIO' },
-  { flag: 'pos',       tema: 'PÓS-CULTO' },
+  { flag: 'pos',       tema: 'PÓS-PALAVRA' },
   { flag: 'ceia',      tema: 'CEIA' },
 ];
 
@@ -118,7 +118,14 @@ async function buscarCultosInvb() {
       tema: temaDoItem(item),
     }));
 
-    resultado.push({ tipo, cultoId, itens });
+    // Ministrante do culto (nome como vem do site)
+    const ministranteNome = (
+      (typeof row.louvores === 'object' && row.louvores !== null
+        ? row.louvores.ministrante
+        : null) || ''
+    ).trim();
+
+    resultado.push({ tipo, cultoId, itens, ministranteNome });
   }
 
   return resultado;

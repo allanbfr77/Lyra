@@ -96,6 +96,18 @@ function colunaExiste(nomeTabela, nomeColuna) {
   return cols.some((c) => c.name === nomeColuna);
 }
 
+/**
+ * Garante `origem_importacao` no schema.
+ *
+ * A migração em `initControllerDatabase` cobre o arranque normal, mas o ficheiro
+ * `lyra.db` pode ser trocado depois (cópia manual, sync, etc.). Sem isto, o
+ * INSERT que grava a origem falha com «no such column: origem_importacao».
+ */
+function garantirColunaOrigemImportacao() {
+  if (colunaExiste('musicas', 'origem_importacao')) return;
+  getDb().exec('ALTER TABLE musicas ADD COLUMN origem_importacao TEXT');
+}
+
 function migrarMusicasImutabilidade() {
   const adds = [
     ['parent_id', 'INTEGER'],
@@ -196,6 +208,7 @@ function finalizarMusicaOriginalAposInsert(id) {
  * que a lista do banco e as playlists usam como âncora (`root_id`).
  */
 function inserirMusicaUsuario(titulo, artista, estrofes, opts = {}) {
+  garantirColunaOrigemImportacao();
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
   const tituloTrim = String(titulo).trim();
   const artistaTrim = String(artista || '').trim();
@@ -241,6 +254,7 @@ function inserirMusicaUsuario(titulo, artista, estrofes, opts = {}) {
 }
 
 function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
+  garantirColunaOrigemImportacao();
   const norm = estrofes.map((s) => (typeof s === 'string' ? s : String(s ?? '')));
   const rootId = parentRow.root_id != null ? parentRow.root_id : parentRow.id;
   const rotulo = opts.rotulo != null ? String(opts.rotulo).trim().slice(0, 40) : '';
@@ -866,6 +880,7 @@ function listarMusicasUsuarioParaSync() {
 }
 
 function substituirMusicasUsuarioParaSync(musicas) {
+  garantirColunaOrigemImportacao();
   const itens = normalizarMusicasUsuarioParaSync(musicas);
   const insertWithId = getDb().prepare(
     `INSERT INTO musicas (id, titulo, artista, estrofes, is_immutable, parent_id, root_id, rotulo, origem_importacao)
@@ -962,4 +977,5 @@ module.exports = {
   substituirMusicasUsuarioParaSync,
   migrarMusicasImutabilidade,
   migrarRotuloCopiaCapitalizacao,
+  garantirColunaOrigemImportacao,
 };

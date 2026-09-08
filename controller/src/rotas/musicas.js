@@ -82,6 +82,7 @@ function registrarRotasMusicas(expressApp, deps) {
           wantArt,
           wantLetra,
           soRaiz: true,
+          incluirOrigem: true,
         });
         res.json(rows.map((r) => ({ ...r, fonte: 'user' })));
       } catch (e) {

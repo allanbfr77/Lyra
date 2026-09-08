@@ -51,8 +51,18 @@ function matchLetraBusca(estrofesJson, foldQ) {
  * eles, para o processo principal do Electron não congelar a digitação.
  *
  * @param {import('better-sqlite3').Database | null} sqliteDb
- * @param {{ foldQ: string, wantTit: boolean, wantArt: boolean, wantLetra: boolean, soRaiz?: boolean, limite?: number }} opts
- * @returns {Promise<Array<{ id: number, titulo: string, artista: string }>>}
+ * @param {{
+ *   foldQ: string,
+ *   wantTit: boolean,
+ *   wantArt: boolean,
+ *   wantLetra: boolean,
+ *   soRaiz?: boolean,
+ *   incluirOrigem?: boolean,
+ *   limite?: number,
+ * }} opts
+ * `incluirOrigem` só no banco do utilizador — o catálogo HLYRCS (`catalog.db`)
+ * não tem `origem_importacao` nem lineage.
+ * @returns {Promise<Array<{ id: number, titulo: string, artista: string, origem_importacao?: string|null }>>}
  */
 async function varrerMusicasPorCriterios(sqliteDb, opts) {
   const wantTit = !!opts.wantTit;
@@ -62,9 +72,15 @@ async function varrerMusicasPorCriterios(sqliteDb, opts) {
   const limite = Number.isFinite(opts.limite) && opts.limite > 0 ? opts.limite : Infinity;
   if (!sqliteDb || (!wantTit && !wantArt && !wantLetra)) return [];
 
+  /* Catálogo offline e Biblioteca partilham esta varredura. Colunas só do
+     utilizador (`origem_importacao`, `parent_id`) não podem entrar no SELECT
+     por omissão — no HLYRCS isso rebenta com «no such column». */
+  const cols = opts.incluirOrigem
+    ? 'id, titulo, artista, origem_importacao'
+    : 'id, titulo, artista';
   const sql = opts.soRaiz
-    ? 'SELECT id, titulo, artista, origem_importacao FROM musicas WHERE parent_id IS NULL'
-    : 'SELECT id, titulo, artista, origem_importacao FROM musicas';
+    ? `SELECT ${cols} FROM musicas WHERE parent_id IS NULL`
+    : `SELECT ${cols} FROM musicas`;
   const metas = sqliteDb.prepare(sql).all();
   const out = [];
 
@@ -93,12 +109,9 @@ async function varrerMusicasPorCriterios(sqliteDb, opts) {
     for (const r of chunk) {
       if (out.length >= limite) break;
       if (hitTitArt.has(r.id) || hitLetra.has(r.id)) {
-        out.push({
-          id: r.id,
-          titulo: r.titulo,
-          artista: r.artista || '',
-          origem_importacao: r.origem_importacao || null,
-        });
+        const item = { id: r.id, titulo: r.titulo, artista: r.artista || '' };
+        if (opts.incluirOrigem) item.origem_importacao = r.origem_importacao || null;
+        out.push(item);
       }
     }
   }
