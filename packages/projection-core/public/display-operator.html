@@ -1251,8 +1251,38 @@
       }
     }
 
+    function mesmoSrcMidiaProjecaoOp(el, src) {
+      if (!el || !src) return false;
+      const pedido = String(src).trim();
+      const attr = String(el.getAttribute('src') || '').trim();
+      if (attr && attr === pedido) return true;
+      try {
+        const absEl = String(el.src || '').trim();
+        if (absEl && absEl === pedido) return true;
+        if (attr && new URL(attr, document.baseURI).href === new URL(pedido, document.baseURI).href) {
+          return true;
+        }
+        if (absEl && new URL(absEl, document.baseURI).href === new URL(pedido, document.baseURI).href) {
+          return true;
+        }
+      } catch (_) {
+        // intencional — URL inválida: não é o mesmo src
+      }
+      return false;
+    }
+
     function renderizarMidiaApresentacaoNoHost(host, ap) {
       if (!host) return;
+      const p = ap || {};
+      const kind = String(p.kind || 'iframe').toLowerCase();
+      const src = String(p.src || '').trim();
+      /* Mesmo vídeo já a tocar: não pausar nem recriar (display_config / re-aplicar). */
+      if (kind === 'video' && src) {
+        const existente = host.querySelector('video.lyra-ap-video-proj');
+        if (existente && !host.hidden && mesmoSrcMidiaProjecaoOp(existente, src)) {
+          return;
+        }
+      }
       const videoAntigo = host.querySelector('video.lyra-ap-video-proj');
       if (videoAntigo) {
         try {
@@ -1260,9 +1290,6 @@
         } catch (_) {}
       }
       host.innerHTML = '';
-      const p = ap || {};
-      const kind = String(p.kind || 'iframe').toLowerCase();
-      const src = String(p.src || '').trim();
       if (!src) {
         const msg = document.createElement('div');
         msg.style.cssText = 'color:#fff;font-size:2vh;text-align:center;padding:4vh;';
@@ -1527,10 +1554,23 @@
       if (elWrapLetras) elWrapLetras.style.background = '';
 
       if (modo === 'apresentacao') {
-        limparCapasApresentacaoOuAviso();
+        const ap = payload.apresentacao || {};
+        const kindAp = String(ap.kind || '').toLowerCase();
+        const srcAp = String(ap.src || '').trim();
+        const videoJaNoAr =
+          kindAp === 'video' &&
+          srcAp &&
+          !elCapaAp.hidden &&
+          (() => {
+            const v = elCapaAp.querySelector('video.lyra-ap-video-proj');
+            return !!(v && mesmoSrcMidiaProjecaoOp(v, srcAp));
+          })();
+        if (!videoJaNoAr) {
+          limparCapasApresentacaoOuAviso();
+          aplicarTituloMusicaAbertura({ modo: 'texto' });
+          renderizarMidiaApresentacaoNoHost(elCapaAp, ap);
+        }
         elCapaAviso.hidden = true;
-        aplicarTituloMusicaAbertura({ modo: 'texto' });
-        renderizarMidiaApresentacaoNoHost(elCapaAp, payload.apresentacao);
         elCapaAp.hidden = false;
         if (elWrapLetras) elWrapLetras.style.visibility = 'hidden';
         return;

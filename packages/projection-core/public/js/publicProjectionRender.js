@@ -347,17 +347,46 @@ function attachPublicProjectionRender(ctx) {
    *   @param {string} ap.src   - URL da mídia a ser exibida.
    *   @param {string} [ap.title] - Título/alt da mídia (usado no atributo alt de imagens).
    */
+  function mesmoSrcMidiaProjecao(el, src) {
+    if (!el || !src) return false;
+    const pedido = String(src).trim();
+    const attr = String(el.getAttribute('src') || '').trim();
+    if (attr && attr === pedido) return true;
+    try {
+      const absEl = String(el.src || '').trim();
+      if (absEl && absEl === pedido) return true;
+      const base = ctx.document?.baseURI || undefined;
+      if (attr && new URL(attr, base).href === new URL(pedido, base).href) return true;
+      if (absEl && new URL(absEl, base).href === new URL(pedido, base).href) return true;
+    } catch (_) {
+      // intencional — URL inválida: não é o mesmo src
+    }
+    return false;
+  }
+
   function renderizarApresentacaoMedia(ap) {
     const host = ctx.elApresentacaoMedia;
     if (!host) return;
 
-    // Limpa o conteúdo anterior e torna o container visível
-    host.innerHTML = '';
-    host.hidden = false;
-
     const p = ap || {};
     const kind = String(p.kind || 'iframe').toLowerCase();
     const src = String(p.src || '').trim();
+
+    /*
+     * Mesmo vídeo já no DOM: não recriar. Recriar pausava a reprodução (autoplay false)
+     * sempre que um `display_config` / `exibir` repetido chegava com o mesmo payload.
+     */
+    if (kind === 'video' && src) {
+      const existente = host.querySelector('video.lyra-ap-video-proj');
+      if (existente && !host.hidden && mesmoSrcMidiaProjecao(existente, src)) {
+        host.hidden = false;
+        return;
+      }
+    }
+
+    // Limpa o conteúdo anterior e torna o container visível
+    host.innerHTML = '';
+    host.hidden = false;
 
     // Sem URL: exibe mensagem informativa no lugar da mídia
     if (!src) {
@@ -631,6 +660,21 @@ function attachPublicProjectionRender(ctx) {
       aplicarTransparenciaOciosaTelao(true, merged);
       return;
     }
+
+    /*
+     * Vídeo de apresentação no ar: não chamar `exibir` outra vez.
+     * `exibir` → `renderizarApresentacaoMedia` faz `innerHTML = ''` e cria um <video>
+     * novo (autoplay false). Trocar de modo (Bíblia / Slides / Ajustes) manda
+     * `preview_display_config` e, sem esta guarda, a reprodução parava no telão.
+     */
+    const ehVideoApresentacao =
+      st.tipo === 'apresentacao' &&
+      !st.telaLimpa &&
+      !st.blackout &&
+      !st.slidePretoFinal &&
+      String(st.apresentacao?.kind || '').toLowerCase() === 'video' &&
+      !!String(st.apresentacao?.src || '').trim();
+    if (ehVideoApresentacao) return;
 
     pintarFundoPublico(pb);
     if (typeof ctx.exibir === 'function') ctx.exibir(st);

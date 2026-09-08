@@ -19669,10 +19669,26 @@ function sanitizarCfgSlidesLocal(cfg) {
   return c;
 }
 
+/**
+ * Vídeo do card 5 (único card de vídeo do modo Mídias) ainda projetado.
+ * Navegar para Bíblia / Slides / Ajustes não pode mandar `preview_display_config`:
+ * esse comando re-dispara `exibir` no telão, recria o `<video>` e interrompe a reprodução;
+ * em cascata a rota de Mídias acabava a cair em «Não exibir».
+ */
+function hayVideoDoCard5EmProjecao() {
+  const id = apresentacaoMidiaProjetadaId;
+  if (!id) return false;
+  const card = apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
+  return !!(card && card.id === id && String(card.kind || '').toLowerCase() === 'video');
+}
+
 function enviarPreviewDisplayConfig(cfg, opts = {}) {
   // Pull-by-role: um controlador somente-leitura NUNCA empurra config (nem no boot, nem ao
   // mexer no painel). O servidor já rejeitaria via guarda; aqui evitamos até o ruído do envio.
   if (controladorSomenteLeitura()) return;
+  /* Só este caso: vídeo do card de vídeo no ar. Outras mídias e o resto dos modos
+     continuam a empurrar o tema normalmente. */
+  if (hayVideoDoCard5EmProjecao()) return;
   const modo = opts.modoConfig || 'slides';
   let corpo = cfg && typeof cfg === 'object' ? cfg : {};
   if (modo === 'biblia') {
