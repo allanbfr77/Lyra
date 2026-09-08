@@ -4,6 +4,9 @@ import {
   SEM_EXIBICAO,
   precisaReporRotaSlides,
   rotaSlidesReposta,
+  limparNaoExibirManualSlides,
+  sincronizarNaoExibirManualSlidesDaEscolha,
+  obterNaoExibirManualSlides,
 } from './reposicaoRotaSlides.js';
 
 /*
@@ -17,6 +20,10 @@ const OFF = SEM_EXIBICAO;
 /** Origem sem mídia nenhuma a ocupar ecrã: telão no M2, retorno no M3. */
 const PADRAO_LIVRE = { publicoIndex: M2, ministranteIndex: M3 };
 
+test.beforeEach(() => {
+  limparNaoExibirManualSlides();
+});
+
 test('as duas saídas configuradas: não se toca em nada', () => {
   const e = { publicoIndex: M2, ministranteIndex: M3 };
   assert.equal(precisaReporRotaSlides(e), false);
@@ -24,25 +31,64 @@ test('as duas saídas configuradas: não se toca em nada', () => {
 });
 
 test('M2 e M3 trocados de propósito continuam trocados', () => {
-  /* Configuração deliberada do operador não é «desconfigurado» — só o -1 é. */
+  /* Configuração deliberada do operador não é «desconfigurado» — só o -1 automático é. */
   const e = { publicoIndex: M3, ministranteIndex: M2 };
   assert.equal(precisaReporRotaSlides(e), false);
   assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M3, ministranteIndex: M2, live: false });
 });
 
-test('as duas desligadas voltam ao padrão', () => {
+test('as duas desligadas automaticamente voltam ao padrão', () => {
   const e = { publicoIndex: OFF, ministranteIndex: OFF };
   assert.equal(precisaReporRotaSlides(e), true);
   assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
 });
 
-test('só o público desligado: volta o M2, o M3 fica como estava', () => {
+test('só o público desligado automaticamente: volta o M2, o M3 fica como estava', () => {
   const e = { publicoIndex: OFF, ministranteIndex: M3 };
   assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
 });
 
-test('só o ministrante desligado: volta o M3, o M2 fica como estava', () => {
+test('só o ministrante desligado automaticamente: volta o M3, o M2 fica como estava', () => {
   const e = { publicoIndex: M2, ministranteIndex: OFF };
+  assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
+});
+
+test('«Não exibir» MANUAL no público sobrevive à reposição nesta sessão', () => {
+  sincronizarNaoExibirManualSlidesDaEscolha({ publicoIndex: OFF, ministranteIndex: M3 });
+  const e = { publicoIndex: OFF, ministranteIndex: M3 };
+  assert.equal(precisaReporRotaSlides(e), false);
+  assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: OFF, ministranteIndex: M3, live: false });
+});
+
+test('«Não exibir» MANUAL nas duas saídas não é reposto nesta sessão', () => {
+  sincronizarNaoExibirManualSlidesDaEscolha({ publicoIndex: OFF, ministranteIndex: OFF });
+  const e = { publicoIndex: OFF, ministranteIndex: OFF };
+  assert.equal(precisaReporRotaSlides(e), false);
+  assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: OFF, ministranteIndex: OFF, live: false });
+});
+
+test('escolher monitor outra vez limpa a marca manual daquele canal', () => {
+  sincronizarNaoExibirManualSlidesDaEscolha({ publicoIndex: OFF, ministranteIndex: M3 });
+  sincronizarNaoExibirManualSlidesDaEscolha({ publicoIndex: M2, ministranteIndex: M3 });
+  assert.deepEqual(obterNaoExibirManualSlides(), { publico: false, ministrante: false });
+  const e = { publicoIndex: OFF, ministranteIndex: OFF };
+  assert.equal(precisaReporRotaSlides(e), true);
+  assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
+});
+
+test('desativação automática NÃO marca manual — reposição continua a funcionar', () => {
+  /* Mídias tomou o M2: slides.publico = -1 sem clique no seletor do Slides. */
+  const e = { publicoIndex: OFF, ministranteIndex: M3 };
+  assert.deepEqual(obterNaoExibirManualSlides(), { publico: false, ministrante: false });
+  assert.equal(precisaReporRotaSlides(e), true);
+  assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
+});
+
+test('limpar a marca (nova sessão) volta a permitir reposição', () => {
+  sincronizarNaoExibirManualSlidesDaEscolha({ publicoIndex: OFF, ministranteIndex: OFF });
+  limparNaoExibirManualSlides();
+  const e = { publicoIndex: OFF, ministranteIndex: OFF };
+  assert.equal(precisaReporRotaSlides(e), true);
   assert.deepEqual(rotaSlidesReposta(e, PADRAO_LIVRE), { publicoIndex: M2, ministranteIndex: M3, live: false });
 });
 

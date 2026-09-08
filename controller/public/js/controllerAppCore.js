@@ -146,7 +146,12 @@ import {
 } from './modules/midiaApresentacao.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import { rotaSlidesParaEnvioComBiblia } from './modules/supressaoCanalSlides.js';
-import { precisaReporRotaSlides, rotaSlidesReposta } from './modules/reposicaoRotaSlides.js';
+import {
+  precisaReporRotaSlides,
+  rotaSlidesReposta,
+  sincronizarNaoExibirManualSlidesDaEscolha,
+  limparNaoExibirManualSlides,
+} from './modules/reposicaoRotaSlides.js';
 import {
   MODOS_COM_MEMORIA,
   definirLembrarMonitor,
@@ -481,16 +486,23 @@ function salvarRotasPorModoNoStorage() {
 function carregarRotasPorModoDoStorage() {
   try {
     const raw = localStorage.getItem(LS_ROTAS_POR_MODO);
-    if (!raw) return;
-    const p = JSON.parse(raw);
-    if (!p || typeof p !== 'object') return;
-    ['completo', 'slides'].forEach((k) => {
-      if (!p[k] || typeof p[k] !== 'object') return;
-      rotasPorModo[k] = normalizarRota(p[k]);
-    });
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && typeof p === 'object') {
+        /* `completo` pode herdar a sessão anterior. O seletor do modo Slides é só de sessão:
+           «Não exibir» e qualquer escolha manual morrem no reload — a rota de slides fica
+           no estado inicial (−1/−1) até os monitores serem detectados e o padrão M2/M3
+           aplicado em `carregarRoteamentoTelasDoServidor`. */
+        if (p.completo && typeof p.completo === 'object') {
+          rotasPorModo.completo = normalizarRota(p.completo);
+        }
+      }
+    }
   } catch (_) {
   // intencional — erro ignorado
 }
+  limparNaoExibirManualSlides();
+  rotasPorModo.slides = rotaDesativada();
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.apresentacaoAviso = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
@@ -783,6 +795,7 @@ async function desativarRotasModosTransitorios(opts = {}) {
      desativar essa rota fecharia as janelas e encerraria a projeção. */
   if (!projecaoApAtiva) {
     rotasPorModo.apresentacao = rotaDesativada();
+    restaurarRotaSlidesAposLibertarMonitores();
   }
   rotasPorModo.biblia = rotaDesativada();
   marcarRotaLiveNoDom(projecaoApAtiva ? !!normalizarRota(rotasPorModo.apresentacao).live : false);
@@ -996,7 +1009,22 @@ function desfazerConflitoSlidesComRotaApresentacao(rotaApresentacao) {
   let s = normalizarRota(rotasPorModo.slides);
   if (a.publicoIndex >= 0 && s.publicoIndex === a.publicoIndex) s = { ...s, publicoIndex: -1 };
   if (a.ministranteIndex >= 0 && s.ministranteIndex === a.ministranteIndex) s = { ...s, ministranteIndex: -1 };
+  /* −1 automático: não chama `sincronizarNaoExibirManualSlidesDaEscolha`. */
   rotasPorModo.slides = s;
+}
+
+/**
+ * Quando o Mídias (ou outro modo no canal partilhado) liberta monitores, repõe canais do
+ * Slides que tinham sido desligados automaticamente — sem tocar em «Não exibir» manual.
+ */
+function restaurarRotaSlidesAposLibertarMonitores() {
+  if (!precisaReporRotaSlides(rotasPorModo.slides)) return false;
+  rotasPorModo.slides = rotaSlidesReposta(rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
+  salvarRotasPorModoNoStorage();
+  if (ehModoSlidesOperador()) {
+    syncRoteamentoTelasModoSlidesNaUi();
+  }
+  return true;
 }
 
 /**
@@ -4318,7 +4346,9 @@ async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
   await encerrarProjecaoMidiaApresentacaoNoControlador();
   rotasPorModo.apresentacao = rotaDesativada();
   marcarRotaLiveNoDom(false);
-  /* Sem tocar em `rotasPorModo.slides`: encerrar a mídia é assunto deste modo. */
+  /* Libertar o canal partilhado: canais do Slides desligados só por conflito voltam;
+     «Não exibir» manual do Slides nesta sessão fica intocado. */
+  restaurarRotaSlidesAposLibertarMonitores();
   atualizarFeedbackProjecaoApresentacaoUi({
     mensagemIdle: apresentacaoAvisoCard6Ativo
       ? 'Mídia encerrada. Aviso continua no ar.'
@@ -4391,7 +4421,7 @@ async function encerrarProjecaoModoApresentacao() {
   await encerrarProjecaoMidiaApresentacaoNoControlador();
   rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
   rotasPorModo.apresentacaoAviso = rotaDesativada();
-  /* Idem: a rota do modo Slides é dele. */
+  restaurarRotaSlidesAposLibertarMonitores();
   salvarRotasPorModoNoStorage();
   atualizarFeedbackProjecaoApresentacaoUi({
     mensagemIdle: 'Projeção encerrada. «Monitor» em «Não exibir»; o modo Slides mantém a configuração dele.',
@@ -4534,33 +4564,22 @@ async function alternarModoSlidesOperador(opts = {}) {
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
       /*
-       * O modo Slides abre sempre utilizável — é o modo rápido, e um operador que entra
-       * nele a meio do culto não pode encontrar «Não exibir» à sua espera.
+       * O modo Slides abre sempre utilizável — é o modo rápido.
        *
-       * Regra: «Não exibir» no Slides vale só DENTRO da sessão do modo. Cada saída que
-       * esteja desligada à ENTRADA é reposta no seu monitor de origem; uma saída que tenha
-       * monitor é deixada exactamente como o operador a pôs (inclusive M2/M3 trocados).
-       * Desligar continua a funcionar enquanto se trabalha; sair e voltar, ou reabrir o
-       * programa, devolve os monitores.
+       * Regra (sessão do programa): a escolha MANUAL do operador no seletor do Slides
+       * mantém-se ao navegar entre ecrãs, inclusive «Não exibir». Só o clique no seletor
+       * conta como manual (`sincronizarNaoExibirManualSlidesDaEscolha`).
        *
-       * É por canal, e não só no vazio total, porque uma saída sozinha em «Não exibir» é
-       * quase sempre rasto de outro modo: quando o Mídias toma o M2, a regra de exclusão
-       * tira o M2 daqui — e nada o devolvia quando a mídia era encerrada. Repor à entrada é
-       * o que fecha esse ciclo. Roubar o monitor de volta ao Mídias não acontece:
+       * Se outro modo desligou um canal automaticamente (ex.: Mídias no mesmo monitor),
+       * esse −1 NÃO é manual — à entrada repomos M2/M3 (ou o que ainda estiver livre).
+       * Recarregar / reabrir limpa a marca manual e o seletor volta ao padrão.
+       *
+       * É por canal, e não só no vazio total, porque uma saída sozinha em «Não exibir»
+       * automático é quase sempre rasto de outro modo: quando o Mídias toma o M2, a regra
+       * de exclusão tira o M2 daqui — e a reposição (aqui ou ao libertar o Mídias) fecha
+       * o ciclo. Roubar o monitor de volta ao Mídias não acontece:
        * `rotaSlidesAoEntrarNoModo()` consulta a rota dele e desvia-se do que estiver
        * mesmo a projetar.
-       *
-       * O que existia antes: os dois ramos preenchiam sem distinguir «ainda não
-       * configurado» de «configurado como Não exibir» — nos dois casos os índices são -1 —
-       * e a marca `LS_ROTAS_DEFINIDAS_PELO_OPERADOR` foi criada para calar o automatismo
-       * assim que alguém mexesse no seletor. Só que essa marca também calava o
-       * automatismo quando a configuração se PERDIA, e havia um caminho que a perdia
-       * sozinho (ver `modules/supressaoCanalSlides.js`): o operador ficava com o modo
-       * Slides mudo, sem ter desligado nada, e sem forma de perceber porquê.
-       *
-       * O segundo ramo antigo (`|| !hayProjecaoAtivaNoServidor()`) sai de vez: ele
-       * reescrevia uma rota COM monitores só por não haver projeção no ar, e isso sim
-       * apagava escolhas à revelia.
        */
       if (precisaReporRotaSlides(rotasPorModo.slides)) {
         rotasPorModo.slides = rotaSlidesReposta(rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
@@ -15053,18 +15072,28 @@ async function carregarRoteamentoTelasDoServidor() {
     /* A identidade manda sobre os índices: tanto os do servidor como os de
        `LS_ROTAS_POR_MODO` referem-se ao arranjo de monitores da sessão anterior, que é
        exactamente o que a renumeração do Windows corrompe. Ver `identidadeMonitores.js`.
-       `apresentacao` fica de fora por ser rota de sessão, reposta a cada arranque. */
+       `apresentacao` fica de fora por ser rota de sessão, reposta a cada arranque.
+
+       O seletor do modo Slides é só de sessão: a identidade ainda alimenta o pré-voo
+       (avisos de monitor em falta), mas a rota em vigor não herda «Não exibir» nem a
+       escolha da sessão anterior. Na primeira detecção (rota ainda virgem) aplica-se o
+       padrão M2/M3; nas reconexões seguintes preserva-se o que o operador já escolheu. */
     const restSlides = rotaRestauradaPorIdentidade('slides', slidesSrv);
     const restCompleto = rotaRestauradaPorIdentidade('completo', rotasPorModo.completo);
-    slidesSrv = restSlides.rota;
     rotasPorModo.completo = restCompleto.rota;
     const faltou = [...restSlides.faltou, ...restCompleto.faltou];
     avisarMonitoresConfiguradosEmFalta(faltou);
     /* O pré-voo relata o mesmo, mas só quando o operador pergunta — a faixa do cabeçalho
        avisa na hora, e a lista da verificação recolhe-o junto do resto. */
     preVooMonitoresEmFalta = faltou;
-    rotasPorModo.slides = { ...slidesSrv };
+    /* Apresentação primeiro: a reposição do Slides desvia-se do que a mídia já ocupa. */
     rotasPorModo.apresentacao = { ...apSrv };
+    if (precisaReporRotaSlides(rotasPorModo.slides)) {
+      rotasPorModo.slides = rotaSlidesReposta(
+        rotasPorModo.slides,
+        rotaSlidesAoEntrarNoModo()
+      );
+    }
     const mergedSrv = apSrv.live
       ? { publicoIndex: -1, ministranteIndex: -1, live: true }
       : {
@@ -15074,13 +15103,13 @@ async function carregarRoteamentoTelasDoServidor() {
         };
     const semSalvo =
       normalizarRota(rotasPorModo.completo).publicoIndex === -1 &&
-      normalizarRota(rotasPorModo.completo).ministranteIndex === -1 &&
-      normalizarRota(rotasPorModo.slides).publicoIndex === -1 &&
-      normalizarRota(rotasPorModo.slides).ministranteIndex === -1;
+      normalizarRota(rotasPorModo.completo).ministranteIndex === -1;
     if (semSalvo) {
-      rotasPorModo.completo = { ...slidesSrv };
-      rotasPorModo.slides = { ...slidesSrv };
-      salvarRotasPorModoNoStorage();
+      const padraoSlides = normalizarRota(rotasPorModo.slides);
+      if (padraoSlides.publicoIndex >= 0 || padraoSlides.ministranteIndex >= 0) {
+        rotasPorModo.completo = { ...padraoSlides };
+        salvarRotasPorModoNoStorage();
+      }
     }
     /**
      * Não sincronizar o modo atual para o servidor só por ligar o socket:
@@ -15090,8 +15119,11 @@ async function carregarRoteamentoTelasDoServidor() {
     if (ehModoSlidesOperador()) {
       const s = normalizarRota(rotasPorModo.slides);
       if (s.publicoIndex < 0 && s.ministranteIndex < 0) {
-        rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
-        salvarRotasPorModoNoStorage();
+        /* Só preenche se não for «Não exibir» manual nesta sessão. */
+        if (precisaReporRotaSlides(s)) {
+          rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
+          salvarRotasPorModoNoStorage();
+        }
       }
     }
     await aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
@@ -15128,6 +15160,9 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     }
 
     if (modo === 'slides') {
+      /* Marca «Não exibir» manual a partir do clique — antes do ajuste por conflito com
+         Mídias, que também escreve −1 e não pode contar como escolha do operador. */
+      sincronizarNaoExibirManualSlidesDaEscolha(rotasPorModo.slides);
       rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(normalizarRota(rotasPorModo.slides));
     } else if (modo === 'completo') {
       rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(
@@ -15138,14 +15173,11 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
         void encerrarProjecaoMidiaApresentacaoNoControlador();
         /*
-         * A rota do modo Slides NÃO se toca aqui.
-         *
-         * Cada modo manda no seu próprio conteúdo e na sua própria configuração. Este ramo
-         * reescrevia `rotasPorModo.slides` para M2/M3, e o operador que tivesse posto o
-         * Slides em «Não exibir» via essa escolha desaparecer sem ter mexido nela — bastava
-         * pôr o modo Mídias em «Não exibir». Encerrar a mídia é conteúdo deste modo;
-         * decidir onde os slides aparecem é do outro.
+         * Mídias em «Não exibir»: liberta monitores. Canais do Slides desligados só por
+         * conflito voltam; «Não exibir» que o operador escolheu à mão no Slides nesta
+         * sessão mantém-se (`restaurarRotaSlidesAposLibertarMonitores`).
          */
+        restaurarRotaSlidesAposLibertarMonitores();
         try {
           atualizarFeedbackProjecaoApresentacaoUi({
             mensagemIdle: 'Projeção de mídia encerrada. O modo Slides mantém a configuração dele.',

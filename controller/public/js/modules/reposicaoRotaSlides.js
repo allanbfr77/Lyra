@@ -1,17 +1,22 @@
 /**
  * Reposição da rota do modo Slides à entrada no modo.
  *
- * ## A regra
+ * ## A regra (sessão do programa)
  *
- * «Não exibir» no modo Slides vale só DENTRO da sessão do modo. O operador pode desligar
- * uma saída e trabalhar assim; ao sair e voltar — ou ao reabrir o programa — os monitores
- * voltam. É o modo rápido: quem entra nele a meio do culto não pode encontrar «Não exibir»
- * à sua espera.
+ * Enquanto o programa está aberto, a escolha MANUAL do operador no seletor do Slides
+ * mantém-se ao navegar entre ecrãs — inclusive «Não exibir». Só o clique no seletor do
+ * modo Slides conta como escolha manual.
  *
- * É por canal, e não só quando as duas saídas estão vazias, porque uma saída sozinha
- * desligada é quase sempre rasto de outro modo. Quando o Mídias toma o M2, a regra de
- * exclusão tira o M2 daqui — e nada o devolvia quando a mídia era encerrada. Repor à
- * entrada é o que fecha esse ciclo.
+ * Se outro modo (ex.: Mídias) desliga temporariamente um canal do Slides por conflito,
+ * isso NÃO é escolha manual. À entrada no Slides — ou quando o outro modo liberta o
+ * monitor — esse canal é reposto no padrão (M2/M3), desde que o operador não o tenha
+ * desligado à mão nesta sessão.
+ *
+ * ## Nova sessão (recarregar / reabrir)
+ *
+ * O estado manual vive só em memória. Ao recarregar ou reabrir o programa começa limpo:
+ * não há «Não exibir» herdado, e o painel volta a detectar monitores e a aplicar o
+ * padrão Público=M2 / Ministrante=M3.
  *
  * ## A armadilha que este módulo existe para não repetir
  *
@@ -35,6 +40,42 @@
 export const SEM_EXIBICAO = -1;
 
 /**
+ * «Não exibir» escolhido à mão no seletor do Slides nesta sessão do programa.
+ * Memória pura: morre no reload / reabertura. Nunca localStorage.
+ * @type {{publico: boolean, ministrante: boolean}}
+ */
+let naoExibirManualSlides = { publico: false, ministrante: false };
+
+/**
+ * @returns {{publico: boolean, ministrante: boolean}}
+ */
+export function obterNaoExibirManualSlides() {
+  return { publico: !!naoExibirManualSlides.publico, ministrante: !!naoExibirManualSlides.ministrante };
+}
+
+/** Nova sessão / testes: limpa a marca de «Não exibir» manual. */
+export function limparNaoExibirManualSlides() {
+  naoExibirManualSlides = { publico: false, ministrante: false };
+}
+
+/**
+ * Regista a escolha que o operador acabou de fazer no seletor do modo Slides.
+ *
+ * Só o caminho do clique deve chamar isto. Caminhos automáticos (conflito com Mídias,
+ * sanitização, etc.) escrevem −1 sem marcar — senão a desativação temporária virava
+ * «Não exibir» manual e a reposição parava de funcionar.
+ *
+ * @param {object} rota rota lida da UI no instante do clique (antes de ajustes automáticos)
+ */
+export function sincronizarNaoExibirManualSlidesDaEscolha(rota) {
+  const r = normalizar(rota);
+  naoExibirManualSlides = {
+    publico: r.publicoIndex < 0,
+    ministrante: r.ministranteIndex < 0,
+  };
+}
+
+/**
  * @param {any} obj
  * @returns {{publicoIndex: number, ministranteIndex: number, live: boolean}}
  */
@@ -50,16 +91,22 @@ function normalizar(obj) {
 }
 
 /**
- * Há alguma saída desligada para repor?
+ * Há alguma saída desligada AUTOMATICAMENTE para repor?
+ * Canais com «Não exibir» manual nesta sessão ficam intocados.
  * @param {object} entrada rota guardada do modo Slides
+ * @param {{publico?: boolean, ministrante?: boolean}} [manual]
  */
-export function precisaReporRotaSlides(entrada) {
+export function precisaReporRotaSlides(entrada, manual = obterNaoExibirManualSlides()) {
   const e = normalizar(entrada);
   /* «Live — OBS» não é uma saída por monitor: não há nada a repor, e escrever índices por
      cima apagaria a escolha. O seletor do modo Slides nem sequer oferece Live — a guarda
      está aqui para o caso de uma rota antiga trazer a marca. */
   if (e.live) return false;
-  return e.publicoIndex < 0 || e.ministranteIndex < 0;
+  const m = {
+    publico: !!(manual && manual.publico),
+    ministrante: !!(manual && manual.ministrante),
+  };
+  return (e.publicoIndex < 0 && !m.publico) || (e.ministranteIndex < 0 && !m.ministrante);
 }
 
 /**
@@ -68,22 +115,33 @@ export function precisaReporRotaSlides(entrada) {
  * @param {object} entrada Rota guardada (o que o operador deixou).
  * @param {object} padrao Rota de origem já ajustada ao que as Mídias ocupam — em
  *   `controllerAppCore.js` é o resultado de `rotaSlidesAoEntrarNoModo()`.
+ * @param {{publico?: boolean, ministrante?: boolean}} [manual]
  * @returns {{publicoIndex: number, ministranteIndex: number, live: boolean}}
  */
-export function rotaSlidesReposta(entrada, padrao) {
+export function rotaSlidesReposta(entrada, padrao, manual = obterNaoExibirManualSlides()) {
   const e = normalizar(entrada);
   if (e.live) return e;
   const p = normalizar(padrao);
+  const m = {
+    publico: !!(manual && manual.publico),
+    ministrante: !!(manual && manual.ministrante),
+  };
 
   /* Ordem importa: o ministrante decide-se contra o público JÁ resolvido, senão os dois
      podiam aceitar o mesmo monitor por não verem a decisão um do outro. */
   const publicoIndex =
-    e.publicoIndex >= 0 || p.publicoIndex < 0 || p.publicoIndex === e.ministranteIndex
+    e.publicoIndex >= 0 ||
+    m.publico ||
+    p.publicoIndex < 0 ||
+    p.publicoIndex === e.ministranteIndex
       ? e.publicoIndex
       : p.publicoIndex;
 
   const ministranteIndex =
-    e.ministranteIndex >= 0 || p.ministranteIndex < 0 || p.ministranteIndex === publicoIndex
+    e.ministranteIndex >= 0 ||
+    m.ministrante ||
+    p.ministranteIndex < 0 ||
+    p.ministranteIndex === publicoIndex
       ? e.ministranteIndex
       : p.ministranteIndex;
 
