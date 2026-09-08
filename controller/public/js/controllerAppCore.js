@@ -4425,6 +4425,40 @@ function agendarTrabalhoPesadoAposModoSlides(ativo) {
 }
 
 /**
+ * Espelho local ao encerrar só a camada Slides (`limpar_tela` no servidor).
+ *
+ * O servidor preserva Mídias/aviso noutro monitor; o espelho tem de fazer o mesmo.
+ * Apagar `estadoServidor` por completo fazia a badge «Imagem no Telão» sumir da prévia
+ * ao encerrar música no M3 com imagem ainda no M2.
+ */
+function limparEspelhoLocalSoCamadaSlides() {
+  const e = estadoServidor;
+  if (
+    e &&
+    !e.blackout &&
+    !e.slidePretoFinal &&
+    ((e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) ||
+      (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length > 0) ||
+      (e.tipo === 'contagem' && e.contagem) ||
+      (e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length > 0))
+  ) {
+    return;
+  }
+  const minAp = !!(e && e.projecaoMinistranteApresentacao);
+  estadoServidor = {
+    tipo: null,
+    titulo: '',
+    linhas: [],
+    estrofeIndex: 0,
+    totalEstrofes: 0,
+    telaLimpa: true,
+    blackout: false,
+    slidePretoFinal: false,
+    projecaoMinistranteApresentacao: minAp,
+  };
+}
+
+/**
  * Ao sair do modo slides: público sem projeção e ministrante em relógio (telaLimpa).
  * Partilhado por todas as saídas do modo slides (Home, Bíblia, Apresentação) para que
  * a transição encerre sempre a projeção de música.
@@ -4441,16 +4475,7 @@ function encerrarProjecaoAoSairDoModoSlides() {
    * `musicaAtiva` fica intacta de propósito — a Home continua com a música no editor.
    */
   faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-  estadoServidor = {
-    tipo: null,
-    titulo: '',
-    linhas: [],
-    estrofeIndex: 0,
-    totalEstrofes: 0,
-    telaLimpa: true,
-    blackout: false,
-    slidePretoFinal: false,
-  };
+  limparEspelhoLocalSoCamadaSlides();
   projecao.enviar('limpar_tela');
 }
 
@@ -18673,17 +18698,9 @@ function encerrarProjecaoDoControlador(opts = {}) {
   slidesDockVisivel = ehModoSlidesOperador();
   projecaoMusicaEmitidaNoServidor = false;
   bloqueioSincronizarEstrofeDoServidor = false;
-  /* Sem isto, `estadoServidor` segue com música até o broadcast — no modo slides o cartão TV voltava pela ramo servidor ≠ painel alinhado. */
-  estadoServidor = {
-    tipo: null,
-    titulo: '',
-    linhas: [],
-    estrofeIndex: 0,
-    totalEstrofes: 0,
-    telaLimpa: true,
-    blackout: false,
-    slidePretoFinal: false,
-  };
+  /* Sem isto, `estadoServidor` segue com música até o broadcast — no modo slides o cartão TV voltava pela ramo servidor ≠ painel alinhado.
+     Só a camada Slides: Mídias noutro monitor (badge «Imagem no Telão») tem de sobreviver. */
+  limparEspelhoLocalSoCamadaSlides();
   /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
   projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
