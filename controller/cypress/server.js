@@ -41,28 +41,51 @@ const MUSICAS_SEED = [
   },
 ];
 
-// ── ID do culto de teste (formato exigido pelo app: culto_YYYY-MM-DD_sufixo) ──
-const _hoje = new Date();
-const _yy  = _hoje.getFullYear();
-const _mm  = String(_hoje.getMonth() + 1).padStart(2, '0');
-const _dd  = String(_hoje.getDate()).padStart(2, '0');
-const CULTO_E2E_ID    = `culto_${_yy}-${_mm}-${_dd}_e2e`;
-const CULTO_E2E_LABEL = `${_dd}/${_mm} | Culto de Teste E2E`;
+// ── Gera todos os cultos auto-gerados do mês corrente ────────────────────────
+// (mesma lógica de cultosCalendario.js: domingos _manha/_noite, quartas _quarta)
+function gerarCultosAutoDoMes() {
+  const hoje = new Date();
+  const ano  = hoje.getFullYear();
+  const mes  = hoje.getMonth();                          // 0-indexed
+  const dias = new Date(ano, mes + 1, 0).getDate();
+  const cultos = [];
 
-// ── Seed mínimo de playlist (arquivo JSON) ────────────────────────────────────
+  for (let dia = 1; dia <= dias; dia++) {
+    const dow = new Date(ano, mes, dia).getDay();        // 0=dom, 3=qua
+    const mm  = String(mes + 1).padStart(2, '0');
+    const dd  = String(dia).padStart(2, '0');
+    const iso = `${ano}-${mm}-${dd}`;
+
+    if (dow === 0) {
+      cultos.push(`culto_${iso}_manha`);
+      cultos.push(`culto_${iso}_noite`);
+    } else if (dow === 3) {
+      cultos.push(`culto_${iso}_quarta`);
+    }
+  }
+  return cultos;
+}
+
+// ── Seed de playlist (arquivo JSON no servidor) ───────────────────────────────
+// Gera { cultoId: [itens] } para TODOS os cultos auto-gerados do mês.
+// Assim aplicarSnapshotCompartilhadoNoRenderer (que sobrescreve playlists em
+// memória via PUT /api/sync/banco/meta) devolve dados válidos para qualquer
+// culto que o dropdown exibir — evitando playlists[cultoId] === undefined.
 function buildPlaylistSeed(musicaIds) {
-  // Formato correto: { cultoId: [array de itens] }  (igual ao localStorage)
-  return {
-    [CULTO_E2E_ID]: musicaIds.slice(0, 2).map((id, i) => ({
+  const cultos = gerarCultosAutoDoMes();
+  const obj = {};
+  for (const cultoId of cultos) {
+    obj[cultoId] = musicaIds.slice(0, 2).map((id, i) => ({
       id,
-      titulo:       MUSICAS_SEED[i].titulo,
-      artista:      MUSICAS_SEED[i].artista,
-      bancoFonte:   'user',
-      cultoId:      CULTO_E2E_ID,
+      titulo:        MUSICAS_SEED[i].titulo,
+      artista:       MUSICAS_SEED[i].artista,
+      bancoFonte:    'user',
+      cultoId,
       versaoLocalId: null,
       versaoRotulo:  '',
-    })),
-  };
+    }));
+  }
+  return obj;
 }
 
 // ── Função de reset do banco (chamada pelo endpoint /_e2e/reset-db) ───────────

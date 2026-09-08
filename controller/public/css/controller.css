@@ -6112,6 +6112,16 @@ html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .plac
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
+/* Modo Slide: arrastar o modal de edição rápida pelo título. */
+#slide-quick-edit-backdrop.slide-quick-edit--arrastavel #slide-quick-edit-heading {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+#slide-quick-edit-backdrop.slide-quick-edit--arrastavel #slide-quick-edit-heading:active {
+  cursor: grabbing;
+}
+
 .slide-quick-edit-dialog h3 {
   margin: 0 0 8px;
   font-size: 18px;
@@ -6148,6 +6158,31 @@ html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .plac
   gap: 10px;
   align-items: center;
   justify-content: flex-end;
+}
+.slide-quick-edit-proj-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.slide-quick-edit-proj-row[hidden] {
+  display: none;
+}
+.slide-quick-edit-proj-status {
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  margin-right: 4px;
+}
+/* Respiro extra só no modal de edição rápida (não afeta outros diálogos). */
+#slide-quick-edit-backdrop .slide-quick-edit-actions {
+  gap: 12px;
+  margin-top: 2px;
 }
 .slide-quick-edit-dialog .btn,
 .letras-preview-dialog .btn,

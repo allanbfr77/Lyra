@@ -12989,8 +12989,87 @@ function fecharSlideQuickEditModal() {
   if (bd) {
     bd.hidden = true;
     bd.setAttribute('aria-hidden', 'true');
+    bd.classList.remove('slide-quick-edit--arrastavel');
   }
   slideQuickEditIndex = null;
+  const projRow = document.getElementById('slide-quick-edit-proj-row');
+  if (projRow) projRow.hidden = true;
+  resetarPosicaoDialogQuickEdit();
+}
+
+/** Limpa posição fixa do diálogo (volta ao centro do flex no próximo abrir). */
+function resetarPosicaoDialogQuickEdit() {
+  const dialog = document.querySelector('#slide-quick-edit-backdrop .slide-quick-edit-dialog');
+  if (!dialog) return;
+  dialog.style.position = '';
+  dialog.style.left = '';
+  dialog.style.top = '';
+  dialog.style.width = '';
+  dialog.style.margin = '';
+  dialog.style.maxWidth = '';
+}
+
+/**
+ * Índice 0-based do slide no telão (ou `estrofes.length` = tela preta).
+ * Independente do slide aberto no modal de edição rápida.
+ */
+function indiceEstrofeProjetadaNoTelao() {
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return null;
+  if (!projecaoMusicaEmitidaNoServidor) return null;
+  const e = estadoServidor;
+  if (!e || e.tipo !== 'musica') return null;
+  if (e.musicaId != null && musicaAtiva.id != null && Number(e.musicaId) !== Number(musicaAtiva.id)) {
+    return null;
+  }
+  if (e.slidePretoFinal) return musicaAtiva.estrofes.length;
+  const idx = Number(e.estrofeIndex);
+  return Number.isFinite(idx) ? idx : null;
+}
+
+/** Atualiza o rodapé «Slide projetado» / PRÓXIMO SLIDE do modal de edição rápida (só modo Slide). */
+function atualizarUiProjecaoQuickEdit() {
+  const row = document.getElementById('slide-quick-edit-proj-row');
+  const status = document.getElementById('slide-quick-edit-proj-status');
+  const btn = document.getElementById('slide-quick-edit-next-proj');
+  if (!row || !status || !btn) return;
+  const emSlide = ehModoSlidesOperador();
+  row.hidden = !emSlide;
+  if (!emSlide) return;
+  const nEst = musicaAtiva?.estrofes?.length ?? 0;
+  const idx = indiceEstrofeProjetadaNoTelao();
+  if (idx == null || nEst <= 0) {
+    status.textContent = 'Slide projetado: —';
+    btn.disabled = true;
+    return;
+  }
+  const idxMaxPreto = nEst;
+  if (idx >= idxMaxPreto) {
+    status.textContent = 'Slide projetado: tela preta';
+    btn.disabled = true;
+    return;
+  }
+  status.textContent = `Slide projetado: ${idx + 1}`;
+  btn.disabled = false;
+}
+
+/**
+ * Avança só a projeção no telão. Não fecha o modal nem troca o slide em edição.
+ */
+function avancarProjecaoDoQuickEdit() {
+  if (!ehModoSlidesOperador()) return;
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
+  if (!projecao.pronta() || !projecaoMusicaEmitidaNoServidor) return;
+  const idxMaxPreto = musicaAtiva.estrofes.length;
+  const base = indiceEstrofeProjetadaNoTelao();
+  if (base == null || !Number.isFinite(base)) return;
+  const prox = Math.min(idxMaxPreto, base + 1);
+  if (prox === base) {
+    atualizarUiProjecaoQuickEdit();
+    return;
+  }
+  /* Só emite ao telão — sem `exibirEstrofe`, para não alterar seleção nem o texto do modal. */
+  emitirEstrofeAoServidor(prox);
+  atualizarUiProjecaoQuickEdit();
 }
 
 function abrirSlideQuickEditModal(slideIndex) {
@@ -13000,8 +13079,11 @@ function abrirSlideQuickEditModal(slideIndex) {
   document.getElementById('slide-quick-edit-num').textContent = String(slideIndex + 1);
   document.getElementById('slide-quick-edit-ta').value = musicaAtiva.estrofes[slideIndex] ?? '';
   const bd = document.getElementById('slide-quick-edit-backdrop');
+  resetarPosicaoDialogQuickEdit();
+  bd.classList.toggle('slide-quick-edit--arrastavel', ehModoSlidesOperador());
   bd.hidden = false;
   bd.setAttribute('aria-hidden', 'false');
+  atualizarUiProjecaoQuickEdit();
   setTimeout(() => {
     const ta = document.getElementById('slide-quick-edit-ta');
     ta.focus();
@@ -13088,6 +13170,7 @@ function setupSlidesStripContextMenuEEdicaoRapida() {
   document.getElementById('slide-quick-edit-cancel')?.addEventListener('click', () => fecharSlideQuickEditModal());
   document.getElementById('slide-quick-edit-save')?.addEventListener('click', () => confirmarSlideQuickEdit());
   document.getElementById('slide-quick-edit-delete')?.addEventListener('click', () => excluirSlideEdicaoRapida());
+  document.getElementById('slide-quick-edit-next-proj')?.addEventListener('click', () => avancarProjecaoDoQuickEdit());
   /**
    * Só fecha ao clicar «no escuro»: mousedown + mouseup no próprio backdrop.
    * Sem isto, arrastar seleção da textarea para fora termina no backdrop — o navegador
@@ -13106,6 +13189,76 @@ function setupSlidesStripContextMenuEEdicaoRapida() {
   });
   document.getElementById('slide-delete-confirm-cancel')?.addEventListener('click', () => fecharSlideDeleteConfirmModal());
   document.getElementById('slide-delete-confirm-excluir')?.addEventListener('click', () => executarExclusaoSlideConfirmada());
+  configurarArrasteDialogQuickEdit();
+}
+
+/**
+ * Arrastar o modal de edição rápida pelo título — só no modo Slide.
+ * Textarea, botões e restante do conteúdo não iniciam o arraste.
+ */
+function configurarArrasteDialogQuickEdit() {
+  const heading = document.getElementById('slide-quick-edit-heading');
+  const dialog = document.querySelector('#slide-quick-edit-backdrop .slide-quick-edit-dialog');
+  if (!heading || !dialog) return;
+
+  let arrasto = null;
+
+  function clampar(left, top) {
+    const pad = 8;
+    const w = dialog.offsetWidth;
+    const h = dialog.offsetHeight;
+    const maxL = Math.max(pad, window.innerWidth - w - pad);
+    const maxT = Math.max(pad, window.innerHeight - h - pad);
+    return {
+      left: Math.min(Math.max(pad, left), maxL),
+      top: Math.min(Math.max(pad, top), maxT),
+    };
+  }
+
+  heading.addEventListener('pointerdown', (e) => {
+    if (!ehModoSlidesOperador()) return;
+    if (e.button != null && e.button !== 0) return;
+    const bd = document.getElementById('slide-quick-edit-backdrop');
+    if (!bd || bd.hidden || !bd.classList.contains('slide-quick-edit--arrastavel')) return;
+    e.preventDefault();
+    const rect = dialog.getBoundingClientRect();
+    dialog.style.position = 'fixed';
+    dialog.style.left = `${rect.left}px`;
+    dialog.style.top = `${rect.top}px`;
+    dialog.style.width = `${rect.width}px`;
+    dialog.style.maxWidth = 'none';
+    dialog.style.margin = '0';
+    arrasto = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: rect.left,
+      origTop: rect.top,
+    };
+    try {
+      heading.setPointerCapture(e.pointerId);
+    } catch (_) {
+      // intencional — captura opcional
+    }
+  });
+
+  heading.addEventListener('pointermove', (e) => {
+    if (!arrasto || e.pointerId !== arrasto.pointerId) return;
+    const pos = clampar(
+      arrasto.origLeft + (e.clientX - arrasto.startX),
+      arrasto.origTop + (e.clientY - arrasto.startY)
+    );
+    dialog.style.left = `${pos.left}px`;
+    dialog.style.top = `${pos.top}px`;
+  });
+
+  const encerrar = (e) => {
+    if (!arrasto) return;
+    if (e && e.pointerId != null && e.pointerId !== arrasto.pointerId) return;
+    arrasto = null;
+  };
+  heading.addEventListener('pointerup', encerrar);
+  heading.addEventListener('pointercancel', encerrar);
 }
 
 function marcacaoEstrofeEditor() {
