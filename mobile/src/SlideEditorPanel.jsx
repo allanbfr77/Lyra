@@ -17,7 +17,11 @@ import {
 import InfoTooltip from './InfoTooltip';
 import SegmentedControl from './SegmentedControl';
 import KeyboardScreen, { KeyboardFlatList } from './KeyboardScreen';
+import { IconChevron, IconLixeira } from './Icons';
 import { COLORS, FONTS } from './theme';
+
+/** Fundo do badge numerado do slide (mockup de edição). */
+const SLIDE_BADGE_BG = '#c99a4a';
 
 /*
  * Mesmo conceito da reordenação da playlist no Controlador (FLIP + flash):
@@ -216,7 +220,7 @@ export default function SlideEditorPanel({
 
   function adicionar() {
     setRows((prev) => {
-      const next = [...prev, { id: novoIdSlide(), text: '' }];
+      const next = [{ id: novoIdSlide(), text: '' }, ...prev];
       onSlidesChange(next.map((r) => r.text));
       return next;
     });
@@ -358,46 +362,68 @@ export default function SlideEditorPanel({
             ]}
           >
             <View style={styles.slideCardTop}>
-              <View style={styles.ordemBtns}>
-                <TouchableOpacity
-                  style={[styles.ordemBtn, index === 0 && styles.ordemBtnOff]}
-                  onPress={() => mover(index, -1)}
-                  disabled={index === 0}
-                  hitSlop={6}
-                >
-                  <Text style={styles.ordemBtnTxt}>↑</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.ordemBtn, index >= rows.length - 1 && styles.ordemBtnOff]}
-                  onPress={() => mover(index, 1)}
-                  disabled={index >= rows.length - 1}
-                  hitSlop={6}
-                >
-                  <Text style={styles.ordemBtnTxt}>↓</Text>
-                </TouchableOpacity>
+              <View style={styles.slideCardIdent}>
+                <View style={styles.slideBadge}>
+                  <Text style={styles.slideBadgeTxt}>{index + 1}</Text>
+                </View>
+                <Text style={styles.slideLabel}>Slide</Text>
               </View>
 
-              <Text style={styles.slideNum}>Slide {index + 1}</Text>
+              <View style={styles.slideCardAcoes}>
+                <View style={styles.ordemBtns}>
+                  <TouchableOpacity
+                    style={[styles.ordemBtn, index === 0 && styles.ordemBtnOff]}
+                    onPress={() => mover(index, -1)}
+                    disabled={index === 0}
+                    hitSlop={6}
+                    accessibilityLabel="Mover slide para cima"
+                  >
+                    <View style={styles.ordemChevronUp}>
+                      <IconChevron size={18} color={COLORS.accent2} />
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.ordemBtn, index >= rows.length - 1 && styles.ordemBtnOff]}
+                    onPress={() => mover(index, 1)}
+                    disabled={index >= rows.length - 1}
+                    hitSlop={6}
+                    accessibilityLabel="Mover slide para baixo"
+                  >
+                    <View style={styles.ordemChevronDown}>
+                      <IconChevron size={18} color={COLORS.accent2} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
 
-              {rows.length > 1 ? (
-                <TouchableOpacity onPress={() => remover(index)} hitSlop={12}>
-                  <Text style={styles.slideRemover}>Apagar</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ width: 52 }} />
-              )}
+                {rows.length > 1 ? (
+                  <>
+                    <View style={styles.slideAcoesDivisor} />
+                    <TouchableOpacity
+                      onPress={() => remover(index)}
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel="Excluir slide"
+                      style={styles.slideExcluirBtn}
+                    >
+                      <IconLixeira size={18} color={COLORS.red} />
+                    </TouchableOpacity>
+                  </>
+                ) : null}
+              </View>
             </View>
 
-            <TextInput
-              style={styles.slideInput}
-              value={item.text}
-              onChangeText={(txt) => atualizarTexto(index, txt)}
-              onEndEditing={() => aplicarSplitNoIndice(index)}
-              placeholder="Linhas deste slide…"
-              placeholderTextColor={COLORS.textDim}
-              multiline
-              textAlignVertical="top"
-            />
+            <View style={styles.slideCardBody}>
+              <TextInput
+                style={styles.slideInput}
+                value={item.text}
+                onChangeText={(txt) => atualizarTexto(index, txt)}
+                onEndEditing={() => aplicarSplitNoIndice(index)}
+                placeholder="Linhas deste slide…"
+                placeholderTextColor={COLORS.textDim}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
           </Animated.View>
         )}
       />
@@ -470,8 +496,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 12,
     marginBottom: 12,
+    overflow: 'hidden',
   },
   /* Flash breve na troca — eco do realce da playlist no Controlador. */
   slideCardFlash: {
@@ -482,38 +508,73 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  slideCardIdent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  slideBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: SLIDE_BADGE_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slideBadgeTxt: {
+    fontSize: 13,
+    fontFamily: FONTS.semibold,
+    color: COLORS.text,
+    lineHeight: 16,
+  },
+  slideLabel: {
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: COLORS.text,
+    opacity: 0.45,
+  },
+  slideCardAcoes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   ordemBtns: {
     flexDirection: 'row',
-    marginRight: 10,
-    gap: 6,
+    alignItems: 'center',
+    gap: 2,
   },
   ordemBtn: {
-    backgroundColor: COLORS.surface2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    width: 30,
-    height: 28,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ordemBtnOff: { opacity: 0.35 },
-  ordemBtnTxt: {
-    fontSize: 18,
-    color: COLORS.accent2,
-    fontFamily: FONTS.semibold,
-    lineHeight: 20,
+  ordemChevronUp: { transform: [{ rotate: '-90deg' }] },
+  ordemChevronDown: { transform: [{ rotate: '90deg' }] },
+  slideAcoesDivisor: {
+    width: StyleSheet.hairlineWidth,
+    height: 18,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 2,
   },
-  slideNum: {
-    flex: 1,
-    fontSize: 12,
-    letterSpacing: 2,
-    color: COLORS.accent,
-    fontFamily: FONTS.semibold,
+  slideExcluirBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  slideRemover: { fontSize: 14, color: COLORS.red, fontFamily: FONTS.semibold },
+  slideCardBody: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
+  },
   slideInput: {
     minHeight: 100,
     fontSize: 17,

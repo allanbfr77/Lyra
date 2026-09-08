@@ -27,6 +27,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   obterMusicaLocal,
   salvarMusicaLocal,
@@ -65,6 +66,7 @@ function normalizarEstrofesInicial(arr) {
  */
 export default function LocalEditScreen() {
   const { localId } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   /** Sem `localId` = música ainda não existe no armazenamento (fluxo «Nova música»). */
   const idExistente = Array.isArray(localId) ? String(localId[0] || '') : String(localId || '');
   const musicaNova = !idExistente;
@@ -237,12 +239,15 @@ export default function LocalEditScreen() {
               />
             </View>
           }
-          listFooterComponent={
-            <TouchableOpacity style={styles.btnSalvar} onPress={guardar}>
-              <Text style={styles.btnSalvarTxt}>GUARDAR NO CELULAR</Text>
-            </TouchableOpacity>
-          }
         />
+
+        {/* Fixo fora do scroll — visível em Slides e Letra completa */}
+        <TouchableOpacity
+          style={[styles.btnSalvar, { marginBottom: Math.max(insets.bottom, 12) }]}
+          onPress={guardar}
+        >
+          <Text style={styles.btnSalvarTxt}>GUARDAR NO CELULAR</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Modal de seleção de culto — aparece quando nenhum culto está definido */}
@@ -303,7 +308,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
-    marginBottom: 24,
   },
   btnSalvarTxt: {
     color: COLORS.onAccent,
