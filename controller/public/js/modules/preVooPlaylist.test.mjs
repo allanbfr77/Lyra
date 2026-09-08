@@ -23,7 +23,7 @@ const categorias = (a) => a.map((x) => x.categoria);
 
 // --- telas -----------------------------------------------------------------------------
 
-test('rota completa não gera achado nenhum', () => {
+test('rota completa com 2 monitores de projeção não gera achado nenhum', () => {
   const r = verificarTelas({ publicoIndex: 1, ministranteIndex: 2 }, [PRINCIPAL, M2, M3]);
   assert.deepEqual(r, []);
 });
@@ -36,6 +36,13 @@ test('sem monitor secundário, nada mais importa', () => {
   assert.match(r[0].titulo, /Nenhum monitor de projeção/);
 });
 
+test('só 1 monitor de projeção avisa (principal não conta)', () => {
+  const r = verificarTelas({ publicoIndex: 1, ministranteIndex: -1 }, [PRINCIPAL, M2]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].gravidade, GRAVIDADE_ATENCAO);
+  assert.match(r[0].titulo, /Só há 1 monitor/);
+});
+
 test('telão desativado impede', () => {
   const r = verificarTelas({ publicoIndex: -1, ministranteIndex: 2 }, [PRINCIPAL, M2, M3]);
   assert.equal(r.length, 1);
@@ -45,7 +52,7 @@ test('telão desativado impede', () => {
 
 test('«Live — OBS» avisa mas não impede', () => {
   /* É uma escolha legítima para transmissão — mas é a que deixa o salão sem ver nada. */
-  const r = verificarTelas({ live: true, publicoIndex: -1 }, [PRINCIPAL, M2]);
+  const r = verificarTelas({ live: true, publicoIndex: -1 }, [PRINCIPAL, M2, M3]);
   assert.equal(r.length, 1);
   assert.equal(r[0].gravidade, GRAVIDADE_ATENCAO);
   assert.match(r[0].titulo, /Live/);
@@ -54,19 +61,19 @@ test('«Live — OBS» avisa mas não impede', () => {
 test('«Live» não acusa também telão desativado', () => {
   /* Em Live o público está mesmo a -1, por definição: dizer as duas coisas seria acusar
      o operador de um problema que ele acabou de escolher. */
-  const r = verificarTelas({ live: true, publicoIndex: -1 }, [PRINCIPAL, M2]);
+  const r = verificarTelas({ live: true, publicoIndex: -1 }, [PRINCIPAL, M2, M3]);
   assert.equal(r.filter((x) => /a receber o telão/.test(x.titulo)).length, 0);
 });
 
 test('monitor guardado que sumiu é avisado pelo nome', () => {
-  const r = verificarTelas({ publicoIndex: 1 }, [PRINCIPAL, M2], ['Projetor do salão']);
+  const r = verificarTelas({ publicoIndex: 1 }, [PRINCIPAL, M2, M3], ['Projetor do salão']);
   const aviso = r.find((x) => /desapareceu/i.test(x.titulo));
   assert.ok(aviso);
   assert.match(aviso.detalhe, /Projetor do salão/);
 });
 
 test('nomes repetidos em falta aparecem uma vez só', () => {
-  const r = verificarTelas({ publicoIndex: 1 }, [PRINCIPAL, M2], ['TV', 'TV']);
+  const r = verificarTelas({ publicoIndex: 1 }, [PRINCIPAL, M2, M3], ['TV', 'TV']);
   const aviso = r.find((x) => /desapareceu/i.test(x.titulo));
   assert.equal(aviso.detalhe.match(/TV/g).length, 1);
 });
@@ -205,7 +212,7 @@ test('playlist com músicas não avisa', () => {
 test('o que impede vem primeiro', () => {
   const r = consolidar([
     verificarTonsEMinistrantes([{ titulo: 'A', ministranteId: 1, tom: '' }]),
-    verificarTelas({ publicoIndex: -1 }, [PRINCIPAL, M2]),
+    verificarTelas({ publicoIndex: -1 }, [PRINCIPAL, M2, M3]),
   ]);
   assert.equal(gravidades(r.achados)[0], GRAVIDADE_IMPEDE);
   assert.equal(r.impedem, 1);
@@ -215,7 +222,7 @@ test('o que impede vem primeiro', () => {
 
 test('dentro da gravidade, mantém-se a ordem das verificações', () => {
   const r = consolidar([
-    verificarTelas({ publicoIndex: -1 }, [PRINCIPAL, M2]),
+    verificarTelas({ publicoIndex: -1 }, [PRINCIPAL, M2, M3]),
     verificarLetras([{ item: { titulo: 'F' }, musica: null, erro: true }]),
   ]);
   assert.deepEqual(categorias(r.achados), ['telas', 'letras']);

@@ -24824,9 +24824,24 @@ async function correrPreVooDoCulto() {
       verificarMidiasNoDiscoParaPreVoo(),
     ]);
 
+    /* Telas: não ler os seletores do cabeçalho (`rotaSelecionadaNaUi`). Esses reflectem o
+       modo/aba aberto (Home→completo, Slides→slides, …). No Home o completo pode estar em
+       «Não exibir» enquanto o telão do culto (slides) já tem monitor — e o pré-voo acusava
+       «nenhum monitor a receber o telão» só por causa da aba. A verificação do culto olha
+       a rota de infraestrutura, independente do modo activo. */
     let rota = null;
     try {
-      rota = rotaSelecionadaNaUi();
+      const slides = obterRotaSlidesParaUi();
+      const completo = sanitizarRotaProjecao(
+        normalizarRota(rotasPorModo.completo),
+        monitoresServidorCache
+      );
+      rota =
+        slides.live || slides.publicoIndex >= 0
+          ? slides
+          : completo.live || completo.publicoIndex >= 0
+            ? completo
+            : slides;
     } catch (_) {
       rota = null;
     }

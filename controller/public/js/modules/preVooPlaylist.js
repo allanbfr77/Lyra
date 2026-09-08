@@ -73,6 +73,21 @@ export function verificarTelas(rota, monitores, nomesEmFalta = []) {
     return out;
   }
 
+  /* O ecrã principal do operador não conta. Com só 1 secundário dá para o telão, mas falta
+     o segundo para o retorno — a operação completa espera 2. */
+  if (secundarios.length === 1) {
+    out.push(
+      achado(
+        GRAVIDADE_ATENCAO,
+        'telas',
+        'Só há 1 monitor de projeção disponível',
+        'O Lyra espera dois monitores além do ecrã principal (telão e retorno do ' +
+          'ministrante). Com só um, a quantidade fica abaixo do esperado — o telão pode ' +
+          'funcionar, mas não há ecrã para o retorno. Ligue um segundo monitor externo.'
+      )
+    );
+  }
+
   if (r.live) {
     /* Não é defeito: é uma escolha legítima para transmissão. Mas é a escolha que faz o
        salão não ver nada, e vale a pena ser dita em voz alta antes de começar. */
@@ -147,7 +162,7 @@ export function verificarTonsEMinistrantes(itens) {
         `${semTom.length} música(s) sem tom definido`,
         `${semTom.map((x) => x.titulo).join(', ')}. ` +
           (nomes.length
-            ? `Quem vai ministrar (${nomes.join(', ')}) chega ao palco sem o tom no monitor. `
+            ? `Quem vai ministrar (${nomes.join(', ')}) chega ao altar sem o tom no monitor. `
             : '') +
           'Defina o tom na coluna da playlist.',
         { itens: semTom.map((x) => x.titulo) }
@@ -162,7 +177,7 @@ export function verificarTonsEMinistrantes(itens) {
         'tons',
         `${semMinistrante.length} música(s) sem ministrante`,
         `${semMinistrante.join(', ')}. Sem ministrante não há tom guardado para reutilizar ` +
-          'no próximo culto.',
+          'no culto.',
         { itens: semMinistrante }
       )
     );

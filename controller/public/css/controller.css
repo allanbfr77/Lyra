@@ -5211,7 +5211,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   margin: 0 calc(-1 * var(--banco-lista-pad-x));
   padding: 6px var(--banco-lista-pad-x) 0;
   border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  font-size: 8.5px;
+  font-size: 9.5px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--text) 42%, transparent);
