@@ -931,10 +931,57 @@ function slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico() {
   return apresentacaoProjecaoAtivaNoCanalPublico();
 }
 
+/**
+ * Mídia/aviso activos no canal ministrante (M3), para a prévia do modo Slides.
+ * Usa o flag do socket (`projecaoMinistranteApresentacao`) e não só a rota local —
+ * a rota pode ficar desactualizada ao projetar pelo Mídias noutro momento.
+ * Exclui override de tela limpa da Bíblia e contagem (não são badge de mídia).
+ */
+function midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides() {
+  if (!ehModoSlidesOperador()) return false;
+  if (apresentacaoProjecaoAtivaNoCanalMinistrante()) return true;
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.blackout || e.slidePretoFinal) return false;
+  if (e.tipo === 'biblia' || e.tipo === 'contagem') return false;
+  return !!e.projecaoMinistranteApresentacao;
+}
+
 /** Preview Slide (ministrante): informe de mídia da Apresentação activa na TV ministrante. */
 function slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante() {
   if (!ehModoSlidesOperador()) return false;
-  return apresentacaoProjecaoAtivaNoCanalMinistrante();
+  return midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides();
+}
+
+/**
+ * Há projeção real no canal ministrante (M3) para a prévia do modo Slides.
+ * Independente do M2: mídia só no telão não conta; slides no M3 contam mesmo com
+ * Mídias no M2 (o `estado` do socket pode continuar `tipo: 'apresentacao'`).
+ */
+function hayProjecaoAtivaNoCanalMinistranteParaPreviewSlides() {
+  if (!ehModoSlidesOperador()) return false;
+  if (midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides()) return true;
+  if (obterRotaSlidesParaUi().ministranteIndex < 0) return false;
+
+  /* Letra já emitida neste painel: M3 tem conteúdo mesmo com override de Mídias no público. */
+  if (projecaoMusicaEmitidaNoServidor && musicaAtiva && Number(estrofeAtiva) >= 0) {
+    return true;
+  }
+
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.blackout) return true;
+  if (e.tipo === 'musica') {
+    if (e.slidePretoFinal) return true;
+    return !!(!e.telaLimpa && e.linhas && e.linhas.length);
+  }
+  if (
+    e.tipo === 'biblia' &&
+    (!e.telaLimpa || e.projecaoSomenteMinistrante || e.projecaoBibliaMinistrante)
+  ) {
+    return !!(e.linhas && e.linhas.length) || !!e.projecaoBibliaMinistrante;
+  }
+  return false;
 }
 
 function preencherPreviewInformeMidiaApresentacaoSlide(el) {
@@ -943,12 +990,218 @@ function preencherPreviewInformeMidiaApresentacaoSlide(el) {
   const ap = e && e.apresentacao ? e.apresentacao : {};
   const kind = String(ap.kind || 'image').toLowerCase();
   const tipoRotulo = rotuloTipoMidiaApresentacao(kind);
-  const linhaTxt = `${tipoRotulo} no telão`;
-  el.innerHTML = `<span class="pv-live-ap-meta">${svgIconeTipoMidiaApresentacao(kind)}<span class="pv-live-ap-meta-txt">${escapeHtml(linhaTxt)}</span></span>`;
+  preencherPreviewBadgeInformativoSlides(el, {
+    kind,
+    label: `${tipoRotulo} no Telão`,
+  });
+}
+
+/**
+ * Badge informativo na prévia do modo Slides (conteúdo de outro modo no monitor).
+ * @param {HTMLElement|null} el
+ * @param {{ kind?: string, label: string }} badge
+ */
+function preencherPreviewBadgeInformativoSlides(el, badge) {
+  if (!el) return;
+  const kind = String(badge?.kind || 'image').toLowerCase();
+  const label = String(badge?.label || 'Projeção no telão').trim();
+  const iconKinds = new Set(['image', 'video', 'audio', 'pdf', 'iframe', 'aviso']);
+  const icon = svgIconeTipoMidiaApresentacao(iconKinds.has(kind) ? kind : 'iframe');
+  el.innerHTML = `<span class="pv-live-ap-meta">${icon}<span class="pv-live-ap-meta-txt">${escapeHtml(label)}</span></span>`;
   const clsBase = el.classList.contains('op-slide-text') ? 'op-slide-text' : 'pv-live-letras';
   el.className = clsBase;
   el.classList.remove('vazio');
   limparEstiloPreviewSlide(el);
+}
+
+/**
+ * Classifica a saída real do M2 (público) para a prévia virtual do modo Slides.
+ * Independente do M3 e da aba aberta — só o estado de saída deste monitor.
+ * @returns {{ mode: 'idle'|'blackout'|'slides'|'badge', badge?: {kind:string,label:string}, estadoSlides?: object }}
+ */
+function classificarSaidaMonitorPublicoSlides() {
+  const r = obterRotaSlidesParaUi();
+  if (r.publicoIndex < 0) return { mode: 'idle' };
+
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return { mode: 'idle' };
+  if (e.blackout) return { mode: 'blackout' };
+
+  /* Outros modos no M2 → só badge (não reproduzir o conteúdo visual). */
+  if (apresentacaoProjecaoAtivaNoCanalPublico()) {
+    if (e.tipo === 'aviso') {
+      return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
+    }
+    const kind = String((e.apresentacao && e.apresentacao.kind) || 'image').toLowerCase();
+    return {
+      mode: 'badge',
+      badge: { kind, label: `${rotuloTipoMidiaApresentacao(kind)} no Telão` },
+    };
+  }
+  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) {
+    return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
+  }
+  if (e.tipo === 'contagem' && e.contagem) {
+    return { mode: 'badge', badge: { kind: 'contagem', label: 'Cronômetro no Telão' } };
+  }
+  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) {
+    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
+  }
+
+  /* Modo Slides (música) no M2 → cópia visual da projeção. */
+  if (e.tipo === 'musica') {
+    if (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length)) {
+      return { mode: 'slides', estadoSlides: e };
+    }
+  }
+
+  return { mode: 'idle' };
+}
+
+/**
+ * Classifica a saída real do M3 (ministrante) para a prévia virtual do modo Slides.
+ * Independente do M2 — flags/rota/emissão local só para inferir este canal.
+ * @returns {{ mode: 'idle'|'blackout'|'slides'|'badge', clock?: boolean, badge?: {kind:string,label:string} }}
+ */
+function classificarSaidaMonitorMinistranteSlides() {
+  const r = obterRotaSlidesParaUi();
+  if (r.ministranteIndex < 0) return { mode: 'idle', clock: false };
+
+  const e = estadoServidor;
+  if (!projecao.pronta()) return { mode: 'idle', clock: true };
+  if (e && e.blackout) return { mode: 'blackout' };
+
+  /* Mídia/aviso do Mídias no M3. */
+  if (midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides()) {
+    if (e && e.tipo === 'aviso') {
+      return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
+    }
+    const kind = String((e && e.apresentacao && e.apresentacao.kind) || 'image').toLowerCase();
+    return {
+      mode: 'badge',
+      badge: { kind, label: `${rotuloTipoMidiaApresentacao(kind)} no Telão` },
+    };
+  }
+
+  /* Contagem no M3 (override). */
+  if (e && e.projecaoMinistranteApresentacao && e.tipo === 'contagem' && e.contagem) {
+    return { mode: 'badge', badge: { kind: 'contagem', label: 'Cronômetro no Telão' } };
+  }
+
+  /* Bíblia no M3. */
+  if (e && e.projecaoBibliaMinistrante) {
+    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
+  }
+  if (e && e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) {
+    /* Bíblia só no público: override limpa o M3 → ocioso, não badge. */
+    if (e.projecaoMinistranteApresentacao && !e.projecaoBibliaMinistrante) {
+      return { mode: 'idle', clock: true };
+    }
+    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
+  }
+
+  /* Slides (música) no M3 — mesmo com Mídias ainda no M2 (tipo do socket pode ser apresentação). */
+  if (projecaoMusicaEmitidaNoServidor && musicaAtiva && Number(estrofeAtiva) >= 0) {
+    return { mode: 'slides' };
+  }
+  if (e && e.tipo === 'musica' && (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length))) {
+    return { mode: 'slides' };
+  }
+
+  return { mode: 'idle', clock: true };
+}
+
+/** Prévia virtual do M2 no modo Slides — só este monitor. */
+function atualizarPreviewMonitorPublicoSlides() {
+  const cls = classificarSaidaMonitorPublicoSlides();
+  if (cls.mode === 'badge' && cls.badge) {
+    const prevTitulo = document.getElementById('pv-live-titulo');
+    const prevLetras = document.getElementById('pv-live-letras');
+    if (prevTitulo) prevTitulo.textContent = '';
+    preencherPreviewBadgeInformativoSlides(prevLetras, cls.badge);
+    return;
+  }
+  if (cls.mode === 'blackout') {
+    aplicarPreviewTelaoNoDom({ blackout: true });
+    return;
+  }
+  if (cls.mode === 'slides' && cls.estadoSlides) {
+    aplicarPreviewTelaoNoDom(cls.estadoSlides);
+    return;
+  }
+  aplicarPreviewTelaoNoDom({ semProjecao: true });
+}
+
+/** Prévia virtual do M3 no modo Slides — só este monitor. */
+function atualizarPreviewMonitorMinistranteSlides() {
+  const opA = document.getElementById('op-atual');
+  const opP = document.getElementById('op-proximo');
+  const cls = classificarSaidaMonitorMinistranteSlides();
+
+  if (cls.mode === 'badge' && cls.badge) {
+    definirPreviewRelogioOciosoMinistrante(false);
+    limparPreviewTituloMusicaAbertura();
+    preencherPreviewBadgeInformativoSlides(opA, cls.badge);
+    if (opP) {
+      opP.textContent = '';
+      opP.className = 'op-slide-text vazio';
+      limparEstiloPreviewSlide(opP);
+    }
+    return;
+  }
+
+  if (cls.mode === 'blackout') {
+    definirPreviewRelogioOciosoMinistrante(false);
+    limparConteudoPreviewOperadorSlides();
+    if (opA) {
+      opA.textContent = 'Tela preta (F10)';
+      opA.className = 'op-slide-text vazio';
+    }
+    return;
+  }
+
+  if (cls.mode === 'slides') {
+    definirPreviewRelogioOciosoMinistrante(false);
+    const e = estadoServidor;
+    const servidorMostraMusica =
+      e &&
+      e.tipo === 'musica' &&
+      !e.blackout &&
+      (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length));
+    const alinhado =
+      servidorMostraMusica &&
+      musicaAtiva &&
+      musicaEstadoCombinaComAtiva(e) &&
+      projecaoMusicaEmitidaNoServidor;
+    if (servidorMostraMusica && !alinhado) {
+      preencherPreviewOperadorSomenteEstadoServidorMusica();
+    } else if (
+      alinhado &&
+      !selecaoLocalAlinhadaComProjecaoMusicaServidor()
+    ) {
+      preencherPreviewOperadorSomenteEstadoServidorMusica();
+    } else if (projecaoMusicaEmitidaNoServidor || podeEspelharLetraNosPreviewsModoSlide()) {
+      preencherPreviewOperadorSomenteMusicaLocal();
+    } else if (servidorMostraMusica) {
+      preencherPreviewOperadorSomenteEstadoServidorMusica();
+    } else {
+      limparConteudoPreviewOperadorSlides();
+    }
+    return;
+  }
+
+  /* Idle: estado padrão do M3 (relógio conforme Ajustes). */
+  limparConteudoPreviewOperadorSlides();
+  definirPreviewRelogioOciosoMinistrante(!!cls.clock && deveRevelarRelogioPreviewMinistrante());
+}
+
+/**
+ * Orquestra as duas prévias-virtuais do modo Slides de forma independente.
+ * MONITOR REAL → estado da saída → prévia correspondente (não a aba actual).
+ */
+function atualizarPreviewsMonitoresVirtuaisModoSlides() {
+  atualizarPreviewMonitorMinistranteSlides();
+  atualizarPreviewMonitorPublicoSlides();
 }
 
 /** Apresentação no público e slides no público em monitores diferentes (convivência). */
@@ -11642,10 +11895,10 @@ function aplicarPreviewTelaoNoDom(estado) {
 }
 
 /**
- * Letra nos cartões TELÃO/TV: exclusivos do modo slide.
- * Home (modo completo) usa só `#playlist-preview-card`. Badges de mídia (ex. «imagem no telão»)
- * ficam de fora — tratados nos early-returns de `atualizarPreviewOperador` / telão.
- * Exige faixa armada pela playlist ou projeção já emitida (não basta `musicaAtiva` da Home).
+ * Letra nos cartões TELÃO/TV do modo slide: só com projeção real já emitida.
+ * Seleção na faixa/playlist (1 clique) não preenche as prévias dos monitores.
+ * Home (modo completo) usa só `#playlist-preview-card`. Badges de mídia ficam
+ * de fora — tratados nos early-returns de `atualizarPreviewOperador` / telão.
  */
 function podeEspelharLetraNosPreviewsModoSlide() {
   if (!ehModoSlidesOperador()) return false;
@@ -11653,13 +11906,13 @@ function podeEspelharLetraNosPreviewsModoSlide() {
     return false;
   }
   if (estrofeAtiva < 0) return false;
-  return !!(projecaoMusicaEmitidaNoServidor || faixaSlidesHabilitadaPorPlaylistNoModoSlides);
+  return !!projecaoMusicaEmitidaNoServidor;
 }
 
 /**
- * Estado local (sem socket) do que o modo slide mostraria no telão, a partir do slide
- * selecionado no painel. Usado para o preview continuar a refletir o slide clicado mesmo
- * sem conexão — não altera a projeção real (isso depende da emissão ao servidor).
+ * Estado local do slide selecionado no painel (modo slide).
+ * Não deve alimentar as prévias TELÃO/TV — essas espelham só a projeção real.
+ * Mantido para usos pontuais que precisem do conteúdo da seleção local.
  */
 function estadoPreviewTelaoLocalModoSlides() {
   if (!podeEspelharLetraNosPreviewsModoSlide()) {
@@ -11673,27 +11926,10 @@ function estadoPreviewTelaoLocalModoSlides() {
 
 /** Telão no painel: espelha o servidor com as regras de `suprimirEspelhoPreviewsPorNavegacaoPlaylist`. */
 function atualizarPreviewTelaoPublico() {
+  /* Modo Slides: M2 é monitor virtual independente (não misturar com a TV). */
   if (ehModoSlidesOperador()) {
-    if (slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico()) {
-      aplicarPreviewTelaoNoDom(estadoServidor);
-      return;
-    }
-    // Sem projeção ativa no servidor (ex.: desconectado): o preview do modo slide reflete o
-    // slide selecionado localmente. A projeção real nos monitores externos continua dependendo
-    // da conexão/rota (fluxo de emissão ao servidor, inalterado).
-    if (!hayProjecaoAtivaNoServidor()) {
-      aplicarPreviewTelaoNoDom(estadoPreviewTelaoLocalModoSlides());
-      return;
-    }
-    const r = obterRotaSlidesParaUi();
-    const apSoNoMinistrante =
-      apresentacaoProjecaoAtivaNoCanalMinistrante() &&
-      !apresentacaoProjecaoAtivaNoCanalPublico() &&
-      !slidesCanalPublicoSeparadoDaApresentacao();
-    if (r.publicoIndex < 0 || apSoNoMinistrante) {
-      aplicarPreviewTelaoNoDom({ semProjecao: true });
-      return;
-    }
+    atualizarPreviewMonitorPublicoSlides();
+    return;
   }
   const e = estadoServidor;
   if (!hayProjecaoAtivaNoServidor() || !e) {
@@ -11883,6 +12119,229 @@ function preencherPreviewOperadorSomenteMusicaLocal() {
   }
 }
 
+/** Limpa título/letra da prévia TV (modo Slides ocioso). */
+function limparConteudoPreviewOperadorSlides() {
+  limparPreviewTituloMusicaAbertura();
+  const opA = document.getElementById('op-atual');
+  const opP = document.getElementById('op-proximo');
+  if (opA) {
+    opA.textContent = '';
+    opA.className = 'op-slide-text vazio';
+    limparEstiloPreviewSlide(opA);
+  }
+  if (opP) {
+    opP.textContent = '';
+    opP.className = 'op-slide-text vazio';
+    limparEstiloPreviewSlide(opP);
+  }
+}
+
+/**
+ * Seleção local alinhada com o índice projetado no servidor (modo Slides).
+ * Se o operador clicou noutro chip sem projetar, a prévia deve continuar no servidor.
+ */
+function selecaoLocalAlinhadaComProjecaoMusicaServidor() {
+  const e = estadoServidor;
+  if (!e || e.tipo !== 'musica' || !musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return false;
+  if (!musicaEstadoCombinaComAtiva(e)) return false;
+  const idxPreto = musicaAtiva.estrofes.length;
+  if (e.slidePretoFinal) return estrofeAtiva === idxPreto;
+  const idxSrv = Number(e.estrofeIndex);
+  return Number.isFinite(idxSrv) && estrofeAtiva === idxSrv;
+}
+
+let previewRelogioOciosoTimer = null;
+
+/** Config de relógio usada pelo M3 real (`currentCfgCtrl.clock`). */
+function obterCfgClockPreviewSlides() {
+  const cfg =
+    typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : currentCfgCtrl;
+  return (cfg && cfg.clock) || {};
+}
+
+/** Igual a `deveRevelarRelogioMinistrante` em `display-operator.html`. */
+function deveRevelarRelogioPreviewMinistrante() {
+  return obterCfgClockPreviewSlides().showClock !== false;
+}
+
+/** `vh` do M3 escalado à altura da capa da prévia (mesma proporção visual). */
+function pxVhPreviewRelogio(vh, capa) {
+  const h = (capa && capa.clientHeight) || 80;
+  return Math.max(6, (Number(vh) || 0) * (h / 100));
+}
+
+function corRelogioPreviewOp(clk) {
+  return clk.textColor || '#ffffff';
+}
+
+function aplicarFundoRelogioPreviewOp(capa, clk) {
+  if (!capa) return;
+  if (clk.bgType === 'gradient') {
+    capa.style.background = clk.bgGradient || '#000000';
+  } else if (clk.bgType === 'image' && clk.bgImage) {
+    capa.style.background = `url('${clk.bgImage}') center/cover no-repeat`;
+  } else {
+    capa.style.background = clk.bgColor || '#000000';
+  }
+}
+
+function desenharRelogioAnalogicoPreviewOp(canvas, now, cor) {
+  if (!canvas) return;
+  const ctxCv = canvas.getContext('2d');
+  if (!ctxCv) return;
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const r = W / 2 - 14;
+  ctxCv.clearRect(0, 0, W, H);
+  ctxCv.beginPath();
+  ctxCv.arc(cx, cy, r, 0, 2 * Math.PI);
+  ctxCv.strokeStyle = cor;
+  ctxCv.globalAlpha = 0.28;
+  ctxCv.lineWidth = 2;
+  ctxCv.stroke();
+  ctxCv.globalAlpha = 1;
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * 2 * Math.PI - Math.PI / 2;
+    const maior = i % 3 === 0;
+    const inner = maior ? r - 22 : r - 10;
+    ctxCv.beginPath();
+    ctxCv.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
+    ctxCv.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+    ctxCv.strokeStyle = cor;
+    ctxCv.globalAlpha = maior ? 0.85 : 0.38;
+    ctxCv.lineWidth = maior ? 3 : 1.5;
+    ctxCv.stroke();
+    ctxCv.globalAlpha = 1;
+  }
+  const sec = now.getSeconds();
+  const min = now.getMinutes() + sec / 60;
+  const hr = (now.getHours() % 12) + min / 60;
+  const desenharMao = (frac, len, largura, alpha) => {
+    const ang = frac * 2 * Math.PI - Math.PI / 2;
+    ctxCv.beginPath();
+    ctxCv.moveTo(cx, cy);
+    ctxCv.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+    ctxCv.strokeStyle = cor;
+    ctxCv.globalAlpha = alpha;
+    ctxCv.lineWidth = largura;
+    ctxCv.lineCap = 'round';
+    ctxCv.stroke();
+    ctxCv.globalAlpha = 1;
+  };
+  desenharMao(hr / 12, r * 0.52, 9, 0.95);
+  desenharMao(min / 60, r * 0.73, 5.5, 0.88);
+  desenharMao(sec / 60, r * 0.82, 2, 0.65);
+  ctxCv.beginPath();
+  ctxCv.arc(cx, cy, 7, 0, 2 * Math.PI);
+  ctxCv.fillStyle = cor;
+  ctxCv.globalAlpha = 0.9;
+  ctxCv.fill();
+  ctxCv.globalAlpha = 1;
+}
+
+/**
+ * Tick da prévia ociosa — espelho de `tickRelogioOp` (display-operator).
+ * Usa a mesma `clock` de Ajustes que o M3 real.
+ */
+function tickPreviewRelogioOciosoMinistrante() {
+  const capa = document.getElementById('op-preview-relogio');
+  const elHora = document.getElementById('op-preview-relogio-hora');
+  const elData = document.getElementById('op-preview-relogio-data');
+  const elVerso = document.getElementById('op-preview-relogio-verso');
+  const elAnalogWrap = document.getElementById('op-preview-relogio-analog-wrap');
+  const elAnalog = document.getElementById('op-preview-relogio-analog');
+  if (!capa || !elHora || capa.hidden) return;
+
+  const clk = obterCfgClockPreviewSlides();
+  const now = new Date();
+  const fmt = String(clk.format || 'HH:MM');
+  const lowerFmt = fmt.toLowerCase();
+  const color = corRelogioPreviewOp(clk);
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const analogico = lowerFmt === 'analog';
+
+  elHora.style.display = analogico || lowerFmt === 'none' ? 'none' : '';
+  if (elAnalogWrap) elAnalogWrap.hidden = !analogico;
+  if (lowerFmt === 'hh:mm:ss') elHora.textContent = `${h}:${m}:${s}`;
+  else if (lowerFmt !== 'none' && !analogico) elHora.textContent = `${h}:${m}`;
+  else elHora.textContent = '';
+  elHora.style.color = color;
+  elHora.style.fontSize = `${pxVhPreviewRelogio(Math.max(7, Number(clk.fontSize || 13)), capa)}px`;
+
+  if (analogico) desenharRelogioAnalogicoPreviewOp(elAnalog, now, color);
+
+  if (elData) {
+    if (clk.showDate !== false) {
+      elData.textContent = now.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      });
+      elData.style.display = '';
+      elData.style.color = clk.dateColor || color;
+      elData.style.fontSize = `${pxVhPreviewRelogio(Math.max(0.8, Number(clk.dateFontSize || 2.4)), capa)}px`;
+    } else {
+      elData.textContent = '';
+      elData.style.display = 'none';
+    }
+  }
+
+  if (elVerso) {
+    const verseTxt = clk.showVerse && clk.verse ? String(clk.verse) : '';
+    if (verseTxt) {
+      elVerso.textContent = verseTxt;
+      elVerso.style.display = '';
+      elVerso.style.color = clk.verseColor || color;
+      elVerso.style.fontSize = `${pxVhPreviewRelogio(Math.max(0.8, Number(clk.verseFontSize || 2.4)), capa)}px`;
+    } else {
+      elVerso.textContent = '';
+      elVerso.style.display = 'none';
+    }
+  }
+
+  aplicarFundoRelogioPreviewOp(capa, clk);
+}
+
+/**
+ * Liga/desliga a capa do relógio na prévia TV.
+ * Com `showClock === false` a capa fica oculta → fundo preto do cartão (= M3 real).
+ */
+function definirPreviewRelogioOciosoMinistrante(visivel) {
+  const capa = document.getElementById('op-preview-relogio');
+  if (!capa) return;
+  if (visivel) {
+    capa.hidden = false;
+    capa.setAttribute('aria-hidden', 'false');
+    tickPreviewRelogioOciosoMinistrante();
+    if (!previewRelogioOciosoTimer) {
+      previewRelogioOciosoTimer = setInterval(tickPreviewRelogioOciosoMinistrante, 1000);
+    }
+  } else {
+    capa.hidden = true;
+    capa.setAttribute('aria-hidden', 'true');
+    capa.style.background = '';
+    if (previewRelogioOciosoTimer) {
+      clearInterval(previewRelogioOciosoTimer);
+      previewRelogioOciosoTimer = null;
+    }
+  }
+}
+
+/**
+ * Estado ocioso / saída do M3 na prévia — delega ao classificador do monitor virtual.
+ */
+function sincronizarPreviewOciosoMinistranteSlides() {
+  if (!ehModoSlidesOperador()) {
+    definirPreviewRelogioOciosoMinistrante(false);
+    return;
+  }
+  atualizarPreviewMonitorMinistranteSlides();
+}
+
 /**
  * Prévia na coluna playlist: só o estado da música/slides da coluna central (estrofeAtiva).
  * Tamanho da fonte por texto (linha mais longa + linhas) · sem quebra automática (`white-space: pre`).
@@ -11934,53 +12393,22 @@ function atualizarPreviewPlaylistCentral() {
 
 function atualizarPreviewOperador() {
   try {
+    /* Modo Slides: duas prévias = monitores virtuais independentes (M2 e M3). */
+    if (ehModoSlidesOperador()) {
+      atualizarPreviewsMonitoresVirtuaisModoSlides();
+      const clsMin = classificarSaidaMonitorMinistranteSlides();
+      /* Só reemitir ministrante quando a prévia espelha slides (não badge/outro modo). */
+      if (clsMin.mode === 'slides' || clsMin.mode === 'idle') {
+        emitirEstadoMinistranteAoServidor();
+      }
+      return;
+    }
+
     const opA = document.getElementById('op-atual');
     const opP = document.getElementById('op-proximo');
 
-    if (slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante()) {
-      limparPreviewTituloMusicaAbertura();
-      preencherPreviewInformeMidiaApresentacaoSlide(opA);
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      return;
-    }
-
-    // No modo slide, quando não há projeção ativa no servidor (ex.: desconectado), os cartões
-    // ministrante/TV refletem o slide selecionado localmente — só se a faixa veio da playlist
-    // (ou já houve emit). Música aberta só na Home não vaza para estes cartões.
-    if (ehModoSlidesOperador() && !hayProjecaoAtivaNoServidor()) {
-      if (podeEspelharLetraNosPreviewsModoSlide()) {
-        preencherPreviewOperadorSomenteMusicaLocal();
-      } else {
-        limparPreviewTituloMusicaAbertura();
-        opA.textContent = '';
-        opA.className = 'op-slide-text vazio';
-        limparEstiloPreviewSlide(opA);
-        opP.textContent = '';
-        opP.className = 'op-slide-text vazio';
-        limparEstiloPreviewSlide(opP);
-      }
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
-    if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) {
-      limparPreviewTituloMusicaAbertura();
-      opA.textContent = '';
-      opA.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opA);
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
     if (!hayProjecaoAtivaNoServidor()) {
+      definirPreviewRelogioOciosoMinistrante(false);
       limparPreviewTituloMusicaAbertura();
       opA.textContent = '';
       opA.className = 'op-slide-text vazio';
@@ -11992,6 +12420,8 @@ function atualizarPreviewOperador() {
       emitirEstadoMinistranteAoServidor();
       return;
     }
+
+    definirPreviewRelogioOciosoMinistrante(false);
 
     if (suprimirEspelhoPreviewsPorNavegacaoPlaylist()) {
       limparPreviewTituloMusicaAbertura();
@@ -12057,10 +12487,8 @@ function atualizarPreviewOperador() {
       hayProjecaoAtivaNoServidorParaPreviews();
 
     if (!servidorMusicaAlinhado) {
-      /* Home: nunca preencher TELÃO/TV com letra — só a prévia da playlist (`pl-pv-*`).
-         Modo slide: letra local só com faixa/playlist ou projeção já emitida. */
-      const mostrarPreviewOpLocal =
-        projecaoMusicaEmitidaNoServidor || podeEspelharLetraNosPreviewsModoSlide();
+      /* Home: nunca preencher TELÃO/TV com letra — só a prévia da playlist (`pl-pv-*`). */
+      const mostrarPreviewOpLocal = projecaoMusicaEmitidaNoServidor;
       if (mostrarPreviewOpLocal) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
@@ -12107,6 +12535,8 @@ function atualizarPreviewOperador() {
       } catch (_) {
   // intencional — erro ignorado
 }
+    } else {
+      definirPreviewRelogioOciosoMinistrante(false);
     }
   }
 }
@@ -12426,12 +12856,14 @@ function renderSlidesStrip() {
     `;
     chip.onclick = (ev) => {
       ev.preventDefault();
+      /* Sem projeção: 1 clique só seleciona. Com projeção ativa: 1 clique troca o slide no ar. */
       if (projecaoMusicaEmitidaNoServidor) {
         projetarPorDuploCliqueCentral(i);
         return;
       }
       exibirEstrofe(i);
     };
+    /* Duplo clique só para iniciar a projeção — com ela já no ar, o clique único basta. */
     if (!projecaoMusicaEmitidaNoServidor) {
       chip.addEventListener('dblclick', (ev) => {
         ev.preventDefault();
@@ -15333,57 +15765,20 @@ function obterFlagsOcultarPreviewPorSincroniaModoSlides() {
   return [!pubOn, !minOn];
 }
 
-/** Apresentação ativa no telão público (estado já fundido no socket) — força prévia visível no modo slide. */
+/** Conteúdo na saída real do M2 que deve manter a prévia visível no modo Slides. */
 function hayConteudoExternoQueForcaPreviaPublicaModoSlide() {
   if (!ehModoSlidesOperador()) return false;
-  if (slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico()) return true;
-  const rSlide = obterRotaSlidesParaUi();
-  if (rSlide.publicoIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (slidesCanalPublicoSeparadoDaApresentacao()) {
-    return (
-      (e.tipo === 'musica' &&
-        (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length))) ||
-      (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) ||
-      estadoServidorEhProjecaoApresentacaoAtivaNoTelao()
-    );
-  }
-  if (!slidesCanalPublicoSeparadoDaApresentacao() && apresentacaoOcupandoCanalPublico()) {
-    return (
-      estadoServidorEhProjecaoApresentacaoAtivaNoTelao() ||
-      (e.tipo === 'musica' &&
-        (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length))) ||
-      (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length)
-    );
-  }
-  return (
-    estadoServidorEhProjecaoApresentacaoAtivaNoTelao() ||
-    (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) ||
-    !!e.projecaoMinistranteApresentacao
-  );
+  const cls = classificarSaidaMonitorPublicoSlides();
+  return cls.mode === 'badge' || cls.mode === 'slides' || cls.mode === 'blackout';
 }
 
 /**
- * Há conteúdo que justifica mostrar a prévia TV — só quando o ministrante está ativo na rota de slides
- * ou a apresentação ocupa esse canal (slide desliga esse monitor por desenho).
+ * Conteúdo na saída real do M3 que deve manter a prévia TV visível no modo Slides.
  */
 function hayConteudoExternoQueForcaPreviaMinistranteModoSlide() {
   if (!ehModoSlidesOperador()) return false;
-  if (slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante()) return true;
-  const rSlide = normalizarRota(rotasPorModo.slides);
-  if (rSlide.ministranteIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.tipo === 'apresentacao' || e.tipo === 'aviso' || e.projecaoMinistranteApresentacao) return false;
-  if (!hayProjecaoAtivaNoServidor()) return false;
-  if (e.tipo !== 'musica' && e.tipo !== 'biblia') return false;
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (!opA || !opP) return false;
-  const ta = (opA.textContent || '').trim();
-  const tp = (opP.textContent || '').trim();
-  return !!(ta || tp);
+  const cls = classificarSaidaMonitorMinistranteSlides();
+  return cls.mode === 'badge' || cls.mode === 'slides' || cls.mode === 'blackout';
 }
 
 function carregarPreviewPainelOcultoDoArmazenamento() {
@@ -18379,11 +18774,58 @@ function emitirEstrofeAoServidor(index) {
   projecaoMusicaEmitidaNoServidor = true;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
   projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
-  emitirEstadoMinistranteAoServidor();
+  if (ehModoSlidesOperador()) {
+    /* Espelho + refresh da prévia (e `exibir_ministrante`) — evita M3 com DOM antigo. */
+    espelharEstadoMusicaLocalAposEmitSlides(index);
+    try {
+      atualizarPreviewOperador();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+  } else {
+    emitirEstadoMinistranteAoServidor();
+  }
   registarProjecaoNoHistorico();
 }
 
-/** Atualiza só o painel (estrofe «selecionada»). Não envia às telas — use duplo clique ou setas após projeção iniciada. */
+/**
+ * Espelho otimista de `estadoServidor` após `exibir_musica` no modo Slides.
+ * Só para as prévias refletirem o que acabou de ir às telas (seleção ≠ projeção).
+ */
+function espelharEstadoMusicaLocalAposEmitSlides(index) {
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
+  const nEst = musicaAtiva.estrofes.length;
+  const idx = Number(index);
+  const slidePreto = Number.isFinite(idx) && idx === nEst;
+  const cur =
+    !slidePreto && Number.isFinite(idx) && idx >= 0 && idx < nEst
+      ? String(musicaAtiva.estrofes[idx] ?? '')
+      : '';
+  const nxtIdx = idx + 1;
+  const proximoSlidePreto = !slidePreto && nxtIdx === nEst;
+  let linhasProximo = [];
+  if (!slidePreto && !proximoSlidePreto && nxtIdx >= 0 && nxtIdx < nEst) {
+    linhasProximo = String(musicaAtiva.estrofes[nxtIdx] ?? '').split('\n');
+  }
+  const prev = estadoServidor && typeof estadoServidor === 'object' ? estadoServidor : {};
+  estadoServidor = {
+    ...prev,
+    tipo: 'musica',
+    titulo: String(musicaAtiva.titulo || '').trim(),
+    linhas: slidePreto ? [] : cur.split('\n'),
+    estrofeIndex: Number.isFinite(idx) ? idx : 0,
+    totalEstrofes: nEst,
+    telaLimpa: false,
+    slidePretoFinal: slidePreto,
+    proximoSlidePreto,
+    linhasProximo,
+    musicaId: musicaAtiva.id,
+  };
+  /* Permite o eco real do servidor atualizar de novo. */
+  lyraAssinaturaEstadoProjecaoRecebido = null;
+}
+
+/** Atualiza só o painel (estrofe «selecionada»). Não envia às telas nem altera a prévia de projeção real — use duplo clique ou setas após projeção iniciada. */
 function exibirEstrofe(index, opts) {
   if (!musicaAtiva) return;
   if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
@@ -18445,7 +18887,7 @@ function direcaoTeclaPassadorSlides(tecla, code) {
 
 /**
  * Modo slides + passador: avançar/voltar slide. Só envia ao telão depois que a projeção
- * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só prévia.
+ * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só seleção no painel.
  */
 function navegarEstrofePassadorSlides(direcao, opts) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
@@ -22956,6 +23398,11 @@ function popularFormCfg(cfg) {
   } finally {
     preenchendoForm = false;
     aprimorarControlesVisuaisCfg();
+    try {
+      sincronizarPreviewOciosoMinistranteSlides();
+    } catch (_) {
+      // intencional — erro ignorado
+    }
   }
 }
 
@@ -23111,6 +23558,11 @@ function aplicarCfgRelogio() {
   atualizarVisibilidadeCamposRelogio();
   atualizarPreviewFundoRelogioCtrl();
   debounceSalvarCfg();
+  try {
+    sincronizarPreviewOciosoMinistranteSlides();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 }
 
 function onClockFontSizeCtrlInput() {
@@ -23119,6 +23571,11 @@ function onClockFontSizeCtrlInput() {
   currentCfgCtrl.clock.fontSize = val;
   setSpanText('cfg-clock-fontsize-val-ctrl', String(val));
   debounceSalvarCfg();
+  try {
+    sincronizarPreviewOciosoMinistranteSlides();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 }
 
 function onClockDateFontSizeCtrlInput() {
@@ -23397,6 +23854,11 @@ function aplicarPreviewCfgNoServidor() {
   if (ehModoBibliaOperador()) return;
   salvarSlideCfgNoStorage();
   enviarPreviewDisplayConfig(currentCfgCtrl, { modoConfig: 'slides', forcarModo: 'slides' });
+  try {
+    sincronizarPreviewOciosoMinistranteSlides();
+  } catch (_) {
+    // intencional — erro ignorado
+  }
 }
 
 function debounceSalvarCfg() {

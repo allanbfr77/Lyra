@@ -12,11 +12,9 @@
     "build:win": "electron-builder --win nsis",
     "publish:win": "electron-builder --win nsis --publish always",
     "build:dir": "electron-builder --dir",
-    "test:e2e": "start-server-and-test \"node cypress/server.js\" http://localhost:3001 \"cypress run\"",
-    "cypress:open": "start-server-and-test \"node cypress/server.js\" http://localhost:3001 \"cypress open\"",
-    "cypress:run": "cypress run",
-    "pretest:e2e": "node scripts/e2e-prepare.js",
-    "posttest:e2e": "node scripts/e2e-restore.js"
+    "test:e2e": "start-server-and-test \"npx electron cypress/server.js\" http://localhost:3001 \"cypress run --reporter spec\"",
+    "cypress:open": "start-server-and-test \"npx electron cypress/server.js\" http://localhost:3001 \"cypress open\"",
+    "cypress:run": "cypress run"
   },
   "dependencies": {
     "@lyra/letras-fontes": "file:../packages/letras-fontes",
