@@ -163,12 +163,18 @@ describe('Playlist — gestão de músicas do culto', () => {
       .should('contain.text', 'Música Teste B');
   });
 
-  // ── Resetar a linha ──────────────────────────────────────
-  /* Sem ministrante escolhido no culto, o padrão desta música é o tom em branco. */
-  it('«Resetar» no menu do kebab limpa o tom daquela música', () => {
+  // ── Resetar ───────────────────────────────────────────────
+  /*
+    «Resetar» é do culto, não da linha de onde o menu foi aberto: limpa o tom de todas as
+    músicas e o ministrante do culto, sem tirar nenhuma música da playlist.
+  */
+  it('«Resetar» no menu do kebab limpa os tons de toda a playlist', () => {
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-sel-tom')
       .select('E')
       .should('have.value', 'E');
+    cy.get('#playlist-list .playlist-row[data-pl-idx="1"] .pl-sel-tom')
+      .select('G')
+      .should('have.value', 'G');
 
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab')
       .click({ force: true });
@@ -178,8 +184,11 @@ describe('Playlist — gestão de músicas do culto', () => {
 
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-sel-tom')
       .should('have.value', '');
-    /* A música ao lado não é tocada: «Resetar» é da linha, não da playlist. */
-    cy.get('#playlist-list .playlist-row[data-pl-idx="1"]').should('exist');
+    cy.get('#playlist-list .playlist-row[data-pl-idx="1"] .pl-sel-tom')
+      .should('have.value', '');
+    /* Repor não remove músicas. */
+    cy.get('#playlist-list .playlist-row[data-pl-idx]').should('have.length', 2);
+    cy.get('#culto-ministrante-sel').should('have.value', '');
   });
 
   // ── Reordenar músicas ───────────────────────────────────

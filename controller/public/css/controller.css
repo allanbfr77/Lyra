@@ -112,6 +112,12 @@
   --pl-acao-dourado: #c99a4a;
   --pl-acao-dourado-hover: #b58435;
   --pl-acao-dourado-txt: #1a1612;
+  /*
+    Cor do conteúdo dos cartões de ação (ícone + nome). No escuro é o dourado acima;
+    no claro ele cai para cerca de 2:1 contra o fundo do cartão e um rótulo de 10 px
+    deixaria de se ler — daí o ouro mais fechado do tema claro.
+  */
+  --pl-acao-card-cor: var(--accent2);
 
   /* ── Setlist: o cartão é a SECÇÃO, as músicas são linhas dentro dele ──
      Cada música era um cartão com borda e canto próprios, e o resultado eram
@@ -1127,52 +1133,6 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
 .btn.success { border-color: var(--green); color: var(--green); }
 .btn.success:hover { background: var(--green); color: #fff; }
 .btn.sm { padding: 4px 8px; font-size: var(--fs-caption-base); font-weight: var(--fw-semibold); }
-#playlist-sync-btn,
-#playlist-compartilhar-btn,
-#playlist-importar-btn,
-#playlist-sync-lyra-btn {
-  color: #fff;
-  font-weight: 700;
-  box-sizing: border-box;
-  width: 1.8rem;
-  min-width: 1.8rem;
-  height: 1.8rem;
-  padding: 0;
-  font-size: 12px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-/*
-  As quatro ações partilham o mesmo dourado da marca.
-
-  Cada uma tinha a sua cor (amarelo, azul, vermelho, verde) a tentar codificar «qual
-  botão é qual» — trabalho que a legenda por baixo de cada botão já faz, e melhor. O que
-  restava era uma fileira de quatro cores a competir com o resto do painel, com um verde
-  e um vermelho que se liam como sucesso e perigo em botões que são apenas ações.
-*/
-#playlist-sync-btn,
-#playlist-compartilhar-btn,
-#playlist-importar-btn,
-#playlist-sync-lyra-btn {
-  background: var(--pl-acao-dourado);
-  border-color: var(--pl-acao-dourado);
-  color: var(--pl-acao-dourado-txt);
-}
-
-#playlist-sync-btn:hover,
-#playlist-compartilhar-btn:hover,
-#playlist-importar-btn:hover,
-#playlist-sync-lyra-btn:hover,
-#playlist-sync-btn:focus-visible,
-#playlist-compartilhar-btn:focus-visible,
-#playlist-importar-btn:focus-visible,
-#playlist-sync-lyra-btn:focus-visible {
-  background: var(--pl-acao-dourado-hover);
-  border-color: var(--pl-acao-dourado-hover);
-  color: var(--pl-acao-dourado-txt);
-}
 
 /* Estado da ligação: fundo, borda e bolinha derivam todos de --status-cor,
    para que a pílula e o ponto contem sempre a mesma história.
@@ -1302,40 +1262,93 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-content: stretch;
-  align-items: start;
-  gap: 6px 8px;
+  /* `stretch` (o padrão) e não `start`: os quatro cartões ficam da altura do mais alto,
+     mesmo quando só um deles precisa de duas linhas para o nome. */
+  gap: 8px;
   width: 100%;
   margin-left: 0;
   box-sizing: border-box;
 }
 
-.playlist-lics-col {
+/*
+  Cartão de ação: ícone em cima, nome por baixo, dentro do mesmo botão.
+
+  A versão anterior era uma inicial branca (L / I / C / S) num quadrado dourado, com a
+  legenda solta debaixo dele. A letra não dizia nada a quem chegava — era preciso ler a
+  legenda para a decifrar — e o par botão+legenda lia-se como duas coisas: quatro
+  quadrados coloridos numa fila e quatro textos noutra. Aqui o alvo de clique é o cartão
+  inteiro e o nome faz parte dele.
+
+  O dourado passou para o conteúdo (ícone e texto) e o fundo voltou ao do painel: quatro
+  retângulos cheios de cor no topo da coluna pesavam mais do que ações que se usam uma vez
+  por culto merecem, e competiam com o dourado dos títulos de secção logo abaixo.
+*/
+.playlist-acao-card {
   display: flex;
   flex-direction: column;
+  /* Alinhado ao topo: assim os quatro ícones ficam à mesma altura, e o nome que precisa
+     de duas linhas cresce para baixo em vez de empurrar o ícone para cima. */
+  justify-content: flex-start;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  max-width: 100%;
+  /* Folga lateral curta de propósito: cada pixel que sobra aqui é largura que o nome
+     ganha, e é o que decide se «Compartilhar» cabe numa linha na coluna estreita. */
+  padding: 9px 3px 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--pl-acao-card-cor);
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-/* Legenda sob cada botão — o próprio botão já é o indicador de cor. */
-.playlist-lics-legenda-item {
+.playlist-acao-card-ico {
+  display: block;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.playlist-acao-card-txt {
   display: block;
   width: 100%;
-  font-family: var(--font-ui);
-  font-size: 9px;
+  /*
+    9.5 px — meio ponto acima da legenda que aqui vivia antes, e o suficiente para
+    «Compartilhar» (a palavra mais longa e a única sem espaço por onde quebrar) caber numa
+    linha em toda a gama de larguras úteis do painel. A 10 px partia-se ao meio
+    («Compartilha-r») assim que a janela encolhia.
+  */
+  font-size: 9.5px;
   font-weight: var(--fw-semibold);
-  color: var(--text-dim);
-  line-height: 1.2;
-  letter-spacing: 0;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
   text-align: center;
-  text-transform: uppercase;
+  /* Nomes de duas palavras quebram entre elas; `anywhere` fica como último recurso, para
+     uma janela tão estreita que nem assim caibam. */
   white-space: normal;
   overflow-wrap: anywhere;
-  word-break: break-word;
+  pointer-events: none;
 }
-.playlist-lics-legenda-swatch {
-  display: none;
+
+.playlist-acao-card:hover {
+  border-color: var(--pl-acao-card-cor);
+  background: color-mix(in srgb, var(--pl-acao-card-cor) 12%, var(--surface2));
+}
+
+.playlist-acao-card:focus-visible {
+  outline: 2px solid var(--pl-acao-card-cor);
+  outline-offset: -1px;
+}
+
+.playlist-acao-card:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pl-acao-card-cor) 18%, var(--surface2));
+}
+
+.playlist-acao-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 @keyframes playlist-compartilhar-spin {
@@ -1407,6 +1420,26 @@ body.app-mod-slides #playlist-panel-head {
 .culto-ministrante-dd-label {
   /* Placeholder em caixa mista; nomes já vêm em maiúsculas do JS. */
   text-transform: none;
+}
+
+/*
+  Corpo do texto dos três seletores do cabeçalho da playlist — dia do culto, ministrante
+  e tema — um ponto e meio abaixo do corpo corrente do painel.
+
+  Ao corpo base, «Selecione o ministrante...» não cabia na sua caixa (a mais estreita das
+  três, desde que o culto e o ministrante passaram a dividir a linha) e acabava em
+  reticências logo no estado inicial, que é justamente quando o texto tem de ser lido.
+
+  É só o ponto de partida: `ajustarCorpoSeletoresDoCulto` (no `controllerAppCore.js`)
+  desce a partir daqui, e sempre nos três ao mesmo tempo, se a janela for estreita ao
+  ponto de nem assim caberem. Marcado por `id` de propósito — a classe
+  `.playlist-tema-dd-label` é partilhada com os seletores da fonte do banco e da tradução
+  da Bíblia, que não têm nada a ver com esta linha nem com este aperto.
+*/
+#culto-dd-desc,
+#culto-ministrante-dd-label,
+#playlist-tema-dd-label {
+  font-size: 14.5px;
 }
 
 .banco-fonte-dd,
@@ -8834,6 +8867,7 @@ html.dark {
   --red: #d9534f;
   --yellow: #d4a017;
   --on-accent: #1a1612;
+  --pl-acao-card-cor: var(--pl-acao-dourado);
   --scroll-tri-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 6 18 12' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
   --scroll-tri-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 6 18 12' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --scroll-tri-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='6 3 12 18' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 6-6 6 6 6'/%3E%3C/svg%3E");

@@ -489,35 +489,31 @@
       </div>
     </div>
    <div class="panel-section-head" id="playlist-panel-head">
+  <!--
+    Quatro cartões iguais: ícone em cima, nome por baixo, tudo dentro do mesmo botão.
+
+    Antes era uma inicial (L / I / C / S) num quadrado e a legenda solta debaixo dele —
+    a letra não dizia nada a quem chegava, e legenda e botão liam-se como duas coisas.
+    O `title` de cada um continua a carregar a explicação completa, que agora não cabe
+    no rótulo curto.
+  -->
   <div id="playlist-head-actions" class="playlist-lics-grid">
-    <div class="playlist-lics-col">
-      <button type="button" id="playlist-sync-lyra-btn" class="btn sm" title="Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra" onclick="onSincronizarPlaylistLyraClick()">L</button>
-      <span class="playlist-lics-legenda-item">
-        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--l" aria-hidden="true"></span>
-        Sinc. com Lyra db
-      </span>
-    </div>
-    <div class="playlist-lics-col">
-      <button type="button" id="playlist-importar-btn" class="btn sm" title="Importar playlist a partir de um código">I</button>
-      <span class="playlist-lics-legenda-item">
-        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--i" aria-hidden="true"></span>
-        Importar código
-      </span>
-    </div>
-    <div class="playlist-lics-col">
-      <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
-      <span class="playlist-lics-legenda-item">
-        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--c" aria-hidden="true"></span>
-        Compartilhar playlist
-      </span>
-    </div>
-    <div class="playlist-lics-col">
-      <button type="button" id="playlist-sync-btn" class="btn sm" title="Sincronizar banco manualmente com os outros controladores">S</button>
-      <span class="playlist-lics-legenda-item">
-        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--s" aria-hidden="true"></span>
-        Sinc. com outro PC
-      </span>
-    </div>
+    <button type="button" id="playlist-sync-lyra-btn" class="playlist-acao-card" title="Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra" onclick="onSincronizarPlaylistLyraClick()">
+      <svg class="playlist-acao-card-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
+      <span class="playlist-acao-card-txt">Sinc. Lyra DB</span>
+    </button>
+    <button type="button" id="playlist-importar-btn" class="playlist-acao-card" title="Importar playlist a partir de um código">
+      <svg class="playlist-acao-card-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/><path d="M14 4l-4 16"/></svg>
+      <span class="playlist-acao-card-txt">Importar código</span>
+    </button>
+    <button type="button" id="playlist-compartilhar-btn" class="playlist-acao-card" title="Compartilhar playlist — gera código para importar em outro dispositivo">
+      <svg class="playlist-acao-card-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.3 10.8 15.7 7.2"/><path d="m8.3 13.2 7.4 3.6"/></svg>
+      <span class="playlist-acao-card-txt">Compartilhar</span>
+    </button>
+    <button type="button" id="playlist-sync-btn" class="playlist-acao-card" title="Sincronizar banco manualmente com os outros controladores">
+      <svg class="playlist-acao-card-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="13" y="8" width="8" height="12" rx="1.5"/><path d="M18 8V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9"/><path d="M16.5 17h1"/></svg>
+      <span class="playlist-acao-card-txt">Outro PC</span>
+    </button>
   </div>
 </div>
     <!--

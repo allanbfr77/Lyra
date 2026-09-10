@@ -390,7 +390,7 @@ function aplicarRotulosEPlaylistModoSlides() {
   if (t1) t1.textContent = 'TV / MINISTRANTE / RETORNO';
   /* A troca de modo muda a largura (e o corpo base) do botão do culto sem passar por um
      `resize`: a descrição tem de ser remedida aqui também. */
-  ajustarCorpoDescricaoCulto();
+  ajustarCorpoSeletoresDoCulto();
 }
 
 /**
@@ -5387,33 +5387,51 @@ function resolverCultoInicialPorAgenda() {
 }
 
 /**
- * Encolhe o corpo da descrição do culto até «DOMINGO - MANHÃ» caber inteiro no botão.
+ * Encolhe o texto dos três seletores do topo da playlist até caberem todos inteiros.
  *
- * A informação é curta e fácil de ler mesmo um ponto ou dois abaixo do resto do botão;
- * cortada a meio («DOMINGO - MAN…») deixa de responder à pergunta que o operador faz ao
- * olhar para ali, que é «de manhã ou à noite?». Entre encolher e cortar, encolhe.
+ * São o dia do culto, o ministrante e o tema. Partilham uma medida por duas razões: estão
+ * empilhados no mesmo cabeçalho e leem-se como uma coisa só — três corpos diferentes ali
+ * seriam lidos como três níveis de importância que não existem — e porque o que cada um
+ * mostra muda de comprimento a toda a hora, e um corpo por seletor faria a coluna trocar
+ * de tipografia a cada escolha.
  *
- * O ponto de partida é o corpo herdado do botão, e não um número escrito aqui: o modo
- * slides já o define mais pequeno, e fixá-lo levaria esse ajuste à frente.
+ * Por isso o laço desce enquanto QUALQUER um deles transbordar e aplica o resultado aos
+ * três: quem manda é o mais apertado, que é quase sempre o ministrante — a caixa mais
+ * estreita das três e a que tem o texto mais longo («Selecione o ministrante...»).
+ *
+ * O ponto de partida é o corpo que o CSS lhes dá, e não um número escrito aqui: o valor
+ * vive na folha, ao pé do resto do desenho do seletor.
  *
  * `scrollWidth > clientWidth` é o mesmo critério com que o browser decide pôr as
- * reticências — o laço pára exactamente quando elas deixariam de aparecer.
+ * reticências — o laço pára exactamente quando elas deixariam de aparecer. Caixa de
+ * largura zero é seletor ainda por desenhar ou escondido (o ministrante no modo slides):
+ * fica de fora da conta, senão um elemento invisível encolhia os outros dois.
  */
-const CULTO_DESC_CORPO_MIN_PX = 11.5;
+const SELETORES_CULTO_TEXTO_IDS = Object.freeze([
+  'culto-dd-desc',
+  'culto-ministrante-dd-label',
+  'playlist-tema-dd-label',
+]);
+const SELETOR_CULTO_CORPO_MIN_PX = 11;
 
-function ajustarCorpoDescricaoCulto() {
-  const el = document.getElementById('culto-dd-desc');
-  const btn = document.getElementById('culto-dd-btn');
-  if (!el || !btn) return;
-  const base = parseFloat(getComputedStyle(btn).fontSize) || 15;
+function ajustarCorpoSeletoresDoCulto() {
+  const els = SELETORES_CULTO_TEXTO_IDS
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+  if (!els.length) return;
+
+  els.forEach((el) => { el.style.fontSize = ''; });
+  const base = parseFloat(getComputedStyle(els[0]).fontSize);
+  if (!Number.isFinite(base)) return;
+
+  const medidos = els.filter((el) => el.clientWidth > 0);
+  if (!medidos.length) return;
+
+  const transborda = () => medidos.some((el) => el.scrollWidth > el.clientWidth);
   let px = base;
-  el.style.fontSize = px + 'px';
-  /* Largura zero: botão ainda por desenhar (arranque, modo escondido). Sem medida fiável
-     fica no corpo herdado — a próxima passagem, já com o painel no ecrã, resolve. */
-  if (!el.clientWidth) return;
-  while (px > CULTO_DESC_CORPO_MIN_PX && el.scrollWidth > el.clientWidth) {
+  while (px > SELETOR_CULTO_CORPO_MIN_PX && transborda()) {
     px -= 0.5;
-    el.style.fontSize = px + 'px';
+    els.forEach((el) => { el.style.fontSize = px + 'px'; });
   }
 }
 
@@ -5434,7 +5452,7 @@ function setCultoSelecionadoNaUi(value) {
     dataEl.textContent = p.data;
     descEl.textContent = p.desc;
   }
-  ajustarCorpoDescricaoCulto();
+  ajustarCorpoSeletoresDoCulto();
   if (menu) {
     menu.querySelectorAll('.culto-dd-item').forEach((b) => {
       b.setAttribute('aria-selected', b.dataset.value === v ? 'true' : 'false');
@@ -5449,7 +5467,7 @@ function setupCultoDropdown() {
   if (!wrap || !btn || !menu) return;
   /* A coluna da direita estica e encolhe com a janela: o corpo que cabia numa largura
      pode não caber noutra, e vice-versa — por isso a medida repete-se a cada redimensão. */
-  window.addEventListener('resize', ajustarCorpoDescricaoCulto);
+  window.addEventListener('resize', ajustarCorpoSeletoresDoCulto);
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = menu.hidden;
@@ -9922,45 +9940,31 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
 }
 
 /**
- * «Resetar» do menu da linha — devolve UMA música ao padrão do culto.
+ * Limpa ministrante e tom de TODAS as músicas desta playlist (não remove músicas).
  *
- * Padrão não é sinónimo de vazio: enquanto o culto tiver ministrante escolhido, o estado
- * de origem de qualquer música é «ministrante do culto + tom que o cadastro dele guarda
- * para esta música» — exactamente o que ela recebe ao entrar na playlist. Só num culto
- * sem ministrante é que repor significa deixar os dois campos em branco.
+ * É o «Resetar» do menu de cada linha. Era o botão que aparecia no hover da Música 1 e
+ * mudou de lugar com a passagem para o menu — o que faz é exactamente o mesmo, e de
+ * propósito: repor é uma operação sobre o culto inteiro (o ministrante é um só para todas
+ * as músicas), e não sobre a linha de onde o menu foi aberto.
  *
- * Substituiu o antigo botão que limpava a playlist INTEIRA a partir da primeira linha:
- * vivia sozinho numa linha onde ninguém o procurava, e era destrutivo sem aviso. O que
- * cada linha agora oferece diz respeito só a ela.
- *
- * Banco indisponível: o tom fica em branco em vez de manter o que lá estava — quem pediu
- * para repor não fica com o valor que queria descartar.
+ * Zerar o ministrante padrão do culto faz parte do gesto: sem isso, o seletor do topo
+ * continuaria a mostrar uma pessoa cujos tons acabaram de ser apagados da lista.
  */
-async function resetarLinhaPlaylist(idxPl) {
+function limparMinistranteTomDeTodaPlaylist() {
   if (!cultoId) return;
   const pl = getPlaylist(cultoId);
-  const item = pl[idxPl];
-  if (!item || ehMarcadorTemaPlaylist(item)) return;
-
-  const padrao = getMinistrantePadraoCulto(cultoId);
-  item.ministranteId = padrao || null;
-  item.tom = '';
-  if (padrao) {
-    try {
-      item.tom = normalizarTomPlaylist(
-        await buscarTomMemoria(
-          getControllerApiBase(),
-          padrao,
-          Number(item.id),
-          fonteBancoItemPlaylist(item),
-          item.titulo
-        )
-      );
-    } catch (_) {
-      // intencional — sem banco, o tom fica por preencher
+  if (!Array.isArray(pl) || !pl.length) return;
+  let mudou = false;
+  for (const it of pl) {
+    if (!it || ehMarcadorTemaPlaylist(it)) continue;
+    if (it.ministranteId != null || it.tom) {
+      it.ministranteId = null;
+      it.tom = '';
+      mudou = true;
     }
   }
-
+  if (!mudou) return;
+  setMinistrantePadraoCulto(cultoId, null);
   savePlaylists();
   renderPlaylist();
   refrescarAberturaM3SeMusicaAtivaNaPlaylist();
@@ -10373,7 +10377,9 @@ async function onSincronizarPlaylistLyraClick() {
     if (btn) { btn.disabled = on; btn.textContent = on ? 'Sincronizando…' : 'Sincronizar com Lyra'; }
     if (btnShortcut) {
       btnShortcut.disabled = on;
-      btnShortcut.textContent = on ? '…' : 'L';
+      /* Só o nome muda: escrever no botão inteiro apagaria o ícone do cartão. */
+      const txtShortcut = btnShortcut.querySelector('.playlist-acao-card-txt');
+      if (txtShortcut) txtShortcut.textContent = on ? 'Sincronizando…' : 'Sinc. Lyra DB';
       btnShortcut.title = on ? 'Sincronizando com Lyra…' : 'Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra';
     }
   };
@@ -10597,6 +10603,9 @@ function renderPlaylistPainel() {
   el.innerHTML = '';
   renderSeletorTemasPlaylist();
   renderSeletorMinistranteCulto();
+  /* Os dois seletores acabaram de receber texto novo (um nome de ministrante, um tema):
+     o corpo que servia ao anterior pode não servir a este. */
+  ajustarCorpoSeletoresDoCulto();
   if (!cultoId) {
     el.innerHTML = '<div class="placeholder-msg" style="margin:16px">🗓️ Selecione primeiro o <strong>dia do culto</strong> para ver ou montar a playlist.</div>';
     return;
@@ -11530,8 +11539,9 @@ function marcarLinhaPlaylistComMenuAberto(row, btn) {
  * Abre «Resetar» e «Excluir» para a música da linha, ancorado ao próprio kebab.
  *
  * São as duas únicas ações que restaram da fileira de quatro ícones: repor (limpa o tom e
- * o ministrante daquela música) e excluir (tira-a da playlist). Reordenar passou para a
- * alça de arrasto à esquerda da linha.
+ * o ministrante de toda a playlist — ver `limparMinistranteTomDeTodaPlaylist`) e excluir
+ * (tira da playlist a música desta linha). Reordenar passou para a alça de arrasto à
+ * esquerda da linha.
  */
 function abrirMenuAcoesLinhaPlaylist(btn, row, idxPl) {
   if (!cultoId) return;
@@ -11541,7 +11551,7 @@ function abrirMenuAcoesLinhaPlaylist(btn, row, idxPl) {
       {
         rotulo: 'Resetar',
         svg: SVG_MENU_RESETAR_LINHA,
-        aoEscolher: () => resetarLinhaPlaylist(idxPl),
+        aoEscolher: () => limparMinistranteTomDeTodaPlaylist(),
       },
       {
         rotulo: 'Excluir',

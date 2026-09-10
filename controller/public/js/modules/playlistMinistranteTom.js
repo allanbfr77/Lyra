@@ -122,7 +122,8 @@ function htmlGripArrastarPlaylist() {
 }
 
 /**
- * Kebab da linha — abre «Resetar» e «Excluir» num menu ancorado ao próprio ícone.
+ * Kebab da linha — abre «Resetar» (limpa tons e ministrante de toda a playlist) e
+ * «Excluir» (tira esta música) num menu ancorado ao próprio ícone.
  *
  * Substitui os quatro botões que aqui viviam (repor, subir, descer, remover): as setas
  * saíram com a reordenação por arrasto, e as duas ações que restaram não justificam uma
