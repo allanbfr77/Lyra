@@ -1354,6 +1354,61 @@ const rota = (pub, min) => ({
 
 const SEM_RELOGIO = { showClock: false, monitorRelogio: 'ministrante' };
 
+test('«Não exibir» no M2 é só conteúdo: sem moveTop/setBounds/hide/show/recriar', () => {
+  /*
+   * Regressão do projetor na igreja: M2→Não exibir→M2 não pode cair em
+   * `sincronizarTelasComRota` (marcaCoerente). Só marca + payload ocioso/conteúdo.
+   */
+  const { engine, definirRota, state } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  const pub = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(pub);
+  const win = pub.win;
+  win.nativas = [];
+  win.moveTop = () => { win.nativas.push('moveTop'); };
+  win.setBounds = (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); };
+  win.hide = () => { win.visivel = false; win.nativas.push('hide'); };
+  win.show = () => { win.visivel = true; win.nativas.push('show'); };
+  win.showInactive = () => { win.visivel = true; win.nativas.push('showInactive'); };
+  win.close = () => { win.destruida = true; win.nativas.push('close'); };
+  win.setAlwaysOnTop = (...a) => { win.nativas.push(`setAlwaysOnTop:${JSON.stringify(a)}`); };
+  win.setFullScreen = (b) => { win.nativas.push(`setFullScreen:${!!b}`); };
+
+  definirRota(rota(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+
+  const depoisOff = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depoisOff.win, win, 'mesma janela');
+  assert.strictEqual(depoisOff.index, 1, 'mesmo monitor');
+  assert.strictEqual(win.visivel, true);
+  assert.strictEqual(win.destruida, false);
+  assert.strictEqual(depoisOff.semExibicao || win.__lyraSemExibicao, true);
+  assert.deepEqual(win.nativas, [], `ops nativas no Não exibir: ${win.nativas}`);
+  const idle = win.sends.filter((s) => s.canal === 'atualizar').pop();
+  assert.ok(
+    idle && (idle.payload?.telaLimpa === true ||
+      (Array.isArray(idle.payload?.linhas) && idle.payload.linhas.length === 0)),
+    'conteúdo ocioso/preto'
+  );
+
+  win.nativas.length = 0;
+  definirRota(rota(1, 2));
+  state.estadoAtual = { tipo: 'musica', titulo: 'Hino', linhas: ['volta'], telaLimpa: false };
+  engine.garantirTelasAbertasParaProjecao();
+
+  const depoisOn = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depoisOn.win, win);
+  assert.strictEqual(depoisOn.semExibicao || win.__lyraSemExibicao, false);
+  assert.deepEqual(win.nativas, [], `ops nativas ao voltar ao M2: ${win.nativas}`);
+  const conteudo = win.sends
+    .filter((s) => s.canal === 'atualizar')
+    .map((s) => s.payload)
+    .filter((p) => Array.isArray(p?.linhas) && p.linhas.length > 0);
+  assert.ok(conteudo.length > 0, 'conteúdo volta sem resync físico');
+});
+
 test('«Não exibir» mantém a janela viva, visível e no monitor — não a esconde nem a fecha', () => {
   const { engine, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
     clock: SEM_RELOGIO,

@@ -714,7 +714,7 @@ function createProjectionEngine(paths, deps) {
     return displayIndicesMod.loadDisplayIndices(paths.displaySettingsPath);
   }
 
-  function atualizarDisplays(estado) {
+  function atualizarDisplays(estado, opts = {}) {
     const payload = projectionPayloads.clonePayloadSafe(estado);
     const payloadPublico = projectionPayloads.payloadPublicoAtual(payload, state.estadoPublicoOverride);
     /* Live manda o telão ao preto para a transmissão ser o OBS — excepto com contagem
@@ -742,14 +742,14 @@ function createProjectionEngine(paths, deps) {
 }
     });
 
-    ajustarVisibilidadeProjecaoParaRelogio('publico');
+    ajustarVisibilidadeProjecaoParaRelogio('publico', opts);
 
     if (state.windowControl && !state.windowControl.isDestroyed()) {
       state.windowControl.webContents.send('estado_atualizado', payload);
     }
   }
 
-  function atualizarDisplayMinistrante(estado) {
+  function atualizarDisplayMinistrante(estado, opts = {}) {
     let payload;
     const contagemNoMin =
       !!(state.ministranteApresentacaoOverride &&
@@ -806,7 +806,7 @@ function createProjectionEngine(paths, deps) {
 }
       });
 
-    ajustarVisibilidadeProjecaoParaRelogio('ministrante');
+    ajustarVisibilidadeProjecaoParaRelogio('ministrante', opts);
   }
 
   function estadoPublicoParaSocketsOuApi() {
@@ -897,8 +897,13 @@ function createProjectionEngine(paths, deps) {
    * caminho que deixava o desktop e a barra de tarefas à vista: `hide()` no Windows
    * revela o que estiver por baixo no instante seguinte, e esse instante não é
    * controlável. A janela de saída de M2/M3 nunca mais se esconde.
+   *
+   * @param {string} role
+   * @param {{ semReclaimTopo?: boolean }} [opts]
+   *   `semReclaimTopo` — só conteúdo (ex.: «Não exibir»): não chamar `moveTop`/
+   *   SetWindowPos; isso renegocia HDMI em alguns projetores.
    */
-  function ajustarVisibilidadeProjecaoParaRelogio(role) {
+  function ajustarVisibilidadeProjecaoParaRelogio(role, opts = {}) {
     registro.todas()
       .filter((entry) => entry?.role === role)
       .forEach((entry) => {
@@ -918,6 +923,7 @@ function createProjectionEngine(paths, deps) {
           }
         }
       });
+    if (opts.semReclaimTopo) return;
     reafirmarTopoTodasJanelasProjecao();
     atualizarLoopTopoAbsolutoProjecao();
   }
@@ -2745,16 +2751,14 @@ function createProjectionEngine(paths, deps) {
     const routingDual = routingDualOuLegado?.version === 2
       ? routingDualOuLegado
       : displayRoutingMod.normalizarRoteamentoDual(routingDualOuLegado);
-    const { publicoIndex: pubConteudo, ministranteIndex: minConteudo } =
-      resolverIndicesEfetivosProjecao(routingDual);
     /*
      * Duas perguntas diferentes sobre cada canal, e confundi-las era o defeito:
      *
      * - `pub` / `min` — ONDE a janela vive. Com a rota em «Não exibir», o motor mantém na
      *   mesma uma janela no monitor de recurso, para a próxima projeção não custar uma
      *   HWND nova à vista.
-     * - `pubConteudo` / `minConteudo` — SE essa janela leva conteúdo. Vem da rota, e é -1
-     *   em «Não exibir».
+     * - Conteúdo («Não exibir» = índice -1 na rota) aplica-se no caminho rápido via
+     *   `marcarCanaisSemExibicao` + payload ocioso — não neste teste de geometria.
      */
     const pub = resolverIndiceJanelaPersistentePublico(routingDual);
     const min = resolverIndiceJanelaPersistenteMinistrante(routingDual);
@@ -2774,16 +2778,11 @@ function createProjectionEngine(paths, deps) {
       e?.win && !e.win.isDestroyed() && (e.win.isVisible() || ocultoParaRelogio(e.win));
 
     /*
-     * A marca de «Não exibir» está como a rota pede?
-     *
-     * É um teste de ESTADO, não de posição: uma janela no sítio certo mas com a marca
-     * errada mostra o que não devia (ou está preta quando já devia ter voltado). Nos dois
-     * casos há trabalho a fazer, e é o resync que o faz. Sem isto, ligar «Não exibir»
-     * deixava a rota por cumprida (a janela continua visível, no mesmo índice) e a marca
-     * nunca chegava a ser aplicada.
+     * «Não exibir» é só conteúdo (`__lyraSemExibicao` + payload ocioso). A marca NÃO entra
+     * neste teste de geometria: se entrasse, cada M2→Não exibir→M2 falhava aqui e caía em
+     * `sincronizarTelasComRota` → `moveTop`/SetWindowPos no projetor (handshake HDMI).
+     * A marca e o preto aplicam-se no caminho rápido de `garantirTelasAbertasParaProjecao`.
      */
-    const marcaCoerente = (e, semExibicaoDesejada) =>
-      estaSemExibicao(e?.win) === !!semExibicaoDesejada;
 
     /*
      * Uma troca de monitor em curso já vai dar no índice pedido — reiniciar a cadeia por
@@ -2814,7 +2813,6 @@ function createProjectionEngine(paths, deps) {
     } else if (
       pubWins.length !== 1 ||
       !noIndicePedido(pubWins[0], pub) ||
-      !marcaCoerente(pubWins[0], pubConteudo < 0) ||
       (!trocaEmCursoPara(pubWins[0], pub) && !janelaCobreODisplay(pubWins[0], pub, displaysAgora))
     ) {
       return false;
@@ -2824,9 +2822,6 @@ function createProjectionEngine(paths, deps) {
     } else if (
       minWins.length !== 1 ||
       !noIndicePedido(minWins[0], min) ||
-      /* A janela persistente fica no sítio dela, mas preta enquanto a rota disser
-         «Não exibir». É este teste que faz o telão do ministrante seguir o painel. */
-      !marcaCoerente(minWins[0], minConteudo < 0) ||
       (!trocaEmCursoPara(minWins[0], min) && !janelaCobreODisplay(minWins[0], min, displaysAgora))
     ) {
       return false;
@@ -2945,9 +2940,42 @@ function createProjectionEngine(paths, deps) {
     if (telasAbertasCorrespondemRota(routingDual)) {
       /* Caminho rápido: só conta. Ver `garantirRapidas`. */
       garantirRapidas += 1;
-      /* Antes de qualquer envio: as janelas que a rota deixou em «Não exibir» têm de estar
-         marcadas, senão os `atualizar*` logo abaixo mandam-lhes conteúdo. */
-      marcarCanaisSemExibicao({ publico: pubConteudo < 0, ministrante: minConteudo < 0 });
+      const desejadoPub = pubConteudo < 0;
+      const desejadoMin = minConteudo < 0;
+      /*
+       * Mudança só de «Não exibir» (marca/conteúdo): a geometria já cumpre a rota.
+       * Reaplicar marca + payload ocioso/conteúdo SEM `moveTop`/resync físico — senão o
+       * projetor renegocia HDMI (OSD «Computador»).
+       */
+      const mudouMarcaSemExibicao =
+        obterEntradasPorRole('publico').some(
+          (e) => e?.win && !e.win.isDestroyed() && estaSemExibicao(e.win) !== desejadoPub
+        ) ||
+        obterEntradasPorRole('ministrante').some(
+          (e) => e?.win && !e.win.isDestroyed() && estaSemExibicao(e.win) !== desejadoMin
+        );
+      marcarCanaisSemExibicao({ publico: desejadoPub, ministrante: desejadoMin });
+      if (mudouMarcaSemExibicao) {
+        const soConteudo = { semReclaimTopo: true };
+        /* Com projeção activa no estado, ainda assim reenvia: `estaSemExibicao` desvia
+           para ocioso nas janelas marcadas, e devolve o conteúdo ao desmarcar. */
+        if (hayProjecaoAtivaPublica()) atualizarDisplays(state.estadoAtual, soConteudo);
+        else if (obterEntradasPorRole('publico').length) atualizarDisplays(estadoOciosoPublico(), soConteudo);
+        if (hayProjecaoAtivaMinistrante()) {
+          atualizarDisplayMinistrante(state.estadoMinistrante, soConteudo);
+        } else if (obterEntradasPorRole('ministrante').length) {
+          atualizarDisplayMinistrante(estadoOciosoMinistrante(), soConteudo);
+        }
+        const pubOciosoMarca = estadoOciosoPublico();
+        registro.todas()
+          .filter((entry) => entry?.role === 'escudo' && entry?.win && !entry.win.isDestroyed())
+          .forEach((entry) => {
+            try { entry.win.webContents.send('atualizar', pubOciosoMarca); } catch (_) {
+  // intencional — erro ignorado
+}
+          });
+        return;
+      }
       if (!hayProjecaoAtivaPublica() && obterEntradasPorRole('publico').length) {
         atualizarDisplays(estadoOciosoPublico());
       }

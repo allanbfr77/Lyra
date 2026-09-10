@@ -10891,8 +10891,16 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   lab.textContent = texto;
   lab.dataset.dica = texto;
 
+  /* Rótulo da coluna do tom, na mesma fileira do nome do tema (ex.: ABERTURA),
+     alinhado por cima dos seletores. `aria-hidden`: o <select> já tem aria-label. */
+  const tonsLab = document.createElement('span');
+  tonsLab.className = 'playlist-tema-head-tons';
+  tonsLab.textContent = 'TONS';
+  tonsLab.setAttribute('aria-hidden', 'true');
+
   row.appendChild(btnExpand);
   row.appendChild(lab);
+  row.appendChild(tonsLab);
 
   if (idxMarcador != null && idxMarcador !== undefined) {
     // O ✕ vive numa zona própria no canto direito: é o hover dela — e não o do card

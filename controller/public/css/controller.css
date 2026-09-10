@@ -90,7 +90,7 @@
   --banco-card-inset-x: 4px;
   --banco-card-raio: 6px;
 
-  /* ── Colunas da linha da playlist (partilhadas com o cabeçalho «TONS») ── */
+  /* ── Colunas da linha da playlist (partilhadas com o rótulo «TONS» do card) ── */
   --pl-col-tom-w: 84px;
   --pl-col-btns-w: 112px;
   --pl-cols-gap: 6px;
@@ -1710,42 +1710,6 @@ body.app-mod-slides .playlist-tema-wrap {
   position: relative;
 }
 
-/*
-  Rótulo da coluna do tom, na mesma linha do título «PLAYLIST».
-
-  Fica em `position: absolute` porque o cabeçalho é um flex com
-  `space-between` (título à esquerda, botão de copiar à direita): em fluxo
-  normal não havia como o prender à coluna certa. O recuo à direita repete,
-  da direita para a esquerda, a geometria da linha da playlist —
-    8px  padding direito da .playlist-list
-  +  1px  borda direita da .playlist-row
-  + 10px  padding direito da .playlist-row
-  + coluna dos botões + gap da grelha (variáveis, partilhadas com a linha)
-  — e a largura é a mesma da coluna do tom, com o texto centrado por cima do
-  seletor. `top`/`bottom` repetem o padding vertical de .panel-section-head
-  (8px no topo) para o texto ficar na mesma linha de base do título.
-*/
-.playlist-lista-head-tons {
-  position: absolute;
-  top: 8px;
-  bottom: 0;
-  right: calc(19px + var(--pl-col-btns-w) + var(--pl-cols-gap));
-  width: var(--pl-col-tom-w);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Só rótulo: nunca rouba o clique do botão de copiar nem da linha. */
-  pointer-events: none;
-  color: var(--text-dim);
-  opacity: 0.85;
-}
-
-/* Modo slides não tem coluna de tom (ver `.pl-col-tom`), logo não tem rótulo. */
-body.app-mod-slides .playlist-lista-head-tons {
-  display: none !important;
-}
-
-
 .culto-select {
   width: 100%;
   background: var(--surface2);
@@ -2846,11 +2810,43 @@ body.app-mod-slides .playlist-tema-head-row {
   align-items: center;
   gap: 6px;
   margin: 0;
-  /* Recuo à direita reserva a coluna do ✕ (18px + 6px de folga). */
-  padding: 6px 30px 6px 8px;
+  /*
+    Recuo à direita: mesma geometria da linha da música (padding 10px + botões +
+    gap + coluna do tom), para o nome do tema não invadir o rótulo «TONS» nem a
+    coluna dos seletores. O ✕ continua absoluto na faixa direita.
+  */
+  padding: 6px calc(10px + var(--pl-col-btns-w) + var(--pl-cols-gap) + var(--pl-col-tom-w)) 6px 8px;
   border: 0;
   border-radius: 9px 9px 0 0;
   background: transparent;
+}
+
+/*
+  Rótulo «TONS» dentro do card, na mesma fileira do nome do tema (ABERTURA, …),
+  centrado por cima da coluna dos seletores. `right` espelha o padding direito
+  da .playlist-row (10px) + botões + gap da grelha.
+*/
+.playlist-tema-head-tons {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(10px + var(--pl-col-btns-w) + var(--pl-cols-gap));
+  width: var(--pl-col-tom-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+/* Modo slides não tem coluna de tom (ver `.pl-col-tom`), logo não tem rótulo. */
+body.app-mod-slides .playlist-tema-head-tons {
+  display: none !important;
 }
 
 /* Recolhida, o cabeçalho é o cartão inteiro e arredonda dos dois lados. */
