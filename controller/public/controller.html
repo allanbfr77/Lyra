@@ -489,15 +489,39 @@
       </div>
     </div>
    <div class="panel-section-head" id="playlist-panel-head">
-  <span class="playlist-panel-head-titulo">CULTO</span>
-  <div id="playlist-head-actions">
-    <button type="button" id="playlist-sync-lyra-btn" class="btn sm" style="background:var(--color-amarelo,#c8a84b);color:#000;font-weight:700;min-width:1.8rem;" title="Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra" onclick="onSincronizarPlaylistLyraClick()">L</button>
-    <button type="button" id="playlist-importar-btn" class="btn sm" title="Importar playlist a partir de um código">I</button>
-    <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
-    <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
+  <div id="playlist-head-actions" class="playlist-lics-grid">
+    <div class="playlist-lics-col">
+      <button type="button" id="playlist-sync-lyra-btn" class="btn sm" title="Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra" onclick="onSincronizarPlaylistLyraClick()">L</button>
+      <span class="playlist-lics-legenda-item">
+        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--l" aria-hidden="true"></span>
+        Sinc. com Lyra db
+      </span>
+    </div>
+    <div class="playlist-lics-col">
+      <button type="button" id="playlist-importar-btn" class="btn sm" title="Importar playlist a partir de um código">I</button>
+      <span class="playlist-lics-legenda-item">
+        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--i" aria-hidden="true"></span>
+        Importar código
+      </span>
+    </div>
+    <div class="playlist-lics-col">
+      <button type="button" id="playlist-compartilhar-btn" class="btn sm" title="Compartilhar playlist — gera código para importar em outro dispositivo">C</button>
+      <span class="playlist-lics-legenda-item">
+        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--c" aria-hidden="true"></span>
+        Compartilhar playlist
+      </span>
+    </div>
+    <div class="playlist-lics-col">
+      <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
+      <span class="playlist-lics-legenda-item">
+        <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--s" aria-hidden="true"></span>
+        Sinc. com outro PC
+      </span>
+    </div>
   </div>
 </div>
     <div class="culto-select-wrap">
+      <span class="playlist-panel-head-titulo">CULTO</span>
       <div class="culto-dd" id="culto-dd">
         <button type="button" class="culto-dd-btn" id="culto-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-dd-menu">
           <span class="culto-dd-col-data" id="culto-dd-data">--/--</span>

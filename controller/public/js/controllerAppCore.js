@@ -352,26 +352,27 @@ function executarComTransicaoUi(fn) {
 function aplicarRotulosEPlaylistModoSlides() {
   const modo = ehModoSlidesOperador();
   const headPl = document.getElementById('playlist-panel-head');
-if (headPl) {
+  const cultoWrap = document.querySelector('.culto-select-wrap');
   /*
     Título em elemento próprio (não num nó de texto solto): na coluna estreita do modo
-    slides o texto corrido quebrava a meio. Agora é só «PLAYLIST», numa linha, com os
-    botões do cabeçalho intactos.
+    slides o texto corrido quebrava a meio. Agora é só «CULTO», numa linha — vive na
+    secção de datas, acima do seletor; os botões L/I/C/S ficam no cabeçalho.
   */
-  let titulo = headPl.querySelector('.playlist-panel-head-titulo');
-  if (!titulo) {
+  let titulo = document.querySelector('.playlist-panel-head-titulo');
+  if (!titulo && cultoWrap) {
     titulo = document.createElement('span');
     titulo.className = 'playlist-panel-head-titulo';
-    headPl.insertBefore(titulo, headPl.firstChild);
+    cultoWrap.insertBefore(titulo, cultoWrap.firstChild);
   }
-  // Neutraliza o nó de texto original do HTML («CULTO»), se ainda existir.
-  headPl.childNodes.forEach((n) => {
-    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent = '';
-  });
+  if (headPl) {
+    // Neutraliza nó de texto residual no cabeçalho, se ainda existir.
+    headPl.childNodes.forEach((n) => {
+      if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent = '';
+    });
+  }
   /* «CULTO» nos dois modos: a lista tem cabeçalho próprio («PLAYLIST», logo acima dela),
      que é também onde vive o botão de copiar as músicas. */
-  titulo.textContent = 'CULTO';
-}
+  if (titulo) titulo.textContent = 'CULTO';
   /*
     Rótulo da barra da faixa: no modo slides ela identifica o que está carregado
     («MÚSICA ATUAL › Clamo Jesus»); nos outros modos continua a nomear a secção
@@ -381,9 +382,7 @@ if (headPl) {
   const sepFaixa = document.querySelector('.slides-dock-bar-left .slides-dock-sep');
   if (marcaFaixa) marcaFaixa.textContent = modo ? 'Música atual' : 'Slides';
   if (sepFaixa) sepFaixa.textContent = modo ? '›' : '•';
-  const playlistAcoes =
-    document.getElementById('playlist-compartilhar-btn')?.parentElement
-    || document.getElementById('playlist-importar-btn')?.parentElement;
+  const playlistAcoes = document.getElementById('playlist-panel-head');
   if (playlistAcoes) playlistAcoes.hidden = modo;
   const t0 = document.getElementById('preview-titulo-tela-0');
   const t1 = document.getElementById('preview-titulo-tela-1');
@@ -4365,7 +4364,8 @@ async function alternarModoBiblia() {
   /* Slide → Bíblia: só troca de aba. A projeção de slides, se existir, permanece. */
   const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
   if (!ativo) {
-    const preservarNav = hayProjecaoBibliaAtivaParaPreservarEstado() && !!bibliaSelecionadoLivro;
+    /* Estado da sessão (livro/cap/versículo) sobrevive à saída do modo — inclusive sem projeção. */
+    const preservarNav = !!bibliaSelecionadoLivro;
     /* Sem estado a preservar: abre sempre com os 66 livros e painel vazio. */
     if (!preservarNav) {
       bibliaFiltroTestamento = null;
@@ -20524,9 +20524,8 @@ function bibliaReporEstadoBuscaRapida() {
 }
 
 /**
- * Limpa navegação local (livro/capítulo/versículos/filtro/busca). Usado ao sair
- * do modo Bíblia. A tradução da sessão (`bibliaTraducaoSessao`) não se toca —
- * é a única preferência que sobrevive entre visitas ao modo.
+ * Limpa navegação local (livro/capítulo/versículos/filtro/busca).
+ * A tradução da sessão (`bibliaTraducaoSessao`) não se toca.
  */
 function bibliaLimparEstadoOperador() {
   bibliaLimparProjecaoOperador();
@@ -20550,7 +20549,7 @@ function bibliaLimparEstadoOperador() {
  * Encerra a camada Bíblia no servidor.
  * @param {{ limparNavegacao?: boolean }} [opts]
  *   `limparNavegacao: false` — só tira a projeção; livro/capítulo ficam activos.
- *   Por omissão limpa tudo (sair do modo).
+ *   Por omissão limpa também a navegação local.
  */
 function encerrarCamadaBibliaNoControlador(opts = {}) {
   if (opts.limparNavegacao === false) {
@@ -20597,20 +20596,14 @@ function hayProjecaoBibliaAtivaParaPreservarEstado() {
 
 /**
  * Ao sair do modo Bíblia.
- * Sem projeção: limpa livro/capítulo/versículo (comportamento clássico).
- * Com projeção activa: preserva a navegação para retomar ao voltar.
+ * Preserva livro/capítulo/versículo e a navegação para retomar ao voltar
+ * (com ou sem projeção activa). A projeção, se existir, não é encerrada aqui.
+ * Sem projeção: repõe só a cfg de slides do preview (Home / outros modos).
  */
 function bibliaSairModo() {
-  if (hayProjecaoBibliaAtivaParaPreservarEstado()) {
-    try {
-      atualizarPreviewOperador();
-    } catch (_) {
-      // intencional — erro ignorado
-    }
-    return;
+  if (!hayProjecaoBibliaAtivaParaPreservarEstado()) {
+    slidesAplicarCfgArmazenada();
   }
-  encerrarCamadaBibliaNoControlador();
-  slidesAplicarCfgArmazenada();
   try {
     atualizarPreviewOperador();
   } catch (_) {
