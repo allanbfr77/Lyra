@@ -125,20 +125,37 @@ describe('Playlist — gestão de músicas do culto', () => {
       .should('contain.text', 'Música Teste B');
   });
 
-  // ── Botões de mover desabilitados nas extremidades ────────────────────────
-  it('botão "subir" da primeira música está desabilitado', () => {
-    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-subir')
-      .should('be.disabled');
+  // ── Menu kebab da linha ──────────────────────────────────────
+  /*
+    O ícone existe sempre no DOM (só muda de opacidade), e é disso que depende a coluna
+    do tom não saltar entre o repouso e o hover — daí o teste olhar para a existência do
+    botão e não para a visibilidade dele.
+  */
+  it('cada música tem alça de arrasto e kebab de ações sempre no DOM', () => {
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-grip').should('exist');
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab').should('exist');
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab')
+      .should('have.attr', 'aria-expanded', 'false');
   });
 
-  it('botão "descer" da última música está desabilitado', () => {
-    cy.get('#playlist-list .playlist-row[data-pl-idx="1"] .pl-btn-descer')
-      .should('be.disabled');
+  it('kebab abre o menu com «Resetar» e «Excluir»', () => {
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab')
+      .click({ force: true });
+    cy.get('#playlist-linha-ctx-menu').should('not.have.attr', 'hidden');
+    cy.get('#playlist-linha-ctx-menu .menu-flutuante-item')
+      .should('have.length', 2)
+      .then(($itens) => {
+        expect($itens.eq(0)).to.contain.text('Resetar');
+        expect($itens.eq(1)).to.contain.text('Excluir');
+      });
   });
 
-  // ── Remover música ────────────────────────────────────────────────────────
-  it('clique em remover exclui a primeira música da playlist', () => {
-    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-remover')
+  // ── Remover música ─────────────────────────────────────────
+  it('«Excluir» no menu do kebab remove a primeira música da playlist', () => {
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab')
+      .click({ force: true });
+    cy.get('#playlist-linha-ctx-menu .menu-flutuante-item')
+      .contains('Excluir')
       .click();
     cy.get('#playlist-list .playlist-row[data-pl-idx]')
       .should('have.length', 1);
@@ -146,21 +163,46 @@ describe('Playlist — gestão de músicas do culto', () => {
       .should('contain.text', 'Música Teste B');
   });
 
-  // ── Reordenar músicas ─────────────────────────────────────────────────────
-  it('botão "descer" da primeira música troca a sua posição com a segunda', () => {
-    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-descer')
-      .should('not.be.disabled')
+  // ── Resetar a linha ──────────────────────────────────────
+  /* Sem ministrante escolhido no culto, o padrão desta música é o tom em branco. */
+  it('«Resetar» no menu do kebab limpa o tom daquela música', () => {
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-sel-tom')
+      .select('E')
+      .should('have.value', 'E');
+
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-btn-kebab')
+      .click({ force: true });
+    cy.get('#playlist-linha-ctx-menu .menu-flutuante-item')
+      .contains('Resetar')
       .click();
-    cy.get('#playlist-list .playlist-row[data-pl-idx="0"]')
-      .should('contain.text', 'Música Teste B');
-    cy.get('#playlist-list .playlist-row[data-pl-idx="1"]')
-      .should('contain.text', 'Música Teste A');
+
+    cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-sel-tom')
+      .should('have.value', '');
+    /* A música ao lado não é tocada: «Resetar» é da linha, não da playlist. */
+    cy.get('#playlist-list .playlist-row[data-pl-idx="1"]').should('exist');
   });
 
-  it('botão "subir" da segunda música troca a sua posição com a primeira', () => {
-    cy.get('#playlist-list .playlist-row[data-pl-idx="1"] .pl-btn-subir')
-      .should('not.be.disabled')
-      .click();
+  // ── Reordenar músicas ───────────────────────────────────
+  /*
+    As setas ↑↓ saíram: a ordem muda arrastando a alça. O `dataTransfer` é montado à mão
+    porque o Cypress não gera eventos de arrasto nativos — o que se testa é a reacção do
+    painel aos eventos, que é onde vive a lógica de reordenação.
+  */
+  it('arrastar a primeira música para baixo da segunda troca a ordem', () => {
+    cy.window().then((win) => {
+      const dt = new win.DataTransfer();
+      cy.get('#playlist-list .playlist-row[data-pl-idx="0"] .pl-grip')
+        .trigger('dragstart', { dataTransfer: dt });
+      cy.get('#playlist-list .playlist-row[data-pl-idx="1"]').then(($alvo) => {
+        const r = $alvo[0].getBoundingClientRect();
+        /* Metade de baixo da linha 2 = entrar depois dela. */
+        const clientY = r.top + r.height * 0.75;
+        cy.wrap($alvo)
+          .trigger('dragover', { dataTransfer: dt, clientY })
+          .trigger('drop', { dataTransfer: dt, clientY });
+      });
+    });
+
     cy.get('#playlist-list .playlist-row[data-pl-idx="0"]')
       .should('contain.text', 'Música Teste B');
     cy.get('#playlist-list .playlist-row[data-pl-idx="1"]')

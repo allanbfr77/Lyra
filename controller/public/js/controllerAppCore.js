@@ -388,6 +388,9 @@ function aplicarRotulosEPlaylistModoSlides() {
   const t1 = document.getElementById('preview-titulo-tela-1');
   if (t0) t0.textContent = 'TELÃO / PÚBLICO / IGREJA';
   if (t1) t1.textContent = 'TV / MINISTRANTE / RETORNO';
+  /* A troca de modo muda a largura (e o corpo base) do botão do culto sem passar por um
+     `resize`: a descrição tem de ser remedida aqui também. */
+  ajustarCorpoDescricaoCulto();
 }
 
 /**
@@ -5383,6 +5386,37 @@ function resolverCultoInicialPorAgenda() {
   return resolverProximoCultoPorHorarioBrasilia({ listarCultosDisponiveis });
 }
 
+/**
+ * Encolhe o corpo da descrição do culto até «DOMINGO - MANHÃ» caber inteiro no botão.
+ *
+ * A informação é curta e fácil de ler mesmo um ponto ou dois abaixo do resto do botão;
+ * cortada a meio («DOMINGO - MAN…») deixa de responder à pergunta que o operador faz ao
+ * olhar para ali, que é «de manhã ou à noite?». Entre encolher e cortar, encolhe.
+ *
+ * O ponto de partida é o corpo herdado do botão, e não um número escrito aqui: o modo
+ * slides já o define mais pequeno, e fixá-lo levaria esse ajuste à frente.
+ *
+ * `scrollWidth > clientWidth` é o mesmo critério com que o browser decide pôr as
+ * reticências — o laço pára exactamente quando elas deixariam de aparecer.
+ */
+const CULTO_DESC_CORPO_MIN_PX = 11.5;
+
+function ajustarCorpoDescricaoCulto() {
+  const el = document.getElementById('culto-dd-desc');
+  const btn = document.getElementById('culto-dd-btn');
+  if (!el || !btn) return;
+  const base = parseFloat(getComputedStyle(btn).fontSize) || 15;
+  let px = base;
+  el.style.fontSize = px + 'px';
+  /* Largura zero: botão ainda por desenhar (arranque, modo escondido). Sem medida fiável
+     fica no corpo herdado — a próxima passagem, já com o painel no ecrã, resolve. */
+  if (!el.clientWidth) return;
+  while (px > CULTO_DESC_CORPO_MIN_PX && el.scrollWidth > el.clientWidth) {
+    px -= 0.5;
+    el.style.fontSize = px + 'px';
+  }
+}
+
 function setCultoSelecionadoNaUi(value) {
   const hid = document.getElementById('culto-sel');
   const dataEl = document.getElementById('culto-dd-data');
@@ -5400,6 +5434,7 @@ function setCultoSelecionadoNaUi(value) {
     dataEl.textContent = p.data;
     descEl.textContent = p.desc;
   }
+  ajustarCorpoDescricaoCulto();
   if (menu) {
     menu.querySelectorAll('.culto-dd-item').forEach((b) => {
       b.setAttribute('aria-selected', b.dataset.value === v ? 'true' : 'false');
@@ -5412,6 +5447,9 @@ function setupCultoDropdown() {
   const btn = document.getElementById('culto-dd-btn');
   const menu = document.getElementById('culto-dd-menu');
   if (!wrap || !btn || !menu) return;
+  /* A coluna da direita estica e encolhe com a janela: o corpo que cabia numa largura
+     pode não caber noutra, e vice-versa — por isso a medida repete-se a cada redimensão. */
+  window.addEventListener('resize', ajustarCorpoDescricaoCulto);
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const abrir = menu.hidden;
@@ -9814,38 +9852,23 @@ function garantirMusicaAtivaVisivelNaPlaylist() {
 }
 
 /**
- * Botões ↑↓✕ (+ limpar min/tom no Home) e o select de Tom da linha.
+ * Alça de arrasto, kebab de ações e o select de Tom da linha.
  * O select não dispara seleção/projeção da música (stopPropagation).
  */
 function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
-  const bLimpar = row.querySelector('.pl-btn-limpar-mestre-min-tom');
-  const bUp = row.querySelector('.pl-btn-subir');
-  const bDn = row.querySelector('.pl-btn-descer');
-  const bRm = row.querySelector('.pl-btn-remover');
-  if (bLimpar) {
-    bLimpar.onclick = (e) => {
+  const btnKebab = row.querySelector('.pl-btn-kebab');
+  if (btnKebab) {
+    btnKebab.onclick = (e) => {
       e.stopPropagation();
-      limparMinistranteTomDeTodaPlaylist();
+      e.preventDefault();
+      abrirMenuAcoesLinhaPlaylist(btnKebab, row, idxPl);
     };
+    /* Sem isto o `mousedown` chegava à linha e a música era seleccionada por baixo do
+       menu que se estava a abrir. */
+    btnKebab.addEventListener('mousedown', (e) => e.stopPropagation());
   }
-  if (bUp) {
-    bUp.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idxPl, -1);
-    };
-  }
-  if (bDn) {
-    bDn.onclick = (e) => {
-      e.stopPropagation();
-      movePlItem(idxPl, 1);
-    };
-  }
-  if (bRm) {
-    bRm.onclick = (e) => {
-      e.stopPropagation();
-      removePlItem(idxPl);
-    };
-  }
+
+  configurarDragReordenarLinhaPlaylist(row, idxPl);
 
   const selTom = row.querySelector('.pl-sel-tom');
   if (selTom) {
@@ -9858,7 +9881,13 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
   }
 
   row.addEventListener('click', (ev) => {
-    if (ev.target.closest('.playlist-btns') || ev.target.closest('.pl-sel')) return;
+    if (
+      ev.target.closest('.playlist-btns') ||
+      ev.target.closest('.pl-sel') ||
+      ev.target.closest('.pl-grip')
+    ) {
+      return;
+    }
     clearTimeout(playlistRowClickTimer);
     const idNum = Number(item.id);
     playlistRowClickTimer = setTimeout(() => {
@@ -9877,7 +9906,13 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
     }, 300);
   });
   row.addEventListener('dblclick', (ev) => {
-    if (ev.target.closest('.pl-sel') || ev.target.closest('.playlist-btns')) return;
+    if (
+      ev.target.closest('.pl-sel') ||
+      ev.target.closest('.playlist-btns') ||
+      ev.target.closest('.pl-grip')
+    ) {
+      return;
+    }
     ev.preventDefault();
     ev.stopPropagation();
     clearTimeout(playlistRowClickTimer);
@@ -9886,22 +9921,46 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
   });
 }
 
-/** Música 1 — limpa ministrante e tom de todas as músicas desta playlist (não remove músicas). */
-function limparMinistranteTomDeTodaPlaylist() {
+/**
+ * «Resetar» do menu da linha — devolve UMA música ao padrão do culto.
+ *
+ * Padrão não é sinónimo de vazio: enquanto o culto tiver ministrante escolhido, o estado
+ * de origem de qualquer música é «ministrante do culto + tom que o cadastro dele guarda
+ * para esta música» — exactamente o que ela recebe ao entrar na playlist. Só num culto
+ * sem ministrante é que repor significa deixar os dois campos em branco.
+ *
+ * Substituiu o antigo botão que limpava a playlist INTEIRA a partir da primeira linha:
+ * vivia sozinho numa linha onde ninguém o procurava, e era destrutivo sem aviso. O que
+ * cada linha agora oferece diz respeito só a ela.
+ *
+ * Banco indisponível: o tom fica em branco em vez de manter o que lá estava — quem pediu
+ * para repor não fica com o valor que queria descartar.
+ */
+async function resetarLinhaPlaylist(idxPl) {
   if (!cultoId) return;
   const pl = getPlaylist(cultoId);
-  if (!Array.isArray(pl) || !pl.length) return;
-  let mudou = false;
-  for (const it of pl) {
-    if (!it || ehMarcadorTemaPlaylist(it)) continue;
-    if (it.ministranteId != null || it.tom) {
-      it.ministranteId = null;
-      it.tom = '';
-      mudou = true;
+  const item = pl[idxPl];
+  if (!item || ehMarcadorTemaPlaylist(item)) return;
+
+  const padrao = getMinistrantePadraoCulto(cultoId);
+  item.ministranteId = padrao || null;
+  item.tom = '';
+  if (padrao) {
+    try {
+      item.tom = normalizarTomPlaylist(
+        await buscarTomMemoria(
+          getControllerApiBase(),
+          padrao,
+          Number(item.id),
+          fonteBancoItemPlaylist(item),
+          item.titulo
+        )
+      );
+    } catch (_) {
+      // intencional — sem banco, o tom fica por preencher
     }
   }
-  if (!mudou) return;
-  setMinistrantePadraoCulto(cultoId, null);
+
   savePlaylists();
   renderPlaylist();
   refrescarAberturaM3SeMusicaAtivaNaPlaylist();
@@ -10061,90 +10120,14 @@ function temaDoBlocoNaPlaylist(pl, idx) {
 }
 
 /**
- * O que a seta ↑↓ faz nesta linha, nesta direção.
- *
- * Dentro do bloco, troca com a linha vizinha, como sempre fez. Na fronteira do tema, onde
- * antes ficava cinzenta, passa a levar a música para o tema ao lado — para cima entra no
- * fim do tema anterior, para baixo no início do seguinte. É o mesmo gesto: a música anda
- * um lugar, e a fronteira do tema deixou de ser uma parede.
- *
- * `nada` fica para o topo e o fim da playlist, os únicos sítios onde realmente não há
- * para onde ir.
- *
- * @param {any[]} pl
- * @param {number} idx
- * @param {-1|1} dir
- * @returns {{ tipo: 'nada' } | { tipo: 'trocar' } | { tipo: 'tema', tema: string }}
- */
-function acaoSetaMoverPlaylist(pl, idx, dir) {
-  const NADA = { tipo: 'nada' };
-  if (!Array.isArray(pl)) return NADA;
-  const item = pl[idx];
-  if (!item || ehMarcadorTemaPlaylist(item)) return NADA;
-  const j = idx + dir;
-  if (j < 0 || j >= pl.length) return NADA;
-  const vizinho = pl[j];
-
-  if (ehMarcadorTemaPlaylist(vizinho)) {
-    /* A subir, o destino é o bloco que acaba onde este cabeçalho começa. Se o cabeçalho é
-       a primeira linha da playlist, não há bloco acima dele — e uma música solta antes do
-       primeiro cabeçalho ganharia um segundo cabeçalho com o mesmo nome. */
-    if (dir < 0 && j === 0) return NADA;
-    const tema = dir > 0
-      ? normalizarTemaPlaylist(vizinho.tema) || ''
-      : temaDoBlocoNaPlaylist(pl, j);
-    return { tipo: 'tema', tema };
-  }
-
-  /* Playlists antigas não têm marcadores: ali a fronteira é a mudança de `tema` entre duas
-     linhas seguidas, e é a etiqueta — não a posição — que muda a música de bloco. */
-  if (!playlistPossuiMarcadoresTema(pl)) {
-    const temaVizinho = normalizarTemaPlaylist(vizinho.tema) || '';
-    if (temaVizinho !== (normalizarTemaPlaylist(item.tema) || '')) {
-      return { tipo: 'tema', tema: temaVizinho };
-    }
-  }
-  return { tipo: 'trocar' };
-}
-
-/**
- * Estado dos botões ↑↓ da linha `idx`.
- *
- * `temaAcima`/`temaAbaixo` vêm preenchidos só quando a seta atravessa a fronteira do tema
- * — é o que deixa o botão dizer «Mover para o tema «OFERTÓRIO»» em vez de «Descer uma
- * posição», que seria verdade mas não a parte que interessa.
- */
-function estadoBotoesMoverPlaylist(pl, idx) {
-  const cima = acaoSetaMoverPlaylist(pl, idx, -1);
-  const baixo = acaoSetaMoverPlaylist(pl, idx, 1);
-  return {
-    podeSubir: cima.tipo !== 'nada',
-    podeDescer: baixo.tipo !== 'nada',
-    temaAcima: cima.tipo === 'tema' ? cima.tema || 'Sem tema' : '',
-    temaAbaixo: baixo.tipo === 'tema' ? baixo.tema || 'Sem tema' : '',
-  };
-}
-
-/**
  * HTML da linha da playlist: Home com o tom; Slide compacto como antes.
  * O ministrante é do culto inteiro e vive no seletor único acima da lista.
- * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
-function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao, opts = {}) {
-  const mover = {
-    podeSubir: opts.podeSubir !== false,
-    podeDescer: opts.podeDescer !== false,
-    temaAcima: opts.temaAcima || '',
-    temaAbaixo: opts.temaAbaixo || '',
-  };
+function htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao) {
   if (ehModoSlidesOperador()) {
-    return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml, mover);
+    return htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersao, escapeHtml);
   }
-  return htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersao, escapeHtml, {
-    /* Só na música 1: limpar mestre (toda a playlist). */
-    mostrarLimparMestre: Number(songNum) === 1,
-    ...mover,
-  });
+  return htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersao, escapeHtml);
 }
 
 async function garantirMinistrantesCarregados() {
@@ -10495,12 +10478,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
       playlistItemDestacadoNaUi(item)
     );
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
-    row.innerHTML = htmlLinhaPlaylistModoAtual(
-      item,
-      songNum,
-      rotuloVersao,
-      estadoBotoesMoverPlaylist(pl, idxPl)
-    );
+    row.innerHTML = htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao);
     ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl);
     songAppendParent.appendChild(row);
   };
@@ -10661,12 +10639,7 @@ function renderPlaylistPainel() {
       el,
       playlistItemDestacadoNaUi(item)
     );
-    row.innerHTML = htmlLinhaPlaylistModoAtual(
-      item,
-      nLista,
-      rotuloVersao,
-      estadoBotoesMoverPlaylist(pl, idx)
-    );
+    row.innerHTML = htmlLinhaPlaylistModoAtual(item, nLista, rotuloVersao);
     ligarBotoesESeletoresLinhaPlaylist(row, item, idx);
     songAppendParent.appendChild(row);
   }
@@ -10783,85 +10756,185 @@ function animarReordenacaoPlaylist(posAntes, novoParaAntigo, idxMovido, idxDeslo
 }
 
 /**
- * Devolve o foco ao mesmo botão, agora na nova linha.
+ * Move uma música para outro sítio da playlist (arrasto).
  *
- * O `renderPlaylist()` deita fora o botão que foi clicado, e com ele o foco e o hover —
- * quem quisesse subir uma música três lugares tinha de voltar a apontar a cada clique.
- * Se o botão do sentido pedido ficou desactivado (chegou ao topo/fim), o foco vai para o
- * do sentido oposto, que continua a fazer sentido.
+ * Substitui as setas ↑↓ que viviam em cada linha. Elas resolviam bem «uma posição acima»
+ * e mal tudo o resto: pôr a última música em terceiro lugar eram seis cliques, cada um
+ * com um render pelo meio. O arrasto diz o destino de uma vez.
  *
- * @param {number} idxDestino
- * @param {-1|1} dir
+ * `pos` é o lado da linha de destino por onde a música entra — «antes» é a metade de
+ * cima, «depois» a de baixo (ver `posicaoDropMusicaPlaylist`).
+ *
+ * A etiqueta de tema acompanha o bloco onde a música cai: é o que faz a fronteira entre
+ * temas ser atravessável pelo mesmo gesto, sem um comando próprio para «mudar de tema».
+ *
+ * @param {string} cid culto
+ * @param {number} fromIdx índice na playlist da música arrastada
+ * @param {number} toIdx índice da linha sobre a qual se largou
+ * @param {'antes'|'depois'} pos
+ * @returns {number|null} índice final da música, ou `null` se nada mudou
  */
-function restaurarFocoBotaoMoverPlaylist(idxDestino, dir) {
-  const lista = document.getElementById('playlist-list');
-  if (!lista) return;
-  const row = lista.querySelector(`.playlist-row[data-pl-idx="${idxDestino}"]`);
-  if (!row) return;
-  const preferido = dir < 0 ? '.pl-btn-subir' : '.pl-btn-descer';
-  const alternativo = dir < 0 ? '.pl-btn-descer' : '.pl-btn-subir';
-  const alvo =
-    row.querySelector(`${preferido}:not(:disabled)`) ||
-    row.querySelector(`${alternativo}:not(:disabled)`);
-  if (alvo) alvo.focus({ preventScroll: true });
+function reordenarMusicaNaPlaylist(cid, fromIdx, toIdx, pos) {
+  const pl = getPlaylist(cid);
+  if (!Array.isArray(pl)) return null;
+  const item = pl[fromIdx];
+  const alvo = pl[toIdx];
+  if (!item || ehMarcadorTemaPlaylist(item)) return null;
+  if (!alvo || ehMarcadorTemaPlaylist(alvo)) return null;
+
+  /* O destino é medido na lista COM a música ainda lá dentro; tirá-la primeiro encurta
+     tudo o que vem depois dela em um, e é essa a correção do `fromIdx < destino`. */
+  let destino = pos === 'depois' ? toIdx + 1 : toIdx;
+  if (fromIdx < destino) destino--;
+  if (destino === fromIdx) return null;
+
+  pl.splice(fromIdx, 1);
+  pl.splice(destino, 0, item);
+  item.tema = temaDoBlocoDeDestinoNaPlaylist(pl, destino);
+  return destino;
 }
 
-function movePlItem(idx, dir) {
-  const pl = getPlaylist(cultoId);
-  const acao = acaoSetaMoverPlaylist(pl, idx, dir);
-  if (acao.tipo === 'nada') return;
-  const j = idx + dir;
+/**
+ * Tema que a música passa a ter depois de largada em `idx`.
+ *
+ * Com marcadores, quem manda é o cabeçalho acima dela — o mesmo critério que a lista usa
+ * para a desenhar. Sem marcadores não há cabeçalho: o bloco é a etiqueta das músicas
+ * seguidas, por isso a etiqueta vem do vizinho de cima e, à falta dele (largada no topo),
+ * do de baixo.
+ */
+function temaDoBlocoDeDestinoNaPlaylist(pl, idx) {
+  if (playlistPossuiMarcadoresTema(pl)) return temaDoBlocoNaPlaylist(pl, idx);
+  const acima = pl[idx - 1];
+  const abaixo = pl[idx + 1];
+  const vizinho =
+    acima && !ehMarcadorTemaPlaylist(acima)
+      ? acima
+      : abaixo && !ehMarcadorTemaPlaylist(abaixo)
+        ? abaixo
+        : null;
+  return normalizarTemaPlaylist((vizinho || pl[idx])?.tema) || '';
+}
 
-  /* O foco só se devolve a quem o tinha: um clique noutro sítio da app não deve fazer o
-     cursor saltar para dentro da playlist. */
-  const focoNosBotoes = (() => {
+const MIME_MUSICA_PLAYLIST = 'application/x-lyra-pl-musica-idx';
+
+/**
+ * Índice da música em arrasto. Como no arrasto de blocos de tema, o `dataTransfer` só
+ * devolve os dados no `drop` (no `dragover` há apenas os tipos), por isso o índice fica
+ * aqui para o feedback visual saber qual linha está a viajar.
+ */
+let arrastandoMusicaPlaylistIdx = null;
+
+function limparIndicadoresDropMusicaPlaylist() {
+  document
+    .querySelectorAll('.playlist-row--drop-antes, .playlist-row--drop-depois')
+    .forEach((el) => {
+      el.classList.remove('playlist-row--drop-antes', 'playlist-row--drop-depois');
+    });
+}
+
+/** Metade de cima da linha = entrar antes dela; metade de baixo = entrar depois. */
+function posicaoDropMusicaPlaylist(row, clientY) {
+  const r = row.getBoundingClientRect();
+  if (!r.height) return 'antes';
+  return clientY - r.top < r.height / 2 ? 'antes' : 'depois';
+}
+
+/**
+ * Liga o arrasto de uma linha da playlist.
+ *
+ * O `draggable` vive na alça (`.pl-grip`) e não na linha, pela mesma razão que no
+ * cabeçalho de tema: a linha inteira já responde ao clique (selecciona a música) e ao
+ * duplo clique (projecta), e um gesto de arrasto nascido em qualquer ponto dela colidiria
+ * com os dois. Marcando só a alça, é o browser que decide quando o gesto começa.
+ *
+ * A linha INTEIRA continua a ser zona de largada — a alça é estreita de mais para ser
+ * alvo, e o gesto tem de perdoar imprecisão.
+ */
+function configurarDragReordenarLinhaPlaylist(row, idxPl) {
+  const grip = row.querySelector('.pl-grip');
+  if (!grip) return;
+  grip.draggable = true;
+
+  /* A alça não selecciona nem projecta a música: o gesto que ela serve é outro. */
+  grip.addEventListener('mousedown', (ev) => ev.stopPropagation());
+  grip.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+  });
+
+  grip.addEventListener('dragstart', (ev) => {
+    arrastandoMusicaPlaylistIdx = idxPl;
+    ev.dataTransfer.setData(MIME_MUSICA_PLAYLIST, String(idxPl));
+    ev.dataTransfer.effectAllowed = 'move';
+    /* O que viaja é a música, não a alça: o fantasma é a linha toda, agarrada no ponto
+       onde o rato caiu. Antes de a esmaecer, senão é a versão apagada que fica sob o
+       cursor. */
     try {
-      return !!document.activeElement?.closest?.('#playlist-list .playlist-btns');
+      const r = row.getBoundingClientRect();
+      ev.dataTransfer.setDragImage(row, ev.clientX - r.left, ev.clientY - r.top);
     } catch (_) {
-      return false;
+      // intencional — sem imagem própria o arraste continua a funcionar
     }
-  })();
+    row.classList.add('playlist-row--arrastando');
+    document.getElementById('playlist-list')?.classList.add('playlist-list--reordenando-musica');
+  });
 
-  const posAntes = medirPosicoesLinhasPlaylist();
+  grip.addEventListener('dragend', () => {
+    arrastandoMusicaPlaylistIdx = null;
+    row.classList.remove('playlist-row--arrastando');
+    document
+      .getElementById('playlist-list')
+      ?.classList.remove('playlist-list--reordenando-musica');
+    limparIndicadoresDropMusicaPlaylist();
+  });
 
-  /* Bloco de destino recolhido engoliria a música à passagem — carregar na seta parecia
-     apagá-la. Abre-se o bloco, para ela chegar a um sítio onde se vê. */
-  if (acao.tipo === 'tema') {
-    definirSecaoTemaPlaylistRecolhida(String(cultoId || ''), acao.tema || 'Sem tema', false);
-  }
+  row.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    /* Sem isto a secção do tema por baixo também trataria o evento e as duas leituras do
+       destino disputavam o mesmo traço. */
+    ev.stopPropagation();
+    ev.dataTransfer.dropEffect = 'move';
+    if (arrastandoMusicaPlaylistIdx === idxPl) {
+      limparIndicadoresDropMusicaPlaylist();
+      return;
+    }
+    const cls =
+      posicaoDropMusicaPlaylist(row, ev.clientY) === 'depois'
+        ? 'playlist-row--drop-depois'
+        : 'playlist-row--drop-antes';
+    /* Sem o atalho, cada `dragover` reescrevia a classe e o traço piscava. */
+    if (row.classList.contains(cls)) return;
+    limparIndicadoresDropMusicaPlaylist();
+    row.classList.add(cls);
+  });
 
-  /*
-   * Playlist sem marcadores: o bloco de uma música é a sua etiqueta, e o vizinho é outra
-   * música. Trocar de lugar não a mudaria de tema — trocaria as duas de lugar e deixaria o
-   * bloco partido em dois. Aqui a música fica quieta no array e muda de etiqueta; é o
-   * cabeçalho que se desloca em volta dela.
-   */
-  if (acao.tipo === 'tema' && !ehMarcadorTemaPlaylist(pl[j])) {
-    pl[idx].tema = acao.tema;
+  row.addEventListener('dragleave', (ev) => {
+    /* Passar por um filho dispara `dragleave` na linha; só limpa ao sair de facto. */
+    if (ev.relatedTarget instanceof Node && row.contains(ev.relatedTarget)) return;
+    row.classList.remove('playlist-row--drop-antes', 'playlist-row--drop-depois');
+  });
+
+  row.addEventListener('drop', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const pos = posicaoDropMusicaPlaylist(row, ev.clientY);
+    limparIndicadoresDropMusicaPlaylist();
+    const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
+    arrastandoMusicaPlaylistIdx = null;
+    if (!Number.isFinite(fromIdx) || !cultoId) return;
+    const destino = reordenarMusicaNaPlaylist(cultoId, fromIdx, idxPl, pos);
+    if (destino == null) return;
     savePlaylists();
     renderPlaylist();
-    animarReordenacaoPlaylist(posAntes, new Map([[String(idx), String(idx)]]), idx, -1);
-    if (focoNosBotoes) restaurarFocoBotaoMoverPlaylist(idx, dir);
-    return;
-  }
-
-  /*
-   * Trocar com o cabeçalho é o que faz a música atravessar a fronteira, e dá de graça o
-   * lado certo do bloco: a subir salta para cima do cabeçalho e fica no fim do bloco
-   * anterior; a descer salta para baixo dele e fica no início do seguinte.
-   */
-  [pl[idx], pl[j]] = [pl[j], pl[idx]];
-  /* A etiqueta acompanha o bloco novo, senão fica a apontar para o tema de onde saiu. */
-  if (acao.tipo === 'tema') pl[j].tema = acao.tema;
-  savePlaylists();
-  renderPlaylist();
-
-  const novoParaAntigo = new Map([
-    [String(j), String(idx)],
-    [String(idx), String(j)],
-  ]);
-  animarReordenacaoPlaylist(posAntes, novoParaAntigo, j, idx);
-  if (focoNosBotoes) restaurarFocoBotaoMoverPlaylist(j, dir);
+    /* Sem deslize (FLIP) aqui: o utilizador acabou de ver a música ir para onde a levou.
+       O realce responde à única pergunta que sobra — «foi esta que mudou de sítio?». */
+    realcarLinhaPlaylist(
+      document.querySelector(`#playlist-list .playlist-row[data-pl-idx="${destino}"]`),
+      'playlist-row--flash-move'
+    );
+  });
 }
 
 function removePlItem(idx) {
@@ -11407,6 +11480,78 @@ const SVG_MENU_EXCLUIR =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 const SVG_MENU_DUPLICAR =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+
+/*
+  Ícones do menu da linha da playlist. `ti-rotate` para repor (neutro) e `ti-x` para
+  excluir (o vermelho vem da variante «perigo» do menu, não do desenho do ícone).
+*/
+const SVG_MENU_RESETAR_LINHA =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.95 11a8 8 0 1 0 -.5 4"/><path d="M20 20v-5h-5"/></svg>';
+const SVG_MENU_EXCLUIR_LINHA =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+/*
+  Menu do kebab de cada música. Um só nó reaproveitado por todas as linhas — é o que
+  `menuFlutuante.js` garante — e ancorado ao ícone clicado, para nascer onde o olho já
+  está em vez de num ponto fixo do painel.
+*/
+const menuAcoesLinhaPlaylist = criarMenuFlutuante({
+  id: 'playlist-linha-ctx-menu',
+  rotuloAria: 'Ações desta música',
+});
+
+/**
+ * Mantém o kebab aceso enquanto o menu dele está aberto.
+ *
+ * O ícone só aparece no hover da linha, e para escolher uma opção o rato TEM de sair da
+ * linha — o menu flutua por cima do painel. Sem esta marca, o menu ficava a apontar para
+ * um botão que tinha desaparecido.
+ */
+function marcarLinhaPlaylistComMenuAberto(row, btn) {
+  document
+    .querySelectorAll('.playlist-row--menu-aberto')
+    .forEach((r) => r.classList.remove('playlist-row--menu-aberto'));
+  row.classList.add('playlist-row--menu-aberto');
+  btn.setAttribute('aria-expanded', 'true');
+
+  const limpar = () => {
+    row.classList.remove('playlist-row--menu-aberto');
+    btn.setAttribute('aria-expanded', 'false');
+  };
+  /* O fecho do menu é do `menuFlutuante` e não avisa ninguém; escuta-se o mesmo que ele
+     escuta. O `setTimeout` deixa passar o clique que acabou de abrir isto. */
+  setTimeout(() => {
+    document.addEventListener('click', limpar, { once: true });
+    document.addEventListener('keydown', limpar, { once: true });
+  }, 0);
+}
+
+/**
+ * Abre «Resetar» e «Excluir» para a música da linha, ancorado ao próprio kebab.
+ *
+ * São as duas únicas ações que restaram da fileira de quatro ícones: repor (limpa o tom e
+ * o ministrante daquela música) e excluir (tira-a da playlist). Reordenar passou para a
+ * alça de arrasto à esquerda da linha.
+ */
+function abrirMenuAcoesLinhaPlaylist(btn, row, idxPl) {
+  if (!cultoId) return;
+  marcarLinhaPlaylistComMenuAberto(row, btn);
+  menuAcoesLinhaPlaylist.abrirNaAncora(btn, {
+    itens: [
+      {
+        rotulo: 'Resetar',
+        svg: SVG_MENU_RESETAR_LINHA,
+        aoEscolher: () => resetarLinhaPlaylist(idxPl),
+      },
+      {
+        rotulo: 'Excluir',
+        svg: SVG_MENU_EXCLUIR_LINHA,
+        variante: 'perigo',
+        aoEscolher: () => removePlItem(idxPl),
+      },
+    ],
+  });
+}
 
 const menuContextoTemaPlaylist = criarMenuFlutuante({
   id: 'playlist-tema-ctx-menu',

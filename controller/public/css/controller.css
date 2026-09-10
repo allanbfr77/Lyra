@@ -92,8 +92,26 @@
 
   /* ── Colunas da linha da playlist (partilhadas com o rótulo «TONS» do card) ── */
   --pl-col-tom-w: 84px;
-  --pl-col-btns-w: 112px;
+  /*
+    Coluna das ações da linha: hoje só lá vive o kebab. A largura está reservada em
+    permanência — mesmo com o ícone invisível — e é isso que impede o seletor de tom de
+    saltar horizontalmente entre o repouso e o hover da linha. Ver `.pl-btn-kebab`.
+  */
+  --pl-col-btns-w: 20px;
+  /* Alça de arrasto, sempre visível, antes do número da música. */
+  --pl-col-grip-w: 16px;
   --pl-cols-gap: 6px;
+
+  /*
+    Dourado único das quatro ações do topo da playlist (Lyra DB, importar código,
+    compartilhar, outro PC). Um valor fixo e não `--accent`: o que se quis apagar foi a
+    diferença de cor ENTRE os quatro botões — antes amarelo, azul, vermelho e verde —,
+    porque nenhuma delas dizia nada que a legenda por baixo já não dissesse, e o verde e
+    o vermelho liam-se como estado (sucesso / perigo) em botões que são apenas ações.
+  */
+  --pl-acao-dourado: #c99a4a;
+  --pl-acao-dourado-hover: #b58435;
+  --pl-acao-dourado-txt: #1a1612;
 
   /* ── Setlist: o cartão é a SECÇÃO, as músicas são linhas dentro dele ──
      Cada música era um cartão com borda e canto próprios, e o resultado eram
@@ -1126,37 +1144,34 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   align-items: center;
   justify-content: center;
 }
+/*
+  As quatro ações partilham o mesmo dourado da marca.
+
+  Cada uma tinha a sua cor (amarelo, azul, vermelho, verde) a tentar codificar «qual
+  botão é qual» — trabalho que a legenda por baixo de cada botão já faz, e melhor. O que
+  restava era uma fileira de quatro cores a competir com o resto do painel, com um verde
+  e um vermelho que se liam como sucesso e perigo em botões que são apenas ações.
+*/
+#playlist-sync-btn,
+#playlist-compartilhar-btn,
+#playlist-importar-btn,
 #playlist-sync-lyra-btn {
-  color: #000;
-  background: var(--color-amarelo, #c8a84b);
-  border-color: var(--color-amarelo, #c8a84b);
+  background: var(--pl-acao-dourado);
+  border-color: var(--pl-acao-dourado);
+  color: var(--pl-acao-dourado-txt);
 }
-#playlist-sync-btn {
-  background: #2f9d57;
-  border-color: #2f9d57;
-}
-#playlist-sync-btn:hover {
-  background: #27864a;
-  border-color: #27864a;
-  color: #fff;
-}
-#playlist-compartilhar-btn {
-  background: #c94a4a;
-  border-color: #c94a4a;
-}
-#playlist-compartilhar-btn:hover {
-  background: #b63e3e;
-  border-color: #b63e3e;
-  color: #fff;
-}
-#playlist-importar-btn {
-  background: #2f74d0;
-  border-color: #2f74d0;
-}
-#playlist-importar-btn:hover {
-  background: #2862af;
-  border-color: #2862af;
-  color: #fff;
+
+#playlist-sync-btn:hover,
+#playlist-compartilhar-btn:hover,
+#playlist-importar-btn:hover,
+#playlist-sync-lyra-btn:hover,
+#playlist-sync-btn:focus-visible,
+#playlist-compartilhar-btn:focus-visible,
+#playlist-importar-btn:focus-visible,
+#playlist-sync-lyra-btn:focus-visible {
+  background: var(--pl-acao-dourado-hover);
+  border-color: var(--pl-acao-dourado-hover);
+  color: var(--pl-acao-dourado-txt);
 }
 
 /* Estado da ligação: fundo, borda e bolinha derivam todos de --status-cor,
@@ -1335,21 +1350,41 @@ body.app-mod-slides #playlist-panel-head {
   display: none !important;
 }
 
-.culto-select-wrap {
+/*
+  CULTO e MINISTRANTE lado a lado, numa grelha de duas colunas.
+
+  Empilhados, ocupavam duas faixas inteiras da coluna da direita e empurravam a lista de
+  músicas para baixo — e são dois campos curtos do mesmo cabeçalho («que culto» e «quem
+  ministra»), que se lêem melhor como um par do que como duas secções seguidas.
+
+  O «+ ADICIONAR CULTO» atravessa as duas colunas: pertence ao par, não a um dos lados.
+*/
+.culto-ministrante-grid {
   padding: 8px 14px 10px;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  /*
+    As colunas não são iguais: o seletor de culto carrega duas coisas na mesma linha (a
+    data, em coluna reservada, e a descrição do dia — «Domingo | manhã») e o de
+    ministrante carrega um nome. Repartido a meio, o culto perdia o fim da descrição
+    para as reticências enquanto sobrava espaço vazio ao lado. 1.3fr / 1fr é o que dá à
+    descrição a largura que ela pede na coluna do painel em ecrã inteiro.
+  */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: start;
 }
 
-/* 1 culto = 1 ministrante: o seletor vive aqui, não em cada música da lista. */
+/* Os dois blocos deixaram de ter moldura própria — a moldura é a da grelha que os
+   contém. 1 culto = 1 ministrante: o seletor vive aqui, não em cada música da lista. */
+.culto-select-wrap,
 .culto-ministrante-wrap {
-  padding: 8px 14px 10px;
-  border-bottom: 1px solid var(--border);
+  padding: 0;
+  border-bottom: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 /* Mesmo peso visual dos cabeçalhos de secção («CULTO», «MINISTRANTE»,
    «TEMA NA PLAYLIST» e «PLAYLIST»): tipografia unificada na base do Ministrante. */
@@ -1515,26 +1550,63 @@ body.app-mod-slides #playlist-panel-head {
   pointer-events: none;
 }
 
-/* «Inserir» acompanha o texto da barra (branco no tema escuro), sem o dourado
-   de `--accent` — esse ficou reservado aos títulos de secção. O hover genérico
-   `.btn:hover` também pinta de dourado, por isso o estado activo é reafirmado. */
+/*
+  «Inserir» é a ação principal desta linha e passa a dizê-lo com preenchimento dourado,
+  no mesmo tom da barra de ações do topo. Ao lado, o «+» fica de contorno simples: a
+  hierarquia entre os dois lê-se antes de se ler o texto de qualquer um deles.
+
+  O hover genérico `.btn:hover` também mexe na cor, por isso o estado activo é
+  reafirmado aqui em vez de se deixar ao acaso da ordem das folhas.
+*/
 .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria {
-  border-color: var(--border);
-  color: var(--text);
-  background: var(--surface2);
+  border-color: var(--pl-acao-dourado);
+  color: var(--pl-acao-dourado-txt);
+  background: var(--pl-acao-dourado);
 }
 
 .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover:not(:disabled),
 .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible:not(:disabled) {
-  border-color: var(--border);
-  color: var(--text);
-  background: var(--surface2);
+  border-color: var(--pl-acao-dourado-hover);
+  color: var(--pl-acao-dourado-txt);
+  background: var(--pl-acao-dourado-hover);
 }
 
 /* Tema já presente na playlist: o botão fica visível, mas sem convite a clicar. */
 .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:disabled {
   border-color: var(--border);
   color: var(--text-dim);
+  background: transparent;
+}
+
+/*
+  «Novo» reduzido ao «+»: mesma altura do «Inserir», largura de um quadrado e o peso de
+  uma ação secundária — contorno, sem preenchimento.
+
+  O rótulo saiu porque nesta linha ele repetia o que o ícone já diz, e roubava ao seletor
+  de temas (que mostra nomes longos em reticências) a largura de que ele precisa. O que o
+  botão faz continua no `title` e no `aria-label`, que é de onde um leitor de ecrã já o
+  lia antes.
+*/
+.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone {
+  width: 32px;
+  min-width: 32px;
+  flex: 0 0 auto;
+  padding: 0;
+  gap: 0;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone svg {
+  width: 16px;
+  height: 16px;
+}
+
+.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:hover:not(:disabled),
+.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:focus-visible:not(:disabled) {
+  border-color: var(--pl-acao-dourado);
+  color: var(--pl-acao-dourado);
   background: transparent;
 }
 
@@ -1618,6 +1690,32 @@ html.dark .menu-flutuante-titulo { color: #fff; }
 .menu-flutuante-item--perigo:focus-visible {
   color: #ffd8d3;
   background: rgba(176, 48, 40, 0.18);
+}
+
+/*
+  No menu da linha da playlist, «Excluir» já nasce vermelho.
+
+  O resto do painel mostra as ações destrutivas neutras e só as pinta ao passar por cima
+  — regra escrita para ícones que estão SEMPRE à vista, onde um vermelho permanente em
+  cada linha seria a coisa mais gritante da lista. Aqui não se aplica: o item só existe
+  depois de o menu ser aberto de propósito, e é a cor que separa «tirar da playlist» de
+  «repor» antes de o rato chegar a qualquer um dos dois.
+
+  No escuro o vermelho é clareado contra o fundo do menu (`--surface`): o tom cheio
+  ficaria abaixo do contraste mínimo para texto.
+*/
+#playlist-linha-ctx-menu .menu-flutuante-item--perigo {
+  color: var(--red);
+}
+
+html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
+  color: color-mix(in srgb, var(--red) 72%, #ffffff);
+}
+
+/* O `id` acima venceria também o hover partilhado; o realce é reafirmado aqui. */
+#playlist-linha-ctx-menu .menu-flutuante-item--perigo:hover,
+#playlist-linha-ctx-menu .menu-flutuante-item--perigo:focus-visible {
+  color: #ffd8d3;
 }
 body.app-mod-slides .playlist-tema-wrap {
   display: none !important;
@@ -1732,9 +1830,19 @@ body.app-mod-slides .playlist-tema-wrap {
   width: 100%;
   min-height: 36px;
   display: grid;
-  grid-template-columns: minmax(64px, 74px) 1fr auto;
+  /*
+    A data mede o que é (`DD/MM`) em vez de ocupar uma coluna reservada: os ~25 px que
+    sobravam abriam um vazio entre ela e o traço divisório, e saíam da largura de que a
+    descrição do dia precisa para caber inteira. Todas as datas têm a mesma largura
+    (monoespaçado, cinco caracteres), por isso a coluna continua alinhada de linha para
+    linha sem precisar de mínimo.
+
+    6 px de folga — aqui e no `padding-left` da descrição — é o espaço de uma palavra a
+    este corpo: o traço lê-se como «DD/MM | DIA», e não como duas colunas afastadas.
+  */
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   padding: 0 10px;
   box-sizing: border-box;
   background: var(--surface2);
@@ -1755,7 +1863,7 @@ body.app-mod-slides .playlist-tema-wrap {
 }
 .culto-dd-col-desc {
   border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  padding-left: 10px;
+  padding-left: 6px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1786,11 +1894,12 @@ body.app-mod-slides .playlist-tema-wrap {
   background: transparent;
   color: var(--text);
   display: grid;
-  grid-template-columns: minmax(64px, 74px) 1fr;
+  /* Mesma informação do botão, mesmo espaçamento — ver `.culto-dd-btn`. */
+  grid-template-columns: auto 1fr;
   align-items: start;
   text-align: left;
   padding: 8px 10px;
-  gap: 10px;
+  gap: 6px;
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: 15px;
@@ -1810,9 +1919,9 @@ body.app-mod-slides .playlist-tema-wrap {
 }
 .culto-dd-item .desc {
   border-left: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  padding-left: 10px;
+  padding-left: 6px;
   min-width: 0;
-  /* No menu aberto o rótulo completo importa: "DOMINGO | MANHÃ" vs "DOMINGO | NOITE".
+  /* No menu aberto o rótulo completo importa: "DOMINGO - MANHÃ" vs "DOMINGO - NOITE".
      Deixa quebrar linha em vez de cortar com reticências. */
   white-space: normal;
   overflow-wrap: anywhere;
@@ -1841,8 +1950,10 @@ body.app-mod-slides .playlist-tema-wrap {
 /* Mesmo modelo do «+ Nova música manual»: ação secundária com contorno
    tracejado, fundo transparente e tipografia esmaecida. */
 .culto-adicionar-btn {
+  /* Pertence ao par CULTO + MINISTRANTE, não a um dos lados: atravessa a grelha. */
+  grid-column: 1 / -1;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 2px;
   letter-spacing: 0.06em;
   font-size: 13px;
   font-weight: 600;
@@ -2286,14 +2397,69 @@ body.app-mod-slides .slide-nota-cluster {
   justify-content: space-between;
 }
 
+/*
+  Quatro colunas fixas: alça de arrasto · título/artista · tom · kebab.
+
+  As duas colunas das pontas têm largura constante e nunca desaparecem — é o que mantém
+  a coluna do tom exactamente no mesmo x em todas as linhas e em todos os estados.
+*/
 .playlist-row-cols {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--pl-col-tom-w) var(--pl-col-btns-w);
+  grid-template-columns:
+    var(--pl-col-grip-w) minmax(0, 1fr) var(--pl-col-tom-w) var(--pl-col-btns-w);
   gap: var(--pl-cols-gap);
   align-items: center;
   width: 100%;
   min-width: 0;
 }
+
+/*
+  Alça de arrasto — sempre visível, antes do número da música.
+
+  Ao contrário do kebab, a alça não se esconde no repouso: é a única pista de que a lista
+  se reordena arrastando, e uma pista que só aparece a quem já está a apontar para ela não
+  ensina nada a quem não sabe que existe.
+
+  O `draggable` está na alça, e não na linha: a linha inteira responde ao clique (seleciona
+  a música) e ao duplo clique (projeta), e um gesto de arrasto nascido em qualquer ponto
+  dela colidiria com os dois.
+*/
+.pl-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: var(--pl-col-grip-w);
+  height: 22px;
+  color: color-mix(in srgb, var(--text-dim) 62%, transparent);
+  cursor: grab;
+  transition: color 0.14s ease;
+}
+
+.playlist-row:hover .pl-grip { color: var(--text-dim); }
+.pl-grip:hover { color: var(--accent); }
+.pl-grip:active { cursor: grabbing; }
+.pl-grip svg { display: block; pointer-events: none; }
+
+.pl-grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* Enquanto a música viaja, a linha de origem recua para o traço de destino ser a
+   informação dominante — o mesmo que já se fazia ao arrastar um bloco de tema. */
+.playlist-row--arrastando { opacity: 0.45; }
+
+/*
+  Traço de destino: uma barra dourada no bordo por onde a música vai entrar.
+  Feito em `box-shadow` e não em `::before`/`::after` porque esses dois já estão
+  ocupados na linha — o `::before` desenha a barra da música ativa e o `::after` o
+  realce da reordenação.
+*/
+.playlist-row--drop-antes { box-shadow: inset 0 2px 0 0 var(--accent); }
+.playlist-row--drop-depois { box-shadow: inset 0 -2px 0 0 var(--accent); }
 
 .pl-col {
   min-width: 0;
@@ -2436,178 +2602,84 @@ html:not(.dark) .pl-sel {
 }
 
 /*
-  Os ↑↓✕ aparecem ao apontar o CANTO DIREITO da linha, não a linha inteira.
+  Uma ação só no canto direito da linha: o kebab, que abre «Resetar» e «Excluir».
 
-  Com a linha toda a servir de gatilho, bastava passar o rato pela playlist para os
-  controlos piscarem em cada linha por onde se passava — ruído constante numa lista
-  que se percorre com os olhos muito mais vezes do que se reordena. A zona sensível
-  passa a ser a própria caixa dos botões, que no modo Home já é uma coluna reservada
-  de 112 px (`align-self: stretch` dá-lhe a altura toda da linha, para o alvo ser a
-  faixa direita inteira e não só a fita de 26 px ao meio).
+  Antes viviam aqui quatro ícones — repor, subir, descer, remover. As setas saíram com a
+  reordenação por arrasto (ver `.pl-grip`), e as duas que restavam não justificavam uma
+  fileira de botões permanente numa lista que se percorre com os olhos muito mais vezes
+  do que se edita.
 
-  A caixa continua a apanhar o rato mesmo invisível (`pointer-events: auto`), mas os
-  botões lá dentro só ficam clicáveis quando ela está à vista: sem isso havia um
-  `✕` transparente à espera de um clique distraído. `pointer-events` herda-se, por
-  isso basta ligá-la nos filhos directos — a pastilha passa-a às setas.
+  A coluna existe SEMPRE, com a largura reservada em `--pl-col-btns-w`, mesmo quando o
+  ícone está invisível. É essa a razão de o kebab desaparecer por `opacity` e nunca por
+  `display:none`: com a coluna a nascer e a morrer, a grelha da linha remedia-se sozinha e
+  o seletor de tom desloca-se uns pixels sempre que o rato passa — a lista inteira a
+  tremer ao ser percorrida.
 */
 .playlist-row .playlist-btns {
   display: flex;
-  gap: 6px;
   align-items: center;
+  justify-content: flex-end;
   align-self: stretch;
   flex-shrink: 0;
   width: var(--pl-col-btns-w);
-  justify-content: flex-end;
   box-sizing: border-box;
-  opacity: 0;
-  pointer-events: auto;
-  transform: translateX(4px);
-  transition: opacity 0.14s ease, transform 0.14s ease;
 }
 
-.playlist-row .playlist-btns > * {
-  pointer-events: none;
-}
-
-/*
-  Par ↑↓ como controlo segmentado: uma pastilha, um traço fino a separar os dois
-  sentidos. A dupla pertence à mesma ação (mudar de lugar) e passa a ler-se como
-  tal — o `✕`, que é destrutivo, fica visivelmente à parte.
-*/
-.playlist-row .playlist-btns .pl-mover {
-  display: inline-flex;
-  align-items: stretch;
-  flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface2) 60%, var(--surface));
-  overflow: hidden;
-}
-
-.playlist-row .playlist-btns .pl-btn-mover {
+.pl-btn-kebab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 20px;
   height: 24px;
   padding: 0;
   margin: 0;
   border: 0;
+  border-radius: 5px;
   background: transparent;
-  /* Um pouco acima do `--text-dim`: as setas são das acções mais usadas da linha e
-     no cinzento das legendas quase não se viam sobre a pastilha. */
-  color: color-mix(in srgb, var(--text-dim) 62%, var(--text) 38%);
+  color: var(--text-dim);
   cursor: pointer;
-  transition: background 0.14s ease, color 0.14s ease, transform 0.1s ease;
+  opacity: 0;
+  /* Invisível não deve ser clicável: sem isto ficava um alvo transparente à espera de
+     um clique distraído no canto de cada linha. */
+  pointer-events: none;
+  transition: opacity 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
 
-.playlist-row .playlist-btns .pl-btn-mover + .pl-btn-mover {
-  border-left: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-}
-
-.playlist-row .playlist-btns .pl-btn-mover svg {
+.pl-btn-kebab svg {
   display: block;
   pointer-events: none;
 }
 
-.playlist-row .playlist-btns .pl-btn-mover:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
-}
-
 /*
-  A seta que sai do bloco — a que passa a música para o tema ao lado — vem com um
-  toque do dourado da marca já em repouso.
-
-  É a mesma seta e o mesmo gesto, mas o resultado é outro: em vez de trocar de lugar
-  com a linha vizinha, atravessa a fronteira do tema. O `title` diz para onde vai; a
-  cor serve só para o dizer antes do hover, a quem estiver a olhar. Como a faixa de
-  botões só aparece na linha sob o rato, nunca há mais do que duas destas à vista.
+  O ícone acende com a LINHA inteira, não só com o canto dela: é a linha que se aponta
+  quando se quer mexer numa música. Com o menu aberto fica aceso mesmo que o rato já
+  tenha saído da linha, senão o menu ficaria a apontar para um ícone que desapareceu.
 */
-.playlist-row .playlist-btns .pl-btn-mover--troca-tema:not(:disabled) {
-  color: color-mix(in srgb, var(--accent) 72%, var(--text-dim));
+.playlist-row:hover .pl-btn-kebab,
+.playlist-row:focus-within .pl-btn-kebab,
+.playlist-row--menu-aberto .pl-btn-kebab {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-/* O empurrão de 1 px no sentido do movimento é o único feedback que o rato tem
-   antes de a linha começar a deslizar. */
-.playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled) { transform: translateY(-1px); }
-.playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) { transform: translateY(1px); }
+.pl-btn-kebab:hover,
+.playlist-row--menu-aberto .pl-btn-kebab {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
 
-.playlist-row .playlist-btns .pl-btn-mover:focus-visible {
+.pl-btn-kebab:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   color: var(--accent);
 }
 
-/* Topo da lista, fim da lista, ou vizinho é cabeçalho de tema: sem para onde ir. */
-.playlist-row .playlist-btns .pl-btn-mover:disabled {
-  opacity: 0.26;
-  cursor: default;
-  background: transparent;
-}
-
 /*
-  `✕` na mesma caixa quadrada das setas — as três ações alinham pelo centro.
-
-  Em repouso fica neutro, não vermelho: com a moldura vermelha permanente, a acção
-  destrutiva era a mais gritante da linha, e a que se usa a toda a hora (reordenar)
-  a mais apagada. O vermelho aparece ao passar por cima — a tempo de avisar, e só a
-  quem já está a apontar para ele.
-*/
-.playlist-row .playlist-btns .pl-btn-remover {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  padding: 0;
-  border-radius: 7px;
-  border-color: color-mix(in srgb, var(--border) 85%, transparent);
-  color: var(--text-dim);
-}
-
-.playlist-row .playlist-btns .pl-btn-remover:hover,
-.playlist-row .playlist-btns .pl-btn-remover:focus-visible {
-  border-color: var(--red);
-  background: var(--red);
-  color: #fff;
-}
-
-.playlist-row .playlist-btns .pl-btn-remover svg { display: block; }
-
-.playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom {
-  color: var(--text-dim);
-  /* O `.btn` base alinha texto; este leva um SVG e precisa de o centrar à mão, senão
-     a seta assenta na linha de base e fica um par de pixels abaixo do ↑ ↓ ✕ ao lado. */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  padding: 0;
-  border-radius: 7px;
-}
-.playlist-row .playlist-btns .pl-btn-limpar-mestre-min-tom:hover {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--border) 50%, var(--text) 25%);
-}
-
-.playlist-row .playlist-btns:hover,
-.playlist-row .playlist-btns:focus-within {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.playlist-row .playlist-btns:hover > *,
-.playlist-row .playlist-btns:focus-within > * {
-  pointer-events: auto;
-}
-
-/*
-  Modo slides: só na linha da música seleccionada (.ativo) escondemos ↑↓✕
-  (evita reordenar/apagar ao operar a faixa). As outras linhas mantêm hover.
+  Modo slides: só na linha da música seleccionada (.ativo) escondemos o kebab
+  (evita apagar ou repor a música que está no ar ao operar a faixa). As outras linhas
+  mantêm o hover.
 */
 body.app-mod-slides .playlist-row.ativo .playlist-btns {
   display: none !important;
@@ -2688,13 +2760,9 @@ body.app-mod-slides .playlist-tema-head-row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .playlist-row .playlist-btns,
-  .playlist-row .playlist-btns .pl-btn-mover {
+  .pl-btn-kebab,
+  .pl-grip {
     transition: none;
-  }
-  .playlist-row .playlist-btns .pl-btn-subir:active:not(:disabled),
-  .playlist-row .playlist-btns .pl-btn-descer:active:not(:disabled) {
-    transform: none;
   }
   /* Sem deslize (o JS já o dispensa) — o realce fica, mais demorado, porque é ele
      que responde à pergunta «qual música é que mudou de lugar?». */
@@ -6907,8 +6975,14 @@ body.app-mod-slides .panel-playlist .panel-section-head {
   white-space: nowrap;
 }
 
-body.app-mod-slides .panel-playlist .culto-select-wrap {
+body.app-mod-slides .panel-playlist .culto-ministrante-grid {
   padding: 8px 10px;
+}
+
+/* O Ministrante é exclusivo do Home (ver mais abaixo): aqui a grelha fica de uma coluna
+   só, senão o seletor de culto ocupava metade da largura e o resto ficava vazio. */
+body.app-mod-slides .panel-playlist .culto-ministrante-grid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 body.app-mod-slides .panel-playlist .culto-dd-btn {
@@ -6999,8 +7073,9 @@ body.app-mod-slides .panel-playlist .playlist-row .mini {
 }
 
 /*
-  Os botões ↑↓✕ ficam invisíveis mas continuavam a reservar largura na linha —
-  numa coluna de 200px isso truncava o título («1. Mil Gr…»). Passam a flutuar
+  A coluna de ações reserva largura mesmo com o ícone invisível — no Home é isso que
+  segura o seletor de tom no lugar. Aqui não há coluna de tom para proteger, e numa
+  coluna de 200px essa largura saía do título («1. Mil Gr…»): o kebab passa a flutuar
   por cima da linha, só no hover.
 */
 body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
@@ -7014,75 +7089,78 @@ body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
   background: color-mix(in srgb, var(--surface2) 88%, #000000 12%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   /*
-    Sem isto a faixa herda os 112 px reservados no modo Home. Como está posicionada
-    pela direita, essa largura a mais não empurra os botões — estica a placa escura
-    (e a sombra) uns 50 px para dentro do título, e era ela, não os botões, que
-    tapava o texto. `auto` faz a placa medir exactamente o que lá está dentro.
+    A placa mede o que lá está dentro em vez de herdar a largura reservada na grelha do
+    modo Home: posicionada pela direita, a largura a mais não empurraria o botão —
+    esticaria a placa escura (e a sombra) para dentro do título.
   */
   width: auto;
+
+  /*
+    Só aqui a faixa se apaga inteira, e não apenas o ícone: neste modo ela tem placa
+    escura e sombra próprias, e essas continuariam a marcar o canto de todas as linhas
+    com o kebab já invisível. No Home a faixa não tem desenho nenhum — só reserva a
+    coluna — e por isso lá quem se apaga é o botão.
+  */
+  opacity: 0;
+  transition: opacity 0.14s ease;
 }
 
-/* ↑ ↓ ✕ compactos — não competem com o título agora que a fonte da lista subiu. */
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .btn.sm,
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover {
-  padding: 0;
+body.app-mod-slides .panel-playlist .playlist-row:hover .playlist-btns,
+body.app-mod-slides .panel-playlist .playlist-row:focus-within .playlist-btns,
+body.app-mod-slides .panel-playlist .playlist-row--menu-aberto .playlist-btns {
+  opacity: 1;
+}
+
+/* Kebab compacto — não compete com o título agora que a fonte da lista subiu. */
+body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-kebab {
   width: 18px;
   height: 18px;
-  min-width: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  line-height: 1;
-  letter-spacing: 0;
   border-radius: 4px;
 }
 
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-mover {
-  border-radius: 5px;
+body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-kebab svg {
+  width: 14px;
+  height: 14px;
 }
 
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover {
-  border-radius: 0;
+/* Coluna estreita: a alça encolhe com o resto da linha. */
+body.app-mod-slides .panel-playlist .pl-grip {
+  width: 12px;
+  height: 18px;
 }
 
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-mover svg {
-  width: 11px;
-  height: 11px;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-remover svg {
-  width: 10px;
-  height: 10px;
+body.app-mod-slides .panel-playlist .pl-grip svg {
+  width: 14px;
+  height: 14px;
 }
 
 /*
-  A faixa ↑↓✕ flutua por cima da linha (ver acima: numa coluna de 230 px não pode
+  A faixa do kebab flutua por cima da linha (ver acima: numa coluna de 230 px não pode
   reservar largura em permanência). Só que «por cima» era mesmo por cima do título —
-  «3. Que Ele Cre▮▮▮» com os botões colados ao texto, ilegível justamente na linha
+  «3. Que Ele Cre▮▮▮» com o botão colado ao texto, ilegível justamente na linha
   que se está a apontar.
 
   A correção é dar ao título, e só enquanto a faixa está à vista, um recuo à direita
-  do tamanho dela: o título volta a terminar em reticências antes dos botões, em vez
-  de desaparecer debaixo deles. Fora do hover o recuo desaparece e o título usa a
+  do tamanho dela: o título volta a terminar em reticências antes do botão, em vez
+  de desaparecer debaixo dele. Fora do hover o recuo desaparece e o título usa a
   largura toda — que é o que interessa nas outras linhas.
 
-  62 px é a largura medida da faixa: 18+18 (setas) + 2 (bordas da pastilha) + 2 (folga
-  interna) + 18 (✕) + 4 (padding da faixa). A folga entre as reticências e o primeiro
-  botão sai de graça — são os 8 px de padding da linha menos os 3 px a que a faixa
-  está da borda direita, 5 px medidos.
+  26 px é a largura medida da faixa: 18 (kebab) + 4 + 4 (padding da faixa). A folga entre
+  as reticências e o botão sai de graça — são os 8 px de padding da linha menos os 3 px
+  a que a faixa está da borda direita, 5 px medidos.
 */
 body.app-mod-slides .panel-playlist .playlist-row .tit {
   transition: padding-right 0.14s ease;
 }
 
-body.app-mod-slides .panel-playlist .playlist-row:has(.playlist-btns:hover) .tit,
-body.app-mod-slides .panel-playlist .playlist-row:has(.playlist-btns:focus-within) .tit {
-  padding-right: 62px;
+body.app-mod-slides .panel-playlist .playlist-row:hover .tit,
+body.app-mod-slides .panel-playlist .playlist-row:focus-within .tit {
+  padding-right: 26px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.app-mod-slides .panel-playlist .playlist-row .tit {
+  body.app-mod-slides .panel-playlist .playlist-row .tit,
+  body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
     transition: none;
   }
 }

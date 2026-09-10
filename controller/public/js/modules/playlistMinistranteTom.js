@@ -83,78 +83,60 @@ export function htmlSelectTom(tomAtual) {
   return `<select class="pl-sel pl-sel-tom" title="Tom" aria-label="Tom">${opts.join('')}</select>`;
 }
 
-/**
- * Seta circular anti-horária — «repor tudo ao estado inicial».
- *
- * Traço e não preenchimento, `currentColor` e 14 px: é assim que os ícones do painel são
- * desenhados, e um ícone que destoasse dos vizinhos chamaria mais atenção do que a ação
- * merece — ela é rara, e é destrutiva.
- */
 /*
- * Setas de reordenação — chevrons de traço, no mesmo desenho dos restantes ícones do
- * painel (`currentColor`, 2 px de traço, pontas arredondadas). O `↑ ↓` em texto herdava
- * a métrica da fonte e assentava na linha de base: a seta ficava fora do centro do botão
- * e mudava de tamanho com a escala tipográfica. O SVG fica sempre centrado e do tamanho
- * que o botão pedir.
+ * Ícones da linha: a alça de arrasto e o kebab.
+ *
+ * Desenho Tabler (`ti-grip-vertical`, `ti-dots-vertical`), como o resto do painel: pontos
+ * cheios em `currentColor`, para a cor vir de quem os hospeda — a alça acende no hover
+ * da linha, o kebab passa a dourado quando o menu dele está aberto.
  */
-const SVG_MOVER_CIMA =
-  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
-  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="m6 14 6-6 6 6"/></svg>';
+const SVG_GRIP_ARRASTAR =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="9" cy="5" r="1.35"/><circle cx="9" cy="12" r="1.35"/><circle cx="9" cy="19" r="1.35"/>' +
+  '<circle cx="15" cy="5" r="1.35"/><circle cx="15" cy="12" r="1.35"/><circle cx="15" cy="19" r="1.35"/>' +
+  '</svg>';
 
-const SVG_MOVER_BAIXO =
-  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
-  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="m6 10 6 6 6-6"/></svg>';
-
-const SVG_REMOVER_LINHA =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
-  'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M18 6 6 18M6 6l12 12"/></svg>';
+const SVG_KEBAB_LINHA =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' +
+  '<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>' +
+  '</svg>';
 
 /**
- * Par ↑↓ como um único controlo segmentado.
+ * Alça de arrasto da linha.
  *
- * Os dois botões pertencem à mesma ação — mudar a música de lugar — e separá-los com a
- * mesma folga que os separava de «remover» fazia com que a linha lesse três ações soltas
- * em vez de uma dupla e um `✕`. Juntos numa pastilha, com um traço fino entre eles, a
- * dupla lê-se como um só comando de dois sentidos, e o `✕` (destrutivo) fica claramente
- * à parte.
+ * Sai daqui apenas o markup; quem lhe liga o `draggable` e os eventos é
+ * `configurarDragReordenarLinhaPlaylist`, no painel — e é lá que está explicado porque
+ * o gesto nasce na alça e não na linha inteira.
  *
- * Na fronteira do bloco, a seta não morre: passa a música para o tema ao lado — para cima,
- * entra no fim do tema anterior; para baixo, no início do seguinte. É a mesma seta e o
- * mesmo gesto, e é o `title` que diz para onde vai, porque o ícone não consegue dizê-lo.
- *
- * `disabled` fica reservado a quem realmente não tem para onde ir: o topo e o fim da
- * playlist.
- *
- * @param {{ podeSubir?: boolean, podeDescer?: boolean, temaAcima?: string,
- *           temaAbaixo?: string }} [opts] `temaAcima`/`temaAbaixo` preenchidos só quando a
- *           seta atravessa a fronteira do tema.
+ * `aria-hidden`: reordenar por arrasto não é uma operação que um leitor de ecrã possa
+ * executar, e anunciar um controlo que não se consegue usar é pior do que não o anunciar.
+ * A mesma reordenação continua ao alcance pelo menu de cada tema.
  */
-export function htmlBotoesMoverPlaylist(opts = {}) {
-  const podeSubir = opts.podeSubir !== false;
-  const podeDescer = opts.podeDescer !== false;
-  const attrSubir = podeSubir ? '' : ' disabled aria-disabled="true"';
-  const attrDescer = podeDescer ? '' : ' disabled aria-disabled="true"';
-  const temaAcima = String(opts.temaAcima || '').trim();
-  const temaAbaixo = String(opts.temaAbaixo || '').trim();
-  const rotular = (pode, tema, dentro, semSaida) => {
-    if (!pode) return semSaida;
-    return tema ? `Mover para o tema «${tema}»` : dentro;
-  };
-  const tSubir = rotular(podeSubir, temaAcima, 'Subir uma posição', 'Já está no topo');
-  const tDescer = rotular(podeDescer, temaAbaixo, 'Descer uma posição', 'Já está no fim');
-  /* Uma seta que muda de tema é uma acção diferente da que reordena, e quem usa leitor de
-     ecrã só tem o `aria-label` para as distinguir. */
-  const aSubir = temaAcima ? `Mover para o tema ${temaAcima}` : 'Mover para cima';
-  const aDescer = temaAbaixo ? `Mover para o tema ${temaAbaixo}` : 'Mover para baixo';
-  const classe = (tema) => 'pl-btn-mover' + (tema ? ' pl-btn-mover--troca-tema' : '');
+function htmlGripArrastarPlaylist() {
   return (
-    '<div class="pl-mover" role="group" aria-label="Reordenar esta música na playlist">' +
-    `<button class="${classe(temaAcima)} pl-btn-subir" type="button" title="${escapeAttr(tSubir)}" aria-label="${escapeAttr(aSubir)}"${attrSubir}>${SVG_MOVER_CIMA}</button>` +
-    `<button class="${classe(temaAbaixo)} pl-btn-descer" type="button" title="${escapeAttr(tDescer)}" aria-label="${escapeAttr(aDescer)}"${attrDescer}>${SVG_MOVER_BAIXO}</button>` +
-    '</div>'
+    '<span class="pl-grip" aria-hidden="true" ' +
+    'title="Arrastar para reordenar esta música na playlist">' +
+    SVG_GRIP_ARRASTAR +
+    '</span>'
+  );
+}
+
+/**
+ * Kebab da linha — abre «Resetar» e «Excluir» num menu ancorado ao próprio ícone.
+ *
+ * Substitui os quatro botões que aqui viviam (repor, subir, descer, remover): as setas
+ * saíram com a reordenação por arrasto, e as duas ações que restaram não justificam uma
+ * fileira permanente de ícones numa lista que se lê muito mais vezes do que se edita.
+ *
+ * O botão está sempre no DOM, mesmo invisível: é a coluna dele que impede o seletor de
+ * tom de mudar de sítio entre o repouso e o hover (ver `.pl-btn-kebab` no CSS).
+ */
+function htmlBotaoKebabPlaylist() {
+  return (
+    '<button class="pl-btn-kebab" type="button" aria-haspopup="menu" aria-expanded="false" ' +
+    'title="Ações desta música" aria-label="Ações desta música">' +
+    SVG_KEBAB_LINHA +
+    '</button>'
   );
 }
 
@@ -181,21 +163,6 @@ function htmlNumeroMusicaPlaylist(n) {
   return `<span class="pl-num-badge">${Number(n)}</span>`;
 }
 
-/** `✕` da linha da playlist — ícone, para casar com as setas ao lado. */
-function htmlBotaoRemoverLinhaPlaylist() {
-  return (
-    '<button class="btn sm danger pl-btn-remover" type="button" ' +
-    'title="Remover esta música da playlist" aria-label="Remover da playlist">' +
-    SVG_REMOVER_LINHA +
-    '</button>'
-  );
-}
-
-const SVG_LIMPAR_MESTRE =
-  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
-  'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
-
 /** Legenda de artista nas listas: campo vazio vira «Sem artista». */
 export function rotuloArtistaLista(artista) {
   const t = String(artista || '').trim();
@@ -203,65 +170,49 @@ export function rotuloArtistaLista(artista) {
 }
 
 /**
+ * Linha da playlist no modo Home: alça · número + título/artista · tom · kebab.
+ *
+ * As quatro colunas têm largura fixa nas pontas (`--pl-col-grip-w`, `--pl-col-btns-w`),
+ * o que mantém a coluna do tom no mesmo x em todas as linhas e em todos os estados.
+ *
  * @param {object} item
  * @param {number} songNum
  * @param {string} rotuloVersaoHtml já escapado / sufixo pronto
  * @param {(s: string) => string} escapeHtml
- * @param {{ mostrarLimparMestre?: boolean, podeSubir?: boolean, podeDescer?: boolean,
- *           temaAcima?: string, temaAbaixo?: string }} [opts]
  */
-export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
+export function htmlCorpoLinhaPlaylistComTom(item, songNum, rotuloVersaoHtml, escapeHtml) {
   const artista = rotuloArtistaLista(item?.artista);
   const titulo = String(item?.titulo || '');
-  /*
-   * Seta circular, no lugar do antigo `∅`.
-   *
-   * O conjunto vazio dizia bem o que faz a quem já sabe o que faz, e nada a quem não sabe —
-   * e este botão aparece uma vez só, na primeira linha, onde ninguém o procura.
-   *
-   * Como a seta também se lê como «desfazer», o que a desambigua é o `title`: diz que
-   * apaga, diz em quantas músicas, e diz que não há como voltar atrás. É o texto que o
-   * ícone não consegue carregar sozinho.
-   */
-  const btnLimparMestre = opts.mostrarLimparMestre
-    ? `<button class="btn sm pl-btn-limpar-mestre-min-tom" type="button" title="Apagar o ministrante e o tom de TODAS as músicas desta playlist (não é possível desfazer)" aria-label="Apagar ministrante e tom de todas as músicas da playlist">${SVG_LIMPAR_MESTRE}</button>`
-    : '';
   return `
       <div class="playlist-row-cols">
+        ${htmlGripArrastarPlaylist()}
         <div class="pl-col pl-col-meta">
           ${htmlNumeroMusicaPlaylist(songNum)}
           <div class="pl-col-titulo tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
           <div class="pl-col-artista" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>
         </div>
         <div class="pl-col pl-col-tom">${htmlSelectTom(item?.tom)}</div>
-        <div class="playlist-btns">
-          ${btnLimparMestre}
-          ${htmlBotoesMoverPlaylist(opts)}
-          ${htmlBotaoRemoverLinhaPlaylist()}
-        </div>
+        <div class="playlist-btns">${htmlBotaoKebabPlaylist()}</div>
       </div>`;
 }
 
 /**
- * Linha compacta da playlist (modo Slide): só título + artista + botões.
+ * Linha compacta da playlist (modo Slide): alça + título + artista + kebab.
  * O tom fica exclusivo do modo Home; o ministrante é único e vive no topo da playlist.
- * @param {{ podeSubir?: boolean, podeDescer?: boolean }} [opts]
  */
-export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml, opts = {}) {
+export function htmlCorpoLinhaPlaylistSimples(item, songNum, rotuloVersaoHtml, escapeHtml) {
   const artista = rotuloArtistaLista(item?.artista);
   const titulo = String(item?.titulo || '');
   return `
       <div class="pl-linha-simples">
+        ${htmlGripArrastarPlaylist()}
         ${htmlNumeroMusicaPlaylist(songNum)}
         <div class="pl-linha-simples-txt">
           <div class="tit" data-dica="${escapeAttr(titulo)}">${escapeHtml(titulo)}${rotuloVersaoHtml}</div>
           <div class="mini" data-dica="${escapeAttr(artista)}">${escapeHtml(artista)}</div>
         </div>
       </div>
-      <div class="playlist-btns">
-        ${htmlBotoesMoverPlaylist(opts)}
-        ${htmlBotaoRemoverLinhaPlaylist()}
-      </div>`;
+      <div class="playlist-btns">${htmlBotaoKebabPlaylist()}</div>`;
 }
 
 /**

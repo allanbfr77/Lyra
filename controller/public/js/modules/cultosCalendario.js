@@ -28,8 +28,19 @@ export const SUFIXO_ID_DIA_SEMANA = Object.freeze([
   'sabado',
 ]);
 
+/*
+ * `DD/MM | DIA - PERÍODO`.
+ *
+ * O enchimento com `padEnd` vinha de quando o rótulo era lido como uma linha de texto
+ * monoespaçado e as colunas tinham de bater umas com as outras. Hoje quem alinha é a
+ * grelha do seletor, e o enchimento só deixava um vazio entre a data e o traço.
+ *
+ * O segundo separador é «-» e não «|»: os dois níveis da informação são diferentes — o
+ * primeiro traço separa a data do resto, o segundo liga dia e período, que são a mesma
+ * coisa dita com mais detalhe.
+ */
 function rotuloCultoComTurno(data, dia, turno) {
-  return `${String(data).padEnd(5, ' ')} | ${String(dia).padEnd(12, ' ')} | ${String(turno).padEnd(5, ' ')}`;
+  return `${String(data)} | ${String(dia)} - ${String(turno)}`;
 }
 
 /**
@@ -94,11 +105,26 @@ export function gerarCultosParaDataManual(dt) {
   return out;
 }
 
+/**
+ * Dia e período como o painel os mostra: `DIA - PERÍODO`, num só espaço entre palavras.
+ *
+ * A normalização é feita na LEITURA, e não só na escrita, porque há rótulos gravados
+ * antes desta mudança — cultos manuais no `localStorage`, códigos partilhados entre PCs —
+ * que ainda trêzem «DOMINGO | MANHÃ» e o enchimento antigo. Reescrevê-los em disco seria
+ * mexer em dados por causa de uma questão de apresentação; aqui basta lê-los.
+ */
+function descCultoNormalizada(desc) {
+  return String(desc)
+    .replace(/\s*\|\s*/g, ' - ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function parseLabelCulto(label) {
   const txt = String(label || '');
   const m = txt.match(/^(\d{2}\/\d{2})\s*\|\s*(.+)$/);
   if (!m) return { data: '--/--', desc: txt || 'Selecione o dia do culto...' };
-  return { data: m[1], desc: m[2].trim() };
+  return { data: m[1], desc: descCultoNormalizada(m[2]) };
 }
 
 /** Rótulo quando o código importado não traz nome — mesmo critério do AppCore. */
@@ -109,8 +135,8 @@ export function labelFallbackDeCultoIdImport(cid) {
   const suf = p.length >= 3 ? `${p[2]}/${p[1]}` : iso;
   const m = String(cid).match(/^culto_\d{4}-\d{2}-\d{2}_(\w+)$/i);
   const sufixo = m ? m[1].toLowerCase() : '';
-  if (sufixo === 'manha') return `${suf} | DOMINGO | MANHÃ`;
-  if (sufixo === 'noite') return `${suf} | DOMINGO | NOITE`;
+  if (sufixo === 'manha') return `${suf} | DOMINGO - MANHÃ`;
+  if (sufixo === 'noite') return `${suf} | DOMINGO - NOITE`;
   if (sufixo === 'quarta') return `${suf} | QUARTA-FEIRA`;
   const idx = SUFIXO_ID_DIA_SEMANA.indexOf(sufixo);
   if (idx >= 0) return `${suf} | ${NOMES_DIA_SEMANA_PT[idx]}`;

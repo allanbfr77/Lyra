@@ -512,7 +512,7 @@
       </span>
     </div>
     <div class="playlist-lics-col">
-      <button type="button" id="playlist-sync-btn" class="btn sm success" title="Sincronizar banco manualmente com os outros controladores">S</button>
+      <button type="button" id="playlist-sync-btn" class="btn sm" title="Sincronizar banco manualmente com os outros controladores">S</button>
       <span class="playlist-lics-legenda-item">
         <span class="playlist-lics-legenda-swatch playlist-lics-legenda-swatch--s" aria-hidden="true"></span>
         Sinc. com outro PC
@@ -520,31 +520,39 @@
     </div>
   </div>
 </div>
-    <div class="culto-select-wrap">
-      <span class="playlist-panel-head-titulo">CULTO</span>
-      <div class="culto-dd" id="culto-dd">
-        <button type="button" class="culto-dd-btn" id="culto-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-dd-menu">
-          <span class="culto-dd-col-data" id="culto-dd-data">--/--</span>
-          <span class="culto-dd-col-desc" id="culto-dd-desc">Selecione o dia do culto...</span>
-          <span class="culto-dd-caret" aria-hidden="true"></span>
-        </button>
-        <ul class="culto-dd-menu" id="culto-dd-menu" role="listbox" hidden></ul>
-        <input type="hidden" id="culto-sel" value="" autocomplete="off" />
-      </div>
-      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
-    </div>
-    <div class="culto-ministrante-wrap">
-      <div class="culto-ministrante-label">Ministrante</div>
-      <div class="culto-ministrante-campo">
-        <div class="playlist-tema-dd culto-ministrante-dd" id="culto-ministrante-dd">
-          <button type="button" class="playlist-tema-dd-btn" id="culto-ministrante-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-ministrante-dd-menu" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
-            <span class="playlist-tema-dd-label culto-ministrante-dd-label" id="culto-ministrante-dd-label">Selecione o ministrante...</span>
-            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+    <!--
+      CULTO e MINISTRANTE são duas perguntas do mesmo cabeçalho — «que culto» e «quem
+      ministra» — e vivem lado a lado numa grelha de duas colunas. Empilhados, ocupavam
+      duas faixas inteiras da coluna e empurravam a lista de músicas para baixo.
+      O «+ ADICIONAR CULTO» atravessa as duas colunas (ver `.culto-adicionar-btn`).
+    -->
+    <div class="culto-ministrante-grid">
+      <div class="culto-select-wrap">
+        <span class="playlist-panel-head-titulo">CULTO</span>
+        <div class="culto-dd" id="culto-dd">
+          <button type="button" class="culto-dd-btn" id="culto-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-dd-menu">
+            <span class="culto-dd-col-data" id="culto-dd-data">--/--</span>
+            <span class="culto-dd-col-desc" id="culto-dd-desc">Selecione o dia do culto...</span>
+            <span class="culto-dd-caret" aria-hidden="true"></span>
           </button>
-          <ul class="playlist-tema-dd-menu" id="culto-ministrante-dd-menu" role="listbox" hidden></ul>
-          <input type="hidden" id="culto-ministrante-sel" value="" autocomplete="off" />
+          <ul class="culto-dd-menu" id="culto-dd-menu" role="listbox" hidden></ul>
+          <input type="hidden" id="culto-sel" value="" autocomplete="off" />
         </div>
       </div>
+      <div class="culto-ministrante-wrap">
+        <div class="culto-ministrante-label">Ministrante</div>
+        <div class="culto-ministrante-campo">
+          <div class="playlist-tema-dd culto-ministrante-dd" id="culto-ministrante-dd">
+            <button type="button" class="playlist-tema-dd-btn" id="culto-ministrante-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="culto-ministrante-dd-menu" title="Ministrante deste culto — vale para todas as músicas; os tons são preenchidos a partir do cadastro dele" aria-label="Ministrante do culto">
+              <span class="playlist-tema-dd-label culto-ministrante-dd-label" id="culto-ministrante-dd-label">Selecione o ministrante...</span>
+              <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
+            </button>
+            <ul class="playlist-tema-dd-menu" id="culto-ministrante-dd-menu" role="listbox" hidden></ul>
+            <input type="hidden" id="culto-ministrante-sel" value="" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
     </div>
     <div class="playlist-tema-wrap">
       <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
@@ -562,9 +570,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
             <span class="playlist-tema-acao-btn-txt">Inserir</span>
           </button>
-          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn" title="Criar um novo tema" aria-label="Criar novo tema">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            <span class="playlist-tema-acao-btn-txt">Novo</span>
+          <!-- Só o «+»: o rótulo repetia o que o ícone diz e roubava largura ao seletor de
+               temas. O que o botão faz continua no `title` e no `aria-label`. -->
+          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--icone" title="Criar um novo tema" aria-label="Criar novo tema">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
           </button>
         </div>
       </div>

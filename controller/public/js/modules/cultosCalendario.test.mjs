@@ -19,8 +19,7 @@ test('gerarCultosDoMes: setembro/2026 tem 4 domingos (manhã+noite) e 5 quartas'
   assert.ok(!ids.includes('culto_2026-09-11_sexta'));
   const manha = lista.find((c) => c.id === 'culto_2026-09-06_manha');
   assert.equal(parseLabelCulto(manha.label).data, '06/09');
-  assert.match(manha.label, /DOMINGO/);
-  assert.match(manha.label, /MANHÃ/);
+  assert.equal(manha.label, '06/09 | DOMINGO - MANHÃ');
 });
 
 test('cultoIdPertenceAoMes filtra pelo mês/ano do id', () => {
@@ -44,9 +43,14 @@ test('gerarCultosParaDataManual: domingo rende dois; sexta rende um', () => {
 });
 
 test('parseLabelCulto parte data e descrição; vazio tem fallback', () => {
-  assert.deepEqual(parseLabelCulto('06/09 | DOMINGO | MANHÃ'), {
+  assert.deepEqual(parseLabelCulto('06/09 | DOMINGO - MANHÃ'), {
     data: '06/09',
-    desc: 'DOMINGO | MANHÃ',
+    desc: 'DOMINGO - MANHÃ',
+  });
+  /* Rótulo antigo (com «|» e enchimento) lido no formato novo. */
+  assert.deepEqual(parseLabelCulto('06/09 | DOMINGO      | MANHÃ'), {
+    data: '06/09',
+    desc: 'DOMINGO - MANHÃ',
   });
   assert.deepEqual(parseLabelCulto(''), {
     data: '--/--',
@@ -55,7 +59,7 @@ test('parseLabelCulto parte data e descrição; vazio tem fallback', () => {
 });
 
 test('labelFallbackDeCultoIdImport cobre manhã, quarta e extra', () => {
-  assert.equal(labelFallbackDeCultoIdImport('culto_2026-09-06_manha'), '06/09 | DOMINGO | MANHÃ');
+  assert.equal(labelFallbackDeCultoIdImport('culto_2026-09-06_manha'), '06/09 | DOMINGO - MANHÃ');
   assert.equal(labelFallbackDeCultoIdImport('culto_2026-09-09_quarta'), '09/09 | QUARTA-FEIRA');
   assert.equal(labelFallbackDeCultoIdImport('culto_2026-09-11_sexta'), '11/09 | SEXTA-FEIRA');
   assert.equal(labelFallbackDeCultoIdImport(''), '');
