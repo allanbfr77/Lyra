@@ -113,11 +113,14 @@
   --pl-acao-dourado-hover: #b58435;
   --pl-acao-dourado-txt: #1a1612;
   /*
-    Cor do conteúdo dos cartões de ação (ícone + nome). No escuro é o dourado acima;
-    no claro ele cai para cerca de 2:1 contra o fundo do cartão e um rótulo de 10 px
-    deixaria de se ler — daí o ouro mais fechado do tema claro.
+    Cor do conteúdo dos cartões de ação (ícone + nome): branco no tema escuro.
+
+    No tema claro branco sobre o fundo claro do cartão seria invisível, por isso ali o
+    valor é a cor de texto do painel — que é o mesmo que o branco faz no escuro: máximo
+    contraste contra o fundo do cartão. O dourado continua a marcar o cartão no hover e
+    no foco.
   */
-  --pl-acao-card-cor: var(--accent2);
+  --pl-acao-card-cor: var(--text);
 
   /* ── Setlist: o cartão é a SECÇÃO, as músicas são linhas dentro dele ──
      Cada música era um cartão com borda e canto próprios, e o resultado eram
@@ -1332,18 +1335,20 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   pointer-events: none;
 }
 
+/* O realce continua dourado: o conteúdo ficou branco, mas o sinal de «estás a apontar
+   para isto» é da marca, e um contorno branco no hover ficaria cru sobre o painel. */
 .playlist-acao-card:hover {
-  border-color: var(--pl-acao-card-cor);
-  background: color-mix(in srgb, var(--pl-acao-card-cor) 12%, var(--surface2));
+  border-color: var(--pl-acao-dourado);
+  background: color-mix(in srgb, var(--pl-acao-dourado) 12%, var(--surface2));
 }
 
 .playlist-acao-card:focus-visible {
-  outline: 2px solid var(--pl-acao-card-cor);
+  outline: 2px solid var(--pl-acao-dourado);
   outline-offset: -1px;
 }
 
 .playlist-acao-card:active:not(:disabled) {
-  background: color-mix(in srgb, var(--pl-acao-card-cor) 18%, var(--surface2));
+  background: color-mix(in srgb, var(--pl-acao-dourado) 18%, var(--surface2));
 }
 
 .playlist-acao-card:disabled {
@@ -8867,7 +8872,7 @@ html.dark {
   --red: #d9534f;
   --yellow: #d4a017;
   --on-accent: #1a1612;
-  --pl-acao-card-cor: var(--pl-acao-dourado);
+  --pl-acao-card-cor: #ffffff;
   --scroll-tri-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 6 18 12' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 15 6-6 6 6'/%3E%3C/svg%3E");
   --scroll-tri-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='3 6 18 12' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --scroll-tri-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='6 3 12 18' fill='none' stroke='%23c8c4be' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 6-6 6 6 6'/%3E%3C/svg%3E");
