@@ -2628,6 +2628,11 @@ html:not(.dark) .pl-sel {
   text-transform: none;
 }
 
+/* Iguala a altura do botão do ministrante ao do seletor de culto. */
+#culto-ministrante-dd-btn {
+  min-height: 36px;
+}
+
 .playlist-row .tit {
   font-size: var(--fs-text-base);
   font-weight: 700;
