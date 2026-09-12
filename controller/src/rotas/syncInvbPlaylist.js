@@ -14,11 +14,142 @@ const {
   ROTULO_COPIA_IMPORTADA,
   ORIGEM_LYRA_ONLINE,
   garantirColunaOrigemImportacao,
+  normalizarChaveComparacao,
 } = require('../db/musicas');
 const { loadPlaylistsJson, savePlaylistsJson } = require('../lib/playlistsStore');
 
 const TEMA_PADRAO = 'ABERTURA';
 const PLAYLIST_TIPO_MARCADOR_TEMA = 'marcador_tema';
+
+/* Busca no banco online: quantos resultados pedir e o quão parecido o título tem de
+   ser para a música ser aceite como a mesma. Antes usava-se cegamente o 1.º resultado —
+   e uma busca sem acerto nenhum ainda assim «encontrava» a música errada. */
+const LIMITE_BUSCA_LYRA = 10;
+const PONTUACAO_MINIMA_TITULO = 0.6;
+
+/**
+ * Termos a tentar no banco online, do mais fiel ao nome do site ao mais folgado.
+ * A API procura por prefixo: o nome completo do site («Nome (Versão Ao Vivo)»)
+ * costuma não devolver nada, e é aí que as variantes salvam a sincronização.
+ */
+function variantesDeTermoBusca(nome) {
+  const base = String(nome || '').trim();
+  const out = [];
+  const add = (t) => {
+    const v = String(t || '').replace(/\s+/g, ' ').trim();
+    if (v && !out.includes(v)) out.push(v);
+  };
+  add(base);
+  /* Sem o que está entre parênteses/colchetes: «Ousado Amor (Reckless Love)». */
+  add(base.replace(/[([{][^)\]}]*[)\]}]/g, ' '));
+  /* E só o que está lá dentro — às vezes é o título pelo qual o banco a conhece. */
+  const dentro = base.match(/[([{]([^)\]}]+)[)\]}]/);
+  if (dentro) add(dentro[1]);
+  /* Antes do travessão: «Nome - Artista», «Nome — Ao Vivo». */
+  add(base.split(/\s+[-–—]\s+/)[0]);
+  const palavras = base.split(/\s+/).filter(Boolean);
+  if (palavras.length > 3) add(palavras.slice(0, 3).join(' '));
+  return out;
+}
+
+/**
+ * Semelhança entre o nome do site e o título devolvido pelo banco (0 a 1).
+ * Igual = 1; um contém o outro = 0.8/0.9; senão, proporção de palavras comuns.
+ */
+function pontuacaoTitulo(alvoNorm, candidatoNorm) {
+  if (!alvoNorm || !candidatoNorm) return 0;
+  if (alvoNorm === candidatoNorm) return 1;
+  if (candidatoNorm.startsWith(alvoNorm) || alvoNorm.startsWith(candidatoNorm)) return 0.9;
+  if (candidatoNorm.includes(alvoNorm) || alvoNorm.includes(candidatoNorm)) return 0.8;
+  const a = new Set(alvoNorm.split(' ').filter(Boolean));
+  const b = new Set(candidatoNorm.split(' ').filter(Boolean));
+  if (!a.size || !b.size) return 0;
+  let comuns = 0;
+  for (const w of a) if (b.has(w)) comuns++;
+  return comuns / Math.max(a.size, b.size);
+}
+
+/**
+ * Resolve o slug da música no banco online a partir do nome que vem do site.
+ * Devolve o melhor acerto acima do mínimo, ou null (música fica em «não encontradas»).
+ */
+async function resolverSlugNoLyra(nomeMusica) {
+  const alvo = normalizarChaveComparacao(nomeMusica);
+  if (!alvo) return null;
+  let melhor = null;
+  for (const termo of variantesDeTermoBusca(nomeMusica)) {
+    let busca;
+    try {
+      busca = await lyraSongbank.buscarMusicas({ q: termo, limit: LIMITE_BUSCA_LYRA });
+    } catch (_) {
+      continue; /* falha de rede neste termo — tenta o seguinte */
+    }
+    if (!busca || !busca.sucesso || !Array.isArray(busca.resultados)) continue;
+    for (const r of busca.resultados) {
+      if (!r || !r.slug) continue;
+      const p = pontuacaoTitulo(alvo, normalizarChaveComparacao(r.titulo));
+      if (!melhor || p > melhor.pontuacao) {
+        melhor = { slug: r.slug, titulo: r.titulo, pontuacao: p };
+      }
+    }
+    if (melhor && melhor.pontuacao >= 1) break;
+  }
+  return melhor && melhor.pontuacao >= PONTUACAO_MINIMA_TITULO ? melhor : null;
+}
+
+function ehMarcadorTema(item) {
+  return !!(item && item.tipo === PLAYLIST_TIPO_MARCADOR_TEMA);
+}
+
+function chaveTema(tema) {
+  return String(tema || '').trim().toLocaleUpperCase('pt-BR');
+}
+
+/** Índice do último marcador do tema, ou -1. */
+function indiceMarcadorTema(itensPlaylist, tema) {
+  const alvo = chaveTema(tema);
+  let idx = -1;
+  for (let i = 0; i < itensPlaylist.length; i++) {
+    if (ehMarcadorTema(itensPlaylist[i]) && chaveTema(itensPlaylist[i].tema) === alvo) idx = i;
+  }
+  return idx;
+}
+
+/** Tema do bloco (marcador anterior) onde está a linha do índice dado. */
+function temaDoBlocoNoIndice(itensPlaylist, idx, temaPadrao) {
+  for (let i = idx - 1; i >= 0; i--) {
+    if (ehMarcadorTema(itensPlaylist[i])) return chaveTema(itensPlaylist[i].tema);
+  }
+  return chaveTema(temaPadrao);
+}
+
+/**
+ * Linha já na playlist sem tema (gravada antes desta correção) passa a ter o tema
+ * do bloco onde está — sem a mudar de sítio.
+ */
+function garantirTemaNoItemExistente(itensPlaylist, idx, temaPadrao) {
+  const item = itensPlaylist[idx];
+  if (!item || chaveTema(item.tema)) return false;
+  item.tema = temaDoBlocoNoIndice(itensPlaylist, idx, temaPadrao);
+  return true;
+}
+
+/**
+ * Insere a música no fim do bloco do seu tema (criando o marcador no fim da playlist
+ * se ainda não existir) — mesma regra do painel (`inserirMusicaNoBlocoTema`).
+ * Antes a música ia sempre para o fim da lista, logo entrava debaixo do último
+ * cabeçalho de tema, e não no seu.
+ */
+function inserirMusicaNoBlocoTema(itensPlaylist, tema, item) {
+  let markerIdx = indiceMarcadorTema(itensPlaylist, tema);
+  if (markerIdx < 0) {
+    itensPlaylist.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: chaveTema(tema) });
+    markerIdx = itensPlaylist.length - 1;
+  }
+  let fimBloco = markerIdx + 1;
+  while (fimBloco < itensPlaylist.length && !ehMarcadorTema(itensPlaylist[fimBloco])) fimBloco++;
+  itensPlaylist.splice(fimBloco, 0, item);
+}
 
 /**
  * Busca no banco local uma cópia de origem lyra-online do root informado.
@@ -60,12 +191,15 @@ function indiceRootNaPlaylist(itensPlaylist, rootId) {
  * `id` é sempre o root (âncora da família). Quando a versão Lyra é uma
  * Cópia/Importada (filho), grava versaoLocalId — senão a UI abre o Original.
  */
-function construirItemPlaylist(rootRow, cultoId, versaoLyra = null) {
+function construirItemPlaylist(rootRow, cultoId, versaoLyra = null, tema = '') {
   const rootId = Number(rootRow.root_id != null ? rootRow.root_id : rootRow.id);
   const item = {
     id: rootId,
     titulo: String((versaoLyra && versaoLyra.titulo) || rootRow.titulo || '').trim(),
     artista: String((versaoLyra && versaoLyra.artista) || rootRow.artista || '').trim(),
+    /* O painel grava o tema na própria linha (remover tema, seletor de temas e
+       contagem por bloco leem-no daqui) — sem ele a música ficava «sem tema». */
+    tema: chaveTema(tema),
     bancoFonte: 'user',
     cultoId,
   };
@@ -130,32 +264,15 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
   let adicionadas = 0;
   const naoEncontradas = [];
 
-  // Agrupar itens por tema mantendo a ordem
-  // Vamos processar cada item na ordem, inserindo marcadores de tema quando necessário
-  // Descobrir qual o último marcador de tema já presente na playlist
-  let temaAtualNaPlaylist = null;
-  for (const it of playlistAtual) {
-    if (it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA && it.tema) {
-      temaAtualNaPlaylist = it.tema;
-    }
-  }
-
   for (const item of itens) {
     const nomeMusica = (item.nome || item.titulo || item.title || '').trim();
     if (!nomeMusica) continue;
 
     const tema = item.tema || TEMA_PADRAO;
 
-    // 1. Buscar no Lyra online pelo nome
-    let slug = null;
-    try {
-      const resultBusca = await lyraSongbank.buscarMusicas({ q: nomeMusica, limit: 5 });
-      if (resultBusca.sucesso && resultBusca.resultados && resultBusca.resultados.length > 0) {
-        slug = resultBusca.resultados[0].slug;
-      }
-    } catch (e) {
-      // falha de rede — tratar como não encontrada
-    }
+    // 1. Buscar no Lyra online pelo nome (variantes do termo + acerto pelo título)
+    const acerto = await resolverSlugNoLyra(nomeMusica);
+    const slug = acerto ? acerto.slug : null;
 
     if (!slug) {
       naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
@@ -240,32 +357,18 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
       }
 
       // Item da playlist SEMPRE com a versão Lyra resolvida (Original Lyra ou Cópia/Importada)
-      const itemPlaylist = construirItemPlaylist(rootRow, cultoId, versaoLyraParaPlaylist);
+      const itemPlaylist = construirItemPlaylist(rootRow, cultoId, versaoLyraParaPlaylist, tema);
 
       // 4. Se já está na playlist: atualizar vínculo para a versão Lyra (não manter Original de outro banco)
       const idxExistente = indiceRootNaPlaylist(playlistAtual, rootId);
       if (idxExistente >= 0) {
         aplicarVinculoVersaoLyraNoItem(playlistAtual[idxExistente], itemPlaylist);
+        garantirTemaNoItemExistente(playlistAtual, idxExistente, tema);
         continue;
       }
 
-      // 5. Inserir marcador de tema se necessário (não duplicar tema/tag/flag já na playlist)
-      if (temaAtualNaPlaylist !== tema) {
-        const temaNorm = String(tema || '').trim().toLocaleUpperCase('pt-BR');
-        const temaJaNaPlaylist = playlistAtual.some(
-          (it) =>
-            it &&
-            it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA &&
-            String(it.tema || '').trim().toLocaleUpperCase('pt-BR') === temaNorm
-        );
-        if (!temaJaNaPlaylist) {
-          playlistAtual.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema });
-        }
-        temaAtualNaPlaylist = tema;
-      }
-
-      // 6. Adicionar item novo já vinculado à versão Lyra
-      playlistAtual.push(itemPlaylist);
+      // 5. Adicionar no fim do bloco do tema (criando o marcador se ainda não existir)
+      inserirMusicaNoBlocoTema(playlistAtual, tema, itemPlaylist);
       adicionadas++;
     } catch (e) {
       naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
@@ -360,4 +463,14 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
   });
 }
 
-module.exports = { registrarRotasSyncInvbPlaylist };
+module.exports = {
+  registrarRotasSyncInvbPlaylist,
+  /* Exportados para teste (`syncInvbPlaylist.test.js`). */
+  sincronizarCulto,
+  variantesDeTermoBusca,
+  pontuacaoTitulo,
+  construirItemPlaylist,
+  inserirMusicaNoBlocoTema,
+  garantirTemaNoItemExistente,
+  indiceRootNaPlaylist,
+};
