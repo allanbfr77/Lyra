@@ -17,6 +17,27 @@ function normalizarRotaDisplay(obj) {
   };
 }
 
+/**
+ * Ordem explícita de apagar a saída, vinda do seletor do modo Slides.
+ *
+ * É diferente de `publicoIndex: -1`, e a diferença é a razão de este campo existir. O índice
+ * -1 diz «este canal não reivindica monitor», e a fusão abaixo deixa outro canal assumir o
+ * ecrã — é o que mantém uma mídia no ar enquanto o operador mexe nos slides. Este campo
+ * diz «o operador do Slides mandou apagar ESTA saída», e isso nenhum outro canal deve
+ * desfazer.
+ *
+ * Só o modo Slides o preenche. Em Bíblia e Mídias vem sempre `false`, e por isso o
+ * «Não exibir» desses modos continua a significar exactamente o que significava.
+ *
+ * Nunca mexe em geometria: a janela fica no monitor onde está, apenas sem conteúdo.
+ */
+function normalizarSemExibicaoSlides(obj) {
+  return {
+    publico: obj?.publico === true,
+    ministrante: obj?.ministrante === true,
+  };
+}
+
 function normalizarRoteamentoDual(data) {
   if (!data || typeof data !== 'object') {
     return {
@@ -24,6 +45,7 @@ function normalizarRoteamentoDual(data) {
       slides: { publicoIndex: -1, ministranteIndex: -1 },
       apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
       contagem: { publicoIndex: -1, ministranteIndex: -1 },
+      slidesSemExibicao: { publico: false, ministrante: false },
     };
   }
   if (data.version === 2 && data.slides && data.apresentacao) {
@@ -33,6 +55,7 @@ function normalizarRoteamentoDual(data) {
       apresentacao: normalizarRotaDisplay(data.apresentacao),
       /* Pin exclusivo do Contador — independente de slides/Bíblia/Mídias. */
       contagem: normalizarRotaDisplay(data.contagem),
+      slidesSemExibicao: normalizarSemExibicaoSlides(data.slidesSemExibicao),
     };
   }
   const legacy = normalizarRotaDisplay(data);
@@ -41,6 +64,7 @@ function normalizarRoteamentoDual(data) {
     slides: { ...legacy },
     apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
     contagem: { publicoIndex: -1, ministranteIndex: -1 },
+    slidesSemExibicao: { publico: false, ministrante: false },
   };
 }
 
@@ -121,12 +145,19 @@ function saveDisplayRouting(displayRoutingPathFn, body) {
     next = normalizarRoteamentoDual(b);
     /* PUT sem `contagem` não apaga o pin — senão mudar a Bíblia derrubava o Contador. */
     if (!b.contagem) next.contagem = { ...atual.contagem };
+    /*
+     * A marca, ao contrário do pin, é recalculada em cada PUT de quem a usa: um PUT sem ela
+     * é um PUT de quem não a governa (um painel antigo, ou uma rota gravada antes deste
+     * campo existir), e herdar a marca antiga deixaria um monitor preto sem ninguém a
+     * pedi-lo. Ausente vale `false`, que é o comportamento de sempre.
+     */
   } else if (b.publicoIndex !== undefined || b.ministranteIndex !== undefined) {
     next = {
       version: 2,
       slides: normalizarRotaDisplay(b),
       apresentacao: { ...atual.apresentacao },
       contagem: { ...atual.contagem },
+      slidesSemExibicao: { publico: false, ministrante: false },
     };
   } else {
     next = atual;
@@ -138,6 +169,7 @@ function saveDisplayRouting(displayRoutingPathFn, body) {
 module.exports = {
   parseDisplayRouteIndex,
   normalizarRotaDisplay,
+  normalizarSemExibicaoSlides,
   normalizarRoteamentoDual,
   indicesJanelasProjecaoDeRoteamentoDual,
   loadDisplayRouting,

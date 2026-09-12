@@ -2089,6 +2089,21 @@ function createProjectionEngine(paths, deps) {
     return win;
   }
 
+  /**
+   * Canais que o operador do modo Slides mandou apagar.
+   *
+   * Separado do índice porque as duas coisas são mesmo diferentes: `-1` quer dizer «este
+   * canal não reivindica monitor» — e a fusão dual deixa a Mídias ou o pin do Contador
+   * assumirem o ecrã, que é o que mantém uma imagem no ar enquanto se mexe nos slides.
+   * Era exactamente isso que engolia o «Não exibir» do Slides: a prévia apagava (olha para
+   * a rota do modo) e o monitor físico continuava aceso pelo outro canal.
+   *
+   * Aqui a ordem é explícita e não se funde com nada. Bíblia e Mídias nunca a preenchem.
+   */
+  function canaisApagadosPeloSlides(routingDual) {
+    return displayRoutingMod.normalizarSemExibicaoSlides(routingDual?.slidesSemExibicao);
+  }
+
   /** Resolve índices de monitor com fallbacks (mesma lógica de abrirTelasConfiguradas). */
   function resolverIndicesEfetivosProjecao(routingDual) {
     const displays = obterDisplaysOrdenados();
@@ -2726,9 +2741,10 @@ function createProjectionEngine(paths, deps) {
                * `onComplete` (que chama `atualizarDisplayMinistrante`) de lhe mandar a
                * estrofe. Era este o buraco entre a prévia e o monitor físico.
                */
+              const apagados = canaisApagadosPeloSlides(routingDual);
               marcarCanaisSemExibicao({
-                publico: publicoConteudo < 0,
-                ministrante: ministranteConteudo < 0,
+                publico: publicoConteudo < 0 || apagados.publico,
+                ministrante: ministranteConteudo < 0 || apagados.ministrante,
               });
               finalizarSincronizacaoTelas(onComplete);
             });
@@ -2940,8 +2956,9 @@ function createProjectionEngine(paths, deps) {
     if (telasAbertasCorrespondemRota(routingDual)) {
       /* Caminho rápido: só conta. Ver `garantirRapidas`. */
       garantirRapidas += 1;
-      const desejadoPub = pubConteudo < 0;
-      const desejadoMin = minConteudo < 0;
+      const apagadosSlides = canaisApagadosPeloSlides(routingDual);
+      const desejadoPub = pubConteudo < 0 || apagadosSlides.publico;
+      const desejadoMin = minConteudo < 0 || apagadosSlides.ministrante;
       /*
        * Mudança só de «Não exibir» (marca/conteúdo): a geometria já cumpre a rota.
        * Reaplicar marca + payload ocioso/conteúdo SEM `moveTop`/resync físico — senão o

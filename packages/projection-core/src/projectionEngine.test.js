@@ -1504,6 +1504,161 @@ test('«Não exibir» nos dois canais não fecha janela nenhuma com o operador l
 
 /*
  * ---------------------------------------------------------------------------------------
+ * Público (M2) em «Não exibir» COM CONTEÚDO NO AR — o caso relatado no Modo Slides.
+ * ---------------------------------------------------------------------------------------
+ */
+
+/** Estado com uma estrofe realmente projetada no canal público. */
+function comConteudoNoPublico(state) {
+  state.estadoAtual = {
+    tipo: 'musica',
+    titulo: 'Hino',
+    linhas: ['primeira estrofe'],
+    telaLimpa: false,
+    estrofeIndex: 0,
+  };
+}
+
+/** Último payload que a janela do têão recebeu. */
+function ultimoPayloadPublico(engine) {
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  if (!entrada) return null;
+  const s = entrada.win.sends.filter((x) => x.canal === 'atualizar').pop();
+  return s ? s.payload : null;
+}
+
+/** Rota do modo Slides com «Não exibir» dito como ordem, e não só como índice -1. */
+const rotaSlidesApagando = (pub, min, outros = {}) => ({
+  version: 2,
+  slides: { publicoIndex: pub, ministranteIndex: min },
+  apresentacao: outros.apresentacao || { publicoIndex: -1, ministranteIndex: -1 },
+  contagem: outros.contagem || { publicoIndex: -1, ministranteIndex: -1 },
+  slidesSemExibicao: { publico: pub < 0, ministrante: min < 0 },
+});
+
+test('Público em «Não exibir» apaga o M2 mesmo com a Mídias a reivindicá-lo', () => {
+  /*
+   * O caso relatado. A prévia do painel apagava (olha para a rota do modo Slides) e o
+   * monitor físico continuava a mostrar a estrofe, porque a fusão dual dava o M2 ao canal
+   * da apresentação. A ordem explícita do seletor do Slides resolve isso sem mexer na
+   * geometria: a janela fica onde está, no mesmo monitor, apenas preta.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  const antes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+
+  definirRota(rotaSlidesApagando(-1, 2, { apresentacao: { publicoIndex: 1, ministranteIndex: -1 } }));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.win, antes.win, 'a mesma janela — o monitor não foi desligado');
+  assert.strictEqual(depois.win.destruida, false);
+  assert.strictEqual(depois.win.visivel, true, 'continua visível: o HDMI não cai');
+  assert.strictEqual(depois.index, 1, 'e no mesmo monitor');
+  assert.strictEqual(depois.semExibicao, true, 'marcada como «Não exibir»');
+  const payload = ultimoPayloadPublico(engine);
+  assert.strictEqual(payload.telaLimpa, true, 'o M2 tem de ficar preto');
+});
+
+test('Público em «Não exibir» apaga o M2 mesmo com o pin da Contagem nele', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+
+  definirRota(rotaSlidesApagando(-1, 2, { contagem: { publicoIndex: 1, ministranteIndex: -1 } }));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.semExibicao, true);
+  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, true, 'o M2 tem de ficar preto');
+});
+
+test('Sem a ordem do Slides, a fusão manda como sempre mandou (Bíblia e Mídias intactas)', () => {
+  /*
+   * Guarda do «não alterar os outros modos»: com a marca ausente — que é o que Bíblia e
+   * Mídias enviam — um canal a -1 continua a ceder o monitor ao outro, e a mídia no ar
+   * continua no ar.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+
+  definirRota({
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: 2 },
+    apresentacao: { publicoIndex: 1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.semExibicao, false, 'sem ordem explícita, a fusão decide');
+  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, false, 'o conteúdo fica no ar');
+});
+
+test('Voltar a escolher o monitor devolve o conteúdo ao têão', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  definirRota(rotaSlidesApagando(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, true);
+
+  definirRota(rotaSlidesApagando(1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(entrada.semExibicao, false, 'a marca tem de sair');
+  const pay = ultimoPayloadPublico(engine);
+  assert.ok(Array.isArray(pay.linhas) && pay.linhas.length > 0, '«Não exibir» esconde, não apaga');
+});
+
+test('Público em «Não exibir» com estrofe no ar: o M2 tem de ficar preto', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  const antes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(antes, 'o têão devia estar aberto no M2');
+  const pAntes = ultimoPayloadPublico(engine);
+  assert.ok(Array.isArray(pAntes.linhas) && pAntes.linhas.length > 0, 'antes: com conteúdo');
+
+  definirRota(rota(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.ok(depois, 'a janela do têão continua a existir');
+  assert.strictEqual(depois.win, antes.win, 'e é a mesma — nada foi desligado');
+  assert.strictEqual(depois.win.destruida, false);
+  assert.strictEqual(depois.semExibicao, true, 'marcada como «Não exibir»');
+
+  const payload = ultimoPayloadPublico(engine);
+  assert.strictEqual(payload.telaLimpa, true, 'o monitor físico tem de ficar preto');
+  assert.ok(
+    !Array.isArray(payload.linhas) || payload.linhas.length === 0,
+    'sem estrofe no M2'
+  );
+});
+
+/*
+ * ---------------------------------------------------------------------------------------
  * Ministrante em «Não exibir»: prévia e monitor físico têm de dizer o mesmo.
  * ---------------------------------------------------------------------------------------
  */

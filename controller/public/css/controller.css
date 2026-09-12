@@ -8057,6 +8057,126 @@ img.ap-card5-video-thumb {
   color: var(--text);
   opacity: .9;
 }
+
+/*
+  Card 4 — quatro áreas de imagem numa grelha 2×2 dentro do cartão.
+
+  Depois de `.ap-card-body` para vencer o `place-items: center` e o padding dos outros
+  cards, como já se faz no card 6. O recuo de topo abre espaço ao rótulo «CARD 4», que é
+  absoluto e ficaria por cima da área de cima-esquerda.
+
+  Duas colunas e duas linhas em `1fr`, com `minmax(0, 1fr)` para as imagens poderem
+  encolher: sem isso a grelha adopta a largura natural da imagem e o cartão transborda.
+  A única folga é o `gap` — são ele e as bordas das áreas que desenham a linha vertical e
+  a horizontal que dividem o cartão.
+*/
+.ap-card-body.ap-card-body--quad {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  place-items: stretch;
+  justify-items: stretch;
+  gap: 8px;
+  padding: 30px 10px 10px;
+  cursor: default;
+}
+
+.ap-quad-slot {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  cursor: pointer;
+}
+
+/* Área por preencher — mesmo tracejado dos cards vazios da grelha, à escala daqui. */
+.ap-quad-slot.ap-quad-slot--vazio {
+  border: 2px dashed color-mix(in srgb, var(--border) 72%, var(--accent) 28%);
+  background: color-mix(in srgb, var(--surface2) 65%, var(--surface));
+}
+
+.ap-quad-plus {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+
+.ap-quad-img {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  object-fit: contain;
+}
+
+/* Seleccionada e no ar: a mesma linguagem dos cards inteiros, um grau mais discreta —
+   aqui o realce vive dentro de um cartão que já tem moldura própria. */
+.ap-quad-slot.ap-quad-slot--selecionado:not(.ap-quad-slot--projetando) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(166, 124, 45, 0.42);
+}
+
+.ap-quad-slot.ap-quad-slot--projetando {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px rgba(166, 124, 45, 0.55);
+}
+
+.ap-quad-slot.drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.ap-quad-live {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  pointer-events: none;
+}
+
+.ap-quad-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface2) 88%, #000);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.ap-quad-slot:hover .ap-quad-remove {
+  display: inline-flex;
+}
+
+.ap-quad-remove:hover {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+}
 .ap-card-file {
   position: relative;
   width: 100%;

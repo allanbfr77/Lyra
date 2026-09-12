@@ -151,6 +151,7 @@ import {
   rotaSlidesReposta,
   sincronizarNaoExibirManualSlidesDaEscolha,
   limparNaoExibirManualSlides,
+  obterNaoExibirManualSlides,
 } from './modules/reposicaoRotaSlides.js';
 import {
   MODOS_COM_MEMORIA,
@@ -1855,6 +1856,10 @@ function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
 
 function aplicarExtrasModoApresentacao(ex, opts = {}) {
   const extras = ex && typeof ex === 'object' ? ex : {};
+  if (Array.isArray(extras.card4Imagens)) {
+    apresentacaoCard4Imagens = Array.from({ length: 4 }, (_, i) =>
+      normalizarItemApresentacao(extras.card4Imagens[i] || null));
+  }
   if (!opts.skipCard6Aviso && typeof extras.card6AvisoTexto === 'string') {
     apresentacaoCard6Texto = extras.card6AvisoTexto;
   }
@@ -3831,6 +3836,7 @@ function renderMenuApresentacao() {
       if (!ok) return;
       apresentacaoBiblioteca = (apresentacaoBiblioteca || []).filter((x) => x && x.id !== item.id);
       apresentacaoCards = (apresentacaoCards || []).map((x) => (x && x.id === item.id ? null : x));
+      apresentacaoCard4Imagens = (apresentacaoCard4Imagens || []).map((x) => (x && x.id === item.id ? null : x));
       if (apresentacaoArquivoSelecionadoId === item.id) apresentacaoArquivoSelecionadoId = null;
       if (apresentacaoMidiaProjetadaId === item.id) {
         apresentacaoMidiaProjetadaId = null;
@@ -3874,7 +3880,216 @@ function definirSelecaoCardApresentacao(idx) {
     const n = Number(idx);
     apresentacaoCardSelecionadoIdx = Number.isFinite(n) && n >= 0 && n <= 5 ? n : null;
   }
+  /* Seleccionar outro card larga a área destacada dentro do card 4. */
+  if (apresentacaoCardSelecionadoIdx !== APRESENTACAO_IDX_CARD4) {
+    apresentacaoCard4SubSelecionadoIdx = null;
+  }
   aplicarClasseSelecaoCardsApresentacaoNoDom();
+}
+
+/**
+ * Card 4 — quatro áreas de imagem numa grelha 2×2 dentro do mesmo cartão.
+ *
+ * Ocupa a célula da grelha que sempre ocupou e mantém a moldura, o número e o
+ * comportamento dos outros cards; o que muda é o interior, dividido por uma linha
+ * vertical e uma horizontal em quatro áreas que se enchem e projetam uma a uma.
+ *
+ * O cartão em si nunca fica com o desenho de «vazio»: quem está vazia, ou não, é cada
+ * uma das áreas lá dentro.
+ */
+function montarCardQuatroImagensApresentacao() {
+  const card = document.createElement('div');
+  card.dataset.apCardIdx = String(APRESENTACAO_IDX_CARD4);
+  card.className = 'ap-card ap-card--quad';
+
+  const num = document.createElement('span');
+  num.className = 'ap-card-num';
+  num.textContent = `CARD ${APRESENTACAO_IDX_CARD4 + 1}`;
+
+  const body = document.createElement('div');
+  body.className = 'ap-card-body ap-card-body--quad';
+  body.dataset.cardIdx = String(APRESENTACAO_IDX_CARD4);
+  for (let sub = 0; sub < 4; sub++) {
+    body.appendChild(montarAreaImagemCard4(sub));
+  }
+
+  card.appendChild(num);
+  card.appendChild(body);
+  return card;
+}
+
+/**
+ * Uma das quatro áreas do card 4.
+ *
+ * Cada área é independente: recebe o seu ficheiro, mostra a sua imagem, tem o seu «X» e
+ * responde ao clique (selecionar) e ao duplo clique (projetar) como qualquer card da
+ * grelha — é o mesmo `projetarItemApresentacao` de sempre, que não precisa de saber de
+ * onde veio a imagem.
+ *
+ * Aqui só entram imagens. Vídeo continua a ser exclusivo do card 5, e PDF/apresentação
+ * não teriam como se mostrar numa área deste tamanho.
+ *
+ * @param {number} sub 0 = cima-esquerda, 1 = cima-direita, 2 = baixo-esquerda, 3 = baixo-direita
+ */
+function montarAreaImagemCard4(sub) {
+  const item = apresentacaoCard4Imagens[sub] || null;
+  const slot = document.createElement('div');
+  slot.className = 'ap-quad-slot' + (item ? '' : ' ap-quad-slot--vazio');
+  slot.dataset.card4Sub = String(sub);
+  if (apresentacaoCard4SubSelecionadoIdx === sub) slot.classList.add('ap-quad-slot--selecionado');
+
+  if (!item) {
+    slot.title = `Imagem ${sub + 1} do card 4 — clique para escolher um ficheiro`;
+    const mais = document.createElement('div');
+    mais.className = 'ap-quad-plus';
+    mais.textContent = '+';
+    mais.setAttribute('aria-hidden', 'true');
+    slot.appendChild(mais);
+    slot.addEventListener('click', () => {
+      apresentacaoCard4InputTarget = sub;
+      apresentacaoCardInputTarget = null;
+      const input = document.getElementById('apresentacao-add-card-input');
+      if (!input) return;
+      input.accept = 'image/*';
+      input.value = '';
+      input.click();
+    });
+  } else {
+    slot.title = `${String(item.name || 'imagem')} — clique para selecionar · duplo clique para projetar`;
+    const src = srcImagemApresentacaoSeguro(item.src, item);
+    if (src) {
+      const img = document.createElement('img');
+      img.className = 'ap-quad-img';
+      img.alt = String(item.name || 'imagem');
+      img.src = src;
+      slot.appendChild(img);
+    }
+    if (item.id && item.id === apresentacaoMidiaProjetadaId) {
+      slot.classList.add('ap-quad-slot--projetando');
+      const live = document.createElement('div');
+      live.className = 'ap-quad-live';
+      live.textContent = 'AO VIVO';
+      live.setAttribute('aria-hidden', 'true');
+      slot.appendChild(live);
+    }
+
+    slot.draggable = true;
+    slot.addEventListener('dragstart', (ev) => {
+      ev.dataTransfer.setData('text/plain', item.id || '');
+      ev.dataTransfer.setData('application/x-ap-card4-sub-idx', String(sub));
+      ev.dataTransfer.effectAllowed = 'copyMove';
+    });
+    slot.addEventListener('click', (ev) => {
+      if (ev.target.closest('.ap-quad-remove')) return;
+      if (ev.detail >= 2) return;
+      clearTimeout(apresentacaoCardUiClickTimer);
+      apresentacaoCardUiClickTimer = setTimeout(() => {
+        apresentacaoCardUiClickTimer = null;
+        apresentacaoCard4SubSelecionadoIdx = sub;
+        definirSelecaoCardApresentacao(APRESENTACAO_IDX_CARD4);
+        /* Troca a classe nas quatro áreas em vez de redesenhar a grelha: um clique não
+           deve fazer as imagens piscarem enquanto voltam a carregar. */
+        slot.parentElement?.querySelectorAll('.ap-quad-slot').forEach((el) => {
+          el.classList.toggle('ap-quad-slot--selecionado', el === slot);
+        });
+      }, 300);
+    });
+    slot.addEventListener('dblclick', (ev) => {
+      if (ev.target.closest('.ap-quad-remove')) return;
+      ev.preventDefault();
+      clearTimeout(apresentacaoCardUiClickTimer);
+      apresentacaoCardUiClickTimer = null;
+      projetarItemApresentacao(item);
+    });
+
+    const btnRemove = document.createElement('button');
+    btnRemove.type = 'button';
+    btnRemove.className = 'ap-quad-remove';
+    btnRemove.title = 'Remover esta imagem';
+    btnRemove.setAttribute('aria-label', `Remover a imagem ${sub + 1} do card 4`);
+    btnRemove.textContent = 'X';
+    btnRemove.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (item.id && apresentacaoMidiaProjetadaId === item.id) {
+        apresentacaoMidiaProjetadaId = null;
+        void emitirEncerrarApresentacaoPublicoAoServidor();
+      }
+      if (apresentacaoCard4SubSelecionadoIdx === sub) apresentacaoCard4SubSelecionadoIdx = null;
+      apresentacaoCard4Imagens[sub] = null;
+      salvarEstadoModoApresentacaoNoStorage();
+      renderGridApresentacao();
+      atualizarFeedbackProjecaoApresentacaoUi({
+        mensagemIdle: `Imagem ${sub + 1} do card 4 removida.`,
+      });
+    });
+    slot.appendChild(btnRemove);
+  }
+
+  slot.addEventListener('dragover', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    slot.classList.add('drag-over');
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+  slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+  slot.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    slot.classList.remove('drag-over');
+    const id = String(ev.dataTransfer.getData('text/plain') || '');
+    const subDe = parseInt(String(ev.dataTransfer.getData('application/x-ap-card4-sub-idx') || ''), 10);
+    const cardDe = parseInt(String(ev.dataTransfer.getData('application/x-ap-card-idx') || ''), 10);
+    const veioDeArea = Number.isInteger(subDe) && subDe >= 0 && subDe < 4;
+    const veioDeCard = !veioDeArea && Number.isInteger(cardDe) && cardDe >= 0 && cardDe < 5;
+
+    let it = null;
+    if (id) it = apresentacaoBiblioteca.find((x) => x.id === id) || null;
+    if (!it && veioDeArea) it = apresentacaoCard4Imagens[subDe] || null;
+    if (!it && veioDeCard) it = apresentacaoCards[cardDe] || null;
+    if (!it) return;
+    if (!ehItemImagemApresentacao(it)) {
+      alert('As quatro áreas do card 4 exibem apenas imagens.');
+      return;
+    }
+    /* Arrastar é mover, como entre os outros cards: a origem fica livre. */
+    if (veioDeArea) {
+      if (subDe === sub) return;
+      apresentacaoCard4Imagens[subDe] = null;
+    } else if (veioDeCard) {
+      apresentacaoCards[cardDe] = null;
+    }
+    apresentacaoCard4Imagens[sub] = it;
+    salvarEstadoModoApresentacaoNoStorage();
+    renderGridApresentacao();
+  });
+
+  return slot;
+}
+
+/**
+ * Ficheiro escolhido no seletor para uma das quatro áreas do card 4.
+ *
+ * Espelha `adicionarArquivoDiretoNoCard` — cria o item, junta-o à biblioteca se ainda lá
+ * não estiver e grava — mudando só onde o item fica e o que é aceite.
+ */
+function adicionarImagemNaAreaCard4(file, sub) {
+  const s = Number(sub);
+  if (!Number.isInteger(s) || s < 0 || s > 3) return;
+  criarItemApresentacaoDeArquivo(file, (item) => {
+    if (!ehItemImagemApresentacao(item)) {
+      alert('As quatro áreas do card 4 aceitam apenas imagens.');
+      return;
+    }
+    apresentacaoCard4Imagens[s] = item;
+    const ja = apresentacaoBiblioteca.some((x) => x.src === item.src && x.name === item.name);
+    if (!ja) apresentacaoBiblioteca.push(item);
+    salvarEstadoModoApresentacaoNoStorage();
+    renderMenuApresentacao();
+    renderGridApresentacao();
+    atualizarFeedbackProjecaoApresentacaoUi({
+      mensagemIdle: `Imagem ${s + 1} do card 4: ${item.name}`,
+    });
+  });
 }
 
 function renderGridApresentacao() {
@@ -3883,6 +4098,11 @@ function renderGridApresentacao() {
   grid.innerHTML = '';
 
   for (let i = 0; i < 5; i++) {
+    /* O card 4 não guarda uma mídia: é o recipiente das quatro áreas de imagem. */
+    if (i === APRESENTACAO_IDX_CARD4) {
+      grid.appendChild(montarCardQuatroImagensApresentacao());
+      continue;
+    }
     const card = document.createElement('div');
     const item = apresentacaoCards[i];
     card.dataset.apCardIdx = String(i);
@@ -3897,6 +4117,7 @@ function renderGridApresentacao() {
       body.innerHTML = '<div class="ap-card-plus">+</div>';
       body.addEventListener('click', () => {
         apresentacaoCardInputTarget = i;
+        apresentacaoCard4InputTarget = null;
         const input = document.getElementById('apresentacao-add-card-input');
         if (!input) return;
         input.accept =
@@ -6380,6 +6601,29 @@ let apresentacaoCards = Array(6).fill(null);
 /** Índice do card 5 na grelha (0-based = 4); único slot que aceita vídeo. */
 const APRESENTACAO_IDX_CARD5 = 4;
 
+/**
+ * Índice do card 4 na grelha (0-based = 3).
+ *
+ * Ao contrário dos outros, este card não guarda uma mídia: é o recipiente de quatro áreas
+ * de imagem independentes, numa grelha 2×2. O slot correspondente em `apresentacaoCards`
+ * fica sempre vazio — quem guarda o conteúdo é `apresentacaoCard4Imagens`.
+ */
+const APRESENTACAO_IDX_CARD4 = 3;
+
+/** As quatro imagens do card 4, por posição na grelha (0 = cima-esquerda … 3 = baixo-direita). */
+let apresentacaoCard4Imagens = Array(4).fill(null);
+/** Área do card 4 à espera do ficheiro escolhido no seletor, ou `null`. */
+let apresentacaoCard4InputTarget = null;
+/** Área do card 4 destacada por clique (0–3) ou `null` — só realce, como nos outros cards. */
+let apresentacaoCard4SubSelecionadoIdx = null;
+
+/** As quatro áreas exibem imagens; o mesmo critério que a prévia dos outros cards usa. */
+function ehItemImagemApresentacao(it) {
+  const kind = String(it?.kind || '').toLowerCase();
+  const mime = String(it?.mime || '').toLowerCase();
+  return kind === 'image' || mime.startsWith('image/') || /^data:image\//i.test(String(it?.src || ''));
+}
+
 /** Texto editável do card 6 (avisos); não usa ficheiro. */
 let apresentacaoCard6Texto = '';
 /** Configuração global do card 6 — aplicada igualmente ao público e ministrante. */
@@ -6543,6 +6787,11 @@ function coletarEstadoModoApresentacaoAtual() {
     },
     extras: {
       audioLoop: !!audioLoopAtivo,
+      /* As quatro áreas do card 4 vão nos extras, e não em `cards`: assim o formato de
+         `cards` (seis posições, uma mídia cada) continua o mesmo para quem o lê — o
+         storage e o estado partilhado com os outros controladores. */
+      card4Imagens: Array.from({ length: 4 }, (_, i) =>
+        normalizarItemApresentacao(apresentacaoCard4Imagens?.[i] || null)),
       card6AvisoTexto: apresentacaoCard6Texto,
       card6AvisoConfig: normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg),
     },
@@ -6599,6 +6848,14 @@ function aplicarEstadoModoApresentacao(payload, opts = {}) {
     skipCard6Aviso: !!opts.skipCard6Extras,
     skipCard6AvisoConfig: !!opts.skipCard6Extras,
   });
+  /* Estado gravado antes de o card 4 se dividir em quatro: o ficheiro que ocupava o card
+     inteiro passa para a primeira das áreas, em vez de desaparecer do painel sem aviso.
+     Daí em diante o slot 3 de `apresentacaoCards` fica sempre vazio. */
+  const legadoCard4 = apresentacaoCards[APRESENTACAO_IDX_CARD4];
+  if (legadoCard4 && !apresentacaoCard4Imagens.some(Boolean)) {
+    apresentacaoCard4Imagens[0] = legadoCard4;
+  }
+  apresentacaoCards[APRESENTACAO_IDX_CARD4] = null;
   if (ehModoApresentacaoOperador()) {
     const modo = modoRoteamentoAtual();
     renderRoteamentoTelas(monitoresServidorCache, normalizarRota(rotasPorModo[modo]));
@@ -15921,6 +16178,50 @@ async function carregarRoteamentoTelasDoServidor() {
 }
 }
 
+/**
+ * Os canais que o operador apagou NO SELETOR DO MODO SLIDES.
+ *
+ * É uma leitura do que está escolhido agora, recalculada a cada envio — não um estado que
+ * fica pendurado. Sair do Slides para a Bíblia ou para as Mídias devolve `false` nos dois
+ * canais no envio seguinte, e o motor volta a decidir só pela fusão das rotas, como antes.
+ *
+ * «Live — OBS» não é «apagar o monitor»: é mandar a saída para outro sítio. Fica de fora.
+ *
+ * @param {string} modo modo de roteamento em vigor (`modoRoteamentoAtual()`)
+ */
+function semExibicaoDoSeletorSlides(modo) {
+  const NENHUM = { publico: false, ministrante: false };
+  if (modo !== 'slides' && modo !== 'completo') return NENHUM;
+
+  const enviada = normalizarRota(rotasPorModo.slides);
+  if (enviada.live) return NENHUM;
+
+  /*
+   * A escolha do operador, ANTES dos ajustes automáticos.
+   *
+   * `ajustarSlidesSemConflitoComApresentacao` também escreve −1 — quando a Mídias está no
+   * ar no monitor que os slides pediam e não sobra outro ecrã. Tratar esse −1 como ordem
+   * de apagar mandaria escurecer justamente a mídia no ar, que é o oposto do que ele quer
+   * dizer. No modo Slides quem guarda a escolha à mão é `reposicaoRotaSlides` (o mesmo
+   * registo que a reposição de rota já consulta); no modo completo, `rotasPorModo.completo`,
+   * que não passa pelo ajuste.
+   */
+  const escolha =
+    modo === 'slides'
+      ? obterNaoExibirManualSlides()
+      : (() => {
+          const c = normalizarRota(rotasPorModo.completo);
+          return { publico: c.publicoIndex < 0, ministrante: c.ministranteIndex < 0 };
+        })();
+
+  /* E só apaga o canal que de facto vai sair a −1: se o ajuste lhe deu um monitor, há
+     conteúdo para mostrar e nada a apagar. */
+  return {
+    publico: !!escolha.publico && enviada.publicoIndex < 0,
+    ministrante: !!escolha.ministrante && enviada.ministranteIndex < 0,
+  };
+}
+
 async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const usarValoresDaUi = opts.usarValoresDaUi !== false;
   const modo = modoRoteamentoAtual();
@@ -16036,6 +16337,19 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
        a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
     contagem: rotaContagemParaServidor(),
+    /*
+     * «Não exibir» do seletor do modo Slides, dito ao motor como ordem e não como índice.
+     *
+     * O −1 sozinho não chegava: no motor os canais fundem-se (`apresentacao >= 0 ? ... : slides`,
+     * e o pin do Contador ainda por cima), de modo que uma mídia ou uma contagem que ainda
+     * reivindicasse o M2 mantinha a projecção acesa — enquanto a prévia, que olha para a rota
+     * deste modo, apagava. Era o desencontro relatado: prévia preta, monitor físico aceso.
+     *
+     * Só os modos que usam o seletor do Slides (`slides` e `completo`) a preenchem. Em
+     * Bíblia e Mídias vai `false`, e o «Não exibir» desses modos continua a ser o de sempre:
+     * «este canal não reivindica monitor», deixando o outro assumir.
+     */
+    slidesSemExibicao: semExibicaoDoSeletorSlides(modo),
   };
   if (
     !Number.isFinite(payloadDual.slides.publicoIndex) ||
@@ -21984,7 +22298,15 @@ document.getElementById('apresentacao-add-menu-input')?.addEventListener('change
 document.getElementById('apresentacao-add-card-input')?.addEventListener('change', (e) => {
   const f = e?.target?.files?.[0];
   if (!f) return;
-  adicionarArquivoDiretoNoCard(f, apresentacaoCardInputTarget ?? 0);
+  /* O mesmo seletor serve os cards e as quatro áreas do card 4; quem o abriu deixou dito
+     para onde vai o ficheiro. */
+  if (apresentacaoCard4InputTarget !== null) {
+    const sub = apresentacaoCard4InputTarget;
+    apresentacaoCard4InputTarget = null;
+    adicionarImagemNaAreaCard4(f, sub);
+  } else {
+    adicionarArquivoDiretoNoCard(f, apresentacaoCardInputTarget ?? 0);
+  }
   if (e.target) e.target.value = '';
 });
 document.getElementById('apresentacao-add-audio-input')?.addEventListener('change', (e) => {
