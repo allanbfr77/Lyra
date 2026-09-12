@@ -13402,9 +13402,10 @@ function renderSlidesStrip() {
     `;
     chip.onclick = (ev) => {
       ev.preventDefault();
-      /* Sem projeção: 1 clique só seleciona. Com projeção ativa: 1 clique troca o slide no ar. */
+      /* Sem projeção: 1 clique só seleciona. Com projeção ativa: 1 clique troca o slide no ar.
+         Nos dois casos a grelha rola como rolaria com as setas. */
       if (projecaoMusicaEmitidaNoServidor) {
-        projetarPorDuploCliqueCentral(i);
+        projetarPorDuploCliqueCentral(i, { rolarComoNasSetas: true });
         return;
       }
       exibirEstrofe(i);
@@ -13435,7 +13436,7 @@ function renderSlidesStrip() {
   chipPreto.onclick = (ev) => {
     ev.preventDefault();
     if (projecaoMusicaEmitidaNoServidor) {
-      projetarPorDuploCliqueCentral(idxSlidePreto);
+      projetarPorDuploCliqueCentral(idxSlidePreto, { rolarComoNasSetas: true });
       return;
     }
     exibirEstrofe(idxSlidePreto);
@@ -19960,15 +19961,29 @@ function toggleBlackoutTelas() {
   projecao.enfileirar('toggle_blackout');
 }
 
-function projetarPorDuploCliqueCentral(index) {
+/**
+ * @param {number} index
+ * @param {{ rolarComoNasSetas?: boolean }} [opts] Ver a nota sobre a rolagem abaixo.
+ */
+function projetarPorDuploCliqueCentral(index, opts = {}) {
   if (!musicaAtiva || !projecao.pronta()) return;
   slidesRailUserRecolhido = false;
   slidesDockVisivel = true;
   /** Emitir antes de `exibirEstrofe`: senão `atualizarPreviewOperador` roda com `projecaoMusicaEmitidaNoServidor` ainda false e o painel espelha só o estado antigo do socket (telão físico atualiza, preview não). */
   emitirEstrofeAoServidor(index);
-  /* O chip já está debaixo do cursor: um segundo scroll (e, pior, um rebuild)
-     competia com o do primeiro clique e fazia a grelha tremer. */
-  exibirEstrofe(index, { semScroll: true });
+  /*
+   * Quem rola aqui é o `exibirEstrofe` — o mesmo caminho das setas, que chega a
+   * `revelarChipEstrofeFocado`. O que muda entre os dois chamadores é só se ele deve correr:
+   *
+   * · Duplo clique (projecção ainda por começar): o primeiro clique já seleccionou e já
+   *   rolou. Um segundo scroll competia com esse e fazia a grelha tremer — daí o padrão
+   *   continuar a ser não rolar.
+   * · Clique único com a projecção no ar: não houve clique anterior nenhum, logo não há
+   *   scroll com que competir. Sem rolar, clicar no slide da última fileira visível deixava
+   *   a fileira seguinte escondida — enquanto chegar ao mesmo slide pelas setas a revelava.
+   *   É o mesmo destino pelo mesmo gesto, e tem de se comportar igual.
+   */
+  exibirEstrofe(index, { semScroll: opts.rolarComoNasSetas !== true });
 }
 
 /* ═══════════════════════════════════════════════
