@@ -9,6 +9,7 @@ import {
   dividirTextoVersiculo,
   dividirVersiculos,
   indicePrimeiraParteDoVersiculo,
+  indiceDaParteEquivalente,
 } from './dividirVersiculos.js';
 
 /** Gênesis 1:12 (ARC) — o versículo da imagem de referência. */
@@ -267,4 +268,40 @@ test('indicePrimeiraParteDoVersiculo aponta para o início do versículo', () =>
   assert.equal(indicePrimeiraParteDoVersiculo(partes, '13'), idx + 2);
   assert.equal(indicePrimeiraParteDoVersiculo(partes, 99), -1);
   assert.equal(indicePrimeiraParteDoVersiculo(null, 1), -1);
+});
+
+/*
+ * Trocar a versão da Bíblia com uma leitura aberta: a mesma referência tem de ser
+ * reencontrada na lista nova, que pode ter partido os versículos de outra maneira.
+ */
+test('indiceDaParteEquivalente reencontra a mesma parte noutra tradução', () => {
+  const nova = [
+    { versiculo: 11, parteIndice: 0, parteTotal: 1 },
+    { versiculo: 12, parteIndice: 0, parteTotal: 2 },
+    { versiculo: 12, parteIndice: 1, parteTotal: 2 },
+    { versiculo: 13, parteIndice: 0, parteTotal: 1 },
+  ];
+  assert.equal(indiceDaParteEquivalente(nova, 12, 1), 2, 'mesma parte quando existe');
+  assert.equal(indiceDaParteEquivalente(nova, 12, 0), 1);
+  assert.equal(indiceDaParteEquivalente(nova, '13', 0), 3, 'número como texto');
+});
+
+test('indiceDaParteEquivalente cai no início do versículo quando a parte não existe', () => {
+  /* A tradução nova é mais curta e o versículo 12 deixou de ser dividido: quem estava na
+     parte 2 vai para o começo do 12 — nunca para outro versículo. */
+  const nova = [
+    { versiculo: 11, parteIndice: 0, parteTotal: 1 },
+    { versiculo: 12, parteIndice: 0, parteTotal: 1 },
+    { versiculo: 13, parteIndice: 0, parteTotal: 1 },
+  ];
+  assert.equal(indiceDaParteEquivalente(nova, 12, 1), 1);
+  assert.equal(indiceDaParteEquivalente(nova, 12, 5), 1);
+});
+
+test('indiceDaParteEquivalente devolve -1 sem o versículo, e aguenta lista inválida', () => {
+  const nova = [{ versiculo: 1, parteIndice: 0, parteTotal: 1 }];
+  assert.equal(indiceDaParteEquivalente(nova, 99, 0), -1, 'capítulo mais curto na versão nova');
+  assert.equal(indiceDaParteEquivalente(nova, '', 0), -1);
+  assert.equal(indiceDaParteEquivalente(nova, null, 0), -1);
+  assert.equal(indiceDaParteEquivalente(null, 1, 0), -1);
 });

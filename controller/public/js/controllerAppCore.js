@@ -213,6 +213,7 @@ import {
   normalizarLimiteDivisao,
   dividirVersiculos,
   indicePrimeiraParteDoVersiculo,
+  indiceDaParteEquivalente,
 } from './modules/dividirVersiculos.js';
 import { deltaScrollListaVersiculos } from './modules/scrollListaVersiculos.js';
 import {
@@ -4567,20 +4568,115 @@ function aplicarTraducaoBibliaNoSelect(codigo) {
   });
 }
 
-function onTraducaoBibliaChange() {
+/**
+ * Troca da tradução no seletor do modo Bíblia.
+ *
+ * Trocar de versão é pedir o MESMO texto noutras palavras — não é recomeçar. Antes isto
+ * largava livro, capítulo e versículo e devolvia o operador à grade dos 66 livros: a meio
+ * de uma leitura em João 10, comparar duas versões custava refazer toda a navegação.
+ * Agora fica-se onde se estava e só o conteúdo muda.
+ *
+ * Com um versículo no ar, a projecção acompanha: quem trocou a versão quer o mesmo
+ * versículo na versão nova, e deixar o têão na anterior seria mostrar uma coisa enquanto o
+ * painel diz outra.
+ *
+ * Sem livro ou capítulo escolhidos não há nada a preservar, e o caminho é o de sempre.
+ */
+async function onTraducaoBibliaChange() {
   const cod = (document.getElementById('traducao-sel')?.value || '').trim();
   if (!cod) return;
   definirBibliaTraducaoSessao(cod);
   bibliaTraducaoAtual = cod;
-  bibliaSelecionadoLivro = null;
-  bibliaSelecionadoLivroDb = null;
-  bibliaSelecionadoCap = null;
   bibliaCapsRequestSeq++;
   bibliaVersiculosRequestSeq++;
   bibliaPrefetchCapJob++;
+  /* O cache é por tradução na chave, mas os capítulos vizinhos já lá dentro são da versão
+     que se acabou de deixar: sem utilidade e a ocupar memória. */
   bibliaCapituloCache.clear();
+
+  const livro = bibliaSelecionadoLivro;
+  const livroDb = bibliaSelecionadoLivroDb;
+  const cap = bibliaSelecionadoCap;
+
+  /* Nada aberto: caminho de sempre — os 66 livros e o painel limpo. */
+  if (!livro) {
+    bibliaSelecionadoLivro = null;
+    bibliaSelecionadoLivroDb = null;
+    bibliaSelecionadoCap = null;
+    popularGradeLivros();
+    bibliaReporPainelNavegacao();
+    return;
+  }
+
+  /* Livro aberto mas ainda sem capítulo: também é navegação em curso. O livro fica, a
+     lista de capítulos é a da versão nova. */
+  if (!cap) {
+    popularGradeLivros();
+    await bibliaCarregarCaps(livroDb || livro);
+    return;
+  }
+
+  /* Lido ANTES de recarregar: `bibliaCarregarVersiculos` zera os dois e substitui a lista. */
+  const selecionadoAntes = bibliaVersiculosCapitulo[bibliaVersiculoSelecionadoIdx] || null;
+  const projetadoAntes =
+    bibliaParteProjetadaChave != null
+      ? bibliaVersiculosCapitulo.find((v) => v?.chave === bibliaParteProjetadaChave) || null
+      : null;
+
+  /* Duas trocas em sequência rápida: o pedido antigo não pode restaurar seleção nem
+     projetar por cima do novo. As funções de carregamento já se protegem por sequência;
+     isto protege o que corre entre elas, aqui. */
+  const aindaNesta = () => bibliaTraducaoAtual === cod;
+
   popularGradeLivros();
-  bibliaReporPainelNavegacao();
+  await bibliaCarregarCaps(livroDb || livro);
+  if (!aindaNesta()) return;
+
+  /* A grade de capítulos é redesenhada do zero e o realce vive no botão; sem isto o
+     capítulo continuava carregado mas sem ninguém marcado na coluna. */
+  const btnCap = document.querySelector(`.biblia-cap-btn[data-cap="${cap}"]`);
+  document.querySelectorAll('.biblia-cap-btn').forEach((b) => {
+    b.classList.toggle('selecionado', b === btnCap);
+  });
+  if (!btnCap) {
+    /* A versão nova não tem este capítulo: fica no livro, sem inventar uma leitura que
+       não existe ali. */
+    bibliaSelecionadoCap = null;
+    const colVers = document.getElementById('biblia-col-versiculos');
+    if (colVers) colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
+    return;
+  }
+  if (btnCap.scrollIntoView) btnCap.scrollIntoView({ block: 'nearest' });
+
+  await bibliaCarregarVersiculos();
+  if (!aindaNesta()) return;
+
+  const idxSelecionado = selecionadoAntes
+    ? indiceDaParteEquivalente(
+        bibliaVersiculosCapitulo,
+        selecionadoAntes.versiculo,
+        selecionadoAntes.parteIndice
+      )
+    : -1;
+  if (idxSelecionado >= 0) {
+    bibliaVersiculoSelecionadoIdx = idxSelecionado;
+    const card = document.querySelector(`.biblia-v-card[data-indice="${idxSelecionado}"]`);
+    if (card) {
+      card.classList.add('selecionado');
+      bibliaRolarListaParaContextoDoFoco(card);
+    }
+  }
+
+  if (!projetadoAntes) return;
+  const idxProjetado = indiceDaParteEquivalente(
+    bibliaVersiculosCapitulo,
+    projetadoAntes.versiculo,
+    projetadoAntes.parteIndice
+  );
+  if (idxProjetado < 0) return;
+  const parteNova = bibliaVersiculosCapitulo[idxProjetado];
+  const cardProjetado = document.querySelector(`.biblia-v-card[data-indice="${idxProjetado}"]`);
+  await bibliaProjetarVersiculo(parteNova, cardProjetado);
 }
 
 async function alternarModoBiblia() {

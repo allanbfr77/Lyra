@@ -218,3 +218,30 @@ export function indicePrimeiraParteDoVersiculo(partes, numeroVersiculo) {
     (p) => String(p?.versiculo ?? '').trim() === alvo && (p?.parteIndice ?? 0) === 0
   );
 }
+
+/**
+ * A mesma parte, noutra lista — a que o operador estava a ler depois de trocar a versão.
+ *
+ * O índice não atravessa listas: a divisão depende do comprimento do texto, e o versículo
+ * que rende duas partes numa tradução pode render uma só noutra — guardar a posição
+ * levaria a outro versículo. O que atravessa é o NÚMERO do versículo.
+ *
+ * A parte é preferência, não exigência: quem estava na parte 2 volta à parte 2 se ela
+ * existir, e ao início do versículo se não existir — nunca a um versículo diferente.
+ *
+ * @param {Array} partes lista de partes da tradução nova
+ * @param {number|string} numeroVersiculo
+ * @param {number} [parteIndice] parte onde se estava (0 com a divisão desligada)
+ * @returns {number} índice em `partes`, ou -1 se o versículo não existir ali
+ */
+export function indiceDaParteEquivalente(partes, numeroVersiculo, parteIndice) {
+  if (!Array.isArray(partes)) return -1;
+  const alvo = String(numeroVersiculo == null ? '' : numeroVersiculo).trim();
+  if (!alvo) return -1;
+  const alvoParte = Number(parteIndice ?? 0);
+  const mesma = partes.findIndex(
+    (p) => String(p?.versiculo ?? '').trim() === alvo && Number(p?.parteIndice ?? 0) === alvoParte
+  );
+  if (mesma >= 0) return mesma;
+  return indicePrimeiraParteDoVersiculo(partes, numeroVersiculo);
+}
