@@ -2892,6 +2892,29 @@ body.app-mod-slides .playlist-tema-head-row {
 .playlist-tema-section--drop-antes::before { top: -5px; }
 .playlist-tema-section--drop-depois::after { bottom: -3px; }
 
+/*
+  Tema vazio como destino do arrasto de uma música.
+
+  O bloco sem músicas resume-se ao cabeçalho, por isso não há bordo de linha onde
+  desenhar o traço de inserção: o que acende é o cartão inteiro, que é o destino.
+  Fundo e moldura em vez de barra — a música não entra «entre» nada, entra no bloco.
+*/
+.playlist-tema-section--drop-dentro {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--pl-secao-bg));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/*
+  Enquanto uma música viaja, os blocos vazios dizem que também são destino — de outro
+  modo lêem-se como cabeçalhos mortos e o utilizador nem tenta lá largar.
+*/
+.playlist-list--reordenando-musica
+  .playlist-tema-section--vazia:not(.playlist-tema-section--drop-dentro) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-style: dashed;
+}
+
 /* O bloco em arrasto recua para o traço de destino ficar a informação dominante. */
 .playlist-tema-section--arrastando {
   opacity: 0.5;

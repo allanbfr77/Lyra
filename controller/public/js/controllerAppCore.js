@@ -11177,6 +11177,52 @@ function temaDoBlocoDeDestinoNaPlaylist(pl, idx) {
   return normalizarTemaPlaylist((vizinho || pl[idx])?.tema) || '';
 }
 
+/**
+ * Bloco de tema sem nenhuma música.
+ *
+ * Um bloco vai do marcador até ao marcador seguinte (ou ao fim da lista), por isso basta
+ * olhar para o elemento logo a seguir: se for outro marcador — ou se não houver nada —,
+ * o tema está vazio e a lista desenha-o só com o cabeçalho.
+ */
+function blocoTemaPlaylistVazio(pl, markerIdx) {
+  if (!Array.isArray(pl)) return false;
+  if (!ehMarcadorTemaPlaylist(pl[markerIdx])) return false;
+  const seguinte = pl[markerIdx + 1];
+  return !seguinte || ehMarcadorTemaPlaylist(seguinte);
+}
+
+/**
+ * Move uma música para um tema que ainda não tem nenhuma (arrasto largado no cartão).
+ *
+ * `reordenarMusicaNaPlaylist` mede o destino a partir de uma linha de música, e num bloco
+ * vazio não existe nenhuma — era por isso que o gesto morria a meio. Aqui o destino vem
+ * do marcador: a música entra logo a seguir ao cabeçalho, que é o único sítio que o bloco
+ * tem. A etiqueta de tema segue a mesma regra do arrasto entre blocos com músicas.
+ *
+ * @param {string} cid culto
+ * @param {number} fromIdx índice na playlist da música arrastada
+ * @param {number} markerIdx índice do marcador do tema de destino
+ * @returns {number|null} índice final da música, ou `null` se nada mudou
+ */
+function moverMusicaParaTemaVazioNaPlaylist(cid, fromIdx, markerIdx) {
+  const pl = getPlaylist(cid);
+  if (!Array.isArray(pl)) return null;
+  const item = pl[fromIdx];
+  if (!item || ehMarcadorTemaPlaylist(item)) return null;
+  if (!blocoTemaPlaylistVazio(pl, markerIdx)) return null;
+
+  /* O destino é medido na lista COM a música ainda lá dentro; tirá-la primeiro encurta
+     tudo o que vem depois dela em um — a mesma correcção do arrasto entre linhas. */
+  let destino = markerIdx + 1;
+  if (fromIdx < destino) destino--;
+  if (destino === fromIdx) return null;
+
+  pl.splice(fromIdx, 1);
+  pl.splice(destino, 0, item);
+  item.tema = temaDoBlocoDeDestinoNaPlaylist(pl, destino);
+  return destino;
+}
+
 const MIME_MUSICA_PLAYLIST = 'application/x-lyra-pl-musica-idx';
 
 /**
@@ -11192,6 +11238,11 @@ function limparIndicadoresDropMusicaPlaylist() {
     .forEach((el) => {
       el.classList.remove('playlist-row--drop-antes', 'playlist-row--drop-depois');
     });
+  /* O realce do bloco vazio pertence ao mesmo gesto que os traços das linhas: sai com
+     eles, senão ficava aceso depois de o cursor seguir para a linha de outro tema. */
+  document
+    .querySelectorAll('.playlist-tema-section--drop-dentro')
+    .forEach((el) => el.classList.remove('playlist-tema-section--drop-dentro'));
 }
 
 /** Metade de cima da linha = entrar antes dela; metade de baixo = entrar depois. */
@@ -11299,6 +11350,60 @@ function configurarDragReordenarLinhaPlaylist(row, idxPl) {
   });
 }
 
+/**
+ * Liga a largada de músicas no cartão de um tema vazio.
+ *
+ * A zona de largada de uma música é sempre a linha de outra música — e um bloco vazio não
+ * desenha nenhuma. O cartão do tema via o arrasto passar por cima e não o recebia, por
+ * isso um tema sem músicas nunca chegava a ser destino. Aqui o alvo é o cartão inteiro,
+ * que é tudo o que esse bloco tem.
+ *
+ * Só se liga em blocos vazios: onde já há músicas, quem manda continua a ser a linha
+ * (metade de cima entra antes, metade de baixo entra depois), e um alvo por cima dela
+ * roubaria essa leitura. As linhas travam a propagação no `dragover` e no `drop`, por
+ * isso mesmo nesse caso nunca haveria disputa — mas o mais claro é nem existir.
+ */
+function configurarDropMusicaEmTemaVazioPlaylist(secao, markerPlIdx) {
+  secao.classList.add('playlist-tema-section--vazia');
+
+  secao.addEventListener('dragover', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.dataTransfer.dropEffect = 'move';
+    /* Sem o atalho, cada `dragover` reescrevia a classe e o realce piscava. */
+    if (secao.classList.contains('playlist-tema-section--drop-dentro')) return;
+    limparIndicadoresDropMusicaPlaylist();
+    secao.classList.add('playlist-tema-section--drop-dentro');
+  });
+
+  secao.addEventListener('dragleave', (ev) => {
+    /* Passar por um filho dispara `dragleave` na secção; só limpa ao sair de facto. */
+    if (ev.relatedTarget instanceof Node && secao.contains(ev.relatedTarget)) return;
+    secao.classList.remove('playlist-tema-section--drop-dentro');
+  });
+
+  secao.addEventListener('drop', (ev) => {
+    if (!ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    limparIndicadoresDropMusicaPlaylist();
+    const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
+    arrastandoMusicaPlaylistIdx = null;
+    if (!Number.isFinite(fromIdx) || !cultoId) return;
+    const destino = moverMusicaParaTemaVazioNaPlaylist(cultoId, fromIdx, markerPlIdx);
+    if (destino == null) return;
+    savePlaylists();
+    renderPlaylist();
+    /* Mesmo critério do arrasto entre linhas: sem deslize, só o realce a responder
+       «foi esta que mudou de sítio?». */
+    realcarLinhaPlaylist(
+      document.querySelector(`#playlist-list .playlist-row[data-pl-idx="${destino}"]`),
+      'playlist-row--flash-move'
+    );
+  });
+}
+
 function removePlItem(idx) {
   getPlaylist(cultoId).splice(idx, 1);
   savePlaylists();
@@ -11379,6 +11484,11 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
 
   if (idxMarcador != null && idxMarcador !== undefined && cultoId && playlistPossuiMarcadoresTema(getPlaylist(cultoId))) {
     configurarDragReordenarCabecalhoTemaPlaylist(row, wrap, idxMarcador);
+    /* Sem músicas, o cartão não tem nenhuma linha que sirva de destino: passa ele
+       próprio a receber o arrasto (ver a função). */
+    if (blocoTemaPlaylistVazio(getPlaylist(cultoId), idxMarcador)) {
+      configurarDropMusicaEmTemaVazioPlaylist(wrap, idxMarcador);
+    }
   }
 
   return body;
