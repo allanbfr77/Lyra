@@ -1474,3 +1474,89 @@ test('alcance OUTROS exclui o socket de origem quando o pedido veio da rede', ()
   assert.equal(daRede.painel, true, 'o painel não foi quem pediu, logo recebe');
   assert.equal(daRede.excluirOrigemNaRede, true);
 });
+
+/* ═════════════════════════════════════════════════════════════════════════════
+ *  A tela limpa que a Bíblia deixa no canal que não é o alvo dela.
+ *
+ *  Relato do culto: Bíblia → Slides → música projetada, e o telão (M2) fica em branco
+ *  com a música a sair só no M3 — até fechar e reabrir o programa. `exibir_musica` era o
+ *  único comando de conteúdo que escrevia `estadoAtual` sem tocar na camada de override,
+ *  e `payloadPublicoAtual` dá ao override precedência absoluta sobre `estadoAtual`.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+
+/** Versículo projetado num canal só — o outro fica com a tela limpa da Bíblia. */
+function versiculoNoAlvo(state, alvoProjecao) {
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_versiculo', {
+    livro: 'João',
+    capitulo: '3',
+    versiculo: '16',
+    texto: 'Porque Deus amou o mundo',
+    alvoProjecao,
+  });
+}
+
+function projetarMusica(state) {
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_musica', {
+    estrofes: ['linha 1', 'linha 2'],
+    estrofeIndex: 0,
+    titulo: 'Santo',
+  });
+}
+
+test('música depois de Bíblia no M3 devolve o telão — não fica só no ministrante', () => {
+  const state = estadoFalso();
+  versiculoNoAlvo(state, 'ministrante');
+  /* O «encerrar» do painel manda `limpar_tela`, que preserva a camada Bíblia de propósito:
+     o override do público continua lá quando o operador passa ao modo Slides. */
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('limpar_tela');
+  projetarMusica(state);
+
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
+  assert.equal(pub.tipo, 'musica', 'o telão volta a receber conteúdo');
+  assert.equal(pub.telaLimpa, false, 'e não a tela limpa que a Bíblia tinha deixado');
+  assert.deepEqual(pub.linhas, ['linha 1']);
+});
+
+test('música depois de Bíblia no M2 devolve o monitor do ministrante', () => {
+  const state = estadoFalso();
+  versiculoNoAlvo(state, 'publico');
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('limpar_tela');
+  projetarMusica(state);
+
+  assert.equal(
+    state.ministranteApresentacaoOverride,
+    null,
+    'sem isto o M3 ficava no ocioso (imagem de fundo) e `exibir_ministrante` recusava escrever'
+  );
+  const r = criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_ministrante', {
+    titulo: 'Santo',
+    atual: 'linha 1',
+  });
+  assert.equal(r.aplicado, true, 'o texto do painel volta a chegar ao M3');
+});
+
+test('mídia no telão sobrevive à música — só a tela limpa da Bíblia é largada', () => {
+  const state = estadoFalso();
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_apresentacao', {
+    kind: 'image',
+    src: 'file:///foto.png',
+    alvoProjecao: 'publico',
+  });
+  projetarMusica(state);
+
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
+  assert.equal(pub.tipo, 'apresentacao', 'a imagem no telao continua no ar');
+  assert.equal(pub.apresentacao.src, 'file:///foto.png');
+});
+
+test('contagem no telão sobrevive à música', () => {
+  const state = estadoFalso();
+  criarAplicadorDeComandos({ state, engine: motorFalso() }).aplicar('exibir_contagem', {
+    acao: 'iniciar',
+    duracaoMs: 60000,
+  });
+  projetarMusica(state);
+
+  const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
+  assert.equal(pub.tipo, 'contagem', 'a contagem é outra camada e continua por cima');
+});

@@ -11692,31 +11692,35 @@ async function addMusicaNaPlaylist(meta) {
     }
   }
   // Versões rigorosamente idênticas (mesmo título, artista e estrofes, caractere
-  // por caractere) contam como uma só. Se sobrar apenas a Original, importa a
-  // Original sem perguntar; senão, pergunta só entre as versões distintas.
+  // por caractere) contam como uma só; quando a repetida é a Original, quem fica
+  // na lista é a Cópia (a Original é imutável). Sobrando uma opção só, importa
+  // essa opção sem perguntar; senão, pergunta só entre as versões distintas.
   const opcoesVersaoDistintas = opcoesVersaoDistintasPorConteudo(opcoesVersao);
+  let esc = null;
   if (opcoesVersaoDistintas.length > 1) {
-    const esc = await appEscolherOpcao('Qual versão deseja adicionar à playlist?', opcoesVersaoDistintas);
+    esc = await appEscolherOpcao('Qual versão deseja adicionar à playlist?', opcoesVersaoDistintas);
     if (esc == null) return;
-    if (esc !== '__ORIGINAL__') {
-      versaoLocalId = esc;
-      if (ehVersaoServidorId(esc)) {
-        try {
-          const resM = await fetch(`${getControllerApiBase()}/api/musicas/${encodeURIComponent(esc)}`);
-          if (resM.ok) {
-            const m = await resM.json();
-            tituloPl = m.titulo || tituloPl;
-            artistaPl = m.artista || artistaPl;
-          }
-        } catch (_) {
-          // intencional — falha ao carregar metadados da versão
+  } else if (opcoesVersaoDistintas.length === 1) {
+    esc = opcoesVersaoDistintas[0].value;
+  }
+  if (esc != null && esc !== '__ORIGINAL__') {
+    versaoLocalId = esc;
+    if (ehVersaoServidorId(esc)) {
+      try {
+        const resM = await fetch(`${getControllerApiBase()}/api/musicas/${encodeURIComponent(esc)}`);
+        if (resM.ok) {
+          const m = await resM.json();
+          tituloPl = m.titulo || tituloPl;
+          artistaPl = m.artista || artistaPl;
         }
-      } else {
-        const c = encontrarCopiaLocal(idNum, esc);
-        if (c) {
-          tituloPl = c.titulo;
-          artistaPl = c.artista || '';
-        }
+      } catch (_) {
+        // intencional — falha ao carregar metadados da versão
+      }
+    } else {
+      const c = encontrarCopiaLocal(idNum, esc);
+      if (c) {
+        tituloPl = c.titulo;
+        artistaPl = c.artista || '';
       }
     }
   }

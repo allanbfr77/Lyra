@@ -534,6 +534,13 @@ function criarAplicadorDeComandos(deps) {
       }
 
       state.projecaoLiveAtiva = false;
+      /*
+       * A música acabou de substituir a Bíblia em `estadoAtual` — e tem de recuperar também
+       * o canal que a Bíblia tinha deixado em tela limpa. Este era o único comando de
+       * conteúdo que escrevia `estadoAtual` sem tocar na camada de override; o resultado era
+       * um canal preso em branco até reiniciar o programa. Ver `libertarTelasLimpasDaBiblia`.
+       */
+      projectionEncerrar.libertarTelasLimpasDaBiblia(state);
 
       engine.garantirTelasAbertasParaProjecao();
       engine.aplicarDisplayConfigNasJanelas({ forcarModo: 'slides' });

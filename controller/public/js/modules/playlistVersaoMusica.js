@@ -38,25 +38,46 @@ export function versoesConteudoRigorosamenteIdentico(a, b) {
   return sa != null && sb != null && sa === sb;
 }
 
+/** Valor da opção que representa a Original na lista de versões. */
+export const VALOR_OPCAO_VERSAO_ORIGINAL = '__ORIGINAL__';
+
+function ehOpcaoVersaoOriginal(op) {
+  return !!op && op.value === VALOR_OPCAO_VERSAO_ORIGINAL;
+}
+
 /**
  * Reduz as opções de versão às que têm conteúdo realmente diferente.
  *
- * A lista chega com a Original em primeiro lugar, então ela tem prioridade:
- * toda versão rigorosamente idêntica a ela sai da lista. Entre as demais, fica
- * a primeira de cada conteúdo repetido. Opções cujo `conteudo` não é conhecido
+ * A lista chega com a Original em primeiro lugar. Entre versões rigorosamente
+ * idênticas fica uma só — e quem fica, quando a repetição é da Original, é a
+ * CÓPIA: ela toma o lugar da Original na lista (mesma posição). A Original é
+ * imutável, então usá-la na playlist obriga o Lyra a criar uma terceira versão
+ * Editada na edição rápida dos Slides; a Cópia, sendo idêntica, representa o
+ * mesmo conteúdo e pode ser editada no lugar. As demais repetições continuam
+ * resolvidas pela primeira ocorrência. Opções cujo `conteudo` não é conhecido
  * ficam sempre — não há como afirmar que são iguais a outra.
  *
- * Sobrando só a Original, quem chama não pergunta nada e importa a Original.
+ * Sobrando uma opção só, quem chama não pergunta nada e importa essa opção.
  */
 export function opcoesVersaoDistintasPorConteudo(opcoes) {
   const lista = Array.isArray(opcoes) ? opcoes : [];
-  const vistas = new Set();
+  const indicePorAssinatura = new Map();
   const distintas = [];
+  let idxOriginal = -1;
   for (const op of lista) {
     const sig = assinaturaConteudoVersao(op && op.conteudo);
     if (sig != null) {
-      if (vistas.has(sig)) continue;
-      vistas.add(sig);
+      if (indicePorAssinatura.has(sig)) {
+        const i = indicePorAssinatura.get(sig);
+        // Idêntica à Original: a primeira Cópia assume o lugar dela.
+        if (i === idxOriginal) {
+          distintas[i] = op;
+          idxOriginal = -1;
+        }
+        continue;
+      }
+      indicePorAssinatura.set(sig, distintas.length);
+      if (idxOriginal === -1 && ehOpcaoVersaoOriginal(op)) idxOriginal = distintas.length;
     }
     distintas.push(op);
   }

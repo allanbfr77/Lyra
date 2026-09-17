@@ -102,23 +102,23 @@ test('rigorosamente idêntico: uma vírgula, um espaço ou o título já é dife
   assert.equal(versoesConteudoRigorosamenteIdentico(undefined, undefined), false);
 });
 
-test('todas as versões idênticas à Original → sobra só a Original (não pergunta)', () => {
+test('todas as versões idênticas à Original → sobra só a primeira Cópia (não pergunta)', () => {
   const c = conteudo(['A', 'B']);
   const distintas = opcoesVersaoDistintasPorConteudo([
     { value: '__ORIGINAL__', label: 'Original', conteudo: c },
     opcao('2', conteudo(['A', 'B'])),
     opcao('3', conteudo(['A', 'B'])),
   ]);
-  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__']);
+  assert.deepEqual(distintas.map((o) => o.value), ['2']);
 });
 
-test('cópia idêntica some; versão com diferença fica (Original + a editada)', () => {
+test('cópia idêntica ocupa o lugar da Original; a editada continua na lista', () => {
   const distintas = opcoesVersaoDistintasPorConteudo([
     { value: '__ORIGINAL__', label: 'Original', conteudo: conteudo(['A']) },
     opcao('2', conteudo(['A'])),
     opcao('3', conteudo(['A', 'B'])),
   ]);
-  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__', '3']);
+  assert.deepEqual(distintas.map((o) => o.value), ['2', '3']);
 });
 
 test('vale para qualquer quantidade: 5 cópias iguais + 1 editada → 2 opções', () => {
@@ -128,7 +128,33 @@ test('vale para qualquer quantidade: 5 cópias iguais + 1 editada → 2 opções
     ...iguais,
     opcao('7', conteudo(['A', 'C'])),
   ]);
-  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__', '7']);
+  assert.deepEqual(distintas.map((o) => o.value), ['2', '7']);
+});
+
+test('Original sem cópia idêntica continua na lista, na mesma posição', () => {
+  const distintas = opcoesVersaoDistintasPorConteudo([
+    { value: '__ORIGINAL__', label: 'Original', conteudo: conteudo(['A']) },
+    opcao('2', conteudo(['A', 'B'])),
+  ]);
+  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__', '2']);
+});
+
+test('cópias iguais entre si (e diferentes da Original) continuam pela primeira', () => {
+  const distintas = opcoesVersaoDistintasPorConteudo([
+    { value: '__ORIGINAL__', label: 'Original', conteudo: conteudo(['A']) },
+    opcao('2', conteudo(['B'])),
+    opcao('3', conteudo(['B'])),
+  ]);
+  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__', '2']);
+});
+
+test('Original sem conteúdo conhecido nunca é substituída', () => {
+  const distintas = opcoesVersaoDistintasPorConteudo([
+    { value: '__ORIGINAL__', label: 'Original' },
+    opcao('2', conteudo(['A'])),
+    opcao('3', conteudo(['A'])),
+  ]);
+  assert.deepEqual(distintas.map((o) => o.value), ['__ORIGINAL__', '2']);
 });
 
 test('sem conteúdo conhecido nada é descartado (mantém o comportamento antigo)', () => {

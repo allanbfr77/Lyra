@@ -78,16 +78,40 @@ function encerrarCamadaSlides(ctx) {
 }
 
 /**
+ * Solta as «telas limpas» que a Bíblia deixou no canal que NÃO era o alvo dela.
+ *
+ * `exibir_versiculo` escreve sempre os dois canais: o alvo leva o versículo e o outro leva
+ * um override de tela limpa, para não continuar a mostrar o que lá estava. Esse override é
+ * da camada Bíblia — quando a Bíblia sai de `estadoAtual`, ele tem de sair com ela.
+ *
+ * Ficar para trás é invisível até a camada seguinte tentar usar o canal, e aí é um monitor
+ * perdido: `payloadPublicoAtual` dá precedência absoluta ao override sobre `estadoAtual`, e
+ * `exibir_ministrante` recusa-se a escrever enquanto houver override no M3. Com o override
+ * do público preso, uma música projetada a seguir aparece só no monitor do ministrante e o
+ * telão fica em branco; com o do ministrante preso, o M3 fica no ocioso (a imagem de fundo
+ * configurada) e nada lhe volta a chegar. Nenhum dos dois se desfaz sozinho — só reiniciar
+ * o programa, que rearranca o estado a `null`.
+ *
+ * Só a assinatura da Bíblia é largada: um override de mídia, aviso ou contagem é outra
+ * camada, com vida própria, e continua a conviver com os slides como sempre conviveu.
+ *
+ * @param {object} ctx
+ */
+function libertarTelasLimpasDaBiblia(ctx) {
+  limparOverridePublicoBibliaSomenteMinistrante(ctx);
+  if (ctx.ministranteApresentacaoOverride?.modo === 'biblia') {
+    ctx.ministranteApresentacaoOverride = null;
+  }
+}
+
+/**
  * Encerra projeção de Bíblia em `estadoAtual` sem tocar slides nem apresentação.
  * @param {object} ctx
  */
 function encerrarCamadaBiblia(ctx) {
   if (ctx.estadoAtual?.tipo !== 'biblia') return;
   ctx.estadoAtual = projectionPayloads.estadoPublicoOcioso();
-  limparOverridePublicoBibliaSomenteMinistrante(ctx);
-  if (ctx.ministranteApresentacaoOverride?.modo === 'biblia') {
-    ctx.ministranteApresentacaoOverride = null;
-  }
+  libertarTelasLimpasDaBiblia(ctx);
 }
 
 /**
@@ -176,6 +200,7 @@ module.exports = {
   encerrarCamadaApresentacaoAlvo,
   encerrarCamadaSlides,
   encerrarCamadaBiblia,
+  libertarTelasLimpasDaBiblia,
   encerrarTodasCamadas,
   inferirModoEncerrarPorCanalJanela,
   aplicarEncerrarProjecaoModo,
