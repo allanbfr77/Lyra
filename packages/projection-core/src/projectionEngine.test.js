@@ -1931,3 +1931,76 @@ test('sem diário injectado o motor comporta-se exactamente na mesma', async () 
     'M3 no ar'
   );
 });
+
+/* ═════════════════════════════════════════════════════════════════════════════
+ *  Lyra aberto ≠ Lyra a mandar nos monitores.
+ *
+ *  A banda topmost é o único mecanismo com que o motor cobre outro software de
+ *  projeção. Enquanto ela valia por ter o app aberto, o PowerPoint, o navegador ou
+ *  o OBS ficavam por baixo de um preto que não projetava nada. Agora segue o
+ *  conteúdo, canal a canal — e um canal ocioso não disputa o monitor com ninguém.
+ * ═════════════════════════════════════════════════════════════════════════════ */
+
+/** Nível de topo efectivo da janela: `false`, ou o nível pedido ao Electron. */
+const nivelTopoEfetivo = (w) => {
+  const ultima = w.setAlwaysOnTopCalls[w.setAlwaysOnTopCalls.length - 1];
+  if (!ultima) return undefined;
+  return ultima[0] === true ? (ultima[1] || true) : false;
+};
+
+const ehM3 = (w) => w.paginas.some((p) => String(p).includes('display-operator.html'));
+
+const PUBLICO_OCIOSO = { tipo: 'musica', titulo: '', linhas: [], telaLimpa: true };
+const PUBLICO_COM_CONTEUDO = { tipo: 'musica', titulo: 'Hino', linhas: ['linha um'], telaLimpa: false };
+
+test('sem projeção activa o telão larga a banda topmost — o monitor fica livre', async () => {
+  const { engine, criadas, state } = await arrancarEBombear();
+  const telao = criadas.find(ehTelao);
+  assert.ok(subiuATopmost(telao), 'com conteúdo no ar o telão reivindica o monitor');
+
+  state.estadoAtual = PUBLICO_OCIOSO;
+  engine.atualizarDisplays(state.estadoAtual);
+
+  assert.strictEqual(
+    nivelTopoEfetivo(telao),
+    false,
+    'ocioso: o Lyra desce da banda de cobertura e outro programa pode projetar por cima'
+  );
+  assert.strictEqual(telao.visivel, true, 'a janela não é escondida — isso revelaria o desktop');
+  assert.strictEqual(telao.destruida, false, 'nem fechada');
+});
+
+test('ocioso não reclama o topo; a projeção a começar volta a reclamá-lo', async () => {
+  const { engine, criadas, state } = await arrancarEBombear();
+  const telao = criadas.find(ehTelao);
+
+  state.estadoAtual = PUBLICO_OCIOSO;
+  engine.atualizarDisplays(state.estadoAtual);
+
+  let subidas = 0;
+  telao.moveTop = () => { subidas += 1; };
+  engine.atualizarDisplays(state.estadoAtual);
+  assert.strictEqual(subidas, 0, 'sem projeção do Lyra, nada disputa a z-order do monitor');
+
+  state.estadoAtual = PUBLICO_COM_CONTEUDO;
+  engine.atualizarDisplays(state.estadoAtual);
+  assert.ok(subidas > 0, 'com projeção activa o telão volta a reclamar o topo');
+  assert.strictEqual(nivelTopoEfetivo(telao), 'screen-saver', 'e volta à banda de cobertura');
+});
+
+test('largar o topo no telão não mexe no M3 — o relógio fica onde estava', async () => {
+  const { engine, criadas, state } = await arrancarEBombear();
+  const m3 = criadas.find(ehM3);
+  assert.ok(m3?.visivel, 'o M3 arranca visível');
+  const boundsAntes = m3.getBounds();
+  const paginasAntes = m3.paginas.length;
+
+  state.estadoAtual = PUBLICO_OCIOSO;
+  engine.atualizarDisplays(state.estadoAtual);
+
+  assert.strictEqual(criadas.filter(ehM3).length, 1, 'nenhuma janela nova no M3');
+  assert.strictEqual(m3.visivel, true, 'o M3 continua visível');
+  assert.strictEqual(m3.destruida, false, 'e vivo');
+  assert.deepStrictEqual(m3.getBounds(), boundsAntes, 'no mesmo monitor, com os mesmos bounds');
+  assert.strictEqual(m3.paginas.length, paginasAntes, 'sem recarregar a página do relógio');
+});

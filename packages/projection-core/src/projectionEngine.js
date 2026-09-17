@@ -78,7 +78,13 @@ const JS_AGUARDAR_QUADRO = `(() => {
   });
 })()`;
 
-/** Roles que devem cobrir o outro software de projeção (relógio fica atrás de propósito). */
+/**
+ * Roles que **podem** cobrir o outro software de projeção (relógio fica atrás de propósito).
+ *
+ * Pertencer a este conjunto é condição necessária, não suficiente: quem decide se a janela
+ * sobe mesmo à banda topmost é `papelReivindicaTopo`, que exige projeção activa do Lyra
+ * naquele canal. Ver lá o porquê.
+ */
 const ROLES_TOPO_ABSOLUTO = new Set(['publico', 'ministrante', 'escudo']);
 
 /**
@@ -646,16 +652,73 @@ function createProjectionEngine(paths, deps) {
   let topoAbsolutoIntervalId = null;
 
   /**
-   * Reafirma topo em TODAS as janelas de projeção visíveis.
+   * **Lyra aberto ≠ Lyra a mandar no monitor.**
+   *
+   * A banda topmost (`screen-saver` + `moveTop()` a cada tick) é o único mecanismo com que o
+   * motor cobre outro software de projeção. Enquanto ela era aplicada a toda a janela de
+   * papel «topo absoluto», ter o Lyra aberto bastava para o M2/M3 ficarem reivindicados:
+   * as janelas permanentes nascem com o app e nunca fecham, logo o PowerPoint, o navegador
+   * ou o OBS apareciam por baixo de um preto que não estava a projetar nada.
+   *
+   * A reivindicação passa a seguir o conteúdo, e por canal — que é o mesmo que dizer: por
+   * monitor, já que cada canal vive no seu. Sem projeção activa a janela **não é fechada,
+   * escondida nem movida** (isso revelaria o desktop, que é o que o chão preto existe para
+   * evitar): apenas desce para a banda normal e deixa de reclamar o topo. Quem quiser o
+   * monitor fica por cima; quando o Lyra voltar a projetar, volta a subir.
+   *
+   * O escudo nunca reivindica: é preto sem canal de projeção — ocupa o monitor por estética,
+   * não por haver ali projeção do Lyra.
+   *
+   * @param {string} role
+   */
+  function papelReivindicaTopo(role) {
+    if (!ROLES_TOPO_ABSOLUTO.has(role)) return false;
+    if (role === 'publico') return hayProjecaoAtivaPublica();
+    if (role === 'ministrante') return hayProjecaoAtivaMinistrante();
+    return false;
+  }
+
+  /**
+   * `aplicarTopoAbsolutoProjecao` com a regra acima à frente.
+   *
+   * Mantém a guarda antiga (chão e relógio nunca sobem) e acrescenta a nova: sem projeção
+   * activa naquele canal, o nível vai a `false` em vez de `screen-saver`. `definirNivelTopo`
+   * só emite quando o valor muda, por isso isto não acrescenta `SetWindowPos` nenhum aos
+   * caminhos que já estavam no nível certo.
+   *
+   * @param {import('electron').BrowserWindow} win
+   * @param {{ forcar?: boolean }} [opts] ver `definirNivelTopo`
+   */
+  function aplicarTopoConformeProjecao(win, opts = {}) {
+    if (!win || win.isDestroyed()) return;
+    const papel = papelDaJanela(win);
+    if (papel && !ROLES_TOPO_ABSOLUTO.has(papel)) return;
+    if (papel && !papelReivindicaTopo(papel)) {
+      definirNivelTopo(win, false);
+      return;
+    }
+    aplicarTopoAbsolutoProjecao(win, opts);
+  }
+
+  /**
+   * Reafirma topo nas janelas de projeção visíveis **que têm projeção activa**.
    * Necessário em multi-monitor: o concorrente pode cobrir só o M2 sem gerar blur no M3.
    *
-   * Só `moveTop()` — sem reemitir `setAlwaysOnTop`. Ver `INTERVALO_RECLAIM_TOPO_MS`.
+   * Nas que não têm, faz o contrário: larga a banda topmost para o monitor ficar livre.
+   *
+   * Continua sem reemitir `setAlwaysOnTop` por tick — `definirNivelTopo` só chama o nativo
+   * na transição ocioso↔activo. Ver `INTERVALO_RECLAIM_TOPO_MS`.
    */
   function reafirmarTopoTodasJanelasProjecao() {
     for (const entry of registro.todas()) {
       if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) continue;
       const win = entry?.win;
       if (!win || win.isDestroyed() || !win.isVisible()) continue;
+      if (!papelReivindicaTopo(entry.role)) {
+        definirNivelTopo(win, false);
+        continue;
+      }
+      definirNivelTopo(win, NIVEL_TOPO_PROJECAO);
       try {
         win.moveTop();
       } catch (_) {
@@ -666,13 +729,13 @@ function createProjectionEngine(paths, deps) {
 
   function haJanelaProjecaoVisivelNoTopo() {
     return registro.todas().some((entry) => {
-      if (!ROLES_TOPO_ABSOLUTO.has(entry?.role)) return false;
+      if (!papelReivindicaTopo(entry?.role)) return false;
       const win = entry?.win;
       return !!(win && !win.isDestroyed() && win.isVisible());
     });
   }
 
-  /** Mantém loop de reclaim enquanto houver telão/ministrante/escudo visível. */
+  /** Mantém loop de reclaim enquanto houver projeção activa do Lyra num monitor. */
   function atualizarLoopTopoAbsolutoProjecao() {
     if (haJanelaProjecaoVisivelNoTopo()) {
       if (!topoAbsolutoIntervalId) {
@@ -916,7 +979,7 @@ function createProjectionEngine(paths, deps) {
         if (!win.isVisible()) {
           try {
             if (mostrarJanelaProjecaoQuandoPronta(win, 'restaurar-janela-permanente')) {
-              aplicarTopoAbsolutoProjecao(win);
+              aplicarTopoConformeProjecao(win);
             }
           } catch (_) {
             // intencional — erro ignorado
@@ -1158,7 +1221,7 @@ function createProjectionEngine(paths, deps) {
         diag('revelar-suprimido', win, { motivo: 'oculto-para-relogio' });
         return;
       }
-      aplicarTopoAbsolutoProjecao(win);
+      aplicarTopoConformeProjecao(win);
       try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
         // intencional — erro ignorado
       }
@@ -1246,7 +1309,7 @@ function createProjectionEngine(paths, deps) {
     try { win.setBackgroundColor(PRETO_NATIVO_PROJECAO); } catch (_) {
       // intencional — erro ignorado
     }
-    aplicarTopoAbsolutoProjecao(win);
+    aplicarTopoConformeProjecao(win);
     win.__lyraPrimeiroQuadro = true;
     try { mostrarJanelaProjecaoSemFoco(win); } catch (_) {
       // intencional — erro ignorado
@@ -1338,7 +1401,7 @@ function createProjectionEngine(paths, deps) {
     try { win.setBackgroundColor(backgroundColor); } catch (_) {
   // intencional — erro ignorado
 }
-    aplicarTopoAbsolutoProjecao(win);
+    aplicarTopoConformeProjecao(win);
     // Outro software topmost pode cobrir só um monitor; reclaim global (M2+M3).
     if (!win.__lyraTopoAbsolutoBlurBound) {
       win.__lyraTopoAbsolutoBlurBound = true;
@@ -1348,7 +1411,7 @@ function createProjectionEngine(paths, deps) {
            recuperar o teclado) reemitia `setAlwaysOnTop` → `SetWindowPos` no HWND
            do projetor. O DWM ainda não tinha o quadro preto em cache — clarão
            branco só nessa primeira vez. `moveTop()` basta para reclamar a banda. */
-        aplicarTopoAbsolutoProjecao(win);
+        aplicarTopoConformeProjecao(win);
         reafirmarTopoTodasJanelasProjecao();
         atualizarLoopTopoAbsolutoProjecao();
       });
@@ -1887,7 +1950,7 @@ function createProjectionEngine(paths, deps) {
     if (!win || win.isDestroyed() || !d) return;
     try {
       cobrirBoundsDoDisplay(win, d.bounds);
-      aplicarTopoAbsolutoProjecao(win);
+      aplicarTopoConformeProjecao(win);
     } catch (_) {
       // intencional — erro ignorado
     }
@@ -1908,7 +1971,7 @@ function createProjectionEngine(paths, deps) {
     if (!d || !win || win.isDestroyed()) return;
     try {
       cobrirBoundsDoDisplay(win, d.bounds);
-      aplicarTopoAbsolutoProjecao(win);
+      aplicarTopoConformeProjecao(win);
       entry.index = displayIndex;
     } catch (_) {
       // intencional — erro ignorado
@@ -2425,7 +2488,7 @@ function createProjectionEngine(paths, deps) {
       entrada.ocultoParaRelogio = false;
       marcarOcultoParaRelogio(win, false);
       cobrirBoundsDoDisplay(win, d.bounds);
-      aplicarTopoAbsolutoProjecao(win);
+      aplicarTopoConformeProjecao(win);
       entrada.index = displayIndex;
       if (!win.isVisible() && opts.mostrar !== false) {
         mostrarJanelaProjecaoQuandoPronta(win, 'moverJanelaRoleEntreMonitores');
