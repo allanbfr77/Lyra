@@ -16032,26 +16032,47 @@ async function iniciarCriarNovaVersao() {
     return;
   }
 
-  const nome = await appPrompt('Nome da nova versão:', {
-    title: 'Nova versão',
-    emptyMsg: 'Digite um nome para a versão.',
-  });
-  if (!nome) return;
-
-  try {
-    limparFlagsModoEdicaoMusica();
-
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/criar-versao`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rotulo: nome }),
+  /* Duas versões da mesma música não podem ter o mesmo nome: quando o servidor
+     recusa por nome repetido, avisa e volta a pedir outro — sem gravar nada. */
+  let sugestao = '';
+  let avisoNomeRepetido = '';
+  let payload = null;
+  for (;;) {
+    const nome = await appPrompt('Nome da nova versão:', {
+      title: 'Nova versão',
+      defaultValue: sugestao,
+      emptyMsg: 'Digite um nome para a versão.',
+      auxText: avisoNomeRepetido || undefined,
     });
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      await appAlert(payload.erro || `Não foi possível criar a versão (HTTP ${res.status}).`);
+    if (!nome) return;
+    try {
+      limparFlagsModoEdicaoMusica();
+
+      const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/criar-versao`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rotulo: nome }),
+      });
+      const resposta = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (resposta.codigo === ERRO_ROTULO_DUPLICADO_API) {
+          await appAlert(resposta.erro, 'Nome de versão repetido');
+          sugestao = nome;
+          avisoNomeRepetido = resposta.erro;
+          continue;
+        }
+        await appAlert(resposta.erro || `Não foi possível criar a versão (HTTP ${res.status}).`);
+        return;
+      }
+      payload = resposta;
+      break;
+    } catch (e) {
+      await appAlert(e?.message || 'Não foi possível criar a nova versão.');
       return;
     }
+  }
 
+  try {
     const nova = payload.musica;
     if (!nova || !Array.isArray(nova.estrofes)) throw new Error('Resposta inválida do servidor.');
 
@@ -16079,8 +16100,10 @@ async function iniciarCriarNovaVersao() {
     atualizarPreviewOperador();
     marcacaoEstrofeEditor();
 
-    entrarModoEdicao();
-    atualizarToolbarModoEdicao();
+    /* A cópia recém-criada abre na letra corrida, como uma música aberta do
+       banco — não na grade de edição por slides. `entrarModoLetraCompletaCentral`
+       já trata do layout, do snapshot e da barra de ações. */
+    entrarModoLetraCompletaCentral();
   } catch (e) {
     appAlert(e?.message || 'Não foi possível criar a nova versão.');
   }
@@ -19250,59 +19273,115 @@ function renderMusicaVersoesBar() {
 }
 
 async function iniciarRenomearVersaoServidor(rootId, versaoId, rotuloAtual) {
-  const nome = await appPrompt('Novo nome da versão:', {
-    title: 'Renomear versão',
-    defaultValue: String(rotuloAtual || '').trim(),
-    emptyMsg: 'Digite um nome para a versão.',
-  });
-  if (!nome) return;
   const idNum = parseInt(versaoId, 10);
   if (!Number.isFinite(idNum)) return;
-  try {
-    let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rotulo: nome }),
+  let sugestao = String(rotuloAtual || '').trim();
+  let avisoNomeRepetido = '';
+  for (;;) {
+    /* Nome repetido: avisa e volta a pedir, já com o que foi escrito. */
+    const nome = await appPrompt('Novo nome da versão:', {
+      title: 'Renomear versão',
+      defaultValue: sugestao,
+      emptyMsg: 'Digite um nome para a versão.',
+      auxText: avisoNomeRepetido || undefined,
     });
-    if (res.status === 404) {
-      res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
-        method: 'POST',
+    if (!nome) return;
+    try {
+      let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rotulo: nome }),
       });
+      if (res.status === 404) {
+        res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/rotulo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rotulo: nome }),
+        });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.codigo === ERRO_ROTULO_DUPLICADO_API) {
+          await appAlert(data.erro, 'Nome de versão repetido');
+          sugestao = nome;
+          avisoNomeRepetido = data.erro;
+          continue;
+        }
+        await appAlert(data.erro || `Não foi possível renomear (HTTP ${res.status}).`);
+        return;
+      }
+      await concluirRenomearVersaoServidor(rootId, versaoId, idNum, String(data.rotulo || nome).trim());
+    } catch (e) {
+      await appAlert(e?.message || 'Não foi possível renomear a versão.');
     }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      await appAlert(data.erro || `Não foi possível renomear (HTTP ${res.status}).`);
-      return;
-    }
-    const rotuloFinal = String(data.rotulo || nome).trim();
-    atualizarRotuloVersaoNasPlaylists(rootId, versaoId, rotuloFinal);
-    if (musicaAtiva && Number(musicaAtiva.id) === idNum) {
-      musicaAtiva.rotulo = rotuloFinal;
-    }
-    await carregarVersoesMusicaServidor(rootId);
-    renderPlaylist();
-  } catch (e) {
-    await appAlert(e?.message || 'Não foi possível renomear a versão.');
+    return;
   }
 }
 
+/** Código devolvido pela API quando o nome já pertence a outra versão da música. */
+const ERRO_ROTULO_DUPLICADO_API = 'rotulo-duplicado';
+
+/** Depois de gravado o novo nome: playlists, música activa e barra de versões. */
+async function concluirRenomearVersaoServidor(rootId, versaoId, idNum, rotuloFinal) {
+  atualizarRotuloVersaoNasPlaylists(rootId, versaoId, rotuloFinal);
+  if (musicaAtiva && Number(musicaAtiva.id) === idNum) {
+    musicaAtiva.rotulo = rotuloFinal;
+  }
+  await carregarVersoesMusicaServidor(rootId);
+  renderPlaylist();
+}
+
+/**
+ * Nome já usado por outra versão desta música (servidor ou local)?
+ * Mesma regra do servidor (`existeRotuloVersaoNaFamilia`): caixa não conta, e o
+ * original entra com o nome por que é exibido. `idIgnorar` é a versão em causa.
+ */
+function nomeVersaoJaUsadoNaMusica(rootId, nome, idIgnorar) {
+  const chave = String(nome || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+  if (!chave) return false;
+  const mesmo = (r) => String(r || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR') === chave;
+  if (mesmo('Original')) return true;
+  const versoesSrv =
+    Number(versoesMusicaServidorCache.rootId) === Number(rootId)
+      ? versoesMusicaServidorCache.versoes || []
+      : [];
+  const naoEhAPropria = (id) => String(id) !== String(idIgnorar);
+  return (
+    versoesSrv.some(
+      (v) => v.parent_id != null && naoEhAPropria(v.id) && mesmo(v.rotulo)
+    ) || getCopiasParaMusica(rootId).some((c) => naoEhAPropria(c.id) && mesmo(c.rotulo))
+  );
+}
+
 async function iniciarRenomearVersaoLocal(rootId, copiaId, rotuloAtual) {
-  const nome = await appPrompt('Novo nome da versão:', {
-    title: 'Renomear versão',
-    defaultValue: String(rotuloAtual || '').trim(),
-    emptyMsg: 'Digite um nome para a versão.',
-  });
-  if (!nome) return;
-  const up = atualizarCopiaLocal(rootId, copiaId, { rotulo: nome });
-  if (!up.ok) {
-    await appAlert(up.erro || 'Não foi possível renomear a versão local.');
+  let sugestao = String(rotuloAtual || '').trim();
+  let avisoNomeRepetido = '';
+  for (;;) {
+    const nome = await appPrompt('Novo nome da versão:', {
+      title: 'Renomear versão',
+      defaultValue: sugestao,
+      emptyMsg: 'Digite um nome para a versão.',
+      auxText: avisoNomeRepetido || undefined,
+    });
+    if (!nome) return;
+    /* Nome repetido: avisa e volta a pedir outro — sem gravar nada. */
+    if (nomeVersaoJaUsadoNaMusica(rootId, nome, copiaId)) {
+      const msg = `Já existe uma versão chamada «${nome.trim()}» nesta música. Escolha um nome diferente.`;
+      await appAlert(msg, 'Nome de versão repetido');
+      sugestao = nome;
+      avisoNomeRepetido = msg;
+      continue;
+    }
+    const up = atualizarCopiaLocal(rootId, copiaId, { rotulo: nome });
+    if (!up.ok) {
+      await appAlert(up.erro || 'Não foi possível renomear a versão local.');
+      return;
+    }
+    atualizarRotuloVersaoNasPlaylists(rootId, copiaId, nome);
+    renderMusicaVersoesBar();
+    renderPlaylist();
     return;
   }
-  atualizarRotuloVersaoNasPlaylists(rootId, copiaId, nome);
-  renderMusicaVersoesBar();
-  renderPlaylist();
 }
 
 async function confirmarRemoverVersaoServidor(rootId, versaoId) {

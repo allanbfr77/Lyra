@@ -295,7 +295,11 @@ function registrarRotasMusicas(expressApp, deps) {
       if (!Number.isFinite(id)) return res.status(400).json({ erro: 'id inválido' });
       const rotulo = String(req.body?.rotulo || '').trim();
       const r = criarVersaoMusicaNoDb(id, rotulo);
-      if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
+      /* `codigo` deixa o painel saber que é nome repetido e pedir outro nome. */
+      if (!r.ok)
+        return res
+          .status(r.erro === 'Não encontrado' ? 404 : 400)
+          .json({ erro: r.erro, codigo: r.codigo });
       const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       const row = obterMusicaUsuarioPorId(r.id);
@@ -319,7 +323,11 @@ function registrarRotasMusicas(expressApp, deps) {
       if (!Number.isFinite(id)) return res.status(400).json({ erro: 'id inválido' });
       const rotulo = String(req.body?.rotulo || '').trim();
       const r = atualizarRotuloVersaoNoDb(id, rotulo);
-      if (!r.ok) return res.status(r.erro === 'Não encontrado' ? 404 : 400).json({ erro: r.erro });
+      /* `codigo` deixa o painel saber que é nome repetido e pedir outro nome. */
+      if (!r.ok)
+        return res
+          .status(r.erro === 'Não encontrado' ? 404 : 400)
+          .json({ erro: r.erro, codigo: r.codigo });
       const meta = { updatedAt: marcarBancoCompartilhadoAlterado() };
       notificarBancoCompartilhadoAlterado(meta.updatedAt);
       res.json({ ok: true, id: r.id, rotulo: r.rotulo, rootId: r.rootId });

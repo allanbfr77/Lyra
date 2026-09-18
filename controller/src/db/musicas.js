@@ -429,15 +429,36 @@ function atualizarMusicaNoDb(idRaw, titulo, artista, estrofes) {
     return { ok: true, forked: false, id, titulo: tituloTrim };
   }
 
+  /*
+   * A Cópia padrão (a que nasce junto com o Original, exibida como
+   * «Cópia/Original») deixa de o ser assim que a letra é mesmo alterada: passa a
+   * «Editada». Só a letra conta — gravar sem mexer no texto, ou mexer só em
+   * título/artista, não muda o nome. As outras versões mantêm o nome que têm.
+   */
+  const letraAlteradaNaCopia = !estrofesIguaisNoBanco(row.estrofes, normalized);
+  const viraEditada =
+    letraAlteradaNaCopia && chaveRotuloVersao(row.rotulo) === chaveRotuloVersao(ROTULO_COPIA_PADRAO);
+
   // is_immutable=0: salva estrofes do registro específico e propaga título/artista a toda a família.
   const r = getDb()
     .prepare('UPDATE musicas SET estrofes=? WHERE id=? AND is_immutable=0')
     .run(JSON.stringify(normalized), id);
   if (r.changes === 0) return { ok: false, erro: 'Não encontrado' };
+  if (viraEditada) {
+    getDb()
+      .prepare('UPDATE musicas SET rotulo=? WHERE id=? AND is_immutable=0')
+      .run(ROTULO_COPIA_MODIFICADA, id);
+  }
   getDb()
     .prepare('UPDATE musicas SET titulo=?, artista=? WHERE root_id=? OR id=?')
     .run(tituloTrim, artistaTrim, familiaRootId, familiaRootId);
-  return { ok: true, forked: false, id, titulo: tituloTrim };
+  return {
+    ok: true,
+    forked: false,
+    id,
+    titulo: tituloTrim,
+    rotulo: viraEditada ? ROTULO_COPIA_MODIFICADA : (row.rotulo != null ? String(row.rotulo) : ''),
+  };
 }
 
 /** Remove uma cópia ou a família inteira (ao apagar o original / root_id). */
@@ -574,6 +595,11 @@ function criarVersaoMusicaNoDb(idRaw, rotuloRaw) {
   const estrofes = parseEstrofesJson(row.estrofes);
   if (!estrofes.length) return { ok: false, erro: 'estrofes vazias' };
 
+  /* Nome já usado por outra versão da mesma música: não grava nada. */
+  if (existeRotuloVersaoNaFamilia(resolverRootIdDaMusica(row), rotulo)) {
+    return erroRotuloDuplicado(rotulo);
+  }
+
   const fork = inserirCopiaMusica(
     row,
     String(row.titulo || '').trim(),
@@ -591,6 +617,49 @@ function criarVersaoMusicaNoDb(idRaw, rotuloRaw) {
   };
 }
 
+/** Nome com que o original aparece na barra de versões (não é um rótulo gravado). */
+const ROTULO_ORIGINAL_EXIBIDO = 'Original';
+
+/** Código de erro devolvido quando o nome já pertence a outra versão da música. */
+const ERRO_ROTULO_DUPLICADO = 'rotulo-duplicado';
+
+/** Chave de comparação de nome de versão: sem espaços nas pontas, caixa não conta. */
+function chaveRotuloVersao(rotulo) {
+  return String(rotulo || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+}
+
+/**
+ * Já existe outra versão desta música com esse nome?
+ *
+ * Duas versões da mesma família não podem ter o mesmo nome — na barra de versões
+ * ficariam dois chips idênticos e o utilizador não saberia qual é qual. O
+ * original entra na comparação com o nome por que é exibido («Original»), já que
+ * o seu `rotulo` gravado é nulo. `idIgnorar` deixa de fora a própria versão que
+ * está a ser renomeada (renomear para o mesmo nome não é conflito).
+ */
+function existeRotuloVersaoNaFamilia(rootIdRaw, rotulo, idIgnorar = null) {
+  const rootId = parseInt(rootIdRaw, 10);
+  const chave = chaveRotuloVersao(rotulo);
+  if (!Number.isFinite(rootId) || !chave) return false;
+  const rows = getDb()
+    .prepare('SELECT id, parent_id, rotulo FROM musicas WHERE root_id = ? OR id = ?')
+    .all(rootId, rootId);
+  return rows.some((r) => {
+    if (idIgnorar != null && Number(r.id) === Number(idIgnorar)) return false;
+    const ehOriginal = Number(r.id) === rootId || r.parent_id == null;
+    return chaveRotuloVersao(ehOriginal ? ROTULO_ORIGINAL_EXIBIDO : r.rotulo) === chave;
+  });
+}
+
+/** Erro pronto para as duas portas de entrada (criar versão e renomear). */
+function erroRotuloDuplicado(rotulo) {
+  return {
+    ok: false,
+    codigo: ERRO_ROTULO_DUPLICADO,
+    erro: `Já existe uma versão chamada «${String(rotulo).trim()}» nesta música. Escolha um nome diferente.`,
+  };
+}
+
 /** Renomeia o rótulo de uma cópia/versão (não o original imutável). */
 function atualizarRotuloVersaoNoDb(idRaw, rotuloRaw) {
   const id = parseInt(idRaw, 10);
@@ -602,6 +671,10 @@ function atualizarRotuloVersaoNoDb(idRaw, rotuloRaw) {
   if (!row) return { ok: false, erro: 'Não encontrado' };
   if (Number(row.is_immutable) === 1 || row.parent_id == null) {
     return { ok: false, erro: 'Não é possível renomear o original' };
+  }
+  /* Nome já usado por outra versão da mesma música: não grava nada. */
+  if (existeRotuloVersaoNaFamilia(resolverRootIdDaMusica(row), rotulo, id)) {
+    return erroRotuloDuplicado(rotulo);
   }
 
   const r = getDb()
@@ -970,6 +1043,8 @@ module.exports = {
   criarMusicaUsuarioNoDb,
   criarVersaoMusicaNoDb,
   atualizarRotuloVersaoNoDb,
+  existeRotuloVersaoNaFamilia,
+  ERRO_ROTULO_DUPLICADO,
   encontrarMusicaUsuarioDuplicada,
   encontrarMusicasUsuarioDuplicadasEmLote,
   substituirMusicaUsuarioNoDb,
