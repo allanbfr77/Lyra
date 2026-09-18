@@ -720,9 +720,53 @@
   <input type="file" id="apresentacao-add-card-input" accept="image/*,application/pdf,.ppt,.pptx,.odp" style="display:none" />
   <input type="file" id="apresentacao-add-audio-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" style="display:none" multiple />
 
-  <!-- DOCS — área própria do modo `app-mod-docs`. Fica intencionalmente vazia:
-       é só o ponto de entrada onde as funções de documentos vão ser montadas. -->
-  <section id="painel-modo-docs" aria-label="Docs"></section>
+  <!-- DOCS — área própria do modo `app-mod-docs`. Por agora só a importação de
+       ficheiros; abrir, exibir e projetar documentos ainda não existe. O bloco
+       reutiliza as classes do menu do modo Mídias (`ap-menu`, `ap-dd`, …). -->
+  <section id="painel-modo-docs" aria-label="Docs">
+    <div class="docs-layout">
+      <!-- Esquerda: faixa vertical com uma miniatura por página. -->
+      <div class="docs-faixa" id="docs-faixa" role="listbox" aria-label="Páginas do documento" tabindex="0"></div>
+
+      <!-- Centro: prévia grande da página escolhida + cápsula de navegação. -->
+      <div class="docs-centro">
+        <div class="docs-preview" id="docs-preview" aria-live="polite">
+          <div class="docs-preview-vazio" id="docs-preview-vazio">Importe um documento para começar.</div>
+          <img id="docs-preview-img" class="docs-preview-img" alt="" hidden />
+          <span class="docs-preview-selo" id="docs-preview-selo" hidden>NO AR</span>
+        </div>
+        <div class="docs-nav-capsula" role="group" aria-label="Navegar pelas páginas">
+          <button type="button" class="docs-nav-btn" id="docs-nav-anterior" title="Página anterior" aria-label="Página anterior">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <span class="docs-nav-contador" id="docs-nav-contador">—</span>
+          <button type="button" class="docs-nav-btn" id="docs-nav-proxima" title="Próxima página" aria-label="Próxima página">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Direita: seletor dos documentos importados. -->
+      <div class="ap-menu docs-menu">
+        <div class="ap-menu-files-block">
+          <div class="ap-menu-section-label">Documentos importados</div>
+          <div class="ap-dd-toolbar">
+            <div class="culto-dd ap-dd" id="docs-files-dd">
+              <button type="button" class="culto-dd-btn ap-dd-btn" id="docs-files-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="docs-files-dd-menu">
+                <span class="culto-dd-col-desc" id="docs-files-selected">Selecione um arquivo...</span>
+                <span class="culto-dd-caret" aria-hidden="true"></span>
+              </button>
+              <div id="docs-files-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
+                <div id="docs-menu-list"></div>
+              </div>
+            </div>
+            <button type="button" class="ap-menu-plus" id="docs-menu-add" title="Importar documento (PowerPoint, PDF ou Word)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <input type="file" id="docs-add-input" accept=".ppt,.pptx,.pdf,.doc,.docx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" multiple />
 
 </div>
 

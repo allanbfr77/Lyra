@@ -199,6 +199,8 @@
   --nav-color-slide: #257956;
   --nav-color-midias: #735fa7;
   --nav-color-docs: #2f6b4f;
+  /* Seleção da página na faixa do DOCS — azul forte, contra miniatura branca. */
+  --docs-selecao: #1558c4;
   --nav-color-voz: #ac4676;
   --nav-color-ajustes: #317283;
 
@@ -7722,8 +7724,243 @@ body.app-mod-docs .dashboard-main {
 body.app-mod-docs #painel-modo-docs {
   display: block;
   min-height: 0;
+  overflow: hidden;
+  padding: 14px;
+}
+/* Faixa | prévia | seletor — o seletor à direita, como pedido. */
+.docs-layout {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 280px;
+  gap: 0 16px;
+}
+#painel-modo-docs .docs-menu {
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
   overflow: auto;
-  padding: 18px;
+}
+#painel-modo-docs .ap-menu-files-block {
+  padding: 0;
+}
+
+/* ── Faixa de miniaturas ──────────────────────────────────────────────────
+   Uma página por linha, com rolagem própria. O realce seletiva/no ar é o
+   mesmo vocabulário do resto do painel: o dourado marca a escolha, o vermelho
+   marca o que está no telão. */
+.docs-faixa {
+  grid-column: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  scroll-behavior: smooth;
+}
+.docs-faixa:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.docs-miniatura {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.docs-miniatura img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.docs-miniatura-vazia {
+  width: 100%;
+  aspect-ratio: 1 / 1.414;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--border) 45%, transparent),
+    color-mix(in srgb, var(--border) 45%, transparent) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+.docs-miniatura-num {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+  pointer-events: none;
+}
+.docs-miniatura:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+/*
+  Seleção em azul, não no dourado da casa.
+
+  O dourado da aplicação é discreto de propósito e, sobre uma miniatura branca,
+  quase desaparecia. O azul separa-se do vermelho do «no ar» mesmo para quem não
+  distingue vermelho de verde — que é a razão de não ser verde.
+
+  O realce é todo por fora da imagem: moldura na borda e anel em `box-shadow`.
+  Nada passa por cima da miniatura, que continua a ler-se inteira.
+*/
+.docs-miniatura.selecionada {
+  border-color: var(--docs-selecao);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--docs-selecao) 32%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.docs-miniatura.selecionada .docs-miniatura-num {
+  background: var(--docs-selecao);
+}
+.docs-miniatura.no-ar {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 38%, transparent);
+}
+.docs-miniatura.no-ar::after {
+  content: "NO AR";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ── Prévia central ─────────────────────────────────────────────────────── */
+.docs-centro {
+  grid-column: 2;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  /* Uma linha de cada lado: a área central fica delimitada entre a faixa das
+     páginas e o seletor de documentos. */
+  padding: 0 16px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.docs-preview {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+/*
+  A prévia central não leva cor de seleção.
+
+  Ela mostra sempre a página escolhida — um contorno a dizer «escolhida» não
+  acrescentava nada, e o dourado disputava a atenção com o que interessa: saber
+  se aquilo está no ar. Quem diz o que está selecionado é a faixa da esquerda.
+  Aqui fica só o vermelho do «no ar», que é a informação crítica.
+*/
+.docs-preview.no-ar {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent);
+}
+.docs-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+.docs-preview-vazio {
+  max-width: 420px;
+  white-space: pre-line;
+  text-align: center;
+  color: var(--text-dim, var(--text));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.docs-preview-selo {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* ── Cápsula de navegação ───────────────────────────────────────────────── */
+.docs-nav-capsula {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+.docs-nav-btn {
+  width: 52px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.docs-nav-btn svg {
+  width: 26px;
+  height: 26px;
+}
+.docs-nav-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.docs-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.docs-nav-contador {
+  min-width: 74px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim, var(--text));
 }
 .apresentacao-layout {
   width: 100%;
@@ -9113,6 +9350,7 @@ html.dark {
   --nav-color-slide: #3EC98F;
   --nav-color-midias: #A084E8;
   --nav-color-docs: #6FC49A;
+  --docs-selecao: #5aa3ff;
   --nav-color-voz: #E85FA0;
   --nav-color-ajustes: #4FB8D4;
 

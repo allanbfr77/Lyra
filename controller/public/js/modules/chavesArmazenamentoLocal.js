@@ -41,6 +41,14 @@ export const LS_MONITOR_LEMBRADO = 'lyra_monitor_lembrado_v1';
  */
 export const LS_ROTAS_DEFINIDAS_PELO_OPERADOR = 'lyra_rotas_definidas_operador_v1';
 export const LS_APRESENTACAO_STATE = 'lyra_apresentacao_state_v1';
+/**
+ * Lista de documentos importados no modo DOCS.
+ *
+ * Só a ficha de cada ficheiro — nome, tipo, tamanho e caminho em disco. O conteúdo NÃO
+ * entra aqui: um .pptx em Base64 estoirava a quota do localStorage ao primeiro ficheiro,
+ * como já tinha acontecido com os áudios do modo Mídias.
+ */
+export const LS_DOCS_BIBLIOTECA = 'lyra_docs_biblioteca_v1';
 /** Configuração de exibição exclusiva do modo Bíblia (fundo, referência, etc.). */
 export const LS_BIBLIA_CFG = 'lyra_biblia_cfg_v1';
 /** Configuração de exibição do modo Slides (telão + ministrante + relógio). */

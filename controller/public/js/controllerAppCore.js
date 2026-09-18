@@ -55,6 +55,7 @@ import {
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
   LS_APRESENTACAO_STATE,
+  LS_DOCS_BIBLIOTECA,
   LS_BIBLIA_CFG,
   LS_SLIDE_CFG,
   SVG_OLHO_ABERTO,
@@ -213,6 +214,9 @@ import {
 
 migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
+import { guardarArquivoDoc, lerArquivoDoc, apagarArquivoDoc } from './modules/docsArquivosIdb.js';
+import { abrirDocumentoPdf, ehDocumentoRenderizavel } from './modules/docsPdfPaginas.js';
+import { deltaScrollGrelhaSlidesAntecipado } from './modules/scrollGrelhaSlides.js';
 import {
   limparEstiloPreviewSlide,
   aplicarClasseLinhas,
@@ -510,8 +514,561 @@ function abrirModoDocs() {
       aplicarMonitorLembradoAoEntrarNoModo('docs');
       sincronizarCheckboxLembrarMonitor();
       void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
+      /* A faixa e a prévia só existem com o modo aberto: é aqui que o documento
+         escolhido é lido e desenhado. */
+      if (docsDocumentoAbertoId !== docsSelecionadoId) void abrirDocumentoSelecionadoNoDocs();
     });
   });
+}
+
+/* ─── DOCS — importação de ficheiros ───────────────────────────────────────
+   Mesmo molde do seletor de arquivos/áudio do modo Mídias: lista suspensa com o
+   que já foi importado e um «+» que abre o seletor do sistema. Por agora fica-se
+   por aqui: nada abre, exibe ou projeta os documentos. */
+
+/** Extensões aceites na importação — PowerPoint, PDF e Word. */
+const DOCS_EXTENSOES_ACEITES = ['.ppt', '.pptx', '.pdf', '.doc', '.docx'];
+
+/** Documentos importados nesta instalação (só a ficha de cada ficheiro). */
+let docsBiblioteca = [];
+/** Linha escolhida na lista suspensa — por enquanto só destaque e rótulo do botão. */
+let docsSelecionadoId = null;
+
+function extensaoDoNomeDeArquivo(nome) {
+  const n = String(nome || '');
+  const i = n.lastIndexOf('.');
+  return i > 0 ? n.slice(i).toLowerCase() : '';
+}
+
+/**
+ * O `accept` do input é uma sugestão: o seletor do sistema deixa escolher «Todos os
+ * ficheiros», e ficheiros arrastados nem por lá passam. A extensão manda.
+ */
+function ehArquivoDocumentoAceite(nome) {
+  return DOCS_EXTENSOES_ACEITES.includes(extensaoDoNomeDeArquivo(nome));
+}
+
+/** Rótulo do tipo, para a linha da lista. */
+function rotuloTipoDocumento(nome) {
+  const ext = extensaoDoNomeDeArquivo(nome);
+  if (ext === '.pdf') return 'PDF';
+  if (ext === '.ppt' || ext === '.pptx') return 'PowerPoint';
+  if (ext === '.doc' || ext === '.docx') return 'Word';
+  return 'documento';
+}
+
+function carregarDocsBibliotecaDoStorage() {
+  try {
+    const raw = localStorage.getItem(LS_DOCS_BIBLIOTECA);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    const itens = Array.isArray(p?.itens) ? p.itens : [];
+    docsBiblioteca = itens
+      .filter((x) => x && typeof x === 'object' && String(x.name || '').trim())
+      .map((x) => ({
+        id: String(x.id || ''),
+        name: String(x.name || ''),
+        title: String(x.title || x.name || ''),
+        mime: String(x.mime || ''),
+        size: Number(x.size) || 0,
+        filePath: String(x.filePath || ''),
+      }));
+    docsSelecionadoId = docsBiblioteca.some((x) => x.id === p?.selecionadoId)
+      ? String(p.selecionadoId)
+      : null;
+  } catch (_) {
+  // intencional — lista corrompida equivale a lista vazia
+}
+}
+
+function salvarDocsBibliotecaNoStorage() {
+  try {
+    localStorage.setItem(
+      LS_DOCS_BIBLIOTECA,
+      JSON.stringify({ version: 1, selecionadoId: docsSelecionadoId, itens: docsBiblioteca })
+    );
+  } catch (_) {
+  // intencional — quota cheia não pode derrubar o painel
+}
+}
+
+function renderListaDocsImportados() {
+  const list = document.getElementById('docs-menu-list');
+  const selLabel = document.getElementById('docs-files-selected');
+  if (!list) return;
+  list.innerHTML = '';
+  const atual = docsBiblioteca.find((x) => x.id === docsSelecionadoId) || null;
+  if (selLabel) {
+    selLabel.textContent = atual ? atual.name : 'Selecione um arquivo...';
+    selLabel.title = atual ? String(atual.name) : '';
+  }
+  if (!docsBiblioteca.length) {
+    list.innerHTML =
+      '<div class="placeholder-msg" style="margin:4px 0 0;">Nenhum documento importado. Use o «+» para adicionar PowerPoint, PDF ou Word.</div>';
+    return;
+  }
+  docsBiblioteca.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'ap-menu-item';
+    row.innerHTML = `
+      <div class="ap-menu-item-main">
+        <div class="ap-menu-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
+        <span class="ap-menu-item-meta">${escapeHtml(rotuloTipoDocumento(item.name))}</span>
+      </div>
+      <div class="ap-menu-item-actions">
+        <button type="button" class="ap-menu-action delete" title="Remover da lista" aria-label="Remover da lista">✕</button>
+      </div>
+    `;
+    row.setAttribute('role', 'option');
+    row.setAttribute('aria-selected', docsSelecionadoId && item.id === docsSelecionadoId ? 'true' : 'false');
+    row.addEventListener('click', (ev) => {
+      if (ev.target instanceof HTMLElement && ev.target.closest('.ap-menu-item-actions')) return;
+      docsSelecionadoId = item.id;
+      salvarDocsBibliotecaNoStorage();
+      renderListaDocsImportados();
+      fecharDocsFilesDropdown();
+      void abrirDocumentoSelecionadoNoDocs();
+    });
+    row.querySelector('.ap-menu-action.delete')?.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const ok = await appConfirm(`Remover "${item.name}" da lista de documentos?`, 'DOCS');
+      if (!ok) return;
+      const eraOAberto = docsDocumentoAbertoId === item.id;
+      docsBiblioteca = docsBiblioteca.filter((x) => x && x.id !== item.id);
+      void apagarArquivoDoc(item.id);
+      if (docsSelecionadoId === item.id) docsSelecionadoId = null;
+      salvarDocsBibliotecaNoStorage();
+      renderListaDocsImportados();
+      if (eraOAberto) void abrirDocumentoSelecionadoNoDocs();
+    });
+    list.appendChild(row);
+  });
+}
+
+/**
+ * Importa os ficheiros escolhidos.
+ *
+ * Guarda-se a ficha do ficheiro — nome, tipo, tamanho e o caminho em disco quando o
+ * Electron o dá. O conteúdo não é lido: nada o consome ainda, e um .pptx em Base64 no
+ * localStorage repetiria o problema de quota que os áudios do modo Mídias já tiveram.
+ */
+function adicionarArquivosAosDocs(files) {
+  const lista = Array.from(files || []);
+  if (!lista.length) return;
+  const recusados = [];
+  let importados = 0;
+  lista.forEach((file) => {
+    const nome = String(file?.name || '').trim();
+    if (!nome) return;
+    if (!ehArquivoDocumentoAceite(nome)) {
+      recusados.push(nome);
+      return;
+    }
+    const item = {
+      id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      name: nome,
+      title: nome,
+      mime: String(file.type || ''),
+      size: Number(file.size) || 0,
+      filePath: String(file.path || '').trim(),
+    };
+    docsBiblioteca.push(item);
+    docsSelecionadoId = item.id;
+    importados += 1;
+    /* Os bytes ficam no IndexedDB: é deles que saem as páginas, agora e depois de
+       recarregar o painel. Ver `modules/docsArquivosIdb.js`. */
+    void guardarArquivoDoc(item.id, file);
+  });
+  if (importados) {
+    salvarDocsBibliotecaNoStorage();
+    renderListaDocsImportados();
+    void abrirDocumentoSelecionadoNoDocs();
+  }
+  if (recusados.length) {
+    void appAlert(
+      `Só entram PowerPoint (.ppt, .pptx), PDF (.pdf) e Word (.doc, .docx).\n\nFicou de fora: ${recusados.join(', ')}`,
+      'DOCS'
+    );
+  }
+}
+
+function escolherArquivoModoDocs() {
+  const input = document.getElementById('docs-add-input');
+  if (!input) return;
+  input.value = '';
+  input.click();
+}
+
+function fecharDocsFilesDropdown() {
+  const wrap = document.getElementById('docs-files-dd');
+  const btn = document.getElementById('docs-files-dd-btn');
+  const menu = document.getElementById('docs-files-dd-menu');
+  if (!wrap || !btn || !menu) return;
+  wrap.classList.remove('open');
+  menu.hidden = true;
+  btn.setAttribute('aria-expanded', 'false');
+}
+
+function setupDocsFilesDropdown() {
+  const wrap = document.getElementById('docs-files-dd');
+  const btn = document.getElementById('docs-files-dd-btn');
+  const menu = document.getElementById('docs-files-dd-menu');
+  if (!wrap || !btn || !menu) return;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abrir = menu.hidden;
+    fecharOutrosSeletoresDropdown(wrap);
+    if (abrir) {
+      wrap.classList.add('open');
+      menu.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+    } else {
+      fecharDocsFilesDropdown();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) fecharDocsFilesDropdown();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') fecharDocsFilesDropdown();
+  });
+}
+
+/* ─── DOCS — faixa de páginas, prévia e projeção ───────────────────────────
+   Uma página de cada vez: a faixa da esquerda mostra todas, a prévia central
+   mostra a escolhida, e o duplo clique põe-na no ar. A distinção entre «em
+   prévia» e «no ar» é de leitura imediata — dourado contra vermelho. */
+
+/** Documento aberto agora (punho do pdf.js) e a que item da lista pertence. */
+let docsDocumentoAberto = null;
+let docsDocumentoAbertoId = null;
+/** Páginas: uma entrada por página, com a miniatura já desenhada (ou `null`). */
+let docsPaginas = [];
+let docsPaginaSelecionada = -1;
+/** `"<id do documento>#<índice>"` do que está no telão, ou `null`. */
+let docsPaginaProjetadaChave = null;
+/** Corrida entre aberturas: só a última manda no que aparece no ecrã. */
+let docsAberturaSeq = 0;
+
+/* Acompanha a largura da faixa: desenhar a 150 e esticar para ~230 dava miniatura desfocada. */
+const DOCS_LARGURA_MINIATURA = 230;
+const DOCS_LARGURA_PREVIA = 1100;
+const DOCS_LARGURA_PROJECAO = 1920;
+
+function docsChavePagina(docId, indice) {
+  return `${String(docId || '')}#${Number(indice)}`;
+}
+
+function docsItemSelecionado() {
+  return docsBiblioteca.find((x) => x && x.id === docsSelecionadoId) || null;
+}
+
+function docsMensagemPreviewVazio(texto) {
+  const vazio = document.getElementById('docs-preview-vazio');
+  const img = document.getElementById('docs-preview-img');
+  const preview = document.getElementById('docs-preview');
+  if (img) {
+    img.hidden = true;
+    img.removeAttribute('src');
+  }
+  if (vazio) {
+    vazio.hidden = false;
+    vazio.textContent = texto;
+  }
+  if (preview) {
+    preview.classList.remove('selecionada', 'no-ar');
+  }
+  const selo = document.getElementById('docs-preview-selo');
+  if (selo) selo.hidden = true;
+}
+
+/** Fecha o documento aberto e limpa faixa, prévia e contador. */
+function docsFecharDocumentoAberto() {
+  if (docsDocumentoAberto) {
+    try { docsDocumentoAberto.destruir(); } catch (_) {
+  // intencional — erro ignorado
+}
+  }
+  docsDocumentoAberto = null;
+  docsDocumentoAbertoId = null;
+  docsPaginas = [];
+  docsPaginaSelecionada = -1;
+  const faixa = document.getElementById('docs-faixa');
+  if (faixa) faixa.innerHTML = '';
+  atualizarNavegacaoDocs();
+}
+
+/**
+ * Abre o documento escolhido na lista: lê os bytes, conta as páginas e desenha.
+ *
+ * O PDF é o único formato que o painel sabe desenhar hoje (ver `docsPdfPaginas.js`);
+ * PowerPoint e Word ficam na lista, com o motivo escrito na área central.
+ */
+async function abrirDocumentoSelecionadoNoDocs() {
+  const item = docsItemSelecionado();
+  const seq = ++docsAberturaSeq;
+  docsFecharDocumentoAberto();
+  if (!item) {
+    docsMensagemPreviewVazio('Importe um documento para começar.');
+    return;
+  }
+  if (!ehDocumentoRenderizavel(item.name)) {
+    docsMensagemPreviewVazio(
+      `${item.name}\n\nPor enquanto o Lyra só desenha páginas de PDF. Exporte este documento para PDF e importe outra vez.`
+    );
+    return;
+  }
+  docsMensagemPreviewVazio(`A abrir ${item.name}…`);
+  let blob = null;
+  try {
+    blob = await lerArquivoDoc(item.id);
+  } catch (_) {
+  // intencional — tratado a seguir como ficheiro em falta
+}
+  if (seq !== docsAberturaSeq) return;
+  if (!blob) {
+    docsMensagemPreviewVazio(
+      `${item.name}\n\nO ficheiro não está guardado nesta instalação. Importe-o outra vez com o «+».`
+    );
+    return;
+  }
+  let doc = null;
+  try {
+    doc = await abrirDocumentoPdf(blob);
+  } catch (e) {
+    console.error('[Lyra] abrir PDF do modo DOCS', e);
+    if (seq === docsAberturaSeq) docsMensagemPreviewVazio(`Não foi possível abrir ${item.name}.`);
+    return;
+  }
+  if (seq !== docsAberturaSeq) {
+    try { doc.destruir(); } catch (_) {
+  // intencional — erro ignorado
+}
+    return;
+  }
+  docsDocumentoAberto = doc;
+  docsDocumentoAbertoId = item.id;
+  docsPaginas = Array.from({ length: doc.numPaginas }, () => ({ thumb: null }));
+  renderFaixaPaginasDocs();
+  await selecionarPaginaDocs(0, { rolarFaixa: false });
+  void desenharMiniaturasDocs(seq);
+}
+
+/** Desenha as miniaturas uma a uma — um documento grande não pode travar o painel. */
+async function desenharMiniaturasDocs(seq) {
+  for (let i = 0; i < docsPaginas.length; i += 1) {
+    if (seq !== docsAberturaSeq || !docsDocumentoAberto) return;
+    if (docsPaginas[i].thumb) continue;
+    let render = null;
+    try {
+      render = await docsDocumentoAberto.renderizarPagina(i + 1, DOCS_LARGURA_MINIATURA, 0.7);
+    } catch (_) {
+  // intencional — uma miniatura que falha fica com o marcador vazio
+}
+    if (seq !== docsAberturaSeq) return;
+    if (!render) continue;
+    docsPaginas[i].thumb = render.src;
+    const alvo = document.querySelector(`.docs-miniatura[data-indice="${i}"]`);
+    const vazio = alvo?.querySelector('.docs-miniatura-vazia');
+    if (alvo && vazio) {
+      const img = document.createElement('img');
+      img.src = render.src;
+      img.alt = `Página ${i + 1}`;
+      vazio.replaceWith(img);
+    }
+  }
+}
+
+function renderFaixaPaginasDocs() {
+  const faixa = document.getElementById('docs-faixa');
+  if (!faixa) return;
+  faixa.innerHTML = '';
+  docsPaginas.forEach((pag, i) => {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'docs-miniatura';
+    botao.dataset.indice = String(i);
+    botao.setAttribute('role', 'option');
+    botao.setAttribute('aria-selected', 'false');
+    botao.title = `Página ${i + 1}`;
+    if (pag.thumb) {
+      const img = document.createElement('img');
+      img.src = pag.thumb;
+      img.alt = `Página ${i + 1}`;
+      botao.appendChild(img);
+    } else {
+      const vazio = document.createElement('div');
+      vazio.className = 'docs-miniatura-vazia';
+      botao.appendChild(vazio);
+    }
+    const num = document.createElement('span');
+    num.className = 'docs-miniatura-num';
+    num.textContent = String(i + 1);
+    botao.appendChild(num);
+    /* Um clique escolhe; dois projetam — o mesmo par de gestos da grelha de slides. */
+    botao.addEventListener('click', () => {
+      void selecionarPaginaDocs(i);
+    });
+    botao.addEventListener('dblclick', () => {
+      void projetarPaginaDocs(i);
+    });
+    faixa.appendChild(botao);
+  });
+  aplicarEstadoVisualPaginasDocs();
+}
+
+/** Contorno dourado no que está escolhido, vermelho no que está no ar. */
+function aplicarEstadoVisualPaginasDocs() {
+  const chaveNoAr = docsPaginaProjetadaChave;
+  document.querySelectorAll('#docs-faixa .docs-miniatura').forEach((el) => {
+    const i = Number(el.dataset.indice);
+    const selecionada = i === docsPaginaSelecionada;
+    const noAr = chaveNoAr === docsChavePagina(docsDocumentoAbertoId, i);
+    el.classList.toggle('selecionada', selecionada);
+    el.classList.toggle('no-ar', noAr);
+    el.setAttribute('aria-selected', selecionada ? 'true' : 'false');
+  });
+  const preview = document.getElementById('docs-preview');
+  const selo = document.getElementById('docs-preview-selo');
+  const noArAqui =
+    docsPaginaSelecionada >= 0 &&
+    chaveNoAr === docsChavePagina(docsDocumentoAbertoId, docsPaginaSelecionada);
+  if (preview) {
+    preview.classList.toggle('selecionada', docsPaginaSelecionada >= 0 && !noArAqui);
+    preview.classList.toggle('no-ar', noArAqui);
+  }
+  if (selo) selo.hidden = !noArAqui;
+}
+
+/**
+ * Faixa a acompanhar o conteúdo: a página actual fica sempre visível e a seguinte
+ * entra na conta. Mesmo cálculo da grelha do modo Slides (`scrollGrelhaSlides.js`),
+ * aqui com uma coluna só.
+ */
+function rolarFaixaParaPaginaDocs(indice) {
+  const faixa = document.getElementById('docs-faixa');
+  if (!faixa) return;
+  const atual = faixa.querySelector(`.docs-miniatura[data-indice="${indice}"]`);
+  if (!atual) return;
+  const seguinte = faixa.querySelector(`.docs-miniatura[data-indice="${indice + 1}"]`);
+  const rect = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, height: r.height };
+  };
+  const rv = faixa.getBoundingClientRect();
+  const delta = deltaScrollGrelhaSlidesAntecipado({
+    viewport: { top: rv.top, bottom: rv.bottom, height: rv.height },
+    chip: rect(atual),
+    lookahead: rect(seguinte),
+  });
+  if (Math.abs(delta) > 0.5) faixa.scrollTop += delta;
+}
+
+function atualizarNavegacaoDocs() {
+  const contador = document.getElementById('docs-nav-contador');
+  const anterior = document.getElementById('docs-nav-anterior');
+  const proxima = document.getElementById('docs-nav-proxima');
+  const total = docsPaginas.length;
+  if (contador) {
+    contador.textContent = total ? `${docsPaginaSelecionada + 1} / ${total}` : '—';
+  }
+  if (anterior) anterior.disabled = !total || docsPaginaSelecionada <= 0;
+  if (proxima) proxima.disabled = !total || docsPaginaSelecionada >= total - 1;
+}
+
+/** Um clique: escolhe a página e mostra-a no centro. Não projeta. */
+async function selecionarPaginaDocs(indice, opts = {}) {
+  const i = Number(indice);
+  if (!docsDocumentoAberto || !Number.isInteger(i) || i < 0 || i >= docsPaginas.length) return;
+  docsPaginaSelecionada = i;
+  atualizarNavegacaoDocs();
+  aplicarEstadoVisualPaginasDocs();
+  if (opts.rolarFaixa !== false) rolarFaixaParaPaginaDocs(i);
+  const seq = docsAberturaSeq;
+  let render = null;
+  try {
+    render = await docsDocumentoAberto.renderizarPagina(i + 1, DOCS_LARGURA_PREVIA, 0.88);
+  } catch (e) {
+    console.error('[Lyra] prévia da página do modo DOCS', e);
+  }
+  if (seq !== docsAberturaSeq || docsPaginaSelecionada !== i || !render) return;
+  const img = document.getElementById('docs-preview-img');
+  const vazio = document.getElementById('docs-preview-vazio');
+  if (img) {
+    img.src = render.src;
+    img.alt = `Página ${i + 1}`;
+    img.hidden = false;
+  }
+  if (vazio) vazio.hidden = true;
+  aplicarEstadoVisualPaginasDocs();
+}
+
+function navegarPaginaDocs(passo) {
+  if (!docsPaginas.length) return;
+  const destino = docsPaginaSelecionada + Number(passo);
+  if (destino < 0 || destino >= docsPaginas.length) return;
+  void selecionarPaginaDocs(destino);
+}
+
+/**
+ * Leva a rota escolhida no seletor do DOCS até ao servidor.
+ *
+ * O DOCS não tem canal próprio no motor — a Bíblia também não: espelha a rota dela no
+ * canal `apresentacao` enquanto é o modo activo, e é isso que se faz aqui. Com mídia no
+ * ar o canal não se toca (fechá-lo-ia), exactamente como no ramo da Bíblia.
+ */
+async function sincronizarRotaDocsNoServidor() {
+  if (hayProjecaoMidiaApresentacaoAtiva()) return;
+  rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.docs) };
+  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
+}
+
+/** Dois cliques: a página vai para o telão. */
+async function projetarPaginaDocs(indice) {
+  const i = Number(indice);
+  if (!docsDocumentoAberto || !Number.isInteger(i) || i < 0 || i >= docsPaginas.length) return;
+  if (docsPaginaSelecionada !== i) await selecionarPaginaDocs(i);
+  const rota = normalizarRota(rotasPorModo.docs);
+  if (!rota.live && rota.publicoIndex < 0 && rota.ministranteIndex < 0) {
+    await appAlert('Escolha primeiro um monitor no seletor do cabeçalho.', 'DOCS');
+    return;
+  }
+  await sincronizarRotaDocsNoServidor();
+  const alvoProjecao = obterAlvoProjecaoDeRota(rotasPorModo.docs);
+  const item = docsItemSelecionado();
+  let render = null;
+  try {
+    render = await docsDocumentoAberto.renderizarPagina(i + 1, DOCS_LARGURA_PROJECAO, 0.9);
+  } catch (e) {
+    console.error('[Lyra] renderizar página para projeção', e);
+  }
+  if (!render) {
+    await appAlert('Não foi possível preparar esta página para projeção.', 'DOCS');
+    return;
+  }
+  const ok = await emitirApresentacao({
+    kind: 'image',
+    src: render.src,
+    mime: 'image/jpeg',
+    name: item ? item.name : 'Documento',
+    title: item ? `${item.name} — página ${i + 1}` : `Página ${i + 1}`,
+    alvoProjecao,
+  });
+  if (!ok) return;
+  docsPaginaProjetadaChave = docsChavePagina(docsDocumentoAbertoId, i);
+  aplicarEstadoVisualPaginasDocs();
+}
+
+/** Tira do ar o que o DOCS projetou, sem mexer no que os outros modos tenham. */
+async function encerrarProjecaoPaginaDocs() {
+  if (!docsPaginaProjetadaChave) return;
+  const alvo = obterAlvoProjecaoDeRota(rotasPorModo.docs);
+  const canais = canaisParaEncerrarConteudoApresentacao(alvo, null);
+  docsPaginaProjetadaChave = null;
+  aplicarEstadoVisualPaginasDocs();
+  if (canais.length) await encerrarCanaisApresentacaoNoServidor(canais);
 }
 
 /**
@@ -522,6 +1079,7 @@ function abrirModoDocs() {
  */
 function encerrarRotaModoDocs() {
   if (!ehModoDocsOperador()) return;
+  void encerrarProjecaoPaginaDocs();
   rotasPorModo.docs = rotaDesativada();
   void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
 }
@@ -9058,6 +9616,7 @@ function fecharOutrosSeletoresDropdown(excetoWrap) {
   if (document.getElementById('culto-dd') !== excetoWrap) fecharCultoDropdown();
   if (document.getElementById('ap-audio-dd') !== excetoWrap) fecharApAudioDropdown();
   if (document.getElementById('ap-files-dd') !== excetoWrap) fecharApFilesDropdown();
+  if (document.getElementById('docs-files-dd') !== excetoWrap) fecharDocsFilesDropdown();
   document.querySelectorAll('.route-dd').forEach((wrap) => {
     if (wrap === excetoWrap) return;
     wrap.classList.remove('route-dd-open');
@@ -16788,25 +17347,6 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const usarValoresDaUi = opts.usarValoresDaUi !== false;
   const modo = modoRoteamentoAtual();
 
-  /*
-   * DOCS: a escolha fica só aqui.
-   *
-   * O modo ainda não projeta nada, e o canal `apresentacao` do servidor é partilhado pela
-   * Bíblia e pelas Mídias — deixar o DOCS escrever nele mudaria o destino delas, que é
-   * precisamente o que não pode acontecer. Enquanto não houver conteúdo de documentos, a
-   * rota do DOCS é estado local: alimenta o seletor e o «Lembrar monitor», e mais nada sai
-   * daqui para a rede.
-   */
-  if (modo === 'docs') {
-    if (usarValoresDaUi) {
-      const fromUi = rotaSelecionadaNaUi();
-      if (!fromUi) return;
-      rotasPorModo.docs = sanitizarRotaProjecao(normalizarRota(fromUi), monitoresServidorCache);
-    }
-    atualizarEstiloRotasDesativadas();
-    return;
-  }
-
   const slidesAntes = normalizarRota(rotasPorModo.slides);
 
   if (usarValoresDaUi) {
@@ -16883,9 +17423,21 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
          * configurado do Modo Slides. Ver `modules/supressaoCanalSlides.js`.
          */
       }
+    } else if (modo === 'docs') {
+      /*
+       * O DOCS também não tem canal próprio: espelha-se no `apresentacao`, como a Bíblia.
+       * A rota do DOCS continua a ser só dele — partilhado é o canal do servidor, não a
+       * escolha. Com mídia no ar o canal não se toca, senão fechavam-se as janelas do que
+       * está a projetar.
+       */
+      if (hayProjecaoMidiaApresentacaoAtiva()) {
+        rotasPorModo.docs = { ...normalizarRota(rotasPorModo.apresentacao) };
+      } else {
+        rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.docs) };
+      }
     }
 
-    if (modo !== 'biblia' && modo !== 'apresentacao') {
+    if (modo !== 'biblia' && modo !== 'apresentacao' && modo !== 'docs') {
       salvarRotasPorModoNoStorage();
     }
   }
@@ -16899,6 +17451,9 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   rotasPorModo.contagem = sanitizarRotaProjecao(rotasPorModo.contagem, monitoresServidorCache);
   if (modo === 'biblia') {
     rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
+  }
+  if (modo === 'docs') {
+    rotasPorModo.docs = sanitizarRotaProjecao(rotasPorModo.docs, monitoresServidorCache);
   }
 
   /* Guardar QUAIS monitores ficaram em uso, não em que posição estavam — é isto que
@@ -23123,6 +23678,9 @@ try {
   });
   setupApAudioDropdown();
   setupApFilesDropdown();
+  carregarDocsBibliotecaDoStorage();
+  setupDocsFilesDropdown();
+  renderListaDocsImportados();
   cultoId = resolverCultoInicialPorAgenda();
   initCultoSelect();
   if (cultoId) onCultoChange();
@@ -23276,6 +23834,19 @@ document.getElementById('apresentacao-add-audio-input')?.addEventListener('chang
   if (files?.length) adicionarAudiosAoMenu(files);
 });
 document.getElementById('apresentacao-menu-add')?.addEventListener('click', () => escolherArquivoModoApresentacao());
+document.getElementById('docs-menu-add')?.addEventListener('click', () => escolherArquivoModoDocs());
+document.getElementById('docs-nav-anterior')?.addEventListener('click', () => navegarPaginaDocs(-1));
+document.getElementById('docs-nav-proxima')?.addEventListener('click', () => navegarPaginaDocs(1));
+/* Dois cliques na prévia central projetam a página escolhida — os mesmos gestos das
+   miniaturas, para o operador não ter de pensar em que metade do ecrã está. */
+document.getElementById('docs-preview')?.addEventListener('dblclick', () => {
+  if (docsPaginaSelecionada >= 0) void projetarPaginaDocs(docsPaginaSelecionada);
+});
+document.getElementById('docs-add-input')?.addEventListener('change', (e) => {
+  const files = e?.target?.files;
+  if (files?.length) adicionarArquivosAosDocs(files);
+  if (e.target) e.target.value = '';
+});
 document.getElementById('apresentacao-audio-add')?.addEventListener('click', () => {
   const input = document.getElementById('apresentacao-add-audio-input');
   if (!input) return;
