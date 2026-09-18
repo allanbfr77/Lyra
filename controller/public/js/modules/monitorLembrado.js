@@ -47,6 +47,9 @@
  * Bíblia e Mídias partilham o canal `apresentacao` no servidor, mas a memória é separada:
  * cada modo tem o seu checkbox e a sua escolha. As duas nunca são aplicadas ao mesmo tempo,
  * porque a aplicação acontece à entrada de um modo de cada vez.
+ *
+ * O DOCS entra na mesma tabela, com chave própria (`docs`): a escolha dele não toca na da
+ * Bíblia nem na das Mídias, e a delas não toca na dele.
  * =============================================================================
  */
 
@@ -57,7 +60,7 @@ import { chaveHostMonitores, identidadeDoMonitor, indiceMonitorSalvo } from './i
 export const SEM_EXIBICAO = -1;
 
 /** Modos com «Lembrar monitor». Slides e Contador têm persistência própria e não entram. */
-export const MODOS_COM_MEMORIA = ['biblia', 'apresentacao'];
+export const MODOS_COM_MEMORIA = ['biblia', 'apresentacao', 'docs'];
 
 /** Preferência vazia — usada em qualquer leitura falhada ou modo sem memória. */
 function preferenciaVazia() {

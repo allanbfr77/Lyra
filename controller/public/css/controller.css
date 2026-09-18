@@ -584,7 +584,8 @@ body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.a
 }
 body.app-mod-slides .hdr-slot--routes-dual,
 body.app-mod-apresentacao .hdr-slot--routes-dual,
-body.app-mod-biblia .hdr-slot--routes-dual {
+body.app-mod-biblia .hdr-slot--routes-dual,
+body.app-mod-docs .hdr-slot--routes-dual {
   display: flex;
 }
 
@@ -658,9 +659,11 @@ body.app-mod-biblia .hdr-slot--routes-dual {
 body.app-mod-slides .logo-wrap,
 body.app-mod-apresentacao .logo-wrap,
 body.app-mod-biblia .logo-wrap,
+body.app-mod-docs .logo-wrap,
 body.app-mod-slides .app-header-right,
 body.app-mod-apresentacao .app-header-right,
-body.app-mod-biblia .app-header-right {
+body.app-mod-biblia .app-header-right,
+body.app-mod-docs .app-header-right {
   display: none;
 }
 
@@ -11296,7 +11299,8 @@ html.dark .cfg-form-select {
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 body.app-mod-apresentacao .hdr-lembrar-monitor,
-body.app-mod-biblia .hdr-lembrar-monitor {
+body.app-mod-biblia .hdr-lembrar-monitor,
+body.app-mod-docs .hdr-lembrar-monitor {
   display: inline-flex;
 }
 .hdr-lembrar-monitor:hover {
@@ -11533,7 +11537,9 @@ body.app-mod-biblia .route-dd.route-dd-open.route-dd--rota-live .route-dd-btn {
 body.app-mod-apresentacao #route-ministrante-label,
 body.app-mod-apresentacao #route-ministrante-dd,
 body.app-mod-biblia #route-ministrante-label,
-body.app-mod-biblia #route-ministrante-dd {
+body.app-mod-biblia #route-ministrante-dd,
+body.app-mod-docs #route-ministrante-label,
+body.app-mod-docs #route-ministrante-dd {
   display: none !important;
 }
 

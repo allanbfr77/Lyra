@@ -342,6 +342,27 @@ function liberarBloqueioUiModos() {
 }
 
 /**
+ * Enquanto for maior que zero, as trocas de ecrã aplicam-se sem cross-fade.
+ * Só `executarSemTransicaoUi()` lhe mexe — ver a entrada no modo DOCS.
+ */
+let transicoesUiSuprimidas = 0;
+
+/**
+ * Corre `fn` com as View Transitions desligadas.
+ *
+ * Serve para as mudanças que envolvem mais do que uma troca de classe: encadeadas, cada
+ * uma faria o seu cross-fade e o ecrã intermédio ficava à vista entre elas.
+ */
+function executarSemTransicaoUi(fn) {
+  transicoesUiSuprimidas += 1;
+  try {
+    fn();
+  } finally {
+    transicoesUiSuprimidas -= 1;
+  }
+}
+
+/**
  * Transição suave ao mudar modo ou aba (View Transitions API — Chromium/Electron).
  * No Electron a API pode deixar uma camada que bloqueia cliques — aí aplica o callback direto.
  */
@@ -352,6 +373,7 @@ function executarComTransicaoUi(fn) {
     console.error('[Lyra] liberarBloqueioUiModos', err);
   }
   const semAnimacaoViewTransition =
+    transicoesUiSuprimidas > 0 ||
     (typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
     !!(typeof window !== 'undefined' && window.process?.versions?.electron);
@@ -463,15 +485,45 @@ function atualizarBtnModoDocs() {
  */
 function abrirModoDocs() {
   if (ehModoDocsOperador()) return;
-  if (ehModoApresentacaoOperador() || ehModoBibliaOperador() || ehModoSlidesOperador()) {
-    irParaTelaInicial();
-  }
-  executarComTransicaoUi(() => {
-    document.body.classList.add('app-mod-docs');
-    document.title = 'Lyra — DOCS';
-    atualizarBtnModoDocs();
-    atualizarBtnTelaInicial();
+  /*
+   * Entrada sem cross-fade, e por isso sem ecrã intermédio.
+   *
+   * O painel do DOCS está vazio: numa View Transition não há nada a cobrir o instantâneo
+   * do ecrã anterior, e o que se via era a Home (ou o modo de onde se vinha) a desvanecer
+   * sobre o vazio — o «pisca» relatado. Vindo de outro modo eram mesmo duas transições
+   * seguidas, a primeira delas a terminar na Home.
+   *
+   * Aqui a saída do modo anterior e a entrada no DOCS correm com as transições desligadas,
+   * na mesma tarefa: o ecrã é pintado uma vez, já no DOCS. As transições dos outros modos
+   * não mudam — o supressor só vale dentro desta chamada.
+   */
+  executarSemTransicaoUi(() => {
+    if (ehModoApresentacaoOperador() || ehModoBibliaOperador() || ehModoSlidesOperador()) {
+      irParaTelaInicial();
+    }
+    executarComTransicaoUi(() => {
+      document.body.classList.add('app-mod-docs');
+      document.title = 'Lyra — DOCS';
+      atualizarBtnModoDocs();
+      atualizarBtnTelaInicial();
+      /* Seletor do cabeçalho: mesma sequência de Mídias e Bíblia, com a chave `docs`. */
+      aplicarMonitorLembradoAoEntrarNoModo('docs');
+      sincronizarCheckboxLembrarMonitor();
+      void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
+    });
   });
+}
+
+/**
+ * «Encerrar» do cabeçalho em modo DOCS.
+ *
+ * Não há projeção de documentos para encerrar; o que o botão faz é largar o monitor
+ * escolhido aqui, sem tocar no que a Bíblia, as Mídias ou os Slides tenham no ar.
+ */
+function encerrarRotaModoDocs() {
+  if (!ehModoDocsOperador()) return;
+  rotasPorModo.docs = rotaDesativada();
+  void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
 }
 
 function fecharModoDocs() {
@@ -481,6 +533,9 @@ function fecharModoDocs() {
     document.title = 'Lyra — Controlador';
     atualizarBtnModoDocs();
     atualizarBtnTelaInicial();
+    /* A rota do DOCS fica como está — o que se repõe é o seletor do modo que passa a valer. */
+    sincronizarCheckboxLembrarMonitor();
+    void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
   });
 }
 
@@ -507,6 +562,7 @@ function irParaTelaInicial() {
 
 // --- SECÇÃO B — Modo apresentação (grelha, áudio, sync :3001); tipo/URL/item em midiaApresentacao.js ---
 function modoRoteamentoAtual() {
+  if (ehModoDocsOperador()) return 'docs';
   if (ehModoApresentacaoOperador()) return 'apresentacao';
   if (ehModoBibliaOperador()) return 'biblia';
   if (ehModoSlidesOperador()) return 'slides';
@@ -515,7 +571,7 @@ function modoRoteamentoAtual() {
 
 function modoUsaSeletorMonitorUnificado() {
   const m = modoRoteamentoAtual();
-  return m === 'apresentacao' || m === 'biblia';
+  return m === 'apresentacao' || m === 'biblia' || m === 'docs';
 }
 
 function salvarRotasPorModoNoStorage() {
@@ -570,6 +626,7 @@ function carregarRotasPorModoDoStorage() {
   rotasPorModo.apresentacao = rotaDesativada();
   rotasPorModo.apresentacaoAviso = rotaDesativada();
   rotasPorModo.biblia = rotaDesativada();
+  rotasPorModo.docs = rotaDesativada();
 }
 
 /**
@@ -1864,7 +1921,8 @@ function rotaSlidesAoEntrarNoModo() {
  * @returns {{ incluirLive: boolean }}
  */
 function opcoesSeletorCabecalhoDoModoAtual() {
-  return { incluirLive: modoRoteamentoAtual() !== 'apresentacao' };
+  const m = modoRoteamentoAtual();
+  return { incluirLive: m !== 'apresentacao' && m !== 'docs' };
 }
 
 function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
@@ -6833,6 +6891,8 @@ let rotasPorModo = {
   apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
   apresentacaoAviso: { publicoIndex: -1, ministranteIndex: -1 },
   biblia: { publicoIndex: -1, ministranteIndex: -1 },
+  /* Rota só do DOCS — estado próprio, nunca espelhado em `apresentacao` nem em `biblia`. */
+  docs: { publicoIndex: -1, ministranteIndex: -1 },
   /* Pin exclusivo do Contador — nunca partilha com o seletor do cabeçalho. */
   contagem: { publicoIndex: -1, ministranteIndex: -1 },
 };
@@ -16727,6 +16787,26 @@ function semExibicaoDoSeletorSlides(modo) {
 async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const usarValoresDaUi = opts.usarValoresDaUi !== false;
   const modo = modoRoteamentoAtual();
+
+  /*
+   * DOCS: a escolha fica só aqui.
+   *
+   * O modo ainda não projeta nada, e o canal `apresentacao` do servidor é partilhado pela
+   * Bíblia e pelas Mídias — deixar o DOCS escrever nele mudaria o destino delas, que é
+   * precisamente o que não pode acontecer. Enquanto não houver conteúdo de documentos, a
+   * rota do DOCS é estado local: alimenta o seletor e o «Lembrar monitor», e mais nada sai
+   * daqui para a rede.
+   */
+  if (modo === 'docs') {
+    if (usarValoresDaUi) {
+      const fromUi = rotaSelecionadaNaUi();
+      if (!fromUi) return;
+      rotasPorModo.docs = sanitizarRotaProjecao(normalizarRota(fromUi), monitoresServidorCache);
+    }
+    atualizarEstiloRotasDesativadas();
+    return;
+  }
+
   const slidesAntes = normalizarRota(rotasPorModo.slides);
 
   if (usarValoresDaUi) {
@@ -23302,6 +23382,8 @@ document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () =
   } else if (ehModoSlidesOperador()) {
     slidesRailUserRecolhido = true;
     encerrarProjecaoDoControlador({ limparMusica: true });
+  } else if (ehModoDocsOperador()) {
+    encerrarRotaModoDocs();
   }
 });
 
