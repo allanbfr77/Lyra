@@ -16,6 +16,7 @@ const { registrarRotasPlaylists } = require('./rotas/playlists');
 const { registrarRotasMinistrantes } = require('./rotas/ministrantes');
 const { registrarRotasHistorico } = require('./rotas/historico');
 const { registrarRotasApresentacao } = require('./rotas/apresentacao');
+const { registrarRotasDocs } = require('./rotas/docs');
 const { registrarRotasSyncBanco } = require('./rotas/syncBanco');
 const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
@@ -203,6 +204,8 @@ async function iniciarServidorController(ctx, paths) {
     soDestaMaquina,
     porta: HTTP_CONTROLLER_PORT,
   });
+
+  registrarRotasDocs(expressApp, { soDestaMaquina });
 
   registrarRotasPlaylists(expressApp, {
     paths,

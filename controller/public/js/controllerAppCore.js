@@ -215,7 +215,11 @@ import {
 migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
 import { guardarArquivoDoc, lerArquivoDoc, apagarArquivoDoc } from './modules/docsArquivosIdb.js';
-import { abrirDocumentoPdf, ehDocumentoRenderizavel } from './modules/docsPdfPaginas.js';
+import {
+  abrirDocumentoPdf,
+  ehDocumentoRenderizavel,
+  ehDocumentoQuePrecisaConversao,
+} from './modules/docsPdfPaginas.js';
 import { deltaScrollGrelhaSlidesAntecipado } from './modules/scrollGrelhaSlides.js';
 import {
   limparEstiloPreviewSlide,
@@ -637,6 +641,7 @@ function renderListaDocsImportados() {
       const eraOAberto = docsDocumentoAbertoId === item.id;
       docsBiblioteca = docsBiblioteca.filter((x) => x && x.id !== item.id);
       void apagarArquivoDoc(item.id);
+      void apagarArquivoDoc(docsChavePdfInterno(item.id));
       if (docsSelecionadoId === item.id) docsSelecionadoId = null;
       salvarDocsBibliotecaNoStorage();
       renderListaDocsImportados();
@@ -756,6 +761,44 @@ const DOCS_LARGURA_MINIATURA = 230;
 const DOCS_LARGURA_PREVIA = 1100;
 const DOCS_LARGURA_PROJECAO = 1920;
 
+/**
+ * Chave do PDF de renderização de um documento do Office.
+ *
+ * O ficheiro original continua guardado na chave do item — é ele que dá nome e formato ao
+ * documento na lista. Este é o PDF equivalente, gerado uma vez pelo Office e reutilizado
+ * nas aberturas seguintes; representação interna, nunca o ficheiro do utilizador.
+ */
+function docsChavePdfInterno(docId) {
+  return `${String(docId || '')}:pdf`;
+}
+
+/**
+ * Pede ao controlador que converta o documento pelo Office instalado.
+ *
+ * @returns {Promise<{ok: true, pdf: Blob}|{ok: false, erro: string}>}
+ */
+async function converterDocumentoParaPdfNoControlador(item, arquivo) {
+  try {
+    const r = await fetch(
+      `${getControllerApiBase()}/api/docs/converter-pdf?nome=${encodeURIComponent(item.name)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: arquivo }
+    );
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      return { ok: false, erro: String(j.erro || `Falha na conversão (HTTP ${r.status}).`) };
+    }
+    const pdf = await r.blob();
+    if (!pdf || !pdf.size) return { ok: false, erro: 'A conversão devolveu um PDF vazio.' };
+    return { ok: true, pdf };
+  } catch (e) {
+    console.error('[Lyra] converter documento do modo DOCS', e);
+    return {
+      ok: false,
+      erro: 'Não foi possível falar com o Lyra Controlador para converter o documento.',
+    };
+  }
+}
+
 function docsChavePagina(docId, indice) {
   return `${String(docId || '')}#${Number(indice)}`;
 }
@@ -813,10 +856,9 @@ async function abrirDocumentoSelecionadoNoDocs() {
     docsMensagemPreviewVazio('Importe um documento para começar.');
     return;
   }
-  if (!ehDocumentoRenderizavel(item.name)) {
-    docsMensagemPreviewVazio(
-      `${item.name}\n\nPor enquanto o Lyra só desenha páginas de PDF. Exporte este documento para PDF e importe outra vez.`
-    );
+  const precisaConversao = ehDocumentoQuePrecisaConversao(item.name);
+  if (!ehDocumentoRenderizavel(item.name) && !precisaConversao) {
+    docsMensagemPreviewVazio(`${item.name}\n\nEste formato não é suportado no modo DOCS.`);
     return;
   }
   docsMensagemPreviewVazio(`A abrir ${item.name}…`);
@@ -832,6 +874,34 @@ async function abrirDocumentoSelecionadoNoDocs() {
       `${item.name}\n\nO ficheiro não está guardado nesta instalação. Importe-o outra vez com o «+».`
     );
     return;
+  }
+  if (precisaConversao) {
+    /*
+     * PowerPoint e Word: o Office converte uma vez, o PDF fica guardado e as aberturas
+     * seguintes são tão rápidas como as de um PDF importado à mão. Daqui para baixo o
+     * caminho é exactamente o mesmo — nada de renderização duplicada.
+     */
+    let pdf = null;
+    try {
+      pdf = await lerArquivoDoc(docsChavePdfInterno(item.id));
+    } catch (_) {
+  // intencional — sem cache, converte-se agora
+}
+    if (seq !== docsAberturaSeq) return;
+    if (!pdf) {
+      docsMensagemPreviewVazio(`A converter ${item.name} com o Office…`);
+      const r = await converterDocumentoParaPdfNoControlador(item, blob);
+      if (seq !== docsAberturaSeq) return;
+      if (!r.ok) {
+        /* Sem miniaturas nem páginas a meio: o documento simplesmente não abre, e diz-se
+           porquê. Os outros da lista continuam a funcionar. */
+        docsMensagemPreviewVazio(`${item.name}\n\n${r.erro}`);
+        return;
+      }
+      pdf = r.pdf;
+      void guardarArquivoDoc(docsChavePdfInterno(item.id), pdf);
+    }
+    blob = pdf;
   }
   let doc = null;
   try {

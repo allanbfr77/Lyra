@@ -9,9 +9,8 @@
  * A biblioteca está em `public/vendor/pdfjs` (build «legacy», carregada do disco): o
  * controlador tem de abrir documentos numa igreja sem internet.
  *
- * PowerPoint e Word não entram aqui. Renderizá-los exigiria conversão externa
- * (LibreOffice ou Office instalado na máquina); enquanto isso não existe, o modo DOCS
- * diz-lhe para exportar em PDF — a mesma orientação que o modo Mídias já dá.
+ * PowerPoint e Word não entram aqui: chegam já convertidos em PDF pelo Office da máquina
+ * (`src/lib/officeParaPdf.js`), e daí para baixo o caminho é o mesmo.
  */
 
 let pdfjsPromessa = null;
@@ -35,9 +34,14 @@ function carregarPdfJs() {
   return pdfjsPromessa;
 }
 
-/** Extensões que este módulo sabe abrir. */
+/** O que já é PDF e pode ser desenhado sem passar por conversão. */
 export function ehDocumentoRenderizavel(nome) {
   return String(nome || '').toLowerCase().endsWith('.pdf');
+}
+
+/** O que precisa de passar pelo Office antes de chegar aqui. */
+export function ehDocumentoQuePrecisaConversao(nome) {
+  return /\.(ppt|pptx|doc|docx)$/i.test(String(nome || '').trim());
 }
 
 /**
