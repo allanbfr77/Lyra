@@ -430,24 +430,50 @@ function atualizarMusicaNoDb(idRaw, titulo, artista, estrofes) {
   }
 
   /*
-   * A Cópia padrão (a que nasce junto com o Original, exibida como
-   * «Cópia/Original») deixa de o ser assim que a letra é mesmo alterada: passa a
-   * «Editada». Só a letra conta — gravar sem mexer no texto, ou mexer só em
-   * título/artista, não muda o nome. As outras versões mantêm o nome que têm.
+   * O nome da Cópia padrão — a que nasce junto com o Original, exibida como
+   * «Cópia/Original» — acompanha o conteúdo, nos dois sentidos:
+   *
+   *  - alterada a letra, deixa de representar o Original e passa a «Editada»;
+   *  - voltando a ficar rigorosamente idêntica ao Original, recupera o nome.
+   *
+   * Quem é a Cópia padrão é decidido pela estrutura (`obterCopiaPadraoDoRoot`:
+   * o primeiro filho da família), nunca pelo conteúdo — uma cópia criada pelo
+   * utilizador que por acaso fique igual ao Original mantém o nome que ele deu.
+   *
+   * Título e artista são um dado único da família (propagados logo abaixo), por
+   * isso a igualdade de conteúdo se resolve nas estrofes — a mesma comparação
+   * usada para decidir se a gravação sobre o Original bifurca.
    */
   const letraAlteradaNaCopia = !estrofesIguaisNoBanco(row.estrofes, normalized);
-  const viraEditada =
-    letraAlteradaNaCopia && chaveRotuloVersao(row.rotulo) === chaveRotuloVersao(ROTULO_COPIA_PADRAO);
+  const copiaPadrao = obterCopiaPadraoDoRoot(familiaRootId);
+  const ehCopiaPadrao = !!copiaPadrao && Number(copiaPadrao.id) === Number(id);
+  const originalDaFamilia =
+    Number(id) === Number(familiaRootId) ? row : obterMusicaUsuarioPorId(familiaRootId);
+  const ficaIgualAoOriginal =
+    !!originalDaFamilia && estrofesIguaisNoBanco(originalDaFamilia.estrofes, normalized);
+  const jaSeChamaCopiaPadrao =
+    chaveRotuloVersao(row.rotulo) === chaveRotuloVersao(ROTULO_COPIA_PADRAO);
+
+  let rotuloNovo = null;
+  if (ehCopiaPadrao && ficaIgualAoOriginal) {
+    /* Recupera «Cópia» — salvo se outra versão já tiver ficado com esse nome,
+       caso em que ficariam duas iguais no cabeçalho. */
+    if (!jaSeChamaCopiaPadrao && !existeRotuloVersaoNaFamilia(familiaRootId, ROTULO_COPIA_PADRAO, id)) {
+      rotuloNovo = ROTULO_COPIA_PADRAO;
+    }
+  } else if (letraAlteradaNaCopia && jaSeChamaCopiaPadrao) {
+    rotuloNovo = ROTULO_COPIA_MODIFICADA;
+  }
 
   // is_immutable=0: salva estrofes do registro específico e propaga título/artista a toda a família.
   const r = getDb()
     .prepare('UPDATE musicas SET estrofes=? WHERE id=? AND is_immutable=0')
     .run(JSON.stringify(normalized), id);
   if (r.changes === 0) return { ok: false, erro: 'Não encontrado' };
-  if (viraEditada) {
+  if (rotuloNovo) {
     getDb()
       .prepare('UPDATE musicas SET rotulo=? WHERE id=? AND is_immutable=0')
-      .run(ROTULO_COPIA_MODIFICADA, id);
+      .run(rotuloNovo, id);
   }
   getDb()
     .prepare('UPDATE musicas SET titulo=?, artista=? WHERE root_id=? OR id=?')
@@ -457,7 +483,7 @@ function atualizarMusicaNoDb(idRaw, titulo, artista, estrofes) {
     forked: false,
     id,
     titulo: tituloTrim,
-    rotulo: viraEditada ? ROTULO_COPIA_MODIFICADA : (row.rotulo != null ? String(row.rotulo) : ''),
+    rotulo: rotuloNovo || (row.rotulo != null ? String(row.rotulo) : ''),
   };
 }
 

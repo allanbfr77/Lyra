@@ -189,9 +189,13 @@ test('editar a cópia não altera o original nem cria fork', () => {
   assert.strictEqual(r.forked, false);
   assert.strictEqual(Number(r.id), Number(ins.copiaId));
 
+  /* Título e artista são da MÚSICA, não da versão: mudam para a família toda
+     (é o par de campos do cabeçalho, acima da barra de versões). O que a
+     imutabilidade do original protege é a LETRA, e essa fica intacta. */
   const original = db.prepare('SELECT * FROM musicas WHERE id = ?').get(ins.id);
-  assert.strictEqual(original.titulo, 'Uma');
+  assert.strictEqual(original.titulo, 'Uma editada');
   assert.deepStrictEqual(JSON.parse(original.estrofes), ['original']);
+  assert.strictEqual(Number(original.is_immutable), 1);
 
   const copia = db.prepare('SELECT * FROM musicas WHERE id = ?').get(ins.copiaId);
   assert.strictEqual(copia.titulo, 'Uma editada');
@@ -343,4 +347,76 @@ test('a regra é só da Cópia padrão: versão com nome próprio mantém o nome
     db.prepare('SELECT rotulo FROM musicas WHERE id = ?').get(v.id).rotulo,
     'ENSAIO'
   );
+});
+
+/* ---------------------------------------------------------------------------
+ * Regra 3 — a Cópia padrão recupera o nome ao voltar a ser igual ao Original.
+ * ------------------------------------------------------------------------ */
+
+test('revertida a edição, a Cópia padrão volta a chamar-se «Cópia»', () => {
+  const db = bancoLimpo();
+  const r = inserirMusicaUsuario('Galileu', 'Fernandinho', ['Estrofe A']);
+  const rotuloDe = (id) => db.prepare('SELECT rotulo FROM musicas WHERE id = ?').get(id).rotulo;
+
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A editada']);
+  assert.strictEqual(rotuloDe(r.copiaId), 'Editada');
+
+  /* Revertida ao texto do Original, recupera o nome no próprio salvamento. */
+  const volta = atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A']);
+  assert.strictEqual(volta.ok, true);
+  assert.strictEqual(volta.rotulo, 'Cópia');
+  assert.strictEqual(rotuloDe(r.copiaId), 'Cópia');
+  /* Sem versão nova e com o Original intacto. */
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS c FROM musicas').get().c, 2);
+  assert.strictEqual(Number(db.prepare('SELECT is_immutable FROM musicas WHERE id = ?').get(r.id).is_immutable), 1);
+
+  /* E o ciclo repete-se. */
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Outra letra']);
+  assert.strictEqual(rotuloDe(r.copiaId), 'Editada');
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A']);
+  assert.strictEqual(rotuloDe(r.copiaId), 'Cópia');
+});
+
+test('qualquer diferença mantém «Editada» — a igualdade é rigorosa', () => {
+  const db = bancoLimpo();
+  const r = inserirMusicaUsuario('Galileu', 'Fernandinho', ['Estrofe A']);
+  const rotuloDe = (id) => db.prepare('SELECT rotulo FROM musicas WHERE id = ?').get(id).rotulo;
+
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A editada']);
+  /* Um espaço a mais não é o mesmo conteúdo. */
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A ']);
+  assert.strictEqual(rotuloDe(r.copiaId), 'Editada');
+  /* Uma estrofe vazia a mais também não. */
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A', '']);
+  assert.strictEqual(rotuloDe(r.copiaId), 'Editada');
+});
+
+test('cópia criada pelo utilizador mantém o nome mesmo idêntica ao Original', () => {
+  const db = bancoLimpo();
+  const r = inserirMusicaUsuario('Galileu', 'Fernandinho', ['Estrofe A']);
+  const minha = criarVersaoMusicaNoDb(r.copiaId, 'Minha versão');
+  assert.strictEqual(minha.ok, true);
+
+  /* Conteúdo igualzinho ao do Original e salva: o nome é dele, fica. */
+  const up = atualizarMusicaNoDb(minha.id, 'Galileu', 'Fernandinho', ['Estrofe A']);
+  assert.strictEqual(up.ok, true);
+  assert.strictEqual(up.rotulo, 'Minha versão');
+  assert.strictEqual(
+    db.prepare('SELECT rotulo FROM musicas WHERE id = ?').get(minha.id).rotulo,
+    'Minha versão'
+  );
+});
+
+test('nome «Cópia» ocupado por outra versão: a Cópia padrão não o recupera', () => {
+  const db = bancoLimpo();
+  const r = inserirMusicaUsuario('Galileu', 'Fernandinho', ['Estrofe A']);
+  const rotuloDe = (id) => db.prepare('SELECT rotulo FROM musicas WHERE id = ?').get(id).rotulo;
+
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A editada']);
+  /* Com o nome livre, o utilizador cria outra versão chamada «Cópia». */
+  assert.strictEqual(criarVersaoMusicaNoDb(r.copiaId, 'Cópia').ok, true);
+
+  atualizarMusicaNoDb(r.copiaId, 'Galileu', 'Fernandinho', ['Estrofe A']);
+  /* Renomear aqui daria duas «Cópia» no cabeçalho — fica como está. */
+  assert.strictEqual(rotuloDe(r.copiaId), 'Editada');
 });

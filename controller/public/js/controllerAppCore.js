@@ -114,6 +114,7 @@ import {
   fonteBancoItemPlaylist,
   ehMarcadorTemaPlaylist,
   opcoesVersaoDistintasPorConteudo,
+  versoesConteudoRigorosamenteIdentico,
   playlistJaContemMesmaMusicaEVersao,
   playlistItemMesmaVersaoQueRaiz,
 } from './modules/playlistVersaoMusica.js';
@@ -19151,6 +19152,29 @@ const SVG_VERSAO = {
   nova: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
 };
 
+/**
+ * A Cópia padrão tem hoje o mesmo conteúdo do Original?
+ *
+ * Cópia padrão é a primeira versão filha da música — a que nasce junto com o
+ * Original (mesmo critério do servidor, `obterCopiaPadraoDoRoot`: o menor id
+ * entre os filhos). Vale pelo conteúdo, não pelo nome: uma cópia já renomeada
+ * para «Editada» que volte a ficar igual continua a valer.
+ *
+ * A igualdade é a mesma do resto do sistema: título, artista e estrofes,
+ * caractere por caractere.
+ */
+function copiaPadraoIdenticaAoOriginal(versoes, rootId) {
+  const lista = Array.isArray(versoes) ? versoes : [];
+  const alvo = Number(rootId);
+  const original = lista.find((v) => Number(v.id) === alvo) || null;
+  if (!original) return false;
+  const copiaPadrao = lista
+    .filter((v) => v && v.parent_id != null && Number(v.id) !== alvo)
+    .sort((a, b) => Number(a.id) - Number(b.id))[0];
+  if (!copiaPadrao) return false;
+  return versoesConteudoRigorosamenteIdentico(original, copiaPadrao);
+}
+
 /** Ícone da cópia a partir do rótulo (rótulos automáticos conhecidos; nome próprio = cópia genérica). */
 function iconeVersaoServidorPorRotulo(labelUpper) {
   const s = String(labelUpper || '').normalize('NFC').toLocaleUpperCase('pt-BR');
@@ -19243,7 +19267,17 @@ function renderMusicaVersoesBar() {
   bar.appendChild(lbl);
 
   const originalAtivo = musicaAtivaEhOriginalServidor() && !musicaVersaoLocalId;
-  bar.appendChild(mkChip(rotuloVersaoMaiusculo('Original'), null, originalAtivo, SVG_VERSAO.original));
+  /* Enquanto a Cópia padrão tiver exactamente o conteúdo do Original, o chip do
+     ORIGINAL é redundante e some do cabeçalho — o registo continua no banco,
+     intacto. Editada a cópia, os conteúdos deixam de bater e o ORIGINAL
+     reaparece sozinho; voltando a ficar iguais, some outra vez.
+     Excepção: se o ORIGINAL for a versão activa, fica — sem ele o cabeçalho não
+     mostraria nenhuma versão assinalada. */
+  if (originalAtivo || !copiaPadraoIdenticaAoOriginal(versoesSrv, rootId)) {
+    bar.appendChild(
+      mkChip(rotuloVersaoMaiusculo('Original'), null, originalAtivo, SVG_VERSAO.original)
+    );
+  }
 
   for (const v of versoesSrv) {
     if (v.parent_id == null && Number(v.id) === rootId) continue;
