@@ -304,6 +304,9 @@ function ehModoApresentacaoOperador() {
 function ehModoBibliaOperador() {
   return document.body.classList.contains('app-mod-biblia');
 }
+function ehModoDocsOperador() {
+  return document.body.classList.contains('app-mod-docs');
+}
 
 function liberarBloqueioUiModos() {
   try {
@@ -444,7 +447,48 @@ function atualizarBtnModoApresentacao() {
   atualizarBtnToggleModoSlides();
 }
 
+function atualizarBtnModoDocs() {
+  definirEstadoBtnModoCabecalho(
+    'btn-modo-docs',
+    ehModoDocsOperador(),
+    'DOCS (ativo) — voltar à tela inicial',
+    'Abrir DOCS',
+  );
+}
+
+/**
+ * DOCS — só a estrutura: entra no modo, mostra a área (vazia) e nada mais.
+ * A saída de qualquer outro modo passa pelos caminhos já existentes, para não
+ * duplicar aqui o que cada um faz com projeção e rotas.
+ */
+function abrirModoDocs() {
+  if (ehModoDocsOperador()) return;
+  if (ehModoApresentacaoOperador() || ehModoBibliaOperador() || ehModoSlidesOperador()) {
+    irParaTelaInicial();
+  }
+  executarComTransicaoUi(() => {
+    document.body.classList.add('app-mod-docs');
+    document.title = 'Lyra — DOCS';
+    atualizarBtnModoDocs();
+    atualizarBtnTelaInicial();
+  });
+}
+
+function fecharModoDocs() {
+  if (!ehModoDocsOperador()) return;
+  executarComTransicaoUi(() => {
+    document.body.classList.remove('app-mod-docs');
+    document.title = 'Lyra — Controlador';
+    atualizarBtnModoDocs();
+    atualizarBtnTelaInicial();
+  });
+}
+
 function irParaTelaInicial() {
+  if (ehModoDocsOperador()) {
+    fecharModoDocs();
+    return;
+  }
   if (ehModoApresentacaoOperador()) {
     fecharMenuModoApresentacao();
     return;
@@ -4470,7 +4514,7 @@ function abrirMenuModoApresentacao() {
       reconhecimentoVozBiblia.aoSairModoBiblia();
       bibliaSairModo();
     }
-    document.body.classList.remove('app-mod-slides', 'app-mod-biblia');
+    document.body.classList.remove('app-mod-slides', 'app-mod-biblia', 'app-mod-docs');
     document.body.classList.add('app-mod-apresentacao');
     document.title = 'Lyra — Modo apresentação';
     try { localStorage.setItem(LS_UI_MODO_SLIDES, '0'); } catch (_) {
@@ -4718,7 +4762,7 @@ async function alternarModoBiblia() {
     }
   }
   executarComTransicaoUi(() => {
-    document.body.classList.remove('app-mod-slides', 'app-mod-apresentacao');
+    document.body.classList.remove('app-mod-slides', 'app-mod-apresentacao', 'app-mod-docs');
     if (!ativo) {
       salvarSlideCfgNoStorage();
       document.body.classList.add('app-mod-biblia');
@@ -4791,7 +4835,9 @@ function atualizarBtnTelaInicial() {
   if (!btn) return;
   const naHome = !ehModoSlidesOperador()
     && !ehModoBibliaOperador()
-    && !ehModoApresentacaoOperador();
+    && !ehModoApresentacaoOperador()
+    && !ehModoDocsOperador();
+  atualizarBtnModoDocs();
   if (naHome) btn.setAttribute('aria-current', 'page');
   else btn.removeAttribute('aria-current');
   btn.title = naHome ? 'TELA INICIAL (HOME) — ecrã atual' : 'VOLTAR PARA A TELA INICIAL (HOME)';
@@ -5145,6 +5191,7 @@ async function alternarModoSlidesOperador(opts = {}) {
     }
   }
   executarComTransicaoUi(() => {
+    document.body.classList.remove('app-mod-docs');
     if (ehModoApresentacaoOperador()) {
       /* Sair de Mídias para Slides: nunca encerrar imagem/vídeo no telão. */
       document.body.classList.remove('app-mod-apresentacao');
@@ -5223,6 +5270,7 @@ exporCallbacksParaAtributosHtml({
   alternarModoBiblia,
   onTraducaoBibliaChange,
   abrirMenuModoApresentacao,
+  abrirModoDocs,
 });
 
 let _debounceRecarregarPainelT = null;
@@ -20462,6 +20510,7 @@ exporCallbacksParaAtributosHtml({
     }, 0);
   },
   abrirMenuModoApresentacao,
+  abrirModoDocs,
   abrirCfgModal,
   toggleDarkCtrl,
   onCfgGeralTemaChange,

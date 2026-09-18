@@ -15,6 +15,7 @@
     app-mod-slides        — operador focado em slides / playlist do dia
     app-mod-apresentacao  — cartões de mídia + menu (PDF, vídeo, aviso…)
     app-mod-biblia        — leitura e projeção de versículos
+    app-mod-docs          — área DOCS (estrutura vazia, sem funções por enquanto)
     (sem as classes acima) — modo completo: banco + centro + pré-visualizações
 
   Rede:
@@ -150,6 +151,17 @@
             <path d="m14.5 14.5 1.6-1.6a2 2 0 0 1 2.8 0L21 15"/>
           </svg>
           <span class="hdr-btn-caption" aria-hidden="true">Mídias</span>
+        </button>
+      </div>
+      <div class="hdr-action hdr-action--docs">
+        <button type="button" class="hdr-btn-round" id="btn-modo-docs" onclick="abrirModoDocs()" title="DOCS" aria-label="Docs" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 3v5h5"/>
+            <path d="M9 13h6"/>
+            <path d="M9 17h4"/>
+          </svg>
+          <span class="hdr-btn-caption" aria-hidden="true">DOCS</span>
         </button>
       </div>
     </div>
@@ -707,6 +719,10 @@
   <input type="file" id="apresentacao-add-video-input" accept="video/*,.mp4,.webm,.mov,.mkv,.m4v,.ogv" style="display:none" multiple />
   <input type="file" id="apresentacao-add-card-input" accept="image/*,application/pdf,.ppt,.pptx,.odp" style="display:none" />
   <input type="file" id="apresentacao-add-audio-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" style="display:none" multiple />
+
+  <!-- DOCS — área própria do modo `app-mod-docs`. Fica intencionalmente vazia:
+       é só o ponto de entrada onde as funções de documentos vão ser montadas. -->
+  <section id="painel-modo-docs" aria-label="Docs"></section>
 
 </div>
 

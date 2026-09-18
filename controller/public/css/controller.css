@@ -198,6 +198,7 @@
   --nav-color-biblia: #b24942;
   --nav-color-slide: #257956;
   --nav-color-midias: #735fa7;
+  --nav-color-docs: #2f6b4f;
   --nav-color-voz: #ac4676;
   --nav-color-ajustes: #317283;
 
@@ -566,7 +567,7 @@ body.slides-rail-aberto {
 /* Home: Recarregar e o badge Este PC/Servidor ocupam a direita.
    A pill cobriria esses controlos — some só aqui; nos modos de
    operação continua visível. Home = body sem app-mod-*. */
-body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
+body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs)
   .hdr-projecao-pill {
   display: none;
 }
@@ -794,17 +795,17 @@ body.app-mod-biblia .app-header-right {
    numa barra de sete posições, sete caixas potenciais eram mais desenho do que
    informação, e a cor sozinha já diz onde se está. */
 .hdr-btn-round.primary,
-body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
+body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs)
   .hdr-action--home .hdr-btn-round {
   color: var(--nav-accent);
 }
 .hdr-btn-round.primary::after,
-body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
+body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs)
   .hdr-action--home .hdr-btn-round::after {
   opacity: 1;
 }
 .hdr-btn-round.primary .hdr-btn-caption,
-body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao)
+body:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs)
   .hdr-action--home .hdr-btn-caption {
   font-weight: 500;
 }
@@ -923,6 +924,7 @@ body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-caption {
 .hdr-action--biblia { --nav-accent: var(--nav-color-biblia); }
 .hdr-action--slides { --nav-accent: var(--nav-color-slide); }
 .hdr-action--apresentacao { --nav-accent: var(--nav-color-midias); }
+.hdr-action--docs { --nav-accent: var(--nav-color-docs); }
 .hdr-action--voz { --nav-accent: var(--nav-color-voz); }
 .hdr-action--cfg { --nav-accent: var(--nav-color-ajustes); }
 
@@ -7692,6 +7694,34 @@ body.app-mod-apresentacao #painel-modo-apresentacao {
   place-items: center;
   padding: 18px;
 }
+
+/* ── Modo DOCS ────────────────────────────────────────────────────────
+   Mesmo recorte do modo Mídias: os painéis da Home saem e a área do DOCS
+   fica com o espaço todo. O painel está vazio de propósito. */
+body.app-mod-docs {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+body.app-mod-docs .tabs,
+body.app-mod-docs .panel-banco,
+body.app-mod-docs .panel-playlist,
+body.app-mod-docs .panel-centro,
+body.app-mod-docs .slides-dock {
+  display: none !important;
+}
+body.app-mod-docs .dashboard-main {
+  grid-template-columns: 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+#painel-modo-docs {
+  display: none;
+}
+body.app-mod-docs #painel-modo-docs {
+  display: block;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
 .apresentacao-layout {
   width: 100%;
   height: 100%;
@@ -9079,6 +9109,7 @@ html.dark {
   --nav-color-biblia: #d86861;
   --nav-color-slide: #3EC98F;
   --nav-color-midias: #A084E8;
+  --nav-color-docs: #6FC49A;
   --nav-color-voz: #E85FA0;
   --nav-color-ajustes: #4FB8D4;
 
