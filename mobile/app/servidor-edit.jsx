@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SlideEditorPanel from '../src/SlideEditorPanel';
 import AlertaAmbar from '../src/AlertaAmbar';
 import { COLORS, FONTS } from '../src/theme';
+import { rotuloVersaoExibicao } from '../src/rotuloVersaoExibicao';
 import { urlApiControlador } from '../src/lyraEndpoints';
 
 /**
@@ -212,7 +213,9 @@ export default function ServidorEditScreen() {
                 texto="mudar a letra cria uma nova cópia; só título/artista atualizam o original."
               />
 
-              {rotulo ? <Text style={styles.hintRotulo}>Versão: {rotulo}</Text> : null}
+              {rotuloVersaoExibicao(rotulo) ? (
+                <Text style={styles.hintRotulo}>Versão: {rotuloVersaoExibicao(rotulo)}</Text>
+              ) : null}
 
               <Text style={styles.label}>TÍTULO</Text>
               <TextInput

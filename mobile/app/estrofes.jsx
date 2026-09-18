@@ -35,6 +35,7 @@ import {
 } from '../src/playlistItens';
 import BotaoEncerrarProjecao from '../src/BotaoEncerrarProjecao';
 import { COLORS, FONTS } from '../src/theme';
+import { rotuloVersaoExibicao } from '../src/rotuloVersaoExibicao';
 import { urlApiControlador, urlSocketProjecao } from '../src/lyraEndpoints';
 import { prepararProjecaoMusica, resetarSessaoRotaMusica } from '../src/musicaProjecao';
 
@@ -519,9 +520,9 @@ export default function EstrofesScreen() {
       <View style={styles.musicaHeader}>
         <View style={styles.musicaHeaderTxt}>
           <Text style={styles.musicaTitulo}>{musica.titulo}</Text>
-          {versaoRotuloParam || musica.rotulo ? (
+          {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo) ? (
             <Text style={styles.musicaVersao}>
-              {String(versaoRotuloParam || musica.rotulo || '').trim()}
+              {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo)}
             </Text>
           ) : null}
           {musica.artista ? <Text style={styles.musicaArtista}>{musica.artista}</Text> : null}

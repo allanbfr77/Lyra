@@ -171,6 +171,115 @@ function ehOriginalDoLyra(row) {
   return !!(row && String(row.origem_importacao || '').trim() === ORIGEM_LYRA_ONLINE);
 }
 
+/** Todas as versões da família (Original + filhas), da mais antiga para a mais nova. */
+function listarVersoesDaFamilia(db, rootId) {
+  const alvo = Number(rootId);
+  if (!Number.isFinite(alvo)) return [];
+  const stmt = db.prepare('SELECT * FROM musicas WHERE id = ? OR root_id = ? ORDER BY id ASC');
+  if (typeof stmt.all !== 'function') return [];
+  return stmt.all(alvo, alvo) || [];
+}
+
+/**
+ * Assinatura do CONTEÚDO de uma linha de versão: título, artista e estrofes,
+ * exatamente como estão — caractere por caractere, sem trim nem normalização.
+ * Rótulo, id, data e tags ficam de fora: não são conteúdo. Mesma regra do painel
+ * (`public/js/modules/playlistVersaoMusica.js`), aqui sobre a linha do SQLite.
+ *
+ * `null` quando o conteúdo não é conhecido — e `null` nunca é igual a nada.
+ */
+function assinaturaConteudoVersaoRow(row) {
+  if (!row) return null;
+  let estrofes = row.estrofes;
+  if (typeof estrofes === 'string') {
+    try {
+      estrofes = JSON.parse(estrofes);
+    } catch (_) {
+      return null;
+    }
+  }
+  if (!Array.isArray(estrofes)) return null;
+  const titulo = row.titulo == null ? '' : String(row.titulo);
+  const artista = row.artista == null ? '' : String(row.artista);
+  return JSON.stringify([titulo, artista, estrofes.map((t) => (t == null ? '' : String(t)))]);
+}
+
+/** Duas versões só são iguais se o conteúdo das duas for conhecido e idêntico. */
+function versoesRowsRigorosamenteIdenticas(a, b) {
+  const sa = assinaturaConteudoVersaoRow(a);
+  const sb = assinaturaConteudoVersaoRow(b);
+  return sa != null && sb != null && sa === sb;
+}
+
+/**
+ * Reduz a família a UMA versão por conteúdo distinto — o que decide se há
+ * pergunta é o conteúdo, nunca a quantidade de cópias.
+ *
+ * A lista chega por id (a Original primeiro). Versões com o mesmo conteúdo
+ * formam um grupo e só a primeira representa o grupo, com uma exceção: se uma
+ * Cópia for rigorosamente idêntica à Original, é a CÓPIA que representa esse
+ * conteúdo. A Original é imutável — usá-la na playlist obrigaria o Lyra a criar
+ * uma terceira versão na edição rápida dos Slides; a Cópia, sendo idêntica,
+ * carrega o mesmo conteúdo e pode ser editada no lugar.
+ *
+ * Versões cujo conteúdo não é legível ficam sempre: não dá para afirmar que são
+ * iguais a outra.
+ *
+ * Sobrando uma só, quem chama importa essa versão sem perguntar nada.
+ */
+function versoesDistintasPorConteudo(versoes, rootId) {
+  const lista = Array.isArray(versoes) ? versoes : [];
+  const alvo = Number(rootId);
+  const indicePorAssinatura = new Map();
+  const distintas = [];
+  let idxOriginal = -1;
+  for (const v of lista) {
+    const sig = assinaturaConteudoVersaoRow(v);
+    if (sig != null) {
+      if (indicePorAssinatura.has(sig)) {
+        const i = indicePorAssinatura.get(sig);
+        /* Mesmo conteúdo da Original: a primeira Cópia assume o lugar dela. */
+        if (i === idxOriginal) {
+          distintas[i] = v;
+          idxOriginal = -1;
+        }
+        continue;
+      }
+      indicePorAssinatura.set(sig, distintas.length);
+      if (idxOriginal === -1 && Number(v.id) === alvo) idxOriginal = distintas.length;
+    }
+    distintas.push(v);
+  }
+  return distintas;
+}
+
+/**
+ * Resolve a versão do root do Lyra: `{ versao, versoes }`.
+ *
+ * `versoes` são os conteúdos distintos da família (um representante cada).
+ * Sobrando um só, é ele que entra — sem perguntar. Havendo mais de um,
+ * `versao` vem a `null`: quem escolhe é o utilizador, entre esses.
+ * Sem lista de versões (consulta indisponível), fica como antes: a Original.
+ */
+function resolverVersaoLyraDoRoot(db, rootRow, rootId) {
+  const versoes = listarVersoesDaFamilia(db, rootId);
+  if (versoes.length === 0) return { versao: rootRow, versoes: [] };
+  const distintas = versoesDistintasPorConteudo(versoes, rootId);
+  if (distintas.length <= 1) return { versao: distintas[0] || rootRow, versoes: distintas };
+  return { versao: null, versoes: distintas };
+}
+
+/** Linha de versão no formato que o painel usa para montar a pergunta. */
+function opcaoVersaoParaEscolha(row, rootId) {
+  return {
+    id: Number(row.id),
+    ehOriginal: Number(row.id) === Number(rootId),
+    rotulo: String(row.rotulo || '').trim(),
+    titulo: String(row.titulo || '').trim(),
+    artista: String(row.artista || '').trim(),
+  };
+}
+
 /**
  * Índice do item de música (por root) na playlist, ou -1.
  * Compara com Number() — ids no JSON podem ser number ou string.
@@ -250,7 +359,11 @@ function aplicarVinculoVersaoLyraNoItem(itemExistente, itemCorreto) {
 
 /**
  * Sincroniza um único culto.
- * Retorna { adicionadas, naoEncontradas: [{nome, tipo}] }
+ * Retorna { adicionadas, naoEncontradas: [{nome, tipo}], pendentesVersao: [...] }
+ *
+ * `pendentesVersao` são as músicas que o servidor não pode resolver sozinho: a
+ * escolha da versão é do utilizador e acontece no painel, ANTES de a música
+ * entrar na playlist (`POST /api/sync-invb-playlist/aplicar-versoes`).
  */
 async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
   const { cultoId, itens } = culto;
@@ -263,6 +376,7 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
 
   let adicionadas = 0;
   const naoEncontradas = [];
+  const pendentesVersao = [];
 
   for (const item of itens) {
     const nomeMusica = (item.nome || item.titulo || item.title || '').trim();
@@ -293,9 +407,15 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
     }
 
     // 3. Obter/criar música no banco local — playlist SEMPRE usa versão do Lyra
-    //  (1) Original do Lyra já existe → usar esse original
-    //  (2) Não existe na biblioteca → criar Original + Cópia do Lyra; usar o original
+    //  (1) Original do Lyra já existe → decidir a versão entre as da família
+    //  (2) Não existe na biblioteca → criar Original + Cópia do Lyra; decidir igual
     //  (3) Existe só de outro banco → criar/reutilizar Cópia/Importada do Lyra e usá-la
+    //
+    //  Em (1) e (2) a família é reduzida a um representante por conteúdo (a
+    //  Cópia representa a Original quando são idênticas). Sobrando um só, entra
+    //  sozinho; havendo mais de um, a música vai para `pendentesVersao` e o
+    //  painel pergunta apenas entre os conteúdos diferentes.
+    //  (3) fica como sempre: a Cópia/Importada é a única versão com conteúdo do Lyra.
     let rootRow = null;
     let versaoLyraParaPlaylist = null;
     let rootId = null;
@@ -308,11 +428,14 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
         { aoDuplicar: 'perguntar', origem: ORIGEM_LYRA_ONLINE }
       );
 
+      let versoesDaFamilia = null;
       if (check.ok) {
-        // Regra 2: música nova — Original + Cópia padrão; playlist usa o Original do Lyra
+        // Regra 2: música nova — Original + Cópia padrão idênticas → entra a Cópia
         rootId = check.rootId;
         rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
-        versaoLyraParaPlaylist = rootRow;
+        const r = resolverVersaoLyraDoRoot(db, rootRow, rootId);
+        versaoLyraParaPlaylist = r.versao;
+        versoesDaFamilia = r.versoes;
       } else if (check.duplicado && check.existente) {
         rootId = check.existente.root_id || check.existente.rootId || check.existente.id;
         rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
@@ -323,8 +446,10 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
         }
 
         if (ehOriginalDoLyra(rootRow)) {
-          // Regra 1: original do Lyra já na biblioteca — usar essa versão
-          versaoLyraParaPlaylist = rootRow;
+          // Regra 1: original do Lyra já na biblioteca — decidir entre as versões
+          const r = resolverVersaoLyraDoRoot(db, rootRow, rootId);
+          versaoLyraParaPlaylist = r.versao;
+          versoesDaFamilia = r.versoes;
         } else {
           // Regra 3: só existe de outro banco — Cópia/Importada do Lyra na playlist
           let copiaLyra = buscarCopiaLyraExistente(db, rootId);
@@ -351,8 +476,27 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
         continue;
       }
 
-      if (!rootRow || !rootId || !versaoLyraParaPlaylist) {
+      if (!rootRow || !rootId) {
         naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+        continue;
+      }
+
+      if (!versaoLyraParaPlaylist) {
+        /* Sem escolha automática: quem escolhe é o utilizador, no painel, antes
+           de a música entrar na playlist. Se o root já está na playlist, o
+           vínculo fica como está — o sync não desfaz uma escolha anterior. */
+        const opcoes = (versoesDaFamilia || []).map((v) => opcaoVersaoParaEscolha(v, rootId));
+        if (indiceRootNaPlaylist(playlistAtual, rootId) < 0) {
+          pendentesVersao.push({
+            cultoId,
+            rootId: Number(rootId),
+            tema: chaveTema(tema),
+            nome: String(rootRow.titulo || nomeMusica).trim(),
+            /* Para o painel mostrar de que música se trata sem margem para dúvida. */
+            artista: String(rootRow.artista || '').trim(),
+            opcoes,
+          });
+        }
         continue;
       }
 
@@ -375,7 +519,48 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
     }
   }
 
-  return { adicionadas, naoEncontradas };
+  return { adicionadas, naoEncontradas, pendentesVersao };
+}
+
+/**
+ * Aplica na playlist as versões escolhidas pelo utilizador no painel.
+ *
+ * Só lê o banco: a versão escolhida entra como está, com as suas tags e os seus
+ * dados — nenhuma cópia nova é criada e nenhuma versão é alterada.
+ * Retorna { adicionadas }.
+ */
+function aplicarEscolhasVersao({ db, playlistsJson, escolhas }) {
+  let adicionadas = 0;
+  for (const esc of Array.isArray(escolhas) ? escolhas : []) {
+    const cultoId = esc && esc.cultoId != null ? String(esc.cultoId).trim() : '';
+    const rootId = Number(esc && esc.rootId);
+    const versaoId = Number(esc && esc.versaoId);
+    if (!cultoId || !Number.isFinite(rootId) || !Number.isFinite(versaoId)) continue;
+
+    const rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+    if (!rootRow) continue;
+    const versao =
+      versaoId === rootId ? rootRow : db.prepare('SELECT * FROM musicas WHERE id = ?').get(versaoId);
+    /* Só uma versão da MESMA família entra — nunca outra música. */
+    if (!versao) continue;
+    const rootDaVersao = Number(versao.root_id != null ? versao.root_id : versao.id);
+    if (rootDaVersao !== rootId) continue;
+
+    if (!Array.isArray(playlistsJson[cultoId])) playlistsJson[cultoId] = [];
+    const playlistAtual = playlistsJson[cultoId];
+    const tema = chaveTema(esc.tema) || TEMA_PADRAO;
+    const itemPlaylist = construirItemPlaylist(rootRow, cultoId, versao, tema);
+
+    const idxExistente = indiceRootNaPlaylist(playlistAtual, rootId);
+    if (idxExistente >= 0) {
+      aplicarVinculoVersaoLyraNoItem(playlistAtual[idxExistente], itemPlaylist);
+      garantirTemaNoItemExistente(playlistAtual, idxExistente, tema);
+      continue;
+    }
+    inserirMusicaNoBlocoTema(playlistAtual, tema, itemPlaylist);
+    adicionadas++;
+  }
+  return { adicionadas };
 }
 
 /**
@@ -410,6 +595,24 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
     }
   });
 
+  /* Segunda metade do sync: as versões que o utilizador escolheu no painel. */
+  expressApp.post('/api/sync-invb-playlist/aplicar-versoes', (req, res) => {
+    try {
+      const escolhas = req.body && Array.isArray(req.body.escolhas) ? req.body.escolhas : [];
+      const playlistsJson = loadPlaylistsJson(paths.playlistsJsonPath) || {};
+      const { adicionadas } = aplicarEscolhasVersao({ db, playlistsJson, escolhas });
+      savePlaylistsJson(paths.playlistsJsonPath, playlistsJson);
+      if (adicionadas > 0) {
+        marcarBancoCompartilhadoAlterado();
+        notificarBancoCompartilhadoAlterado();
+      }
+      return res.json({ adicionadas });
+    } catch (e) {
+      console.error('[syncInvbPlaylist] Erro ao aplicar versões escolhidas:', e);
+      return res.status(500).json({ erro: 'Erro interno: ' + e.message });
+    }
+  });
+
   expressApp.post('/api/sync-invb-playlist', async (req, res) => {
     try {
       // 1. Buscar cultos do Supabase
@@ -429,6 +632,7 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
 
       let totalAdicionadas = 0;
       const todasNaoEncontradas = [];
+      const todasPendentesVersao = [];
       const ministrantePorCulto = {}; // cultoId → nome do ministrante
 
       // 3. Processar cada culto
@@ -436,6 +640,7 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
         const resultado = await sincronizarCulto({ culto, db, playlistsJson, paths });
         totalAdicionadas += resultado.adicionadas;
         todasNaoEncontradas.push(...resultado.naoEncontradas);
+        todasPendentesVersao.push(...(resultado.pendentesVersao || []));
         if (culto.ministranteNome) {
           ministrantePorCulto[culto.cultoId] = culto.ministranteNome;
         }
@@ -454,6 +659,8 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
       return res.json({
         adicionadas: totalAdicionadas,
         naoEncontradas: todasNaoEncontradas,
+        /* Músicas cuja versão o painel tem de perguntar antes de adicionar. */
+        pendentesVersao: todasPendentesVersao,
         ministrantePorCulto,
       });
     } catch (e) {
@@ -467,6 +674,9 @@ module.exports = {
   registrarRotasSyncInvbPlaylist,
   /* Exportados para teste (`syncInvbPlaylist.test.js`). */
   sincronizarCulto,
+  aplicarEscolhasVersao,
+  versoesDistintasPorConteudo,
+  versoesRowsRigorosamenteIdenticas,
   variantesDeTermoBusca,
   pontuacaoTitulo,
   construirItemPlaylist,

@@ -30,6 +30,9 @@ require.cache[require.resolve('../lib/lyraSongbank')].exports = {
 
 const {
   sincronizarCulto,
+  aplicarEscolhasVersao,
+  versoesDistintasPorConteudo,
+  versoesRowsRigorosamenteIdenticas,
   variantesDeTermoBusca,
   pontuacaoTitulo,
   construirItemPlaylist,
@@ -39,9 +42,33 @@ const {
 
 const norm = (t) => normalizarChaveComparacao(t);
 
-/** Banco falso: só o `SELECT * FROM musicas WHERE id = ?` que a rota usa. */
+/** Banco falso: o `SELECT ... WHERE id = ?` e a lista de versões da família. */
 function dbFalso(linhas) {
-  return { prepare: () => ({ get: (id) => linhas.get(Number(id)) || null }) };
+  return {
+    prepare: () => ({
+      get: (id) => linhas.get(Number(id)) || null,
+      all: (rootId) =>
+        [...linhas.values()]
+          .filter((r) => Number(r.id) === Number(rootId) || Number(r.root_id) === Number(rootId))
+          .sort((a, b) => Number(a.id) - Number(b.id)),
+    }),
+  };
+}
+
+/** Linha de versão do SQLite (estrofes chegam como texto JSON). */
+function versao(id, rootId, estrofes, extra = {}) {
+  return {
+    id,
+    root_id: rootId,
+    parent_id: id === rootId ? null : rootId,
+    titulo: 'Galileu',
+    artista: 'Artista',
+    estrofes: JSON.stringify(estrofes),
+    is_immutable: id === rootId ? 1 : 0,
+    rotulo: id === rootId ? null : 'Cópia',
+    origem_importacao: ORIGEM_LYRA_ONLINE,
+    ...extra,
+  };
 }
 
 function resumo(pl) {
@@ -121,9 +148,12 @@ test('música encontrada vai para a playlist do culto (e não só para a bibliot
     const achados = catalogo.filter((c) => norm(c.titulo).includes(alvo) || alvo.includes(norm(c.titulo)));
     return { sucesso: achados.length > 0, resultados: achados };
   };
+  /* Como no banco real: cadastrar cria o Original + a Cópia padrão idêntica. */
   const linhas = new Map([
-    [10, { id: 10, root_id: 10, titulo: 'Galileu', artista: 'Artista', origem_importacao: ORIGEM_LYRA_ONLINE }],
-    [11, { id: 11, root_id: 11, titulo: 'Ceia Santa', artista: 'Artista', origem_importacao: ORIGEM_LYRA_ONLINE }],
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha'])],
+    [11, versao(11, 11, ['linha'], { titulo: 'Ceia Santa' })],
+    [111, versao(111, 11, ['linha'], { titulo: 'Ceia Santa' })],
   ]);
   let proximo = 10;
   responderImport = () => ({ ok: true, id: proximo, rootId: proximo++ });
@@ -152,6 +182,9 @@ test('música encontrada vai para a playlist do culto (e não só para a bibliot
   assert.equal(linhaGalileu.id, 10);
   assert.equal(linhaGalileu.tema, 'ABERTURA');
   assert.equal(linhaGalileu.cultoId, 'culto_2026-09-13_manha');
+  /* Original + Cópia rigorosamente idênticas → entra a Cópia, sem perguntar. */
+  assert.equal(linhaGalileu.versaoLocalId, '110');
+  assert.deepEqual(r.pendentesVersao, []);
 });
 
 test('título sem relação não é importado nem entra na playlist', async () => {
@@ -174,4 +207,262 @@ test('título sem relação não é importado nem entra na playlist', async () =
   assert.equal(r.adicionadas, 0);
   assert.deepEqual(r.naoEncontradas, [{ nome: 'Galileu', tipo: 'quarta' }]);
   assert.deepEqual(playlistsJson['culto_2026-09-16_quarta'], []);
+});
+
+/* ---------------------------------------------------------------------------
+ * Escolha da versão no «Sinc. Lyra DB».
+ *
+ * Só há importação automática no caso exato «Original + uma Cópia rigorosamente
+ * idêntica» — e aí entra a Cópia. Qualquer outra combinação vai para
+ * `pendentesVersao` e quem escolhe é o utilizador, no painel.
+ * ------------------------------------------------------------------------ */
+
+test('comparação de versões: caractere por caractere, sem trim', () => {
+  assert.equal(
+    versoesRowsRigorosamenteIdenticas(versao(1, 1, ['Ai de mim']), versao(2, 1, ['Ai de mim'])),
+    true
+  );
+  assert.equal(
+    versoesRowsRigorosamenteIdenticas(versao(1, 1, ['Ai de mim']), versao(2, 1, ['Ai de mim '])),
+    false
+  );
+  assert.equal(
+    versoesRowsRigorosamenteIdenticas(versao(1, 1, ['A']), versao(2, 1, ['A', ''])),
+    false
+  );
+  /* Título e artista também contam; rótulo e id não. */
+  assert.equal(
+    versoesRowsRigorosamenteIdenticas(versao(1, 1, ['A']), versao(2, 1, ['A'], { titulo: 'Outra' })),
+    false
+  );
+  /* Conteúdo desconhecido nunca é idêntico a nada. */
+  assert.equal(versoesRowsRigorosamenteIdenticas({ id: 1 }, { id: 2 }), false);
+});
+
+const ids = (lista) => lista.map((v) => Number(v.id));
+
+test('deduplicação: um representante por conteúdo, e a Cópia representa a Original', () => {
+  /* 1. Original + Cópia idênticas → sobra a Cópia. */
+  assert.deepEqual(
+    ids(versoesDistintasPorConteudo([versao(10, 10, ['A']), versao(11, 10, ['A'])], 10)),
+    [11]
+  );
+
+  /* 1b. Quantidade de cópias não provoca pergunta: todas iguais → sobra a Cópia. */
+  assert.deepEqual(
+    ids(
+      versoesDistintasPorConteudo(
+        [versao(10, 10, ['A']), versao(11, 10, ['A']), versao(12, 10, ['A']), versao(13, 10, ['A'])],
+        10
+      )
+    ),
+    [11]
+  );
+
+  /* 2. Original = Cópia, mais uma cópia diferente → Cópia + a diferente (sem Original). */
+  assert.deepEqual(
+    ids(
+      versoesDistintasPorConteudo(
+        [versao(10, 10, ['A']), versao(11, 10, ['A']), versao(12, 10, ['B'])],
+        10
+      )
+    ),
+    [11, 12]
+  );
+
+  /* 3. Original ≠ Cópia → as duas, porque são conteúdos diferentes. */
+  assert.deepEqual(
+    ids(versoesDistintasPorConteudo([versao(10, 10, ['A']), versao(11, 10, ['B'])], 10)),
+    [10, 11]
+  );
+
+  /* 4. Vários conteúdos diferentes → um de cada, a Cópia no lugar da Original. */
+  assert.deepEqual(
+    ids(
+      versoesDistintasPorConteudo(
+        [versao(10, 10, ['A']), versao(11, 10, ['A']), versao(12, 10, ['B']), versao(13, 10, ['C'])],
+        10
+      )
+    ),
+    [11, 12, 13]
+  );
+
+  /* Cópias iguais entre si mas diferentes da Original agrupam-se na primeira. */
+  assert.deepEqual(
+    ids(
+      versoesDistintasPorConteudo(
+        [versao(10, 10, ['A']), versao(11, 10, ['B']), versao(12, 10, ['B'])],
+        10
+      )
+    ),
+    [10, 11]
+  );
+
+  /* Só a Original → fica a Original. */
+  assert.deepEqual(ids(versoesDistintasPorConteudo([versao(10, 10, ['A'])], 10)), [10]);
+
+  /* Conteúdo ilegível nunca é agrupado. */
+  assert.deepEqual(
+    ids(versoesDistintasPorConteudo([{ id: 10, root_id: 10 }, { id: 11, root_id: 10 }], 10)),
+    [10, 11]
+  );
+});
+
+/** Culto de um item só, com a música já na biblioteca (Original do Lyra). */
+async function sincronizarGalileuComVersoes(linhas) {
+  responderBusca = (q) =>
+    norm('Galileu').includes(norm(q)) || norm(q).includes(norm('Galileu'))
+      ? { sucesso: true, resultados: [{ slug: 'galileu', titulo: 'Galileu' }] }
+      : { sucesso: false, resultados: [] };
+  responderImport = () => ({ ok: false, duplicado: true, existente: { id: 10, root_id: 10 } });
+  const playlistsJson = {};
+  const culto = {
+    cultoId: 'culto_2026-09-20_manha',
+    tipo: 'domingo_manha',
+    itens: [{ nome: 'Galileu', tema: 'ABERTURA' }],
+  };
+  const r = await sincronizarCulto({ culto, db: dbFalso(linhas), playlistsJson, paths: {} });
+  return { r, playlistsJson, pl: playlistsJson['culto_2026-09-20_manha'] };
+}
+
+test('Cópia com alterações: não entra nada, a escolha fica pendente', async () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha editada'])],
+  ]);
+  const { r, pl } = await sincronizarGalileuComVersoes(linhas);
+
+  assert.equal(r.adicionadas, 0);
+  assert.deepEqual(r.naoEncontradas, []);
+  assert.deepEqual(resumo(pl), []);
+  assert.equal(r.pendentesVersao.length, 1);
+  const p = r.pendentesVersao[0];
+  assert.equal(p.rootId, 10);
+  assert.equal(p.tema, 'ABERTURA');
+  assert.equal(p.cultoId, 'culto_2026-09-20_manha');
+  assert.deepEqual(p.opcoes.map((o) => o.id), [10, 110]);
+  assert.deepEqual(p.opcoes.map((o) => o.ehOriginal), [true, false]);
+});
+
+test('várias cópias, todas idênticas: entra a Cópia, sem perguntar', async () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha'])],
+    [120, versao(120, 10, ['linha'], { rotulo: 'Cópia personalizada' })],
+    [130, versao(130, 10, ['linha'], { rotulo: 'Cópia 2' })],
+  ]);
+  const { r, pl } = await sincronizarGalileuComVersoes(linhas);
+
+  assert.equal(r.adicionadas, 1);
+  assert.deepEqual(r.pendentesVersao, []);
+  assert.deepEqual(resumo(pl), ['#ABERTURA', 'Galileu']);
+  assert.equal(pl[1].versaoLocalId, '110');
+});
+
+test('Original = Cópia + uma cópia diferente: pergunta sem mostrar a Original', async () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha'])],
+    [120, versao(120, 10, ['linha!'], { rotulo: 'Cópia personalizada' })],
+  ]);
+  const { r, pl } = await sincronizarGalileuComVersoes(linhas);
+
+  assert.equal(r.adicionadas, 0);
+  assert.deepEqual(resumo(pl), []);
+  assert.equal(r.pendentesVersao.length, 1);
+  assert.deepEqual(r.pendentesVersao[0].opcoes.map((o) => o.id), [110, 120]);
+  assert.deepEqual(r.pendentesVersao[0].opcoes.map((o) => o.ehOriginal), [false, false]);
+  assert.equal(r.pendentesVersao[0].opcoes[1].rotulo, 'Cópia personalizada');
+});
+
+test('vários conteúdos diferentes: uma opção por conteúdo, a Cópia no lugar da Original', async () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha'])],
+    [120, versao(120, 10, ['linha 2'], { rotulo: 'Cópia 2' })],
+    [130, versao(130, 10, ['linha 3'], { rotulo: 'Cópia 3' })],
+  ]);
+  const { r } = await sincronizarGalileuComVersoes(linhas);
+
+  assert.equal(r.adicionadas, 0);
+  assert.equal(r.pendentesVersao.length, 1);
+  assert.deepEqual(r.pendentesVersao[0].opcoes.map((o) => o.id), [110, 120, 130]);
+});
+
+test('música já na playlist com versão escolhida: o sync não desfaz o vínculo', async () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha editada'])],
+  ]);
+  responderBusca = () => ({ sucesso: true, resultados: [{ slug: 'galileu', titulo: 'Galileu' }] });
+  responderImport = () => ({ ok: false, duplicado: true, existente: { id: 10, root_id: 10 } });
+  const playlistsJson = {};
+  const cultoId = 'culto_2026-09-20_manha';
+  playlistsJson[cultoId] = [
+    { tipo: 'marcador_tema', tema: 'ABERTURA' },
+    { id: 10, titulo: 'Galileu', tema: 'ABERTURA', versaoLocalId: '110', versaoRotulo: 'Cópia' },
+  ];
+  const culto = {
+    cultoId,
+    tipo: 'domingo_manha',
+    itens: [{ nome: 'Galileu', tema: 'ABERTURA' }],
+  };
+  const r = await sincronizarCulto({ culto, db: dbFalso(linhas), playlistsJson, paths: {} });
+
+  assert.equal(r.adicionadas, 0);
+  assert.deepEqual(r.pendentesVersao, []);
+  assert.equal(playlistsJson[cultoId][1].versaoLocalId, '110');
+});
+
+test('aplicarEscolhasVersao põe na playlist exatamente a versão escolhida', () => {
+  const linhas = new Map([
+    [10, versao(10, 10, ['linha'])],
+    [110, versao(110, 10, ['linha editada'], { rotulo: 'Editada' })],
+  ]);
+  const db = dbFalso(linhas);
+
+  const plCopia = {};
+  assert.deepEqual(
+    aplicarEscolhasVersao({
+      db,
+      playlistsJson: plCopia,
+      escolhas: [{ cultoId: 'c1', rootId: 10, versaoId: 110, tema: 'ABERTURA' }],
+    }),
+    { adicionadas: 1 }
+  );
+  assert.deepEqual(resumo(plCopia.c1), ['#ABERTURA', 'Galileu']);
+  assert.equal(plCopia.c1[1].id, 10);
+  assert.equal(plCopia.c1[1].versaoLocalId, '110');
+  assert.equal(plCopia.c1[1].versaoRotulo, 'Editada');
+
+  /* Escolhendo a Original, a linha não aponta para versão nenhuma. */
+  const plOriginal = {};
+  aplicarEscolhasVersao({
+    db,
+    playlistsJson: plOriginal,
+    escolhas: [{ cultoId: 'c1', rootId: 10, versaoId: 10, tema: 'ABERTURA' }],
+  });
+  assert.equal(plOriginal.c1[1].versaoLocalId, undefined);
+
+  /* Versão de outra família é recusada. */
+  const plOutra = {};
+  assert.deepEqual(
+    aplicarEscolhasVersao({
+      db,
+      playlistsJson: plOutra,
+      escolhas: [{ cultoId: 'c1', rootId: 10, versaoId: 999, tema: 'ABERTURA' }],
+    }),
+    { adicionadas: 0 }
+  );
+  assert.deepEqual(plOutra, {});
+});
+
+test('só a Original na família: nada a escolher, entra a Original como antes', async () => {
+  const linhas = new Map([[10, versao(10, 10, ['linha'])]]);
+  const { r, pl } = await sincronizarGalileuComVersoes(linhas);
+
+  assert.equal(r.adicionadas, 1);
+  assert.deepEqual(r.pendentesVersao, []);
+  assert.deepEqual(resumo(pl), ['#ABERTURA', 'Galileu']);
+  assert.equal(pl[1].versaoLocalId, undefined);
 });

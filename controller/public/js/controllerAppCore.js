@@ -10160,12 +10160,15 @@ const ROTULOS_VERSAO_AUTOMATICOS = new Set([
 ]);
 
 /**
- * Forma canónica de exibição dos rótulos automáticos. Músicas antigas ainda
- * podem ter «CÓPIA» gravado; na UI passam a «Cópia». Tags personalizadas
- * mantêm exactamente a caixa que o utilizador escreveu.
+ * Forma canónica de exibição dos rótulos automáticos. Só nome exibido: o que está
+ * gravado (`ROTULO_COPIA_PADRAO` = «Cópia», em controller/src/db/musicas.js) não
+ * muda. A Cópia padrão — a que nasce junto com a Original — chama-se
+ * «Cópia/Original» na interface, porque é a versão editável que carrega o mesmo
+ * conteúdo da Original. Tags personalizadas mantêm exactamente a caixa que o
+ * utilizador escreveu.
  */
 const ROTULOS_VERSAO_EXIBICAO = new Map([
-  ['cópia'.normalize('NFC'), 'Cópia'],
+  ['cópia'.normalize('NFC'), 'Cópia/Original'],
   ['cópia/modificada'.normalize('NFC'), 'Cópia'],
   ['cópia/importada'.normalize('NFC'), 'Cópia/Importada'],
   ['cópia/manual'.normalize('NFC'), 'Cópia/Manual'],
@@ -10723,6 +10726,71 @@ async function onCfgSyncTonsInvbClick() {
   }
 }
 
+/**
+ * Pergunta, uma a uma, qual versão das músicas pendentes entra na playlist.
+ *
+ * O servidor só escolhe sozinho quando a família é exatamente «Original + uma
+ * Cópia rigorosamente idêntica» (aí entra a Cópia). Cópia com alterações, ou uma
+ * terceira versão, chegam aqui em `pendentesVersao`. Cancelar salta a música:
+ * ela não entra na playlist. Devolve quantas foram efetivamente adicionadas.
+ */
+async function perguntarVersoesPendentesSyncLyra(pendentes) {
+  const lista = Array.isArray(pendentes) ? pendentes : [];
+  if (!lista.length) return 0;
+  const escolhas = [];
+  let posicaoAtual = 0;
+  for (const p of lista) {
+    const opcoes = (Array.isArray(p && p.opcoes) ? p.opcoes : []).map((o) => ({
+      value: String(o.id),
+      label: rotuloVersaoMaiusculo(
+        o.ehOriginal ? 'Original' : formatarRotuloVersaoExibicao(o.rotulo)
+      ),
+    }));
+    if (opcoes.length < 2) continue;
+    /* O nome da música vai no cabeçalho: é a primeira coisa que se lê no diálogo.
+       Em baixo, só o secundário — artista e a posição na fila de pendentes. */
+    const artista = String(p.artista || '').trim();
+    posicaoAtual++;
+    const posicao = lista.length > 1 ? `Música ${posicaoAtual} de ${lista.length}` : '';
+    const detalhe = [
+      artista ? `${artista}` : '',
+      'Esta música tem mais de uma versão na biblioteca.',
+      posicao,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const esc = await appEscolherOpcao(
+      `${p.nome} — qual versão adicionar à playlist?`,
+      opcoes,
+      detalhe
+    );
+    if (esc == null) continue; // cancelou → a música não entra
+    escolhas.push({
+      cultoId: p.cultoId,
+      rootId: p.rootId,
+      versaoId: Number(esc),
+      tema: p.tema,
+    });
+  }
+  if (!escolhas.length) return 0;
+  try {
+    const res = await fetch(getControllerApiBase() + '/api/sync-invb-playlist/aplicar-versoes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ escolhas }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Erro ao aplicar as versões escolhidas: ' + (data.erro || res.status));
+      return 0;
+    }
+    return Number(data.adicionadas) || 0;
+  } catch (e) {
+    alert('Erro ao aplicar as versões escolhidas: ' + e.message);
+    return 0;
+  }
+}
+
 async function onSincronizarPlaylistLyraClick() {
   const btn = document.getElementById('btn-sync-invb-playlist');
   const btnShortcut = document.getElementById('playlist-sync-lyra-btn');
@@ -10744,6 +10812,10 @@ async function onSincronizarPlaylistLyraClick() {
       alert('Erro ao sincronizar: ' + (data.erro || res.status));
       return;
     }
+    /* Versões que o servidor não resolve sozinho: perguntar ANTES de a música
+       entrar na playlist e só então mandar aplicar. Cancelar salta a música. */
+    const adicionadasPorEscolha = await perguntarVersoesPendentesSyncLyra(data.pendentesVersao);
+
     // Recarregar playlists do servidor
     const resP = await fetch(getControllerApiBase() + '/api/playlists');
     if (resP.ok) {
@@ -10778,7 +10850,8 @@ async function onSincronizarPlaylistLyraClick() {
     refreshListaBanco();
     renderPlaylist();
 
-    let msg = 'Sincronização concluída\n' + data.adicionadas + ' músicas adicionadas';
+    const totalAdicionadas = (Number(data.adicionadas) || 0) + adicionadasPorEscolha;
+    let msg = 'Sincronização concluída\n' + totalAdicionadas + ' músicas adicionadas';
     if (data.naoEncontradas && data.naoEncontradas.length > 0) {
       msg += '\n' + data.naoEncontradas.length + ' músicas não encontradas:\n';
       msg += data.naoEncontradas.map(m => '  • ' + m.nome + ' (' + m.tipo + ')').join('\n');
@@ -13961,11 +14034,14 @@ function atualizarToolbarModoEdicao() {
     ea.readOnly = !metadadosEditaveis;
   }
 
-  /* Ações contextuais da cópia (Editar nome / Apagar cópia): só aparecem quando
-     há uma cópia selecionada (não ORIGINAL) e fora do modo edição — somem, não
-     ficam desabilitadas. Os separadores acompanham a visibilidade dos grupos. */
+  /* Ações contextuais da cópia (Editar tag / Apagar esta versão): só aparecem
+     quando há uma cópia selecionada (não ORIGINAL) — somem, não ficam
+     desabilitadas. Aparecem também no modo letra completa, onde abrem a fila:
+     «Editar tag | Apagar esta versão | Grade/Slide | Salvar alterações |
+     Cancelar | aA». Na edição por slides continuam fora.
+     Os separadores acompanham a visibilidade dos grupos. */
   const copiaSel = versaoCopiaSelecionadaAtual();
-  const mostrarAcoesCopia = !!copiaSel && !ed && !full;
+  const mostrarAcoesCopia = !!copiaSel && !ed;
   const btnEditarNome = document.getElementById('btn-editar-nome-versao');
   const btnApagarCopia = document.getElementById('btn-apagar-copia-versao');
   if (btnEditarNome) btnEditarNome.style.display = mostrarAcoesCopia ? '' : 'none';
@@ -19035,7 +19111,9 @@ const SVG_VERSAO = {
 function iconeVersaoServidorPorRotulo(labelUpper) {
   const s = String(labelUpper || '').normalize('NFC').toLocaleUpperCase('pt-BR');
   if (s.includes('IMPORTAD')) return SVG_VERSAO.importada;
+  /* «CÓPIA/ORIGINAL» é o nome exibido da Cópia padrão — mesmo ícone de sempre. */
   if (s.includes('MODIFICAD') || s === 'CÓPIA' || s === 'COPIA') return SVG_VERSAO.modificada;
+  if (s === 'CÓPIA/ORIGINAL' || s === 'COPIA/ORIGINAL') return SVG_VERSAO.modificada;
   return SVG_VERSAO.copia;
 }
 

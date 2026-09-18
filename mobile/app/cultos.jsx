@@ -26,6 +26,7 @@ import {
   rotuloVersaoPlaylist,
 } from '../src/playlistItens';
 import { COLORS, FONTS } from '../src/theme';
+import { rotuloVersaoExibicao } from '../src/rotuloVersaoExibicao';
 
 /** Cabeçalho legível em português para o calendário. */
 function tituloDataPt(iso) {
@@ -235,8 +236,8 @@ export default function CultosPlaylistsScreen() {
                   <View style={styles.rowText}>
                     <Text style={styles.rowTit}>
                       {m.titulo || '—'}
-                      {rotuloVersaoPlaylist(m) ? (
-                        <Text style={styles.rowVersao}> · {rotuloVersaoPlaylist(m)}</Text>
+                      {rotuloVersaoExibicao(rotuloVersaoPlaylist(m)) ? (
+                        <Text style={styles.rowVersao}> · {rotuloVersaoExibicao(rotuloVersaoPlaylist(m))}</Text>
                       ) : null}
                     </Text>
                     {m.artista ? <Text style={styles.rowArt}>{m.artista}</Text> : null}
