@@ -257,6 +257,16 @@
           <label class="sr-only" for="busca">Buscar música ou letra na biblioteca</label>
           <input type="text" class="search-box" id="busca" placeholder="Buscar música ou letra" autocomplete="off" oninput="filtrar()">
         </div>
+        <!-- Barra de ações em lote: só existe enquanto o modo de seleção estiver ativo.
+             Fica entre a busca e a lista porque é ali que o olho já está quando se marca. -->
+        <div class="bib-selecao-barra" id="bib-selecao-barra" hidden role="toolbar" aria-label="Ações para as músicas selecionadas">
+          <span class="bib-selecao-contagem" id="bib-selecao-contagem" role="status" aria-live="polite">Nenhuma selecionada</span>
+          <div class="bib-selecao-acoes">
+            <button type="button" class="btn sm" id="bib-selecao-add-playlist" disabled>Adicionar à Playlist</button>
+            <button type="button" class="btn sm danger" id="bib-selecao-excluir" disabled>Excluir</button>
+            <button type="button" class="btn sm" id="bib-selecao-cancelar">Cancelar seleção</button>
+          </div>
+        </div>
         <div class="banco-sqlite-lista-recolhida-aviso" id="banco-sqlite-lista-recolhida-aviso" hidden role="status">
           <span class="banco-sqlite-lista-recolhida-aviso-icone" aria-hidden="true">▸</span>
           <span>Lista de músicas recolhida. Clique na seta ao lado do título para expandir.</span>

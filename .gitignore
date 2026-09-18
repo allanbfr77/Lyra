@@ -28,3 +28,8 @@ controller/resources/runtime-env.json
 
 # Mensagem de commit temporária (git commit -F)
 .commit-msg.tmp
+
+# Pasta de dados do Electron (%APPDATA%/lyra-controller) copiada para a raiz por
+# engano: caches, lyra.db, playlists e modelo vosk. O app lê sempre de
+# app.getPath('userData'), nunca daqui.
+lyra-controller/

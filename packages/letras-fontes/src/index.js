@@ -401,9 +401,6 @@ function tituloArtistaDoScriptPageArgsLetras(html) {
   return { titulo, artista };
 }
 
-/** Máximo de páginas do Letras tentadas via índice (após o slug direto falhar). */
-const MAX_LETRAS_VIA_INDICE = 5;
-
 /**
  * Converte título exibido em slug de URL (ex.: "A Casa é Sua" → "a-casa-e-sua").
  * Usado quando a URL do Cifra não bate com a do Letras (títulos compostos com "/").

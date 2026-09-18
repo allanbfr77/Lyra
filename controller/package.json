@@ -11,10 +11,7 @@
     "prebuild:win": "node ../tools/gerar-catalog.js && node ../tools/gerar-controller-runtime-env.js",
     "build:win": "electron-builder --win nsis",
     "publish:win": "electron-builder --win nsis --publish always",
-    "build:dir": "electron-builder --dir",
-    "test:e2e": "start-server-and-test \"npx electron cypress/server.js\" http://localhost:3001 \"cypress run --reporter spec\"",
-    "cypress:open": "start-server-and-test \"npx electron cypress/server.js\" http://localhost:3001 \"cypress open\"",
-    "cypress:run": "cypress run"
+    "build:dir": "electron-builder --dir"
   },
   "dependencies": {
     "@lyra/letras-fontes": "file:../packages/letras-fontes",
@@ -28,12 +25,10 @@
     "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
-    "cypress": "^16.0.0",
     "electron": "^29.1.0",
     "electron-builder": "^24.13.3",
     "electron-rebuild": "^3.2.9",
-    "nodemon": "^3.1.14",
-    "start-server-and-test": "^3.0.12"
+    "nodemon": "^3.1.14"
   },
   "build": {
     "appId": "br.org.lyra.controller",

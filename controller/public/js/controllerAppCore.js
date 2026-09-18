@@ -162,6 +162,21 @@ import {
   rotaLembradaParaEntrada,
 } from './modules/monitorLembrado.js';
 import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
+import {
+  criarEstadoSelecao,
+  podeSelecionarFonte,
+  chaveSelecao,
+  idDaChaveSelecao,
+  ativarSelecao,
+  cancelarSelecao,
+  alternarSelecao,
+  estaSelecionada,
+  totalSelecionadas,
+  chavesSelecionadas,
+  sincronizarSelecaoComLista,
+  rotuloContagemSelecao,
+  rotuloConfirmacaoExclusaoLote,
+} from './modules/selecaoMultiplaBiblioteca.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import { criarReconhecimentoVozBiblia } from './modules/reconhecimentoVozBiblia.js';
@@ -9847,9 +9862,20 @@ function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo) {
 }
 
 let musicaExcluirPendente = null;
+/** Lote pendente de exclusão, vindo do modo de seleção múltipla da Biblioteca. */
+let musicasExcluirLotePendente = null;
+
+/** Texto de repouso do aviso do modal, para o repor depois de uma exclusão em lote. */
+function avisoModalExcluirMusicaPadrao(el) {
+  if (el && !el.dataset.textoPadrao) el.dataset.textoPadrao = el.textContent || '';
+  return el?.dataset?.textoPadrao || '';
+}
 
 function fecharModalExcluirMusica() {
   musicaExcluirPendente = null;
+  musicasExcluirLotePendente = null;
+  const aviso = document.querySelector('#musica-excluir-backdrop .musica-excluir-aviso');
+  if (aviso && aviso.dataset.textoPadrao) aviso.textContent = aviso.dataset.textoPadrao;
   document
     .querySelectorAll('.item.confirmando-exclusao')
     .forEach((el) => el.classList.remove('confirmando-exclusao'));
@@ -9871,43 +9897,85 @@ function solicitarRemoverMusicaDoBancoServidor(idMusica, tituloDisplay) {
   bd.setAttribute('aria-hidden', 'false');
 }
 
+/**
+ * Mesma confirmação de sempre, com o nome da música trocado pela contagem: com doze
+ * títulos não há espaço para os listar, e o que o operador precisa de saber antes de
+ * uma ação sem volta é quantas músicas vão embora.
+ *
+ * @param {{ id: number, titulo: string }[]} lote
+ */
+function solicitarRemoverMusicasDoBancoServidorEmLote(lote) {
+  const itens = (Array.isArray(lote) ? lote : []).filter((m) => Number.isFinite(Number(m?.id)));
+  if (!itens.length) return;
+  musicaExcluirPendente = null;
+  musicasExcluirLotePendente = itens.map((m) => ({ id: Number(m.id), titulo: String(m.titulo || '') }));
+  const bd = document.getElementById('musica-excluir-backdrop');
+  const nomeEl = document.getElementById('musica-excluir-nome');
+  if (nomeEl) nomeEl.textContent = rotuloConfirmacaoExclusaoLote(musicasExcluirLotePendente.length);
+  const aviso = document.querySelector('#musica-excluir-backdrop .musica-excluir-aviso');
+  if (aviso) {
+    avisoModalExcluirMusicaPadrao(aviso);
+    aviso.textContent =
+      'Esta ação não pode ser desfeita. Todas as músicas selecionadas deixam de existir na base deste PC e são retiradas das playlists neste navegador.';
+  }
+  /* O mesmo realce do caso de uma música só, agora em todas as linhas do lote: é ele
+     que diz sobre o que o modal está a perguntar. */
+  for (const linha of bibSelLinhas()) {
+    const chave = bibSelChaveDaLinha(linha);
+    if (chave && estaSelecionada(bibSelecao, chave)) linha.classList.add('confirmando-exclusao');
+  }
+  if (bd) {
+    bd.hidden = false;
+    bd.setAttribute('aria-hidden', 'false');
+  }
+}
+
 function configurarModalExcluirMusica() {
   document.getElementById('musica-excluir-cancel')?.addEventListener('click', () => fecharModalExcluirMusica());
   document.getElementById('musica-excluir-confirm')?.addEventListener('click', () => executarRemoverMusicaDoBancoConfirmado());
 }
 
-async function executarRemoverMusicaDoBancoConfirmado() {
-  if (!musicaExcluirPendente) return fecharModalExcluirMusica();
-  const idNum = musicaExcluirPendente.id;
-  fecharModalExcluirMusica();
-  try {
-    let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/excluir`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
+/**
+ * Só a chamada de rede — extraída para a exclusão em lote poder repeti-la sem duplicar
+ * a compatibilidade com o servidor antigo. Devolve o `rootId` removido, ou lança com a
+ * mensagem que o operador veria.
+ *
+ * @param {number} idNum
+ * @returns {Promise<number>}
+ */
+async function removerMusicaDoBancoNoServidor(idNum) {
+  let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/excluir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  const tentouFallbackDelete = res.status === 404;
+  if (tentouFallbackDelete) {
+    /* Compatibilidade com servidor que expõe apenas DELETE /api/musicas/:id. */
+    res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}`, {
+      method: 'DELETE',
     });
-    const tentouFallbackDelete = res.status === 404;
-    if (tentouFallbackDelete) {
-      /* Compatibilidade com servidor que expõe apenas DELETE /api/musicas/:id. */
-      res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}`, {
-        method: 'DELETE',
-      });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 404 && tentouFallbackDelete) {
+      throw new Error(
+        'Não foi possível excluir a música (HTTP 404). Verifique se o Controlador está em execução (API local na porta 3001).'
+      );
     }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (res.status === 404 && tentouFallbackDelete) {
-        alert(
-          'Não foi possível excluir a música (HTTP 404). Verifique se o Controlador está em execução (API local na porta 3001).'
-        );
-        return;
-      }
-      alert(data.erro || `Erro HTTP ${res.status}`);
-      return;
-    }
-    const rootRemovido = Number(data.rootId) || idNum;
-    removerMusicaDeTodasPlaylists(rootRemovido);
-    removerCopiasLocaisDaMusica(rootRemovido);
-    await carregarMusicas();
+    throw new Error(data.erro || `Erro HTTP ${res.status}`);
+  }
+  return Number(data.rootId) || idNum;
+}
+
+/**
+ * Limpeza da UI depois de o servidor confirmar a remoção e de `carregarMusicas()`.
+ * Não toca na rede — extraída pela mesma razão que a função acima.
+ *
+ * @param {number} idNum
+ * @param {number} rootRemovido
+ */
+function aplicarLimpezaUiAposRemocaoMusica(idNum, rootRemovido) {
     if (
       selecaoUiBiblioteca &&
       (Number(selecaoUiBiblioteca.id) === idNum || Number(selecaoUiBiblioteca.id) === rootRemovido)
@@ -9945,10 +10013,61 @@ async function executarRemoverMusicaDoBancoConfirmado() {
       atualizarPreviewOperador();
       marcacaoEstrofeEditor();
     }
+}
+
+async function executarRemoverMusicaDoBancoConfirmado() {
+  /* O lote tem caminho próprio: `carregarMusicas()` e os renders correm uma vez no
+     fim, e não uma vez por música. */
+  if (musicasExcluirLotePendente) return executarRemoverMusicasDoBancoEmLoteConfirmado();
+  if (!musicaExcluirPendente) return fecharModalExcluirMusica();
+  const idNum = musicaExcluirPendente.id;
+  fecharModalExcluirMusica();
+  try {
+    const rootRemovido = await removerMusicaDoBancoNoServidor(idNum);
+    removerMusicaDeTodasPlaylists(rootRemovido);
+    removerCopiasLocaisDaMusica(rootRemovido);
+    await carregarMusicas();
+    aplicarLimpezaUiAposRemocaoMusica(idNum, rootRemovido);
     renderPlaylist();
     refreshListaBanco();
   } catch (e) {
     alert(e.message || 'Falha ao remover.');
+  }
+}
+
+/**
+ * Exclusão em lote.
+ *
+ * Uma música que falhe não derruba as outras: cada remoção é tentada por si, e no fim o
+ * operador recebe uma lista do que não saiu. O contrário — parar na primeira falha —
+ * deixava o lote meio feito sem dizer onde tinha parado.
+ */
+async function executarRemoverMusicasDoBancoEmLoteConfirmado() {
+  const lote = Array.isArray(musicasExcluirLotePendente) ? musicasExcluirLotePendente.slice() : [];
+  fecharModalExcluirMusica();
+  if (!lote.length) return;
+  const removidos = [];
+  const falhas = [];
+  for (const m of lote) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const rootRemovido = await removerMusicaDoBancoNoServidor(m.id);
+      removerMusicaDeTodasPlaylists(rootRemovido);
+      removerCopiasLocaisDaMusica(rootRemovido);
+      removidos.push({ id: m.id, rootRemovido });
+    } catch (e) {
+      falhas.push(`· ${m.titulo || `ID ${m.id}`}: ${e.message || 'falha ao remover'}`);
+    }
+  }
+  if (removidos.length) {
+    await carregarMusicas();
+    for (const r of removidos) aplicarLimpezaUiAposRemocaoMusica(r.id, r.rootRemovido);
+    renderPlaylist();
+    refreshListaBanco();
+  }
+  bibSelCancelarModo();
+  if (falhas.length) {
+    alert(`Não foi possível remover ${falhas.length} de ${lote.length} músicas:\n${falhas.join('\n')}`);
   }
 }
 
@@ -12051,6 +12170,9 @@ const SVG_MENU_EXCLUIR =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 const SVG_MENU_DUPLICAR =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+
+const SVG_MENU_SELECIONAR_VARIAS =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="m3.5 16 2 2 4-4"/><path d="M13 7h8"/></svg>';
 
 /*
   Ícones do menu da linha da playlist. `ti-rotate` para repor (neutro) e `ti-x` para
@@ -18024,6 +18146,14 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
         aoEscolher: () => duplicarMusicaDoBanco(musica),
       },
       {
+        /* Entra no modo já com esta música marcada: quem abriu o menu sobre ela
+           não teria por que a marcar outra vez a seguir. */
+        rotulo: 'Selecionar várias',
+        svg: SVG_MENU_SELECIONAR_VARIAS,
+        separadorAntes: true,
+        aoEscolher: () => bibSelEntrarModo(bibSelChaveDaLinha(linhaEl)),
+      },
+      {
         rotulo: 'Excluir música',
         svg: SVG_MENU_EXCLUIR,
         variante: 'perigo',
@@ -18192,6 +18322,17 @@ function bibTeclasLista(ev) {
     bibFocarLinha(ev.key === 'Home' ? linhas[0] : linhas[linhas.length - 1]);
     return;
   }
+  if (bibSelAtivo() && (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar')) {
+    if (!atual) return;
+    ev.preventDefault();
+    bibSelAlternarLinha(atual);
+    return;
+  }
+  if (bibSelAtivo() && ev.key === 'Escape') {
+    ev.preventDefault();
+    bibSelCancelarModo();
+    return;
+  }
   if (ev.key === 'Enter') {
     if (!atual) return;
     ev.preventDefault();
@@ -18268,6 +18409,10 @@ function bibEnterGlobal(ev) {
   if (document.querySelector('.cfg-modal-overlay.aberto, .lyra-menu-modal-overlay.aberto')) return;
 
   ev.preventDefault();
+  if (bibSelAtivo()) {
+    bibSelAlternarLinha(bibLinhaSobCursor);
+    return;
+  }
   if (ev.ctrlKey || ev.metaKey) {
     selecionarMusicaDoBanco(bibMusicaDaLinha(bibLinhaSobCursor)?.id, {
       fonte: fonteBancoNormalizada(bibLinhaSobCursor.dataset.bibFonte),
@@ -18299,6 +18444,13 @@ function bibGarantirTeclado() {
       if (!t) return;
       const linha = t.closest('.item');
       if (!linha || !el.contains(linha) || linha.hidden) return;
+      /* Modo de seleção: o clique marca. Nada abaixo daqui corre. */
+      if (bibSelAtivo()) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        bibSelAlternarLinha(linha);
+        return;
+      }
       if (t.closest('.bib-add')) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -18319,6 +18471,12 @@ function bibGarantirTeclado() {
       const linha = ev.target instanceof Element ? ev.target.closest('.item') : null;
       if (!linha || !el.contains(linha) || linha.hidden) return;
       if (linha.dataset.bibFonte !== 'user') return;
+      /* Durante o lote as ações são as da barra; um segundo menu por linha só
+         confundiria sobre o que a próxima escolha ia atingir. */
+      if (bibSelAtivo()) {
+        ev.preventDefault();
+        return;
+      }
       ev.preventDefault();
       ev.stopPropagation();
       const m = bibMusicaDaLinha(linha);
@@ -18402,6 +18560,238 @@ function bibCriarBolinhaOrigem(origem) {
   el.title = meta.tooltip;
   el.setAttribute('aria-hidden', 'true');
   return el;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BIBLIOTECA — MODO DE SELEÇÃO MÚLTIPLA
+
+   O estado do lote vive em `modules/selecaoMultiplaBiblioteca.js` (puro, testado).
+   Aqui está só o que toca no DOM: pôr e tirar as caixas, pintar o marcado e
+   correr as ações em lote.
+
+   Três decisões que este bloco tem de defender:
+
+   · **Fora do modo nada muda.** As caixas não existem no DOM enquanto o modo
+     estiver desligado — não são escondidas com CSS, são criadas ao entrar e
+     destruídas ao sair. Os ouvintes da lista já estavam registados e continuam
+     os mesmos; o que se acrescentou foi um desvio na primeira linha de cada um,
+     que só dispara com o modo ativo.
+
+   · **Catálogo fica de fora.** Só linhas da fonte `user` recebem caixa. A
+     marca no DOM é o atributo `data-bib-sel`, que o CSS usa para esmaecer as
+     outras enquanto o modo dura.
+
+   · **A lista pode ser reconstruída debaixo dos pés.** Excluir músicas chama
+     `carregarMusicas()` e a lista nasce de novo, sem caixas. Por isso
+     `renderizarListaLocal` termina a chamar `bibSelAposRender`, que repõe as
+     caixas e deixa cair do lote quem já não existe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Morre com a sessão do modo: nunca é persistido. */
+const bibSelecao = criarEstadoSelecao();
+
+const BIB_SEL_SVG_VISTO =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>';
+
+function bibSelAtivo() {
+  return !!bibSelecao.ativo;
+}
+
+/** Chave do lote para uma linha, ou `null` se a linha não puder ser selecionada. */
+function bibSelChaveDaLinha(linha) {
+  const m = bibMusicaDaLinha(linha);
+  if (!m) return null;
+  const fonte = fonteBancoNormalizada(linha?.dataset?.bibFonte);
+  if (!podeSelecionarFonte(fonte)) return null;
+  return chaveSelecao(m.id, fonte);
+}
+
+/** Todas as linhas selecionáveis do render atual — inclui as escondidas pelo filtro. */
+function bibSelLinhas() {
+  const el = document.getElementById('lista');
+  return el ? Array.from(el.querySelectorAll('.item')) : [];
+}
+
+/**
+ * Cria (ou remove) a caixa de seleção de cada linha.
+ *
+ * O `title` de repouso da linha explica o clique normal — no modo ele mentiria, por
+ * isso é guardado em `dataset` e reposto à saída.
+ */
+function bibSelAplicarDom() {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  const ativo = bibSelAtivo();
+  el.classList.toggle('lista-sqlite--selecao', ativo);
+  for (const linha of bibSelLinhas()) {
+    const chave = bibSelChaveDaLinha(linha);
+    let caixa = linha.querySelector(':scope > .bib-sel-box');
+    if (ativo && chave) {
+      if (!caixa) {
+        caixa = document.createElement('span');
+        caixa.className = 'bib-sel-box';
+        caixa.setAttribute('aria-hidden', 'true');
+        caixa.innerHTML = BIB_SEL_SVG_VISTO;
+        linha.insertBefore(caixa, linha.firstChild);
+      }
+      linha.dataset.bibSel = '1';
+      if (linha.title && !linha.dataset.bibTitleNormal) linha.dataset.bibTitleNormal = linha.title;
+      linha.title = 'Clique para marcar ou desmarcar esta música.';
+      linha.setAttribute('aria-checked', estaSelecionada(bibSelecao, chave) ? 'true' : 'false');
+    } else {
+      if (caixa) caixa.remove();
+      delete linha.dataset.bibSel;
+      linha.removeAttribute('aria-checked');
+      if (linha.dataset.bibTitleNormal) {
+        linha.title = linha.dataset.bibTitleNormal;
+        delete linha.dataset.bibTitleNormal;
+      }
+    }
+  }
+}
+
+/** Repinta só o marcado/desmarcado, sem mexer na estrutura. */
+function bibSelPintarMarcadas() {
+  if (!bibSelAtivo()) return;
+  for (const linha of bibSelLinhas()) {
+    const chave = bibSelChaveDaLinha(linha);
+    if (!chave) continue;
+    linha.setAttribute('aria-checked', estaSelecionada(bibSelecao, chave) ? 'true' : 'false');
+  }
+}
+
+function bibSelAtualizarBarra() {
+  const barra = document.getElementById('bib-selecao-barra');
+  if (!barra) return;
+  const ativo = bibSelAtivo();
+  barra.hidden = !ativo;
+  if (!ativo) return;
+  const n = totalSelecionadas(bibSelecao);
+  const contagem = document.getElementById('bib-selecao-contagem');
+  if (contagem) contagem.textContent = rotuloContagemSelecao(n);
+  const btnAdd = document.getElementById('bib-selecao-add-playlist');
+  const btnDel = document.getElementById('bib-selecao-excluir');
+  if (btnAdd) btnAdd.disabled = n === 0;
+  if (btnDel) btnDel.disabled = n === 0;
+}
+
+function bibSelAtualizarTudo() {
+  bibSelAplicarDom();
+  bibSelAtualizarBarra();
+}
+
+/**
+ * Chamado no fim de cada render da lista. Sem isto, excluir um lote deixava o modo
+ * ligado numa lista sem caixas e com chaves a apontar para músicas que já não existem.
+ */
+function bibSelAposRender() {
+  if (!bibSelAtivo()) return;
+  const vivas = new Set();
+  for (const linha of bibSelLinhas()) {
+    const chave = bibSelChaveDaLinha(linha);
+    if (chave) vivas.add(chave);
+  }
+  sincronizarSelecaoComLista(bibSelecao, vivas);
+  bibSelAtualizarTudo();
+}
+
+/** Entra no modo a partir do menu de contexto, já com a música clicada marcada. */
+function bibSelEntrarModo(chaveInicial = null) {
+  ativarSelecao(bibSelecao, chaveInicial);
+  bibSelAtualizarTudo();
+}
+
+function bibSelCancelarModo() {
+  cancelarSelecao(bibSelecao);
+  bibSelAtualizarTudo();
+}
+
+/** Marca/desmarca a linha. Devolve `true` se o clique foi consumido pelo modo. */
+function bibSelAlternarLinha(linha) {
+  if (!bibSelAtivo()) return false;
+  const chave = bibSelChaveDaLinha(linha);
+  /* Linha do catálogo dentro do modo: o clique morre aqui de propósito — abrir a
+     música a meio de uma marcação seria trocar o ecrã sem o operador pedir. */
+  if (!chave) return true;
+  alternarSelecao(bibSelecao, chave);
+  bibSelPintarMarcadas();
+  bibSelAtualizarBarra();
+  return true;
+}
+
+/** Músicas do lote, na ordem em que foram marcadas, com os dados do render atual. */
+function bibSelMusicasDoLote() {
+  const porChave = new Map();
+  for (const linha of bibSelLinhas()) {
+    const chave = bibSelChaveDaLinha(linha);
+    if (chave && !porChave.has(chave)) porChave.set(chave, bibMusicaDaLinha(linha));
+  }
+  const out = [];
+  for (const chave of chavesSelecionadas(bibSelecao)) {
+    const m = porChave.get(chave);
+    if (m) out.push({ chave, id: idDaChaveSelecao(chave), titulo: m.titulo || '', artista: m.artista || '' });
+  }
+  return out;
+}
+
+/**
+ * Adiciona o lote à playlist do culto.
+ *
+ * Reusa `addMusicaNaPlaylist` uma música de cada vez, de propósito: é essa função que
+ * sabe escolher versão, escolher tema e recusar repetidas. Duplicar essas regras aqui
+ * criava um segundo caminho para a playlist, que mais cedo ou mais tarde divergia do
+ * primeiro. O preço é que as perguntas dela aparecem uma vez por música — o que é
+ * honesto, porque as respostas são mesmo por música.
+ */
+async function bibSelAdicionarLoteNaPlaylist() {
+  if (!bibSelAtivo()) return;
+  const lote = bibSelMusicasDoLote();
+  if (!lote.length) return;
+  /* `addMusicaNaPlaylist` avisa sobre isto sozinha, mas uma vez por música: com um lote
+     de doze seriam doze avisos iguais para dizer a mesma coisa. */
+  if (!cultoId) {
+    alert('Selecione primeiro o dia do culto.');
+    return;
+  }
+  const btn = document.getElementById('bib-selecao-add-playlist');
+  if (btn) btn.disabled = true;
+  try {
+    for (const m of lote) {
+      // eslint-disable-next-line no-await-in-loop
+      await addMusicaNaPlaylist({
+        id: m.id,
+        titulo: m.titulo,
+        artista: m.artista,
+        bancoFonte: 'user',
+      });
+    }
+  } finally {
+    bibSelCancelarModo();
+  }
+}
+
+/** Abre a confirmação já existente, adaptada para dizer quantas músicas vão embora. */
+function bibSelPedirExclusaoDoLote() {
+  if (!bibSelAtivo()) return;
+  const lote = bibSelMusicasDoLote();
+  if (!lote.length) return;
+  if (lote.length === 1) {
+    solicitarRemoverMusicaDoBancoServidor(lote[0].id, lote[0].titulo);
+    return;
+  }
+  solicitarRemoverMusicasDoBancoServidorEmLote(lote);
+}
+
+function configurarBarraSelecaoBiblioteca() {
+  document
+    .getElementById('bib-selecao-add-playlist')
+    ?.addEventListener('click', () => void bibSelAdicionarLoteNaPlaylist());
+  document
+    .getElementById('bib-selecao-excluir')
+    ?.addEventListener('click', () => bibSelPedirExclusaoDoLote());
+  document
+    .getElementById('bib-selecao-cancelar')
+    ?.addEventListener('click', () => bibSelCancelarModo());
 }
 
 function renderizarListaLocal(lista) {
@@ -18536,6 +18926,9 @@ function renderizarListaLocal(lista) {
   }
 
   bibGarantirTeclado();
+  /* A lista acabou de nascer de novo: sem isto, o modo ficava ligado numa lista sem
+     caixas e com chaves a apontar para músicas que já não existem. */
+  bibSelAposRender();
 }
 
 function camposBuscaBiblioteca(m) {
@@ -22719,6 +23112,7 @@ setupSlidesStripContextMenuEEdicaoRapida();
 configurarCamposMetadadosMusicaHome();
 configurarModalPreviewLetras();
 configurarModalExcluirMusica();
+configurarBarraSelecaoBiblioteca();
 configurarModalSyncPlaylist();
 configurarModalNovaMusicaManual();
 configurarSeletorTemaPlaylist();

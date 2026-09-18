@@ -22,14 +22,14 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: local('CMG Sans'), local('CMGSans-Regular'), url('../fonts/CMGSans-Regular.woff2') format('woff2');
+  src: local('CMG Sans'), local('CMGSans-Regular');
 }
 @font-face {
   font-family: 'CMG Sans';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: local('CMG Sans Bold'), local('CMGSans-Bold'), url('../fonts/CMGSans-Bold.woff2') format('woff2');
+  src: local('CMG Sans Bold'), local('CMGSans-Bold');
 }
 
 :root {
@@ -11639,4 +11639,92 @@ body.app-mod-biblia #route-ministrante-dd {
 .op-slide-text,
 .pl-slide-text {
   font-size: var(--fs-card-text-base);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BIBLIOTECA — modo de seleção múltipla
+
+   Tudo aqui está preso a `.lista-sqlite--selecao` ou a `#bib-selecao-barra`:
+   fora do modo, nem uma destas regras chega a aplicar-se, e a lista é
+   exactamente a de sempre. A caixa de seleção nem sequer existe no DOM
+   enquanto o modo está desligado — ver `bibSelAplicarDom` no core.
+
+   A caixa entra como PRIMEIRA coluna da grelha da linha. `.item` é uma
+   grelha de duas colunas (texto | ações); no modo passa a três. Só isso
+   mexe no desenho da linha — o realce, o cartão e a barra dourada ficam
+   como estão, porque continuam presos ao `::before`, que é absoluto.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.lista-sqlite--selecao .item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* Linha que não pode entrar num lote (catálogo, só de leitura): sem caixa, e
+   com o cursor a dizer que ali não há nada a fazer enquanto o modo dura. */
+.lista-sqlite--selecao .item:not([data-bib-sel]) {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.bib-sel-box {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 38%, transparent);
+  background: transparent;
+  color: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.bib-sel-box svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.item[aria-checked='true'] .bib-sel-box {
+  background: var(--bib-ouro, var(--accent));
+  border-color: var(--bib-ouro, var(--accent));
+  color: var(--surface, #14141a);
+}
+
+/* Barra de ações: fora do scroll da lista, como a legenda das origens. */
+.banco-secao-sqlite .bib-selecao-barra {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 calc(-1 * var(--banco-lista-pad-x)) 6px;
+  padding: 7px var(--banco-lista-pad-x);
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--surface2) 60%, transparent);
+}
+.banco-secao-sqlite .bib-selecao-barra[hidden] {
+  display: none !important;
+}
+.banco-secao-sqlite .bib-selecao-contagem {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+  white-space: nowrap;
+}
+.banco-secao-sqlite .bib-selecao-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.banco-secao-sqlite .bib-selecao-acoes .btn {
+  padding: 4px 9px;
+  font-size: 11px;
 }
