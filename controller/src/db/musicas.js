@@ -281,9 +281,13 @@ function inserirCopiaMusica(parentRow, titulo, artista, estrofes, opts = {}) {
 function listarVersoesPorRootId(rootIdRaw) {
   const rootId = parseInt(rootIdRaw, 10);
   if (!Number.isFinite(rootId)) return [];
+  garantirColunaOrigemImportacao();
+  /* `origem_importacao` vai junto só para a UI poder nomear a versão importada
+     («Versão HLYRCS», «Versão LYRA», …) — nada aqui muda o que está gravado. */
   const rows = getDb()
     .prepare(
-      `SELECT id, titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo, criado_em
+      `SELECT id, titulo, artista, estrofes, parent_id, root_id, is_immutable, rotulo,
+              origem_importacao, criado_em
        FROM musicas
        WHERE root_id = ? OR id = ?
        ORDER BY id ASC`

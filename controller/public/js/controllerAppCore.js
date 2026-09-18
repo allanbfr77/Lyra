@@ -8835,7 +8835,7 @@ async function executarFluxoImportarPlaylist(codigoNorm, wrap) {
   const detalhes = [];
   if (substituidas > 0) detalhes.push(`${substituidas} substituída(s) pela versão recebida`);
   if (mantidas > 0) detalhes.push(`${mantidas} mantida(s) como já estavam no banco`);
-  if (copiasImportadas > 0) detalhes.push(`${copiasImportadas} duplicada(s) como «Cópia/Importada»`);
+  if (copiasImportadas > 0) detalhes.push(`${copiasImportadas} duplicada(s) como nova versão do banco de origem`);
   if (detalhes.length) msg += `\n\nConflitos resolvidos: ${detalhes.join('; ')}.`;
 
   // Caso simples auto-fecha; havendo conflitos resolvidos, exige fechar manual.
@@ -10174,7 +10174,28 @@ const ROTULOS_VERSAO_EXIBICAO = new Map([
   ['cópia/manual'.normalize('NFC'), 'Cópia/Manual'],
 ]);
 
-function formatarRotuloVersaoExibicao(rotulo) {
+/** Rótulo gravado na cópia criada por importação (`ROTULO_COPIA_IMPORTADA`). */
+const ROTULO_VERSAO_IMPORTADA_BRUTO = 'cópia/importada'.normalize('NFC');
+
+/**
+ * Nome exibido da versão criada por uma importação: «Versão <BANCO DE ORIGEM>»
+ * — «Versão HLYRCS», «Versão LYRA», «Versão CIFRA CLUB», … O banco sai de
+ * `origem_importacao` (a origem real gravada na linha) e o nome curto é o
+ * mesmo da legenda de origem da Biblioteca (`BIB_ORIGEM_META`).
+ *
+ * Só exibição: o rótulo gravado continua a ser «Cópia/Importada». Sem origem
+ * conhecida devolve '' e quem chama mantém o nome de sempre.
+ */
+function nomeVersaoImportadaPorOrigem(rotulo, origem) {
+  const bruto = String(rotulo || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
+  if (bruto !== ROTULO_VERSAO_IMPORTADA_BRUTO) return '';
+  const meta = BIB_ORIGEM_META[String(origem || '').trim()];
+  return meta && meta.legenda ? `Versão ${meta.legenda}` : '';
+}
+
+function formatarRotuloVersaoExibicao(rotulo, origem) {
+  const importada = nomeVersaoImportadaPorOrigem(rotulo, origem);
+  if (importada) return importada;
   const bruto = String(rotulo || '').trim();
   if (!bruto) return 'Cópia';
   const chave = bruto.normalize('NFC').toLocaleLowerCase('pt-BR');
@@ -10743,7 +10764,7 @@ async function perguntarVersoesPendentesSyncLyra(pendentes) {
     const opcoes = (Array.isArray(p && p.opcoes) ? p.opcoes : []).map((o) => ({
       value: String(o.id),
       label: rotuloVersaoMaiusculo(
-        o.ehOriginal ? 'Original' : formatarRotuloVersaoExibicao(o.rotulo)
+        o.ehOriginal ? 'Original' : formatarRotuloVersaoExibicao(o.rotulo, o.origem)
       ),
     }));
     if (opcoes.length < 2) continue;
@@ -11748,7 +11769,7 @@ async function addMusicaNaPlaylist(meta) {
           const rotulo = String(v.rotulo || '').trim() || 'Cópia';
           opcoesVersao.push({
             value: String(v.id),
-            label: rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(rotulo)),
+            label: rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(rotulo, v.origem_importacao)),
             conteudo: v,
           });
         }
@@ -14613,7 +14634,7 @@ function rotuloVersaoComparativo(v, rootId) {
   const ehOriginal = v.parent_id == null && Number(v.id) === Number(rootId);
   if (ehOriginal) return 'Original';
   const rotulo = String(v.rotulo || '').trim();
-  return formatarRotuloVersaoExibicao(rotulo);
+  return formatarRotuloVersaoExibicao(rotulo, v.origem_importacao);
 }
 
 function comparativoTextarea(lado) {
@@ -19056,7 +19077,7 @@ async function confirmarRemoverVersaoLocal(idMusica, copiaId) {
 }
 
 function rotuloExibicaoVersaoServidor(v) {
-  return formatarRotuloVersaoExibicao(v?.rotulo);
+  return formatarRotuloVersaoExibicao(v?.rotulo, v?.origem_importacao);
 }
 
 /**
@@ -19111,6 +19132,8 @@ const SVG_VERSAO = {
 function iconeVersaoServidorPorRotulo(labelUpper) {
   const s = String(labelUpper || '').normalize('NFC').toLocaleUpperCase('pt-BR');
   if (s.includes('IMPORTAD')) return SVG_VERSAO.importada;
+  /* «VERSÃO <ORIGEM>» é o nome exibido da cópia importada — mesmo ícone. */
+  if (s.startsWith('VERSÃO ')) return SVG_VERSAO.importada;
   /* «CÓPIA/ORIGINAL» é o nome exibido da Cópia padrão — mesmo ícone de sempre. */
   if (s.includes('MODIFICAD') || s === 'CÓPIA' || s === 'COPIA') return SVG_VERSAO.modificada;
   if (s === 'CÓPIA/ORIGINAL' || s === 'COPIA/ORIGINAL') return SVG_VERSAO.modificada;

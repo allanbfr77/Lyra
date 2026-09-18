@@ -52,6 +52,8 @@ export default function ServidorEditScreen() {
   const [pacote, setPacote] = useState(null);
   const [imutavel, setImutavel] = useState(false);
   const [rotulo, setRotulo] = useState('');
+  /* Só para exibir «Versão <ORIGEM>» numa cópia importada. */
+  const [origemVersao, setOrigemVersao] = useState('');
 
   const [titulo, setTitulo] = useState('');
   const [artista, setArtista] = useState('');
@@ -102,6 +104,7 @@ export default function ServidorEditScreen() {
         setSlides(est);
         setImutavel(Number(data.is_immutable) === 1);
         setRotulo(String(data.rotulo || '').trim());
+        setOrigemVersao(String(data.origem_importacao || '').trim());
         setPacote({
           id: String(data.id ?? musicaId),
           titulo: t,
@@ -213,8 +216,10 @@ export default function ServidorEditScreen() {
                 texto="mudar a letra cria uma nova cópia; só título/artista atualizam o original."
               />
 
-              {rotuloVersaoExibicao(rotulo) ? (
-                <Text style={styles.hintRotulo}>Versão: {rotuloVersaoExibicao(rotulo)}</Text>
+              {rotuloVersaoExibicao(rotulo, origemVersao) ? (
+                <Text style={styles.hintRotulo}>
+                  Versão: {rotuloVersaoExibicao(rotulo, origemVersao)}
+                </Text>
               ) : null}
 
               <Text style={styles.label}>TÍTULO</Text>

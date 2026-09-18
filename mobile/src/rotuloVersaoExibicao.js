@@ -14,12 +14,32 @@ const ROTULOS_VERSAO_EXIBICAO = new Map([
 ]);
 
 /**
+ * Nome curto do banco de origem, igual ao da legenda da Biblioteca do painel
+ * (`BIB_ORIGEM_META` em controllerAppCore.js). A versão criada por uma
+ * importação aparece como «Versão <ORIGEM>» — «Versão HLYRCS», «Versão LYRA», …
+ */
+const ORIGEM_NOME_CURTO = new Map([
+  ['banco-local', 'HLYRCS'],
+  ['lyra-online', 'LYRA'],
+  ['cifraclub', 'CIFRA CLUB'],
+  ['letras-mus-br', 'LETRAS.MUS'],
+  ['manual', 'MANUAL'],
+]);
+
+const ROTULO_VERSAO_IMPORTADA_BRUTO = 'cópia/importada'.normalize('NFC');
+
+/**
  * @param {unknown} rotulo
+ * @param {unknown} [origem] valor de `origem_importacao` da versão, quando conhecido
  * @returns {string} nome a exibir ('' quando não há rótulo)
  */
-export function rotuloVersaoExibicao(rotulo) {
+export function rotuloVersaoExibicao(rotulo, origem) {
   const bruto = String(rotulo == null ? '' : rotulo).trim();
   if (!bruto) return '';
   const chave = bruto.normalize('NFC').toLocaleLowerCase('pt-BR');
+  if (chave === ROTULO_VERSAO_IMPORTADA_BRUTO) {
+    const banco = ORIGEM_NOME_CURTO.get(String(origem == null ? '' : origem).trim());
+    if (banco) return `Versão ${banco}`;
+  }
   return ROTULOS_VERSAO_EXIBICAO.get(chave) || bruto;
 }

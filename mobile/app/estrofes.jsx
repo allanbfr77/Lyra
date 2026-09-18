@@ -520,9 +520,9 @@ export default function EstrofesScreen() {
       <View style={styles.musicaHeader}>
         <View style={styles.musicaHeaderTxt}>
           <Text style={styles.musicaTitulo}>{musica.titulo}</Text>
-          {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo) ? (
+          {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo, musica.origem_importacao) ? (
             <Text style={styles.musicaVersao}>
-              {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo)}
+              {rotuloVersaoExibicao(versaoRotuloParam || musica.rotulo, musica.origem_importacao)}
             </Text>
           ) : null}
           {musica.artista ? <Text style={styles.musicaArtista}>{musica.artista}</Text> : null}

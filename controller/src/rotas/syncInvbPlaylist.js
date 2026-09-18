@@ -275,6 +275,8 @@ function opcaoVersaoParaEscolha(row, rootId) {
     id: Number(row.id),
     ehOriginal: Number(row.id) === Number(rootId),
     rotulo: String(row.rotulo || '').trim(),
+    /* Só para o nome exibido: uma cópia importada aparece como «Versão <ORIGEM>». */
+    origem: String(row.origem_importacao || '').trim(),
     titulo: String(row.titulo || '').trim(),
     artista: String(row.artista || '').trim(),
   };

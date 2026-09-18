@@ -38,6 +38,7 @@ const {
   importarMusicaUsuarioNoDb,
   criarMusicaUsuarioNoDb,
   substituirMusicaUsuarioNoDb,
+  listarVersoesPorRootId,
 } = require('./db');
 
 /** Paths mínimos exigidos por `initControllerDatabase`, apontando para tmp. */
@@ -270,4 +271,23 @@ test('entradas inválidas continuam rejeitadas', () => {
     criarMusicaUsuarioNoDb('T', 'A', []).erro,
     'estrofes deve ser um array não vazio'
   );
+});
+
+test('lista de versões leva a origem da importação (nome «Versão <ORIGEM>» na UI)', () => {
+  const db = bancoLimpo();
+  const id = semear(db, 'Galileu', 'Fernandinho');
+
+  const r = importarMusicaUsuarioNoDb('Galileu', 'Fernandinho', ['Outra letra'], {
+    aoDuplicar: 'copiar',
+    origem: 'cifraclub',
+  });
+  assert.strictEqual(r.ok, true);
+
+  const versoes = listarVersoesPorRootId(id);
+  const importada = versoes.find((v) => Number(v.id) === Number(r.id));
+  assert.ok(importada, 'a cópia importada tem de aparecer na lista de versões');
+  /* Identidade interna intacta… */
+  assert.strictEqual(importada.rotulo, 'Cópia/Importada');
+  /* …e a origem disponível para a UI nomear a versão. */
+  assert.strictEqual(importada.origem_importacao, 'cifraclub');
 });
