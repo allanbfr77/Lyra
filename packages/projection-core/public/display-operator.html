@@ -1271,6 +1271,54 @@
       return false;
     }
 
+    /* Transição de imagem pedida pelo emissor (DOCS) — o mesmo tempo do fade da Bíblia. */
+    const AP_FADE_MS_OP = 160;
+
+    /**
+     * Troca a imagem no ar sem passar pelo vazio: a nova entra por cima, transparente, e
+     * só aparece descodificada; a antiga sai depois. O caminho normal limpa o host antes
+     * de desenhar, e era esse intervalo que se via como um pisca preto a cada página.
+     */
+    function trocarImagemApresentacaoComFadeOp(host, src, alt) {
+      const anteriores = Array.from(host.querySelectorAll('img'));
+      const anterior = anteriores[anteriores.length - 1];
+      if (!anterior) return false;
+      /* Mesma página outra vez (re-aplicar estado): fica como está. */
+      if (mesmoSrcMidiaProjecaoOp(anterior, src)) {
+        anteriores.forEach((el) => {
+          if (el !== anterior) el.remove();
+        });
+        return true;
+      }
+      const nova = document.createElement('img');
+      nova.alt = alt;
+      nova.style.position = 'absolute';
+      nova.style.inset = '0';
+      nova.style.opacity = '0';
+      nova.style.transition = `opacity ${AP_FADE_MS_OP}ms ease`;
+      const entrar = () => {
+        if (!nova.isConnected) return;
+        requestAnimationFrame(() => {
+          nova.style.opacity = '1';
+        });
+        setTimeout(() => {
+          if (!nova.isConnected) return;
+          Array.from(host.querySelectorAll('img')).forEach((el) => {
+            if (el !== nova) el.remove();
+          });
+          nova.style.position = '';
+          nova.style.inset = '';
+          nova.style.transition = '';
+        }, AP_FADE_MS_OP + 60);
+      };
+      nova.addEventListener('load', entrar, { once: true });
+      nova.addEventListener('error', entrar, { once: true });
+      nova.src = src;
+      host.appendChild(nova);
+      if (nova.decode) nova.decode().then(entrar).catch(() => {});
+      return true;
+    }
+
     function renderizarMidiaApresentacaoNoHost(host, ap) {
       if (!host) return;
       const p = ap || {};
@@ -1565,7 +1613,15 @@
             const v = elCapaAp.querySelector('video.lyra-ap-video-proj');
             return !!(v && mesmoSrcMidiaProjecaoOp(v, srcAp));
           })();
-        if (!videoJaNoAr) {
+        /* Imagem com transição pedida (DOCS) e já uma no ar: troca por cima, sem limpar
+           o host — mesma razão do `videoJaNoAr` acima, que também salta a limpeza. */
+        const trocaSuaveImagem =
+          kindAp === 'image' &&
+          srcAp &&
+          String(ap.transicao || '') === 'fade' &&
+          !elCapaAp.hidden &&
+          trocarImagemApresentacaoComFadeOp(elCapaAp, srcAp, ap.title ? String(ap.title) : '');
+        if (!videoJaNoAr && !trocaSuaveImagem) {
           limparCapasApresentacaoOuAviso();
           aplicarTituloMusicaAbertura({ modo: 'texto' });
           renderizarMidiaApresentacaoNoHost(elCapaAp, ap);

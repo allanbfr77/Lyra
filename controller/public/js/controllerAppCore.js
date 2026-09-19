@@ -537,6 +537,12 @@ const DOCS_EXTENSOES_ACEITES = ['.ppt', '.pptx', '.pdf', '.doc', '.docx'];
 let docsBiblioteca = [];
 /** Linha escolhida na lista suspensa — por enquanto só destaque e rótulo do botão. */
 let docsSelecionadoId = null;
+/**
+ * A escolha só vale nesta janela do controlador: fechar o Lyra deve deixar o DOCS
+ * sem documento aberto, como a tradução do modo Bíblia. A lista de importados e os
+ * bytes no IndexedDB ficam onde estão — muda só o que está selecionado.
+ */
+const SS_DOCS_SELECIONADO = 'lyra_docs_selecionado_sessao_v1';
 
 function extensaoDoNomeDeArquivo(nome) {
   const n = String(nome || '');
@@ -577,9 +583,8 @@ function carregarDocsBibliotecaDoStorage() {
         size: Number(x.size) || 0,
         filePath: String(x.filePath || ''),
       }));
-    docsSelecionadoId = docsBiblioteca.some((x) => x.id === p?.selecionadoId)
-      ? String(p.selecionadoId)
-      : null;
+    const selSessao = String(sessionStorage.getItem(SS_DOCS_SELECIONADO) || '');
+    docsSelecionadoId = docsBiblioteca.some((x) => x.id === selSessao) ? selSessao : null;
   } catch (_) {
   // intencional — lista corrompida equivale a lista vazia
 }
@@ -589,8 +594,10 @@ function salvarDocsBibliotecaNoStorage() {
   try {
     localStorage.setItem(
       LS_DOCS_BIBLIOTECA,
-      JSON.stringify({ version: 1, selecionadoId: docsSelecionadoId, itens: docsBiblioteca })
+      JSON.stringify({ version: 1, itens: docsBiblioteca })
     );
+    if (docsSelecionadoId) sessionStorage.setItem(SS_DOCS_SELECIONADO, docsSelecionadoId);
+    else sessionStorage.removeItem(SS_DOCS_SELECIONADO);
   } catch (_) {
   // intencional — quota cheia não pode derrubar o painel
 }
@@ -755,9 +762,24 @@ let docsPaginaSelecionada = -1;
 let docsPaginaProjetadaChave = null;
 /** Corrida entre aberturas: só a última manda no que aparece no ecrã. */
 let docsAberturaSeq = 0;
+/*
+ * Corrida entre projeções: só a última manda no telão.
+ *
+ * Cada projeção renderiza a página a 1920px e envia-a por POST — com o teclado a repetir,
+ * várias ficam em voo ao mesmo tempo e a que acabasse mais tarde não era necessariamente
+ * a página mais recente. O painel ficava numa página e o telão noutra.
+ */
+let docsProjecaoSeq = 0;
+/*
+ * Tecla segura (auto-repeat): navega-se a cada passo, o telão só recebe quando a
+ * sequência assenta. Sem isto, correr páginas com a seta disparava dezenas de renders a
+ * 1920px e outros tantos POSTs por segundo, em cima do culto.
+ */
+const DOCS_REPETICAO_PROJECAO_MS = 200;
+let docsProjecaoRepeticaoTimer = null;
 
-/* Acompanha a largura da faixa: desenhar a 150 e esticar para ~230 dava miniatura desfocada. */
-const DOCS_LARGURA_MINIATURA = 230;
+/* Acompanha a largura da faixa: desenhar a 150 e esticar para ~280 dava miniatura desfocada. */
+const DOCS_LARGURA_MINIATURA = 280;
 const DOCS_LARGURA_PREVIA = 1100;
 const DOCS_LARGURA_PROJECAO = 1920;
 
@@ -803,6 +825,11 @@ function docsChavePagina(docId, indice) {
   return `${String(docId || '')}#${Number(indice)}`;
 }
 
+/** Há alguma página deste modo no telão agora? */
+function docsProjecaoNoAr() {
+  return !!docsPaginaProjetadaChave;
+}
+
 function docsItemSelecionado() {
   return docsBiblioteca.find((x) => x && x.id === docsSelecionadoId) || null;
 }
@@ -815,6 +842,7 @@ function docsMensagemPreviewVazio(texto) {
     img.hidden = true;
     img.removeAttribute('src');
   }
+  docsEncerrarSaidaPrevia();
   if (vazio) {
     vazio.hidden = false;
     vazio.textContent = texto;
@@ -828,6 +856,7 @@ function docsMensagemPreviewVazio(texto) {
 
 /** Fecha o documento aberto e limpa faixa, prévia e contador. */
 function docsFecharDocumentoAberto() {
+  docsCancelarProjecaoAdiada();
   if (docsDocumentoAberto) {
     try { docsDocumentoAberto.destruir(); } catch (_) {
   // intencional — erro ignorado
@@ -976,9 +1005,18 @@ function renderFaixaPaginasDocs() {
     num.className = 'docs-miniatura-num';
     num.textContent = String(i + 1);
     botao.appendChild(num);
-    /* Um clique escolhe; dois projetam — o mesmo par de gestos da grelha de slides. */
+    /*
+     * Parado: um clique escolhe, dois projetam — o par de gestos da grelha de slides.
+     * No ar: um clique já projeta.
+     *
+     * A troca é o que separa preparar de conduzir. Antes da primeira projeção, clicar é
+     * espreitar, e o duplo clique é a decisão de pôr no telão; depois disso o operador
+     * está a passar páginas ao vivo, e exigir-lhe dois cliques por página era pedir-lhe
+     * o dobro do trabalho no pior momento para o ter.
+     */
     botao.addEventListener('click', () => {
-      void selecionarPaginaDocs(i);
+      if (docsProjecaoNoAr()) void projetarPaginaDocs(i);
+      else void selecionarPaginaDocs(i);
     });
     botao.addEventListener('dblclick', () => {
       void projetarPaginaDocs(i);
@@ -1048,6 +1086,55 @@ function atualizarNavegacaoDocs() {
   if (proxima) proxima.disabled = !total || docsPaginaSelecionada >= total - 1;
 }
 
+/* Troca de página na prévia: a nova só aparece descodificada e a antiga sai por cima,
+   a desvanecer. Mesma duração do fade da Bíblia no monitor do ministrante. */
+const DOCS_FADE_PREVIA_MS = 160;
+let docsSaidaPreviaTimer = null;
+
+/** Descodifica a página fora do ecrã: trocar o `src` sem isto pisca um quadro vazio. */
+async function docsPrepararImagemPrevia(src) {
+  const pronta = new Image();
+  pronta.src = src;
+  try {
+    if (pronta.decode) await pronta.decode();
+  } catch (_) {
+  // intencional — imagem que não descodifica segue pelo caminho normal
+}
+}
+
+/** Esconde a camada de saída — troca terminada, documento fechado ou prévia vazia. */
+function docsEncerrarSaidaPrevia() {
+  if (docsSaidaPreviaTimer) {
+    clearTimeout(docsSaidaPreviaTimer);
+    docsSaidaPreviaTimer = null;
+  }
+  const saida = document.getElementById('docs-preview-img-saida');
+  if (!saida) return;
+  saida.hidden = true;
+  saida.classList.remove('a-sair');
+  saida.removeAttribute('src');
+}
+
+/** Copia a página que está no lugar para a camada de saída e manda-a desvanecer. */
+function docsIniciarSaidaPrevia(img) {
+  const saida = document.getElementById('docs-preview-img-saida');
+  const preview = document.getElementById('docs-preview');
+  if (!saida || !preview || !img || img.hidden || !img.getAttribute('src')) return;
+  const r = img.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const rp = preview.getBoundingClientRect();
+  if (docsSaidaPreviaTimer) clearTimeout(docsSaidaPreviaTimer);
+  saida.classList.remove('a-sair');
+  saida.style.left = `${r.left - rp.left - preview.clientLeft}px`;
+  saida.style.top = `${r.top - rp.top - preview.clientTop}px`;
+  saida.style.width = `${r.width}px`;
+  saida.style.height = `${r.height}px`;
+  saida.src = img.src;
+  saida.hidden = false;
+  requestAnimationFrame(() => saida.classList.add('a-sair'));
+  docsSaidaPreviaTimer = setTimeout(docsEncerrarSaidaPrevia, DOCS_FADE_PREVIA_MS + 60);
+}
+
 /** Um clique: escolhe a página e mostra-a no centro. Não projeta. */
 async function selecionarPaginaDocs(indice, opts = {}) {
   const i = Number(indice);
@@ -1067,6 +1154,9 @@ async function selecionarPaginaDocs(indice, opts = {}) {
   const img = document.getElementById('docs-preview-img');
   const vazio = document.getElementById('docs-preview-vazio');
   if (img) {
+    await docsPrepararImagemPrevia(render.src);
+    if (seq !== docsAberturaSeq || docsPaginaSelecionada !== i) return;
+    docsIniciarSaidaPrevia(img);
     img.src = render.src;
     img.alt = `Página ${i + 1}`;
     img.hidden = false;
@@ -1075,10 +1165,35 @@ async function selecionarPaginaDocs(indice, opts = {}) {
   aplicarEstadoVisualPaginasDocs();
 }
 
-function navegarPaginaDocs(passo) {
+/** Cancela a projeção adiada de uma sequência de teclas repetidas. */
+function docsCancelarProjecaoAdiada() {
+  if (!docsProjecaoRepeticaoTimer) return;
+  clearTimeout(docsProjecaoRepeticaoTimer);
+  docsProjecaoRepeticaoTimer = null;
+}
+
+function navegarPaginaDocs(passo, opts = {}) {
   if (!docsPaginas.length) return;
   const destino = docsPaginaSelecionada + Number(passo);
   if (destino < 0 || destino >= docsPaginas.length) return;
+  docsCancelarProjecaoAdiada();
+  /*
+   * `projetarSeNoAr`: com projeção no ar a página nova vai já ao telão, a mesma regra do
+   * clique na miniatura — depois de iniciada a projeção não se pede outro duplo clique.
+   */
+  if (opts.projetarSeNoAr && docsProjecaoNoAr()) {
+    /* Passo de tecla repetida: o painel acompanha, o telão espera o fim da corrida. */
+    if (opts.repetir) {
+      void selecionarPaginaDocs(destino);
+      docsProjecaoRepeticaoTimer = setTimeout(() => {
+        docsProjecaoRepeticaoTimer = null;
+        void projetarPaginaDocs(docsPaginaSelecionada);
+      }, DOCS_REPETICAO_PROJECAO_MS);
+      return;
+    }
+    void projetarPaginaDocs(destino);
+    return;
+  }
   void selecionarPaginaDocs(destino);
 }
 
@@ -1099,6 +1214,17 @@ async function sincronizarRotaDocsNoServidor() {
 async function projetarPaginaDocs(indice) {
   const i = Number(indice);
   if (!docsDocumentoAberto || !Number.isInteger(i) || i < 0 || i >= docsPaginas.length) return;
+  /*
+   * Já está no ar: não se reenvia.
+   *
+   * Com o clique a projetar, um duplo clique dispara clique + clique + duplo clique, e
+   * sem esta guarda a mesma página seguia três vezes para o servidor.
+   */
+  if (docsPaginaProjetadaChave === docsChavePagina(docsDocumentoAbertoId, i)) {
+    if (docsPaginaSelecionada !== i) await selecionarPaginaDocs(i);
+    return;
+  }
+  const seqProj = ++docsProjecaoSeq;
   if (docsPaginaSelecionada !== i) await selecionarPaginaDocs(i);
   const rota = normalizarRota(rotasPorModo.docs);
   if (!rota.live && rota.publicoIndex < 0 && rota.ministranteIndex < 0) {
@@ -1118,21 +1244,28 @@ async function projetarPaginaDocs(indice) {
     await appAlert('Não foi possível preparar esta página para projeção.', 'DOCS');
     return;
   }
+  /* Já há uma projeção mais recente a caminho: esta morre aqui, sem tocar no telão. */
+  if (seqProj !== docsProjecaoSeq) return;
   const ok = await emitirApresentacao({
     kind: 'image',
     src: render.src,
     mime: 'image/jpeg',
     name: item ? item.name : 'Documento',
     title: item ? `${item.name} — página ${i + 1}` : `Página ${i + 1}`,
+    /* Só o DOCS pede o fade: a página nova entra por cima da que está no ar, em vez de
+       o telão ficar um instante preto entre uma e outra. O Mídias continua sem ele. */
+    transicao: 'fade',
     alvoProjecao,
   });
-  if (!ok) return;
+  if (!ok || seqProj !== docsProjecaoSeq) return;
   docsPaginaProjetadaChave = docsChavePagina(docsDocumentoAbertoId, i);
   aplicarEstadoVisualPaginasDocs();
 }
 
 /** Tira do ar o que o DOCS projetou, sem mexer no que os outros modos tenham. */
 async function encerrarProjecaoPaginaDocs() {
+  /* Encerrar ganha sempre à tecla: uma projeção adiada não pode reacender o telão. */
+  docsCancelarProjecaoAdiada();
   if (!docsPaginaProjetadaChave) return;
   const alvo = obterAlvoProjecaoDeRota(rotasPorModo.docs);
   const canais = canaisParaEncerrarConteudoApresentacao(alvo, null);
@@ -1149,8 +1282,20 @@ async function encerrarProjecaoPaginaDocs() {
  */
 function encerrarRotaModoDocs() {
   if (!ehModoDocsOperador()) return;
+  /* O alvo dos canais é lido aqui dentro, antes de qualquer espera — por isso a rota pode
+     ser largada logo a seguir sem apanhar o encerramento a meio. */
   void encerrarProjecaoPaginaDocs();
-  rotasPorModo.docs = rotaDesativada();
+  /*
+   * «Lembrar monitor» ligado: encerrar tira o que está no ar e mais nada.
+   *
+   * Largar a rota punha o seletor em «Não exibir» — ou seja, a caixa prometia guardar a
+   * escolha e o botão ao lado dela apagava-a. A memória continua a valer só à entrada no
+   * modo; o que muda aqui é a rota em vigor deixar de ser limpa quando o operador disse
+   * que quer aquele monitor.
+   */
+  if (!lembrarMonitorLigado(hostChaveMonitores(), 'docs')) {
+    rotasPorModo.docs = rotaDesativada();
+  }
   void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
 }
 
@@ -23639,6 +23784,28 @@ document.addEventListener('keydown', (e) => {
     if (ehModoBibliaOperador() && bibliaTratarKeydownModo(e)) return;
     return;
   }
+  /*
+   * DOCS: setas e passador sem fio andam nas páginas do documento aberto.
+   *
+   * Só as quatro teclas pedidas — as restantes do passador (Enter, Espaço, Backspace)
+   * ficam de fora de propósito: no DOCS elas pertencem aos botões e à lista. Campos de
+   * texto já saíram no bloco acima; `isContentEditable` cobre o que venha a ser editável
+   * aqui mais tarde. Os limites e o auto scroll são os de `navegarPaginaDocs`.
+   */
+  if (ehModoDocsOperador() && !e.target?.isContentEditable) {
+    const passoDocs =
+      e.key === 'ArrowRight' || e.key === 'PageDown'
+        ? 1
+        : e.key === 'ArrowLeft' || e.key === 'PageUp'
+          ? -1
+          : 0;
+    if (passoDocs !== 0) {
+      e.preventDefault();
+      navegarPaginaDocs(passoDocs, { projetarSeNoAr: true, repetir: !!e.repeat });
+      return;
+    }
+  }
+
   if (bibliaTratarKeydownModo(e)) return;
 
   const dirPassador = direcaoTeclaPassadorSlides(e.key, e.code);
@@ -23703,6 +23870,18 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       slidesRailUserRecolhido = true;
       encerrarProjecaoDoControlador({ limparMusica: true });
+      return;
+    }
+    /*
+     * DOCS: o ESC faz o mesmo que o «Encerrar» do cabeçalho, como na Bíblia e no Slides —
+     * é a tecla de pânico durante o culto. Sem nada no ar não faz nada: largar o monitor
+     * escolhido por um ESC distraído seria pior do que não responder.
+     */
+    if (ehModoDocsOperador()) {
+      if (docsPaginaProjetadaChave) {
+        e.preventDefault();
+        encerrarRotaModoDocs();
+      }
       return;
     }
     /*
@@ -23905,8 +24084,14 @@ document.getElementById('apresentacao-add-audio-input')?.addEventListener('chang
 });
 document.getElementById('apresentacao-menu-add')?.addEventListener('click', () => escolherArquivoModoApresentacao());
 document.getElementById('docs-menu-add')?.addEventListener('click', () => escolherArquivoModoDocs());
-document.getElementById('docs-nav-anterior')?.addEventListener('click', () => navegarPaginaDocs(-1));
-document.getElementById('docs-nav-proxima')?.addEventListener('click', () => navegarPaginaDocs(1));
+/* Mesma regra do clique na miniatura e do teclado: com projeção no ar, a página nova vai
+   ao telão; parado, os botões só escolhem. */
+document
+  .getElementById('docs-nav-anterior')
+  ?.addEventListener('click', () => navegarPaginaDocs(-1, { projetarSeNoAr: true }));
+document
+  .getElementById('docs-nav-proxima')
+  ?.addEventListener('click', () => navegarPaginaDocs(1, { projetarSeNoAr: true }));
 /* Dois cliques na prévia central projetam a página escolhida — os mesmos gestos das
    miniaturas, para o operador não ter de pensar em que metade do ecrã está. */
 document.getElementById('docs-preview')?.addEventListener('dblclick', () => {

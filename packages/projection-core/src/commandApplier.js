@@ -158,6 +158,9 @@ function estadoPublicoOverrideDePayloadApresentacao(estadoAtual, payload) {
       kind: kindMidia,
       src,
       title: String(pl.title || pl.name || 'Apresentação'),
+      /* Pedido de transição do emissor (hoje só o DOCS, `fade`). Ausente = troca seca,
+         como sempre foi no Mídias; a chave nem entra no objecto nesse caso. */
+      ...(String(pl.transicao || '') === 'fade' ? { transicao: 'fade' } : {}),
     },
   };
 }
@@ -276,6 +279,7 @@ function ministranteOverrideDePayloadApresentacao(payload) {
       kind: kindMidia,
       src,
       title: String(pl.title || pl.name || 'Apresentação'),
+      ...(String(pl.transicao || '') === 'fade' ? { transicao: 'fade' } : {}),
     },
   };
 }

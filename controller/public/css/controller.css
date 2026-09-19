@@ -7732,7 +7732,7 @@ body.app-mod-docs #painel-modo-docs {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr) 280px;
+  grid-template-columns: 300px minmax(0, 1fr) 280px;
   gap: 0 16px;
 }
 #painel-modo-docs .docs-menu {
@@ -7895,6 +7895,28 @@ body.app-mod-docs #painel-modo-docs {
   border-radius: 4px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
   cursor: pointer;
+}
+/*
+  Camada de saída da prévia — só existe durante a troca de página.
+
+  A página nova só entra depois de descodificada (ver `selecionarPaginaDocs`), e é esta
+  cópia da página anterior, por cima e a desvanecer, que cobre o intervalo. Sem ela a
+  troca deixava ver o fundo do quadro entre uma página e a outra. A geometria vem do JS:
+  é a da imagem que estava no lugar, para as duas ficarem exactamente sobrepostas.
+*/
+.docs-preview-img-saida {
+  position: absolute;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+.docs-preview-img-saida.a-sair {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .docs-preview-img-saida {
+    transition: none;
+  }
 }
 .docs-preview-vazio {
   max-width: 420px;

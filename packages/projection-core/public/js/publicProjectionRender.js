@@ -364,6 +364,62 @@ function attachPublicProjectionRender(ctx) {
     return false;
   }
 
+  /* Transição de imagem pedida pelo emissor (DOCS). O mesmo tempo do fade da Bíblia. */
+  const AP_FADE_MS = 160;
+
+  /**
+   * Troca a imagem no ar sem passar pelo vazio.
+   *
+   * O caminho normal limpa o host e só depois mete a imagem nova — entre as duas coisas o
+   * telão pinta o fundo preto do host, e numa sequência de páginas isso lê-se como um
+   * pisca a cada avanço. Aqui a imagem nova entra por cima, transparente, e só quando já
+   * está descodificada é que aparece; a antiga fica por baixo até ao fim e sai então.
+   *
+   * Devolve `false` quando não há imagem anterior para cobrir — nesse caso segue o
+   * caminho normal, que é o de sempre.
+   */
+  function trocarImagemApresentacaoComFade(host, src, alt) {
+    if (host.hidden) return false;
+    const anteriores = Array.from(host.querySelectorAll('img'));
+    const anterior = anteriores[anteriores.length - 1];
+    if (!anterior) return false;
+    /* Mesma página a chegar outra vez (re-aplicar estado, `display_config`): fica como
+       está — recriar a imagem era o que fazia o telão piscar sem nada ter mudado. */
+    if (mesmoSrcMidiaProjecao(anterior, src)) {
+      anteriores.forEach((el) => {
+        if (el !== anterior) el.remove();
+      });
+      return true;
+    }
+    const nova = ctx.document.createElement('img');
+    nova.alt = alt;
+    nova.style.position = 'absolute';
+    nova.style.inset = '0';
+    nova.style.opacity = '0';
+    nova.style.transition = `opacity ${AP_FADE_MS}ms ease`;
+    const entrar = () => {
+      if (!nova.isConnected) return;
+      requestAnimationFrame(() => {
+        nova.style.opacity = '1';
+      });
+      setTimeout(() => {
+        if (!nova.isConnected) return;
+        Array.from(host.querySelectorAll('img')).forEach((el) => {
+          if (el !== nova) el.remove();
+        });
+        nova.style.position = '';
+        nova.style.inset = '';
+        nova.style.transition = '';
+      }, AP_FADE_MS + 60);
+    };
+    nova.addEventListener('load', entrar, { once: true });
+    nova.addEventListener('error', entrar, { once: true });
+    nova.src = src;
+    host.appendChild(nova);
+    if (nova.decode) nova.decode().then(entrar).catch(() => {});
+    return true;
+  }
+
   function renderizarApresentacaoMedia(ap) {
     const host = ctx.elApresentacaoMedia;
     if (!host) return;
@@ -380,6 +436,13 @@ function attachPublicProjectionRender(ctx) {
       const existente = host.querySelector('video.lyra-ap-video-proj');
       if (existente && !host.hidden && mesmoSrcMidiaProjecao(existente, src)) {
         host.hidden = false;
+        return;
+      }
+    }
+
+    /* Imagem com transição pedida (DOCS): entra por cima da que está no ar. */
+    if (kind === 'image' && src && String(p.transicao || '') === 'fade') {
+      if (trocarImagemApresentacaoComFade(host, src, p.title ? String(p.title) : 'Imagem da apresentação')) {
         return;
       }
     }
