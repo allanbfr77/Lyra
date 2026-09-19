@@ -190,19 +190,19 @@
     cabeçalho claro não se veria.
 
     Contraste medido contra o fundo do cabeçalho (texto pequeno, mínimo AA 4.5:1):
-      claro  home 16.08 · contador 5.29 · bíblia 5.22 · slide 5.19
-             mídias 5.22 · voz 5.26 · ajustes 5.30
+      claro  home 16.08 · contador 5.22 · bíblia 5.29 · slide 5.19
+             mídias 5.22 · voz 6.47 · ajustes 5.30
   */
   --nav-color-home: #1f1f1f;
-  --nav-color-contador: #8b6225;
-  --nav-color-biblia: #b24942;
+  --nav-color-contador: #b24942;
+  --nav-color-biblia: #8b6225;
   --nav-color-slide: #257956;
   --nav-color-midias: #735fa7;
-  --nav-color-docs: #2f6b4f;
+  --nav-color-docs: #2f62ac;
   /* Seleção da página na faixa do DOCS — azul forte, contra miniatura branca. */
   --docs-selecao: #1558c4;
-  --nav-color-voz: #ac4676;
-  --nav-color-ajustes: #317283;
+  --nav-color-voz: #5c5c63;
+  --nav-color-ajustes: #9e5171;
 
   /* Estado inactivo — igual nos dois temas (4.61:1 no claro, 3.15:1 no escuro). */
   --nav-item-inativo: #6b6b6b;
@@ -9355,26 +9355,26 @@ html.dark {
 
     Medidos contra o fundo real por trás da barra, que desde que a pílula saiu é o
     do próprio cabeçalho (#232328) e não mais o fundo escuro que ela pintava:
-      home 15.64 · contador 7.25 · bíblia 4.52 · slide 7.42
-      mídias 5.18 · voz 4.90 · ajustes 6.81
+      home 15.64 · contador 4.52 · bíblia 7.25 · slide 7.42
+      mídias 5.18 · voz 6.78 · ajustes 5.36
 
     A Home é branca — a secção de partida, e a única sem matiz próprio: o branco
     é o que sobra quando se quer o item mais forte da fila sem lhe dar uma cor que
     depois falte a outra secção.
 
-    A bíblia é a única que saiu do valor pedido: #D4574F dá 4.20:1 contra este
-    fundo, abaixo do mínimo AA para texto pequeno como o da legenda. Está clareada
+    O contador é o único que saiu do valor pedido: #D4574F dá 4.20:1 contra este
+    fundo, abaixo do mínimo AA para texto pequeno como o da legenda. Está clareado
     10% — mesma cor à vista, agora acima da linha.
   */
   --nav-color-home: #ffffff;
-  --nav-color-contador: #E8A33E;
-  --nav-color-biblia: #d86861;
+  --nav-color-contador: #d86861;
+  --nav-color-biblia: #E8A33E;
   --nav-color-slide: #3EC98F;
   --nav-color-midias: #A084E8;
-  --nav-color-docs: #6FC49A;
+  --nav-color-docs: #5F94F2;
   --docs-selecao: #5aa3ff;
-  --nav-color-voz: #E85FA0;
-  --nav-color-ajustes: #4FB8D4;
+  --nav-color-voz: #AAAAB2;
+  --nav-color-ajustes: #D879A4;
 
   /* ── Cores semânticas por modo (tema escuro — contraste elevado) ── */
   --mode-home: #bda487;
