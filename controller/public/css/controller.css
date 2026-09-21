@@ -2259,7 +2259,8 @@ body.app-mod-slides .slide-nota-cluster {
 }
 
 .playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-hint,
-.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-body {
+.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-body,
+.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-nav {
   display: none !important;
 }
 
@@ -2276,7 +2277,10 @@ body.app-mod-slides .slide-nota-cluster {
 .playlist-preview-body {
   background: #050505;
   padding: 14px 12px;
-  height: 280px;
+  /* Cedeu ~52px (a altura da faixa .playlist-preview-nav, abaixo) pras setas
+     de navegação e o Sair, que vieram da toolbar de edição pra cá — ficam ao
+     lado da prévia que eles controlam, sem precisar mexer no card todo. */
+  height: 228px;
   flex-shrink: 0;
   overflow: hidden;
   display: flex;
@@ -2318,6 +2322,45 @@ body.app-mod-slides .slide-nota-cluster {
   overflow: hidden;
   word-break: normal;
 }
+
+/* Setas de navegação e Sair, movidos da toolbar de edição pra cá: ficam ao
+   lado da prévia que eles realmente controlam, sempre à mão sem precisar
+   olhar pra barra central. Mesma faixa clara que já encaixa a prévia entre
+   o cabeçalho e a dica (ver `.playlist-preview-head` / `.playlist-preview-hint`
+   acima) — o vídeo escuro fica ladeado por essas bandas, nunca colado nelas.
+   Retrai junto com o corpo da prévia em «Ocultar prévia» (ver a regra
+   `.playlist-preview-card--corpo-oculto` acima) — sem a miniatura visível,
+   navegar slide a slide ali também deixa de fazer sentido. */
+.playlist-preview-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--toolbar-btn-gap);
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
+}
+.playlist-preview-nav .nav-setas {
+  display: flex;
+  align-items: center;
+  gap: var(--toolbar-btn-gap);
+}
+.playlist-preview-nav #btn-sair-projecao {
+  margin-left: auto;
+}
+/* Mesmas dimensões compactas da toolbar de edição (altura, padding, ícone) —
+   as duas barras leem como o mesmo sistema. */
+.playlist-preview-nav .btn {
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 12px;
+  border-width: 1px;
+  font-size: calc(var(--fs-caption-base) - 1px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.playlist-preview-nav .btn svg { width: 16px; height: 16px; flex-shrink: 0; display: block; }
+.playlist-preview-nav .btn.btn-nav-seta { padding: 0 8px; }
 
 /*
   Balão das dicas de texto truncado (`modules/dicaTexto.js`).
@@ -3338,30 +3381,28 @@ body:not(.app-mod-slides) .centro-col-letras {
   /* Fileira ganhou mais itens (menu padrão) — gap um pouco mais apertado só
      aqui (mais específico que `.centro-toolbar-row`, que continua a valer
      para a fila de título/artista) para ajudar tudo a caber numa linha. */
-  gap: 5px;
+  gap: 4px;
+  /* Nunca quebra para uma segunda linha: `.centro-toolbar-row` (base
+     partilhada com a fileira de título/artista) usa `flex-wrap: wrap`, mas
+     aqui isso é sobreposto — a fileira de ações deve caber sempre numa
+     única linha, reduzindo botões (ver `.btn`, `.btn-item-menu` e o
+     `@container` mais abaixo) em vez de quebrar. `overflow-x: auto` é só
+     uma rede de segurança para larguras extremas (ex.: janela muito
+     estreita com sidebar aberta) — não deve entrar em uso no dia a dia. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   /* Container query (ver mais abaixo), e não `@media`: o que aperta o
      espaço é a largura desta barra, não a da janela — a sidebar abre/fecha
      sem o viewport mudar de tamanho. */
   container-type: inline-size;
   container-name: toolbar-acoes;
 }
-/* Grupo sessão (Cancelar, Salvar alterações, Sair), empurrado para a borda
-   direita: o resto da barra (edição + visualização/navegação) fica à
-   esquerda; `margin-left: auto` abre o vazio que separa as duas metades. */
-.centro-toolbar-acoes .centro-toolbar-direita {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--toolbar-btn-gap);
-}
-/* Setas de navegação (anterior/próxima): vivem dentro do grupo de
-   visualização/navegação, com o mesmo respiro entre si que os demais
-   botões da fila. */
-.centro-toolbar-acoes .nav-setas {
-  display: flex;
-  align-items: center;
-  gap: var(--toolbar-btn-gap);
-}
+/* Cancelar e Salvar alterações deixaram de formar um grupo isolado à
+   direita (sem `margin-left: auto`, sem wrapper próprio): agora são só mais
+   dois itens da mesma fileira, com o mesmo `gap` dos demais — não fazia
+   sentido destacá-los do resto do menu. As setas de navegação e o Sair já
+   tinham saído daqui antes — vivem em `.playlist-preview-nav`, ao lado da
+   prévia que controlam (ver css/controller.css, seção da playlist). */
 
 /**
  * Estado vazio (nenhuma música ativa): todos os botões desta linha já se
@@ -3380,8 +3421,9 @@ body:not(.app-mod-slides) .centro-col-letras {
   /* Menu padrão ganhou mais itens — fonte e espaçamento reduzidos moderadamente
      (só nesta barra) para tentar caber tudo numa única fileira, sem prejudicar
      leitura/clique. `.centro-toolbar-row` continua com os valores normais para
-     as demais barras do app. */
-  font-size: calc(var(--fs-caption-base) - 1px);
+     as demais barras do app. Reduzido de novo (fonte, padding, gap) para a
+     fileira nunca precisar de quebrar linha (ver `flex-wrap: nowrap` acima). */
+  font-size: calc(var(--fs-caption-base) - 2px);
   letter-spacing: 0;
   /* Altura, padding e espessura de borda únicos para as 5 variantes desta
      barra (neutra, dourada ativa, perigo, preenchida, ícone-só). Antes cada
@@ -3393,11 +3435,26 @@ body:not(.app-mod-slides) .centro-col-letras {
      soma), o padding e o conteúdo interno deixam de decidir a altura. */
   box-sizing: border-box;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 9px;
   border-width: 1px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+}
+/* Largura única para os botões «de menu» (ação com texto — não as setas de
+   navegação, que já saíram daqui, nem o ícone aA). Sem isso, o próprio
+   «Letra Completa» empurrava todos os botões à sua direita sempre que
+   virava «Grade/Slide» (texto mais curto) e voltava — a fileira inteira
+   «pulava» a cada clique. `min-width` (não `width`) porque garante o piso
+   sem nunca cortar texto: se algum rótulo precisar de mais que isto, só
+   aquele botão cresce, os outros continuam estáveis. O valor cobre o maior
+   rótulo do grupo («Salvar alterações») com ícone e padding à vontade.
+   `justify-content: center` porque o conteúdo (ícone + texto) é sempre mais
+   estreito que a largura reservada — sem isso ficaria colado à esquerda,
+   com a folga toda de um lado só, em vez de ler como uma grade. */
+.centro-toolbar-acoes .btn-item-menu {
+  min-width: 150px;
+  justify-content: center;
 }
 /* Ícone SVG de cada ação: mesmo tamanho e alinhamento em todos os botões. */
 .centro-toolbar-acoes .btn svg { width: 16px; height: 16px; flex-shrink: 0; display: block; }
@@ -3411,8 +3468,6 @@ body:not(.app-mod-slides) .centro-col-letras {
   line-height: 0;
 }
 .centro-toolbar-acoes .btn .btn-txt { line-height: 1.2; }
-/* Setas de navegação: só ícone, mais compactas. */
-.centro-toolbar-acoes .btn.btn-nav-seta { padding: 0 8px; }
 
 /* Hierarquia da barra: só «Salvar alterações» tem preenchimento sólido —
    é a única ação primária da tela. Os demais botões deste grupo
@@ -3489,11 +3544,12 @@ body:not(.app-mod-slides) .centro-col-letras {
   color: var(--surface);
 }
 
-/* Ações destrutivas/de saída (Apagar versão, Sair): usam a classe base
-   `.btn.danger` diretamente — contorno e texto na cor de perigo já em
-   repouso, sem preenchimento sólido até o hover (que já vem de
-   `.btn.danger:hover`). Sinalizam de cara que são irreversíveis ou encerram
-   a sessão, sem competir com «Salvar alterações» por um fundo cheio. */
+/* Ação destrutiva (Apagar versão): usa a classe base `.btn.danger`
+   diretamente — contorno e texto na cor de perigo já em repouso, sem
+   preenchimento sólido até o hover (que já vem de `.btn.danger:hover`).
+   Sinaliza de cara que é irreversível, sem competir com «Salvar alterações»
+   por um fundo cheio. (O Sair usa a mesma classe, mas mora agora em
+   `.playlist-preview-nav`, ao lado da prévia — ver css da playlist.) */
 
 /* «Editar letra»: estado de aba/seção ativa. Fundo dourado bem sutil +
    borda dourada, texto na cor de destaque — mais fraco que o preenchimento
@@ -3525,19 +3581,22 @@ body:not(.app-mod-slides) .centro-col-letras {
 }
 
 /* Espaço apertado (sidebar aberta, tela menor): os botões secundários do
-   grupo de visualização (Letra Completa, Comparativo, +Slide) caem para
-   ícone + tooltip antes de a fileira quebrar linha. «Editar letra» e o
-   grupo de sessão mantêm o texto sempre — são os que não podem virar ícone
-   sozinho sem custo de leitura. Container query porque quem aperta o
-   espaço é a largura desta barra (`container-type` em
-   `.centro-toolbar-acoes`, acima), não a da janela. */
-@container toolbar-acoes (max-width: 640px) {
+   grupo de visualização (Letra Completa, Comparativo, Slide vazio) caem
+   para ícone + tooltip antes de a fileira quebrar linha — e voltam a ter
+   largura livre (`min-width` do `.btn-item-menu`, abaixo, não se aplica
+   mais aqui), já que um ícone sozinho não precisa da largura reservada
+   para o maior texto. Os demais botões do menu mantêm o texto e a largura
+   sempre — são os que não podem virar ícone sozinho sem custo de leitura.
+   Container query porque quem aperta o espaço é a largura desta barra
+   (`container-type` em `.centro-toolbar-acoes`, acima), não a da janela. */
+@container toolbar-acoes (max-width: 1300px) {
   .centro-toolbar-acoes .btn-modo-secundario .btn-txt {
     display: none;
   }
   .centro-toolbar-acoes .btn-modo-secundario {
     padding: 0 8px;
     gap: 0;
+    min-width: 0;
   }
 }
 

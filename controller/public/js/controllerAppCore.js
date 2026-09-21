@@ -15168,7 +15168,7 @@ function atualizarToolbarModoEdicao() {
   const metadadosEditaveis = metadadosMusicaEditaveisNaHome();
   const tituloEditavel = tituloMusicaEditavelNaHome();
   document.getElementById('btn-editar-letra').style.display = m ? '' : 'none';
-  document.getElementById('btn-editar-letra').disabled = !m || ed || full || comp;
+  document.getElementById('btn-editar-letra').disabled = !m || full || comp;
   document.getElementById('btn-nova-estrofe').style.display = m ? '' : 'none';
   document.getElementById('btn-nova-estrofe').disabled = !m || !ed;
   const bAnt = document.getElementById('btn-seta-anterior');
@@ -15195,20 +15195,21 @@ function atualizarToolbarModoEdicao() {
   /* Ações contextuais da cópia (Editar tag / Apagar esta versão): só aparecem
      quando há uma cópia selecionada (não ORIGINAL) — somem, não ficam
      desabilitadas por isso. Isso vale nos dois modos da barra padrão (Grade/Slide
-     e Letra Completa) igualmente. Já durante a edição por estrofes ou o modo
-     comparativo elas continuam no lugar, só desabilitadas — a versão selecionada
-     não muda, só não é hora de mexer nela. */
+     e Letra Completa) igualmente, mesmo durante a edição por estrofes — só o
+     modo comparativo (tela de edição exclusiva, sem a versão selecionada à
+     vista) as desabilita: a versão selecionada não muda, só não é hora de
+     mexer nela por cima do comparativo. */
   const copiaSel = versaoCopiaSelecionadaAtual();
   const mostrarAcoesCopia = !!copiaSel;
   const btnEditarNome = document.getElementById('btn-editar-nome-versao');
   const btnApagarCopia = document.getElementById('btn-apagar-copia-versao');
   if (btnEditarNome) {
     btnEditarNome.style.display = mostrarAcoesCopia ? '' : 'none';
-    btnEditarNome.disabled = !mostrarAcoesCopia || ed || comp;
+    btnEditarNome.disabled = !mostrarAcoesCopia || comp;
   }
   if (btnApagarCopia) {
     btnApagarCopia.style.display = mostrarAcoesCopia ? '' : 'none';
-    btnApagarCopia.disabled = !mostrarAcoesCopia || ed || comp;
+    btnApagarCopia.disabled = !mostrarAcoesCopia || comp;
   }
   const sep1 = document.getElementById('toolbar-sep-1');
   if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
@@ -15702,6 +15703,39 @@ function cancelarModoLetraCompletaCentral() {
 }
 
 /**
+ * «Cancelar» da barra padrão, quando clicado na Letra Completa: descarta o texto
+ * digitado (volta ao snapshot de quando o modo abriu) mas PERMANECE na Letra
+ * Completa — ao contrário de `cancelarModoLetraCompletaCentral`, não troca de
+ * tela. Trocar de tela é responsabilidade só do botão «Grade/Slide»
+ * (`irParaGradeSlidesDesdeLetraCompleta` / `alternarModoLetraCompletaOuVoltarGrade`);
+ * «Cancelar» aqui é só desfazer a alteração pendente, no mesmo lugar.
+ */
+function descartarEdicaoLetraCompletaSemSair() {
+  if (!modoLetraCompletaCentral || !snapshotLetraCompleta || !musicaAtiva) return;
+  musicaAtiva.estrofes = snapshotLetraCompleta.estrofes.map((s) => String(s));
+  estrofeAtiva = snapshotLetraCompleta.estrofeAtiva;
+  const n = musicaAtiva.estrofes.length;
+  const idxPreto = n;
+  if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
+  if (estrofeAtiva < -1) estrofeAtiva = -1;
+  atualizarTextoPainelLetraCompleta();
+  guiasEstrofesLetraCompleta.agendar();
+  renderSlidesStrip();
+  atualizarPreviewOperador();
+  if (
+    projecaoMusicaEmitidaNoServidor &&
+    projecao.pronta() &&
+    estrofeAtiva >= 0 &&
+    estrofeAtiva < n
+  ) {
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+  }
+  /* Conteúdo já bate com o snapshot outra vez — Salvar/Cancelar voltam a ficar
+     desabilitados, mas o modo (Letra Completa) continua o mesmo. */
+  atualizarToolbarModoEdicao();
+}
+
+/**
  * Atalho de navegação: volta à grade sem gravar.
  * Reutiliza o mesmo destino de Cancelar. Se a letra estiver suja, pede confirmação
  * (o Cancelar desta barra descarta em silêncio; o Cancelar do modo edição por
@@ -15743,7 +15777,7 @@ function atualizarToolbarModoLetraCompleta() {
   if (!btn) return;
   const m = !!musicaAtiva;
   btn.style.display = m ? '' : 'none';
-  btn.disabled = !m || modoEdicaoEstrofes || modoComparativoCentral;
+  btn.disabled = !m || modoComparativoCentral;
   /* Só o rótulo e o ícone mudam — não sobrescrever o botão inteiro (`textContent`
      apagaria o SVG). O texto reflete sempre o modo PARA ONDE o clique leva. */
   const txtModo = document.getElementById('txt-modo-letra-completa');
@@ -16444,16 +16478,18 @@ async function cancelarModoComparativoCentral() {
  *
  * Fica visível sempre que há música (nunca some — ver a regra geral no topo de
  * `atualizarToolbarModoEdicao`), e desabilitado quando não é possível abrir
- * (edição por estrofes, letra completa, catálogo) ou quando já está aberto —
- * reabrir por cima de si mesmo não faz sentido; para sair usa-se «Salvar
- * alterações» ou «Cancelar» da própria barra padrão.
+ * (catálogo, sem versões) ou quando já está aberto — reabrir por cima de si
+ * mesmo não faz sentido; para sair usa-se «Salvar alterações» ou «Cancelar»
+ * da própria barra padrão. Pode ser aberto tanto durante a edição por
+ * estrofes quanto durante a letra completa — `abrirModoComparativo` já pede
+ * confirmação antes de descartar o que estiver pendente em qualquer um dos
+ * dois (via `confirmarProsseguirDescartandoEdicaoPendente`).
  */
 function atualizarToolbarModoComparativo() {
   const btn = document.getElementById('btn-modo-comparativo');
   const on = modoComparativoCentral;
   const m = !!musicaAtiva;
-  const podeAbrir =
-    m && !modoEdicaoEstrofes && !modoLetraCompletaCentral && musicaBancoFonte !== 'catalog';
+  const podeAbrir = m && musicaBancoFonte !== 'catalog';
 
   if (!btn) return;
   btn.style.display = m ? '' : 'none';
@@ -16474,24 +16510,34 @@ function atualizarToolbarModoComparativo() {
  */
 
 /**
- * Habilitado só quando há alteração concreta e ainda não gravada — nunca só
- * por estar num sub-modo de edição. `temEdicaoMusicaNaoGravada` já compara o
- * conteúdo actual com o snapshot de quando o sub-modo abriu (não a simples
- * presença de um `<textarea>` focado), por isso digitar e depois desfazer até
- * voltar ao texto original mantém o botão desabilitado.
+ * «Salvar alterações»: habilitado só quando há alteração concreta e ainda não
+ * gravada — nunca só por estar num sub-modo de edição. `temEdicaoMusicaNaoGravada`
+ * já compara o conteúdo actual com o snapshot de quando o sub-modo abriu (não a
+ * simples presença de um `<textarea>` focado), por isso digitar e depois desfazer
+ * até voltar ao texto original mantém o botão desabilitado.
+ *
+ * «Cancelar» segue o mesmo critério — precisa de alteração pendente de facto,
+ * não só de estar num sub-modo — EXCETO na edição por estrofes (Grade/Slide):
+ * esse sub-modo não tem nenhum outro botão para sair dele (a Letra Completa
+ * tem o próprio botão «Grade/Slide»; o Comparativo satura o «Comparativo» já
+ * aberto), então «Cancelar» precisa ficar habilitado assim que o usuário
+ * clica em «Editar letra», mesmo sem ter digitado nada ainda, só para poder
+ * sair do modo edição.
  */
 function atualizarBotoesSalvarCancelarBarraPadrao() {
   const m = !!musicaAtiva;
   const emSubModoEdicao = modoEdicaoEstrofes || modoLetraCompletaCentral || modoComparativoCentral;
+  const temAlteracaoPendente = temEdicaoMusicaNaoGravada();
   const btnSalvar = document.getElementById('btn-salvar-musica');
   if (btnSalvar) {
     btnSalvar.style.display = m ? '' : 'none';
-    btnSalvar.disabled = !m || !temEdicaoMusicaNaoGravada();
+    btnSalvar.disabled = !m || !temAlteracaoPendente;
   }
   const btnCancelar = document.getElementById('btn-cancelar-padrao');
   if (btnCancelar) {
     btnCancelar.style.display = m ? '' : 'none';
-    btnCancelar.disabled = !m || !emSubModoEdicao;
+    btnCancelar.disabled =
+      !m || !emSubModoEdicao || (!modoEdicaoEstrofes && !temAlteracaoPendente);
   }
 }
 
@@ -16523,7 +16569,9 @@ async function acionarSalvarAlteracoesBarraPadrao() {
 /**
  * Descarta o que estiver pendente no sub-modo activo no momento do clique.
  * Cada sub-modo mantém o seu próprio destino/confirmação de sempre — só a
- * posição do botão na barra é que passou a ser uma só.
+ * posição do botão na barra é que passou a ser uma só. Na Letra Completa,
+ * «Cancelar» só desfaz a digitação (`descartarEdicaoLetraCompletaSemSair`) e
+ * permanece na Letra Completa — trocar de tela é só o botão «Grade/Slide».
  */
 async function acionarCancelarBarraPadrao() {
   if (modoComparativoCentral) {
@@ -16531,7 +16579,7 @@ async function acionarCancelarBarraPadrao() {
     return;
   }
   if (modoLetraCompletaCentral) {
-    cancelarModoLetraCompletaCentral();
+    descartarEdicaoLetraCompletaSemSair();
     return;
   }
   if (modoEdicaoEstrofes) {
