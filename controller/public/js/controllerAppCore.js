@@ -2775,9 +2775,9 @@ function atualizarRodapeAudioApresentacao(item) {
 
 /**
  * Espelha o estado de projeção no indicador global da barra de navegação
- * (#hdr-projecao-pill). Fonte única — é chamado por
- * atualizarFeedbackProjecaoApresentacaoUi e atualizarRodapeAudioApresentacao,
- * que já leem o estado real do que está no telão; não mantém estado próprio.
+ * (#hdr-projecao-pill). Só desenha — é chamado por sincronizarPillProjecaoNav
+ * (fonte única: mídia no telão, aviso do card 6 e áudio no player) e por
+ * atualizarRodapeAudioApresentacao; não mantém estado próprio.
  * @param {{ativo?: boolean, nome?: string}} info
  */
 function atualizarPillProjecaoNav(info = {}) {
@@ -2810,16 +2810,41 @@ function atualizarPillProjecaoNav(info = {}) {
 }
 
 /**
- * Sincroniza o indicador de projeção (pill na barra de navegação —
- * atualizarPillProjecaoNav) e redesenha a grelha de cards. Aceita e ignora
- * opções antigas (ex.: mensagemIdle) para compatibilidade com chamadas existentes.
+ * Áudio do modo Mídias ainda carregado no player do servidor — a tocar ou em pausa.
+ *
+ * O áudio não ocupa `apresentacaoMidiaProjetadaId`: esse id é de quem ocupa o telão
+ * (imagem/vídeo/PDF/web) e `projetarItemApresentacao` limpa-o de propósito ao projetar
+ * uma faixa. Por isso a projeção de áudio tem de ser lida à parte, senão qualquer
+ * redesenho do feedback apagava a pill com o áudio ainda no ar.
+ *
+ * `mediaKind` só volta a '' quando o playback é mesmo parado (Parar / Encerrar
+ * projeção); uma faixa em pausa continua carregada, tal como uma imagem pausada
+ * continua no telão — e nesses dois casos a projeção continua a existir.
  */
-function atualizarFeedbackProjecaoApresentacaoUi() {
+function projecaoAudioApresentacaoAtiva() {
+  return audioStateRemoto.mediaKind === 'audio' && !!apresentacaoAudioAtualId;
+}
+
+/** Nome da faixa em projeção, para o rótulo da pill. */
+function nomeAudioProjecaoApresentacao() {
+  const item =
+    (apresentacaoAudios || []).find((x) => x && x.id === apresentacaoAudioAtualId) || null;
+  return String(item?.name || audioStateRemoto.name || 'faixa');
+}
+
+/**
+ * Decide o estado da pill a partir do que está mesmo no ar — mídia no telão, aviso do
+ * card 6 e áudio no player — sem tocar na grelha. Fonte única do «Projetando».
+ */
+function sincronizarPillProjecaoNav() {
   const id = apresentacaoMidiaProjetadaId;
   const avisoAtivo = apresentacaoAvisoCard6Ativo;
   if (!id && !avisoAtivo) {
-    atualizarPillProjecaoNav({ ativo: false });
-    renderGridApresentacao();
+    if (projecaoAudioApresentacaoAtiva()) {
+      atualizarPillProjecaoNav({ ativo: true, nome: nomeAudioProjecaoApresentacao() });
+    } else {
+      atualizarPillProjecaoNav({ ativo: false });
+    }
     return;
   }
   let rawNome;
@@ -2836,6 +2861,15 @@ function atualizarFeedbackProjecaoApresentacaoUi() {
     if (avisoAtivo) rawNome = `${rawNome} + aviso`;
   }
   atualizarPillProjecaoNav({ ativo: true, nome: rawNome });
+}
+
+/**
+ * Sincroniza o indicador de projeção (pill na barra de navegação —
+ * sincronizarPillProjecaoNav) e redesenha a grelha de cards. Aceita e ignora
+ * opções antigas (ex.: mensagemIdle) para compatibilidade com chamadas existentes.
+ */
+function atualizarFeedbackProjecaoApresentacaoUi() {
+  sincronizarPillProjecaoNav();
   renderGridApresentacao();
 }
 
@@ -4081,6 +4115,9 @@ function renderListaAudiosApresentacao() {
         apresentacaoAudioAtualId = null;
         pararAudioServidorPlayback();
         atualizarUiPlayerAudioRemoto();
+        /* A faixa saiu do ar com ela: sem isto a pill ficava a anunciar uma projeção
+           que já não existe até ao próximo redesenho do feedback. */
+        sincronizarPillProjecaoNav();
       }
       salvarEstadoModoApresentacaoNoStorage();
       renderListaAudiosApresentacao();
@@ -21170,6 +21207,26 @@ function emitirEstrofeAoServidor(index) {
  */
 function espelharEstadoMusicaLocalAposEmitSlides(index) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
+  /*
+   * Mídias a ocupar o canal público (imagem/vídeo/PDF/web ou aviso do card 6): não há
+   * nada a espelhar nesse canal, porque nada lá mudou.
+   *
+   * `exibir_musica` escreve `estadoAtual` no servidor e não toca em
+   * `estadoPublicoOverride` — e é o override que o evento `estado` transporta. O eco que
+   * chega a seguir continua, portanto, a ser o da mídia (`tipo: 'apresentacao'`).
+   * Espelhar aqui `tipo: 'musica'` inventava, no intervalo entre o envio e o eco, um
+   * estado que o servidor nunca produz, e tudo o que lê o canal público ia atrás dele:
+   * `classificarSaidaMonitorPublicoSlides` trocava a badge «Imagem no Telão» pela cópia
+   * do slide e `atualizarEstiloRotasDesativadas` desbloqueava o seletor do M2 (ambos por
+   * `apresentacaoProjecaoAtivaNoCanalPublico`), para voltarem atrás assim que o eco
+   * chegasse — o piscar do M2 ao projetar um slide.
+   *
+   * Mesma regra de `limparEspelhoLocalSoCamadaSlides`: o espelho local só mexe na camada
+   * Slides; a camada de Mídias por cima sobrevive. O M3 não perde nada — a prévia dele e
+   * o `exibir_ministrante` saem da música local (`projecaoMusicaEmitidaNoServidor`), que
+   * é exactamente o caminho que já corria depois do eco.
+   */
+  if (apresentacaoProjecaoAtivaNoCanalPublico()) return;
   const nEst = musicaAtiva.estrofes.length;
   const idx = Number(index);
   const slidePreto = Number.isFinite(idx) && idx === nEst;
