@@ -769,6 +769,87 @@ function createProjectionEngine(paths, deps) {
     return projectionEncerrar.estadoOciosoMinistrante();
   }
 
+  /**
+   * O «lençol preto» do «Não exibir».
+   *
+   * ## Porque não é o payload ocioso
+   *
+   * «Não exibir» já não esconde nem fecha a janela — isso ficou resolvido. Faltava a outra
+   * metade: enquanto a marca estava de pé, a janela recebia o **payload ocioso** em vez do
+   * conteúdo, e isso não é um lençol, é apagar. As consequências viam-se todas no palco:
+   *
+   * - trocar de slide por trás do «Não exibir» não chegava ao monitor — o telão ficava
+   *   parado no nada e o operador tinha de reprojetar;
+   * - voltar a exibir dependia de alguém reenviar o estado (`render`, o caminho rápido de
+   *   `garantirTelasAbertasParaProjecao`); qualquer falha nesse reenvio deixava o monitor
+   *   preto com a projeção «activa» no painel;
+   * - a janela reconstruía tudo — vídeo recriado, `<iframe>` recarregado, contagem
+   *   reancorada — a cada ida e volta, porque o conteúdo tinha mesmo sido destruído.
+   *
+   * Agora a janela recebe o conteúdo REAL, com esta bandeira. O renderer desenha o que
+   * sempre desenhou e põe por cima uma camada preta que cobre a área toda
+   * (`#lencol-nao-exibir`, em `display.html` e `display-operator.html`). Tirar a marca tira
+   * a camada: o que estava por baixo — já actualizado — aparece no quadro seguinte, sem
+   * reinicializar projeção nenhuma.
+   *
+   * Nada aqui toca em geometria, visibilidade ou monitor: continua a ser um estado visual
+   * do conteúdo, e é só isso.
+   *
+   * @param {object|null} payload
+   * @returns {object} cópia rasa do payload com a marca de lençol
+   */
+  function comLencolPreto(payload) {
+    const base = payload && typeof payload === 'object' ? payload : {};
+    return { ...base, semExibicao: true };
+  }
+
+  /**
+   * Há alguma coisa por baixo para o lençol tapar? (canal público)
+   *
+   * Gémeo de `hayProjecaoAtivaPublica`, mas sobre **o payload que vai sair** e não sobre o
+   * estado — `atualizarDisplays` também é chamada com um estado explícito (ocioso) que
+   * nada tem a ver com `state.estadoAtual`, e decidir pelo estado poria o lençol sobre
+   * um ecrã que já estava vazio.
+   *
+   * A distinção importa por causa do relógio: sem projeção, «Não exibir» tem de deixar o
+   * monitor exactamente como estava — no M3, com o relógio à vista. O lençol é uma camada
+   * sobre CONTEÚDO; sem conteúdo não há nada a cobrir.
+   *
+   * @param {object|null} p
+   */
+  function payloadPublicoTemConteudo(p) {
+    if (!p || typeof p !== 'object') return false;
+    if (p.blackout || p.slidePretoFinal) return true;
+    if (p.telaLimpa) return false;
+    if (p.tipo === 'apresentacao') {
+      return !!(p.apresentacao && String(p.apresentacao.src || '').trim());
+    }
+    if (p.tipo === 'contagem') return !!p.contagem;
+    return Array.isArray(p.linhas) && p.linhas.length > 0;
+  }
+
+  /** Gémeo do de cima para o canal do ministrante. Ver `payloadPublicoTemConteudo`. */
+  function payloadMinistranteTemConteudo(p) {
+    if (!p || typeof p !== 'object') return false;
+    if (p.slidePretoFinal || p.blackout) return true;
+    if (p.telaLimpa) return false;
+    if (p.modo === 'apresentacao') {
+      return !!(p.apresentacao && String(p.apresentacao.src || '').trim());
+    }
+    if (p.modo === 'contagem') return !!p.contagem;
+    return !!(String(p.atual || '').trim() || String(p.proximo || '').trim());
+  }
+
+  /** Payload para uma janela pública marcada: com lençol se houver o que tapar. */
+  function comLencolSeHouverConteudoPublico(payload) {
+    return payloadPublicoTemConteudo(payload) ? comLencolPreto(payload) : payload;
+  }
+
+  /** Gémeo do de cima para o ministrante. */
+  function comLencolSeHouverConteudoMinistrante(payload) {
+    return payloadMinistranteTemConteudo(payload) ? comLencolPreto(payload) : payload;
+  }
+
   function loadDisplayRouting() {
     return displayRoutingMod.loadDisplayRouting(paths.displayRoutingPath);
   }
@@ -792,14 +873,16 @@ function createProjectionEngine(paths, deps) {
       const win = entry.win;
       if (!win || win.isDestroyed()) return;
       /*
-       * A janela em «Não exibir» recebe o payload ocioso — nunca o conteúdo.
+       * A janela em «Não exibir» recebe o conteúdo com o lençol por cima — nunca o ocioso.
        *
-       * É aqui que «Não exibir» se cumpre de facto. Enquanto a janela era escondida, o
-       * conteúdo continuava a ser-lhe enviado e ninguém dava por isso: estava fora de
-       * vista. Agora que ela fica visível a preto no monitor, mandar-lhe o conteúdo
-       * mostrava-o — exactamente o que o operador pediu para não acontecer.
+       * É aqui que «Não exibir» se cumpre: o monitor fica preto porque o renderer tapa a
+       * área toda, e não porque o conteúdo deixou de existir. Assim o slide continua a
+       * ser actualizado por trás, e tirar a marca revela o mais recente sem reprojetar.
+       * Ver `comLencolPreto`.
        */
-      const paraEstaJanela = estaSemExibicao(win) ? estadoOciosoPublico() : payloadPublicoJanelas;
+      const paraEstaJanela = estaSemExibicao(win)
+        ? comLencolSeHouverConteudoPublico(payloadPublicoJanelas)
+        : payloadPublicoJanelas;
       try { win.webContents.send('atualizar', paraEstaJanela); } catch (_) {
   // intencional — erro ignorado
 }
@@ -861,9 +944,11 @@ function createProjectionEngine(paths, deps) {
       .forEach((entry) => {
         const win = entry.win;
         if (!win || win.isDestroyed()) return;
-        /* Ver o gémeo em `atualizarDisplays`: «Não exibir» só é real se o conteúdo não
-           chegar à janela. */
-        const paraEstaJanela = estaSemExibicao(win) ? estadoOciosoMinistrante() : payload;
+        /* Ver o gémeo em `atualizarDisplays`: «Não exibir» é o lençol preto por cima do
+           conteúdo, não a ausência dele. */
+        const paraEstaJanela = estaSemExibicao(win)
+          ? comLencolSeHouverConteudoMinistrante(payload)
+          : payload;
         try { win.webContents.send('atualizar_ministrante', paraEstaJanela); } catch (_) {
   // intencional — erro ignorado
 }
@@ -1438,10 +1523,14 @@ function createProjectionEngine(paths, deps) {
   function enviarBootstrapJanelaPublica(win) {
     const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
     const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
-    /* Mesma razão do gémeo do ministrante: uma janela já marcada não estreia com conteúdo. */
-    const payload = hayProjecaoAtivaPublica() && !estaSemExibicao(win)
+    /* Mesma razão do gémeo do ministrante: uma janela já marcada estreia com o lençol
+       preto por cima — e não sem conteúdo por baixo. */
+    const basePublico = hayProjecaoAtivaPublica()
       ? projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride)
       : estadoOciosoPublico();
+    const payload = estaSemExibicao(win)
+      ? comLencolSeHouverConteudoPublico(basePublico)
+      : basePublico;
     try {
       win.webContents.send('display_config', cfg);
       win.webContents.send('atualizar', payload);
@@ -1454,10 +1543,14 @@ function createProjectionEngine(paths, deps) {
     const forcarModo = displayConfigModo.inferirForcarModoJanelas(state);
     const cfg = displayConfigModo.resolverConfigParaJanelas(state, { forcarModo });
     /* Janela nascida já em «Não exibir» (a persistente do ministrante é o caso comum) não
-       pode estrear com conteúdo: o `did-finish-load` chega depois da cadeia ter marcado. */
-    const payload = hayProjecaoAtivaMinistrante() && !estaSemExibicao(win)
+       pode estrear com o conteúdo à vista: o `did-finish-load` chega depois da cadeia ter
+       marcado, e o lençol tem de vir no mesmo payload. */
+    const baseMinistrante = hayProjecaoAtivaMinistrante()
       ? snapshotMinistranteAtual()
       : estadoOciosoMinistrante();
+    const payload = estaSemExibicao(win)
+      ? comLencolSeHouverConteudoMinistrante(baseMinistrante)
+      : baseMinistrante;
     try {
       win.webContents.send('display_config', cfg);
       win.webContents.send('atualizar_ministrante', payload);
@@ -2515,17 +2608,31 @@ function createProjectionEngine(paths, deps) {
        */
       entradas.forEach((entry) => {
         if (entry?.win && !entry.win.isDestroyed()) {
+          /* Marcar ANTES de enviar: o payload que sai daqui já tem de levar o lençol, e
+             quem o monta lê a marca da janela. */
+          entry.semExibicao = true;
+          marcarSemExibicao(entry.win, true);
           try {
             if (role === 'ministrante') {
-              entry.win.webContents.send('atualizar_ministrante', estadoOciosoMinistrante());
+              entry.win.webContents.send(
+                'atualizar_ministrante',
+                comLencolSeHouverConteudoMinistrante(
+                  hayProjecaoAtivaMinistrante() ? snapshotMinistranteAtual() : estadoOciosoMinistrante()
+                )
+              );
             } else {
-              entry.win.webContents.send('atualizar', estadoOciosoPublico());
+              entry.win.webContents.send(
+                'atualizar',
+                comLencolSeHouverConteudoPublico(
+                  hayProjecaoAtivaPublica()
+                    ? projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride)
+                    : estadoOciosoPublico()
+                )
+              );
             }
           } catch (_) {
   // intencional — erro ignorado
 }
-          entry.semExibicao = true;
-          marcarSemExibicao(entry.win, true);
           /* Continua a defender o sítio dela: sem isto uma janela preta deixada para trás
              podia ficar onde o Windows a atirasse depois de um monitor sair. */
           try {

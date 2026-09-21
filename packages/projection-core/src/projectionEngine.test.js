@@ -1354,6 +1354,32 @@ const rota = (pub, min) => ({
 
 const SEM_RELOGIO = { showClock: false, monitorRelogio: 'ministrante' };
 
+/*
+ * «Preto no monitor» passou a ter duas formas legítimas, e os testes aceitam as duas.
+ *
+ * O «Não exibir» é agora um LENÇOL: com conteúdo no ar, o payload segue intacto — para o
+ * slide continuar a mudar por trás — com `semExibicao: true`, e é o renderer que põe a
+ * camada preta por cima (`#lencol-nao-exibir`). Sem nada projetado não há o que tapar e o
+ * payload continua a ser o ocioso de sempre, para o monitor ficar exactamente como estava
+ * (é o que mantém o relógio do M3 intocado).
+ *
+ * Verificar `telaLimpa === true` era verificar a implementação antiga — apagar o
+ * conteúdo —, e era isso que obrigava a reprojetar ao levantar o «Não exibir».
+ */
+function monitorApagadoPublico(payload) {
+  if (!payload) return true;
+  if (payload.semExibicao === true) return true;
+  if (payload.telaLimpa === true) return true;
+  return Array.isArray(payload.linhas) && payload.linhas.length === 0;
+}
+
+function monitorApagadoMinistrante(payload) {
+  if (!payload) return true;
+  if (payload.semExibicao === true) return true;
+  if (payload.telaLimpa === true) return true;
+  return !String(payload.atual || '').trim() && !String(payload.proximo || '').trim();
+}
+
 test('«Não exibir» no M2 é só conteúdo: sem moveTop/setBounds/hide/show/recriar', () => {
   /*
    * Regressão do projetor na igreja: M2→Não exibir→M2 não pode cair em
@@ -1387,11 +1413,7 @@ test('«Não exibir» no M2 é só conteúdo: sem moveTop/setBounds/hide/show/re
   assert.strictEqual(depoisOff.semExibicao || win.__lyraSemExibicao, true);
   assert.deepEqual(win.nativas, [], `ops nativas no Não exibir: ${win.nativas}`);
   const idle = win.sends.filter((s) => s.canal === 'atualizar').pop();
-  assert.ok(
-    idle && (idle.payload?.telaLimpa === true ||
-      (Array.isArray(idle.payload?.linhas) && idle.payload.linhas.length === 0)),
-    'conteúdo ocioso/preto'
-  );
+  assert.ok(monitorApagadoPublico(idle?.payload), 'o monitor tem de ficar preto');
 
   win.nativas.length = 0;
   definirRota(rota(1, 2));
@@ -1432,8 +1454,7 @@ test('«Não exibir» mantém a janela viva, visível e no monitor — não a es
   const ultimo = depois.win.sends.filter((s) => s.canal === 'atualizar').pop();
   assert.ok(ultimo, 'devia ter recebido payload');
   assert.ok(
-    !ultimo.payload || ultimo.payload.telaLimpa === true ||
-      (Array.isArray(ultimo.payload.linhas) && ultimo.payload.linhas.length === 0),
+    monitorApagadoPublico(ultimo.payload),
     `a janela devia ficar preta, recebeu: ${JSON.stringify(ultimo.payload)}`
   );
 });
@@ -1561,7 +1582,7 @@ test('Público em «Não exibir» apaga o M2 mesmo com a Mídias a reivindicá-l
   assert.strictEqual(depois.index, 1, 'e no mesmo monitor');
   assert.strictEqual(depois.semExibicao, true, 'marcada como «Não exibir»');
   const payload = ultimoPayloadPublico(engine);
-  assert.strictEqual(payload.telaLimpa, true, 'o M2 tem de ficar preto');
+  assert.ok(monitorApagadoPublico(payload), 'o M2 tem de ficar preto');
 });
 
 test('Público em «Não exibir» apaga o M2 mesmo com o pin da Contagem nele', () => {
@@ -1577,7 +1598,7 @@ test('Público em «Não exibir» apaga o M2 mesmo com o pin da Contagem nele', 
 
   const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
   assert.strictEqual(depois.semExibicao, true);
-  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, true, 'o M2 tem de ficar preto');
+  assert.ok(monitorApagadoPublico(ultimoPayloadPublico(engine)), 'o M2 tem de ficar preto');
 });
 
 test('Sem a ordem do Slides, a fusão manda como sempre mandou (Bíblia e Mídias intactas)', () => {
@@ -1603,7 +1624,9 @@ test('Sem a ordem do Slides, a fusão manda como sempre mandou (Bíblia e Mídia
 
   const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
   assert.strictEqual(depois.semExibicao, false, 'sem ordem explícita, a fusão decide');
-  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, false, 'o conteúdo fica no ar');
+  const pubSemOrdem = ultimoPayloadPublico(engine);
+  assert.strictEqual(pubSemOrdem.telaLimpa, false, 'o conteúdo fica no ar');
+  assert.ok(!pubSemOrdem.semExibicao, 'e sem lençol por cima');
 });
 
 test('Voltar a escolher o monitor devolve o conteúdo ao têão', () => {
@@ -1615,7 +1638,7 @@ test('Voltar a escolher o monitor devolve o conteúdo ao têão', () => {
   definirRota(rotaSlidesApagando(-1, 2));
   engine.garantirTelasAbertasParaProjecao();
   engine.render({});
-  assert.strictEqual(ultimoPayloadPublico(engine).telaLimpa, true);
+  assert.ok(monitorApagadoPublico(ultimoPayloadPublico(engine)));
 
   definirRota(rotaSlidesApagando(1, 2));
   engine.garantirTelasAbertasParaProjecao();
@@ -1625,6 +1648,7 @@ test('Voltar a escolher o monitor devolve o conteúdo ao têão', () => {
   assert.strictEqual(entrada.semExibicao, false, 'a marca tem de sair');
   const pay = ultimoPayloadPublico(engine);
   assert.ok(Array.isArray(pay.linhas) && pay.linhas.length > 0, '«Não exibir» esconde, não apaga');
+  assert.ok(!pay.semExibicao, 'e o lençol tem de sair');
 });
 
 test('Público em «Não exibir» com estrofe no ar: o M2 tem de ficar preto', () => {
@@ -1650,11 +1674,7 @@ test('Público em «Não exibir» com estrofe no ar: o M2 tem de ficar preto', (
   assert.strictEqual(depois.semExibicao, true, 'marcada como «Não exibir»');
 
   const payload = ultimoPayloadPublico(engine);
-  assert.strictEqual(payload.telaLimpa, true, 'o monitor físico tem de ficar preto');
-  assert.ok(
-    !Array.isArray(payload.linhas) || payload.linhas.length === 0,
-    'sem estrofe no M2'
-  );
+  assert.ok(monitorApagadoPublico(payload), 'o monitor físico tem de ficar preto');
 });
 
 /*
@@ -1715,9 +1735,7 @@ test('Ministrante em «Não exibir»: a janela persistente fica preta, não só 
   assert.strictEqual(janelaDepois.semExibicao, true, 'marcada como «Não exibir»');
 
   const payload = ultimoPayloadMinistrante(engine);
-  assert.strictEqual(payload.telaLimpa, true, 'o monitor físico tem de ficar preto');
-  assert.strictEqual(String(payload.atual || ''), '', 'sem estrofe');
-  assert.strictEqual(String(payload.titulo || ''), '', 'sem título');
+  assert.ok(monitorApagadoMinistrante(payload), 'o monitor físico tem de ficar preto');
 });
 
 test('Ministrante volta a exibir quando o operador escolhe o monitor de novo', () => {
@@ -1729,7 +1747,7 @@ test('Ministrante volta a exibir quando o operador escolhe o monitor de novo', (
   definirRota(rota(1, -1));
   engine.garantirTelasAbertasParaProjecao();
   engine.render({});
-  assert.strictEqual(ultimoPayloadMinistrante(engine).telaLimpa, true);
+  assert.ok(monitorApagadoMinistrante(ultimoPayloadMinistrante(engine)));
 
   definirRota(rota(1, 2));
   engine.garantirTelasAbertasParaProjecao();
@@ -1766,7 +1784,172 @@ test('Ministrante em «Não exibir» é estável: nada recriado a cada passagem'
   assert.strictEqual(entrada.win, win, 'a mesma janela nas cinco passagens');
   assert.strictEqual(entrada.win.paginas.length, paginas, 'nenhuma página recarregada');
   assert.strictEqual(entrada.win.visivel, true, 'nem escondida');
-  assert.strictEqual(ultimoPayloadMinistrante(engine).telaLimpa, true, 'e continua preta');
+  assert.ok(monitorApagadoMinistrante(ultimoPayloadMinistrante(engine)), 'e continua preta');
+});
+
+/*
+ * ---------------------------------------------------------------------------------------
+ * O lençol preto: «Não exibir» cobre, não apaga.
+ *
+ * A mecânica pedida pelo operador, e o que a distingue da anterior: a projeção continua
+ * activa por baixo, o slide continua a ser actualizado, e levantar o lençol revela o
+ * conteúdo mais recente sem reprojetar nada.
+ * ---------------------------------------------------------------------------------------
+ */
+
+test('lençol: com «Não exibir» o conteúdo continua a chegar à janela, marcado', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  definirRota(rotaSlidesApagando(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const payload = ultimoPayloadPublico(engine);
+  assert.strictEqual(payload.semExibicao, true, 'a janela recebe a ordem de tapar');
+  assert.ok(
+    Array.isArray(payload.linhas) && payload.linhas.length > 0,
+    'e o conteúdo vai por baixo do lençol — não é apagado'
+  );
+  assert.strictEqual(
+    payload.telaLimpa,
+    false,
+    'a projeção continua activa: nada de tela limpa'
+  );
+});
+
+test('lençol: trocar de slide com «Não exibir» posto actualiza o que está por baixo', () => {
+  /* O caso do roteiro: Projetar → Não exibir → trocar de slide → exibir. O slide novo tem
+     de estar lá quando o lençol sair — sem reprojetar. */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  definirRota(rotaSlidesApagando(-1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  /* Operador avança a estrofe com o lençol posto. */
+  state.estadoAtual = {
+    tipo: 'musica',
+    titulo: 'Hino',
+    linhas: ['segunda estrofe'],
+    telaLimpa: false,
+    estrofeIndex: 1,
+  };
+  engine.render({});
+
+  const tapado = ultimoPayloadPublico(engine);
+  assert.strictEqual(tapado.semExibicao, true, 'continua tapado');
+  assert.deepEqual(tapado.linhas, ['segunda estrofe'], 'mas já com a estrofe nova por baixo');
+
+  definirRota(rotaSlidesApagando(1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const revelado = ultimoPayloadPublico(engine);
+  assert.ok(!revelado.semExibicao, 'o lençol sai');
+  assert.deepEqual(revelado.linhas, ['segunda estrofe'], 'e aparece o conteúdo mais recente');
+});
+
+test('lençol: pôr e tirar não mexe na janela nem recarrega a página', () => {
+  /* Nenhuma operação nativa nas duas transições: é o que garante que o projetor não
+     renegoceia o HDMI nem pisca. */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const entrada = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  const win = entrada.win;
+  const paginas = win.paginas.length;
+  win.nativas = [];
+  win.moveTop = () => { win.nativas.push('moveTop'); };
+  win.setBounds = (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); };
+  win.hide = () => { win.visivel = false; win.nativas.push('hide'); };
+  win.show = () => { win.visivel = true; win.nativas.push('show'); };
+  win.showInactive = () => { win.visivel = true; win.nativas.push('showInactive'); };
+  win.close = () => { win.destruida = true; win.nativas.push('close'); };
+  win.setAlwaysOnTop = (...a) => { win.nativas.push(`setAlwaysOnTop:${JSON.stringify(a)}`); };
+  win.setFullScreen = (b) => { win.nativas.push(`setFullScreen:${!!b}`); };
+
+  /*
+   * Só as transições do lençol são medidas. O `render` de cada slide reclama o topo desde
+   * sempre — é o caminho normal da projeção e não é assunto desta mecânica; medi-lo aqui
+   * seria testar outra coisa.
+   */
+  for (let i = 0; i < 3; i += 1) {
+    definirRota(rotaSlidesApagando(-1, 2));
+    engine.garantirTelasAbertasParaProjecao();
+    assert.strictEqual(ultimoPayloadPublico(engine).semExibicao, true, `volta ${i}: tapado`);
+
+    definirRota(rotaSlidesApagando(1, 2));
+    engine.garantirTelasAbertasParaProjecao();
+    assert.ok(!ultimoPayloadPublico(engine).semExibicao, `volta ${i}: destapado`);
+  }
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.win, win, 'sempre a mesma janela');
+  assert.strictEqual(depois.index, 1, 'sempre no mesmo monitor');
+  assert.strictEqual(win.visivel, true, 'sempre visível');
+  assert.strictEqual(win.destruida, false);
+  assert.strictEqual(win.paginas.length, paginas, 'sem recarregar a página');
+  assert.deepEqual(win.nativas, [], `ops nativas nas voltas: ${win.nativas}`);
+});
+
+test('lençol: sem projeção no ar, «Não exibir» não tapa nada (o M3 fica como estava)', () => {
+  /*
+   * O lençol é uma camada sobre CONTEÚDO. Sem nada projetado não há o que cobrir, e o
+   * monitor tem de ficar exactamente no estado ocioso de sempre — é ele que mostra o
+   * relógio do ministrante.
+   */
+  const { engine, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  engine.garantirTelasAbertasParaProjecao();
+
+  definirRota(rotaSlidesApagando(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const payload = ultimoPayloadMinistrante(engine);
+  assert.ok(payload, 'a janela do ministrante continua a receber payloads');
+  assert.ok(!payload.semExibicao, 'sem conteúdo por baixo, nada de lençol');
+  assert.strictEqual(payload.telaLimpa, true, 'e o ocioso de sempre');
+});
+
+test('lençol: no ministrante cobre a estrofe e revela-a de volta sem reprojetar', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoMinistrante(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  definirRota(rota(1, -1));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const tapado = ultimoPayloadMinistrante(engine);
+  assert.strictEqual(tapado.semExibicao, true, 'tapado');
+  assert.strictEqual(String(tapado.atual || ''), 'primeira estrofe', 'com a estrofe por baixo');
+
+  definirRota(rota(1, 2));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const revelado = ultimoPayloadMinistrante(engine);
+  assert.ok(!revelado.semExibicao, 'o lençol sai');
+  assert.strictEqual(revelado.projecaoAtiva, true, 'e a estrofe está lá — sem reprojetar');
 });
 
 test('com três monitores, rota vazia veste M2 e M3 permanentes', () => {

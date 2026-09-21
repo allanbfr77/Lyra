@@ -338,9 +338,27 @@
       border: none;
       box-sizing: border-box;
     }
+
+    /*
+     * «Não exibir» — o lençol preto. Gémeo do de `display.html`.
+     *
+     * Camada preta sobre a área toda, por cima de tudo (relógio, capas de apresentação e
+     * aviso incluídos). Não esconde a janela nem mexe no monitor: o M3 continua a receber
+     * e a desenhar a estrofe por baixo, e levantar o lençol mostra-a de imediato.
+     */
+    #lencol-nao-exibir {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: 2147483647;
+      pointer-events: none;
+      display: none;
+    }
+    body.nao-exibir #lencol-nao-exibir { display: block; }
   </style>
 </head>
 <body>
+  <div id="lencol-nao-exibir" aria-hidden="true"></div>
   <div id="capa-relogio-op" class="capa-relogio-op">
     <div class="relogio-op-wrap">
       <div id="clock-digital" class="relogio-op-digital"></div>
@@ -1711,7 +1729,27 @@
       ajustarAutoFitSlidesMinistrante();
     }
 
-    ipcRenderer.on('atualizar_ministrante', (_, payload) => aplicar(payload || {}));
+    /**
+     * «Não exibir»: põe ou tira a camada preta sobre a projeção do ministrante.
+     *
+     * Estado puramente visual. O payload segue para `aplicar` tal e qual — o conteúdo
+     * continua a ser desenhado e actualizado por baixo da camada.
+     *
+     * @param {boolean} ativo
+     */
+    function aplicarLencolNaoExibir(ativo) {
+      try {
+        document.body.classList.toggle('nao-exibir', !!ativo);
+      } catch (_) {
+        // intencional — erro ignorado
+      }
+    }
+
+    ipcRenderer.on('atualizar_ministrante', (_, payload) => {
+      const p = payload || {};
+      aplicarLencolNaoExibir(!!p.semExibicao);
+      aplicar(p);
+    });
     ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));
     ipcRenderer.on('apresentacao_video_sync', (_, payload) => {
       aplicarSyncVideoApresentacaoNoHost(elCapaAp, payload || {});

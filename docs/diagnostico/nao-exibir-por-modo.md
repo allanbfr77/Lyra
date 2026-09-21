@@ -206,6 +206,67 @@ continuava a ser-lhe enviado e passou a ser visto. Foi o que motivou a filtragem
 `Cannot find module '@lyra/projection-core'` (o link do workspace não resolve neste
 checkout) e uma é uma asserção de versão do `package.json` do Controlador.
 
+## O lençol preto — «Não exibir» cobre, deixou de apagar
+
+A correcção acima tirou o `hide()` da janela, e o monitor deixou de piscar. Ficou a outra
+metade, que só se nota no palco: enquanto a marca estava de pé, a janela recebia o
+**payload ocioso** em vez do conteúdo. Isso não é um lençol, é apagar, e traz consigo:
+
+- **o slide parava por trás.** Com «Não exibir» posto, mudar de estrofe não chegava ao
+  monitor. Ao voltar a exibir, o que aparecia dependia de alguém reenviar o estado.
+- **voltar a exibir dependia do reenvio.** `render` ou o caminho rápido de
+  `garantirTelasAbertasParaProjecao` tinham de repor o conteúdo; qualquer falha nesse
+  reenvio deixava o monitor preto com a projeção a dizer-se activa no painel — e o
+  operador a reprojetar.
+- **a janela reconstruía tudo.** O conteúdo tinha mesmo sido destruído: `<video>` recriado,
+  `<iframe>` recarregado, contagem reancorada a cada ida e volta.
+
+### O que mudou
+
+| | antes | agora |
+|---|---|---|
+| payload da janela marcada | ocioso (conteúdo destruído) | o conteúdo real + `semExibicao: true` |
+| preto no monitor | ausência de conteúdo | camada preta por cima (`#lencol-nao-exibir`) |
+| mudar de slide com «Não exibir» | não chegava | chega e actualiza por baixo |
+| voltar a exibir | depende do reenvio do estado | tirar a camada; o quadro seguinte já mostra |
+
+**Motor** (`projectionEngine.js`): `comLencolPreto` marca o payload; `atualizarDisplays`,
+`atualizarDisplayMinistrante`, o ramo `displayIndex < 0` de `sincronizarJanelaRole` e os
+dois bootstraps passaram a mandar o conteúdo marcado em vez do ocioso. Nada disto toca em
+geometria, visibilidade ou monitor — continua a ser um estado de conteúdo.
+
+**Renderer** (`display.html`, `display-operator.html`): `#lencol-nao-exibir`, um `div`
+`position:fixed; inset:0; background:#000` no topo absoluto do empilhamento, ligado pela
+classe `body.nao-exibir`. O `ipcRenderer.on('atualizar'…)` põe/tira a classe **antes** de
+desenhar e entrega o payload a `exibir` tal e qual: o render não sabe do lençol, e por isso
+a deduplicação de `exibir` faz o seu trabalho — pôr e tirar o lençol com o mesmo slide no
+ar não redesenha nada, não recria vídeo e não pisca.
+
+### Sem projeção não há lençol
+
+`payloadPublicoTemConteudo` / `payloadMinistranteTemConteudo` decidem sobre **o payload que
+vai sair**, não sobre o estado — `atualizarDisplays` também é chamada com um ocioso
+explícito. Sem nada projetado não há o que tapar e o payload continua a ser o de sempre:
+é isso que mantém o relógio do M3 exactamente como estava, e é o que o operador pediu
+(«sem projeção, o estado visual padrão permanece»).
+
+### Testes acrescentados
+
+`packages/projection-core/src/projectionEngine.test.js`:
+
+- com «Não exibir», o conteúdo continua a chegar à janela, marcado
+- trocar de slide com o lençol posto actualiza o que está por baixo; ao levantar aparece a
+  estrofe nova (o roteiro Projetar → Não exibir → trocar de slide → exibir)
+- pôr e tirar três vezes: mesma janela, mesmo monitor, sempre visível, sem recarregar
+  página e **sem uma única operação nativa** (`moveTop`, `setBounds`, `hide`, `show`)
+- sem projeção no ar, «Não exibir» não põe lençol nenhum
+- no ministrante: cobre a estrofe e revela-a de volta sem reprojetar
+
+Os testes antigos que verificavam `telaLimpa === true` verificavam a implementação
+antiga — apagar. Passaram a usar `monitorApagadoPublico` / `monitorApagadoMinistrante`,
+que aceitam as duas formas legítimas de o monitor estar preto: ocioso (nada a tapar) ou
+conteúdo com `semExibicao`.
+
 ## Por rever
 
 O painel guarda a rota de `apresentacao`, `apresentacaoAviso` e `biblia` como

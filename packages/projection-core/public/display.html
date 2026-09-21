@@ -356,9 +356,33 @@
       text-align: center;
       line-height: 1.6;
     }
+
+    /*
+     * «Não exibir» — o lençol preto.
+     *
+     * Uma camada preta por cima de TUDO, e mais nada. Não esconde a janela, não mexe em
+     * geometria, não fecha nem move monitor nenhum: o telão continua a receber e a
+     * desenhar o conteúdo por baixo, e tirar a camada revela o slide já actualizado no
+     * quadro seguinte. É o que permite trocar de slide com o lençol posto.
+     *
+     * `display:none` aqui é do LENÇOL, não da projeção — sem lençol não há camada a
+     * compor, e com ele a área fica coberta de ponta a ponta (inclusive vídeo e iframe da
+     * apresentação, que são filhos de `.tela`).
+     */
+    #lencol-nao-exibir {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: 2147483647;
+      pointer-events: none;
+      display: none;
+    }
+    body.nao-exibir #lencol-nao-exibir { display: block; }
   </style>
 </head>
 <body class="idle-sem-projecao">
+
+<div id="lencol-nao-exibir" aria-hidden="true"></div>
 
 <div class="tela" id="tela">
 
@@ -720,9 +744,35 @@ function pararRelogio() {
 
 // ─── Exibição principal ───────────────────────────────────────────
 
+/**
+ * «Não exibir»: põe ou tira a camada preta sobre a área de projeção.
+ *
+ * Estado puramente visual — nada de janela, monitor ou estado de projeção. O conteúdo
+ * continua desenhado por baixo e continua a ser actualizado.
+ *
+ * @param {boolean} ativo
+ */
+function aplicarLencolNaoExibir(ativo) {
+  try {
+    document.body.classList.toggle('nao-exibir', !!ativo);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+window.aplicarLencolNaoExibir = aplicarLencolNaoExibir;
+
 // ─── IPC listeners ────────────────────────────────────────────────
 if (ipcRenderer) {
-  ipcRenderer.on('atualizar',      (_, estado) => exibir(estado || {}));
+  ipcRenderer.on('atualizar',      (_, estado) => {
+    const st = estado || {};
+    /*
+     * A camada é aplicada ANTES de desenhar e é independente do render: `exibir` continua
+     * a receber o estado tal e qual, com o mesmo conteúdo que receberia sem «Não exibir».
+     * Por isso o slide muda por trás do lençol, e levantá-lo não precisa de reprojetar.
+     */
+    aplicarLencolNaoExibir(!!st.semExibicao);
+    exibir(st);
+  });
   ipcRenderer.on('display_config', (_, cfg)    => aplicarConfig(cfg));
   ipcRenderer.on('apresentacao_video_sync', (_, payload) => {
     if (typeof aplicarSyncVideoApresentacao === 'function') {
