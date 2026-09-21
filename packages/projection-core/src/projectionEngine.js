@@ -2246,18 +2246,20 @@ function createProjectionEngine(paths, deps) {
   }
 
   /**
-   * Canais que o operador do modo Slides mandou apagar.
+   * Canais que o operador mandou apagar — a ordem de «Não exibir», venha do modo que vier.
    *
    * Separado do índice porque as duas coisas são mesmo diferentes: `-1` quer dizer «este
    * canal não reivindica monitor» — e a fusão dual deixa a Mídias ou o pin do Contador
    * assumirem o ecrã, que é o que mantém uma imagem no ar enquanto se mexe nos slides.
-   * Era exactamente isso que engolia o «Não exibir» do Slides: a prévia apagava (olha para
-   * a rota do modo) e o monitor físico continuava aceso pelo outro canal.
+   * Era exactamente isso que engolia o «Não exibir»: a prévia apagava (olha para a rota do
+   * modo) e o monitor físico continuava aceso pelo outro canal.
    *
-   * Aqui a ordem é explícita e não se funde com nada. Bíblia e Mídias nunca a preenchem.
+   * Aqui a ordem é explícita e não se funde com nada. **Slides, Bíblia, Mídias e DOCS**
+   * preenchem-na, sempre a partir de um clique no seletor; caminhos automáticos deixam-na
+   * a `false` e o −1 volta a ser só disponibilidade de monitor. Ver `normalizarSemExibicaoOrdenada`.
    */
-  function canaisApagadosPeloSlides(routingDual) {
-    return displayRoutingMod.normalizarSemExibicaoSlides(routingDual?.slidesSemExibicao);
+  function canaisApagadosPorOrdem(routingDual) {
+    return displayRoutingMod.lerSemExibicaoOrdenada(routingDual);
   }
 
   /** Resolve índices de monitor com fallbacks (mesma lógica de abrirTelasConfiguradas). */
@@ -2911,7 +2913,7 @@ function createProjectionEngine(paths, deps) {
                * `onComplete` (que chama `atualizarDisplayMinistrante`) de lhe mandar a
                * estrofe. Era este o buraco entre a prévia e o monitor físico.
                */
-              const apagados = canaisApagadosPeloSlides(routingDual);
+              const apagados = canaisApagadosPorOrdem(routingDual);
               marcarCanaisSemExibicao({
                 publico: publicoConteudo < 0 || apagados.publico,
                 ministrante: ministranteConteudo < 0 || apagados.ministrante,
@@ -3126,9 +3128,9 @@ function createProjectionEngine(paths, deps) {
     if (telasAbertasCorrespondemRota(routingDual)) {
       /* Caminho rápido: só conta. Ver `garantirRapidas`. */
       garantirRapidas += 1;
-      const apagadosSlides = canaisApagadosPeloSlides(routingDual);
-      const desejadoPub = pubConteudo < 0 || apagadosSlides.publico;
-      const desejadoMin = minConteudo < 0 || apagadosSlides.ministrante;
+      const apagadosPorOrdem = canaisApagadosPorOrdem(routingDual);
+      const desejadoPub = pubConteudo < 0 || apagadosPorOrdem.publico;
+      const desejadoMin = minConteudo < 0 || apagadosPorOrdem.ministrante;
       /*
        * Mudança só de «Não exibir» (marca/conteúdo): a geometria já cumpre a rota.
        * Reaplicar marca + payload ocioso/conteúdo SEM `moveTop`/resync físico — senão o

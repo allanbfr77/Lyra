@@ -1554,7 +1554,7 @@ const rotaSlidesApagando = (pub, min, outros = {}) => ({
   slides: { publicoIndex: pub, ministranteIndex: min },
   apresentacao: outros.apresentacao || { publicoIndex: -1, ministranteIndex: -1 },
   contagem: outros.contagem || { publicoIndex: -1, ministranteIndex: -1 },
-  slidesSemExibicao: { publico: pub < 0, ministrante: min < 0 },
+  semExibicaoOrdenada: { publico: pub < 0, ministrante: min < 0 },
 });
 
 test('Público em «Não exibir» apaga o M2 mesmo com a Mídias a reivindicá-lo', () => {
@@ -1952,6 +1952,237 @@ test('lençol: no ministrante cobre a estrofe e revela-a de volta sem reprojetar
   assert.strictEqual(revelado.projecaoAtiva, true, 'e a estrofe está lá — sem reprojetar');
 });
 
+/*
+ * ---------------------------------------------------------------------------------------
+ * O mesmo lençol na Bíblia e nas Mídias.
+ *
+ * Estes modos partilham o canal `apresentacao` e têm o seu próprio «Não exibir». Até aqui
+ * ele dizia só «este canal não reivindica monitor», e a fusão (`apresentacao >= 0 ? a : s`)
+ * deixava o índice do Slides passar por baixo: o versículo ou a mídia continuavam acesos
+ * no telão. A ordem explícita é a mesma do Slides — o campo é um só.
+ * ---------------------------------------------------------------------------------------
+ */
+
+/** Rota com a ordem de «Não exibir» dita ao motor, venha ela do modo que vier. */
+const rotaComOrdem = (slides, apresentacao, ordem) => ({
+  version: 2,
+  slides,
+  apresentacao,
+  contagem: { publicoIndex: -1, ministranteIndex: -1 },
+  semExibicaoOrdenada: ordem,
+});
+
+/** Mídia a tocar no canal público — o payload que o motor entrega às janelas. */
+function comMidiaNoPublico(state) {
+  state.estadoPublicoOverride = {
+    tipo: 'apresentacao',
+    titulo: '',
+    linhas: [],
+    telaLimpa: false,
+    apresentacao: { kind: 'video', src: 'file:///louvor.mp4' },
+  };
+}
+
+test('Bíblia sem ordem: o −1 continua a libertar o monitor, e o versículo fica no ar', () => {
+  /*
+   * A guarda do «não alterar o resto»: sem ordem, o −1 da Bíblia é o de sempre — o índice
+   * do Slides passa por baixo e o que está projetado continua projetado. É isto que
+   * mantém uma mídia no ar enquanto o operador mexe noutro modo.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(
+    rotaComOrdem({ publicoIndex: 1, ministranteIndex: 2 }, { publicoIndex: 1, ministranteIndex: -1 }, undefined),
+    [1, 2], DISPLAYS_TRES, { clock: SEM_RELOGIO }
+  );
+  state.estadoAtual = { tipo: 'biblia', titulo: 'Jo 3.16', linhas: ['Porque Deus amou'], telaLimpa: false };
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  definirRota(rotaComOrdem({ publicoIndex: 1, ministranteIndex: 2 }, { publicoIndex: -1, ministranteIndex: -1 }, undefined));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const payload = ultimoPayloadPublico(engine);
+  assert.ok(!payload.semExibicao, 'sem ordem não há lençol');
+  assert.ok(Array.isArray(payload.linhas) && payload.linhas.length > 0, 'e o versículo continua no ar');
+});
+
+test('Bíblia em «Não exibir»: lençol por cima, versículo intacto por baixo', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(
+    rotaComOrdem({ publicoIndex: 1, ministranteIndex: 2 }, { publicoIndex: 1, ministranteIndex: -1 }, undefined),
+    [1, 2], DISPLAYS_TRES, { clock: SEM_RELOGIO }
+  );
+  state.estadoAtual = { tipo: 'biblia', titulo: 'Jo 3.16', linhas: ['Porque Deus amou'], telaLimpa: false };
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  const antes = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+
+  definirRota(rotaComOrdem(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: -1, ministranteIndex: -1 },
+    { publico: true, ministrante: true }
+  ));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.win, antes.win, 'a mesma janela — nada foi fechado nem recriado');
+  assert.strictEqual(depois.win.visivel, true, 'nem escondida');
+  assert.strictEqual(depois.index, 1, 'e no mesmo monitor');
+  assert.strictEqual(depois.semExibicao, true, 'marcada como «Não exibir»');
+
+  const payload = ultimoPayloadPublico(engine);
+  assert.strictEqual(payload.semExibicao, true, 'o lençol vai no payload');
+  assert.ok(Array.isArray(payload.linhas) && payload.linhas.length > 0, 'e o versículo continua por baixo');
+});
+
+test('Bíblia só no M2 em «Não exibir»: a geometria não se mexe', () => {
+  /*
+   * O caso que podia renegociar o projetor: com a Bíblia só no público, o canal do Slides
+   * sai silenciado do painel; ao pôr «Não exibir» ele volta ao pacote. Se isso trocasse as
+   * janelas de monitor, o operador via o telão piscar. Não troca — a janela persistente do
+   * ministrante já ocupava o monitor de recurso —, e é isso que este teste fixa.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(
+    rotaComOrdem({ publicoIndex: -1, ministranteIndex: -1 }, { publicoIndex: 1, ministranteIndex: -1 }, undefined),
+    [1, 2], DISPLAYS_TRES, { clock: SEM_RELOGIO }
+  );
+  state.estadoAtual = { tipo: 'biblia', titulo: 'Jo 3.16', linhas: ['Porque Deus amou'], telaLimpa: false };
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const antes = engine.janelasDeProjecao()
+    .filter((e) => e.role === 'publico' || e.role === 'ministrante')
+    .map((e) => `${e.role}@${e.index}`)
+    .sort();
+  const win = engine.janelasDeProjecao().find((e) => e.role === 'publico').win;
+  win.nativas = [];
+  win.moveTop = () => { win.nativas.push('moveTop'); };
+  win.setBounds = (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); };
+  win.hide = () => { win.visivel = false; win.nativas.push('hide'); };
+  win.show = () => { win.visivel = true; win.nativas.push('show'); };
+  win.close = () => { win.destruida = true; win.nativas.push('close'); };
+
+  /* Com «Não exibir», o painel devolve ao pacote a configuração real do Slides. */
+  definirRota(rotaComOrdem(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: -1, ministranteIndex: -1 },
+    { publico: true, ministrante: true }
+  ));
+  engine.garantirTelasAbertasParaProjecao();
+
+  const depois = engine.janelasDeProjecao()
+    .filter((e) => e.role === 'publico' || e.role === 'ministrante')
+    .map((e) => `${e.role}@${e.index}`)
+    .sort();
+  assert.deepEqual(depois, antes, 'os mesmos papéis nos mesmos monitores');
+  assert.strictEqual(engine.janelasDeProjecao().find((e) => e.role === 'publico').win, win, 'a mesma janela');
+  assert.deepEqual(win.nativas, [], `ops nativas no «Não exibir» da Bíblia: ${win.nativas}`);
+});
+
+test('Mídias em «Não exibir»: o vídeo continua no payload — a projeção não é encerrada', () => {
+  /*
+   * A regressão relatada: o painel encerrava a mídia ao escolher «Não exibir». Vídeo e
+   * áudio paravam e voltar a exibir exigia projetar de novo. O motor tem de continuar a
+   * entregar a mídia à janela; o que muda é só o lençol.
+   */
+  const { engine, state, definirRota } = montarComEcransMutaveis(
+    rotaComOrdem({ publicoIndex: 1, ministranteIndex: 2 }, { publicoIndex: 1, ministranteIndex: -1 }, undefined),
+    [1, 2], DISPLAYS_TRES, { clock: SEM_RELOGIO }
+  );
+  comMidiaNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+  assert.strictEqual(ultimoPayloadPublico(engine).apresentacao.src, 'file:///louvor.mp4');
+
+  definirRota(rotaComOrdem(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: -1, ministranteIndex: -1 },
+    { publico: true, ministrante: true }
+  ));
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const tapado = ultimoPayloadPublico(engine);
+  assert.strictEqual(tapado.semExibicao, true, 'tapado');
+  assert.strictEqual(tapado.apresentacao.src, 'file:///louvor.mp4', 'o vídeo continua a ser entregue');
+  assert.strictEqual(tapado.telaLimpa, false, 'a projeção continua activa');
+});
+
+test('Mídias: tirar o «Não exibir» revela o vídeo sem mexer na janela', () => {
+  const { engine, state, definirRota } = montarComEcransMutaveis(
+    rotaComOrdem({ publicoIndex: 1, ministranteIndex: 2 }, { publicoIndex: 1, ministranteIndex: -1 }, undefined),
+    [1, 2], DISPLAYS_TRES, { clock: SEM_RELOGIO }
+  );
+  comMidiaNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  const win = engine.janelasDeProjecao().find((e) => e.role === 'publico').win;
+  const paginas = win.paginas.length;
+  win.nativas = [];
+  win.moveTop = () => { win.nativas.push('moveTop'); };
+  win.setBounds = (b) => { win.bounds = { ...win.bounds, ...b }; win.nativas.push('setBounds'); };
+  win.hide = () => { win.visivel = false; win.nativas.push('hide'); };
+  win.show = () => { win.visivel = true; win.nativas.push('show'); };
+  win.showInactive = () => { win.visivel = true; win.nativas.push('showInactive'); };
+  win.close = () => { win.destruida = true; win.nativas.push('close'); };
+  win.setAlwaysOnTop = (...a) => { win.nativas.push(`setAlwaysOnTop:${JSON.stringify(a)}`); };
+  win.setFullScreen = (b) => { win.nativas.push(`setFullScreen:${!!b}`); };
+
+  const tapada = rotaComOrdem(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: -1, ministranteIndex: -1 },
+    { publico: true, ministrante: true }
+  );
+  const destapada = rotaComOrdem(
+    { publicoIndex: 1, ministranteIndex: 2 },
+    { publicoIndex: 1, ministranteIndex: -1 },
+    { publico: false, ministrante: false }
+  );
+
+  for (let i = 0; i < 3; i += 1) {
+    definirRota(tapada);
+    engine.garantirTelasAbertasParaProjecao();
+    assert.strictEqual(ultimoPayloadPublico(engine).semExibicao, true, `volta ${i}: tapado`);
+
+    definirRota(destapada);
+    engine.garantirTelasAbertasParaProjecao();
+    const revelado = ultimoPayloadPublico(engine);
+    assert.ok(!revelado.semExibicao, `volta ${i}: destapado`);
+    assert.strictEqual(revelado.apresentacao.src, 'file:///louvor.mp4', `volta ${i}: o vídeo é o mesmo`);
+  }
+
+  const depois = engine.janelasDeProjecao().find((e) => e.role === 'publico');
+  assert.strictEqual(depois.win, win, 'sempre a mesma janela');
+  assert.strictEqual(depois.index, 1, 'sempre no mesmo monitor');
+  assert.strictEqual(win.visivel, true, 'sempre visível');
+  assert.strictEqual(win.paginas.length, paginas, 'sem recarregar a página');
+  assert.deepEqual(win.nativas, [], `ops nativas nas voltas: ${win.nativas}`);
+});
+
+test('a ordem tem um campo só: o nome antigo continua a ser lido', () => {
+  /* Controlador e Servidor podem estar em versões diferentes. `slidesSemExibicao` era o
+     nome de quando só o Slides preenchia a marca. */
+  const { engine, state, definirRota } = montarComEcransMutaveis(rota(1, 2), [1, 2], DISPLAYS_TRES, {
+    clock: SEM_RELOGIO,
+  });
+  comConteudoNoPublico(state);
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  definirRota({
+    version: 2,
+    slides: { publicoIndex: -1, ministranteIndex: 2 },
+    apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
+    contagem: { publicoIndex: -1, ministranteIndex: -1 },
+    slidesSemExibicao: { publico: true, ministrante: false },
+  });
+  engine.garantirTelasAbertasParaProjecao();
+  engine.render({});
+
+  assert.strictEqual(ultimoPayloadPublico(engine).semExibicao, true, 'a marca antiga ainda vale');
+});
+
 test('com três monitores, rota vazia veste M2 e M3 permanentes', () => {
   const rotaVazia = {
     version: 2,
@@ -2187,3 +2418,5 @@ test('largar o topo no telão não mexe no M3 — o relógio fica onde estava', 
   assert.deepStrictEqual(m3.getBounds(), boundsAntes, 'no mesmo monitor, com os mesmos bounds');
   assert.strictEqual(m3.paginas.length, paginasAntes, 'sem recarregar a página do relógio');
 });
+
+

@@ -102,7 +102,7 @@ outro papel** — deixá-lo visível taparia o que acabou de chegar.
 |---|---|
 | Slides → «Não exibir» no Público | Janela fica no M2, visível, preta. Músicas não aparecem lá. |
 | Mídia a projetar no M2, operador volta ao Slides com «Não exibir» | A mídia continua no ar. A rota de Mídias tem prioridade sobre a de Slides no motor (`indicesJanelasProjecaoDeRoteamentoDual`), e o Slides já não reescreve nada. |
-| Mídias → «Não exibir» | A mídia sai do ar (é o conteúdo daquele modo). A rota do Slides fica intacta. |
+| Mídias → «Não exibir» | Ver «O mesmo lençol na Bíblia e nas Mídias», abaixo: a mídia **fica** no ar, com o lençol por cima. A rota do Slides fica intacta. |
 | Sair e voltar ao modo Slides | A rota escolhida mantém-se, «Não exibir» incluído. |
 | Instalação nova, nunca se mexeu no seletor | Continua a preencher M2/M3 sozinho ao entrar no modo Slides. |
 | «Não exibir» nos dois canais, operador ligado | Nada é fechado. Janelas pretas, monitores estáveis. |
@@ -266,6 +266,88 @@ Os testes antigos que verificavam `telaLimpa === true` verificavam a implementa�
 antiga — apagar. Passaram a usar `monitorApagadoPublico` / `monitorApagadoMinistrante`,
 que aceitam as duas formas legítimas de o monitor estar preto: ocioso (nada a tapar) ou
 conteúdo com `semExibicao`.
+
+## O mesmo lençol na Bíblia e nas Mídias
+
+O lençol acima nasceu no modo Slides. Bíblia e Mídias têm o seu próprio «Não exibir» e
+ficaram de fora — e cada um falhava à sua maneira.
+
+### O que estava errado
+
+**Bíblia: não apagava nada.** O «Não exibir» destes modos só sabia dizer «este canal não
+reivindica monitor». Como Bíblia e Mídias viajam no canal `apresentacao`, pôr a rota a
+−1/−1 deixava a fusão do motor (`apresentacao >= 0 ? apresentacao : slides`) usar o índice
+do Slides por baixo — e o versículo continuava aceso no telão enquanto a prévia do painel,
+que olha para a rota do modo, já mostrava preto. Exactamente o desencontro que o Slides
+tinha tido, pela mesma causa.
+
+**Mídias: apagava a mais.** Aqui o painel tapava o buraco pelo lado errado. Escolher
+«Não exibir» chamava `encerrarProjecaoMidiaApresentacaoNoControlador()`:
+
+```js
+if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
+  void encerrarProjecaoMidiaApresentacaoNoControlador();   // ← pára áudio, fecha canais
+```
+
+O áudio parava, `apresentacaoMidiaProjetadaId` era limpo, o servidor fechava os canais. O
+vídeo morria a meio e voltar a exibir obrigava a projetar tudo de novo. Isso não é «não
+exibir» — é encerrar, e encerrar já tem botão próprio.
+
+### O que mudou
+
+**Um campo só, para todos os modos.** `slidesSemExibicao` passou a `semExibicaoOrdenada`
+(o nome antigo continua a ser lido, para Controlador e Servidor em versões diferentes não
+perderem a marca). A ordem é a mesma, o motor é o mesmo, o lençol é o mesmo: no painel,
+`semExibicaoDoSeletorSlides` passou a `semExibicaoDoSeletorDoModo`, e no motor
+`canaisApagadosPeloSlides` passou a `canaisApagadosPorOrdem`. Nada mais no motor mudou —
+a mecânica já estava lá.
+
+**A ordem nasce do clique, e só dele.** `modules/ordemNaoExibirUnificado.js` regista o que
+o operador escolheu no seletor unificado. Tinha de ser assim: −1/−1 não distingue «o
+operador mandou apagar» de «ainda não há destino», e estes modos nascem em −1/−1 a cada
+arranque e voltam a −1/−1 ao encerrar. Deduzir a ordem do −1 poria um lençol preto no
+telão só por alguém abrir o Modo Bíblia com uma música no ar. É a mesma regra do
+`reposicaoRotaSlides.js` — o registo é que é separado, porque os seletores são diferentes:
+o Slides tem dois e precisa de saber qual foi mexido; aqui há um, com opções fechadas, e
+uma delas é a ordem inteira. Entrar num modo limpa a ordem.
+
+**As Mídias deixaram de encerrar.** O ramo acima já não chama o encerramento. Encerrar de
+verdade continua onde sempre esteve: no botão «Encerrar projeção» do cabeçalho
+(`encerrarProjecaoMidiaCabecalhoModoApresentacao`), que segue por um caminho automático e
+portanto sem ordem de «Não exibir» — a distinção entre os dois gestos é exactamente essa.
+
+**A libertação do monitor continua a ser outra pergunta.** `restaurarRotaSlidesAposLibertarMonitores()`
+mantém-se: canais do Slides desligados só por conflito voltam. «Não exibir» é estado
+visual; «monitor ocupado por outro modo» é disponibilidade. Continuam independentes.
+
+### Não recarregar o que está por baixo
+
+`exibir` só deduplica música e Bíblia. Uma mídia voltava a passar por
+`renderizarApresentacaoMedia`, que recria `<iframe>` e `<img>` — pôr e tirar o lençol
+recarregava a apresentação. O vídeo já tinha guarda própria lá dentro (mesmo `src` → não
+recriar); `soMudouOLencol`, nos dois renderers, estende a mesma ideia ao resto: se o único
+campo que mudou foi a marca, põe-se ou tira-se a camada e não se redesenha nada.
+
+### Testes
+
+`packages/projection-core/src/projectionEngine.test.js`:
+
+- Bíblia **sem** ordem: o −1 continua a libertar o monitor e o versículo fica no ar (a
+  guarda do «não alterar o resto»)
+- Bíblia em «Não exibir»: lençol por cima, versículo intacto por baixo
+- Bíblia só no M2 em «Não exibir»: mesmos papéis nos mesmos monitores, sem uma operação
+  nativa — o caso em que o canal do Slides volta ao pacote e podia trocar janelas
+- Mídias em «Não exibir»: o vídeo continua no payload, `telaLimpa: false` — a projeção não
+  é encerrada
+- Mídias, três voltas: mesma janela, mesmo monitor, sem recarregar a página, sem operações
+  nativas, e o `src` do vídeo igual no fim
+- o nome antigo do campo continua a ser lido
+
+`controller/public/js/modules/ordemNaoExibirUnificado.test.mjs` (10 casos): sem clique não
+há ordem; clicar «Não exibir» na Bíblia e nas Mídias apaga os dois canais; escolher um
+monitor retira a ordem; «Live — OBS» não é apagar; um canal que ainda sai com monitor (o
+aviso do card 6) não é apagado; a ordem é por modo; o Slides não é governado por aqui; o
+DOCS usa a mesma; valores inválidos não propagam `NaN`.
 
 ## Por rever
 

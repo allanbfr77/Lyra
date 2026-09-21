@@ -761,6 +761,34 @@ function aplicarLencolNaoExibir(ativo) {
 }
 window.aplicarLencolNaoExibir = aplicarLencolNaoExibir;
 
+/** Último payload recebido, para saber se o que mudou foi só o lençol. */
+let ultimoPayloadTelaoRecebido = null;
+
+/**
+ * Só a marca do lençol mudou — o conteúdo é rigorosamente o mesmo?
+ *
+ * Quando é esse o caso, desenhar outra vez é pior do que não fazer nada. `exibir` só
+ * deduplica música e Bíblia; uma mídia volta a passar por `renderizarApresentacaoMedia`,
+ * que recria `<iframe>` e `<img>` — pôr e tirar o lençol recarregava a apresentação. O
+ * vídeo já tinha guarda própria lá dentro; isto estende a mesma ideia ao resto.
+ *
+ * @param {object|null} anterior
+ * @param {object} novo
+ * @returns {boolean}
+ */
+function soMudouOLencol(anterior, novo) {
+  if (!anterior) return false;
+  if (!!anterior.semExibicao === !!novo.semExibicao) return false;
+  try {
+    return (
+      JSON.stringify({ ...anterior, semExibicao: undefined }) ===
+      JSON.stringify({ ...novo, semExibicao: undefined })
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 // ─── IPC listeners ────────────────────────────────────────────────
 if (ipcRenderer) {
   ipcRenderer.on('atualizar',      (_, estado) => {
@@ -770,7 +798,10 @@ if (ipcRenderer) {
      * a receber o estado tal e qual, com o mesmo conteúdo que receberia sem «Não exibir».
      * Por isso o slide muda por trás do lençol, e levantá-lo não precisa de reprojetar.
      */
+    const apenasLencol = soMudouOLencol(ultimoPayloadTelaoRecebido, st);
+    ultimoPayloadTelaoRecebido = st;
     aplicarLencolNaoExibir(!!st.semExibicao);
+    if (apenasLencol) return;
     exibir(st);
   });
   ipcRenderer.on('display_config', (_, cfg)    => aplicarConfig(cfg));

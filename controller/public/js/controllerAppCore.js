@@ -159,6 +159,11 @@ import {
   obterNaoExibirManualSlides,
 } from './modules/reposicaoRotaSlides.js';
 import {
+  registrarEscolhaSeletorUnificado,
+  ordemNaoExibirDoSeletorUnificado,
+  limparOrdemNaoExibirUnificado,
+} from './modules/ordemNaoExibirUnificado.js';
+import {
   MODOS_COM_MEMORIA,
   definirLembrarMonitor,
   lembrarMonitorLigado,
@@ -518,6 +523,9 @@ function abrirModoDocs() {
       atualizarBtnModoDocs();
       atualizarBtnTelaInicial();
       /* Seletor do cabeçalho: mesma sequência de Mídias e Bíblia, com a chave `docs`. */
+      /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
+         troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
+      limparOrdemNaoExibirUnificado();
       aplicarMonitorLembradoAoEntrarNoModo('docs');
       sincronizarCheckboxLembrarMonitor();
       void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
@@ -1810,6 +1818,58 @@ function apresentacaoProjecaoAtivaNoCanalMinistrante() {
 }
 
 /**
+ * Versículo no ar no canal público.
+ *
+ * Gémeo de `apresentacaoProjecaoAtivaNoCanalPublico` para o outro inquilino do canal
+ * partilhado. A rota diz QUAL canal a Bíblia pediu (o seletor dela), o estado do servidor
+ * diz se há mesmo versículo no ar — as duas coisas, como no lado das Mídias.
+ *
+ * Não se funde com aquele: o classificador das prévias usa-o para escolher o rótulo da
+ * badge, e «Imagem no Telão» não é «Versículo no Telão».
+ */
+function bibliaProjecaoAtivaNoCanalPublico() {
+  const b = normalizarRota(rotasPorModo.biblia);
+  if (b.live || b.publicoIndex < 0) return false;
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.blackout || e.slidePretoFinal) return false;
+  return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
+}
+
+/**
+ * Versículo no ar no canal do ministrante.
+ *
+ * Dois caminhos porque o servidor tem dois: com alvo «ministrante» o canal público leva
+ * override de tela limpa e o que sobra é a bandeira `projecaoBibliaMinistrante`; com alvo
+ * «ambos» não há override nenhum e o versículo viaja no próprio payload público.
+ */
+function bibliaProjecaoAtivaNoCanalMinistrante() {
+  const b = normalizarRota(rotasPorModo.biblia);
+  if (b.live || b.ministranteIndex < 0) return false;
+  const e = estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.blackout || e.slidePretoFinal) return false;
+  if (e.projecaoBibliaMinistrante) return true;
+  return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
+}
+
+/**
+ * O canal público está ocupado por outro modo do canal partilhado — Mídias ou Bíblia?
+ *
+ * Uma noção só, para o seletor do Slides e para as prévias: o monitor está emprestado,
+ * seja a uma imagem ou a um versículo. Quem precisa de saber QUAL dos dois (o rótulo da
+ * badge) continua a perguntar aos predicados de cada modo.
+ */
+function canalPublicoOcupadoPorOutroModoNoSlides() {
+  return apresentacaoProjecaoAtivaNoCanalPublico() || bibliaProjecaoAtivaNoCanalPublico();
+}
+
+/** Igual, para o canal do ministrante. */
+function canalMinistranteOcupadoPorOutroModoNoSlides() {
+  return apresentacaoProjecaoAtivaNoCanalMinistrante() || bibliaProjecaoAtivaNoCanalMinistrante();
+}
+
+/**
  * Telão com mídia do modo Apresentação activa (ignora Bíblia, Slides e fundo estático).
  * Usado pelo preview do modo Slide — não confundir bgImage da Bíblia com projeção.
  */
@@ -1930,7 +1990,7 @@ function classificarSaidaMonitorPublicoSlides() {
    * mesmo no ar, por isso o caso «canal desligado à mão, sem nada a projetar» continua
    * ocioso como antes.
    */
-  if (r.publicoIndex < 0 && !apresentacaoProjecaoAtivaNoCanalPublico()) return { mode: 'idle' };
+  if (r.publicoIndex < 0 && !canalPublicoOcupadoPorOutroModoNoSlides()) return { mode: 'idle' };
 
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return { mode: 'idle' };
@@ -1977,7 +2037,7 @@ function classificarSaidaMonitorMinistranteSlides() {
   /* Mesma razão do canal público: com o Mídias a ocupar o monitor do ministrante, o −1
      da rota do Slides é a cedência do canal, não um monitor apagado. Ver
      `classificarSaidaMonitorPublicoSlides`. */
-  if (r.ministranteIndex < 0 && !apresentacaoProjecaoAtivaNoCanalMinistrante()) {
+  if (r.ministranteIndex < 0 && !canalMinistranteOcupadoPorOutroModoNoSlides()) {
     return { mode: 'idle', clock: false };
   }
 
@@ -5384,6 +5444,9 @@ function abrirMenuModoApresentacao() {
     } else if (!apresentacaoAvisoCard6Ativo) {
       rotasPorModo.apresentacaoAviso = rotaDesativada();
     }
+    /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
+       troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
+    limparOrdemNaoExibirUnificado();
     aplicarMonitorLembradoAoEntrarNoModo('apresentacao');
     sincronizarCheckboxLembrarMonitor();
     aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
@@ -5641,6 +5704,9 @@ async function alternarModoBiblia() {
           rotasPorModo.apresentacao = rotaDesativada();
         }
       }
+      /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
+         troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
+      limparOrdemNaoExibirUnificado();
       aplicarMonitorLembradoAoEntrarNoModo('biblia');
       sincronizarCheckboxLembrarMonitor();
       bibliaAplicarCfgExibicao();
@@ -7376,6 +7442,9 @@ function renderRoteamentoTelas(monitores, routing) {
         /* Antes do PUT, e a partir do DOM que o clique acabou de escrever: é este o único
            sítio onde se sabe que foi o operador a escolher. */
         registrarEscolhaMonitorDoOperador();
+        /* E é também o único sítio onde se sabe que o «Não exibir» é ORDEM do operador, e
+           não o −1 que um caminho automático deixou. Ver `modules/ordemNaoExibirUnificado.js`. */
+        registrarEscolhaSeletorUnificado(modoRoteamentoAtual(), o.key);
         salvarRoteamentoTelasNoServidor()
           .then(() => reemitirConteudoAposMudancaDeRotaUnificada())
           .catch(() => {
@@ -7448,8 +7517,10 @@ function atualizarEstiloRotasDesativadas() {
   const btnPub = document.getElementById('route-publico-btn');
   const btnMin = document.getElementById('route-ministrante-btn');
   const modoUnificado = modoUsaSeletorMonitorUnificado();
-  const bloqPubAp = ehModoSlidesOperador() && apresentacaoProjecaoAtivaNoCanalPublico();
-  const bloqMinAp = ehModoSlidesOperador() && apresentacaoProjecaoAtivaNoCanalMinistrante();
+  /* Monitor emprestado ao canal partilhado — Mídias ou Bíblia: o seletor do Slides
+     mostra-o apagado em vez de deixar mudá-lo por baixo da projeção no ar. */
+  const bloqPubAp = ehModoSlidesOperador() && canalPublicoOcupadoPorOutroModoNoSlides();
+  const bloqMinAp = ehModoSlidesOperador() && canalMinistranteOcupadoPorOutroModoNoSlides();
   if (wrapPub && hidPub && hidMin) {
     const des = modoUnificado
       ? hidPub.value === '-1' && hidMin.value === '-1' && !rotaLiveSelecionadaNaUi()
@@ -7460,7 +7531,7 @@ function atualizarEstiloRotasDesativadas() {
     if (btnPub) {
       btnPub.disabled = bloqPubAp;
       btnPub.title = bloqPubAp
-        ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
+        ? rotuloBloqueioMonitorOcupado()
         : des
           ? modoUnificado
             ? 'Não exibir: nenhum monitor externo disponível para este modo.'
@@ -7486,12 +7557,20 @@ function atualizarEstiloRotasDesativadas() {
       btnMin.title = semSegundaSaida
         ? 'Só há um monitor de projeção disponível — ele está reservado ao telão. Ligue um segundo monitor para usar o retorno do ministrante.'
         : bloqMinAp
-          ? 'Bloqueado: Apresentação activa neste monitor — encerre a projeção da Apresentação para alterar.'
+          ? rotuloBloqueioMonitorOcupado()
           : des
             ? 'Não exibir: o monitor continua ligado, mas não recebe conteúdo deste modo — só a pré-visualização deste painel.'
             : 'Escolher monitor do ministrante / retorno';
     }
   }
+}
+
+/** Texto do seletor bloqueado: nomeia o modo que está a ocupar o monitor. */
+function rotuloBloqueioMonitorOcupado() {
+  const ehBiblia =
+    bibliaProjecaoAtivaNoCanalPublico() || bibliaProjecaoAtivaNoCanalMinistrante();
+  const modoQueOcupa = ehBiblia ? 'a Bíblia' : 'a Apresentação';
+  return `Bloqueado: ${modoQueOcupa} está a projetar neste monitor — encerre essa projeção para alterar.`;
 }
 
 /** Quantos monitores restam para projeção depois de reservar o principal ao operador. */
@@ -17541,18 +17620,27 @@ async function carregarRoteamentoTelasDoServidor() {
 }
 
 /**
- * Os canais que o operador apagou NO SELETOR DO MODO SLIDES.
+ * Os canais que o operador apagou NO SELETOR DO MODO EM QUE ESTÁ.
  *
  * É uma leitura do que está escolhido agora, recalculada a cada envio — não um estado que
- * fica pendurado. Sair do Slides para a Bíblia ou para as Mídias devolve `false` nos dois
- * canais no envio seguinte, e o motor volta a decidir só pela fusão das rotas, como antes.
+ * fica pendurado. Só o modo em vigor a preenche: sair do Slides para a Bíblia devolve
+ * `false` nos canais do Slides no envio seguinte, e vice-versa. Quem manda no que se vê é
+ * sempre o modo em que o operador está.
+ *
+ * Os três seletores — o duplo do Slides e o unificado da Bíblia/Mídias/DOCS — alimentam a
+ * MESMA ordem e a mesma mecânica no motor (`semExibicaoOrdenada` → lençol preto por cima
+ * do conteúdo). O que difere é só a leitura do gesto, porque os seletores são diferentes;
+ * ver `modules/ordemNaoExibirUnificado.js`.
  *
  * «Live — OBS» não é «apagar o monitor»: é mandar a saída para outro sítio. Fica de fora.
  *
  * @param {string} modo modo de roteamento em vigor (`modoRoteamentoAtual()`)
  */
-function semExibicaoDoSeletorSlides(modo) {
+function semExibicaoDoSeletorDoModo(modo) {
   const NENHUM = { publico: false, ministrante: false };
+  if (modo === 'biblia' || modo === 'apresentacao' || modo === 'docs') {
+    return ordemNaoExibirDoSeletorUnificado(modo, obterRotaApresentacaoParaServidor());
+  }
   if (modo !== 'slides' && modo !== 'completo') return NENHUM;
 
   const enviada = normalizarRota(rotasPorModo.slides);
@@ -17621,17 +17709,27 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     } else if (modo === 'apresentacao') {
       const a = normalizarRota(rotasPorModo.apresentacao);
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
-        void encerrarProjecaoMidiaApresentacaoNoControlador();
         /*
-         * Mídias em «Não exibir»: liberta monitores. Canais do Slides desligados só por
-         * conflito voltam; «Não exibir» que o operador escolheu à mão no Slides nesta
-         * sessão mantém-se (`restaurarRotaSlidesAposLibertarMonitores`).
+         * «Não exibir» nas Mídias NÃO encerra a mídia.
+         *
+         * Encerrava: este ramo chamava `encerrarProjecaoMidiaApresentacaoNoControlador()`,
+         * que pára o áudio, limpa `apresentacaoMidiaProjetadaId` e manda o servidor fechar
+         * os canais. O vídeo morria a meio, o áudio calava-se, e voltar a exibir obrigava a
+         * projetar tudo de novo — nada disto é «não exibir», é encerrar.
+         *
+         * Agora é o mesmo lençol preto do Slides: a projeção continua activa, o vídeo e o
+         * áudio continuam, e o que muda é só o que se vê no monitor. Encerrar de verdade
+         * continua a existir, no botão «Encerrar projeção» do cabeçalho
+         * (`encerrarProjecaoMidiaCabecalhoModoApresentacao`) — que é um gesto diferente e
+         * segue por um caminho automático, sem ordem de «Não exibir».
+         *
+         * A libertação do monitor mantém-se, e é outra pergunta: canais do Slides
+         * desligados só por conflito voltam; «Não exibir» que o operador escolheu à mão no
+         * Slides nesta sessão fica intocado.
          */
         restaurarRotaSlidesAposLibertarMonitores();
         try {
-          atualizarFeedbackProjecaoApresentacaoUi({
-            mensagemIdle: 'Projeção de mídia encerrada. O modo Slides mantém a configuração dele.',
-          });
+          atualizarFeedbackProjecaoApresentacaoUi();
         } catch (_) {
   // intencional — erro ignorado
 }
@@ -17743,18 +17841,19 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
        a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
     contagem: rotaContagemParaServidor(),
     /*
-     * «Não exibir» do seletor do modo Slides, dito ao motor como ordem e não como índice.
+     * «Não exibir» do seletor do modo em vigor, dito ao motor como ordem e não como índice.
      *
      * O −1 sozinho não chegava: no motor os canais fundem-se (`apresentacao >= 0 ? ... : slides`,
      * e o pin do Contador ainda por cima), de modo que uma mídia ou uma contagem que ainda
      * reivindicasse o M2 mantinha a projecção acesa — enquanto a prévia, que olha para a rota
      * deste modo, apagava. Era o desencontro relatado: prévia preta, monitor físico aceso.
      *
-     * Só os modos que usam o seletor do Slides (`slides` e `completo`) a preenchem. Em
-     * Bíblia e Mídias vai `false`, e o «Não exibir» desses modos continua a ser o de sempre:
-     * «este canal não reivindica monitor», deixando o outro assumir.
+     * Todos os modos com seletor a preenchem — Slides, Bíblia, Mídias e DOCS —, sempre a
+     * partir de um clique. Sem clique vai `false`, e aí o −1 continua a ser o de sempre:
+     * «este canal não reivindica monitor», deixando o outro assumir. São duas perguntas
+     * diferentes e continuam independentes.
      */
-    slidesSemExibicao: semExibicaoDoSeletorSlides(modo),
+    semExibicaoOrdenada: semExibicaoDoSeletorDoModo(modo),
   };
   if (
     !Number.isFinite(payloadDual.slides.publicoIndex) ||

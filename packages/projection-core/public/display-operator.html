@@ -1745,9 +1745,29 @@
       }
     }
 
+    /** Último payload recebido, para saber se o que mudou foi só o lençol. */
+    let ultimoPayloadMinistranteRecebido = null;
+
+    /** Gémeo do de `display.html`: só a marca do lençol mudou, e o conteúdo é o mesmo? */
+    function soMudouOLencol(anterior, novo) {
+      if (!anterior) return false;
+      if (!!anterior.semExibicao === !!novo.semExibicao) return false;
+      try {
+        return (
+          JSON.stringify({ ...anterior, semExibicao: undefined }) ===
+          JSON.stringify({ ...novo, semExibicao: undefined })
+        );
+      } catch (_) {
+        return false;
+      }
+    }
+
     ipcRenderer.on('atualizar_ministrante', (_, payload) => {
       const p = payload || {};
+      const apenasLencol = soMudouOLencol(ultimoPayloadMinistranteRecebido, p);
+      ultimoPayloadMinistranteRecebido = p;
       aplicarLencolNaoExibir(!!p.semExibicao);
+      if (apenasLencol) return;
       aplicar(p);
     });
     ipcRenderer.on('display_config', (_, cfg) => aplicarConfig(cfg));

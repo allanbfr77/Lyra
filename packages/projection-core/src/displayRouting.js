@@ -18,24 +18,41 @@ function normalizarRotaDisplay(obj) {
 }
 
 /**
- * Ordem explícita de apagar a saída, vinda do seletor do modo Slides.
+ * Ordem explícita de apagar a saída, vinda do seletor do modo em que o operador está.
  *
- * É diferente de `publicoIndex: -1`, e a diferença é a razão de este campo existir. O índice
- * -1 diz «este canal não reivindica monitor», e a fusão abaixo deixa outro canal assumir o
- * ecrã — é o que mantém uma mídia no ar enquanto o operador mexe nos slides. Este campo
- * diz «o operador do Slides mandou apagar ESTA saída», e isso nenhum outro canal deve
- * desfazer.
+ * É diferente de `publicoIndex: -1`, e a diferença é a razão de este campo existir:
  *
- * Só o modo Slides o preenche. Em Bíblia e Mídias vem sempre `false`, e por isso o
- * «Não exibir» desses modos continua a significar exactamente o que significava.
+ * | | significa | quem decide |
+ * |---|---|---|
+ * | `publicoIndex: -1` | «este canal não reivindica monitor» — a fusão abaixo deixa outro canal assumir o ecrã | disponibilidade do monitor |
+ * | esta marca | «o operador mandou apagar ESTA saída» — nenhum outro canal a desfaz | estado visual do modo |
  *
- * Nunca mexe em geometria: a janela fica no monitor onde está, apenas sem conteúdo.
+ * São perguntas independentes, e confundi-las era o defeito: uma mídia que ainda
+ * reivindicasse o M2 mantinha a projeção acesa enquanto a prévia do modo já apagava.
+ *
+ * **Todos os modos com seletor a preenchem** — Slides, Bíblia, Mídias e DOCS —, e só a
+ * partir de um clique do operador no seletor. Caminhos automáticos (encerrar, sair do
+ * modo, sanitização, conflito entre modos) escrevem −1 sem marca, e aí o −1 continua a
+ * significar exactamente o que sempre significou: o monitor fica livre para outro modo.
+ *
+ * Nunca mexe em geometria: a janela fica no monitor onde está, com o conteúdo a chegar —
+ * é o renderer que lhe põe o lençol preto por cima. Ver `comLencolPreto` no motor.
+ *
+ * `slidesSemExibicao` é o nome antigo do mesmo campo, de quando só o Slides o preenchia.
+ * Continua a ser lido para um Controlador e um Servidor com versões diferentes não
+ * perderem a marca entre si.
  */
-function normalizarSemExibicaoSlides(obj) {
+function normalizarSemExibicaoOrdenada(obj) {
   return {
     publico: obj?.publico === true,
     ministrante: obj?.ministrante === true,
   };
+}
+
+/** A marca tal como vem no corpo, seja pelo nome novo ou pelo antigo. */
+function lerSemExibicaoOrdenada(data) {
+  const atual = data?.semExibicaoOrdenada;
+  return normalizarSemExibicaoOrdenada(atual !== undefined ? atual : data?.slidesSemExibicao);
 }
 
 function normalizarRoteamentoDual(data) {
@@ -45,7 +62,7 @@ function normalizarRoteamentoDual(data) {
       slides: { publicoIndex: -1, ministranteIndex: -1 },
       apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
       contagem: { publicoIndex: -1, ministranteIndex: -1 },
-      slidesSemExibicao: { publico: false, ministrante: false },
+      semExibicaoOrdenada: { publico: false, ministrante: false },
     };
   }
   if (data.version === 2 && data.slides && data.apresentacao) {
@@ -55,7 +72,7 @@ function normalizarRoteamentoDual(data) {
       apresentacao: normalizarRotaDisplay(data.apresentacao),
       /* Pin exclusivo do Contador — independente de slides/Bíblia/Mídias. */
       contagem: normalizarRotaDisplay(data.contagem),
-      slidesSemExibicao: normalizarSemExibicaoSlides(data.slidesSemExibicao),
+      semExibicaoOrdenada: lerSemExibicaoOrdenada(data),
     };
   }
   const legacy = normalizarRotaDisplay(data);
@@ -64,7 +81,7 @@ function normalizarRoteamentoDual(data) {
     slides: { ...legacy },
     apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
     contagem: { publicoIndex: -1, ministranteIndex: -1 },
-    slidesSemExibicao: { publico: false, ministrante: false },
+    semExibicaoOrdenada: { publico: false, ministrante: false },
   };
 }
 
@@ -157,7 +174,7 @@ function saveDisplayRouting(displayRoutingPathFn, body) {
       slides: normalizarRotaDisplay(b),
       apresentacao: { ...atual.apresentacao },
       contagem: { ...atual.contagem },
-      slidesSemExibicao: { publico: false, ministrante: false },
+      semExibicaoOrdenada: { publico: false, ministrante: false },
     };
   } else {
     next = atual;
@@ -169,7 +186,8 @@ function saveDisplayRouting(displayRoutingPathFn, body) {
 module.exports = {
   parseDisplayRouteIndex,
   normalizarRotaDisplay,
-  normalizarSemExibicaoSlides,
+  normalizarSemExibicaoOrdenada,
+  lerSemExibicaoOrdenada,
   normalizarRoteamentoDual,
   indicesJanelasProjecaoDeRoteamentoDual,
   loadDisplayRouting,
