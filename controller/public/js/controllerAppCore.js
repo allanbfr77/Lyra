@@ -118,6 +118,7 @@ import {
   versoesConteudoRigorosamenteIdentico,
   playlistJaContemMesmaMusicaEVersao,
   playlistItemMesmaVersaoQueRaiz,
+  VALOR_OPCAO_VERSAO_ORIGINAL,
 } from './modules/playlistVersaoMusica.js';
 import {
   BANCO_FONTE_OPCOES,
@@ -15938,18 +15939,48 @@ const realcesComparativo = (() => {
   return { ligar, agendar, limpar };
 })();
 
-/** Versões do servidor comparáveis (original + cópias) da música carregada. */
+/**
+ * Reduz a lista de versões do Comparativo ao mesmo critério já usado em
+ * Versões (`opcoesVersaoDistintasPorConteudo`, em `playlistVersaoMusica.js`):
+ * quando a Original e uma Cópia têm conteúdo rigorosamente idêntico, só a
+ * Cópia fica na lista — ela toma o lugar da Original (mesma posição). Não
+ * recria o critério aqui; só adapta as versões cruas do servidor para o
+ * formato `{ value, conteudo }` que aquela função espera e devolve o mesmo
+ * objeto de versão de volta.
+ */
+function versoesDistintasParaComparativo(versoes, rootId) {
+  const lista = Array.isArray(versoes) ? versoes : [];
+  const opcoes = lista.map((v) => {
+    const ehOriginal = !!v && v.parent_id == null && Number(v.id) === Number(rootId);
+    return {
+      value: ehOriginal ? VALOR_OPCAO_VERSAO_ORIGINAL : String(v.id),
+      conteudo: v,
+      _versao: v,
+    };
+  });
+  return opcoesVersaoDistintasPorConteudo(opcoes).map((op) => op._versao);
+}
+
+/**
+ * Versões do servidor comparáveis (original + cópias) da música carregada.
+ *
+ * `totalVersoesBrutas` é a contagem ANTES da redução por conteúdo (quantas
+ * versões existem mesmo no banco) — quem chama precisa dela para distinguir
+ * «só existe uma versão» de «existem várias, mas todas idênticas entre si».
+ */
 async function carregarVersoesParaComparativo() {
   const rootId = obterRootIdMusicaAtiva();
-  if (!Number.isFinite(rootId)) return { rootId: null, versoes: [] };
+  if (!Number.isFinite(rootId)) return { rootId: null, versoes: [], totalVersoesBrutas: 0 };
   try {
     const res = await fetch(`${getControllerApiBase()}/api/musicas/${rootId}/versoes`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const versoes = Array.isArray(data.versoes) ? data.versoes : [];
-    return { rootId: Number(data.rootId) || rootId, versoes };
+    const rootIdResolvido = Number(data.rootId) || rootId;
+    const versoesBrutas = Array.isArray(data.versoes) ? data.versoes : [];
+    const versoes = versoesDistintasParaComparativo(versoesBrutas, rootIdResolvido);
+    return { rootId: rootIdResolvido, versoes, totalVersoesBrutas: versoesBrutas.length };
   } catch (_) {
-    return { rootId, versoes: [] };
+    return { rootId, versoes: [], totalVersoesBrutas: 0 };
   }
 }
 
@@ -15982,8 +16013,17 @@ function escolherVersoesParaComparar(versoes, rootId) {
     det.textContent = 'Escolha as duas versões que quer ver lado a lado.';
     wrap.appendChild(det);
 
+    /**
+     * A coluna avisa a OUTRA (via `aoSelecionar`) sempre que o usuário escolhe
+     * uma versão; a outra reage cinzando/desabilitando o botão da mesma versão
+     * na sua própria lista (`atualizarIndisponivel`), para impedir comparar uma
+     * versão com ela mesma. Nunca mexe na própria seleção da coluna — só na
+     * disponibilidade dos botões que representam a versão escolhida do lado de lá.
+     */
     const criarColuna = (rotulo) => {
       let selecionado = null;
+      let notificarOutraColuna = () => {};
+      const botoesPorId = new Map();
       const col = document.createElement('div');
       col.className = 'cmp-escolha-col';
 
@@ -16018,7 +16058,9 @@ function escolherVersoesParaComparar(versoes, rootId) {
           hint.classList.add('cmp-escolha-col-hint--ok');
           erro.textContent = '';
           btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          notificarOutraColuna(selecionado);
         };
+        botoesPorId.set(Number(v.id), btn);
         lista.appendChild(btn);
       });
 
@@ -16035,11 +16077,25 @@ function escolherVersoesParaComparar(versoes, rootId) {
         col,
         getId: () => selecionado,
         marcarPendente: () => col.classList.add('cmp-escolha-col--pendente'),
+        /** Chamado pela OUTRA coluna quando sua seleção muda (ou é `null`). */
+        atualizarIndisponivel(idUsadoNaOutraColuna) {
+          botoesPorId.forEach((btn, id) => {
+            const indisponivel = idUsadoNaOutraColuna != null && id === idUsadoNaOutraColuna;
+            btn.disabled = indisponivel;
+            btn.classList.toggle('cmp-escolha-opcao--indisponivel', indisponivel);
+          });
+        },
+        /** Define quem avisar quando o usuário escolher algo nesta coluna. */
+        aoSelecionar(fn) {
+          notificarOutraColuna = fn;
+        },
       };
     };
 
     const colA = criarColuna('Versão à esquerda');
     const colB = criarColuna('Versão à direita');
+    colA.aoSelecionar((id) => colB.atualizarIndisponivel(id));
+    colB.aoSelecionar((id) => colA.atualizarIndisponivel(id));
     wrap.appendChild(colA.col);
     wrap.appendChild(colB.col);
 
@@ -16196,10 +16252,16 @@ async function abrirModoComparativo() {
     return;
   }
 
-  const { rootId, versoes } = await carregarVersoesParaComparativo();
+  const { rootId, versoes, totalVersoesBrutas } = await carregarVersoesParaComparativo();
   if (versoes.length < 2) {
+    /* Só uma versão no banco: falta o que criar para comparar. Duas ou mais,
+       mas reduzidas a uma só por serem rigorosamente idênticas (mesmo critério
+       de `opcoesVersaoDistintasPorConteudo`): já existem versões — só não há
+       diferença entre elas. */
     await appAlert(
-      'Esta música tem só uma versão no banco. Crie uma cópia (chip «Nova versão») para poder comparar.',
+      totalVersoesBrutas > 1
+        ? 'Todas as versões desta música são idênticas. Não há diferenças para comparar.'
+        : 'Esta música tem só uma versão no banco. Crie uma cópia (chip «Nova versão») para poder comparar.',
       'Modo comparativo'
     );
     return;

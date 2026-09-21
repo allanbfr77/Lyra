@@ -4052,6 +4052,19 @@ body:not(.app-mod-slides) .centro-col-letras {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
+/* Versão já escolhida no outro lado: cinza e não clicável — não dá para
+   comparar uma versão com ela mesma. */
+.cmp-escolha-opcao--indisponivel,
+.cmp-escolha-opcao--indisponivel:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border-color: var(--border);
+  box-shadow: none;
+  pointer-events: none;
+}
+
 .cmp-escolha-col--pendente .cmp-escolha-lista {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent);
   border-radius: 8px;
