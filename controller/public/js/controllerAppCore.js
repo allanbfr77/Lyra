@@ -186,6 +186,12 @@ import {
   rotuloContagemSelecao,
   rotuloConfirmacaoExclusaoLote,
 } from './modules/selecaoMultiplaBiblioteca.js';
+import {
+  capturarAncoraScrollBiblioteca,
+  escolherChaveRestauroBiblioteca,
+  clamparScrollTopBiblioteca,
+  scrollTopParaAncoraBiblioteca,
+} from './modules/ancoraScrollBiblioteca.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import { criarReconhecimentoVozBiblia } from './modules/reconhecimentoVozBiblia.js';
@@ -7014,6 +7020,12 @@ let bibDadosRev = 0;
 let bibDomRev = -1;
 /** Último texto de busca aplicado à visibilidade (para só resetar o scroll quando o filtro muda). */
 let bibFiltroQAplicado = null;
+/**
+ * Posição de navegação a devolver à lista no próximo render — ver
+ * `modules/ancoraScrollBiblioteca.js`. Só a exclusão a arma; qualquer outro render
+ * continua a decidir o scroll exactamente como decidia antes.
+ */
+let bibAncoraScrollPendente = null;
 let resultadosLetrasCache = [];
 let letrasBuscaGeracao = 0;
 let letrasBuscaAbort = null;
@@ -11008,6 +11020,8 @@ async function executarRemoverMusicaDoBancoConfirmado() {
   if (musicasExcluirLotePendente) return executarRemoverMusicasDoBancoEmLoteConfirmado();
   if (!musicaExcluirPendente) return fecharModalExcluirMusica();
   const idNum = musicaExcluirPendente.id;
+  /* Medido antes de a lista se desfazer: é este ponto que o render a seguir devolve. */
+  bibGuardarAncoraScrollParaProximoRender();
   fecharModalExcluirMusica();
   try {
     const rootRemovido = await removerMusicaDoBancoNoServidor(idNum);
@@ -11033,6 +11047,8 @@ async function executarRemoverMusicasDoBancoEmLoteConfirmado() {
   const lote = Array.isArray(musicasExcluirLotePendente) ? musicasExcluirLotePendente.slice() : [];
   fecharModalExcluirMusica();
   if (!lote.length) return;
+  /* Mesma razão do caminho de uma só música. */
+  bibGuardarAncoraScrollParaProximoRender();
   const removidos = [];
   const falhas = [];
   for (const m of lote) {
@@ -19844,6 +19860,90 @@ function configurarBarraSelecaoBiblioteca() {
     ?.addEventListener('click', () => bibSelCancelarModo());
 }
 
+/**
+ * Linhas visíveis medidas para a âncora: chave e posição de cada uma em relação ao
+ * topo visível da lista (mesmo referencial no captar e no restaurar, para as bordas
+ * e o padding do contentor se anularem).
+ *
+ * @param {HTMLElement} el contentor `#lista`
+ */
+function bibLinhasMedidasParaAncora(el) {
+  const base = el.getBoundingClientRect().top;
+  const medidas = [];
+  for (const linha of bibLinhasVisiveis(el)) {
+    const m = bibMusicaDaLinha(linha);
+    if (!m) continue;
+    const r = linha.getBoundingClientRect();
+    medidas.push({
+      chave: bibChaveMusica(m.id, linha.dataset.bibFonte),
+      top: r.top - base,
+      bottom: r.bottom - base,
+    });
+  }
+  return medidas;
+}
+
+/**
+ * Guarda onde o operador está para o render seguinte lhe devolver a mesma vista.
+ *
+ * Chamada apenas antes de uma exclusão: é a única operação que reconstrói a lista
+ * sem o operador ter pedido para mudar de sítio. Buscar, filtrar ou abrir uma música
+ * continuam a mandar no scroll como sempre mandaram.
+ */
+function bibGuardarAncoraScrollParaProximoRender() {
+  bibAncoraScrollPendente = null;
+  const el = document.getElementById('lista');
+  /* Painel escondido (Modo Slides): sem geometria não há âncora a medir — e o scroll
+     dele também não saiu de zero, logo não há posição nenhuma a devolver. */
+  if (!el || !el.clientHeight) return;
+  bibAncoraScrollPendente = capturarAncoraScrollBiblioteca({
+    scrollTop: el.scrollTop,
+    linhas: bibLinhasMedidasParaAncora(el),
+  });
+}
+
+/**
+ * Consome a âncora guardada, se houver.
+ *
+ * Corre no fim do render — depois de a visibilidade estar aplicada, porque linha
+ * escondida não ocupa altura e mediria outro sítio. Sem âncora pendente não toca no
+ * scroll, e a âncora vale uma vez só: quem a armou foi uma exclusão concreta.
+ */
+function bibRestaurarAncoraScrollPendente() {
+  const ancora = bibAncoraScrollPendente;
+  bibAncoraScrollPendente = null;
+  if (!ancora) return;
+  const el = document.getElementById('lista');
+  if (!el) return;
+
+  const porChave = new Map();
+  for (const linha of bibLinhasVisiveis(el)) {
+    const m = bibMusicaDaLinha(linha);
+    if (!m) continue;
+    const chave = bibChaveMusica(m.id, linha.dataset.bibFonte);
+    if (!porChave.has(chave)) porChave.set(chave, linha);
+  }
+
+  const scrollMaximo = el.scrollHeight - el.clientHeight;
+  const chave = escolherChaveRestauroBiblioteca({
+    ancora,
+    existeChave: (k) => porChave.has(k),
+  });
+  /* Nem a âncora nem vizinha nenhuma sobrou (um lote levou tudo o que estava à
+     mostra): resta o scroll de antes, limitado ao que a lista nova permite. */
+  if (!chave) {
+    el.scrollTop = clamparScrollTopBiblioteca(ancora.scrollTop, scrollMaximo);
+    return;
+  }
+  const base = el.getBoundingClientRect().top;
+  el.scrollTop = scrollTopParaAncoraBiblioteca({
+    scrollTop: el.scrollTop,
+    topoLinha: porChave.get(chave).getBoundingClientRect().top - base,
+    deslocamento: ancora.deslocamento,
+    scrollMaximo,
+  });
+}
+
 function renderizarListaLocal(lista) {
   const el = document.getElementById('lista');
   if (!el) return;
@@ -20037,6 +20137,9 @@ function aplicarVisibilidadeBiblioteca(predicado, qAplicada) {
       selecaoUiBiblioteca.fonte === rowFonte;
     linha.classList.toggle('ativo', ativo);
   });
+  /* Último passo de propósito: as alturas já são as definitivas, e o reset de scroll
+     acima (mudança de filtro) já aconteceu — a âncora de uma exclusão vem depois. */
+  bibRestaurarAncoraScrollPendente();
 }
 
 function filtrar() {
