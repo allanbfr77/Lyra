@@ -147,7 +147,10 @@ import {
   cfgAvisoCard6TemPersonalizacao,
 } from './modules/midiaApresentacao.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
-import { rotaSlidesParaEnvioComBiblia } from './modules/supressaoCanalSlides.js';
+import {
+  rotaSlidesParaEnvioComBiblia,
+  rotaSlidesParaEnvioComApresentacao,
+} from './modules/supressaoCanalSlides.js';
 import {
   precisaReporRotaSlides,
   rotaSlidesReposta,
@@ -1918,7 +1921,16 @@ function preencherPreviewBadgeInformativoSlides(el, badge) {
  */
 function classificarSaidaMonitorPublicoSlides() {
   const r = obterRotaSlidesParaUi();
-  if (r.publicoIndex < 0) return { mode: 'idle' };
+  /*
+   * «Não exibir» neste canal NÃO significa monitor apagado quando é o Mídias que o
+   * ocupa. A ocupação já não se escreve na rota do Slides, mas o operador pode ter
+   * apagado o canal à mão com a mídia no ar — e aí a badge, que existe precisamente para
+   * dizer «outro modo está neste monitor», continua a ser a leitura certa.
+   * `apresentacaoProjecaoAtivaNoCanalPublico` já exige rota do Mídias neste canal e mídia
+   * mesmo no ar, por isso o caso «canal desligado à mão, sem nada a projetar» continua
+   * ocioso como antes.
+   */
+  if (r.publicoIndex < 0 && !apresentacaoProjecaoAtivaNoCanalPublico()) return { mode: 'idle' };
 
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return { mode: 'idle' };
@@ -1962,7 +1974,12 @@ function classificarSaidaMonitorPublicoSlides() {
  */
 function classificarSaidaMonitorMinistranteSlides() {
   const r = obterRotaSlidesParaUi();
-  if (r.ministranteIndex < 0) return { mode: 'idle', clock: false };
+  /* Mesma razão do canal público: com o Mídias a ocupar o monitor do ministrante, o −1
+     da rota do Slides é a cedência do canal, não um monitor apagado. Ver
+     `classificarSaidaMonitorPublicoSlides`. */
+  if (r.ministranteIndex < 0 && !apresentacaoProjecaoAtivaNoCanalMinistrante()) {
+    return { mode: 'idle', clock: false };
+  }
 
   const e = estadoServidor;
   if (!projecao.pronta()) return { mode: 'idle', clock: true };
@@ -2125,42 +2142,6 @@ function syncRoteamentoTelasModoSlidesNaUi() {
   if (!ehModoSlidesOperador()) return;
   renderRoteamentoTelas(monitoresServidorCache, obterRotaSlidesParaUi());
   atualizarEstiloRotasDesativadas();
-}
-
-/** Índice de monitor livre para slides quando apresentação já ocupa outro (nunca o principal). */
-function outroIndiceMonitor(idxOcupado, listaMonitores) {
-  const lista = listaMonitoresParaProjecao(listaMonitores);
-  if (!lista.length) return -1;
-  const outro = lista.find((m) => m.index !== idxOcupado);
-  return outro != null ? outro.index : -1;
-}
-
-/** Garante que a rota de slides não use o mesmo monitor que a apresentação ativa. */
-function ajustarSlidesSemConflitoComApresentacao(rotaSlide) {
-  const s = normalizarRota(rotaSlide);
-  const a = normalizarRota(rotasPorModo.apresentacao);
-  if (a.live) return s;
-  const lista = monitoresServidorCache;
-  const out = { ...s };
-  if (a.publicoIndex >= 0 && out.publicoIndex === a.publicoIndex && apresentacaoProjecaoAtivaNoCanalPublico()) {
-    const alt = outroIndiceMonitor(a.publicoIndex, lista);
-    out.publicoIndex = alt >= 0 ? alt : -1;
-  }
-  if (a.ministranteIndex >= 0 && out.ministranteIndex === a.ministranteIndex && apresentacaoProjecaoAtivaNoCanalMinistrante()) {
-    const alt = outroIndiceMonitor(a.ministranteIndex, lista);
-    out.ministranteIndex = alt >= 0 ? alt : -1;
-  }
-  return out;
-}
-
-/** Apresentação passa a usar um monitor: slides deixa de usar esse índice. */
-function desfazerConflitoSlidesComRotaApresentacao(rotaApresentacao) {
-  const a = normalizarRota(rotaApresentacao);
-  let s = normalizarRota(rotasPorModo.slides);
-  if (a.publicoIndex >= 0 && s.publicoIndex === a.publicoIndex) s = { ...s, publicoIndex: -1 };
-  if (a.ministranteIndex >= 0 && s.ministranteIndex === a.ministranteIndex) s = { ...s, ministranteIndex: -1 };
-  /* −1 automático: não chama `sincronizarNaoExibirManualSlidesDaEscolha`. */
-  rotasPorModo.slides = s;
 }
 
 /**
@@ -2668,13 +2649,17 @@ function rotaSlidesPadraoPublico2Ministrante3(lista) {
   return normalizarRota({ publicoIndex: iPub, ministranteIndex: iMin });
 }
 
-/** Rota do modo Slide ao entrar: Público M2 + Ministrante M3 (ajusta se Apresentação já ocupa um índice). */
+/**
+ * Rota do modo Slide ao entrar: Público M2 + Ministrante M3.
+ *
+ * Já se desviou do que as Mídias ocupavam, e era desviar a mais: o monitor emprestado
+ * continua a ser o do Slides, apenas indisponível enquanto a mídia lá está — o seletor
+ * mostra-o apagado (`route-dd--bloqueado-apresentacao`) e o pacote para o servidor
+ * silencia o canal (`rotaSlidesParaEnvioComApresentacao`). Reatribuir o índice aqui
+ * escrevia a ocupação na configuração do operador, que é o que esta separação evita.
+ */
 function rotaSlidesAoEntrarNoModo() {
-  const ap = normalizarRota(rotasPorModo.apresentacao);
-  const base = rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
-  return ap.publicoIndex >= 0 || ap.ministranteIndex >= 0
-    ? ajustarSlidesSemConflitoComApresentacao(base)
-    : base;
+  return rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
 }
 
 /**
@@ -7284,7 +7269,11 @@ function renderRoteamentoTelas(monitores, routing) {
         }
         fecharMenusRoteamentoTelas();
         atualizarEstiloRotasDesativadas();
-        salvarRoteamentoTelasNoServidor();
+        /* Qual das duas saídas o operador mexeu. Só ela conta como «Não exibir» à mão —
+           ver `sincronizarNaoExibirManualSlidesDaEscolha`. */
+        salvarRoteamentoTelasNoServidor({
+          canalEscolhido: hidEl === hidMin ? 'ministrante' : 'publico',
+        });
       });
       li.appendChild(b);
       menuEl.appendChild(li);
@@ -17572,12 +17561,12 @@ function semExibicaoDoSeletorSlides(modo) {
   /*
    * A escolha do operador, ANTES dos ajustes automáticos.
    *
-   * `ajustarSlidesSemConflitoComApresentacao` também escreve −1 — quando a Mídias está no
-   * ar no monitor que os slides pediam e não sobra outro ecrã. Tratar esse −1 como ordem
-   * de apagar mandaria escurecer justamente a mídia no ar, que é o oposto do que ele quer
-   * dizer. No modo Slides quem guarda a escolha à mão é `reposicaoRotaSlides` (o mesmo
-   * registo que a reposição de rota já consulta); no modo completo, `rotasPorModo.completo`,
-   * que não passa pelo ajuste.
+   * O −1 da ocupação pelas Mídias já não passa por aqui — vive só no pacote
+   * (`rotaSlidesParaEnvioComApresentacao`) —, mas a distinção continua a ser a mesma e é
+   * o que esta leitura protege: apagar o monitor é ordem do operador, não consequência de
+   * a mídia lá estar. No modo Slides quem guarda a escolha à mão é `reposicaoRotaSlides`
+   * (o mesmo registo que a reposição de rota já consulta); no modo completo,
+   * `rotasPorModo.completo`.
    */
   const escolha =
     modo === 'slides'
@@ -17598,6 +17587,11 @@ function semExibicaoDoSeletorSlides(modo) {
 async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const usarValoresDaUi = opts.usarValoresDaUi !== false;
   const modo = modoRoteamentoAtual();
+  /** 'publico' | 'ministrante' — a saída que o operador acabou de escolher, quando veio de um clique. */
+  const canalEscolhido =
+    opts.canalEscolhido === 'publico' || opts.canalEscolhido === 'ministrante'
+      ? opts.canalEscolhido
+      : null;
 
   const slidesAntes = normalizarRota(rotasPorModo.slides);
 
@@ -17614,13 +17608,16 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
 
     if (modo === 'slides') {
       /* Marca «Não exibir» manual a partir do clique — antes do ajuste por conflito com
-         Mídias, que também escreve −1 e não pode contar como escolha do operador. */
-      sincronizarNaoExibirManualSlidesDaEscolha(rotasPorModo.slides);
-      rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(normalizarRota(rotasPorModo.slides));
-    } else if (modo === 'completo') {
-      rotasPorModo.slides = ajustarSlidesSemConflitoComApresentacao(
-        normalizarRota(rotasPorModo.completo)
+         Mídias, que também escreve −1 e não pode contar como escolha do operador.
+         E só para a saída que o clique mexeu: a rota vem do DOM com as duas, e o −1 que
+         o outro seletor trazia é justamente o do conflito com as Mídias. */
+      sincronizarNaoExibirManualSlidesDaEscolha(
+        rotasPorModo.slides,
+        canalEscolhido ? { publico: canalEscolhido === 'publico', ministrante: canalEscolhido === 'ministrante' } : null
       );
+      rotasPorModo.slides = normalizarRota(rotasPorModo.slides);
+    } else if (modo === 'completo') {
+      rotasPorModo.slides = normalizarRota(rotasPorModo.completo);
     } else if (modo === 'apresentacao') {
       const a = normalizarRota(rotasPorModo.apresentacao);
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
@@ -17639,7 +17636,21 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
   // intencional — erro ignorado
 }
       } else {
-        desfazerConflitoSlidesComRotaApresentacao(a);
+        /*
+         * A ocupação do monitor pelas Mídias NÃO se escreve em `rotasPorModo.slides`.
+         *
+         * Era o que fazia o antigo `desfazerConflitoSlidesComRotaApresentacao`, e é a
+         * armadilha que `modules/supressaoCanalSlides.js` já documentava para a Bíblia:
+         * gravado, o «este monitor agora é das Mídias» deixa de se distinguir do «Não
+         * exibir» que o operador escolheu, e o seletor do Slides fica a anunciar «Não
+         * exibir» num monitor apenas emprestado — de M2 para M3 apagava o ministrante e
+         * nada o repunha na troca seguinte. A ocupação é facto do momento e recalcula-se
+         * a cada envio, em `rotaSlidesParaEnvioComApresentacao`, no pacote e só nele.
+         *
+         * Fica a reposição: uma rota que chegue a −1 por outra via (arranque, servidor)
+         * continua a ser preenchida, e canais desligados à mão continuam intocados.
+         */
+        restaurarRotaSlidesAposLibertarMonitores();
       }
     } else if (modo === 'biblia') {
       /*
@@ -17721,7 +17732,12 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     slides:
       modo === 'biblia'
         ? rotaSlidesParaEnvioComBiblia(rotasPorModo.biblia, rotasPorModo.slides)
-        : normalizarRota(rotasPorModo.slides),
+        : /* Mesma ideia, para o monitor que as Mídias estão a ocupar: silencia-se o canal
+             no pacote, sem tocar na configuração do operador. Ver o módulo. */
+          rotaSlidesParaEnvioComApresentacao(
+            obterRotaApresentacaoParaServidor(),
+            rotasPorModo.slides
+          ),
     apresentacao: obterRotaApresentacaoParaServidor(),
     /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
        a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */

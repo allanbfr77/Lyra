@@ -20,10 +20,12 @@
  *
  * ## A armadilha que este módulo existe para não repetir
  *
- * `ajustarSlidesSemConflitoComApresentacao()` desvia o público do ecrã que a mídia está a
- * usar chamando `outroIndiceMonitor()` — que devolve «outro qualquer», sem olhar para o
- * ministrante. Com o Mídias no M2 e dois ecrãs de projeção, o «outro» é o M3: o padrão
- * chega aqui com público e ministrante no MESMO monitor.
+ * Houve um tempo em que o padrão chegava aqui já desviado do ecrã da mídia, por um ajuste
+ * que escolhia «outro qualquer» sem olhar para o ministrante: com o Mídias no M2 e dois
+ * ecrãs, o «outro» era o M3, e o padrão chegava com público e ministrante no MESMO
+ * monitor. Esse desvio acabou — a ocupação vive agora só no pacote para o servidor, ver
+ * `supressaoCanalSlides.js` —, mas um padrão em colisão pode chegar por outras vias e a
+ * assimetria abaixo continua a ser a resposta.
  *
  * Resolver essa colisão pela regra «um monitor, uma saída» (`saidasMonitorExclusivas`)
  * dava-a por resolvida pelo lado errado — o público ficava com o M3 e o ministrante, que
@@ -65,13 +67,24 @@ export function limparNaoExibirManualSlides() {
  * sanitização, etc.) escrevem −1 sem marcar — senão a desativação temporária virava
  * «Não exibir» manual e a reposição parava de funcionar.
  *
+ * `canaisTocados` é o que fecha a última porta por onde isso ainda acontecia: a rota vem
+ * do DOM inteiro, com as DUAS saídas, mas um clique só fala de uma. O −1 que o outro
+ * seletor exibia — lá deixado por um caminho automático qualquer — era lido como escolha
+ * à mão e nunca mais era reposto,
+ * até recarregar o programa (esta marca só vive em memória). Omitido, reavalia os dois,
+ * como antes.
+ *
  * @param {object} rota rota lida da UI no instante do clique (antes de ajustes automáticos)
+ * @param {{publico?: boolean, ministrante?: boolean}} [canaisTocados] Canais que o clique
+ *   mexeu; os restantes conservam a marca que já tinham.
  */
-export function sincronizarNaoExibirManualSlidesDaEscolha(rota) {
+export function sincronizarNaoExibirManualSlidesDaEscolha(rota, canaisTocados = null) {
   const r = normalizar(rota);
+  const tocaPublico = !canaisTocados || !!canaisTocados.publico;
+  const tocaMinistrante = !canaisTocados || !!canaisTocados.ministrante;
   naoExibirManualSlides = {
-    publico: r.publicoIndex < 0,
-    ministrante: r.ministranteIndex < 0,
+    publico: tocaPublico ? r.publicoIndex < 0 : !!naoExibirManualSlides.publico,
+    ministrante: tocaMinistrante ? r.ministranteIndex < 0 : !!naoExibirManualSlides.ministrante,
   };
 }
 

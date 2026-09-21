@@ -15,8 +15,8 @@
  * reivindicava-o.
  *
  * A neutralização, portanto, é necessária. Ao contrário do Modo Mídias — que roda ao mesmo
- * tempo que o Slides e por isso liberta apenas o monitor em conflito
- * (`desfazerConflitoSlidesComRotaApresentacao`) — o Modo Bíblia substitui a área de
+ * tempo que o Slides e por isso liberta apenas o monitor ocupado
+ * (`rotaSlidesParaEnvioComApresentacao`, aqui ao lado) — o Modo Bíblia substitui a área de
  * trabalho do Slides: enquanto está aberto, nenhum canal do Slides pode reclamar monitor.
  *
  * ## Porque isto é uma função pura, e não uma escrita em `rotasPorModo`
@@ -98,4 +98,48 @@ export function rotaSlidesParaEnvioComBiblia(rotaBiblia, rotaSlides) {
   const s = normalizar(rotaSlides);
   if (!bibliaReclamaCanalPartilhado(rotaBiblia)) return s;
   return { publicoIndex: SEM_EXIBICAO, ministranteIndex: SEM_EXIBICAO, live: false };
+}
+
+/**
+ * Rota do Slides tal como deve seguir **no pacote para o servidor**, com o Modo Mídias a
+ * ocupar monitores. Como a versão da Bíblia: não é a configuração do operador e não deve
+ * ser gravada em lado nenhum.
+ *
+ * ## Porque isto substituiu o `desfazerConflitoSlidesComRotaApresentacao`
+ *
+ * Aquele resolvia o conflito escrevendo −1 em `rotasPorModo.slides` — a mesma armadilha
+ * que a secção acima descreve para a Bíblia, e com o mesmo desfecho: o «ocupado pelas
+ * Mídias» ficava gravado como «Não exibir» do Slides e já não se distinguia de uma escolha
+ * do operador. Trocar o monitor das Mídias de M2 para M3 apagava o canal do ministrante do
+ * Slides, e nada o repunha ao mudar outra vez — o seletor ficava a anunciar «Não exibir»
+ * num monitor que só estava emprestado. A ocupação é um facto do momento; recalcula-se a
+ * cada envio a partir da rota das Mídias, e `rotasPorModo.slides` guarda apenas o que o
+ * operador escolheu.
+ *
+ * ## Porquê por monitor, e não canal a canal
+ *
+ * O motor funde os canais um a um (`a.publicoIndex >= 0 ? a : s`), portanto um choque no
+ * MESMO canal já se resolve lá — a mídia ganha. O que ele não resolve é o cruzado: Mídias
+ * no ministrante/M2 com o público do Slides também em M2 deixava as duas janelas a
+ * reivindicar o mesmo ecrã. Suprimir por índice de monitor cobre os dois casos.
+ *
+ * @param {RotaCanal} rotaApresentacao Rota do canal `apresentacao` tal como vai no pacote.
+ * @param {RotaCanal} rotaSlides Configuração guardada do Modo Slides.
+ * @returns {{publicoIndex: number, ministranteIndex: number, live: boolean}}
+ */
+export function rotaSlidesParaEnvioComApresentacao(rotaApresentacao, rotaSlides) {
+  const s = normalizar(rotaSlides);
+  if (s.live) return s;
+  const a = normalizar(rotaApresentacao);
+  /* «Live — OBS» das Mídias não ocupa monitor nenhum: nada a suprimir. */
+  if (a.live) return s;
+  const ocupados = new Set();
+  if (a.publicoIndex >= 0) ocupados.add(a.publicoIndex);
+  if (a.ministranteIndex >= 0) ocupados.add(a.ministranteIndex);
+  if (!ocupados.size) return s;
+  return {
+    publicoIndex: ocupados.has(s.publicoIndex) ? SEM_EXIBICAO : s.publicoIndex,
+    ministranteIndex: ocupados.has(s.ministranteIndex) ? SEM_EXIBICAO : s.ministranteIndex,
+    live: false,
+  };
 }
