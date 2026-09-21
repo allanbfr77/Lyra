@@ -192,6 +192,12 @@ import {
   clamparScrollTopBiblioteca,
   scrollTopParaAncoraBiblioteca,
 } from './modules/ancoraScrollBiblioteca.js';
+import {
+  LETRAS_NAVEGADOR_BIBLIOTECA,
+  letraNavegavelMaisProxima,
+  letraAtualDoScrollBiblioteca,
+  letraSobPosicaoNavegador,
+} from './modules/navegadorAlfabeticoBiblioteca.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import { criarReconhecimentoVozBiblia } from './modules/reconhecimentoVozBiblia.js';
@@ -18129,6 +18135,9 @@ function atualizarUiToggleListaBancoSqlite() {
   if (aviso) {
     aviso.hidden = bancoSqliteListaExpandida;
   }
+  /* Lista recolhida: nada para navegar, e a régua ficaria flutuando sobre o aviso. */
+  const navAlfabeto = document.getElementById('bib-nav-alfabeto');
+  if (navAlfabeto) navAlfabeto.hidden = !bancoSqliteListaExpandida;
 }
 
 function alternarListaBancoSqlite() {
@@ -18831,10 +18840,30 @@ async function carregarMusicas() {
     const res = await fetch(`${getControllerApiBase()}/api/musicas`);
     todasMusicas = await res.json();
     bibDadosRev += 1;
+    atualizarContagemTotalBiblioteca();
     filtrar();
   } catch (e) {
     console.error('Erro ao carregar músicas', e);
   }
+}
+
+/**
+ * Quantidade total da Biblioteca local — o acervo inteiro, não o resultado de
+ * um filtro em curso.
+ *
+ * `todasMusicas` já é exatamente isto: `GET /api/musicas` só traz
+ * `WHERE parent_id IS NULL` (uma linha por música, nunca por versão/cópia —
+ * ver `server/../rotas/musicas.js`), e é o mesmo array por trás de
+ * `renderizarListaLocal`. Contar por ele é contar o que o operador vê e usa
+ * na Biblioteca — nunca `SELECT COUNT(*) FROM musicas`, que incluiria as
+ * versões. Buscar/filtrar apenas esconde linhas (`aplicarVisibilidadeBiblioteca`)
+ * sem tocar em `todasMusicas`, então esta contagem nunca muda com o filtro.
+ */
+function atualizarContagemTotalBiblioteca() {
+  const el = document.getElementById('bib-total-contagem');
+  if (!el) return;
+  const qtd = todasMusicas.length;
+  el.textContent = qtd === 1 ? '1 música' : `${qtd} músicas`;
 }
 
 function initBancoPainelFromStorage() {
@@ -19860,6 +19889,244 @@ function configurarBarraSelecaoBiblioteca() {
     ?.addEventListener('click', () => bibSelCancelarModo());
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   NAVEGADOR ALFABÉTICO DA BIBLIOTECA — régua lateral de atalho por letra
+
+   A lógica pura (que letra cai mais perto, qual está no topo do scroll, qual
+   letra o rato está sobrevoando ao arrastar) vive em
+   `modules/navegadorAlfabeticoBiblioteca.js`, testável sem DOM nenhum — igual
+   ao acordo já feito com `ancoraScrollBiblioteca.js`. Aqui só se mede
+   geometria, se mexe no `scrollTop` de `#lista` e se liga/desliga a
+   opacidade da régua. Nunca chama `renderizarListaLocal`: saltar de letra é
+   só rolagem, a lista já está toda montada.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** Enquanto verdadeiro (rato ou foco em cima da régua), o temporizador de ocultar não corre. */
+let bibNavAlfabetoInteragindo = false;
+let bibNavAlfabetoOcultarTimer = null;
+let bibNavAlfabetoScrollAgendado = false;
+/** Evita repetir o mesmo salto a cada pixel de um arrasto contínuo sobre a mesma letra. */
+let bibNavAlfabetoUltimaLetraArrastada = null;
+
+/** Letras (A–Z) que têm pelo menos um grupo visível agora — respeita o filtro em curso. */
+function bibNavAlfabetoLetrasDisponiveis() {
+  const set = new Set();
+  const el = document.getElementById('lista');
+  if (!el) return set;
+  el.querySelectorAll('.bib-grupo:not([hidden])').forEach((g) => {
+    if (g.dataset.bibLetra) set.add(g.dataset.bibLetra);
+  });
+  return set;
+}
+
+/** Cabeçalhos de grupo à mostra, medidos como a âncora de scroll: topo relativo ao topo visível de `#lista`. */
+function bibNavAlfabetoCabecalhosMedidos(el) {
+  const base = el.getBoundingClientRect().top;
+  const cabecalhos = [];
+  el.querySelectorAll('.bib-grupo:not([hidden])').forEach((g) => {
+    const letra = g.dataset.bibLetra;
+    const cab = g.querySelector('.bib-grupo-letra');
+    if (!letra || !cab) return;
+    const r = cab.getBoundingClientRect();
+    cabecalhos.push({ letra, top: r.top - base });
+  });
+  return cabecalhos;
+}
+
+/** Acende, na régua, a letra da região que está no topo da área visível agora. */
+function bibNavAlfabetoAtualizarLetraAtual() {
+  const el = document.getElementById('lista');
+  const nav = document.getElementById('bib-nav-alfabeto');
+  if (!el || !nav) return;
+  const letra = letraAtualDoScrollBiblioteca({ cabecalhos: bibNavAlfabetoCabecalhosMedidos(el) });
+  nav.querySelectorAll('.bib-nav-letra').forEach((btn) => {
+    btn.classList.toggle('bib-nav-letra--atual', !!letra && btn.dataset.letra === letra);
+  });
+}
+
+/**
+ * Chamado depois de todo render/filtro da Biblioteca: algumas letras podem ter
+ * passado a existir (ou a sumir, com o filtro) desde a última vez.
+ */
+function bibNavAlfabetoRecalcularDisponibilidade() {
+  const nav = document.getElementById('bib-nav-alfabeto');
+  if (!nav) return;
+  const disponiveis = bibNavAlfabetoLetrasDisponiveis();
+  nav.querySelectorAll('.bib-nav-letra').forEach((btn) => {
+    btn.classList.toggle('bib-nav-letra--indisponivel', !disponiveis.has(btn.dataset.letra));
+  });
+  bibNavAlfabetoAtualizarLetraAtual();
+}
+
+/** Mostra a régua e adia a sua ocultação — chamado a cada sinal de "o operador está aqui". */
+function bibNavAlfabetoMostrar() {
+  const nav = document.getElementById('bib-nav-alfabeto');
+  if (!nav) return;
+  nav.classList.add('bib-nav-alfabeto--visivel');
+  clearTimeout(bibNavAlfabetoOcultarTimer);
+  bibNavAlfabetoOcultarTimer = setTimeout(() => {
+    if (!bibNavAlfabetoInteragindo) nav.classList.remove('bib-nav-alfabeto--visivel');
+  }, 1000);
+}
+
+/** Rolagem manual: mantém a régua visível e, no máximo uma vez por frame, atualiza a letra acesa. */
+function bibNavAlfabetoAoRolar() {
+  bibNavAlfabetoMostrar();
+  if (bibNavAlfabetoScrollAgendado) return;
+  bibNavAlfabetoScrollAgendado = true;
+  requestAnimationFrame(() => {
+    bibNavAlfabetoScrollAgendado = false;
+    bibNavAlfabetoAtualizarLetraAtual();
+  });
+}
+
+/**
+ * Salta a lista até a letra pedida (ou a mais próxima que sobrar dela, se a
+ * pedida não tiver música nenhuma agora). Só mexe no `scrollTop` de `#lista`
+ * — nunca recarrega nem re-renderiza a Biblioteca.
+ *
+ * @param {string} letraClicada
+ * @param {{ suave?: boolean }} [opts] `suave: false` no arrastar contínuo, para não
+ *   empilhar animações a cada pixel — só o clique isolado anima.
+ */
+function bibNavAlfabetoIrParaLetra(letraClicada, opts) {
+  const el = document.getElementById('lista');
+  if (!el) return;
+  const disponiveis = bibNavAlfabetoLetrasDisponiveis();
+  const letra = letraNavegavelMaisProxima({ letra: letraClicada, disponiveis });
+  /* Biblioteca vazia ou filtro sem nenhum resultado: não há para onde ir — a régua
+     continua ali, só não faz nada, sem quebrar a navegação. */
+  if (!letra) return;
+  const grupo = el.querySelector(`.bib-grupo[data-bib-letra="${letra}"]:not([hidden])`);
+  if (!grupo) return;
+  grupo.scrollIntoView({ block: 'start', behavior: opts && opts.suave === false ? 'auto' : 'smooth' });
+
+  const nav = document.getElementById('bib-nav-alfabeto');
+  const btn = nav ? nav.querySelector(`.bib-nav-letra[data-letra="${letra}"]`) : null;
+  if (btn) {
+    btn.classList.add('bib-nav-letra--pressionada');
+    setTimeout(() => btn.classList.remove('bib-nav-letra--pressionada'), 260);
+  }
+  bibNavAlfabetoMostrar();
+}
+
+/**
+ * Move o único `tabindex="0"` da régua para a letra ativada por rato/toque, para
+ * que uma seta de teclado logo a seguir continue dali — o mesmo tabindex móvel
+ * já usado na lista principal (ver `bibFocarLinha`), sincronizado aqui porque o
+ * clique/arrasto não passa pelo `keydown` que o atualiza nas setas.
+ */
+function bibNavAlfabetoMoverTabindexPara(nav, letra) {
+  nav.querySelectorAll('.bib-nav-letra').forEach((b) => {
+    b.tabIndex = b.dataset.letra === letra ? 0 : -1;
+  });
+}
+
+/** Letra sob uma posição Y da tela, a partir dos retângulos atuais dos botões da régua. */
+function bibNavAlfabetoLetraNaPosicaoY(nav, clientY) {
+  const botoes = Array.from(nav.querySelectorAll('.bib-nav-letra')).map((b) => {
+    const r = b.getBoundingClientRect();
+    return { letra: b.dataset.letra, top: r.top, bottom: r.bottom };
+  });
+  return letraSobPosicaoNavegador({ y: clientY, botoes });
+}
+
+function configurarNavegadorAlfabeticoBiblioteca() {
+  const nav = document.getElementById('bib-nav-alfabeto');
+  const el = document.getElementById('lista');
+  if (!nav || !el) return;
+
+  nav.setAttribute('role', 'toolbar');
+  nav.setAttribute('aria-orientation', 'vertical');
+  nav.setAttribute('aria-label', 'Navegação alfabética da biblioteca');
+
+  LETRAS_NAVEGADOR_BIBLIOTECA.forEach((letra, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bib-nav-letra';
+    btn.dataset.letra = letra;
+    btn.textContent = letra;
+    /* Tabindex móvel (uma parada só no Tab, setas para percorrer): o mesmo padrão
+       já usado na lista principal, ver `bibFocarLinha`. */
+    btn.tabIndex = i === 0 ? 0 : -1;
+    btn.setAttribute('aria-label', `Ir para músicas com ${letra}`);
+    btn.addEventListener('click', () => {
+      bibNavAlfabetoMoverTabindexPara(nav, letra);
+      bibNavAlfabetoIrParaLetra(letra);
+    });
+    nav.appendChild(btn);
+  });
+
+  const agendarOcultar = () => {
+    bibNavAlfabetoInteragindo = false;
+    clearTimeout(bibNavAlfabetoOcultarTimer);
+    bibNavAlfabetoOcultarTimer = setTimeout(() => nav.classList.remove('bib-nav-alfabeto--visivel'), 400);
+  };
+  nav.addEventListener('mouseenter', () => {
+    bibNavAlfabetoInteragindo = true;
+    bibNavAlfabetoMostrar();
+  });
+  nav.addEventListener('mouseleave', agendarOcultar);
+  nav.addEventListener('focusin', () => {
+    bibNavAlfabetoInteragindo = true;
+    bibNavAlfabetoMostrar();
+  });
+  nav.addEventListener('focusout', agendarOcultar);
+
+  /* Aproximar o rato da lista já é "estar navegando" — é o gatilho que permite clicar
+     numa letra sem ter de rolar primeiro (a régua nasce transparente e sem
+     `pointer-events` até este ou o `scroll` a acenderem). */
+  el.addEventListener('mousemove', () => bibNavAlfabetoMostrar(), { passive: true });
+  el.addEventListener('scroll', bibNavAlfabetoAoRolar, { passive: true });
+
+  /* Arrastar contínuo (rato/toque) sobre a régua: "varre" as letras sem soltar,
+     como um índice alfabético de agenda de telefone. */
+  let arrastando = false;
+  nav.addEventListener('pointerdown', (ev) => {
+    arrastando = true;
+    bibNavAlfabetoInteragindo = true;
+    bibNavAlfabetoUltimaLetraArrastada = null;
+    const letra = bibNavAlfabetoLetraNaPosicaoY(nav, ev.clientY);
+    if (letra) {
+      bibNavAlfabetoUltimaLetraArrastada = letra;
+      bibNavAlfabetoMoverTabindexPara(nav, letra);
+      bibNavAlfabetoIrParaLetra(letra, { suave: false });
+    }
+  });
+  window.addEventListener('pointermove', (ev) => {
+    if (!arrastando) return;
+    const letra = bibNavAlfabetoLetraNaPosicaoY(nav, ev.clientY);
+    if (!letra || letra === bibNavAlfabetoUltimaLetraArrastada) return;
+    bibNavAlfabetoUltimaLetraArrastada = letra;
+    bibNavAlfabetoMoverTabindexPara(nav, letra);
+    bibNavAlfabetoIrParaLetra(letra, { suave: false });
+  });
+  window.addEventListener('pointerup', () => {
+    if (!arrastando) return;
+    arrastando = false;
+    agendarOcultar();
+  });
+
+  /* Setas percorrem as letras (roving tabindex); Enter/Espaço já vêm de graça do `<button>`. */
+  nav.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp' && ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+    const atual = document.activeElement;
+    if (!(atual instanceof HTMLElement) || !atual.classList.contains('bib-nav-letra')) return;
+    const botoes = Array.from(nav.querySelectorAll('.bib-nav-letra'));
+    const i = botoes.indexOf(atual);
+    if (i === -1) return;
+    ev.preventDefault();
+    const avancar = ev.key === 'ArrowDown' || ev.key === 'ArrowRight';
+    const proximo = botoes[Math.max(0, Math.min(botoes.length - 1, i + (avancar ? 1 : -1)))];
+    if (proximo === atual) return;
+    atual.tabIndex = -1;
+    proximo.tabIndex = 0;
+    proximo.focus();
+  });
+
+  bibNavAlfabetoRecalcularDisponibilidade();
+}
+
 /**
  * Linhas visíveis medidas para a âncora: chave e posição de cada uma em relação ao
  * topo visível da lista (mesmo referencial no captar e no restaurar, para as bordas
@@ -19991,6 +20258,7 @@ function renderizarListaLocal(lista) {
       letraAtual = letra;
       grupoAtual = document.createElement('div');
       grupoAtual.className = 'bib-grupo';
+      grupoAtual.dataset.bibLetra = letra;
       grupoAtual.setAttribute('role', 'group');
       grupoAtual.setAttribute('aria-label', `Músicas com ${letra}`);
       const cab = document.createElement('div');
@@ -20079,6 +20347,9 @@ function renderizarListaLocal(lista) {
   /* A lista acabou de nascer de novo: sem isto, o modo ficava ligado numa lista sem
      caixas e com chaves a apontar para músicas que já não existem. */
   bibSelAposRender();
+  /* Grupos novos = letras novas (ou a mesma lista com outra sorte de filtro):
+     o navegador lateral precisa saber outra vez quais existem. */
+  bibNavAlfabetoRecalcularDisponibilidade();
 }
 
 function camposBuscaBiblioteca(m) {
@@ -20140,6 +20411,9 @@ function aplicarVisibilidadeBiblioteca(predicado, qAplicada) {
   /* Último passo de propósito: as alturas já são as definitivas, e o reset de scroll
      acima (mudança de filtro) já aconteceu — a âncora de uma exclusão vem depois. */
   bibRestaurarAncoraScrollPendente();
+  /* O filtro pode ter escondido grupos inteiros (`grupo.hidden` acima): letras que
+     tinham música deixam de ter, e o navegador lateral precisa refletir isso. */
+  bibNavAlfabetoRecalcularDisponibilidade();
 }
 
 function filtrar() {
@@ -24324,6 +24598,7 @@ configurarCamposMetadadosMusicaHome();
 configurarModalPreviewLetras();
 configurarModalExcluirMusica();
 configurarBarraSelecaoBiblioteca();
+configurarNavegadorAlfabeticoBiblioteca();
 configurarModalSyncPlaylist();
 configurarModalNovaMusicaManual();
 configurarSeletorTemaPlaylist();

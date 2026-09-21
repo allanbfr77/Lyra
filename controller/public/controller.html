@@ -259,6 +259,7 @@
           <div class="sidebar-title sidebar-title--com-icone" id="sidebar-title-sqlite">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
             <span>Biblioteca</span>
+            <span class="bib-total-contagem" id="bib-total-contagem" role="status" aria-live="polite" aria-atomic="true"></span>
           </div>
           <button type="button" class="btn-banco-sqlite-toggle-lista" id="btn-banco-sqlite-toggle-lista" onclick="alternarListaBancoSqlite()" aria-expanded="true" title="Recolher lista de músicas">
             <svg class="btn-banco-sqlite-toggle-lista-icone" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -283,7 +284,10 @@
           <span class="banco-sqlite-lista-recolhida-aviso-icone" aria-hidden="true">▸</span>
           <span>Lista de músicas recolhida. Clique na seta ao lado do título para expandir.</span>
         </div>
-        <div class="lista-sqlite" id="lista" role="listbox" aria-multiselectable="true" aria-label="Biblioteca de músicas"></div>
+        <div class="bib-lista-wrap" id="bib-lista-wrap">
+          <div class="lista-sqlite" id="lista" role="listbox" aria-multiselectable="true" aria-label="Biblioteca de músicas"></div>
+          <div class="bib-nav-alfabeto" id="bib-nav-alfabeto"></div>
+        </div>
         <div class="bib-origem-legenda" id="bib-origem-legenda" aria-label="Legenda das origens de importação">
           <span class="bib-origem-legenda-item"><span class="bib-origem bib-origem--legenda bib-origem--hlyrcs" aria-hidden="true"></span><span>HLYRCS</span></span>
           <span class="bib-origem-legenda-item"><span class="bib-origem bib-origem--legenda bib-origem--lyra" aria-hidden="true"></span><span>LYRA</span></span>

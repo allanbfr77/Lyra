@@ -4758,6 +4758,26 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   opacity: 0.9;
 }
 
+/* Quantidade total de músicas da Biblioteca local — acervo completo, nunca a
+   contagem de resultados de um filtro em curso (ver `atualizarContagemTotalBiblioteca`). */
+.bib-total-contagem {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.bib-total-contagem:empty {
+  display: none;
+}
+
 .banco-secao-titulo-linha {
   display: flex;
   align-items: center;
@@ -5249,6 +5269,110 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   margin: 0 calc(-1 * var(--banco-lista-pad-x));
 }
 
+/* ── Navegador alfabético lateral ──────────────────────────────────────────
+   Só existe para reduzir a rolagem numa biblioteca grande: salta direto para
+   a letra sem recarregar nem re-renderizar nada — só move o `scrollTop` de
+   `#lista` (ver `configurarNavegadorAlfabeticoBiblioteca` em
+   controllerAppCore.js). O wrapper herda a mesma margem negativa que a lista
+   tinha (agora zerada nela, ver abaixo) para que o navegador, posicionado a
+   partir da borda do wrapper, alinhe com a borda REAL da lista — de ponta a
+   ponta do painel — e não com a borda do padding da secção.
+
+   Fica na folga entre o fim do texto/ícones da linha (que respeitam
+   `--banco-lista-pad-x`) e a borda do painel — a mesma faixa onde só mora a
+   barra de rolagem (9px, ver `*::-webkit-scrollbar`). Por isso nunca cobre o
+   título, o artista nem o «+» que nasce no hover de uma linha: esses vivem
+   todos dentro do padding da linha, à esquerda dessa folga.
+
+   Discreto por padrão: só ganha opacidade enquanto o operador rola a lista
+   ou aproxima o rato dela, e apaga-se sozinho pouco depois — parado, não
+   compete visualmente com a lista. */
+.bib-lista-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 calc(-1 * var(--banco-lista-pad-x));
+}
+.bib-lista-wrap > .lista-sqlite {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+}
+
+.bib-nav-alfabeto {
+  position: absolute;
+  top: 2px;
+  bottom: 6px;
+  /* As contas em pixels, medidas a partir da borda direita real da lista (0):
+     barra de rolagem em [0, 9] (ver `*::-webkit-scrollbar`); a régua aqui em
+     [13, 23] — 4px de folga da barra; o «+»/a gaivota (`.item-acoes-banco`,
+     mais abaixo) começam só a partir de 28px — outros 5px de folga do lado
+     de dentro. Os três nunca se tocam. */
+  right: 13px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  touch-action: none;
+  user-select: none;
+}
+.bib-nav-alfabeto.bib-nav-alfabeto--visivel,
+.bib-nav-alfabeto:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Lista recolhida (ver `alternarListaBancoSqlite`): sem lista não há o que navegar. */
+.bib-nav-alfabeto[hidden] {
+  display: none;
+}
+
+.bib-nav-letra {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 8px;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+/* Letra sem música nenhuma no acervo (ou escondida pelo filtro em curso): continua
+   clicável — cai na mais próxima, ver `letraNavegavelMaisProxima` — só menos
+   convidativa ao olhar. */
+.bib-nav-letra--indisponivel {
+  opacity: 0.4;
+}
+/* Letra da região que está no topo da área visível agora mesmo. */
+.bib-nav-letra--atual {
+  color: var(--bib-ouro);
+}
+.bib-nav-letra:hover,
+.bib-nav-letra:focus-visible {
+  background: var(--bib-hover-bg);
+  color: var(--bib-titulo-hover);
+  outline: none;
+}
+/* Pequena confirmação visual ao clicar/arrastar sobre a letra — some sozinha. */
+.bib-nav-letra--pressionada {
+  background: var(--bib-hover-bg);
+  color: var(--bib-ouro);
+}
+
 /* ── Separador alfabético ── */
 /* Separador alfabético.
 
@@ -5326,6 +5450,16 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   background: transparent;
   transition: background 0.12s ease, border-left-color 0.12s ease;
   pointer-events: none;
+}
+/* Só na Biblioteca: o cartão cinza do realce (seleção/hover/ativo) ia quase até a
+   borda real da lista (`--banco-card-inset-x` é só 4px) — por baixo da barra de
+   rolagem e, agora, por baixo do navegador alfabético também. Aqui ele para
+   ANTES da régua ([13,23]px da borda, ver `.bib-nav-alfabeto`), com folga: o
+   cinza é só da linha, a régua não é parte dela. (Continua a passar por baixo
+   do «+»/da gaivota — esses SÃO da linha, ficar por cima do cartão é o
+   esperado.) */
+.lista-sqlite .item::before {
+  right: 26px;
 }
 /* O conteúdo fica por cima do cartão. */
 .lista-sqlite .item > *,
@@ -5518,9 +5652,15 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   display: inline-flex;
 }
 
-/* ── Coluna direita: só existe quando há algo para mostrar ── */
+/* ── Coluna direita: só existe quando há algo para mostrar ──
+   Recuo extra à direita: com o navegador alfabético a ocupar a faixa entre a
+   linha e a borda do painel (ver `.bib-nav-alfabeto`), o «+» e o visto
+   («gaivota») precisam de sobra para não ficar por baixo da régua quando a
+   linha está ativa/em hover ao mesmo tempo que ela aparece — a margem os
+   afasta sem mudar a lógica de quando aparecem. */
 .lista-sqlite .item-acoes-banco {
   gap: 6px;
+  margin-right: 14px;
 }
 .bib-add,
 .bib-check {
