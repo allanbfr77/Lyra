@@ -26030,10 +26030,6 @@ function montarTextoDetalhesAtualizacao(payload, incluirPergunta = true) {
   if (payload?.notes) {
     partes.push(`Notas da release:\n${String(payload.notes).trim()}`);
   }
-  if (lyraUpdaterUiState.downloadEmAndamento) {
-    const pct = Math.max(0, Math.min(100, Math.round(Number(lyraUpdaterUiState.percentualDownload || 0))));
-    partes.push(`Download em andamento: ${pct}%`);
-  }
   if (incluirPergunta) {
     partes.push('Deseja baixar a atualização agora?');
   }

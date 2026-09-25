@@ -39,28 +39,6 @@ function closeBibliaDbs() {
   bibliaDbs = new Map();
 }
 
-function inserirMusicasExemplo() {
-  const insert = db.prepare(
-    'INSERT INTO musicas (titulo, artista, estrofes, is_immutable) VALUES (?, ?, ?, 1)'
-  );
-  const r1 = insert.run('Grande é o Senhor', 'Ministério Ipiranga', JSON.stringify([
-    'Grande é o Senhor\nE mui digno de louvor\nNa cidade do nosso Deus\nNo seu santo monte',
-    'Belo em sua altitude\nA alegria de toda a terra\nO monte Sião, pelos lados do norte\nA cidade do grande Rei',
-    'Grande é o Senhor\nGrande é o Senhor\nGrande é o Senhor\nÉ digno de louvor',
-  ]));
-  musicasDb.finalizarMusicaOriginalAposInsert(r1.lastInsertRowid);
-  const r2 = insert.run('Quão Grande és Tu', 'Hino Clássico', JSON.stringify([
-    'Senhor meu Deus\nQuando eu, maravilhado\nContemple os mundos que as tuas mãos criou\nAs mil estrelas que puseste no espaço\nO universo todo que ordenou',
-    'Então minh\'alma canta a ti, Senhor\nQuão grande és tu, quão grande és tu\nEntão minh\'alma canta a ti, Senhor\nQuão grande és tu, quão grande és tu',
-  ]));
-  musicasDb.finalizarMusicaOriginalAposInsert(r2.lastInsertRowid);
-  const r3 = insert.run('Maravilhosa Graça', '', JSON.stringify([
-    'Maravilhosa graça\nDo meu Salvador\nGraça que excede\nMeu maior pecado e culpa',
-    'Louvado seja Jesus\nQue comprou a minha paz\nNa cruz pagou minha dívida\nE livre me fez',
-  ]));
-  musicasDb.finalizarMusicaOriginalAposInsert(r3.lastInsertRowid);
-}
-
 function initBibliaSqliteDatabases(paths, Database) {
   closeBibliaDbs();
   if (typeof paths.bibliaSqlitePath !== 'function') return;
@@ -197,8 +175,9 @@ function initControllerDatabase(paths, Database) {
 
   musicasDb.migrarMusicasImutabilidade();
 
-  const count = db.prepare('SELECT COUNT(*) as c FROM musicas').get();
-  if (count.c === 0) inserirMusicasExemplo();
+  // Nota: não há mais seed de músicas de exemplo aqui — bancos novos começam com a
+  // tabela `musicas` vazia. (Removido em 2026-09: eram músicas de teste/demonstração
+  // que reapareciam sempre que o banco fosse recriado do zero.)
 
   initApresentacoesDB();
   ministrantesDb.initMinistrantesETomMemoriaDB();
