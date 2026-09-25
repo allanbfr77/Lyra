@@ -91,6 +91,8 @@ function createUserPaths(userDataRoot) {
      * logs», isto tem de estar na mesma pasta que ele já sabe abrir pelo menu.
      */
     diagnosticoTelasPath: () => path.join(userDataRoot, 'lyra-telas.log'),
+    /** Diário técnico da conversão de documentos (aba DOCS) — ver `conversaoDiagnostico.js`. */
+    docsConversaoLogPath: () => path.join(userDataRoot, 'lyra-docs-conversao.log'),
   };
 }
 

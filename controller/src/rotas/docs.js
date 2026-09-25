@@ -15,9 +15,25 @@ const os = require('os');
 const path = require('path');
 const express = require('express');
 const { tipoOfficeDoNome, converterOfficeParaPdf } = require('../lib/officeParaPdf');
+const { createUserPaths } = require('../lib/paths');
 
 /** Limite generoso: uma apresentação com vídeo e imagens grandes ainda é um ficheiro só. */
 const LIMITE_UPLOAD = '800mb';
+
+/**
+ * Onde fica o diário técnico da conversão (nunca mostrado ao operador — ver
+ * `conversaoDiagnostico.js`). `null` fora do Electron (testes, por exemplo): a conversão
+ * continua a funcionar, só não há ficheiro de diagnóstico.
+ */
+function caminhoDiagnosticoConversao() {
+  try {
+    const { app } = require('electron');
+    if (!app || typeof app.getPath !== 'function') return null;
+    return createUserPaths(app.getPath('userData')).docsConversaoLogPath();
+  } catch (_) {
+    return null;
+  }
+}
 
 function nomeSeguroTemporario(nome) {
   const ext = path.extname(String(nome || '')).toLowerCase();
@@ -62,7 +78,11 @@ function registrarRotasDocs(expressApp, deps) {
         const destino = `${origem}.pdf`;
         try {
           fs.writeFileSync(origem, req.body);
-          const r = await converterOfficeParaPdf({ origem, destino });
+          const r = await converterOfficeParaPdf({
+            origem,
+            destino,
+            diagnosticoPath: caminhoDiagnosticoConversao(),
+          });
           if (!r.ok) {
             return res.status(422).json({ ok: false, erro: r.erro });
           }
