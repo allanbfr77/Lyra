@@ -11,7 +11,12 @@ const os = require('os');
 const path = require('path');
 const test = require('node:test');
 const assert = require('node:assert');
-const { tipoOfficeDoNome, mensagemFalhaConversao, converterOfficeParaPdf } = require('./officeParaPdf');
+const {
+  tipoOfficeDoNome,
+  mensagemFalhaConversao,
+  converterOfficeParaPdf,
+  resolverForaDoAsar,
+} = require('./officeParaPdf');
 const { criarDiagnosticoConversao } = require('./conversaoDiagnostico');
 
 test('cada extensão vai para a aplicação certa', () => {
@@ -88,6 +93,34 @@ test('officeParaPdf.vbs não tem "If ... Then <chamada sem parênteses> Else ...
   const ofensivo = /If\s+\w+\s+Then\s+\S+\.\w+(\s+\S+)?\s+Else\s/i;
   const linha = vbs.split(/\r?\n/).find((l) => ofensivo.test(l.trim()) && !l.trim().startsWith("'"));
   assert.equal(linha, undefined, `linha ambígua encontrada: ${linha}`);
+});
+
+test('caminho dentro do app.asar é trocado pela cópia real em app.asar.unpacked', () => {
+  /*
+   * Bug real: o instalador empacota `src/**` dentro de `app.asar`, um arquivo único que só
+   * o Node sabe ler. O `cscript.exe` é um processo externo — não enxerga nada lá dentro — e
+   * falhava com "Não é possível encontrar o arquivo de script" assim que instalado, mesmo
+   * com tudo funcionando em `npm start` (onde não há asar nenhum). `officeParaPdf.vbs`
+   * passou a `asarUnpack` (controller/package.json), o que grava também uma cópia real fora
+   * do pacote; esta função é quem aponta para essa cópia em vez da virtual.
+   */
+  const empacotado = 'C:\\Users\\allan\\AppData\\Local\\Programs\\lyra-controller\\resources\\app.asar\\src\\lib\\officeParaPdf.vbs';
+  const esperado = 'C:\\Users\\allan\\AppData\\Local\\Programs\\lyra-controller\\resources\\app.asar.unpacked\\src\\lib\\officeParaPdf.vbs';
+  assert.equal(resolverForaDoAsar(empacotado, '\\'), esperado);
+});
+
+test('caminho de desenvolvimento (sem asar) passa intacto', () => {
+  const dev = '/home/allan/Lyra/controller/src/lib/officeParaPdf.vbs';
+  assert.equal(resolverForaDoAsar(dev, '/'), dev);
+});
+
+test('controller/package.json declara o .vbs em asarUnpack, senão o instalador o embrulha de novo', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+  const unpack = (pkg.build && pkg.build.asarUnpack) || [];
+  assert.ok(
+    unpack.some((padrao) => padrao.includes('.vbs')),
+    'controller/package.json precisa de "build.asarUnpack" cobrindo os .vbs de src/lib'
+  );
 });
 
 test('fora do Windows devolve erro em vez de rejeitar', async (t) => {

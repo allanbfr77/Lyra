@@ -115,7 +115,7 @@ function converterOfficeParaPdf({ origem, destino, timeoutMs = TIMEOUT_CONVERSAO
       erro: 'A conversão de PowerPoint e Word usa o Microsoft Office e só funciona no Windows.',
     });
   }
-  const script = path.join(__dirname, 'officeParaPdf.vbs');
+  const script = caminhoRealDoScript();
   return new Promise((resolve) => {
     const finalizar = (resultado, extra) => {
       diagnostico.registar({
@@ -235,4 +235,37 @@ function converterOfficeParaPdf({ origem, destino, timeoutMs = TIMEOUT_CONVERSAO
   });
 }
 
-module.exports = { tipoOfficeDoNome, mensagemFalhaConversao, converterOfficeParaPdf };
+/**
+ * Caminho real, em disco, de `officeParaPdf.vbs`.
+ *
+ * Empacotado, `__dirname` aponta para dentro do `app.asar` — um arquivo único que só o
+ * próprio Node/Electron sabe ler; é transparente para `require`/`fs`, mas não existe como
+ * arquivo de verdade para fora do processo. O `cscript.exe`, por ser um processo externo,
+ * não consegue abrir nada lá dentro e falha com «Não é possível encontrar o arquivo de
+ * script» — exatamente o que só aparece depois de instalado, nunca em `npm start`
+ * (desenvolvimento não usa asar; o arquivo já é real).
+ *
+ * `officeParaPdf.vbs` está listado em `asarUnpack` (`controller/package.json`), o que faz o
+ * instalador colocar uma cópia de verdade dele também fora do pacote, em
+ * `app.asar.unpacked`. Isso sozinho não muda o que `__dirname` resolve dentro do código já
+ * empacotado — é preciso trocar, no caminho, o pedaço `app.asar` por `app.asar.unpacked`
+ * para apontar para essa cópia. Em desenvolvimento o caminho não contém `app.asar` e a
+ * troca não faz nada.
+ */
+function resolverForaDoAsar(caminho, separador = path.sep) {
+  const marcador = `${separador}app.asar${separador}`;
+  if (!caminho.includes(marcador)) return caminho;
+  return caminho.replace(marcador, `${separador}app.asar.unpacked${separador}`);
+}
+
+function caminhoRealDoScript() {
+  return resolverForaDoAsar(path.join(__dirname, 'officeParaPdf.vbs'));
+}
+
+module.exports = {
+  tipoOfficeDoNome,
+  mensagemFalhaConversao,
+  converterOfficeParaPdf,
+  caminhoRealDoScript,
+  resolverForaDoAsar,
+};
