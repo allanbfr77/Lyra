@@ -617,6 +617,14 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
 
   expressApp.post('/api/sync-invb-playlist', async (req, res) => {
     try {
+      /* Culto selecionado no painel (`culto_AAAA-MM-DD_<sufixo>`): filtro obrigatório —
+         só a playlist do site correspondente a este culto é importada. */
+      const cultoIdSelecionado =
+        req.body && req.body.cultoId != null ? String(req.body.cultoId).trim() : '';
+      if (!cultoIdSelecionado) {
+        return res.status(400).json({ erro: 'Selecione primeiro o culto no Lyra.' });
+      }
+
       // 1. Buscar cultos do Supabase
       let cultos;
       try {
@@ -625,8 +633,15 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
         return res.status(502).json({ erro: 'Falha ao buscar dados do site INVB: ' + e.message });
       }
 
-      if (!cultos || cultos.length === 0) {
-        return res.json({ adicionadas: 0, naoEncontradas: [], aviso: 'Nenhum culto encontrado no site.' });
+      /* `cultoId` do site usa a mesma convenção do painel (`cultoIdDoSite`). */
+      cultos = (cultos || []).filter((c) => c && c.cultoId === cultoIdSelecionado);
+
+      if (cultos.length === 0) {
+        return res.json({
+          adicionadas: 0,
+          naoEncontradas: [],
+          aviso: 'Nenhuma playlist encontrada no site para o culto selecionado.',
+        });
       }
 
       // 2. Carregar playlists existentes

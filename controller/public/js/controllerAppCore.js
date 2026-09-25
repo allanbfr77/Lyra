@@ -11955,9 +11955,19 @@ async function onSincronizarPlaylistLyraClick() {
       btnShortcut.title = on ? 'Sincronizando com Lyra…' : 'Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra';
     }
   };
+  /* Importa só a playlist do site do culto selecionado (data + turno). */
+  const cultoIdSelecionado = String(cultoId || '').trim();
+  if (!cultoIdSelecionado) {
+    alert('Selecione primeiro o culto para importar a playlist do site.');
+    return;
+  }
   setLoading(true);
   try {
-    const res = await fetch(getControllerApiBase() + '/api/sync-invb-playlist', { method: 'POST' });
+    const res = await fetch(getControllerApiBase() + '/api/sync-invb-playlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cultoId: cultoIdSelecionado }),
+    });
     const data = await res.json();
     if (!res.ok) {
       alert('Erro ao sincronizar: ' + (data.erro || res.status));
@@ -12003,6 +12013,7 @@ async function onSincronizarPlaylistLyraClick() {
 
     const totalAdicionadas = (Number(data.adicionadas) || 0) + adicionadasPorEscolha;
     let msg = 'Sincronização concluída\n' + totalAdicionadas + ' músicas adicionadas';
+    if (data.aviso) msg += '\n' + data.aviso;
     if (data.naoEncontradas && data.naoEncontradas.length > 0) {
       msg += '\n' + data.naoEncontradas.length + ' músicas não encontradas:\n';
       msg += data.naoEncontradas.map(m => '  • ' + m.nome + ' (' + m.tipo + ')').join('\n');
