@@ -14,6 +14,13 @@ import {
   assinaturaConteudoVersao,
   versoesConteudoRigorosamenteIdentico,
   opcoesVersaoDistintasPorConteudo,
+  playlistItemMesmaRaizIgnorandoVersao,
+  localizarItemMesmaRaizNaPlaylist,
+  decidirAcaoAdicionarVersaoAtivaNaPlaylist,
+  substituirVersaoItemPlaylist,
+  ACAO_ADICIONAR_PLAYLIST,
+  ACAO_JA_PRESENTE_PLAYLIST,
+  ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST,
 } from './playlistVersaoMusica.js';
 
 test('versaoLocalIdTrimado: vazio vira string vazia; 0 sobrevive', () => {
@@ -164,4 +171,83 @@ test('sem conteúdo conhecido nada é descartado (mantém o comportamento antigo
   ]);
   assert.equal(distintas.length, 2);
   assert.deepEqual(opcoesVersaoDistintasPorConteudo(null), []);
+});
+
+test('playlistItemMesmaRaizIgnorandoVersao: ignora marcador, raiz e fonte importam, versão não', () => {
+  const it = { id: 10, versaoLocalId: '42', bancoFonte: 'user' };
+  assert.equal(playlistItemMesmaRaizIgnorandoVersao(it, 10, 'user'), true);
+  assert.equal(playlistItemMesmaRaizIgnorandoVersao(it, 11, 'user'), false);
+  assert.equal(playlistItemMesmaRaizIgnorandoVersao(it, 10, 'catalog'), false);
+  assert.equal(playlistItemMesmaRaizIgnorandoVersao({ tipo: 'marcador_tema' }, 10, 'user'), false);
+});
+
+test('localizarItemMesmaRaizNaPlaylist acha a entrada independente da versão', () => {
+  const pl = [
+    { tipo: 'marcador_tema', tema: 'ABERTURA' },
+    { id: 5, versaoLocalId: null, bancoFonte: 'user' },
+    { id: 10, versaoLocalId: 'c_1', bancoFonte: 'user' },
+  ];
+  assert.equal(localizarItemMesmaRaizNaPlaylist(pl, 10, 'user'), pl[2]);
+  assert.equal(localizarItemMesmaRaizNaPlaylist(pl, 99, 'user'), null);
+});
+
+test('decidirAcaoAdicionarVersaoAtivaNaPlaylist: música nova → adicionar', () => {
+  const pl = [{ id: 5, versaoLocalId: null, bancoFonte: 'user' }];
+  const d = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, 10, null, 'user');
+  assert.equal(d.acao, ACAO_ADICIONAR_PLAYLIST);
+  assert.equal(d.item, null);
+});
+
+test('decidirAcaoAdicionarVersaoAtivaNaPlaylist: mesma música e mesma versão → já presente', () => {
+  const pl = [{ id: 10, versaoLocalId: '42', bancoFonte: 'user' }];
+  const d = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, 10, '42', 'user');
+  assert.equal(d.acao, ACAO_JA_PRESENTE_PLAYLIST);
+  assert.equal(d.item, pl[0]);
+});
+
+test('decidirAcaoAdicionarVersaoAtivaNaPlaylist: mesma música, versão diferente → confirmar troca', () => {
+  const pl = [{ id: 10, versaoLocalId: null, bancoFonte: 'user' }]; // cópia-original (ORIGINAL) na playlist
+  const d = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, 10, '42', 'user'); // selecionando a Editada (versão 42)
+  assert.equal(d.acao, ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST);
+  assert.equal(d.item, pl[0]);
+});
+
+test('decidirAcaoAdicionarVersaoAtivaNaPlaylist: compara música + versão, não só o nome', () => {
+  // Mesma raiz, fontes diferentes (catalog vs user) não são a mesma entrada.
+  const pl = [{ id: 10, versaoLocalId: '42', bancoFonte: 'catalog' }];
+  const d = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, 10, '42', 'user');
+  assert.equal(d.acao, ACAO_ADICIONAR_PLAYLIST);
+});
+
+test('substituirVersaoItemPlaylist troca a versão no lugar, sem criar entrada nova, e zera o rótulo', () => {
+  const pl = [
+    { id: 1, titulo: 'Antes', versaoLocalId: null, bancoFonte: 'user', tema: 'ABERTURA', tom: 'D' },
+    { id: 10, titulo: 'Música A', versaoLocalId: null, bancoFonte: 'user', tema: 'ABERTURA', tom: 'G', versaoRotulo: '' },
+  ];
+  const ok = substituirVersaoItemPlaylist(pl[1], '42');
+  assert.equal(ok, true);
+  assert.equal(pl.length, 2);
+  assert.equal(pl[1].versaoLocalId, '42');
+  assert.equal(pl[1].versaoRotulo, '');
+  // Posição e demais dados da entrada (tema, tom, etc.) continuam intactos.
+  assert.equal(pl[1].tema, 'ABERTURA');
+  assert.equal(pl[1].tom, 'G');
+  assert.equal(pl[0].id, 1);
+});
+
+test('substituirVersaoItemPlaylist: sem item, não faz nada e devolve false', () => {
+  assert.equal(substituirVersaoItemPlaylist(null, '42'), false);
+});
+
+test('regressão: troca de versão nunca cai para ORIGINAL quando a versão selecionada é um fork do servidor', () => {
+  // Cenário relatado: playlist tem «Música A — CÓPIA» (cópia local c_1); no HOME o
+  // usuário selecionou a versão «TESTE», um fork do SERVIDOR com id próprio (57).
+  const pl = [{ id: 10, titulo: 'Música A', versaoLocalId: 'c_1', bancoFonte: 'user' }];
+  const versaoSelecionadaNoHome = '57'; // id do fork «TESTE» no servidor — NUNCA null/''.
+  const d = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, 10, versaoSelecionadaNoHome, 'user');
+  assert.equal(d.acao, ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST);
+  substituirVersaoItemPlaylist(d.item, versaoSelecionadaNoHome);
+  // NUNCA null (o que a UI leria como ORIGINAL) — tem de ser exatamente «57» (TESTE).
+  assert.equal(pl[0].versaoLocalId, '57');
+  assert.notEqual(pl[0].versaoLocalId, null);
 });

@@ -149,3 +149,61 @@ export function playlistItemMesmaVersaoQueRaiz(it, raizId, versaoLocalId, bancoF
     fonteBancoItemPlaylist(it) === fonteBancoNormalizada(bancoFonte)
   );
 }
+
+/**
+ * Mesma raiz + mesma fonte, IGNORANDO a versão — usado pelo botão «Adicionar à
+ * playlist» do HOME para achar uma entrada já existente da mesma música
+ * (qualquer versão) e decidir se é caso de adicionar, avisar ou trocar versão.
+ */
+export function playlistItemMesmaRaizIgnorandoVersao(it, raizId, bancoFonte) {
+  if (!it || ehMarcadorTemaPlaylist(it)) return false;
+  const itRoot = Number(it.id);
+  if (!Number.isFinite(raizId) || !Number.isFinite(itRoot) || itRoot !== raizId) return false;
+  return fonteBancoItemPlaylist(it) === fonteBancoNormalizada(bancoFonte);
+}
+
+/** Primeira entrada da playlist com a mesma raiz + fonte (qualquer versão), ou `null`. */
+export function localizarItemMesmaRaizNaPlaylist(pl, raizId, bancoFonte) {
+  const lista = Array.isArray(pl) ? pl : [];
+  return lista.find((it) => playlistItemMesmaRaizIgnorandoVersao(it, raizId, bancoFonte)) || null;
+}
+
+/** Ações possíveis do botão «Adicionar à playlist» do HOME, conforme o que já está na playlist. */
+export const ACAO_ADICIONAR_PLAYLIST = 'adicionar';
+export const ACAO_JA_PRESENTE_PLAYLIST = 'ja-presente';
+export const ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST = 'confirmar-troca-versao';
+
+/**
+ * Decide o que o botão «Adicionar à playlist» do HOME deve fazer com a versão
+ * ativa (`versaoLocalId`) da música (`raizId` + `bancoFonte`) na playlist `pl`:
+ *
+ * - Música ainda não presente (nenhuma versão dela na playlist) → `adicionar`.
+ * - Presente com a MESMA versão → `ja-presente` (nada a fazer, só avisar).
+ * - Presente com OUTRA versão → `confirmar-troca-versao`, com o `item` já
+ *   localizado (quem chama pede confirmação e, se sim, substitui a versão
+ *   dele no lugar — mesma posição, sem criar uma segunda entrada).
+ *
+ * A comparação considera música + versão (regra 7 da especificação): duas
+ * versões diferentes da mesma música NUNCA contam como «já presente».
+ */
+export function decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, raizId, versaoLocalId, bancoFonte) {
+  const item = localizarItemMesmaRaizNaPlaylist(pl, raizId, bancoFonte);
+  if (!item) return { acao: ACAO_ADICIONAR_PLAYLIST, item: null };
+  const mesmaVersao =
+    versaoLocalIdParaComparar(item.versaoLocalId) === versaoLocalIdParaComparar(versaoLocalId);
+  if (mesmaVersao) return { acao: ACAO_JA_PRESENTE_PLAYLIST, item };
+  return { acao: ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST, item };
+}
+
+/**
+ * Substitui, no lugar, a versão de uma entrada já existente da playlist —
+ * mesma posição, sem criar uma segunda entrada. Tags (rótulos de versão)
+ * nunca entram na playlist, qualquer que seja a versão escolhida (mesma regra
+ * de `addMusicaNaPlaylist`/`addMusicaNaPlaylistParaCulto` no AppCore).
+ */
+export function substituirVersaoItemPlaylist(item, versaoLocalId) {
+  if (!item) return false;
+  item.versaoLocalId = versaoLocalId || null;
+  item.versaoRotulo = '';
+  return true;
+}

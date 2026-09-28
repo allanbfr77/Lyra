@@ -119,6 +119,10 @@ import {
   playlistJaContemMesmaMusicaEVersao,
   playlistItemMesmaVersaoQueRaiz,
   VALOR_OPCAO_VERSAO_ORIGINAL,
+  decidirAcaoAdicionarVersaoAtivaNaPlaylist,
+  substituirVersaoItemPlaylist,
+  ACAO_JA_PRESENTE_PLAYLIST,
+  ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST,
 } from './modules/playlistVersaoMusica.js';
 import {
   BANCO_FONTE_OPCOES,
@@ -13025,6 +13029,151 @@ async function addMusicaNaPlaylist(meta) {
   renderPlaylist();
 }
 
+/**
+ * Rótulo de exibição de uma versão para o popup de troca de versão do botão
+ * «Adicionar à playlist» do HOME (ver `adicionarVersaoAtivaNaPlaylistHome`).
+ * Mesmo critério de rótulo da barra de versões (`renderMusicaVersoesBar`):
+ * ORIGINAL sem `versaoLocalId`, cópia local `c_*` ou versão do servidor.
+ */
+function rotuloVersaoParaPopupPlaylist(rootId, versaoLocalId) {
+  const vid = versaoLocalIdTrimado(versaoLocalId);
+  if (!vid) return rotuloVersaoMaiusculo('Original');
+  if (ehVersaoLocalLegada(vid)) {
+    const c = encontrarCopiaLocal(rootId, vid);
+    if (c) return rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(c.rotulo));
+    return rotuloVersaoMaiusculo('Cópia');
+  }
+  const versoesSrv =
+    Number(versoesMusicaServidorCache.rootId) === Number(rootId)
+      ? versoesMusicaServidorCache.versoes || []
+      : [];
+  const v = versoesSrv.find((x) => String(x.id) === vid);
+  if (v) return rotuloVersaoMaiusculo(rotuloExibicaoVersaoServidor(v));
+  return rotuloVersaoMaiusculo('Versão');
+}
+
+/**
+ * Botão «Adicionar à playlist» da barra padrão (HOME).
+ *
+ * Mesma função básica do «+» da Biblioteca (`addMusicaNaPlaylist`, que esta
+ * função NÃO altera nem chama por baixo dos panos além dos mesmos helpers de
+ * tema/ministrante), com uma diferença: nunca pergunta qual versão adicionar —
+ * usa exatamente a versão ativa no HOME, via `versaoAtivaParaCompararPlaylist()`
+ * (cobre tanto cópia local quanto versão do servidor; ORIGINAL quando vazia).
+ *
+ * - Música ainda não presente na playlist do culto: adiciona normalmente com
+ *   a versão ativa (mesma lógica de tema/ministrante do «+» da Biblioteca).
+ * - Já presente com a MESMA versão: não faz nada, só avisa.
+ * - Já presente com OUTRA versão: pede confirmação e, confirmando, substitui
+ *   a versão da entrada já existente NO LUGAR — mesma posição, sem duplicar
+ *   a música e sem tocar em tema/ministrante/tom já gravados.
+ */
+async function adicionarVersaoAtivaNaPlaylistHome() {
+  if (!musicaAtiva || musicaAtiva.id == null) return;
+  if (!cultoId) {
+    alert('Selecione primeiro o dia do culto.');
+    return;
+  }
+  const idNum = obterRootIdMusicaAtiva();
+  if (!Number.isFinite(idNum)) return;
+  const bancoFonte = fonteBancoNormalizada(musicaBancoFonte);
+  /* Fonte da verdade da versão ativa no HOME — a MESMA já usada para comparar
+     a música ativa com a playlist (`playlistItemMesmaVersaoQueAtiva`). NUNCA
+     usar `musicaVersaoLocalId` sozinho aqui: ele só cobre cópias locais
+     (`c_*`) — para uma versão do SERVIDOR (fork) ele já vem `null` depois de
+     carregada (a identidade dela mora em `musicaAtiva.id`), então lê-lo puro
+     confundiria «versão do servidor selecionada» com ORIGINAL. */
+  const versaoLocalId = versaoAtivaParaCompararPlaylist() || null;
+  const tituloPl = musicaAtiva.titulo;
+  const artistaPl = musicaAtiva.artista || '';
+
+  const pl = getPlaylist(cultoId);
+  const decisao = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, idNum, versaoLocalId, bancoFonte);
+
+  if (decisao.acao === ACAO_JA_PRESENTE_PLAYLIST) {
+    appAlert(
+      'Esta música (mesma versão e mesma origem catálogo/servidor) já está na playlist deste culto.',
+      'Playlist'
+    );
+    return;
+  }
+
+  if (decisao.acao === ACAO_CONFIRMAR_TROCA_VERSAO_PLAYLIST) {
+    const rotuloAtual = rotuloVersaoParaPopupPlaylist(idNum, decisao.item.versaoLocalId);
+    const rotuloNovo = rotuloVersaoParaPopupPlaylist(idNum, versaoLocalId);
+    const ok = await appConfirm(
+      `Esta música já está na playlist com outra versão.\n\nAtualmente: ${rotuloAtual}\nNova versão: ${rotuloNovo}\n\nDeseja substituir a versão atual pela versão selecionada?`,
+      'Playlist',
+      { okLabel: 'Confirmar alteração', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return; // cancelou: playlist continua exatamente como estava.
+    substituirVersaoItemPlaylist(decisao.item, versaoLocalId);
+    savePlaylists();
+    renderPlaylist();
+    return;
+  }
+
+  // ACAO_ADICIONAR_PLAYLIST — música ainda não presente na playlist deste culto.
+  // Daqui em diante, mesma lógica de tema/ministrante do «+» da Biblioteca
+  // (`addMusicaNaPlaylist`), só que sem o prompt de versão — já resolvida acima.
+  let tema;
+  const temMarcadores = playlistPossuiMarcadoresTema(pl);
+  if (temMarcadores) {
+    const marcadores = listarMarcadoresTemaPlaylist(pl);
+    if (marcadores.length === 0) {
+      alert('Use o botão «Inserir tema na playlist abaixo» (seta até à linha) para adicionar um bloco de tema no fim da playlist antes de incluir músicas.');
+      return;
+    }
+    if (marcadores.length === 1) {
+      tema = marcadores[0];
+    } else {
+      const ultimo = obterUltimoMarcadorTema(pl);
+      const opcoesTema = marcadores.map((t) => ({
+        value: t,
+        label: t === ultimo ? `${t} (ÚLTIMO)` : t,
+      }));
+      const escTema = await appEscolherOpcao(
+        'Em qual tema adicionar esta música?',
+        opcoesTema,
+        `«${tituloPl}» será adicionada ao tema escolhido.`
+      );
+      if (escTema == null) return; // cancelou
+      tema = normalizarTemaPlaylist(escTema);
+    }
+  } else {
+    tema = getTemaSelecionadoAtual();
+    if (!tema) {
+      alert('Selecione um tema na lista e use «Inserir tema na playlist abaixo» para ativá-lo na playlist.');
+      return;
+    }
+  }
+  garantirTemaNoCatalogoAtual(tema);
+  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(cultoId, {
+    id: idNum,
+    titulo: tituloPl,
+    bancoFonte,
+  });
+  const novoItemHome = {
+    id: idNum,
+    titulo: tituloPl,
+    artista: artistaPl,
+    tema,
+    versaoLocalId,
+    // Tags (rótulos de versão) nunca entram na playlist, seja qual for a versão escolhida.
+    versaoRotulo: '',
+    bancoFonte,
+    ministranteId: mt.ministranteId,
+    tom: mt.tom,
+  };
+  if (temMarcadores) {
+    inserirMusicaNoBlocoTema(pl, tema, novoItemHome);
+  } else {
+    pl.push(novoItemHome);
+  }
+  savePlaylists();
+  renderPlaylist();
+}
+
 /** Adiciona ao culto indicado (sem mudar o culto atualmente selecionado até `onCultoChange`). */
 async function addMusicaNaPlaylistParaCulto(cid, meta) {
   if (!cid || meta == null || meta.id == null) return;
@@ -15226,6 +15375,7 @@ function atualizarToolbarModoEdicao() {
   if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
 
   atualizarToolbarCaixaLetrasEdicao();
+  atualizarToolbarAdicionarPlaylistHome();
 
   /* Sem música a linha fica sem nenhum botão: esconder remove também a
      divisória que ela desenha por baixo dos campos de título/artista. */
@@ -16616,6 +16766,21 @@ function atualizarToolbarCaixaLetrasEdicao() {
   btn.title = caixaLetrasEdicaoMaiuscula
     ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
     : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
+}
+
+/**
+ * «Adicionar à playlist» (HOME), ao lado do aA: visível sempre que há música
+ * ativa, como o próprio aA (ver `atualizarToolbarCaixaLetrasEdicao` acima) —
+ * não depende do sub-modo (Grade/Slide, Letra Completa ou Comparativo).
+ */
+function atualizarToolbarAdicionarPlaylistHome() {
+  const btn = document.getElementById('btn-adicionar-playlist-home');
+  const sep = document.getElementById('toolbar-sep-playlist');
+  const m = !!musicaAtiva;
+  if (sep) sep.style.display = m ? '' : 'none';
+  if (!btn) return;
+  btn.style.display = m ? '' : 'none';
+  btn.disabled = !m;
 }
 
 /** Por linha: 1.ª letra maiúscula, restante minúsculas (preserva espaços à esquerda). */
@@ -22117,6 +22282,7 @@ exporCallbacksParaAtributosHtml({
   alternarModoComparativoCentral,
   cancelarModoComparativoCentral,
   alternarCaixaLetrasEdicao,
+  adicionarVersaoAtivaNaPlaylistHome,
   sairModoEdicao,
   salvarMusicaServidor,
   acionarSalvarAlteracoesBarraPadrao,
