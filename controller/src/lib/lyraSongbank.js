@@ -4,7 +4,7 @@
  * Banco online do Lyra — API pública só de leitura, sem chave.
  *
  * Documentação: `documentacao do lyra banco de musicas.md`.
- * Base: https://lyra-music-database.vercel.app/api/v1
+ * Base: https://database.invbotafogo.com.br/api/v1
  *
  * Este módulo trabalha SOMENTE com letra (`lyrics`). Nunca pede cifra, nunca
  * usa `include=all_keys`, nunca chama `/chords/` e ignora `chords` / `keys`
@@ -13,7 +13,7 @@
 
 const cifra = require('./cifraLetras');
 
-const LYRA_SONGBANK_BASE = 'https://lyra-music-database.vercel.app/api/v1';
+const LYRA_SONGBANK_BASE = 'https://database.invbotafogo.com.br/api/v1';
 const FONTE = 'lyra-online';
 const TIMEOUT_MS = 14000;
 const MAX_RESULTADOS = 40;

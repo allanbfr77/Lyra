@@ -255,7 +255,7 @@ SQLite local (`lyra.db`), tabela `musicas`:
 - Duplicidade: comparar título+artista normalizados (NFD, sem acento, sem pontuação, sem `feat.`/`part.` no artista). Não é fuzzy; diferença de palavra = outra música.
 - Catálogo offline: `catalog.db` gerado por `tools/gerar-catalog.js` a partir de `data/catalog/`.
 - Import online (opcional, só com internet):
-  1. Banco Lyra (`https://lyra-music-database.vercel.app/api/v1`) — só **letra**, nunca cifra. Descoberta em `GET /api/v1`; fallback se a descoberta falhar.
+  1. Banco Lyra (`https://database.invbotafogo.com.br/api/v1`) — só **letra**, nunca cifra. Descoberta em `GET /api/v1`; fallback se a descoberta falhar.
   2. Letras.mus.br como fonte secundária.
 - Busca local com índice (acento-insensitive, prefixo).
 

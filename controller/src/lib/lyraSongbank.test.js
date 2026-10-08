@@ -37,7 +37,7 @@ test('mapeia resultado de busca para o formato da lista (slug como path)', () =>
     artist: 'Ludmila Ferber',
     has_chords: true,
     keys: ['G'],
-    url: 'https://lyra-music-database.vercel.app/musica/os-sonhos-de-deus/cifra/g',
+    url: 'https://database.invbotafogo.com.br/musica/os-sonhos-de-deus/cifra/g',
     snippet: 'Não desista',
   });
   assert.equal(row.path, 'os-sonhos-de-deus');
@@ -110,7 +110,7 @@ test('URLs de busca e música usam os endpoints documentados, sem cifra', () => 
   assert.doesNotMatch(busca, /\/chords\//);
 
   const song = urlMusica(ENDPOINTS_FALLBACK, 'os-sonhos-de-deus');
-  assert.equal(song, 'https://lyra-music-database.vercel.app/api/v1/songs/os-sonhos-de-deus');
+  assert.equal(song, 'https://database.invbotafogo.com.br/api/v1/songs/os-sonhos-de-deus');
   assert.doesNotMatch(song, /all_keys/);
   assert.doesNotMatch(song, /chords/);
 });

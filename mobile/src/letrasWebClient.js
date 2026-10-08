@@ -81,7 +81,7 @@ const INDICE_TIPO_MUSICA = '2';
 const MAX_RESULTADOS_INDICE = 40;
 
 /** Mesma API pública do desktop (`controller/src/lib/lyraSongbank.js`). */
-const LYRA_SONGBANK_BASE = 'https://lyra-music-database.vercel.app/api/v1';
+const LYRA_SONGBANK_BASE = 'https://database.invbotafogo.com.br/api/v1';
 const FONTE_LYRA_ONLINE = 'lyra-online';
 const MAX_RESULTADOS_LYRA = 40;
 

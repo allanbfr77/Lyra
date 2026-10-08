@@ -228,7 +228,7 @@ teste('letras-mus-br usa o mesmo indice e marca a fonte', async () => {
 
 teste('lyra-online busca na API do banco e marca a fonte', async () => {
   instalarFetch({
-    'lyra-music-database.vercel.app': () =>
+    'database.invbotafogo.com.br': () =>
       resJson({
         results: [
           { slug: 'galileu', title: 'Galileu', artist: 'Fernandinho' },
@@ -257,7 +257,7 @@ teste('lyra-online na LAN — controlador vence com fonte preservada', async () 
         sucesso: true,
         resultados: [{ path: 'galileu', titulo: 'Galileu', artista: 'Fernandinho', fonte: 'lyra-online' }],
       }),
-    'lyra-music-database.vercel.app': pendurado,
+    'database.invbotafogo.com.br': pendurado,
   });
 
   const r = await buscarLetrasNaWeb(
@@ -524,7 +524,7 @@ teste('troca de hash de classe no CifraClub nao quebra a extracao', async () => 
 
 teste('previa — fonte lyra-online preserva estrofes do banco (sem fatiar)', async () => {
   instalarFetch({
-    'lyra-music-database.vercel.app/api/v1/songs/galileu': () =>
+    'database.invbotafogo.com.br/api/v1/songs/galileu': () =>
       resJson({
         slug: 'galileu',
         title: 'Galileu',
@@ -551,7 +551,7 @@ teste('previa — controlador lyra-online nao e reprocessado no celular', async 
         estrofes: ['Slide original do banco\ncom duas linhas'],
         path: 'galileu',
       }),
-    'lyra-music-database.vercel.app': pendurado,
+    'database.invbotafogo.com.br': pendurado,
   });
 
   const r = await extrairLetraParaPreviewOuImport('galileu', {
