@@ -45,12 +45,21 @@ test('índice de antecipação: última linha incompleta usa o último chip', ()
   assert.equal(indiceChipAntecipacao(30, 5, 31), -1);
 });
 
-test('slides 1–15 visíveis com a linha 16–20 já a espreitar: não rola', () => {
+test('slides 1–15 visíveis com a linha 16–20 só a espreitar: já rola para mostrá-la inteira', () => {
   const slide15 = rect(2 * STRIDE);
   const slide20 = rect(3 * STRIDE);
-  assert.equal(delta(slide15, slide20), 0);
+  const d = delta(slide15, slide20);
+  assert.ok(d > 0, 'peek não basta: antecipa a rolagem');
+  const depois = apos(slide20, d);
   const innerBottom = VP_H - FUNDO;
-  assert.ok(pxVisiveisNoInner(slide20, TOPO, innerBottom) > 0);
+  assert.ok(pxVisiveisNoInner(depois, TOPO, innerBottom) >= CHIP - 1);
+  assert.ok(apos(slide15, d).top >= TOPO - 0.5, 'o actual continua visível');
+});
+
+test('linha seguinte já inteira à vista: não rola', () => {
+  const slide10 = rect(1 * STRIDE);
+  const slide15 = rect(2 * STRIDE);
+  assert.equal(delta(slide10, slide15), 0);
 });
 
 test('15→16: além de mostrar 16–20, puxa a linha 21–25 (não a deixa escondida)', () => {

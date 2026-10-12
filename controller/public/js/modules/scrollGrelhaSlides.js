@@ -95,12 +95,19 @@ export function deltaScrollGrelhaSlidesAntecipado({
 
   if (lookaheadAbaixo) {
     const visLook = pxVisiveisNoInner(lookahead, innerTop, innerBottom);
-    if (visLook < 1) {
+    /*
+     * Só um «peek» da linha seguinte (visível em parte) não chega: enquanto ela não
+     * estiver inteira à vista e couber sem tirar o actual do topo, desloca-se já.
+     * Sem espaço para a linha inteira, o peek só entra se a linha estiver escondida.
+     */
+    if (visLook < lookahead.height - 1) {
       const deltaCheio = lookahead.bottom - innerBottom;
-      const peekPx = lookahead.height * peekRatio;
-      const deltaPeek = lookahead.top + peekPx - innerBottom;
-      const alvo = deltaCheio <= maxDelta + 0.5 ? deltaCheio : deltaPeek;
-      delta = Math.max(delta, alvo);
+      if (deltaCheio <= maxDelta + 0.5) {
+        delta = Math.max(delta, deltaCheio);
+      } else if (visLook < 1) {
+        const peekPx = lookahead.height * peekRatio;
+        delta = Math.max(delta, lookahead.top + peekPx - innerBottom);
+      }
     }
   }
 
