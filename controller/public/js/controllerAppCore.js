@@ -518,6 +518,9 @@ function atualizarBtnModoDocs() {
  */
 function abrirModoDocs() {
   if (ehModoDocsOperador()) return;
+  /* A new visit must push the route on the first projection. Other modes may have
+     written the shared channel while DOCS was closed. */
+  docsSyncedRouteKey = null;
   /*
    * Entrada sem cross-fade, e por isso sem ecrã intermédio.
    *
@@ -1226,14 +1229,35 @@ function navegarPaginaDocs(passo, opts = {}) {
 }
 
 /**
+ * Last DOCS route successfully pushed to the server during this visit.
+ * `null` forces the next projection to write. Page changes with the same route skip
+ * `PUT /api/display-routing` — the same idea as `bibliaRotaSyncServidorChave`.
+ */
+let docsSyncedRouteKey = null;
+
+function docsRouteKey() {
+  const r = normalizarRota(rotasPorModo.docs);
+  return `${r.publicoIndex},${r.ministranteIndex},${r.live ? 1 : 0}`;
+}
+
+/**
  * Leva a rota escolhida no seletor do DOCS até ao servidor.
  *
  * O DOCS não tem canal próprio no motor — a Bíblia também não: espelha a rota dela no
  * canal `apresentacao` enquanto é o modo activo, e é isso que se faz aqui. Com mídia no
  * ar o canal não se toca (fechá-lo-ia), exactamente como no ramo da Bíblia.
+ *
+ * Grava na primeira projeção da visita e quando o monitor muda. Navegar de página com
+ * a mesma rota não repete o PUT — esse PUT é o que realinha as janelas do projetor.
  */
 async function sincronizarRotaDocsNoServidor() {
-  if (hayProjecaoMidiaApresentacaoAtiva()) return;
+  if (hayProjecaoMidiaApresentacaoAtiva()) {
+    /* The shared channel belongs to the media. The next docs page must write again. */
+    docsSyncedRouteKey = null;
+    return;
+  }
+  const chave = docsRouteKey();
+  if (chave === docsSyncedRouteKey) return;
   rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.docs) };
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 }
@@ -18254,6 +18278,12 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
     if (modo === 'biblia') {
       bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
       bibliaAplicarCfgExibicao();
+    }
+    /* Same latch as the Bible: the key is the route the server accepted. A failed
+       PUT leaves it unchanged, so the next docs page tries again. A monitor change
+       that already saved also lands here, and the following pages then skip. */
+    if (modo === 'docs') {
+      docsSyncedRouteKey = docsRouteKey();
     }
     if (projecao.pronta() && modo === 'slides') {
       const pubDepois = normalizarRota(rotasPorModo.slides).publicoIndex;
