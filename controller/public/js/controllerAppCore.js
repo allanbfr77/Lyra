@@ -15354,7 +15354,7 @@ function atualizarToolbarModoEdicao() {
   const metadadosEditaveis = metadadosMusicaEditaveisNaHome();
   const tituloEditavel = tituloMusicaEditavelNaHome();
   document.getElementById('btn-editar-letra').style.display = m ? '' : 'none';
-  document.getElementById('btn-editar-letra').disabled = !m || full || comp;
+  document.getElementById('btn-editar-letra').disabled = !m || full;
   document.getElementById('btn-nova-estrofe').style.display = m ? '' : 'none';
   document.getElementById('btn-nova-estrofe').disabled = !m || !ed;
   const bAnt = document.getElementById('btn-seta-anterior');
@@ -15952,6 +15952,7 @@ async function irParaGradeSlidesDesdeLetraCompleta() {
  */
 async function alternarModoLetraCompletaOuVoltarGrade() {
   if (!musicaAtiva) return;
+  if (!(await sairModoComparativoParaTrocarModo())) return;
   if (modoLetraCompletaCentral) {
     await irParaGradeSlidesDesdeLetraCompleta();
   } else {
@@ -15964,7 +15965,7 @@ function atualizarToolbarModoLetraCompleta() {
   if (!btn) return;
   const m = !!musicaAtiva;
   btn.style.display = m ? '' : 'none';
-  btn.disabled = !m || modoComparativoCentral;
+  btn.disabled = !m;
   /* Só o rótulo e o ícone mudam — não sobrescrever o botão inteiro (`textContent`
      apagaria o SVG). O texto reflete sempre o modo PARA ONDE o clique leva. */
   const txtModo = document.getElementById('txt-modo-letra-completa');
@@ -16643,8 +16644,29 @@ async function recarregarMusicaAtivaDoServidor() {
  * padrão (`acionarSalvarAlteracoesBarraPadrao` / `acionarCancelarBarraPadrao`).
  */
 async function alternarModoComparativoCentral() {
-  if (!musicaAtiva || modoComparativoCentral) return;
+  if (!musicaAtiva) return;
+  if (modoComparativoCentral) {
+    await cancelarModoComparativoCentral();
+    return;
+  }
   await abrirModoComparativo();
+}
+
+/**
+ * Sai do comparativo antes de trocar para outro modo (pede confirmação se houver
+ * alterações). Devolve true quando o comparativo já não está activo.
+ */
+async function sairModoComparativoParaTrocarModo() {
+  if (!modoComparativoCentral) return true;
+  await cancelarModoComparativoCentral();
+  return !modoComparativoCentral;
+}
+
+/** Botão «Editar letra»: no comparativo, sai dele primeiro. */
+async function acionarEditarLetraBarraPadrao() {
+  if (!musicaAtiva) return;
+  if (!(await sairModoComparativoParaTrocarModo())) return;
+  entrarModoEdicao();
 }
 
 /** Sai do modo sem gravar nada — o que foi digitado nas colunas é descartado. */
@@ -16680,11 +16702,12 @@ function atualizarToolbarModoComparativo() {
 
   if (!btn) return;
   btn.style.display = m ? '' : 'none';
-  btn.disabled = !m || on || !podeAbrir;
+  /* Aberto, o botão é o toggle de saída — nunca pode ficar preso desabilitado. */
+  btn.disabled = !m || (!on && !podeAbrir);
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   btn.classList.toggle('ativo', on);
   btn.title = on
-    ? 'Duas versões abertas lado a lado — use Salvar alterações ou Cancelar para sair'
+    ? 'Sai do modo comparativo (pede confirmação se houver alterações não gravadas)'
     : 'Abrir duas versões lado a lado e destacar as diferenças';
 }
 
@@ -22312,6 +22335,7 @@ exporCallbacksParaAtributosHtml({
   irParaGradeSlidesDesdeLetraCompleta,
   alternarModoLetraCompletaOuVoltarGrade,
   alternarModoComparativoCentral,
+  acionarEditarLetraBarraPadrao,
   cancelarModoComparativoCentral,
   alternarCaixaLetrasEdicao,
   adicionarVersaoAtivaNaPlaylistHome,
