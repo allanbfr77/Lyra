@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   gerarCultosDoMes,
+  dataReferenciaCalendarioCultos,
   cultoIdPertenceAoMes,
   gerarCultosParaDataManual,
   parseLabelCulto,
   labelFallbackDeCultoIdImport,
 } from './cultosCalendario.js';
+import { dataReferenciaCalendarioCultos as dataReferenciaMobile } from '../../../../mobile/src/cultosMes.js';
+
+function mesLista(data) {
+  const r = dataReferenciaCalendarioCultos(data);
+  return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}`;
+}
 
 test('gerarCultosDoMes: setembro/2026 tem 4 domingos (manhã+noite) e 5 quartas', () => {
   const lista = gerarCultosDoMes(new Date(2026, 8, 1));
@@ -20,6 +27,32 @@ test('gerarCultosDoMes: setembro/2026 tem 4 domingos (manhã+noite) e 5 quartas'
   const manha = lista.find((c) => c.id === 'culto_2026-09-06_manha');
   assert.equal(parseLabelCulto(manha.label).data, '06/09');
   assert.equal(manha.label, '06/09 | DOMINGO - MANHÃ');
+});
+
+test('calendário vira no dia seguinte ao último culto automático', () => {
+  assert.equal(mesLista(new Date(2026, 9, 28)), '2026-10');
+  assert.equal(mesLista(new Date(2026, 9, 29)), '2026-11');
+  assert.equal(mesLista(new Date(2026, 9, 31)), '2026-11');
+  assert.equal(mesLista(new Date(2026, 10, 1)), '2026-11');
+  assert.equal(mesLista(new Date(2026, 10, 29)), '2026-11');
+  assert.equal(mesLista(new Date(2026, 10, 30)), '2026-12');
+  assert.equal(mesLista(new Date(2026, 8, 30)), '2026-09');
+  assert.equal(mesLista(new Date(2026, 11, 30)), '2026-12');
+  assert.equal(mesLista(new Date(2026, 11, 31)), '2027-01');
+
+  const novembro = gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date(2026, 9, 29)));
+  const ids = novembro.map((c) => c.id);
+  assert.ok(ids.includes('culto_2026-11-01_manha'));
+  assert.ok(!ids.includes('culto_2026-10-28_quarta'));
+
+  assert.equal(
+    dataReferenciaMobile(new Date(2026, 9, 29)).getMonth(),
+    dataReferenciaCalendarioCultos(new Date(2026, 9, 29)).getMonth()
+  );
+  assert.equal(
+    dataReferenciaMobile(new Date(2026, 10, 30)).getMonth(),
+    dataReferenciaCalendarioCultos(new Date(2026, 10, 30)).getMonth()
+  );
 });
 
 test('cultoIdPertenceAoMes filtra pelo mês/ano do id', () => {

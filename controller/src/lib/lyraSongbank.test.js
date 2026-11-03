@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   ehFonteLyraOnline,
+  cabecalhosRequisicao,
   montarFieldsBusca,
   mapearResultadoBusca,
   extrairLetraDaMusica,
@@ -15,6 +16,20 @@ const {
   ENDPOINTS_FALLBACK,
   FONTE,
 } = require('./lyraSongbank');
+
+test('a busca manda a chave no header Authorization', () => {
+  const anterior = process.env.LYRA_API_KEY;
+  process.env.LYRA_API_KEY = 'chave-de-teste';
+  try {
+    assert.deepEqual(cabecalhosRequisicao(), {
+      Accept: 'application/json',
+      Authorization: 'Bearer chave-de-teste',
+    });
+  } finally {
+    if (anterior == null) delete process.env.LYRA_API_KEY;
+    else process.env.LYRA_API_KEY = anterior;
+  }
+});
 
 test('reconhece as grafias da fonte do banco online', () => {
   assert.equal(ehFonteLyraOnline('lyra-online'), true);

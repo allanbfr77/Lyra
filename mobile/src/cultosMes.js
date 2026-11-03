@@ -2,6 +2,7 @@
  * Cultos do calendário Lyra — alinhado ao controlador web.
  *
  * - Automáticos do mês: domingos (manhã/noite) e quartas
+ * - A lista troca no dia seguinte ao último culto automático do mês civil
  * - Manuais / outras datas: vêm nas chaves de `playlists` do controlador
  */
 
@@ -88,6 +89,29 @@ export function gerarCultosDoMes(dataRef = new Date()) {
 }
 
 /**
+ * Mês cuja lista de cultos deve aparecer em `dataRef`.
+ * Mesma regra de `cultosCalendario.js`: no dia seguinte ao último culto
+ * automático (domingo ou quarta) a lista já é a do mês seguinte.
+ *
+ * @param {Date} [dataRef]
+ * @returns {Date} dia 1 do mês a listar
+ */
+export function dataReferenciaCalendarioCultos(dataRef = new Date()) {
+  const d0 = dataRef instanceof Date ? dataRef : new Date();
+  const y = d0.getFullYear();
+  const m0 = d0.getMonth();
+  const dia = d0.getDate();
+  let ultimoDia = 0;
+  for (const c of gerarCultosDoMes(new Date(y, m0, 1))) {
+    const iso = isoFromCultoId(c.id);
+    const d = iso ? parseInt(iso.slice(8, 10), 10) : 0;
+    if (d > ultimoDia) ultimoDia = d;
+  }
+  if (ultimoDia > 0 && dia > ultimoDia) return new Date(y, m0 + 1, 1);
+  return new Date(y, m0, 1);
+}
+
+/**
  * Rótulo legível para qualquer id `culto_YYYY-MM-DD_*` (inclui cultos manuais do PC).
  *
  * @param {string} id
@@ -149,8 +173,8 @@ export function periodoDoCultoId(id) {
  * @param {Date} [dataRef]
  * @returns {{ id: string, label: string }[]}
  */
-export function listarCultosDasPlaylists(playlists, dataRef = new Date()) {
-  const ref = dataRef instanceof Date ? dataRef : new Date();
+export function listarCultosDasPlaylists(playlists, dataRef) {
+  const ref = dataRef instanceof Date ? dataRef : dataReferenciaCalendarioCultos(new Date());
   const porId = new Map();
   gerarCultosDoMes(ref).forEach((c) => porId.set(c.id, c));
 
@@ -172,9 +196,10 @@ export function listarCultosDasPlaylists(playlists, dataRef = new Date()) {
  * @param {Date} [dataRef]
  * @returns {{ id: string, label: string }|null}
  */
-export function encontrarCultoPorId(id, playlists = null, dataRef = new Date()) {
+export function encontrarCultoPorId(id, playlists = null, dataRef) {
   if (!id) return null;
-  const lista = playlists != null ? listarCultosDasPlaylists(playlists, dataRef) : gerarCultosDoMes(dataRef);
+  const ref = dataRef instanceof Date ? dataRef : dataReferenciaCalendarioCultos(new Date());
+  const lista = playlists != null ? listarCultosDasPlaylists(playlists, ref) : gerarCultosDoMes(ref);
   return lista.find((c) => c.id === id) || null;
 }
 

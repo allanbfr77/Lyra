@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import { gerarCultosDoMes, listarCultosDasPlaylists } from '../src/cultosMes';
+import { dataReferenciaCalendarioCultos, gerarCultosDoMes, listarCultosDasPlaylists } from '../src/cultosMes';
 import {
   setPlaylistsDoControlador,
   resetPlaylistsDoControlador,
@@ -123,7 +123,7 @@ export function useSocket() {
         setConectando(false);
         setErro(null);
         // Ao conectar, inicializa o catálogo com cultos do mês e solicita playlists ao controlador
-        const cultos = gerarCultosDoMes(new Date());
+        const cultos = gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date()));
         setCatalogoRemoto({ playlists: {}, cultos });
         resetPlaylistsDoControlador();
         socket.emit('solicitar_playlists_controlador');
@@ -143,7 +143,7 @@ export function useSocket() {
         setConectado(false);
         // Limpa playlists e recalcula cultos ao desconectar
         resetPlaylistsDoControlador();
-        setCatalogoRemoto({ playlists: {}, cultos: gerarCultosDoMes(new Date()) });
+        setCatalogoRemoto({ playlists: {}, cultos: gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date())) });
         setSolicitarPlaylistsHandler(() => {});
       });
 
@@ -176,7 +176,7 @@ export function useSocket() {
     setEstado(null);
     resetPlaylistsDoControlador();
     // Recalcula cultos do mês mesmo após desconectar
-    setCatalogoRemoto({ playlists: {}, cultos: gerarCultosDoMes(new Date()) });
+    setCatalogoRemoto({ playlists: {}, cultos: gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date())) });
   }, []);
 
   /**

@@ -97,6 +97,7 @@ import {
 } from './modules/proximoCulto.js';
 import {
   gerarCultosDoMes,
+  dataReferenciaCalendarioCultos,
   cultoIdPertenceAoMes,
   gerarCultosParaDataManual,
   parseLabelCulto,
@@ -6480,8 +6481,9 @@ try {
 }
 
 /**
- * Cultos do mês corrente: domingos (manhã + noite) e quartas, com data DD/MM.
- * A lista é recalculada ao carregar (mês novo = opções novas; playlists usam o id completo).
+ * Cultos do mês em exibição: domingos (manhã + noite) e quartas, com data DD/MM.
+ * A lista é recalculada ao carregar. No dia seguinte ao último culto automático
+ * do mês civil, já entra o mês seguinte (28/10 → 29/10 mostra novembro).
  * Ids e rótulos: `modules/cultosCalendario.js`.
  */
 // --- SECÇÃO C — Culto do dia, playlists, temas, cópias locais de letra, chaves localStorage ---
@@ -6512,7 +6514,7 @@ function saveCultosManuais() {
 
 function idsCultosJaNaLista() {
   const s = new Set();
-  gerarCultosDoMes(new Date()).forEach((c) => s.add(c.id));
+  gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date())).forEach((c) => s.add(c.id));
   (cultosManuaisCache || []).forEach((c) => s.add(c.id));
   return s;
 }
@@ -6521,7 +6523,7 @@ function idsCultosJaNaLista() {
  * Cultos automáticos do mês + manuais desse mesmo mês/ano (sem duplicar id).
  * Cultos extras de outros meses permanecem persistidos, mas não entram na lista.
  */
-function listarCultosDisponiveis(dataRef = new Date()) {
+function listarCultosDisponiveis(dataRef = dataReferenciaCalendarioCultos(new Date())) {
   const ref = dataRef instanceof Date ? dataRef : new Date();
   const auto = gerarCultosDoMes(ref);
   const idsAuto = new Set(auto.map((c) => c.id));
@@ -6901,7 +6903,7 @@ function setupApFilesDropdown() {
 
 /** Migra playlists dos ids fixos antigos para o 1.º culto equivalente do mês atual. */
 function migrarPlaylistsCultosAntigos() {
-  const cultos = gerarCultosDoMes(new Date());
+  const cultos = gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date()));
   if (!cultos.length) return;
   const primeiro = (pred) => cultos.find(pred);
   const mapLegado = [
@@ -24295,7 +24297,50 @@ async function bnpConfirmarVer(val) {
   await bibliaProjetarVersiculo(v, card);
 }
 
+/**
+ * Backspace num campo vazio volta uma etapa (verso → capítulo → livro) devolvendo o valor
+ * já confirmado menos o último caractere, para que o operador o corrija em vez de ficar
+ * preso a um número que avançou sozinho.
+ */
+function bnpVoltarEtapa() {
+  const inp = document.getElementById('biblia-busca-rapida');
+  if (!inp) return;
+  let valor = '';
+  if (bnpEtapa === 'ver') {
+    valor = String(bnpCapSelecionado ?? '').slice(0, -1);
+    bnpEtapa = 'cap';
+    bnpCapSelecionado = null;
+    const linhaVer = document.getElementById('bnp-linha-ver');
+    const verDisp = document.getElementById('bnp-ver-display');
+    if (linhaVer) linhaVer.style.display = 'none';
+    if (verDisp) verDisp.textContent = '—';
+  } else if (bnpEtapa === 'cap') {
+    valor = String(bnpLivroSelecionado?.sigla ?? '').slice(0, -1);
+    bnpEtapa = 'livro';
+    bnpLivroSelecionado = null;
+    const linhaCap = document.getElementById('bnp-linha-cap');
+    const capDisp = document.getElementById('bnp-cap-display');
+    if (linhaCap) linhaCap.style.display = 'none';
+    if (capDisp) capDisp.textContent = '—';
+  } else {
+    return;
+  }
+  inp.value = valor;
+  bibliaBuscaRapida(valor);
+  inp.focus();
+}
+
 function bibliaBuscaRapidaTecla(e) {
+  if (
+    bibliaNavPopupAberto() &&
+    (bnpEtapa === 'cap' || bnpEtapa === 'ver') &&
+    e.key === 'Backspace' &&
+    !(e.target?.value || '')
+  ) {
+    e.preventDefault();
+    bnpVoltarEtapa();
+    return;
+  }
   if (!bibliaNavPopupAberto()) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();

@@ -72,6 +72,31 @@ export function gerarCultosDoMes(dataRef) {
   return out;
 }
 
+/**
+ * Mês cuja lista de cultos deve aparecer em `dataRef`.
+ *
+ * O calendário deixa o mês civil no dia seguinte ao último culto automático
+ * (domingo ou quarta). No próprio dia desse culto a lista ainda é a do mês:
+ * 28/10 é quarta → 29/10 já mostra novembro; 29/11 é domingo → 30/11 já mostra dezembro.
+ *
+ * @param {Date|*} [dataRef]
+ * @returns {Date} dia 1 do mês a listar
+ */
+export function dataReferenciaCalendarioCultos(dataRef) {
+  const d0 = dataRef instanceof Date ? dataRef : new Date();
+  const y = d0.getFullYear();
+  const m0 = d0.getMonth();
+  const dia = d0.getDate();
+  let ultimoDia = 0;
+  for (const c of gerarCultosDoMes(new Date(y, m0, 1))) {
+    const iso = isoFromCultoId(c.id);
+    const d = iso ? parseInt(iso.slice(8, 10), 10) : 0;
+    if (d > ultimoDia) ultimoDia = d;
+  }
+  if (ultimoDia > 0 && dia > ultimoDia) return new Date(y, m0 + 1, 1);
+  return new Date(y, m0, 1);
+}
+
 /** True se o id `culto_YYYY-MM-DD_*` pertence ao mês/ano de `dataRef`. */
 export function cultoIdPertenceAoMes(id, dataRef = new Date()) {
   const iso = isoFromCultoId(id);

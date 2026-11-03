@@ -84,7 +84,13 @@ async function resolverSlugNoLyra(nomeMusica) {
     } catch (_) {
       continue; /* falha de rede neste termo — tenta o seguinte */
     }
-    if (!busca || !busca.sucesso || !Array.isArray(busca.resultados)) continue;
+    if (!busca || !busca.sucesso || !Array.isArray(busca.resultados)) {
+      /* Chave ausente ou recusada: parar. Seguir o laço marcaria toda a escala como «não encontrada». */
+      if (busca && typeof busca.erro === 'string' && busca.erro.includes('LYRA_API_KEY')) {
+        throw new Error(busca.erro);
+      }
+      continue;
+    }
     for (const r of busca.resultados) {
       if (!r || !r.slug) continue;
       const p = pontuacaoTitulo(alvo, normalizarChaveComparacao(r.titulo));
@@ -681,6 +687,9 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
         ministrantePorCulto,
       });
     } catch (e) {
+      if (e && typeof e.message === 'string' && e.message.includes('LYRA_API_KEY')) {
+        return res.status(502).json({ erro: e.message });
+      }
       console.error('[syncInvbPlaylist] Erro inesperado:', e);
       return res.status(500).json({ erro: 'Erro interno: ' + e.message });
     }

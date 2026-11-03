@@ -25,7 +25,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { carregarIdentidadeDispositivo } from '../src/deviceIdentidade';
-import { gerarCultosDoMes } from '../src/cultosMes';
+import { dataReferenciaCalendarioCultos, gerarCultosDoMes } from '../src/cultosMes';
 import { getPlaylistsDoControladorSnapshot } from '../src/playlistsControladorStore';
 import {
   ehMusicaPlaylist,
@@ -76,7 +76,7 @@ function encontrarProximaMusicaNaPlaylist(musicaIdAtual) {
   if (!Number.isFinite(idEfetivoAtual)) return null;
 
   const plAll = getPlaylistsDoControladorSnapshot();
-  const cultos = gerarCultosDoMes(new Date());
+  const cultos = gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date()));
 
   const buscarEmLista = (items) => {
     const musicas = items.filter(ehMusicaPlaylist);

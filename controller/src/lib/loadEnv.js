@@ -9,6 +9,7 @@ const ENV_KEYS_WINDOWS = [
   'INVB_SUPABASE_URL',
   'LYRA_INVB_WEBHOOK_SECRET',
   'INVB_TONS_SYNC_URL',
+  'LYRA_API_KEY',
 ];
 
 function parseEnvLine(line) {
@@ -92,6 +93,8 @@ function hydrateFromPackagedRuntimeEnv() {
 /** Carrega `.env` local, Windows user env e runtime-env do instalador. */
 function loadLocalEnv() {
   const srcDir = __dirname;
+  /* Raiz do repositório, controller/ e controller/src — o primeiro valor preenchido vence. */
+  loadEnvFile(path.join(srcDir, '../../../.env'));
   loadEnvFile(path.join(srcDir, '../../.env'));
   loadEnvFile(path.join(srcDir, '../.env'));
   hydrateFromWindowsUserEnv();

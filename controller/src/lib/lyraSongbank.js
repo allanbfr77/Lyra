@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Banco online do Lyra — API pública só de leitura, sem chave.
+ * Banco online do Lyra — API só de leitura.
  *
- * Documentação: `documentacao do lyra banco de musicas.md`.
  * Base: https://database.invbotafogo.com.br/api/v1
+ * Autenticação: `Authorization: Bearer` com `LYRA_API_KEY` (a mesma chave do site).
  *
  * Este módulo trabalha SOMENTE com letra (`lyrics`). Nunca pede cifra, nunca
  * usa `include=all_keys`, nunca chama `/chords/` e ignora `chords` / `keys`
@@ -32,13 +32,28 @@ function ehFonteLyraOnline(fonte) {
   return f === 'lyra-online' || f === 'lyra-songbank' || f === 'banco-online-lyra';
 }
 
+function chaveApiLyra() {
+  return String(process.env.LYRA_API_KEY || '').trim();
+}
+
+/** Header exigido pela API. Sem a chave o banco responde 401 e a busca volta vazia. */
+function cabecalhosRequisicao() {
+  const headers = { Accept: 'application/json' };
+  const key = chaveApiLyra();
+  if (key) headers.Authorization = `Bearer ${key}`;
+  return headers;
+}
+
+const ERRO_SEM_CHAVE =
+  'LYRA_API_KEY não definida. Sem essa chave o banco online do Lyra não devolve músicas.';
+
 async function fetchJsonTimeout(url, ms = TIMEOUT_MS) {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { Accept: 'application/json' },
+      headers: cabecalhosRequisicao(),
     });
     const texto = await res.text();
     let data = null;
@@ -167,6 +182,7 @@ function estrofesDeLetraPura(lyrics) {
 async function buscarMusicas({ q, titulo = true, artista = false, letra = false, limit = MAX_RESULTADOS } = {}) {
   const termo = String(q || '').trim();
   if (!termo) return { sucesso: false, erro: 'Parâmetro q obrigatório', resultados: [] };
+  if (!chaveApiLyra()) return { sucesso: false, erro: ERRO_SEM_CHAVE, resultados: [] };
 
   const fields = montarFieldsBusca({ titulo, artista, letra });
   const lim = Math.min(100, Math.max(1, Number(limit) || MAX_RESULTADOS));
@@ -183,6 +199,13 @@ async function buscarMusicas({ q, titulo = true, artista = false, letra = false,
     return { sucesso: false, erro: e.message || 'Falha ao contactar o banco online do Lyra', resultados: [] };
   }
 
+  if (r.status === 401) {
+    return {
+      sucesso: false,
+      erro: 'Banco online do Lyra recusou a chave (LYRA_API_KEY).',
+      resultados: [],
+    };
+  }
   if (!r.ok || !r.data) {
     const msg =
       (r.data && (r.data.erro || r.data.error || r.data.message)) ||
@@ -201,6 +224,7 @@ async function buscarMusicas({ q, titulo = true, artista = false, letra = false,
 async function obterMusicaPorSlug(slug) {
   const s = String(slug || '').trim().replace(/^\/+|\/+$/g, '');
   if (!s) return { erro: 'Slug da música inválido' };
+  if (!chaveApiLyra()) return { erro: ERRO_SEM_CHAVE };
   const endpoints = await obterEndpoints();
   const url = urlMusica(endpoints, s);
   let r;
@@ -210,6 +234,7 @@ async function obterMusicaPorSlug(slug) {
     if (e && e.name === 'AbortError') return { erro: 'Tempo esgotado ao carregar a letra' };
     return { erro: e.message || 'Falha ao carregar a letra' };
   }
+  if (r.status === 401) return { erro: 'Banco online do Lyra recusou a chave (LYRA_API_KEY).' };
   if (r.status === 404) return { erro: 'Música não encontrada no banco online do Lyra' };
   if (!r.ok || !r.data) {
     return { erro: (r.data && (r.data.erro || r.data.error)) || `Erro HTTP ${r.status}` };
@@ -243,6 +268,7 @@ module.exports = {
   FONTE,
   LYRA_SONGBANK_BASE,
   ehFonteLyraOnline,
+  cabecalhosRequisicao,
   montarFieldsBusca,
   mapearResultadoBusca,
   extrairLetraDaMusica,
