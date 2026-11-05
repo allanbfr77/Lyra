@@ -1,0 +1,70 @@
+# Verificação de qualidade do Lyra: testes (`npm test`) e lint (`npm run lint`).
+#
+# Roda em três situações:
+#   - push em qualquer branch (as tags NÃO disparam este gatilho);
+#   - manualmente (workflow_dispatch);
+#   - como etapa OBRIGATÓRIA do release: `release.yml` chama este arquivo no job
+#     `qualidade` e o job de release depende dele (`needs`). Se qualquer verificação
+#     falhar, o build e a publicação não são executados.
+#
+# Instalação de dependências (espelha os cuidados do release.yml):
+#   - servidor: `--ignore-scripts` evita o `electron-rebuild` do postinstall (aqui só
+#     precisamos de um better-sqlite3 com a ABI do Node do runner); depois
+#     `npm rebuild ... --build-from-source=false` baixa o binário pré-compilado.
+#     É esse binário que os testes de banco usam (ver `carregarDriverSqlite`).
+#   - controlador: `--ignore-scripts` (o binário dele é compilado para o Electron
+#     pelo electron-builder, só na etapa de build).
+#   - raiz: `--ignore-scripts` só para ter o ESLint. Sem scripts não há compilação
+#     do better-sqlite3 da raiz (que falha no runner windows-latest).
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  qualidade:
+    name: Testes e lint
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            controller/package-lock.json
+            server/package-lock.json
+
+      - name: Instalar dependências (servidor)
+        run: npm ci --ignore-scripts
+        working-directory: server
+
+      - name: Binário do better-sqlite3 para o Node do runner
+        run: npm rebuild better-sqlite3 --build-from-source=false
+        working-directory: server
+
+      - name: Instalar dependências (controlador)
+        run: npm ci --ignore-scripts
+        working-directory: controller
+
+      - name: Instalar dependências (raiz, só para o ESLint)
+        run: npm ci --ignore-scripts
+
+      - name: Testes
+        run: npm test
+
+      - name: Lint
+        run: npm run lint

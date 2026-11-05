@@ -15,20 +15,35 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-/** Mesmo driver do `db.duplicidade.test.js`: better-sqlite3 com fallback. */
+/**
+ * Mesmo driver do `db.duplicidade.test.js`: sempre `better-sqlite3`, procurado em
+ * ordem no controlador, na raiz e no servidor, e validado antes de ser usado.
+ * Sem fallback para `node:sqlite` (não tem `pragma` nem `transaction`); se nenhum
+ * candidato carregar, o teste falha com a lista de tentativas.
+ */
 function carregarDriverSqlite() {
-  try {
-    const BetterSqlite3 = require('better-sqlite3');
-    new BetterSqlite3(':memory:').close();
-    return BetterSqlite3;
-  } catch (_) {
-    const { DatabaseSync } = require('node:sqlite');
-    return class DatabaseCompat extends DatabaseSync {
-      constructor(caminho, opcoes = {}) {
-        super(caminho, opcoes.readonly ? { readOnly: true } : {});
-      }
-    };
+  const raizRepo = path.resolve(__dirname, '..', '..');
+  const candidatos = [
+    ['controlador', path.join(raizRepo, 'controller')],
+    ['raiz', raizRepo],
+    ['servidor', path.join(raizRepo, 'server')],
+  ];
+  const falhas = [];
+  for (const [rotulo, base] of candidatos) {
+    const pasta = path.join(base, 'node_modules', 'better-sqlite3');
+    try {
+      const Driver = require(pasta);
+      new Driver(':memory:').close();
+      return Driver;
+    } catch (e) {
+      falhas.push(`  - ${rotulo} (${pasta}): ${String((e && e.message) || e).split('\n')[0]}`);
+    }
   }
+  throw new Error(
+    `Nenhum better-sqlite3 compatível com este Node (${process.version}, ABI ${process.versions.modules}) foi encontrado.\n` +
+      `Tentativas:\n${falhas.join('\n')}\n` +
+      'Instale as dependências e/ou recompile o módulo para este Node (ex.: "npm rebuild better-sqlite3 --build-from-source=false" na pasta do candidato).'
+  );
 }
 
 const Database = carregarDriverSqlite();
