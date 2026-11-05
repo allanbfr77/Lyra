@@ -17,7 +17,9 @@ const os = require('node:os');
 const path = require('node:path');
 const express = require('express');
 const { Server } = require('socket.io');
-const WebSocket = require('ws');
+/* `ws` não é dependência direta do controlador: numa instalação limpa (npm ci, como na CI)
+   ele só existe aninhado no `engine.io`. Usa-se exatamente o que o Socket.IO usa. */
+const WebSocket = require(require.resolve('ws', { paths: [path.dirname(require.resolve('engine.io'))] }));
 const { acessoRede, controleAcesso } = require('@lyra/projection-core');
 
 const NOME_MAQUINA = 'pc-da-igreja';
