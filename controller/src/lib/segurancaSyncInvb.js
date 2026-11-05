@@ -16,16 +16,19 @@ const crypto = require('crypto');
 const net = require('net');
 
 /**
- * Domínios permitidos por padrão. O host precisa ser um SUBDOMÍNIO deles
- * (`x.onrender.com`; o domínio raiz sozinho e sufixos parecidos não valem).
- * - onrender.com: onde o `services/invb-webhook-api` é publicado (ver o README dele).
- * - invbotafogo.com.br: domínio da própria igreja.
+ * Hosts EXATOS autorizados por padrão (nome completo, sem curingas e sem subdomínios).
+ * - invb-webhook-api.onrender.com: nome documentado em `services/invb-webhook-api/README.md`
+ *   para a API de tons na nuvem.
+ * Qualquer outro host — inclusive outro subdomínio de onrender.com ou do domínio da igreja
+ * — só vale se for cadastrado explicitamente em `INVB_TONS_SYNC_HOSTS`.
  */
-const DOMINIOS_PERMITIDOS_PADRAO = ['onrender.com', 'invbotafogo.com.br'];
+const HOSTS_PERMITIDOS_PADRAO = Object.freeze(['invb-webhook-api.onrender.com']);
 
 /**
- * Hosts extras (nomes EXATOS, separados por vírgula) vindos de `INVB_TONS_SYNC_HOSTS`.
- * Só quem administra a máquina define variáveis de ambiente; continua valendo HTTPS.
+ * Hosts extras cadastrados em `INVB_TONS_SYNC_HOSTS`: nomes EXATOS separados por vírgula
+ * (espaços e caixa são ignorados). Não existe curinga: uma entrada como `*.exemplo.org`
+ * é comparada literalmente e nunca coincide com um host real. Só quem administra a
+ * máquina define variáveis de ambiente; continua valendo HTTPS e as demais regras.
  */
 function hostsExtrasDoAmbiente(env) {
   return String((env && env.INVB_TONS_SYNC_HOSTS) || '')
@@ -37,8 +40,7 @@ function hostsExtrasDoAmbiente(env) {
 function hostPermitido(hostname, env) {
   const host = String(hostname || '').toLowerCase();
   if (!host) return false;
-  if (hostsExtrasDoAmbiente(env).includes(host)) return true;
-  return DOMINIOS_PERMITIDOS_PADRAO.some((dominio) => host.endsWith(`.${dominio}`));
+  return HOSTS_PERMITIDOS_PADRAO.includes(host) || hostsExtrasDoAmbiente(env).includes(host);
 }
 
 /**
@@ -88,5 +90,5 @@ function segredosIguais(esperado, recebido) {
 module.exports = {
   validarUrlNuvemTons,
   segredosIguais,
-  DOMINIOS_PERMITIDOS_PADRAO,
+  HOSTS_PERMITIDOS_PADRAO,
 };
