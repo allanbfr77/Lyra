@@ -22,6 +22,7 @@ const {
   fetchHistoricoFromSupabase,
 } = require('../lib/invbTonsFromSupabase');
 const { aplicarTonsImportNasPlaylists } = require('../lib/aplicarTonsImportPlaylists');
+const { validarUrlNuvemTons, segredosIguais } = require('../lib/segurancaSyncInvb');
 
 /**
  * @param {import('express').Express} expressApp
@@ -123,26 +124,33 @@ function registrarRotasMinistrantes(expressApp, deps) {
   /**
    * Sincroniza tons/ministrantes a partir do site (Supabase) ou da API webhook na nuvem.
    * Body opcional: { fonte: 'supabase'|'cloud', since?: string }
+   *
+   * A URL da nuvem vem SÓ de `INVB_TONS_SYNC_URL` (variável de ambiente da máquina). O
+   * corpo da requisição não escolhe mais para onde o controlador faz `fetch`: um `cloudUrl`
+   * vindo da rede seria SSRF. A URL do ambiente também é validada (HTTPS + host permitido).
    */
   expressApp.post('/api/tom-memoria/sync-invb', async (req, res) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const fontePedida = String(body.fonte || '').trim().toLowerCase();
-      const cloudBase = String(
-        process.env.INVB_TONS_SYNC_URL || body.cloudUrl || ''
-      )
-        .trim()
-        .replace(/\/$/, '');
+      const urlNuvemConfigurada = String(process.env.INVB_TONS_SYNC_URL || '').trim();
       const since = String(body.since || '').trim();
 
       let payload;
       let origem = 'supabase';
       let cloudUpdatedAt = '';
 
-      if ((fontePedida === 'cloud' || (!fontePedida && cloudBase)) && cloudBase) {
+      if ((fontePedida === 'cloud' || (!fontePedida && urlNuvemConfigurada)) && urlNuvemConfigurada) {
+        const valida = validarUrlNuvemTons(urlNuvemConfigurada);
+        if (!valida.ok) {
+          throw Object.assign(new Error(`INVB_TONS_SYNC_URL inválida: ${valida.motivo}.`), {
+            statusCode: 500,
+          });
+        }
         origem = 'cloud';
         const q = since ? `?since=${encodeURIComponent(since)}` : '';
-        const r = await fetch(`${cloudBase}/api/invb/tons-sync${q}`);
+        /* `redirect: 'error'`: um redirecionamento levaria o fetch para fora do host validado. */
+        const r = await fetch(`${valida.base}/api/invb/tons-sync${q}`, { redirect: 'error' });
         if (r.status === 204) {
           return res.json({
             ok: true,
@@ -155,8 +163,10 @@ function registrarRotasMinistrantes(expressApp, deps) {
           });
         }
         if (!r.ok) {
+          /* O corpo da resposta remota fica no log da máquina; não volta ao cliente. */
           const errTxt = await r.text().catch(() => '');
-          throw Object.assign(new Error(`Cloud sync HTTP ${r.status}: ${errTxt}`), {
+          console.warn('[Lyra] Cloud sync HTTP', r.status, String(errTxt).slice(0, 200));
+          throw Object.assign(new Error(`Cloud sync HTTP ${r.status}`), {
             statusCode: 502,
           });
         }
@@ -185,15 +195,23 @@ function registrarRotasMinistrantes(expressApp, deps) {
   /**
    * Recebe o mesmo payload do webhook Supabase (útil com túnel ngrok no Controlador).
    * Em produção preferir a API na nuvem + sync-invb.
+   *
+   * Falha FECHADO: sem `LYRA_INVB_WEBHOOK_SECRET` configurado a rota fica desativada (503),
+   * em vez de aceitar qualquer POST da rede e gravar no banco. Com segredo, a comparação é
+   * em tempo constante.
    */
   expressApp.post('/api/tom-memoria/webhook-invb', async (req, res) => {
     try {
       const secretEsperado = String(process.env.LYRA_INVB_WEBHOOK_SECRET || '').trim();
-      if (secretEsperado) {
-        const got = String(req.get('x-lyra-webhook-secret') || '').trim();
-        if (got !== secretEsperado) {
-          return res.status(401).json({ ok: false, erro: 'secret inválido' });
-        }
+      if (!secretEsperado) {
+        return res.status(503).json({
+          ok: false,
+          erro: 'Webhook desativado: defina LYRA_INVB_WEBHOOK_SECRET para habilitá-lo.',
+        });
+      }
+      const got = String(req.get('x-lyra-webhook-secret') || '').trim();
+      if (!segredosIguais(secretEsperado, got)) {
+        return res.status(401).json({ ok: false, erro: 'secret inválido' });
       }
       const historico = await fetchHistoricoFromSupabase().catch(() => []);
       const payload = payloadImportFromWebhookBody(req.body || {}, historico);

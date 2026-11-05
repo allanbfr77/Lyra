@@ -580,29 +580,6 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
   } catch (e) {
     console.warn('[syncInvbPlaylist] Não foi possível garantir coluna origem_importacao:', e.message);
   }
-  // DEBUG TEMPORÁRIO — remover após investigação
-  expressApp.get('/api/sync-invb-playlist/debug', async (req, res) => {
-    try {
-      const key = process.env.INVB_SUPABASE_ANON_KEY;
-      if (!key) return res.status(500).json({ erro: 'INVB_SUPABASE_ANON_KEY não definida' });
-      const r = await fetch('https://rosvseljurczmzdycbxs.supabase.co/rest/v1/cultos?select=*', {
-        headers: { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json' },
-      });
-      const raw = await r.json();
-      // Mostrar estrutura do campo louvores sem parsear
-      const info = Array.isArray(raw) ? raw.map(row => ({
-        tipo: row.tipo,
-        louvores_type: typeof row.louvores,
-        louvores_preview: typeof row.louvores === 'string'
-          ? row.louvores.slice(0, 500)
-          : JSON.stringify(row.louvores).slice(0, 500),
-      })) : raw;
-      res.json({ status: r.status, info });
-    } catch (e) {
-      res.status(500).json({ erro: e.message });
-    }
-  });
-
   /* Segunda metade do sync: as versões que o utilizador escolheu no painel. */
   expressApp.post('/api/sync-invb-playlist/aplicar-versoes', (req, res) => {
     try {
