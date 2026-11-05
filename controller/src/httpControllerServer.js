@@ -22,6 +22,7 @@ const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
 const { registrarRotasLetras } = require('./rotas/letras');
 const { registrarRotasSyncInvbPlaylist } = require('./rotas/syncInvbPlaylist');
+const { acessoRede } = require('@lyra/projection-core');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -75,6 +76,21 @@ async function iniciarServidorController(ctx, paths) {
   const db = getDb();
   const expressApp = express();
 
+  /*
+   * Host e Origin validados ANTES de tudo (leitor de JSON de até 800 MB, arquivos
+   * estáticos, rotas): só o painel, o OBS, o servidor e as telas do Lyra falam com esta
+   * porta; página externa e DNS rebinding são recusados. Substitui o antigo
+   * `Access-Control-Allow-Origin: *`. Regras e justificativas: `@lyra/projection-core`
+   * (`acessoRede.js`). Nomes extras: LYRA_HOSTS_PERMITIDOS / LYRA_ORIGENS_PERMITIDAS.
+   */
+  const protecaoRede = acessoRede.criarProtecaoRede({
+    registrar: (info) =>
+      console.warn(
+        `[Lyra][rede:${HTTP_CONTROLLER_PORT}] recusado (${info.tipo}): ${info.motivo} | ${info.metodo} ${info.caminho} | Host=${info.host} Origin=${info.origin}`
+      ),
+  });
+  expressApp.use(protecaoRede.middleware);
+
   expressApp.use(express.json({ limit: '800mb' }));
 
   const publicDir = path.join(__dirname, '../public');
@@ -85,14 +101,6 @@ async function iniciarServidorController(ctx, paths) {
   );
 
   registrarRotasVosk(expressApp);
-
-  expressApp.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    next();
-  });
 
   /* --- Marca «o banco compartilhado mudou» ---------------------------------- */
 

@@ -527,16 +527,16 @@ function conectarWs(porta, { headers = {}, auth } = {}) {
 
 test('Socket.IO: página externa não abre WebSocket (Origin externo ou Host de rebinding)', async () => {
   await comSocketIo(async ({ porta, conexoes }) => {
+    /* Engine.IO nega o upgrade de WebSocket com 400 (nas requisições de polling usa 403). */
+    const recusado = (r) => r.aberto === false && [400, 403].includes(r.status);
     const externo = await conectarWs(porta, { headers: { Origin: 'https://evil.example' } });
-    assert.strictEqual(externo.aberto, false);
-    assert.strictEqual(externo.status, 403);
+    assert.ok(recusado(externo), JSON.stringify(externo));
     const rebinding = await conectarWs(porta, {
       headers: { Origin: `http://rebind.attacker.com:${porta}`, Host: `rebind.attacker.com:${porta}` },
     });
-    assert.strictEqual(rebinding.aberto, false);
-    assert.strictEqual(rebinding.status, 403);
+    assert.ok(recusado(rebinding), JSON.stringify(rebinding));
     const hostRuim = await conectarWs(porta, { headers: { Host: 'rebind.attacker.com' } });
-    assert.strictEqual(hostRuim.aberto, false);
+    assert.ok(recusado(hostRuim), JSON.stringify(hostRuim));
     assert.strictEqual(conexoes.length, 0);
   });
 });

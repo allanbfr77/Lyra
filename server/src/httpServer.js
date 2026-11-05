@@ -22,6 +22,7 @@ const {
   estadoBibliaParaObs: derivarEstadoBibliaParaObs,
   ALCANCE_OUTROS,
   paginaObs,
+  acessoRede,
 } = require('@lyra/projection-core');
 const { createProjectionState } = require('./lib/projectionState');
 const { lerBuildIdServidor } = require('./lib/serverBuildInfo');
@@ -181,10 +182,25 @@ function iniciarServidor(ctx, paths, deps) {
     return 'desconhecido';
   }
 
+  /*
+   * Host/Origin/CORS (E1.2). Antes: `Access-Control-Allow-Origin: *` e nenhuma validação de
+   * Host — qualquer página aberta na rede (ou no PC do operador) usava a API e abria
+   * WebSockets. Agora só as páginas do próprio Lyra; ver `@lyra/projection-core/acessoRede`.
+   * Nomes extras: LYRA_HOSTS_PERMITIDOS / LYRA_ORIGENS_PERMITIDAS.
+   */
+  const protecaoRede = acessoRede.criarProtecaoRede({
+    registrar: (info) =>
+      console.warn(
+        `[Lyra][rede] recusado (${info.tipo}): ${info.motivo} | ${info.metodo} ${info.caminho} | Host=${info.host} Origin=${info.origin}`
+      ),
+  });
+
   const expressApp = express();
   const httpServer = http.createServer(expressApp);
   ctx.io = new Server(httpServer, {
-    cors: { origin: '*' },
+    cors: protecaoRede.corsSocketIo(),
+    /* Vale para polling E para o upgrade de WebSocket (que não sofre CORS no navegador). */
+    allowRequest: protecaoRede.allowRequest,
     /** Base64 grandes no Socket causavam queda silenciosa do transporte («desconectado» ao projetar). */
     maxHttpBufferSize: Math.max(Number(process.env.SOCKET_MAX_BUFFER_MB || 110), 110) * 1024 * 1024,
   });
@@ -228,6 +244,14 @@ function iniciarServidor(ctx, paths, deps) {
   // A guarda comandoAutorizado usa socket.data.autorizado. Fecha o "qualquer um na rede projeta".
   ctx.io.use((socket, next) => {
     try {
+      /* Origem opaca (`file://`/`null`): as telas de projeção, mas também iframes isolados de
+         qualquer página. Só visualiza: nunca autentica nem se auto-inscreve (TOFU). */
+      if (protecaoRede.origemOpacaDoRequest(socket.request)) {
+        socket.data.autorizado = false;
+        socket.data.device = null;
+        socket.data.authMotivo = 'origem-opaca';
+        return next();
+      }
       const r = ctx.acesso.autenticar(socket.handshake.auth || {});
       socket.data.autorizado = !!r.ok;
       socket.data.device = r.device || null;
@@ -266,13 +290,8 @@ function iniciarServidor(ctx, paths, deps) {
     return false;
   }
 
-  expressApp.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    next();
-  });
+  /* Primeiro middleware do app: nada (proxies, leitor de JSON, rotas) roda antes da validação. */
+  expressApp.use(protecaoRede.middleware);
 
   attachProxyMusicaAoControlador(expressApp, logError);
   attachProxyBibliaAoControlador(expressApp, logError);
@@ -942,10 +961,7 @@ function iniciarServidor(ctx, paths, deps) {
   });
 
   const obsApp = express();
-  obsApp.use((_req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    next();
-  });
+  obsApp.use(protecaoRede.middleware);
   /* As páginas de overlay vivem no Core desde que o OBS deixou de ser assunto exclusivo
      do Servidor — no modo local é o Controlador que as serve, da mesma origem. */
   obsApp.get('/obs', (_req, res) => {

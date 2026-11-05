@@ -17,6 +17,7 @@ const {
   monitorsList,
   localIp,
   controleAcesso,
+  acessoRede,
 } = require('@lyra/projection-core');
 
 const { ligarTratadorMudancaDisplays } = displayChangePolicy;
@@ -456,20 +457,33 @@ function criarProjecaoLocal(deps) {
   }
 
   function montarServidores() {
-    const apiApp = express();
-    apiApp.use((req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      if (req.method === 'OPTIONS') return res.sendStatus(204);
-      next();
+    /*
+     * Host/Origin/CORS (E1.2) — a mesma proteção do Servidor, no mesmo módulo do Core: este
+     * modo hospeda a 5510 e a 5001, então tem de recusar página externa e DNS rebinding
+     * exactamente como ele. Antes: `Access-Control-Allow-Origin: *`.
+     */
+    const protecaoRede = acessoRede.criarProtecaoRede({
+      registrar: (info) =>
+        registarNoDiario('rede-recusada', {
+          tipo: info.tipo,
+          motivo: info.motivo,
+          metodo: info.metodo,
+          caminho: info.caminho,
+          host: info.host,
+          origin: info.origin,
+        }),
     });
+
+    const apiApp = express();
+    apiApp.use(protecaoRede.middleware);
     montarRotasApi(apiApp);
     servidorApi = http.createServer(apiApp);
 
     const { Server } = require('socket.io');
     io = new Server(servidorApi, {
-      cors: { origin: '*' },
+      cors: protecaoRede.corsSocketIo(),
+      /* Vale para polling E para o upgrade de WebSocket (que não sofre CORS no navegador). */
+      allowRequest: protecaoRede.allowRequest,
       /* Base64 grandes no socket derrubavam o transporte em silêncio ao projetar mídia. */
       maxHttpBufferSize: Math.max(Number(process.env.SOCKET_MAX_BUFFER_MB || 110), 110) * 1024 * 1024,
     });
@@ -483,6 +497,14 @@ function criarProjecaoLocal(deps) {
      */
     io.use((socket, next) => {
       try {
+        /* Origem opaca (`file://`/`null`): as telas de projeção, mas também iframes isolados
+           de qualquer página. Só visualiza: nunca autentica nem se auto-inscreve (TOFU). */
+        if (protecaoRede.origemOpacaDoRequest(socket.request)) {
+          socket.data.autorizado = false;
+          socket.data.device = null;
+          socket.data.authMotivo = 'origem-opaca';
+          return next();
+        }
         const r = acesso.autenticar(socket.handshake.auth || {});
         socket.data.autorizado = !!r.ok;
         socket.data.device = r.device || null;
@@ -518,10 +540,7 @@ function criarProjecaoLocal(deps) {
 
     /* Overlays do OBS, servidos das páginas do Core. */
     const obsApp = express();
-    obsApp.use((_req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      next();
-    });
+    obsApp.use(protecaoRede.middleware);
     obsApp.get('/obs', (_req, res) => res.sendFile(paginaObs('obs.html')));
     obsApp.get('/obs/biblia', (_req, res) => res.sendFile(paginaObs('obs-biblia.html')));
     obsApp.get('/obs/slides', (_req, res) => res.sendFile(paginaObs('obs-slides.html')));

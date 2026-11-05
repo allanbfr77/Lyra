@@ -82,7 +82,8 @@ test('projeção local (controlador): API, Socket.IO e OBS protegidos antes das 
   assert.match(src, /origemOpacaDoRequest\(\s*socket\.request\s*\)/);
   const api = pos(src, /apiApp\.use\(\s*protecaoRede\.middleware\s*\)/);
   assert.ok(api > 0, 'apiApp.use(protecaoRede.middleware) não encontrado');
-  assert.ok(pos(src, /montarRotasApi\(apiApp\)/) > api);
+  /* A chamada (com ponto e vírgula), não a declaração `function montarRotasApi(apiApp) {`. */
+  assert.ok(pos(src, /montarRotasApi\(apiApp\);/) > api);
   const obs = pos(src, /obsApp\.use\(\s*protecaoRede\.middleware\s*\)/);
   assert.ok(obs > 0, 'obsApp.use(protecaoRede.middleware) não encontrado');
   assert.ok(pos(src, /obsApp\.get\('\/obs'/) > obs);
