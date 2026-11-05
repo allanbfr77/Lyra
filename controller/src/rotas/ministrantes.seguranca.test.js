@@ -211,17 +211,27 @@ test('SSRF: o truque do "#" não vira leitura de URL arbitrária nem eco do corp
 /* ───────────────── INVB_TONS_SYNC_URL: HTTPS e host permitido ───────────────── */
 
 const URLS_INVALIDAS = [
-  ['http (sem TLS)', 'http://invb-tons.onrender.com'],
+  ['http (sem TLS)', 'http://invb-webhook-api.onrender.com'],
   ['host fora da lista', 'https://evil.example'],
   ['IP literal', 'https://127.0.0.1'],
-  ['porta não padrão', 'https://invb-tons.onrender.com:8443'],
-  ['credenciais na URL', 'https://usuario:senha@invb-tons.onrender.com'],
-  ['query na URL', 'https://invb-tons.onrender.com/api?x=1'],
-  ['fragmento na URL', 'https://invb-tons.onrender.com/#frag'],
+  ['porta não padrão', 'https://invb-webhook-api.onrender.com:8443'],
+  ['credenciais na URL', 'https://usuario:senha@invb-webhook-api.onrender.com'],
+  ['query na URL', 'https://invb-webhook-api.onrender.com/api?x=1'],
+  ['fragmento na URL', 'https://invb-webhook-api.onrender.com/#frag'],
   ['sufixo parecido (evilonrender.com)', 'https://evilonrender.com'],
   ['permitido só como prefixo', 'https://onrender.com.evil.example'],
   ['domínio raiz sem subdomínio', 'https://onrender.com'],
   ['URL malformada', 'isto-nao-e-uma-url'],
+  /* Hosts exatos: subdomínios que NÃO foram cadastrados são recusados. */
+  ['outro serviço do onrender.com', 'https://outro-servico.onrender.com'],
+  ['serviço de compartilhamento (outro host)', 'https://invb-share-api.onrender.com'],
+  ['subdomínio do domínio da igreja não cadastrado', 'https://tons.invbotafogo.com.br'],
+  ['site da igreja não cadastrado', 'https://louvores.invbotafogo.com.br'],
+  ['domínio raiz da igreja', 'https://invbotafogo.com.br'],
+  ['subdomínio profundo do onrender.com', 'https://a.b.onrender.com'],
+  ['subdomínio do host autorizado', 'https://x.invb-webhook-api.onrender.com'],
+  ['host autorizado como prefixo de outro domínio', 'https://invb-webhook-api.onrender.com.evil.example'],
+  ['host autorizado com ponto final', 'https://invb-webhook-api.onrender.com.'],
 ];
 
 for (const [descricao, url] of URLS_INVALIDAS) {
@@ -290,7 +300,7 @@ test('compatibilidade: com INVB_TONS_SYNC_URL definida, pedir fonte "supabase" c
       assert.strictEqual(r.json.origem, 'supabase');
       assert.strictEqual(tentativasForaDoSupabase().length, 0);
     },
-    { env: { INVB_TONS_SYNC_URL: 'https://invb-tons.onrender.com' } }
+    { env: { INVB_TONS_SYNC_URL: 'https://invb-webhook-api.onrender.com' } }
   );
 });
 
@@ -326,13 +336,13 @@ test('compatibilidade: URL de nuvem válida (HTTPS + host *.onrender.com) é usa
       assert.strictEqual(r.json.updatedAt, '2026-01-02T00:00:00.000Z');
       assert.strictEqual(
         estado.url,
-        'https://invb-tons.onrender.com/api/invb/tons-sync?since=2026-01-01T00%3A00%3A00.000Z'
+        'https://invb-webhook-api.onrender.com/api/invb/tons-sync?since=2026-01-01T00%3A00%3A00.000Z'
       );
       assert.strictEqual(importacoes.length, 1);
     },
     {
-      env: { INVB_TONS_SYNC_URL: 'https://invb-tons.onrender.com/' },
-      cloud: nuvemDeTeste('invb-tons.onrender.com', estado),
+      env: { INVB_TONS_SYNC_URL: 'https://invb-webhook-api.onrender.com/' },
+      cloud: nuvemDeTeste('invb-webhook-api.onrender.com', estado),
     }
   );
 });
@@ -346,29 +356,44 @@ test('compatibilidade: 204 da nuvem continua significando "sem mudança"', async
       assert.deepStrictEqual(importacoes, []);
     },
     {
-      env: { INVB_TONS_SYNC_URL: 'https://invb-tons.onrender.com' },
-      cloud: nuvemDeTeste('invb-tons.onrender.com', { semMudanca: true }),
+      env: { INVB_TONS_SYNC_URL: 'https://invb-webhook-api.onrender.com' },
+      cloud: nuvemDeTeste('invb-webhook-api.onrender.com', { semMudanca: true }),
     }
   );
 });
 
-test('hosts do domínio da igreja (*.invbotafogo.com.br) também são aceitos', async () => {
+test('host autorizado em maiúsculas e com barra final é aceito (nome de host não diferencia caixa)', async () => {
   const estado = {};
   await comApp(
     async (app) => {
       const r = await postar(app.base, '/api/tom-memoria/sync-invb', { fonte: 'cloud' });
       assert.strictEqual(r.status, 200);
       assert.strictEqual(r.json.origem, 'cloud');
-      assert.ok(estado.url.startsWith('https://tons.invbotafogo.com.br/api/invb/tons-sync'));
+      assert.ok(estado.url.startsWith('https://invb-webhook-api.onrender.com/api/invb/tons-sync'));
     },
     {
-      env: { INVB_TONS_SYNC_URL: 'https://tons.invbotafogo.com.br' },
-      cloud: nuvemDeTeste('tons.invbotafogo.com.br', estado),
+      env: { INVB_TONS_SYNC_URL: 'https://INVB-WEBHOOK-API.ONRENDER.COM/' },
+      cloud: nuvemDeTeste('invb-webhook-api.onrender.com', estado),
     }
   );
 });
 
-test('INVB_TONS_SYNC_HOSTS amplia a lista de hosts permitidos (e continua exigindo HTTPS)', async () => {
+test('subdomínio do domínio da igreja não cadastrado é recusado, mesmo servindo a API', async () => {
+  await comApp(
+    async (app) => {
+      const r = await postar(app.base, '/api/tom-memoria/sync-invb', { fonte: 'cloud' });
+      assert.ok(r.status >= 400);
+      assert.match(String(r.json.erro), /INVB_TONS_SYNC_URL/);
+      assert.deepStrictEqual(tentativasForaDoSupabase(), []);
+    },
+    {
+      env: { INVB_TONS_SYNC_URL: 'https://tons.invbotafogo.com.br' },
+      cloud: nuvemDeTeste('tons.invbotafogo.com.br', {}),
+    }
+  );
+});
+
+test('INVB_TONS_SYNC_HOSTS cadastra hosts exatos (aceita só eles, sem subdomínios nem curingas) e continua exigindo HTTPS', async () => {
   const estado = {};
   await comApp(
     async (app) => {
@@ -379,6 +404,43 @@ test('INVB_TONS_SYNC_HOSTS amplia a lista de hosts permitidos (e continua exigin
     {
       env: { INVB_TONS_SYNC_URL: 'https://tons.exemplo.org', INVB_TONS_SYNC_HOSTS: 'tons.exemplo.org' },
       cloud: nuvemDeTeste('tons.exemplo.org', estado),
+    }
+  );
+  /* Lista com vários hosts, espaços e caixa diferente: o segundo cadastrado também vale. */
+  await comApp(
+    async (app) => {
+      const r = await postar(app.base, '/api/tom-memoria/sync-invb', { fonte: 'cloud' });
+      assert.strictEqual(r.status, 200);
+      assert.strictEqual(r.json.origem, 'cloud');
+    },
+    {
+      env: {
+        INVB_TONS_SYNC_URL: 'https://segundo.exemplo.org',
+        INVB_TONS_SYNC_HOSTS: ' Tons.Exemplo.org ,  segundo.exemplo.org ',
+      },
+      cloud: nuvemDeTeste('segundo.exemplo.org', {}),
+    }
+  );
+  /* Subdomínio de um host cadastrado NÃO é autorizado. */
+  await comApp(
+    async (app) => {
+      const r = await postar(app.base, '/api/tom-memoria/sync-invb', { fonte: 'cloud' });
+      assert.ok(r.status >= 400);
+      assert.deepStrictEqual(tentativasForaDoSupabase(), []);
+    },
+    {
+      env: { INVB_TONS_SYNC_URL: 'https://x.tons.exemplo.org', INVB_TONS_SYNC_HOSTS: 'tons.exemplo.org' },
+    }
+  );
+  /* Curinga na lista não vira "qualquer subdomínio". */
+  await comApp(
+    async (app) => {
+      const r = await postar(app.base, '/api/tom-memoria/sync-invb', { fonte: 'cloud' });
+      assert.ok(r.status >= 400);
+      assert.deepStrictEqual(tentativasForaDoSupabase(), []);
+    },
+    {
+      env: { INVB_TONS_SYNC_URL: 'https://x.exemplo.org', INVB_TONS_SYNC_HOSTS: '*.exemplo.org' },
     }
   );
   await comApp(
@@ -402,8 +464,8 @@ test('o fetch para a nuvem não segue redirecionamentos (evita sair do host vali
       assert.strictEqual(estado.init.redirect, 'error');
     },
     {
-      env: { INVB_TONS_SYNC_URL: 'https://invb-tons.onrender.com' },
-      cloud: nuvemDeTeste('invb-tons.onrender.com', estado),
+      env: { INVB_TONS_SYNC_URL: 'https://invb-webhook-api.onrender.com' },
+      cloud: nuvemDeTeste('invb-webhook-api.onrender.com', estado),
     }
   );
 });
@@ -417,9 +479,9 @@ test('erro da nuvem não devolve o corpo da resposta remota ao cliente', async (
       assert.match(String(r.json.erro), /503/);
     },
     {
-      env: { INVB_TONS_SYNC_URL: 'https://invb-tons.onrender.com' },
+      env: { INVB_TONS_SYNC_URL: 'https://invb-webhook-api.onrender.com' },
       cloud: {
-        host: 'invb-tons.onrender.com',
+        host: 'invb-webhook-api.onrender.com',
         responder: () => new Response('CORPO-DE-ERRO-REMOTO', { status: 503 }),
       },
     }
