@@ -208,7 +208,9 @@ export function criarSlidesGrelha(d) {
     if (suave) {
       try {
         if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) behavior = 'smooth';
-      } catch (_) {}
+      } catch (_) {
+        // intencional — sem matchMedia, mantém o comportamento 'auto'
+      }
     }
     porta.scrollTo({ top: alvo, behavior });
   }
@@ -463,7 +465,9 @@ export function criarSlidesGrelha(d) {
     if (grid) grid.dataset.slidesCols = String(slidesPorLinha);
     try {
       localStorage.setItem(LS_SLIDES_POR_LINHA, String(slidesPorLinha));
-    } catch (_) {}
+    } catch (_) {
+      // intencional — sem localStorage a preferência só vale nesta sessão
+    }
     atualizarBotoesSlidesPorLinha();
     if (mudou) {
       queueMicrotask(() => {
@@ -477,7 +481,9 @@ export function criarSlidesGrelha(d) {
     let raw = null;
     try {
       raw = localStorage.getItem(LS_SLIDES_POR_LINHA);
-    } catch (_) {}
+    } catch (_) {
+      // intencional — sem localStorage usa o padrão (raw permanece null)
+    }
     applySlidesPorLinha(raw);
   }
 

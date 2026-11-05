@@ -7,25 +7,40 @@ const os = require('node:os');
 const path = require('node:path');
 
 /**
- * Driver SQLite para o teste: usa `better-sqlite3` (o mesmo do app) quando o
- * binário nativo carrega e cai para o `node:sqlite` embutido caso contrário —
- * o binário do better-sqlite3 é compilado por plataforma e nem sempre está
- * disponível no ambiente onde os testes rodam.
+ * Driver SQLite para o teste: sempre `better-sqlite3` (o mesmo motor do app, com
+ * WAL e `transaction`). Não há fallback para `node:sqlite`: ele não tem `pragma`
+ * nem `transaction`, e os testes passariam por um caminho que a produção não usa.
+ *
+ * O binário nativo é compilado por ABI. Dentro do Electron 29 ele não carrega no
+ * Node do sistema (e vice-versa), por isso procura-se, em ordem, o do controlador,
+ * o da raiz e o do servidor. Cada candidato só é aceito depois de abrir um banco
+ * em memória — o binding nativo só é carregado nesse momento.
+ *
+ * Se nenhum servir, o teste falha com a lista de tentativas.
  */
 function carregarDriverSqlite() {
-  try {
-    const BetterSqlite3 = require('better-sqlite3');
-    // O binding nativo só é carregado ao abrir um banco — testar aqui.
-    new BetterSqlite3(':memory:').close();
-    return BetterSqlite3;
-  } catch (_) {
-    const { DatabaseSync } = require('node:sqlite');
-    return class DatabaseCompat extends DatabaseSync {
-      constructor(caminho, opcoes = {}) {
-        super(caminho, opcoes.readonly ? { readOnly: true } : {});
-      }
-    };
+  const raizRepo = path.resolve(__dirname, '..', '..');
+  const candidatos = [
+    ['controlador', path.join(raizRepo, 'controller')],
+    ['raiz', raizRepo],
+    ['servidor', path.join(raizRepo, 'server')],
+  ];
+  const falhas = [];
+  for (const [rotulo, base] of candidatos) {
+    const pasta = path.join(base, 'node_modules', 'better-sqlite3');
+    try {
+      const Driver = require(pasta);
+      new Driver(':memory:').close();
+      return Driver;
+    } catch (e) {
+      falhas.push(`  - ${rotulo} (${pasta}): ${String((e && e.message) || e).split('\n')[0]}`);
+    }
   }
+  throw new Error(
+    `Nenhum better-sqlite3 compatível com este Node (${process.version}, ABI ${process.versions.modules}) foi encontrado.\n` +
+      `Tentativas:\n${falhas.join('\n')}\n` +
+      'Instale as dependências e/ou recompile o módulo para este Node (ex.: "npm rebuild better-sqlite3 --build-from-source=false" na pasta do candidato).'
+  );
 }
 
 const Database = carregarDriverSqlite();

@@ -500,7 +500,7 @@ async function fetchSupabaseTabela(caminhoComQuery) {
   const page = 1000;
   let from = 0;
   const out = [];
-  while (true) {
+  for (;;) {
     const res = await fetch(`${base}/${String(caminhoComQuery || '').replace(/^\//, '')}`, {
       headers: {
         apikey: key,

@@ -8,6 +8,11 @@
 #
 # Cada release do Controlador (tag vX.Y.Z) publica também o companion do Servidor:
 # Lyra-Servidor-Setup.exe + server-latest.yml (buildId técnico, sem versão de produto).
+#
+# Qualidade obrigatória: o job `qualidade` (ci.yml: npm test + npm run lint) roda
+# ANTES do build e o job de release depende dele (`needs`). Se qualquer verificação
+# falhar, nada é compilado nem publicado. A tag continua existindo: corrija o problema,
+# apague a tag (local e remota) e crie-a de novo no commit corrigido.
 
 name: Release
 
@@ -17,8 +22,13 @@ on:
       - 'v*.*.*'
 
 jobs:
+  qualidade:
+    name: Qualidade (testes e lint)
+    uses: ./.github/workflows/ci.yml
+
   release-controller-windows:
     name: Build e release (Windows)
+    needs: qualidade
     runs-on: windows-latest
 
     steps:
