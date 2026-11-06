@@ -32,10 +32,12 @@ const janelaSegura = require('./janelaSegura');
  * @param {{webRequest: {onBeforeSendHeaders: Function}}} deps.session
  * @param {{isPackaged?: boolean}} deps.app
  * @param {{openExternal?: (url: string) => Promise<void>}} [deps.shell]
+ * @param {() => Promise<boolean>} [deps.provarMotorLocal] prova de que o dono da porta do motor local (5510)
+ *        é o servidor que ESTE processo iniciou. Ausente → a 5510 nunca recebe a credencial.
  * @param {object} [deps.config] sobrescreve origem/portas/hosts (testes usam portas isoladas)
  * @param {(msg: string) => void} [deps.log] recebe SÓ mensagens sem segredo
  */
-function criarIntegracao({ session, app, shell, config, log }) {
+function criarIntegracao({ session, app, shell, config, log, provarMotorLocal }) {
   const cfg = { ...CONFIG_PADRAO, ...(config || {}) };
   const interna = criarCredencialInterna();
   const registro = criarRegistroJanelas();
@@ -43,14 +45,28 @@ function criarIntegracao({ session, app, shell, config, log }) {
   const aviso = typeof log === 'function' ? log : () => {};
 
   session.webRequest.onBeforeSendHeaders({ urls: ['http://*/*'] }, (detalhes, callback) => {
-    let cabecalhos = detalhes.requestHeaders;
+    const original = detalhes.requestHeaders;
+    let decisao = '';
     try {
-      const decisao = decidirInjecao(detalhes, { ...cfg, registro });
-      if (decisao === 'injetar') cabecalhos = interna.aplicarAosCabecalhos(detalhes.requestHeaders);
+      decisao = decidirInjecao(detalhes, { ...cfg, registro });
     } catch (_) {
       aviso('[Lyra][credencial-interna] falha ao decidir a injeção; requisição segue sem credencial interna');
     }
-    callback({ requestHeaders: cabecalhos });
+    if (decisao === 'injetar') {
+      callback({ requestHeaders: interna.aplicarAosCabecalhos(original) });
+      return;
+    }
+    if (decisao === 'verificar-motor-local') {
+      /* 5510: injeta só se o dono da porta é o motor local DESTE processo (falha fechada). Sem a
+         prova, os cabeçalhos do renderer seguem intactos, como se esta integração não existisse. */
+      Promise.resolve()
+        .then(() => (typeof provarMotorLocal === 'function' ? provarMotorLocal() : false))
+        .then((ok) => ok === true)
+        .catch(() => false)
+        .then((ok) => callback({ requestHeaders: ok ? interna.aplicarAosCabecalhos(original) : original }));
+      return;
+    }
+    callback({ requestHeaders: original });
   });
 
   function abrirExterno(url) {

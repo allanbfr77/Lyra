@@ -23,14 +23,15 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-cred-electron-'));
 app.setPath('userData', path.join(TMP, 'ud'));
 const OUT = process.env.LYRA_HARNESS_OUT || path.join(TMP, 'resultado.json');
 
-const { controleAcesso, autenticacaoHttp, credencialInterna } = require('@lyra/projection-core');
+const { controleAcesso, autenticacaoHttp, credencialInterna, provaPropriedade } = require('@lyra/projection-core');
+const { spawn } = require('child_process');
 const { criarIntegracao } = require('./credencialInternaPainel');
 
 const P_API = 43001;
 const P_PROJ = 45510;
 const P_OUTRA = 43999;
 const ORIGEM = `http://127.0.0.1:${P_API}`;
-const CONFIG = { origemPainel: ORIGEM, portas: [String(P_API), String(P_PROJ)] };
+const CONFIG = { origemPainel: ORIGEM, portas: [String(P_API), String(P_PROJ)], portaMotorLocal: String(P_PROJ) };
 const RH = { 'X-Lyra-Device': 'renderer-dev', 'X-Lyra-Secret': 'renderer-secret', 'X-Lyra-App': '9.9.9' };
 
 const resultados = [];
@@ -129,8 +130,12 @@ app.whenReady().then(async () => {
   acesso.travar();
   const allowAntes = fs.readFileSync(path.join(TMP, 'allow.json'), 'utf8');
 
+  /* O «motor local» deste processo: o servidor HTTP que ELE possui (como `servidorApi` da projeção local). */
+  let servidorMotor = null;
+  const prova = provaPropriedade.criarProvaPropriedade({ obterServidor: () => servidorMotor, porta: P_PROJ, ttlMs: 0, timeoutMs: 400 });
+
   /* Integração REAL, em desenvolvimento (DevTools liberadas) na sessão padrão. */
-  const integ = criarIntegracao({ session: session.defaultSession, app: { isPackaged: false }, config: CONFIG, shell: { openExternal: async () => {} } });
+  const integ = criarIntegracao({ session: session.defaultSession, app: { isPackaged: false }, config: CONFIG, shell: { openExternal: async () => {} }, provarMotorLocal: () => prova.provar() });
   const interna = integ.interna;
   const hInterna = interna.aplicarAosCabecalhos({});
   const SECRET = hInterna['X-Lyra-Secret'];
@@ -138,6 +143,7 @@ app.whenReady().then(async () => {
 
   const api = await criarServidor({ porta: P_API, contexto: 'controlador-3001', interna, acesso });
   const proj = await criarServidor({ porta: P_PROJ, contexto: 'local-5510', interna, acesso });
+  servidorMotor = proj.server;
   const outra = await criarServidor({ porta: P_OUTRA, contexto: 'outra', interna, acesso, comAuth: false });
   const alt = await criarServidor({ porta: P_API, contexto: 'alt', interna, acesso, host: '127.0.0.2', comAuth: false });
 
@@ -372,6 +378,88 @@ app.whenReady().then(async () => {
     rec('V4 desenvolvimento: DevTools continuam disponíveis', integ.devToolsPermitido === true && wDev.webContents.isDevToolsOpened() === true, `aberto=${wDev.webContents.isDevToolsOpened()}`);
     try { wDev.webContents.closeDevTools(); } catch (_) { /* ignora */ }
     wDev.destroy();
+  }
+
+  /* ====== 5510: só o motor local PRÓPRIO recebe; Servidor separado nunca ====== */
+  {
+    const URL5510 = `http://127.0.0.1:${P_PROJ}`;
+    const orig = (r) => !!r && r.headers['x-lyra-device'] === 'renderer-dev' && r.headers['x-lyra-secret'] === 'renderer-secret' && r.headers['x-lyra-app'] === '9.9.9';
+
+    const m0 = novoMarcador();
+    await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m0}`, { headers: RH });
+    rec('Q1 motor local ativo (propriedade comprovada): a 5510 recebe a credencial interna', !!achar(proj, m0) && achar(proj, m0).headers['x-lyra-secret'] === SECRET, '');
+
+    servidorMotor = null; // motor local parado: o que responder em 5510 não é nosso
+    const m1 = novoMarcador();
+    const st1 = await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m1}`, { headers: RH });
+    rec('Q2 motor local parado: a 5510 NÃO recebe a interna e os cabeçalhos originais do renderer são preservados', orig(achar(proj, m1)) && st1 === 401, `status=${st1}`);
+    const m1b = novoMarcador();
+    await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m1b}`);
+    rec('Q2b sem cabeçalhos do renderer, nada é inventado (nenhuma credencial chega)', !!achar(proj, m1b) && achar(proj, m1b).headers['x-lyra-secret'] === undefined, '');
+    servidorMotor = proj.server;
+    const m1d = novoMarcador();
+    await fetchNaPagina(painel.webContents, `http://localhost:${P_PROJ}/api/monitores?${m1d}`, { headers: RH });
+    rec('Q2c «localhost»:5510 NUNCA recebe a interna, nem com o motor ativo (localhost não é comprovável)', orig(achar(proj, m1d)), '');
+
+    /* Servidor separado de verdade: OUTRO PROCESSO do SO na mesma máquina e na mesma porta. */
+    await new Promise((r) => proj.server.close(r));
+    const arq = path.join(TMP, 'separado.jsonl');
+    const script = `const http=require('http'),fs=require('fs');http.createServer((q,s)=>{fs.appendFileSync(process.env.ARQ,JSON.stringify({url:q.url,h:q.headers})+'\\n');s.setHeader('Access-Control-Allow-Origin','*');s.setHeader('Access-Control-Allow-Headers','content-type, x-lyra-app, x-lyra-device, x-lyra-secret');s.setHeader('Access-Control-Allow-Methods','GET, PUT, OPTIONS');if(q.method==='OPTIONS'){s.statusCode=204;return s.end()}s.end('{}')}).listen(${P_PROJ},process.env.HOST,()=>console.log('pronto'))`;
+    const abrirSeparado = (host) => new Promise((resolve, reject) => {
+      const filho = spawn(process.execPath, ['-e', script], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ARQ: arq, HOST: host }, stdio: ['ignore', 'pipe', 'pipe'] });
+      let pronto = false;
+      filho.stdout.on('data', (d) => { if (String(d).includes('pronto') && !pronto) { pronto = true; resolve(filho); } });
+      filho.stderr.on('data', (d) => { if (!pronto && /EADDRINUSE|EACCES/.test(String(d))) reject(new Error('bind')); });
+      filho.on('exit', () => { if (!pronto) reject(new Error('saiu')); });
+      setTimeout(() => { if (!pronto) reject(new Error('timeout')); }, 8000);
+    });
+    const lerSeparado = (marca) => {
+      try {
+        return fs.readFileSync(arq, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((x) => x.url.includes(marca)).pop() || null;
+      } catch (_) { return null; }
+    };
+
+    const sep = await abrirSeparado('127.0.0.1');
+    const m2 = novoMarcador();
+    await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m2}`, { headers: RH });
+    const rs = lerSeparado(m2);
+    rec('Q3 Servidor SEPARADO (outro processo, mesmo PC, mesma porta): NÃO recebe a interna; cabeçalhos originais preservados',
+      !!rs && rs.h['x-lyra-device'] === 'renderer-dev' && rs.h['x-lyra-secret'] === 'renderer-secret' && rs.h['x-lyra-app'] === '9.9.9', rs ? 'chegou com os originais' : 'não chegou');
+    const m2b = novoMarcador();
+    await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m2b}`, { method: 'PUT', headers: { ...RH, 'Content-Type': 'application/json' }, body: '{}' });
+    const rs2 = lerSeparado(m2b);
+    rec('Q3b o mesmo vale para escrita cross-origin (PUT) no Servidor separado', !!rs2 && rs2.h['x-lyra-secret'] === 'renderer-secret', '');
+    rec('Q3c o segredo interno jamais aparece no que o Servidor separado recebeu (arquivo inteiro)', !fs.readFileSync(arq, 'utf8').includes(SECRET), '');
+    sep.kill();
+    await esperar(500);
+
+    /* Reinício do motor local: NOVO objeto servidor na mesma porta → re-provado */
+    const proj2 = await criarServidor({ porta: P_PROJ, contexto: 'local-5510', interna, acesso, host: '0.0.0.0' });
+    servidorMotor = proj2.server;
+    const m3 = novoMarcador();
+    await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m3}`, { headers: RH });
+    rec('Q4 motor local reiniciado (novo servidor, mesma porta): volta a receber a interna', !!achar(proj2, m3) && achar(proj2, m3).headers['x-lyra-secret'] === SECRET, '');
+
+    /* Outro processo no endereço específico 127.0.0.1:5510 enquanto o motor escuta em 0.0.0.0 */
+    let intruso = null;
+    try { intruso = await abrirSeparado('127.0.0.1'); } catch (_) { intruso = null; }
+    if (!intruso) {
+      rec('Q5 (intruso em 127.0.0.1:5510 com o motor em 0.0.0.0) — o SO não permitiu o bind específico; cenário inexistente aqui', true, 'ignorado');
+    } else {
+      const m4 = novoMarcador();
+      await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m4}`, { headers: RH });
+      const ri = lerSeparado(m4);
+      /* Com conexão keep-alive antiga a requisição ainda pode ir ao motor; em qualquer caminho a prova (conexão NOVA) cai no intruso e falha. */
+      const noMotor = achar(proj2, m4);
+      const originais = (ri && ri.h['x-lyra-secret'] === 'renderer-secret') || (noMotor && noMotor.headers['x-lyra-secret'] === 'renderer-secret');
+      rec('Q5 OUTRO processo ocupando 127.0.0.1:5510 (motor em 0.0.0.0): a prova falha, ninguém recebe a interna e os originais são preservados',
+        !!originais && !fs.readFileSync(arq, 'utf8').includes(SECRET) && !(noMotor && noMotor.headers['x-lyra-secret'] === SECRET), ri ? 'foi ao intruso, originais' : 'foi ao motor (keep-alive), originais');
+      rec('Q5b a prova de propriedade, feita por conexão nova, nega o motor enquanto o intruso ocupa 127.0.0.1:5510', (await prova.provar()) === false, '');
+      intruso.kill();
+      await esperar(300);
+    }
+    servidorMotor = null;
+    await new Promise((r) => proj2.server.close(r));
   }
 
   /* ====== Encerramento: logs e disco ====== */

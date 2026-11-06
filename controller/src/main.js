@@ -112,6 +112,11 @@ app.whenReady().then(async () => {
     app,
     shell,
     log: (msg) => console.warn(msg),
+    /* Ligação tardia: a projeção local só existe depois; sem ela (ou parada) a 5510 não recebe nada. */
+    provarMotorLocal: () =>
+      ctx.projecaoLocal && typeof ctx.projecaoLocal.provarPropriedade === 'function'
+        ? ctx.projecaoLocal.provarPropriedade()
+        : Promise.resolve(false),
   }).interna;
   const userData = app.getPath('userData');
   const paths = createUserPaths(userData);

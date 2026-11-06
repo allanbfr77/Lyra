@@ -42,15 +42,20 @@ function projectionBaseUrl() {
 }
 
 /**
- * O destino do salto é o motor de projeção LOCAL deste processo? (motor ativo + loopback + 5510).
- * Só então a credencial interna do painel pode acompanhar a requisição.
+ * O destino do salto é o motor de projeção LOCAL deste processo?
+ *
+ * Loopback, `localhost` e porta 5510 NÃO bastam: um Servidor separado pode estar no mesmo PC.
+ * A propriedade é comprovada pelo próprio motor (`provarPropriedade`: a sonda em 127.0.0.1:5510
+ * tem de chegar ao servidor HTTP que este processo iniciou). Só então a credencial interna do
+ * painel pode acompanhar a requisição.
  */
-function destinoEhMotorLocal(ctx, base) {
+async function destinoEhMotorLocal(ctx, base) {
   try {
-    const ativo = !!(ctx.projecaoLocal && typeof ctx.projecaoLocal.estaActiva === 'function' && ctx.projecaoLocal.estaActiva());
     const host = String((base && base.hostname) || '').toLowerCase();
     const porta = String((base && base.port) || '');
-    return ativo && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(host) && porta === '5510';
+    if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(host) || porta !== '5510') return false;
+    const prova = ctx.projecaoLocal && ctx.projecaoLocal.provarPropriedade;
+    return typeof prova === 'function' ? (await prova()) === true : false;
   } catch (_) {
     return false;
   }
@@ -60,8 +65,8 @@ function destinoEhMotorLocal(ctx, base) {
  * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado,
  * levando a credencial que o cliente mandou (E1.3 Fase B; ver `lib/proxyProjecaoJson.js`).
  */
-function proxyJsonToProjection(method, pathname, jsonBody, credenciais) {
-  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: projectionBaseUrl() });
+function proxyJsonToProjection(method, pathname, jsonBody, credenciais, base) {
+  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: base || projectionBaseUrl() });
 }
 
 /**
@@ -280,15 +285,18 @@ async function iniciarServidorController(ctx, paths) {
   async function proxyDisplay(req, res, pathname) {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const base = projectionBaseUrl();
-      /* A credencial interna do painel só segue ao motor local DESTE processo; a de qualquer outro
-         dispositivo, como antes. Ver `credenciaisParaSalto`. */
+      const baseConfigurada = projectionBaseUrl();
+      /* A credencial interna do painel só segue ao motor local DESTE processo (propriedade
+         comprovada); a de qualquer outro dispositivo, como antes. Comprovado, o salto vai direto a
+         127.0.0.1 — o endereço que a prova cobre (`localhost` poderia cair em ::1, outro dono). */
+      const proprio = await destinoEhMotorLocal(ctx, baseConfigurada);
+      const base = proprio ? new URL('http://127.0.0.1:5510') : baseConfigurada;
       const cred = credenciaisParaSalto(req, {
         interna: ctx.credencialInterna || null,
         base,
-        destinoEhMotorLocal: destinoEhMotorLocal(ctx, base),
+        destinoEhMotorLocal: proprio,
       });
-      const pr = await proxyJsonToProjection('PUT', pathname, body, cred);
+      const pr = await proxyJsonToProjection('PUT', pathname, body, cred, base);
       res.status(pr.status);
       const ct = pr.headers['content-type'];
       if (ct) res.setHeader('Content-Type', ct);

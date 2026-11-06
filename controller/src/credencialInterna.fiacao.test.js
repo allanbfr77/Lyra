@@ -61,8 +61,11 @@ test('Socket.IO da projeção local passa pela guarda que recusa o id interno (s
 
 test('o salto 3001→5510 só leva a credencial interna ao motor local deste processo', () => {
   const src = ler('controller/src/httpControllerServer.js');
-  assert.match(src, /credenciaisParaSalto\(req,\s*\{[\s\S]*?interna:\s*ctx\.credencialInterna[\s\S]*?destinoEhMotorLocal:\s*destinoEhMotorLocal\(ctx,\s*base\)/);
-  assert.match(src, /estaActiva[\s\S]*?porta === '5510'/);
+  assert.match(src, /await destinoEhMotorLocal\(ctx,\s*baseConfigurada\)/);
+  assert.match(src, /credenciaisParaSalto\(req,\s*\{[\s\S]*?interna:\s*ctx\.credencialInterna[\s\S]*?destinoEhMotorLocal:\s*proprio/);
+  assert.match(src, /ctx\.projecaoLocal\.provarPropriedade/, 'a propriedade vem da prova do motor');
+  assert.doesNotMatch(src, /estaActiva/, 'estar ativo não é prova de propriedade');
+  assert.match(src, /new URL\('http:\/\/127\.0\.0\.1:5510'\)/, 'comprovado, o salto vai a 127.0.0.1');
 });
 
 test('só o painel e o Histórico são registrados (nunca telão, projeção ou janela filha)', () => {
@@ -105,4 +108,19 @@ test('DevTools: item de menu só fora de produção e webPreferences.devTools ve
   assert.match(src, /label: 'Abrir console do controlador'/);
   const janela = ler('controller/src/janelaSegura.js');
   assert.match(janela, /app\.isPackaged === false/);
+});
+
+test('5510: a injeção depende da prova de propriedade do motor local (nunca de IP, host ou porta)', () => {
+  const main = ler('controller/src/main.js');
+  assert.match(main, /provarMotorLocal:[\s\S]*?ctx\.projecaoLocal\.provarPropriedade\(\)[\s\S]*?Promise\.resolve\(false\)/);
+  const local = ler('controller/src/projecaoLocal.js');
+  assert.match(local, /obterServidor:\s*\(\)\s*=>\s*\(activa \? servidorApi : null\)/, 'a prova olha o servidor que o processo possui');
+  assert.match(local, /provarPropriedade:\s*\(\)\s*=>\s*prova\.provar\(\)/);
+  assert.match(local, /activa = false;\s*\n\s*prova\.invalidar\(\);/, 'desligar invalida a prova');
+  const painel = ler('controller/src/credencialInternaPainel.js');
+  assert.match(painel, /verificar-motor-local/);
+  assert.match(painel, /typeof provarMotorLocal === 'function' \? provarMotorLocal\(\) : false/, 'sem prova, nada é injetado');
+  const nucleo = codigo('packages/projection-core/src/provaPropriedade.js');
+  assert.match(nucleo, /socket\.remotePort/);
+  assert.doesNotMatch(nucleo, /process\.env|writeFile|console\./);
 });

@@ -51,6 +51,8 @@ const CONFIG_PADRAO = Object.freeze({
   origemPainel: `http://127.0.0.1:${PORTA_CONTROLADOR}`,
   hosts: Object.freeze(['127.0.0.1', 'localhost']),
   portas: Object.freeze([PORTA_CONTROLADOR, PORTA_PROJECAO]),
+  /* Porta cujo dono precisa ser COMPROVADO antes de receber a credencial (ver `provaPropriedade`). */
+  portaMotorLocal: PORTA_PROJECAO,
   tipos: Object.freeze(['xhr', 'ping']),
 });
 
@@ -135,7 +137,8 @@ function criarCredencialInterna(opcoes = {}) {
  * @param {Iterable<string>} [cfg.hosts]
  * @param {Iterable<string>} [cfg.portas]
  * @param {Iterable<string>} [cfg.tipos]
- * @returns {'injetar'|string} 'injetar' ou o motivo da recusa
+ * @returns {'injetar'|'verificar-motor-local'|string} 'injetar'; 'verificar-motor-local' (só injeta se a
+ *          propriedade do motor local for comprovada); ou o motivo da recusa
  */
 function decidirInjecao(detalhes, cfg) {
   const d = detalhes && typeof detalhes === 'object' ? detalhes : {};
@@ -145,6 +148,7 @@ function decidirInjecao(detalhes, cfg) {
   const hosts = new Set(c.hosts || CONFIG_PADRAO.hosts);
   const portas = new Set(c.portas || CONFIG_PADRAO.portas);
   const tipos = new Set(c.tipos || CONFIG_PADRAO.tipos);
+  const portaMotorLocal = String(c.portaMotorLocal || CONFIG_PADRAO.portaMotorLocal);
 
   if (d.resourceType === 'webSocket') return 'websocket';
   if (String(d.method || '').toUpperCase() === 'OPTIONS') return 'preflight';
@@ -173,6 +177,14 @@ function decidirInjecao(detalhes, cfg) {
   }
   if (fu.origin !== origemPainel || fu.pathname !== registro.paginaDe(d.webContentsId)) {
     return 'frame-nao-autorizado';
+  }
+  /*
+   * 5510: o destino pode ser o motor local DESTE processo ou um Servidor separado (mesmo PC, mesmo
+   * IP). Quem decide é a prova de propriedade, feita por quem chama — nunca IP, host ou porta.
+   * Só 127.0.0.1 é comprovável: `localhost` pode resolver para ::1, onde outro processo escute.
+   */
+  if (u.port === portaMotorLocal) {
+    return u.hostname === '127.0.0.1' ? 'verificar-motor-local' : 'host-motor-nao-comprovavel';
   }
   return 'injetar';
 }

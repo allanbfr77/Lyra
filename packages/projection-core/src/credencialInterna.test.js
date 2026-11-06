@@ -130,18 +130,31 @@ test('aplicarAosCabecalhos remove X-Lyra-Device/Secret do renderer (qualquer cai
 
 /* ───────────────────────── política de injeção ───────────────────────── */
 
-test('injeta no frame principal de janela registrada, para XHR/fetch e ping, em 127.0.0.1 e localhost nas portas 3001/5510', () => {
+test('3001: injeta no frame principal de janela registrada, para XHR/fetch e ping, em 127.0.0.1 e localhost', () => {
   const reg = registroCom([7, '/controller.html']);
-  for (const url of [
-    'http://127.0.0.1:3001/api/musicas',
-    'http://localhost:3001/api/musicas',
-    'http://127.0.0.1:5510/api/monitores',
-    'http://localhost:5510/api/monitores',
-  ]) {
+  for (const url of ['http://127.0.0.1:3001/api/musicas', 'http://localhost:3001/api/musicas']) {
     for (const resourceType of ['xhr', 'ping']) {
       assert.equal(decidirInjecao(detalhes({ url, resourceType }), { registro: reg }), 'injetar', `${resourceType} ${url}`);
     }
   }
+});
+
+test('5510: nunca «injetar» direto — só depois da prova de propriedade, e só em 127.0.0.1 (localhost não é comprovável)', () => {
+  const reg = registroCom([7, '/controller.html']);
+  for (const resourceType of ['xhr', 'ping']) {
+    assert.equal(
+      decidirInjecao(detalhes({ url: 'http://127.0.0.1:5510/api/monitores', resourceType }), { registro: reg }),
+      'verificar-motor-local',
+      resourceType
+    );
+  }
+  // `localhost` pode resolver para ::1 (outro dono) — a prova cobre 127.0.0.1, então não injeta
+  assert.equal(decidirInjecao(detalhes({ url: 'http://localhost:5510/api/monitores' }), { registro: reg }), 'host-motor-nao-comprovavel');
+  // as demais regras valem antes da consulta de propriedade
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:5510/x', method: 'OPTIONS' }), { registro: reg }), 'preflight');
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:5510/x', webContentsId: 99 }), { registro: reg }), 'janela-nao-autorizada');
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:5510/x', frame: { url: `${ORIGEM}/tela.html`, parent: null } }), { registro: reg }), 'frame-nao-autorizado');
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:5510/x', frame: { url: `${ORIGEM}/controller.html`, parent: { url: ORIGEM } } }), { registro: reg }), 'subframe');
 });
 
 test('nunca injeta em OPTIONS (preflight) nem em WebSocket', () => {
@@ -212,11 +225,11 @@ test('escopo por URL, host e porta: externo, outro IP de loopback, LAN, porta fo
 
 test('a política é configurável (portas/origem) sem afrouxar os padrões', () => {
   const reg = registroCom([7, '/controller.html']);
-  const cfg = { registro: reg, portas: ['43001', '45510'], origemPainel: 'http://127.0.0.1:43001' };
-  assert.equal(
-    decidirInjecao(detalhes({ url: 'http://127.0.0.1:45510/api/x', frame: { url: 'http://127.0.0.1:43001/controller.html', parent: null } }), cfg),
-    'injetar'
-  );
+  const cfg = { registro: reg, portas: ['43001', '45510'], portaMotorLocal: '45510', origemPainel: 'http://127.0.0.1:43001' };
+  const frame = { url: 'http://127.0.0.1:43001/controller.html', parent: null };
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:45510/api/x', frame }), cfg), 'verificar-motor-local');
+  assert.equal(decidirInjecao(detalhes({ url: 'http://127.0.0.1:43001/api/x', frame }), cfg), 'injetar');
+  assert.equal(CONFIG_PADRAO.portaMotorLocal, '5510');
   assert.notEqual(decidirInjecao(detalhes({ url: 'http://127.0.0.1:3001/api/x' }), cfg), 'injetar');
   assert.deepEqual([...CONFIG_PADRAO.portas].sort(), ['3001', '5510']);
   assert.deepEqual([...CONFIG_PADRAO.hosts].sort(), ['127.0.0.1', 'localhost']);

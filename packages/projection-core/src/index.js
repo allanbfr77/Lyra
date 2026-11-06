@@ -82,6 +82,8 @@ module.exports = {
   /* Credencial interna efêmera do painel (E1.3 Fase B, arquitetura W): política de injeção,
      registro de janelas e verificadores. O segredo só existe na memória do processo principal. */
   credencialInterna: require('./credencialInterna'),
+  /* Prova de que o dono de uma porta local é o servidor que ESTE processo iniciou. */
+  provaPropriedade: require('./provaPropriedade'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),
