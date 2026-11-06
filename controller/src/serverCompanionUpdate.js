@@ -216,7 +216,7 @@ function downloadArquivo(url, destino, { timeoutMs = 600000, onProgress, fetchIm
   });
 }
 
-function requestJson(url, { method = 'GET', body, timeoutMs = 5000 } = {}) {
+function requestJson(url, { method = 'GET', body, timeoutMs = 5000, assinar = null } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const lib = u.protocol === 'http:' ? http : https;
@@ -229,9 +229,15 @@ function requestJson(url, { method = 'GET', body, timeoutMs = 5000 } = {}) {
         path: `${u.pathname}${u.search}`,
         method,
         timeout: timeoutMs,
-        headers: payload
-          ? { 'Content-Type': 'application/json', 'Content-Length': payload.length }
-          : undefined,
+        headers: (() => {
+          const h = payload ? { 'Content-Type': 'application/json', 'Content-Length': payload.length } : {};
+          // Elo interprocessos (Entrega 1): só com pareamento ativo; a assinatura nunca derruba a chamada.
+          try {
+            const via = typeof assinar === 'function' ? assinar({ metodo: method, caminho: `${u.pathname}${u.search}`, corpo: payload || Buffer.alloc(0) }) : null;
+            if (via) h['X-Lyra-Via'] = via;
+          } catch (_) { /* sem elo */ }
+          return Object.keys(h).length ? h : undefined;
+        })(),
       },
       (res) => {
         const chunks = [];
@@ -855,6 +861,7 @@ function createServerCompanionUpdateApi(ctx, deps) {
             method: 'POST',
             body: { origem: 'controller-companion-handoff' },
             timeoutMs: 4500,
+            assinar: (i) => (ctx.eloControlador ? ctx.eloControlador.assinarParaServidor({ base: LOCAL_SERVER_BASE, ...i }) : null),
           });
         } catch (_) {
           // intencional — handoff força encerramento se o Server já não responde
@@ -896,6 +903,7 @@ function createServerCompanionUpdateApi(ctx, deps) {
         method: 'POST',
         body: { origem: 'controller-companion' },
         timeoutMs: 4500,
+        assinar: (i) => (ctx.eloControlador ? ctx.eloControlador.assinarParaServidor({ base: LOCAL_SERVER_BASE, ...i }) : null),
       });
       if (quit.statusCode < 200 || quit.statusCode >= 300 || quit.body?.ok === false) {
         throw new Error(

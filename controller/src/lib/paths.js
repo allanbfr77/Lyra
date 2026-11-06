@@ -84,6 +84,8 @@ function createUserPaths(userDataRoot) {
     displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
     /** Dispositivos autorizados a comandar a projeção desta máquina (celular, outro PC). */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
+    /** Chaves do elo interprocessos (Entrega 1): pareamentos deste Controlador com Servidores. */
+    eloPareamentosPath: () => path.join(userDataRoot, 'elo-pareamentos.json'),
     /**
      * Diário de bordo das janelas de projeção — ver `janelasDiagnostico.js` no Core.
      *

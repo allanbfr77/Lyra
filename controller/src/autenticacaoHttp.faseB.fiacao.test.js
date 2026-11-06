@@ -48,7 +48,10 @@ test('3001: o salto para a 5510 passa a credencial do cliente (módulo próprio,
   assert.match(src, /proxyProjecaoJson/);
   // Desde a arquitetura W o salto usa `credenciaisParaSalto`: a do cliente, e a interna só ao motor local.
   assert.match(src, /credenciaisParaSalto\s*\(\s*req\b/);
-  assert.doesNotMatch(src, /x-lyra-via|LYRA_INTERNAL|internalSecret/i, 'sem autenticação interna improvisada');
+  assert.doesNotMatch(src, /LYRA_INTERNAL|internalSecret/i, 'sem autenticação interna improvisada');
+  // Entrega 1: o elo é o mecanismo sancionado, e vem do módulo próprio (`eloControlador`): o 3001 não monta o cabeçalho à mão.
+  assert.doesNotMatch(src, /['"]x-lyra-via['"]\s*\]|createHmac/i, 'o 3001 não monta o elo à mão');
+  assert.match(src, /assinarParaServidor\s*\(/);
   const mod = ler('controller/src/lib/proxyProjecaoJson.js');
   assert.doesNotMatch(mod, /process\.env/, 'o módulo não lê segredos do ambiente');
   assert.doesNotMatch(mod, /console\.(log|warn|error|info)/, 'o módulo não registra nada (nem credenciais)');

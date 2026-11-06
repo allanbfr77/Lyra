@@ -381,6 +381,36 @@ nos2({ metodo: 'PUT', caminho: '/api/display-config/preview', classe: 'escrita',
   s({ ...devtools, metodo: 'POST', caminho: '/api/open-ministrante-devtools', linha: 626 });
 }
 
+/* Elo interprocessos (Entrega 1): pareamento público (guarda = aprovação do operador) e gestão local. */
+{
+  const ARQ_ELO = 'server/src/lib/rotasElo.js';
+  const publica = (metodo, caminho, linha, nota) => add({
+    servidor: 'S', arquivo: ARQ_ELO, linha, metodo, caminho, classe: 'publica', atual: 'publica', guarda: 'nenhuma', politica: ['PEDIDO'],
+    clientes: ['processo-principal'], testes: ['T1', 'T5', 'T7'],
+    justificativaPublica: 'Pareamento do elo: o Controlador de outro PC ainda não tem credencial. A proteção é a aprovação do operador do Servidor, o código de confirmação conferido nos dois lados, o limite de pedidos e a validade curta; nenhuma chave trafega.',
+    compat: 'Sem efeito para clientes atuais: só o processo principal do Controlador usa, e só quando o operador inicia o pareamento.', riscos: nota,
+    dep: ['aprovação do operador desta máquina (diálogo nativo)'],
+  });
+  publica('POST', '/api/elo/parear', 27, 'Pedidos limitados (3 pendentes, 1 por IP a cada 5 s); nada vale sem aprovação humana.');
+  publica('GET', '/api/elo/parear/:id', 39, 'Só devolve o estado e, se aprovado, o id da chave e um MAC de confirmação; nunca a chave.');
+  publica('POST', '/api/elo/parear/:id/cancelar', 43, 'Exige o token de cancelamento devolvido ao solicitante.');
+  add({
+    servidor: 'S', arquivo: ARQ_ELO, linha: 54, metodo: 'POST', caminho: '/api/elo/verificar-dispositivo', classe: 'escrita', atual: 'publica', guarda: 'nenhuma',
+    politica: ['ELO'], elo: 'c→s', clientes: ['processo-principal'], testes: ['T1', 'T5', 'T10'],
+    compat: 'Verificação delegada de dispositivo: o Controlador (3001) de outro PC não tem a allowlist. A autenticação por dispositivo não se aplica (quem chama é o outro processo): a rota exige o elo (X-Lyra-Via) válido e responde só com o veredito da verificação pura; sem o elo responde 401. Rota nova: nenhum cliente existente a usa.',
+    riscos: 'Sem o elo seria um oráculo de credenciais aberto à LAN: por isso a própria rota exige o elo, mesmo com o servidor em registrar.',
+    dep: ['pareamento ativo entre o Controlador e este Servidor'],
+  });
+  const admin = (metodo, caminho, linha, nota) => add({
+    servidor: 'S', arquivo: ARQ_ELO, linha, metodo, caminho, classe: 'administrativa', atual: 'loopback-estrito', guarda: 'ip-loopback-handler', politica: ['LOC'],
+    clientes: ['nenhum-distribuido'], testes: ['T1'], compat: 'Nenhum cliente distribuído chama estas rotas (gestão pelo operador desta máquina).', riscos: nota,
+  });
+  admin('GET', '/api/elo/pareamentos', 48, 'Lista pedidos pendentes e chaves (sem as chaves).');
+  admin('POST', '/api/elo/pareamentos/:id/aprovar', 53, 'Aprova um pareamento: qualquer processo local pode, como nas rotas /api/controladores.');
+  admin('POST', '/api/elo/pareamentos/:id/negar', 58, 'Nega um pareamento.');
+  admin('POST', '/api/elo/chaves/revogar', 63, 'Revoga uma chave do elo.');
+}
+
 /* Proxies do Servidor para o 3001 (montagens por use(), não por rota). */
 {
   const proxy = (arquivo, caminho, familia) => add({
@@ -450,6 +480,7 @@ for (const p of ROTAS.filter((r) => r.tipo === 'proxy')) {
 /** Arquivos-fonte que declaram rotas (a varredura do teste falha se aparecer outro). */
 const ARQUIVOS_COM_ROTAS = Object.freeze([
   'server/src/httpServer.js',
+  'server/src/lib/rotasElo.js',
   'controller/src/httpControllerServer.js',
   'controller/src/projecaoLocal.js',
   'controller/src/rotas/apresentacao.js',
@@ -498,6 +529,18 @@ const ROTAS_NOVAS_NA_C0 = Object.freeze([
   'GET,POST /socket.io/*',
 ]);
 
+/** Rotas acrescentadas pela Entrega 1 (pareamento do elo interprocessos). */
+const ROTAS_NOVAS_ENTREGA_1 = Object.freeze([
+  'POST /api/elo/parear',
+  'GET /api/elo/parear/:id',
+  'POST /api/elo/parear/:id/cancelar',
+  'POST /api/elo/verificar-dispositivo',
+  'GET /api/elo/pareamentos',
+  'POST /api/elo/pareamentos/:id/aprovar',
+  'POST /api/elo/pareamentos/:id/negar',
+  'POST /api/elo/chaves/revogar',
+]);
+
 /** Incompatibilidades e lacunas identificadas ao montar o manifesto. */
 const INCOMPATIBILIDADES = Object.freeze([
   { id: 'I1', titulo: 'O 3001 não valida dispositivos com Servidor separado', texto: 'O verificador do 3001 chama o motor local; sem ele devolve «não verificável». Em «impor» recusaria mobile e outros clientes.', rotas: 'todas as rotas LER/ESC do 3001' },
@@ -526,9 +569,9 @@ function cont(filtro) { return ROTAS.filter(filtro).length; }
  * no motor local conta duas vezes).
  */
 const CONTAGENS_ESPERADAS = Object.freeze({
-  total: 128,
-  servidor: Object.freeze({ C: 64, S: 37, L: 27 }),
-  classe: Object.freeze({ publica: 16, leitura: 28, 'leitura-sensivel': 4, escrita: 40, comando: 20, administrativa: 20 }),
+  total: 136,
+  servidor: Object.freeze({ C: 64, S: 45, L: 27 }),
+  classe: Object.freeze({ publica: 19, leitura: 28, 'leitura-sensivel': 4, escrita: 41, comando: 20, administrativa: 24 }),
 });
 
 const NOME_SERVIDOR = { C: 'Controlador (3001)', S: 'Servidor separado (5510 e 5001)', L: 'Motor local do Controlador (5510 e 5001)' };
@@ -608,6 +651,10 @@ function renderizarMarkdown() {
   L.push('');
   for (const k of ROTAS_NOVAS_NA_C0) L.push(`- \`${k}\``);
   L.push('');
+  L.push('Acrescentadas pela Entrega 1 (pareamento do elo interprocessos):');
+  L.push('');
+  for (const k of ROTAS_NOVAS_ENTREGA_1) L.push(`- \`${k}\``);
+  L.push('');
   L.push('Também separadas na C0: cada rota presente no Servidor **e** no motor local (duplicatas) e a porta 5001 do OBS nos dois hospedeiros. Nenhuma rota da auditoria original ficou de fora.');
   L.push('');
 
@@ -682,6 +729,7 @@ module.exports = {
   ARQUIVOS_COM_ROTAS,
   AUDITORIA_ORIGINAL,
   ROTAS_NOVAS_NA_C0,
+  ROTAS_NOVAS_ENTREGA_1,
   INCOMPATIBILIDADES,
   CONTAGENS_ESPERADAS,
   renderizarMarkdown,

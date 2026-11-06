@@ -39,7 +39,13 @@ const PREFIXOS_APRESENTACAO = ['/api/apresentacao/video', '/api/apresentacao/mid
  * @param {(ctx: string, err: unknown) => void} logError
  * @param {() => string} [getCtlHost] IP LAN do controlador ligado (socket)
  */
-function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlHost) {
+/** `X-Lyra-Via` (elo s→c, Entrega 1) para esta chamada ao 3001, ou null sem pareamento. Nunca lança. */
+function viaDoElo(assinar, metodo, caminho) {
+  if (typeof assinar !== 'function') return null;
+  try { return assinar({ metodo, caminho }) || null; } catch (_) { return null; }
+}
+
+function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlHost, assinar = null) {
   expressApp.use((req, res, next) => {
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
     if (!PREFIXOS_APRESENTACAO.some((prefixo) => ou.startsWith(prefixo))) return next();
@@ -63,7 +69,7 @@ function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlH
         port: CTL_PORT,
         path: aval.caminho,
         method: req.method,
-        headers: cabecalhosParaControlador(req.headers, `${host}:${CTL_PORT}`),
+        headers: cabecalhosParaControlador(req.headers, `${host}:${CTL_PORT}`, viaDoElo(assinar, req.method, aval.caminho)),
         /* GET/HEAD de vídeo pode demorar (Range + ficheiros grandes). */
         timeout: 0,
       },

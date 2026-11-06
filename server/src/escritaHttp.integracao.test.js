@@ -289,7 +289,7 @@ test('HTTP: gancho que falha não derruba nem muda a resposta', async () => {
 /* ───────────────────────── 3. fiação ───────────────────────── */
 
 test('fiação: o Servidor injeta avaliarBastao sobre avaliarEscrita e continua em «registrar»', () => {
-  assert.match(FONTE, /avaliarBastao:\s*\(?[\w{}, :]*\)?\s*=>\s*ctx\.acesso\.avaliarEscrita\(/);
+  assert.match(FONTE, /avaliarBastao:\s*\(a\)\s*=>\s*sessaoControladorCore\.resolverBastao\(\{\s*acesso:\s*ctx\.acesso/);
   assert.match(FONTE, /modo:\s*'registrar'/);
   assert.doesNotMatch(FONTE, /modo:\s*'impor'/);
 });

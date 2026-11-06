@@ -11,6 +11,7 @@ const { URL } = require('url');
 const vozSlidesModelo = require('./lib/vozSlidesModeloMain');
 const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
+const { executarPareamentoInterativo } = require('./eloControlador');
 const { caminhoIconeApp } = require('./lib/iconPath');
 const historicoWindow = require('./historicoWindow');
 const credencialInternaPainel = require('./credencialInternaPainel');
@@ -135,7 +136,20 @@ function postOpenDisplayDevtoolsHttp(apiPath = 'api/open-display-devtools') {
   });
 }
 
-function requestJson(urlValue, { method = 'GET', body = null, timeoutMs = 4000 } = {}) {
+/** `X-Lyra-Via` (elo, Entrega 1) quando há pareamento; a assinatura nunca derruba a chamada original. */
+function viaDoElo(assinar, metodo, caminho, corpo) {
+  if (typeof assinar !== 'function') return null;
+  try { return assinar({ metodo, caminho, corpo: corpo || Buffer.alloc(0) }) || null; } catch (_) { return null; }
+}
+
+function cabecalhosJson(payload, via) {
+  const h = {};
+  if (payload) { h['Content-Type'] = 'application/json'; h['Content-Length'] = payload.length; }
+  if (via) h['X-Lyra-Via'] = via;
+  return Object.keys(h).length ? h : undefined;
+}
+
+function requestJson(urlValue, { method = 'GET', body = null, timeoutMs = 4000, assinar = null } = {}) {
   const url = urlValue instanceof URL ? urlValue : new URL(String(urlValue));
   const lib = url.protocol === 'https:' ? https : http;
   const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
@@ -148,12 +162,7 @@ function requestJson(urlValue, { method = 'GET', body = null, timeoutMs = 4000 }
         port,
         path: `${url.pathname}${url.search}`,
         method,
-        headers: payload
-          ? {
-              'Content-Type': 'application/json',
-              'Content-Length': payload.length,
-            }
-          : undefined,
+        headers: cabecalhosJson(payload, viaDoElo(assinar, method, `${url.pathname}${url.search}`, payload)),
       },
       (res) => {
         const chunks = [];
@@ -252,6 +261,7 @@ async function reiniciarServidorLocal(ctx) {
         method: 'POST',
         body: { origem: 'controller-menu' },
         timeoutMs: 4500,
+        assinar: (i) => (ctx.eloControlador ? ctx.eloControlador.assinarParaServidor({ base: SERVER_LOCAL_BASE_URL, ...i }) : null),
       });
     } catch (err) {
       throw new Error(
@@ -373,6 +383,19 @@ function anexarMenuContextoEdicao(win) {
     if (!items.length) return;
     Menu.buildFromTemplate(items).popup({ window: win });
   });
+}
+
+/** Pareamento do elo com o Servidor configurado (diálogos nativos; ver `eloControlador.js`). */
+async function parearComServidor(ctx) {
+  try {
+    if (!ctx.eloControlador) {
+      await dialog.showMessageBox({ type: 'info', buttons: ['Ok'], message: 'O pareamento ainda não está disponível.', detail: 'Reinicie o aplicativo e tente de novo.' });
+      return;
+    }
+    await executarPareamentoInterativo({ eloControlador: ctx.eloControlador, dialog, janela: getJanelaPrincipal(ctx) || undefined, obterBase: () => new URL(SERVER_URL) });
+  } catch (e) {
+    dialog.showErrorBox('Lyra — Pareamento', String((e && e.message) || e));
+  }
 }
 
 function criarMenuAplicativo(ctx, updaterApi, companionApi) {
@@ -544,6 +567,12 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           label: 'Reiniciar servidor',
           visible: !ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-restart-local-server'),
+        },
+        {
+          /* Entrega 1: autentica a comunicação Controlador↔Servidor. Exige APROVAÇÃO no PC do Servidor. */
+          label: 'Parear com o Servidor (segurança)…',
+          visible: !ctx.projecaoLocal?.estaActiva(),
+          click: () => { void parearComServidor(ctx); },
         },
         { type: 'separator' },
         {
