@@ -109,6 +109,12 @@ function criarControleAcesso(deps) {
   const controladores = new Map();
   /** socketId do controlador primário (dono do bastão de escrita) ou null. */
   let primarioSocketId = null;
+  /**
+   * deviceIds revogados desde que o processo iniciou. Só serve para o log HTTP distinguir
+   * «revogado» de «desconhecido» (a revogação apaga a entrada da allowlist). Não é
+   * persistido de propósito: não altera o formato do arquivo; some ao reiniciar.
+   */
+  const revogadosNestaSessao = new Set();
   /** Handle do setInterval do heartbeat. */
   let heartbeatTimer = null;
 
@@ -164,6 +170,37 @@ function criarControleAcesso(deps) {
     return { ok: false, motivo: 'nao-aprovado', pendente: true };
   }
 
+  /**
+   * Verificação PURA da credencial, para a API HTTP (E1.3).
+   *
+   * Diferença essencial para `autenticar`: aqui NADA muda. Não inscreve (TOFU), não cria
+   * registro pendente, não grava a allowlist, não notifica, não altera o modo. Quem
+   * inscreve dispositivos continua sendo apenas o handshake do Socket.IO — uma requisição
+   * HTTP jamais pode mudar o estado de autorização de ninguém.
+   *
+   * @returns {{ ok: boolean, classe: 'autorizado'|'aberto'|'pendente'|'desconhecido'|'revogado'|'secret-invalido'|'ausente', device?: object }}
+   */
+  function verificarCredencial(auth) {
+    const a = auth && typeof auth === 'object' ? auth : {};
+    const deviceId = String(a.deviceId || '').trim();
+    const secret = String(a.secret || '').trim();
+
+    if (allowlist.modo === 'aberto') {
+      return { ok: true, classe: 'aberto', device: { deviceId: deviceId || 'anon', nome: String(a.nome || '') } };
+    }
+    if (!deviceId || !secret) return { ok: false, classe: 'ausente' };
+
+    const reg = Object.prototype.hasOwnProperty.call(allowlist.devices, deviceId)
+      ? allowlist.devices[deviceId]
+      : null;
+    if (!reg) {
+      return { ok: false, classe: revogadosNestaSessao.has(deviceId) ? 'revogado' : 'desconhecido' };
+    }
+    if (!segredosConferem(reg.secret, secret)) return { ok: false, classe: 'secret-invalido' };
+    if (reg.pendente) return { ok: false, classe: 'pendente' };
+    return { ok: true, classe: 'autorizado', device: { deviceId, nome: reg.nome || '' } };
+  }
+
   /** Modo atual da política de acesso ('tofu' | 'locked' | 'aberto'). */
   function getModo() {
     return allowlist.modo;
@@ -201,6 +238,7 @@ function criarControleAcesso(deps) {
   function revogarDispositivo(deviceId) {
     if (!allowlist.devices[deviceId]) return false;
     delete allowlist.devices[deviceId];
+    revogadosNestaSessao.add(deviceId);
     salvarAllowlist(allowlistPath, allowlist);
     notificar('dispositivo_revogado', { deviceId });
     return true;
@@ -367,6 +405,7 @@ function criarControleAcesso(deps) {
   return {
     // autenticação
     autenticar,
+    verificarCredencial,
     aprovarDispositivo,
     revogarDispositivo,
     listarDispositivos,

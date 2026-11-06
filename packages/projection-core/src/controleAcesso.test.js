@@ -324,3 +324,111 @@ test('travado: um dispositivo novo fica de fora até ser aprovado', (t) => {
   acesso.aprovarDispositivo('desconhecido');
   assert.equal(acesso.autenticar(intruso).ok, true, 'aprovado à mão, passa a entrar');
 });
+
+// ------------------------------------------------- verificarCredencial (E1.3 Fase A)
+// Verificação PURA: a API HTTP consulta a allowlist sem inscrever, gravar nem notificar.
+
+function lerAllowlistBruta(allowlistPath) {
+  try {
+    return fs.readFileSync(allowlistPath(), 'utf8');
+  } catch (_) {
+    return null;
+  }
+}
+
+test('verificarCredencial: dispositivo inscrito com secret correto é autorizado', () => {
+  const { ac } = novoControle();
+  ac.autenticar({ deviceId: 'D1', secret: 'S1', nome: 'PC1' }); // TOFU inscreve pelo socket
+  const r = ac.verificarCredencial({ deviceId: 'D1', secret: 'S1' });
+  assert.equal(r.ok, true);
+  assert.equal(r.classe, 'autorizado');
+  assert.equal(r.device.deviceId, 'D1');
+});
+
+test('verificarCredencial: secret errado é secret-invalido', () => {
+  const { ac } = novoControle();
+  ac.autenticar({ deviceId: 'D1', secret: 'S1' });
+  const r = ac.verificarCredencial({ deviceId: 'D1', secret: 'outro' });
+  assert.equal(r.ok, false);
+  assert.equal(r.classe, 'secret-invalido');
+});
+
+test('verificarCredencial: sem deviceId ou sem secret é ausente', () => {
+  const { ac } = novoControle();
+  assert.equal(ac.verificarCredencial({}).classe, 'ausente');
+  assert.equal(ac.verificarCredencial(undefined).classe, 'ausente');
+  assert.equal(ac.verificarCredencial({ deviceId: 'D1' }).classe, 'ausente');
+  assert.equal(ac.verificarCredencial({ secret: 'S1' }).classe, 'ausente');
+});
+
+test('verificarCredencial: dispositivo pendente (allowlist travada) é identificado como pendente', () => {
+  const { ac } = novoControle({}, 'locked');
+  ac.autenticar({ deviceId: 'P1', secret: 'SP' }); // socket cria o registro pendente
+  const r = ac.verificarCredencial({ deviceId: 'P1', secret: 'SP' });
+  assert.equal(r.ok, false);
+  assert.equal(r.classe, 'pendente');
+});
+
+test('verificarCredencial: dispositivo desconhecido NÃO é inscrito (modo tofu)', () => {
+  const { ac, allowlistPath, notificados } = novoControle();
+  const antes = lerAllowlistBruta(allowlistPath);
+  const r = ac.verificarCredencial({ deviceId: 'NOVO', secret: 'SN' });
+  assert.equal(r.ok, false);
+  assert.equal(r.classe, 'desconhecido');
+  assert.equal(lerAllowlistBruta(allowlistPath), antes, 'allowlist não pode ser gravada');
+  assert.deepEqual(notificados, [], 'nenhuma notificação');
+  assert.deepEqual(ac.listarDispositivos(), [], 'nada foi inscrito');
+  // e um handshake de socket logo depois ainda é quem inscreve (comportamento TOFU intacto)
+  assert.equal(ac.autenticar({ deviceId: 'NOVO', secret: 'SN' }).ok, true);
+});
+
+test('verificarCredencial: dispositivo desconhecido NÃO vira pendente (modo locked)', () => {
+  const { ac, allowlistPath, notificados } = novoControle({}, 'locked');
+  const antes = lerAllowlistBruta(allowlistPath);
+  const r = ac.verificarCredencial({ deviceId: 'NOVO', secret: 'SN' });
+  assert.equal(r.classe, 'desconhecido');
+  assert.equal(lerAllowlistBruta(allowlistPath), antes);
+  assert.deepEqual(notificados, []);
+  assert.deepEqual(ac.listarDispositivos(), []);
+});
+
+test('verificarCredencial: dispositivo revogado nesta sessão é identificado como revogado', () => {
+  const { ac } = novoControle();
+  ac.autenticar({ deviceId: 'D1', secret: 'S1' });
+  ac.revogarDispositivo('D1');
+  const r = ac.verificarCredencial({ deviceId: 'D1', secret: 'S1' });
+  assert.equal(r.ok, false);
+  assert.equal(r.classe, 'revogado');
+  assert.equal(ac.verificarCredencial({ deviceId: 'OUTRO', secret: 'x' }).classe, 'desconhecido');
+});
+
+test('verificarCredencial: modo aberto reflete o socket (autoriza) e é identificado como aberto', () => {
+  const { ac } = novoControle({}, 'aberto');
+  const r = ac.verificarCredencial({ deviceId: 'QUALQUER', secret: 'x' });
+  assert.equal(r.ok, true);
+  assert.equal(r.classe, 'aberto');
+});
+
+test('verificarCredencial: muitas chamadas não alteram a allowlist nem o modo', () => {
+  const { ac, allowlistPath, notificados } = novoControle();
+  ac.autenticar({ deviceId: 'D1', secret: 'S1' });
+  const antes = lerAllowlistBruta(allowlistPath);
+  const modoAntes = ac.getModo();
+  for (let i = 0; i < 25; i++) {
+    ac.verificarCredencial({ deviceId: `X${i}`, secret: 's' });
+    ac.verificarCredencial({ deviceId: 'D1', secret: 'errado' });
+    ac.verificarCredencial({ deviceId: 'D1', secret: 'S1' });
+    ac.verificarCredencial({});
+  }
+  assert.equal(lerAllowlistBruta(allowlistPath), antes);
+  assert.equal(ac.getModo(), modoAntes);
+  assert.equal(notificados.filter(([e]) => e === 'dispositivo_autoinscrito').length, 1);
+  assert.equal(ac.listarDispositivos().length, 1);
+});
+
+test('verificarCredencial: comparação do secret continua em tempo constante (usa segredosConferem)', () => {
+  const { ac } = novoControle();
+  ac.autenticar({ deviceId: 'D1', secret: 'segredo-longo-1234' });
+  assert.equal(ac.verificarCredencial({ deviceId: 'D1', secret: 'segredo-longo-123' }).classe, 'secret-invalido');
+  assert.equal(ac.verificarCredencial({ deviceId: 'D1', secret: 'segredo-longo-1234' }).classe, 'autorizado');
+});
