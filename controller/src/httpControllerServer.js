@@ -1,7 +1,6 @@
 'use strict';
 
 const http = require('http');
-const https = require('https');
 const path = require('path');
 const { URL } = require('url');
 const express = require('express');
@@ -11,6 +10,10 @@ const {
   saveSharedSyncMeta,
 } = require('./lib/sharedSyncMetaStore');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
+const {
+  proxyJsonToProjection: encaminharJsonAoServidor,
+  credenciaisParaSalto,
+} = require('./lib/proxyProjecaoJson');
 const { registrarRotasMusicas } = require('./rotas/musicas');
 const { registrarRotasPlaylists } = require('./rotas/playlists');
 const { registrarRotasMinistrantes } = require('./rotas/ministrantes');
@@ -22,7 +25,11 @@ const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
 const { registrarRotasLetras } = require('./rotas/letras');
 const { registrarRotasSyncInvbPlaylist } = require('./rotas/syncInvbPlaylist');
-const { acessoRede, autenticacaoHttp: autenticacaoHttpCore } = require('@lyra/projection-core');
+const {
+  acessoRede,
+  autenticacaoHttp: autenticacaoHttpCore,
+  credencialInterna: credencialInternaCore,
+} = require('@lyra/projection-core');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -35,36 +42,31 @@ function projectionBaseUrl() {
 }
 
 /**
- * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado.
+ * O destino do salto é o motor de projeção LOCAL deste processo?
+ *
+ * Loopback, `localhost` e porta 5510 NÃO bastam: um Servidor separado pode estar no mesmo PC.
+ * A propriedade é comprovada pelo próprio motor (`provarPropriedade`: a sonda em 127.0.0.1:5510
+ * tem de chegar ao servidor HTTP que este processo iniciou). Só então a credencial interna do
+ * painel pode acompanhar a requisição.
  */
-function proxyJsonToProjection(method, pathname, jsonBody) {
-  const base = projectionBaseUrl();
-  const bodyBuf = jsonBody != null ? Buffer.from(JSON.stringify(jsonBody), 'utf8') : Buffer.alloc(0);
-  const port = base.port ? Number(base.port) : base.protocol === 'https:' ? 443 : 80;
-  const opts = {
-    hostname: base.hostname,
-    port,
-    path: pathname,
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': bodyBuf.length,
-    },
-  };
-  const lib = base.protocol === 'https:' ? https : http;
-  return new Promise((resolve, reject) => {
-    const req = lib.request(opts, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks);
-        resolve({ status: res.statusCode || 500, headers: res.headers, body: raw });
-      });
-    });
-    req.on('error', reject);
-    if (bodyBuf.length) req.write(bodyBuf);
-    req.end();
-  });
+async function destinoEhMotorLocal(ctx, base) {
+  try {
+    const host = String((base && base.hostname) || '').toLowerCase();
+    const porta = String((base && base.port) || '');
+    if (!['localhost', '127.0.0.1', '[::1]', '::1'].includes(host) || porta !== '5510') return false;
+    const prova = ctx.projecaoLocal && ctx.projecaoLocal.provarPropriedade;
+    return typeof prova === 'function' ? (await prova()) === true : false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado,
+ * levando a credencial que o cliente mandou (E1.3 Fase B; ver `lib/proxyProjecaoJson.js`).
+ */
+function proxyJsonToProjection(method, pathname, jsonBody, credenciais, base) {
+  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: base || projectionBaseUrl() });
 }
 
 /**
@@ -101,10 +103,14 @@ async function iniciarServidorController(ctx, paths) {
   const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
     modo: 'registrar',
     contexto: 'controlador-3001',
-    verificar: (auth) =>
-      ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
-        ? ctx.projecaoLocal.verificarCredencial(auth)
-        : null,
+    /* Credencial interna do painel (W): aceita só aqui, no contexto local; o resto vai à allowlist. */
+    verificar: credencialInternaCore.criarVerificadorHttp({
+      interna: ctx.credencialInterna || null,
+      verificarBase: (auth) =>
+        ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
+          ? ctx.projecaoLocal.verificarCredencial(auth)
+          : null,
+    }),
     registrar: (info) =>
       console.warn(`[Lyra][auth-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
   });
@@ -279,7 +285,18 @@ async function iniciarServidorController(ctx, paths) {
   async function proxyDisplay(req, res, pathname) {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const pr = await proxyJsonToProjection('PUT', pathname, body);
+      const baseConfigurada = projectionBaseUrl();
+      /* A credencial interna do painel só segue ao motor local DESTE processo (propriedade
+         comprovada); a de qualquer outro dispositivo, como antes. Comprovado, o salto vai direto a
+         127.0.0.1 — o endereço que a prova cobre (`localhost` poderia cair em ::1, outro dono). */
+      const proprio = await destinoEhMotorLocal(ctx, baseConfigurada);
+      const base = proprio ? new URL('http://127.0.0.1:5510') : baseConfigurada;
+      const cred = credenciaisParaSalto(req, {
+        interna: ctx.credencialInterna || null,
+        base,
+        destinoEhMotorLocal: proprio,
+      });
+      const pr = await proxyJsonToProjection('PUT', pathname, body, cred, base);
       res.status(pr.status);
       const ct = pr.headers['content-type'];
       if (ct) res.setHeader('Content-Type', ct);

@@ -1,6 +1,11 @@
 'use strict';
 
 const http = require('http');
+const {
+  avaliarRequisicaoProxy,
+  cabecalhosParaControlador,
+  responderRecusa,
+} = require('./politicaProxyControlador');
 
 const CTL_HOST = process.env.CONTROLLER_HTTP_HOST || '127.0.0.1';
 const CTL_PORT = Number(process.env.CONTROLLER_HTTP_PORT || 3001);
@@ -14,8 +19,13 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
 ]);
 
 /**
- * Proxy HTTP para `/api/musicas*` em direção à API SQLite do Electron (`localhost:3001`).
- * Deve ficar registado antes de `express.json()` para poder reencaminhar o corpo PUT/POST.
+ * Proxy HTTP SOMENTE LEITURA para `/api/musicas*` em direção à API SQLite do Electron
+ * (`localhost:3001`).
+ *
+ * E1.3 Fase B: só GET/HEAD atravessam. Escrita (POST/PUT/DELETE/PATCH…) é recusada aqui com
+ * 405 — antes ela era encaminhada com o corpo e chegava à 3001 vinda da própria máquina, o
+ * que dava a qualquer aparelho da rede o poder de alterar a biblioteca. Quem escreve fala
+ * direto com a 3001 (que é protegida por Host/Origin e autenticação), nunca por aqui.
  *
  * @param {import('express').Express} expressApp
  * @param {(ctx: string, err: unknown) => void} logError
@@ -25,15 +35,16 @@ function attachProxyMusicaAoControlador(expressApp, logError) {
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
     if (!ou.startsWith('/api/musicas')) return next();
 
-    const pathRaw = typeof req.originalUrl === 'string' ? req.originalUrl : req.url || '/';
+    const aval = avaliarRequisicaoProxy(req, 'musicas');
+    if (!aval.ok) return responderRecusa(res, aval);
 
     const outgoing = http.request(
       {
         hostname: CTL_HOST,
         port: CTL_PORT,
-        path: pathRaw,
+        path: aval.caminho,
         method: req.method,
-        headers: { ...req.headers, host: `${CTL_HOST}:${CTL_PORT}`, 'x-lyra-proxy': '1' },
+        headers: cabecalhosParaControlador(req.headers, `${CTL_HOST}:${CTL_PORT}`),
         timeout: 60000,
       },
       (inc) => {
@@ -62,12 +73,13 @@ function attachProxyMusicaAoControlador(expressApp, logError) {
     req.on('error', (e) => {
       outgoing.destroy(e);
     });
+    // Cliente que desiste (aba fechada, seek de mídia) não pode deixar o controlador transmitindo.
+    res.on('close', () => {
+      if (!res.writableEnded) outgoing.destroy();
+    });
 
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      outgoing.end();
-    } else {
-      req.pipe(outgoing);
-    }
+    outgoing.end();
+    return undefined;
   });
 }
 

@@ -6,6 +6,8 @@
  */
 module.exports = {
   windowMain: null,
+  /** Credencial interna do painel (só `conferir`/`ehDeviceInterno`; o segredo não é exposto). */
+  credencialInterna: null,
   controllerServer: null,
 
   updateReady: false,

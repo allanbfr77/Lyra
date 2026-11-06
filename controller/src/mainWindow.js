@@ -13,6 +13,7 @@ const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
 const { caminhoIconeApp } = require('./lib/iconPath');
 const historicoWindow = require('./historicoWindow');
+const credencialInternaPainel = require('./credencialInternaPainel');
 const SERVER_LOCAL_BASE_URL = 'http://127.0.0.1:5510/';
 const ZOOM_BASE_LARGURA = 1920;
 const ZOOM_BASE_ALTURA = 1080;
@@ -427,18 +428,23 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-recarregar-painel'),
         },
         { type: 'separator' },
-        {
-          label: 'Abrir console do controlador',
-          click: () => {
-            const w = getJanelaPrincipal(ctx);
-            if (!w) return;
-            try {
-              w.webContents.openDevTools({ mode: 'detach' });
-            } catch (_) {
-  // intencional — erro ignorado
-}
-          },
-        },
+        /* Em produção o item nem existe: as DevTools do painel mostrariam a credencial interna. */
+        ...(credencialInternaPainel.devToolsLiberadas()
+          ? [
+              {
+                label: 'Abrir console do controlador',
+                click: () => {
+                  const w = getJanelaPrincipal(ctx);
+                  if (!w || !credencialInternaPainel.devToolsLiberadas()) return;
+                  try {
+                    w.webContents.openDevTools({ mode: 'detach' });
+                  } catch (_) {
+                    // intencional — erro ignorado
+                  }
+                },
+              },
+            ]
+          : []),
         {
           label: 'Abrir console do público (M2)',
           click: () => {
@@ -648,13 +654,14 @@ function obterOpcoesBrowserWindowPrincipal() {
     minHeight: 640,
     title: WINDOW_TITLE,
     icon: caminhoIconeApp(),
-    webPreferences: {
+    /* DevTools desligadas em produção (E1.3 W): as do painel mostrariam a credencial interna. */
+    webPreferences: credencialInternaPainel.webPreferencesAutorizada({
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
       backgroundThrottling: false,
-    },
+    }),
     backgroundColor: '#f5f3ee',
   };
 }
@@ -707,6 +714,9 @@ function solicitarRecargaSubstituindoJanelaPrincipal(ctx) {
 
 function anexarLifecycleJanelaPrincipal(ctx) {
   const win = ctx.windowMain;
+  /* Credencial interna (E1.3 W): o registro cai quando a janela fecha ou é substituída, e a nova
+     janela do «recarregar» é registrada aqui, antes de carregar a página. */
+  credencialInternaPainel.autorizarJanela(win, { papel: 'painel', pagina: '/controller.html' });
   anexarRepinturaJanelaController(win);
   anexarZoomAutomaticoJanela(win);
   anexarMenuContextoEdicao(win);

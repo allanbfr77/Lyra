@@ -93,6 +93,9 @@ function classificarRota(metodo, caminho) {
   if (leituraSegura && p === '/api/sync/banco/pedido') return 'loopback-estrito';
 
   if (p === '/api/identity' && leituraSegura) return 'publica'; // usada antes do handshake
+  // Webhook da INVB: quem chama é o servidor da INVB, que não tem credencial de dispositivo. Tem
+  // segredo próprio (fail-closed, comparação em tempo constante — E1.1). Só este caminho exato.
+  if (m === 'POST' && p === '/api/tom-memoria/webhook-invb') return 'publica';
   if (p.startsWith('/api/comando/')) return 'comando';
   // Mídia da apresentação: <video>/<audio> não enviam cabeçalhos customizados. Fica pública
   // por ora — risco residual registrado no relatório da E1.3.
@@ -170,7 +173,9 @@ function criarAutenticacaoHttp(opcoes = {}) {
     if (!deviceId || !secret) return { deviceId, ok: false, classe: 'ausente' };
     let r = null;
     try {
-      r = verificar ? verificar({ deviceId, secret }) : null;
+      // `req` vai junto para o verificador poder restringir ao contexto local (credencial
+      // interna do painel); os verificadores da allowlist ignoram o segundo argumento.
+      r = verificar ? verificar({ deviceId, secret }, req) : null;
     } catch (_) {
       r = null;
     }
@@ -231,6 +236,12 @@ function criarAutenticacaoHttp(opcoes = {}) {
     }));
   }
 
+  function recusarLoopback(res) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: false, erro: 'Esta operação só é permitida a partir da própria máquina.', motivo: 'somente-local' }));
+  }
+
   function middleware(req, res, next) {
     if (modo === 'desligado') return next();
 
@@ -242,12 +253,15 @@ function criarAutenticacaoHttp(opcoes = {}) {
       if (politica === 'loopback-estrito') {
         const ip = ipDoRequest(req);
         const proxificada = cabecalho(req, 'x-lyra-proxy') === '1';
-        // Estas rotas são decididas pela guarda da própria rota (IP de loopback); aqui só
-        // se registra a tentativa de contorná-la: de fora da máquina ou por dentro do proxy.
-        if (proxificada) {
-          registrarEvento(montarEvento(req, politica, { classe: 'proxificada-em-rota-local' }));
-        } else if (!ehLoopback(ip)) {
-          registrarEvento(montarEvento(req, politica, { classe: 'nao-loopback' }));
+        // Estas rotas são decididas pela guarda da própria rota (IP de loopback). Uma requisição
+        // proxificada chega da própria máquina (é o proxy 5510→3001), então a guarda por IP
+        // não prova nada; e de fora da máquina a guarda não deveria nem ser alcançada. Em
+        // `registrar` só se registra; em `impor` recusa-se (credencial não substitui a guarda:
+        // estas rotas são da própria máquina, não de dispositivos remotos).
+        const contorno = proxificada ? 'proxificada-em-rota-local' : !ehLoopback(ip) ? 'nao-loopback' : null;
+        if (contorno) {
+          registrarEvento(montarEvento(req, politica, { classe: contorno }));
+          if (modo === 'impor') return recusarLoopback(res);
         }
         return next();
       }

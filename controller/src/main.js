@@ -2,7 +2,7 @@
 
 require('./lib/loadEnv').loadLocalEnv();
 
-const { app, dialog, screen, session, systemPreferences } = require('electron');
+const { app, dialog, screen, session, shell, systemPreferences } = require('electron');
 const Database = require('better-sqlite3');
 
 /** Permite microfone no renderer (Web Speech API) — usa o dispositivo padrão do sistema (ex.: Boya V2). */
@@ -60,6 +60,7 @@ const { initControllerDatabase } = require('./db');
 const { iniciarServidorController } = require('./httpControllerServer');
 const historicoWindow = require('./historicoWindow');
 const mainWindow = require('./mainWindow');
+const credencialInternaPainel = require('./credencialInternaPainel');
 const { createUpdaterApi } = require('./updater');
 const { createServerCompanionUpdateApi } = require('./serverCompanionUpdate');
 const { caminhoIconeDock } = require('./lib/iconPath');
@@ -99,6 +100,24 @@ app.whenReady().then(async () => {
     app.dock.setIcon(caminhoIconeDock());
   }
   configurarPermissoesMicrofone();
+
+  /*
+   * Credencial interna do painel (E1.3 Fase B, arquitetura W). Gerada AQUI, só em memória, a cada
+   * execução, e injetada nos cabeçalhos HTTP pelo processo principal — o renderer nunca a recebe.
+   * Precisa existir antes dos servidores (os verificadores da 3001 e da 5510 local a conferem) e
+   * antes das janelas (que são registradas ao nascer).
+   */
+  ctx.credencialInterna = credencialInternaPainel.iniciar({
+    session: session.defaultSession,
+    app,
+    shell,
+    log: (msg) => console.warn(msg),
+    /* Ligação tardia: a projeção local só existe depois; sem ela (ou parada) a 5510 não recebe nada. */
+    provarMotorLocal: () =>
+      ctx.projecaoLocal && typeof ctx.projecaoLocal.provarPropriedade === 'function'
+        ? ctx.projecaoLocal.provarPropriedade()
+        : Promise.resolve(false),
+  }).interna;
   const userData = app.getPath('userData');
   const paths = createUserPaths(userData);
 
@@ -138,6 +157,7 @@ app.whenReady().then(async () => {
    */
   ctx.projecaoLocal = criarProjecaoLocal({
     paths,
+    credencialInterna: ctx.credencialInterna,
     diagnostico: ctx.diagnosticoTelas,
     logError: (rotulo, erro) => console.error(`[projecao-local] ${rotulo}`, erro),
     buscarMusicaPorId: buscarMusicaLocalParaProjecao,

@@ -19,6 +19,8 @@ const {
   controleAcesso,
   acessoRede,
   autenticacaoHttp: autenticacaoHttpCore,
+  credencialInterna: credencialInternaCore,
+  provaPropriedade: provaPropriedadeCore,
 } = require('@lyra/projection-core');
 
 const { ligarTratadorMudancaDisplays } = displayChangePolicy;
@@ -59,6 +61,8 @@ const PORTA_OBS = 5001;
  */
 function criarProjecaoLocal(deps) {
   const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel } = deps;
+  /* Credencial interna do painel (E1.3 Fase B, W): só conferência; o segredo vive no main.js. */
+  const credencialInterna = deps.credencialInterna || null;
   /* Diário de bordo das telas, criado pelo `main.js` — aqui só se usa e se repassa ao
      motor. Sem ele o motor cai no diário nulo e nada muda. */
   const diario = deps.diagnostico || null;
@@ -72,6 +76,11 @@ function criarProjecaoLocal(deps) {
 
   let io = null;
   let servidorApi = null;
+  /* Prova de que quem responde em 127.0.0.1:5510 é o `servidorApi` DESTE processo (E1.3 W). */
+  const prova = provaPropriedadeCore.criarProvaPropriedade({
+    obterServidor: () => (activa ? servidorApi : null),
+    porta: PORTA_PROJECAO,
+  });
   let servidorObs = null;
   let engine = null;
   let aplicador = null;
@@ -482,7 +491,10 @@ function criarProjecaoLocal(deps) {
     const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
       modo: 'registrar',
       contexto: 'local-5510',
-      verificar: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      verificar: credencialInternaCore.criarVerificadorHttp({
+        interna: credencialInterna,
+        verificarBase: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      }),
       registrar: (info) => registarNoDiario('auth-http', info),
     });
 
@@ -518,7 +530,11 @@ function criarProjecaoLocal(deps) {
           socket.data.authMotivo = 'origem-opaca';
           return next();
         }
-        const r = acesso.autenticar(socket.handshake.auth || {});
+        /* O par interno do painel nunca autentica nem é inscrito por TOFU aqui (só HTTP). */
+        const r = credencialInternaCore.protegerSocket({
+          interna: credencialInterna,
+          autenticar: (a) => acesso.autenticar(a),
+        })(socket.handshake.auth || {});
         socket.data.autorizado = !!r.ok;
         socket.data.device = r.device || null;
         socket.data.authMotivo = r.motivo || null;
@@ -768,6 +784,7 @@ function criarProjecaoLocal(deps) {
   async function desligar() {
     registarNoDiario('projecao-desligar', {});
     activa = false;
+    prova.invalidar();
     /* Antes de largar o motor: um evento de monitor a chegar depois disto encontraria
        `engine` a `null`. O guard em `aoMudar` cobre a corrida, isto evita-a. */
     removerListenersDeMonitores();
@@ -808,6 +825,12 @@ function criarProjecaoLocal(deps) {
     receberComando,
     publicarEstadoAudio,
     estaActiva: () => activa,
+    /**
+     * O dono de 127.0.0.1:5510 é o servidor HTTP que este processo iniciou? Só `true` com o motor
+     * ativo E a conexão de sonda chegando ao nosso próprio objeto servidor (ver `provaPropriedade`).
+     * Um Servidor separado, mesmo no mesmo PC, nunca passa.
+     */
+    provarPropriedade: () => prova.provar(),
     /**
      * Verificação PURA de credencial (E1.3), para a API da 3001 deste mesmo processo. Devolve
      * null quando o modo local está desligado (não há allowlist aqui nesse caso).
