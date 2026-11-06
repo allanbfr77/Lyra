@@ -45,7 +45,9 @@ const os = require('os');
 const PORTAS_ORIGEM_PADRAO = Object.freeze([3001, 5510, 5001]);
 
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const METODOS_CORS = 'GET, PUT, POST, DELETE, OPTIONS';
+const METODOS_CORS = 'GET, PUT, POST, PATCH, DELETE, OPTIONS';
+/** Cabeçalhos que os clientes do Lyra enviam: JSON, credencial do dispositivo (E1.3) e versão do app. */
+const CABECALHOS_CORS = 'Content-Type, X-Lyra-Device, X-Lyra-Secret, X-Lyra-App';
 const MAX_RECUSAS_REGISTRADAS = 200;
 /** Por quanto tempo a lista de endereços das placas de rede é reaproveitada. */
 const VALIDADE_ENDERECOS_MS = 10000;
@@ -281,7 +283,7 @@ function criarProtecaoRede(opcoes = {}) {
   function aplicarCors(res, origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', METODOS_CORS);
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', CABECALHOS_CORS);
     res.setHeader('Access-Control-Max-Age', '600');
     const vary = res.getHeader('Vary');
     res.setHeader('Vary', vary ? `${vary}, Origin` : 'Origin');
