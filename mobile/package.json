@@ -10,7 +10,7 @@
     "adb:reverse": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8083 tcp:8083",
     "android": "expo start --android",
     "build": "eas build --platform android --profile preview",
-    "test": "node --no-warnings --experimental-detect-module --test src/letrasWebClient.test.mjs src/lyraFetch.test.mjs src/lyraFetch.fiacao.test.mjs"
+    "test": "node --no-warnings --experimental-detect-module --test src/letrasWebClient.test.mjs src/lyraFetch.test.mjs src/lyraFetch.fiacao.test.mjs src/inventarioHttp.faseB.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
