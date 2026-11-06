@@ -15,6 +15,8 @@ function createUserPaths(userDataRoot) {
     sharedDbSyncPath: () => path.join(userDataRoot, 'shared-db-sync.json'),
     /** Allowlist de controladores autorizados (deviceId + secret). Usada pelo controleAcesso. */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
+    /** Chaves do elo interprocessos (Entrega 1). Arquivo próprio: não mexe no formato da allowlist. */
+    eloChavesPath: () => path.join(userDataRoot, 'elo-chaves.json'),
     errorLogPath: () => path.join(userDataRoot, 'error.log'),
     /* Diário de bordo das janelas de projeção. Mesmo nome que no Controlador: o motor é
        o mesmo e quem lê os dois ficheiros não devia ter de aprender dois formatos. */

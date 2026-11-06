@@ -40,6 +40,7 @@ const { createTrayApi } = require('./tray');
 const path = require('path');
 const { caminhoIconeDock, caminhoIconeApp } = require('./lib/iconPath');
 const { iniciarServidor } = require('./httpServer');
+const { criarPedirAprovacaoPareamento } = require('./lib/dialogoPareamento');
 const { registerIpcHandlers } = require('./ipcHandlers');
 
 const paths = createUserPaths(app.getPath('userData'));
@@ -192,6 +193,8 @@ app.whenReady().then(() => {
   iniciarServidor(ctx, paths, {
     screen,
     logError,
+    /* Entrega 1: o pareamento do elo só vale com a aprovação do operador desta máquina. */
+    pedirAprovacaoPareamento: criarPedirAprovacaoPareamento({ dialog, obterJanela: () => ctx.windowControl }),
     windowsApi,
     reiniciarApp: agendarReinicioServidorElectron,
     encerrarParaAtualizacao: encerrarServidorParaAtualizacao,

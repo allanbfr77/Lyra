@@ -212,3 +212,49 @@ test('instalarFetchLyra sem fetch ou sem localStorage não quebra a página', ()
   assert.doesNotThrow(() => instalarFetchLyra({}));
   assert.doesNotThrow(() => instalarFetchLyra({ fetch: fetchFalso(), localStorage: { getItem() { throw new Error('bloqueado'); } } }));
 });
+
+/* ───────────────────────── Entrega 1: token de sessão do controlador ───────────────────────── */
+
+const TOKEN = 'T0kenDeSessao_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123';
+
+test('sessão: X-Lyra-Session acompanha a credencial para servidores do Lyra', async () => {
+  const f = fetchFalso();
+  const w = criarFetchLyra({ fetchOriginal: f, obterIdentidade: () => ID, obterSessao: () => TOKEN });
+  await w('http://192.168.0.10:5510/api/comando/audio_play', { method: 'POST' });
+  const h = cabecalhosDe(f.chamadas[0]);
+  assert.equal(h['x-lyra-session'], TOKEN);
+  assert.equal(h['x-lyra-device'], ID.deviceId);
+});
+
+test('sessão: nunca vai para fora do Lyra, nem sem a credencial do dispositivo, nem sobrescreve a explícita', async () => {
+  const f = fetchFalso();
+  const w = criarFetchLyra({ fetchOriginal: f, obterIdentidade: () => ID, obterSessao: () => TOKEN });
+  await w('https://api.externa.com/x');
+  assert.equal(f.chamadas[0].init, undefined);
+  const f2 = fetchFalso();
+  const w2 = criarFetchLyra({ fetchOriginal: f2, obterIdentidade: () => null, obterSessao: () => TOKEN });
+  await w2('http://192.168.0.10:5510/api/estado');
+  assert.equal(f2.chamadas[0].init, undefined, 'sem identidade, sem token');
+  const f3 = fetchFalso();
+  const w3 = criarFetchLyra({ fetchOriginal: f3, obterIdentidade: () => ID, obterSessao: () => TOKEN });
+  await w3('http://192.168.0.10:5510/api/estado', { headers: { 'X-Lyra-Session': 'explicito-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345' } });
+  assert.equal(cabecalhosDe(f3.chamadas[0])['x-lyra-session'], 'explicito-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345');
+});
+
+test('sessão: ausente, malformada ou com falha no getter → a chamada segue só com a credencial', async () => {
+  for (const obterSessao of [() => null, () => '', () => 'curto', () => 'tem espaço e é inválido............', () => { throw new Error('x'); }, () => 123]) {
+    const f = fetchFalso();
+    const w = criarFetchLyra({ fetchOriginal: f, obterIdentidade: () => ID, obterSessao });
+    await w('http://192.168.0.10:5510/api/estado');
+    const h = cabecalhosDe(f.chamadas[0]);
+    assert.equal(h['x-lyra-session'], undefined);
+    assert.equal(h['x-lyra-device'], ID.deviceId);
+  }
+});
+
+test('sessão: sem a opção obterSessao o comportamento é o de antes', async () => {
+  const f = fetchFalso();
+  const w = criarFetchLyra({ fetchOriginal: f, obterIdentidade: () => ID });
+  await w('http://192.168.0.10:5510/api/estado');
+  assert.equal(cabecalhosDe(f.chamadas[0])['x-lyra-session'], undefined);
+});

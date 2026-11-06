@@ -106,10 +106,14 @@
    * @param {() => ({deviceId?: string, secret?: string}|null|Promise<any>)} opcoes.obterIdentidade
    * @param {string} [opcoes.hostDaPagina]
    * @param {string} [opcoes.base] URL da página (resolve chamadas relativas)
+   * @param {() => (string|null)} [opcoes.obterSessao] token de sessão do controlador (Entrega 1): vai em
+   *        `X-Lyra-Session`, SÓ junto da credencial do dispositivo e SÓ para servidores do Lyra. Não
+   *        autentica ninguém: apenas diz ao Servidor de qual socket a chamada veio.
    */
   function criarFetchLyra(opcoes) {
     var fetchOriginal = opcoes.fetchOriginal;
     var obterIdentidade = opcoes.obterIdentidade;
+    var obterSessao = typeof opcoes.obterSessao === 'function' ? opcoes.obterSessao : null;
     var criterio = { hostDaPagina: opcoes.hostDaPagina, base: opcoes.base };
 
     return async function fetchLyra(input, init) {
@@ -122,6 +126,12 @@
             var h = new Headers(fonte);
             if (!h.has('X-Lyra-Device')) h.set('X-Lyra-Device', id.deviceId);
             if (!h.has('X-Lyra-Secret')) h.set('X-Lyra-Secret', id.secret);
+            if (obterSessao && !h.has('X-Lyra-Session')) {
+              try {
+                var sessao = obterSessao();
+                if (typeof sessao === 'string' && /^[A-Za-z0-9_-]{32,64}$/.test(sessao)) h.set('X-Lyra-Session', sessao);
+              } catch (_) { /* sem sessão: segue só com a credencial do dispositivo */ }
+            }
             cabecalhos = h;
           }
         }
@@ -172,6 +182,10 @@
         } catch (_) {
           return null; // localStorage bloqueado: segue sem credencial
         }
+      },
+      obterSessao: function () {
+        var s = alvo.__lyraSessaoControlador;
+        return s && typeof s.token === 'string' && (!s.expiraEm || s.expiraEm > Date.now()) ? s.token : null;
       },
     });
     envolvido.__lyraFetch = true;

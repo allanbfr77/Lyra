@@ -179,7 +179,7 @@ function avaliarRota(contexto, metodo, caminho) {
  * O que o modo «impor» faria com esta requisição, SE estivesse ativo. Não recusa nada.
  *
  * @param {object} decisao resultado de `avaliarRota`
- * @param {{tipo: string, proxificada?: boolean, loopback?: boolean}} apresentada
+ * @param {{tipo: string, proxificada?: boolean, loopback?: boolean, eloDisponivel?: boolean, eloPresente?: boolean}} apresentada
  *        tipo: 'ausente' | 'interna' | 'dispositivo-autorizado' | 'dispositivo-<classe>' | 'nao-verificavel'
  * @returns {{recusaria: (boolean|null), motivo: (string|null), credencialInexistente: boolean}}
  */
@@ -196,6 +196,10 @@ function motivoRecusaFutura(decisao, apresentada) {
     if (!a.loopback) return recusa('loopback-estrito: requisição fora da própria máquina');
   }
 
+  // Entrega 1: o elo interprocessos existe. Rota que o espera e o traz (cabeçalho presente; a
+  // VALIDADE da assinatura é registrada à parte, em `elo-http`) não seria recusada por falta de credencial.
+  if (e.interprocessos.esperada && a.eloPresente === true) return { recusaria: false, motivo: null, credencialInexistente: false };
+
   const dispositivoOk = a.tipo === 'dispositivo-autorizado';
   const internaOk = a.tipo === 'interna';
 
@@ -207,6 +211,7 @@ function motivoRecusaFutura(decisao, apresentada) {
     return recusa(`dispositivo: ${String(a.tipo).replace(/^dispositivo-/, '')}`);
   }
   if (e.interprocessos.esperada) {
+    if (a.eloDisponivel === true) return recusa('interprocessos: assinatura X-Lyra-Via ausente', false);
     return recusa('interprocessos: credencial ainda inexistente (aguarda as etapas C3 em diante)', true);
   }
   return { recusaria: false, motivo: null, credencialInexistente: false };

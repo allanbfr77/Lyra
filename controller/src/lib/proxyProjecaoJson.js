@@ -95,7 +95,7 @@ function ehServidorDoLyra(hostname) {
  * @param {URL} base destino (servidor de projeção)
  * @param {number} tamanhoCorpo
  */
-function cabecalhosParaProjecao(cred, base, tamanhoCorpo) {
+function cabecalhosParaProjecao(cred, base, tamanhoCorpo, via) {
   const h = {
     'Content-Type': 'application/json',
     'Content-Length': tamanhoCorpo,
@@ -105,6 +105,8 @@ function cabecalhosParaProjecao(cred, base, tamanhoCorpo) {
     h['X-Lyra-Secret'] = cred.secret;
     if (cred.app) h['X-Lyra-App'] = cred.app;
   }
+  // Elo interprocessos (Entrega 1): só existe se há pareamento ativo com este Servidor.
+  if (via && ehServidorDoLyra(base && base.hostname)) h['X-Lyra-Via'] = via;
   return h;
 }
 
@@ -116,6 +118,12 @@ function cabecalhosParaProjecao(cred, base, tamanhoCorpo) {
  * @param {{deviceId?: string, secret?: string, app?: string}} [cred] credencial do cliente
  * @param {{ base: URL }} opcoes destino (a 3001 passa o `SERVER_URL` configurado)
  */
+/** `X-Lyra-Via` do salto, se o chamador forneceu `assinar` e há pareamento; a assinatura nunca derruba o salto. */
+function viaDoElo(opcoes, metodo, caminho, corpo) {
+  if (!opcoes || typeof opcoes.assinar !== 'function') return null;
+  try { return opcoes.assinar({ metodo, caminho, corpo }) || null; } catch (_) { return null; }
+}
+
 function proxyJsonToProjection(method, pathname, jsonBody, cred, opcoes) {
   const base = opcoes.base;
   const bodyBuf = jsonBody !== null && jsonBody !== undefined ? Buffer.from(JSON.stringify(jsonBody), 'utf8') : Buffer.alloc(0);
@@ -126,7 +134,7 @@ function proxyJsonToProjection(method, pathname, jsonBody, cred, opcoes) {
     port,
     path: pathname,
     method,
-    headers: cabecalhosParaProjecao(cred, base, bodyBuf.length),
+    headers: cabecalhosParaProjecao(cred, base, bodyBuf.length, viaDoElo(opcoes, method, pathname, bodyBuf)),
   };
   return new Promise((resolve, reject) => {
     const req = lib.request(opts, (res) => {

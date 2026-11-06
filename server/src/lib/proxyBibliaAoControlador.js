@@ -25,7 +25,13 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
  * @param {import('express').Express} expressApp
  * @param {(ctx: string, err: unknown) => void} logError
  */
-function attachProxyBibliaAoControlador(expressApp, logError) {
+/** `X-Lyra-Via` (elo s→c, Entrega 1) para esta chamada ao 3001, ou null sem pareamento. Nunca lança. */
+function viaDoElo(assinar, metodo, caminho) {
+  if (typeof assinar !== 'function') return null;
+  try { return assinar({ metodo, caminho }) || null; } catch (_) { return null; }
+}
+
+function attachProxyBibliaAoControlador(expressApp, logError, assinar = null) {
   expressApp.use((req, res, next) => {
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
     if (!ou.startsWith('/api/biblia')) return next();
@@ -39,7 +45,7 @@ function attachProxyBibliaAoControlador(expressApp, logError) {
         port: CTL_PORT,
         path: aval.caminho,
         method: req.method,
-        headers: cabecalhosParaControlador(req.headers, `${CTL_HOST}:${CTL_PORT}`),
+        headers: cabecalhosParaControlador(req.headers, `${CTL_HOST}:${CTL_PORT}`, viaDoElo(assinar, req.method, aval.caminho)),
         timeout: 60000,
       },
       (inc) => {

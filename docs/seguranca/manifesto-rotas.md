@@ -35,14 +35,14 @@ Servidores: **C** Controlador (3001) · **S** Servidor separado (5510, OBS 5001)
 
 ## Resumo
 
-Total: **128** entradas (cada rota que existe em dois hospedeiros conta uma vez por hospedeiro).
+Total: **136** entradas (cada rota que existe em dois hospedeiros conta uma vez por hospedeiro).
 
 | Servidor | publica | leitura | leitura-sensivel | escrita | comando | administrativa | total |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Controlador (3001) | 5 | 18 | 3 | 33 | 0 | 5 | 64 |
-| Servidor separado (5510 e 5001) | 6 | 6 | 1 | 4 | 10 | 10 | 37 |
+| Servidor separado (5510 e 5001) | 9 | 6 | 1 | 5 | 10 | 14 | 45 |
 | Motor local do Controlador (5510 e 5001) | 5 | 4 | 0 | 3 | 10 | 5 | 27 |
-| **Total** | 16 | 28 | 4 | 40 | 20 | 20 | 128 |
+| **Total** | 19 | 28 | 4 | 41 | 20 | 24 | 136 |
 
 | Política pretendida | entradas |
 |---|---:|
@@ -50,16 +50,17 @@ Total: **128** entradas (cada rota que existe em dois hospedeiros conta uma vez 
 | CMD | 20 |
 | LER | 17 |
 | PUB | 15 |
+| LOC | 9 |
 | ESC | 7 |
 | PUB-LEVE | 6 |
 | PL + LOC | 5 |
 | ADM + LOC | 5 |
-| LOC | 5 |
 | ELO + LOC | 5 |
+| PEDIDO | 4 |
 | PL + ELO | 2 |
 | ESC + ELO | 2 |
 | LER + ELO | 2 |
-| PEDIDO | 1 |
+| ELO | 1 |
 | PUB + ELO | 1 |
 
 ## Rotas novas descobertas na C0
@@ -70,6 +71,17 @@ Não constavam como rotas próprias na auditoria original (são montagens, não 
 - `GET,HEAD /api/biblia/*`
 - `GET,HEAD /api/apresentacao/{video,midia}/:id`
 - `GET,POST /socket.io/*`
+
+Acrescentadas pela Entrega 1 (pareamento do elo interprocessos):
+
+- `POST /api/elo/parear`
+- `GET /api/elo/parear/:id`
+- `POST /api/elo/parear/:id/cancelar`
+- `POST /api/elo/verificar-dispositivo`
+- `GET /api/elo/pareamentos`
+- `POST /api/elo/pareamentos/:id/aprovar`
+- `POST /api/elo/pareamentos/:id/negar`
+- `POST /api/elo/chaves/revogar`
 
 Também separadas na C0: cada rota presente no Servidor **e** no motor local (duplicatas) e a porta 5001 do OBS nos dois hospedeiros. Nenhuma rota da auditoria original ficou de fora.
 
@@ -91,14 +103,17 @@ Também separadas na C0: cada rota presente no Servidor **e** no motor local (du
 | L-003 | L | `GET /api/monitores` | PUB-LEVE | Exposição pública por compatibilidade com os telões (file://) e a janela de controle do Servidor, que não têm credencial. Não decorre de transmissão equivalente pelo Socket.IO (o socket não envia a lista de monitores a visualizadores). Dado de hardware de baixa sensibilidade: nome, resolução e posição dos monitores. |
 | S-006 | S | `GET /api/display-config` | PUB-LEVE | O Socket.IO já entrega `display_config` a qualquer visualizador; o telão a lê no arranque sem credencial. |
 | L-006 | L | `GET /api/display-config` | PUB-LEVE | O Socket.IO já entrega `display_config` a qualquer visualizador; o telão a lê no arranque sem credencial. |
-| S-033 | S | `GET,HEAD /api/apresentacao/{video,midia}/:id` | PUB + ELO | Mídia pública: reprodutores não enviam cabeçalhos. |
-| S-034 | S | `GET /obs` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
-| S-035 | S | `GET /obs/biblia` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
-| S-036 | S | `GET /obs/slides` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
+| S-031 | S | `POST /api/elo/parear` | PEDIDO | Pareamento do elo: o Controlador de outro PC ainda não tem credencial. A proteção é a aprovação do operador do Servidor, o código de confirmação conferido nos dois lados, o limite de pedidos e a validade curta; nenhuma chave trafega. |
+| S-032 | S | `GET /api/elo/parear/:id` | PEDIDO | Pareamento do elo: o Controlador de outro PC ainda não tem credencial. A proteção é a aprovação do operador do Servidor, o código de confirmação conferido nos dois lados, o limite de pedidos e a validade curta; nenhuma chave trafega. |
+| S-033 | S | `POST /api/elo/parear/:id/cancelar` | PEDIDO | Pareamento do elo: o Controlador de outro PC ainda não tem credencial. A proteção é a aprovação do operador do Servidor, o código de confirmação conferido nos dois lados, o limite de pedidos e a validade curta; nenhuma chave trafega. |
+| S-041 | S | `GET,HEAD /api/apresentacao/{video,midia}/:id` | PUB + ELO | Mídia pública: reprodutores não enviam cabeçalhos. |
+| S-042 | S | `GET /obs` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
+| S-043 | S | `GET /obs/biblia` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
+| S-044 | S | `GET /obs/slides` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
 | L-024 | L | `GET /obs` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
 | L-025 | L | `GET /obs/biblia` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
 | L-026 | L | `GET /obs/slides` | PUB | Páginas do overlay do OBS: o OBS as abre como fonte de navegador, sem credencial. |
-| S-037 | S | `GET,POST /socket.io/*` | PUB | Transporte do Socket.IO: a autenticação é o handshake próprio (TOFU, etapa E1.4); visualizadores sem credencial conectam. |
+| S-045 | S | `GET,POST /socket.io/*` | PUB | Transporte do Socket.IO: a autenticação é o handshake próprio (TOFU, etapa E1.4); visualizadores sem credencial conectam. |
 | L-027 | L | `GET,POST /socket.io/*` | PUB | Transporte do Socket.IO: a autenticação é o handshake próprio (TOFU, etapa E1.4); visualizadores sem credencial conectam. |
 
 ## Rotas administrativas (exigem confiança adicional)
@@ -125,6 +140,10 @@ Também separadas na C0: cada rota presente no Servidor **e** no motor local (du
 | S-028 | S | `POST /api/open-display-devtools` | exige dispositivo | nenhuma | ELO + LOC | Abre DevTools nos telões. |
 | S-029 | S | `POST /api/open-public-devtools` | exige dispositivo | nenhuma | ELO + LOC | Abre DevTools nos telões. |
 | S-030 | S | `POST /api/open-ministrante-devtools` | exige dispositivo | nenhuma | ELO + LOC | Abre DevTools nos telões. |
+| S-035 | S | `GET /api/elo/pareamentos` | só loopback, sem proxy | ip-loopback-handler | LOC | Lista pedidos pendentes e chaves (sem as chaves). |
+| S-036 | S | `POST /api/elo/pareamentos/:id/aprovar` | só loopback, sem proxy | ip-loopback-handler | LOC | Aprova um pareamento: qualquer processo local pode, como nas rotas /api/controladores. |
+| S-037 | S | `POST /api/elo/pareamentos/:id/negar` | só loopback, sem proxy | ip-loopback-handler | LOC | Nega um pareamento. |
+| S-038 | S | `POST /api/elo/chaves/revogar` | só loopback, sem proxy | ip-loopback-handler | LOC | Revoga uma chave do elo. |
 
 ## Rotas com dependência interprocessos
 
@@ -155,9 +174,10 @@ Também separadas na C0: cada rota presente no Servidor **e** no motor local (du
 | S-028 | S | `POST /api/open-display-devtools` | c→s | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local |
 | S-029 | S | `POST /api/open-public-devtools` | c→s | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local |
 | S-030 | S | `POST /api/open-ministrante-devtools` | c→s | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local |
-| S-031 | S | `GET,HEAD /api/musicas/*` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
-| S-032 | S | `GET,HEAD /api/biblia/*` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
-| S-033 | S | `GET,HEAD /api/apresentacao/{video,midia}/:id` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
+| S-034 | S | `POST /api/elo/verificar-dispositivo` | c→s | pareamento ativo entre o Controlador e este Servidor |
+| S-039 | S | `GET,HEAD /api/musicas/*` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
+| S-040 | S | `GET,HEAD /api/biblia/*` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
+| S-041 | S | `GET,HEAD /api/apresentacao/{video,midia}/:id` | s→c | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 |
 
 ## Aliases, duplicatas, proxies e caminhos alternativos
 
@@ -219,15 +239,15 @@ Também separadas na C0: cada rota presente no Servidor **e** no motor local (du
 | L-022 | L `POST /api/controladores/travar` | duplicata-em-outro-hospedeiro → S-022 (S POST /api/controladores/travar) |
 | S-023 | S `POST /api/controladores/destravar` | duplicata-em-outro-hospedeiro → L-023 (L POST /api/controladores/destravar) |
 | L-023 | L `POST /api/controladores/destravar` | duplicata-em-outro-hospedeiro → S-023 (S POST /api/controladores/destravar) |
-| S-031 | S `GET,HEAD /api/musicas/*` | alcancavel-por-proxy → C-032 (C GET /api/musicas); alcancavel-por-proxy → C-033 (C GET /api/musicas/buscar); alcancavel-por-proxy → C-034 (C GET /api/musicas/:id); alcancavel-por-proxy → C-040 (C GET /api/musicas/:id/versoes) |
-| S-032 | S `GET,HEAD /api/biblia/*` | alcancavel-por-proxy → C-007 (C GET /api/biblia/traducoes); alcancavel-por-proxy → C-008 (C GET /api/biblia/:traducao/:livro/caps); alcancavel-por-proxy → C-009 (C GET /api/biblia/:traducao/:livro/:cap); alcancavel-por-proxy → C-010 (C GET /api/biblia/buscar); alcancavel-por-proxy → C-011 (C GET /api/biblia/livros) |
-| S-033 | S `GET,HEAD /api/apresentacao/{video,midia}/:id` | alcancavel-por-proxy → C-004 (C GET /api/apresentacao/midia/:id); alcancavel-por-proxy → C-006 (C GET /api/apresentacao/video/:id) |
-| S-034 | S `GET /obs` | duplicata-em-outro-hospedeiro → L-024 (L GET /obs) |
-| S-035 | S `GET /obs/biblia` | duplicata-em-outro-hospedeiro → L-025 (L GET /obs/biblia) |
-| S-036 | S `GET /obs/slides` | duplicata-em-outro-hospedeiro → L-026 (L GET /obs/slides) |
-| L-024 | L `GET /obs` | duplicata-em-outro-hospedeiro → S-034 (S GET /obs) |
-| L-025 | L `GET /obs/biblia` | duplicata-em-outro-hospedeiro → S-035 (S GET /obs/biblia) |
-| L-026 | L `GET /obs/slides` | duplicata-em-outro-hospedeiro → S-036 (S GET /obs/slides) |
+| S-039 | S `GET,HEAD /api/musicas/*` | alcancavel-por-proxy → C-032 (C GET /api/musicas); alcancavel-por-proxy → C-033 (C GET /api/musicas/buscar); alcancavel-por-proxy → C-034 (C GET /api/musicas/:id); alcancavel-por-proxy → C-040 (C GET /api/musicas/:id/versoes) |
+| S-040 | S `GET,HEAD /api/biblia/*` | alcancavel-por-proxy → C-007 (C GET /api/biblia/traducoes); alcancavel-por-proxy → C-008 (C GET /api/biblia/:traducao/:livro/caps); alcancavel-por-proxy → C-009 (C GET /api/biblia/:traducao/:livro/:cap); alcancavel-por-proxy → C-010 (C GET /api/biblia/buscar); alcancavel-por-proxy → C-011 (C GET /api/biblia/livros) |
+| S-041 | S `GET,HEAD /api/apresentacao/{video,midia}/:id` | alcancavel-por-proxy → C-004 (C GET /api/apresentacao/midia/:id); alcancavel-por-proxy → C-006 (C GET /api/apresentacao/video/:id) |
+| S-042 | S `GET /obs` | duplicata-em-outro-hospedeiro → L-024 (L GET /obs) |
+| S-043 | S `GET /obs/biblia` | duplicata-em-outro-hospedeiro → L-025 (L GET /obs/biblia) |
+| S-044 | S `GET /obs/slides` | duplicata-em-outro-hospedeiro → L-026 (L GET /obs/slides) |
+| L-024 | L `GET /obs` | duplicata-em-outro-hospedeiro → S-042 (S GET /obs) |
+| L-025 | L `GET /obs/biblia` | duplicata-em-outro-hospedeiro → S-043 (S GET /obs/biblia) |
+| L-026 | L `GET /obs/slides` | duplicata-em-outro-hospedeiro → S-044 (S GET /obs/slides) |
 
 ## Incompatibilidades e lacunas identificadas
 
@@ -351,13 +371,21 @@ Também separadas na C0: cada rota presente no Servidor **e** no motor local (du
 | S-028 | 5510 | `POST /api/open-display-devtools` | `server/src/httpServer.js:606` | administrativa | escrita → exige dispositivo | nenhuma | ELO + LOC | dispositivo: não aceita; interna: não; elo: c→s | processo-principal | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local | Hoje é «escrita» comum: qualquer dispositivo inscrito pode chamá-la; o chamador legítimo não tem credencial. | Abre DevTools nos telões. | T1 T5 |
 | S-029 | 5510 | `POST /api/open-public-devtools` | `server/src/httpServer.js:616` | administrativa | escrita → exige dispositivo | nenhuma | ELO + LOC | dispositivo: não aceita; interna: não; elo: c→s | processo-principal | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local | Hoje é «escrita» comum: qualquer dispositivo inscrito pode chamá-la; o chamador legítimo não tem credencial. | Abre DevTools nos telões. | T1 T5 |
 | S-030 | 5510 | `POST /api/open-ministrante-devtools` | `server/src/httpServer.js:626` | administrativa | escrita → exige dispositivo | nenhuma | ELO + LOC | dispositivo: não aceita; interna: não; elo: c→s | processo-principal | chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local | Hoje é «escrita» comum: qualquer dispositivo inscrito pode chamá-la; o chamador legítimo não tem credencial. | Abre DevTools nos telões. | T1 T5 |
-| S-031 | 5510 | `GET,HEAD /api/musicas/*` (proxy) | `server/src/lib/proxyMusicaAoControlador.js:1` | leitura | leitura → exige dispositivo | proxy-somente-leitura | LER + ELO | dispositivo: exigida; interna: não; elo: s→c | mobile, servidor-proxy, painel | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
-| S-032 | 5510 | `GET,HEAD /api/biblia/*` (proxy) | `server/src/lib/proxyBibliaAoControlador.js:1` | leitura | leitura → exige dispositivo | proxy-somente-leitura | LER + ELO | dispositivo: exigida; interna: não; elo: s→c | mobile, servidor-proxy, painel | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
-| S-033 | 5510 | `GET,HEAD /api/apresentacao/{video,midia}/:id` (proxy) | `server/src/lib/proxyApresentacaoVideoAoControlador.js:1` | publica | publica → passa | proxy-somente-leitura | PUB + ELO | dispositivo: não aceita; interna: não; elo: s→c | mobile, servidor-proxy, telao, obs | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
-| S-034 | 5001 | `GET /obs` | `server/src/httpServer.js:982` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
-| S-035 | 5001 | `GET /obs/biblia` | `server/src/httpServer.js:986` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
-| S-036 | 5001 | `GET /obs/slides` | `server/src/httpServer.js:990` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
-| S-037 | 5510 | `GET,POST /socket.io/*` (socket) | `server/src/httpServer.js:1` | publica | publica → passa | nao-se-aplica | PUB | dispositivo: não usa; interna: não; elo: não | painel, mobile, telao, obs | — | Fora da Fase C: o fluxo TOFU do Socket.IO não muda. | TOFU e crescimento da allowlist tratados na E1.4. | T4 |
+| S-031 | 5510 | `POST /api/elo/parear` | `server/src/lib/rotasElo.js:27` | publica | publica → passa | nenhuma | PEDIDO | dispositivo: não usa; interna: não; elo: não | processo-principal | aprovação do operador desta máquina (diálogo nativo) | Sem efeito para clientes atuais: só o processo principal do Controlador usa, e só quando o operador inicia o pareamento. | Pedidos limitados (3 pendentes, 1 por IP a cada 5 s); nada vale sem aprovação humana. | T1 T5 T7 |
+| S-032 | 5510 | `GET /api/elo/parear/:id` | `server/src/lib/rotasElo.js:39` | publica | publica → passa | nenhuma | PEDIDO | dispositivo: não usa; interna: não; elo: não | processo-principal | aprovação do operador desta máquina (diálogo nativo) | Sem efeito para clientes atuais: só o processo principal do Controlador usa, e só quando o operador inicia o pareamento. | Só devolve o estado e, se aprovado, o id da chave e um MAC de confirmação; nunca a chave. | T1 T5 T7 |
+| S-033 | 5510 | `POST /api/elo/parear/:id/cancelar` | `server/src/lib/rotasElo.js:43` | publica | publica → passa | nenhuma | PEDIDO | dispositivo: não usa; interna: não; elo: não | processo-principal | aprovação do operador desta máquina (diálogo nativo) | Sem efeito para clientes atuais: só o processo principal do Controlador usa, e só quando o operador inicia o pareamento. | Exige o token de cancelamento devolvido ao solicitante. | T1 T5 T7 |
+| S-034 | 5510 | `POST /api/elo/verificar-dispositivo` | `server/src/lib/rotasElo.js:54` | escrita | publica → passa | nenhuma | ELO | dispositivo: não aceita; interna: não; elo: c→s | processo-principal | pareamento ativo entre o Controlador e este Servidor | Verificação delegada de dispositivo: o Controlador (3001) de outro PC não tem a allowlist. A autenticação por dispositivo não se aplica (quem chama é o outro processo): a rota exige o elo (X-Lyra-Via) válido e responde só com o veredito da verificação pura; sem o elo responde 401. Rota nova: nenhum cliente existente a usa. | Sem o elo seria um oráculo de credenciais aberto à LAN: por isso a própria rota exige o elo, mesmo com o servidor em registrar. | T1 T5 T10 |
+| S-035 | 5510 | `GET /api/elo/pareamentos` | `server/src/lib/rotasElo.js:48` | administrativa | loopback-estrito → só loopback, sem proxy | ip-loopback-handler | LOC | dispositivo: não aceita; interna: não; elo: não | nenhum-distribuido | — | Nenhum cliente distribuído chama estas rotas (gestão pelo operador desta máquina). | Lista pedidos pendentes e chaves (sem as chaves). | T1 |
+| S-036 | 5510 | `POST /api/elo/pareamentos/:id/aprovar` | `server/src/lib/rotasElo.js:53` | administrativa | loopback-estrito → só loopback, sem proxy | ip-loopback-handler | LOC | dispositivo: não aceita; interna: não; elo: não | nenhum-distribuido | — | Nenhum cliente distribuído chama estas rotas (gestão pelo operador desta máquina). | Aprova um pareamento: qualquer processo local pode, como nas rotas /api/controladores. | T1 |
+| S-037 | 5510 | `POST /api/elo/pareamentos/:id/negar` | `server/src/lib/rotasElo.js:58` | administrativa | loopback-estrito → só loopback, sem proxy | ip-loopback-handler | LOC | dispositivo: não aceita; interna: não; elo: não | nenhum-distribuido | — | Nenhum cliente distribuído chama estas rotas (gestão pelo operador desta máquina). | Nega um pareamento. | T1 |
+| S-038 | 5510 | `POST /api/elo/chaves/revogar` | `server/src/lib/rotasElo.js:63` | administrativa | loopback-estrito → só loopback, sem proxy | ip-loopback-handler | LOC | dispositivo: não aceita; interna: não; elo: não | nenhum-distribuido | — | Nenhum cliente distribuído chama estas rotas (gestão pelo operador desta máquina). | Revoga uma chave do elo. | T1 |
+| S-039 | 5510 | `GET,HEAD /api/musicas/*` (proxy) | `server/src/lib/proxyMusicaAoControlador.js:1` | leitura | leitura → exige dispositivo | proxy-somente-leitura | LER + ELO | dispositivo: exigida; interna: não; elo: s→c | mobile, servidor-proxy, painel | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
+| S-040 | 5510 | `GET,HEAD /api/biblia/*` (proxy) | `server/src/lib/proxyBibliaAoControlador.js:1` | leitura | leitura → exige dispositivo | proxy-somente-leitura | LER + ELO | dispositivo: exigida; interna: não; elo: s→c | mobile, servidor-proxy, painel | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
+| S-041 | 5510 | `GET,HEAD /api/apresentacao/{video,midia}/:id` (proxy) | `server/src/lib/proxyApresentacaoVideoAoControlador.js:1` | publica | publica → passa | proxy-somente-leitura | PUB + ELO | dispositivo: não aceita; interna: não; elo: s→c | mobile, servidor-proxy, telao, obs | repassa para o 3001 (somente GET/HEAD; outros métodos recebem 405); repassa X-Lyra-* do cliente e marca X-Lyra-Proxy: 1 | Fase B: cabeçalhos em lista fechada, caminho validado, upstream encerrado se o cliente desiste. | O 3001 não consegue validar a credencial do cliente num Servidor separado (precisa do elo e da verificação delegada). | T1 T4 T5 T6 |
+| S-042 | 5001 | `GET /obs` | `server/src/httpServer.js:982` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
+| S-043 | 5001 | `GET /obs/biblia` | `server/src/httpServer.js:986` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
+| S-044 | 5001 | `GET /obs/slides` | `server/src/httpServer.js:990` | publica | publica → passa | nenhuma | PUB | dispositivo: não usa; interna: não; elo: não | obs | — | A porta 5001 só tem a proteção de Host/Origin (E1.2); a autenticação HTTP não está montada nela. | Nenhum dado sensível; o Socket.IO delas entra como visualizador. | T4 |
+| S-045 | 5510 | `GET,POST /socket.io/*` (socket) | `server/src/httpServer.js:1` | publica | publica → passa | nao-se-aplica | PUB | dispositivo: não usa; interna: não; elo: não | painel, mobile, telao, obs | — | Fora da Fase C: o fluxo TOFU do Socket.IO não muda. | TOFU e crescimento da allowlist tratados na E1.4. | T4 |
 
 ## Manifesto: Motor local do Controlador (5510 e 5001)
 

@@ -364,6 +364,14 @@ export function criarSocketPainel(d) {
       try { socket.disconnect(); } catch (_) { /* intencional */ }
     });
 
+    /* Entrega 1: token de sessão deste socket (o Servidor reemite antes de expirar). Só vai em `X-Lyra-Session`
+       junto da credencial do dispositivo (ver `lyraFetch.js`); nunca é gravado em disco nem logado. */
+    socket.on('sessao_controlador', (info) => {
+      try {
+        if (info && typeof info.token === 'string') window.__lyraSessaoControlador = { token: info.token, expiraEm: Number(info.expiraEm) || 0 };
+      } catch (_) { /* intencional */ }
+    });
+
     socket.on('papel_controlador', (papel) => {
       d.setPapelControlador(papel && typeof papel === 'object' ? papel : null);
       try { d.atualizarUiConexao(!!(d.getSocket() && d.getSocket().connected)); } catch (_) {
@@ -388,6 +396,7 @@ export function criarSocketPainel(d) {
     });
 
     socket.on('disconnect', (motivo) => {
+      try { delete window.__lyraSessaoControlador; } catch (_) { /* intencional */ } // o Servidor revoga o token ao desconectar
       const m = String(motivo || '');
       const descarteCliente = m === 'io client disconnect' || m.includes('forced close');
       d.aoDisconnectPainel({ descarteCliente, motivo: m });

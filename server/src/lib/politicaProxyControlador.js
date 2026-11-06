@@ -133,8 +133,10 @@ function valorSeguro(v) {
  * controla) e `host` é o do alvo.
  * @param {Record<string, string|string[]|undefined>} headers
  * @param {string} hostAlvo `host:porta`
+ * @param {string|null} [via] `X-Lyra-Via` assinado pelo PRÓPRIO Servidor (elo s→c, Entrega 1); o que o
+ *        cliente mandar com esse nome nunca atravessa (não está na lista de cabeçalhos permitidos).
  */
-function cabecalhosParaControlador(headers, hostAlvo) {
+function cabecalhosParaControlador(headers, hostAlvo, via = null) {
   const saida = {};
   const origem = headers || {};
   for (const nome of CABECALHOS_PERMITIDOS) {
@@ -143,6 +145,7 @@ function cabecalhosParaControlador(headers, hostAlvo) {
   }
   saida.host = hostAlvo;
   saida['x-lyra-proxy'] = '1';
+  if (typeof via === 'string' && via !== '') saida['x-lyra-via'] = via;
   return saida;
 }
 

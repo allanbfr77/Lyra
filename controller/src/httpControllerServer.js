@@ -1,5 +1,6 @@
 'use strict';
 
+const os = require('os');
 const http = require('http');
 const path = require('path');
 const { URL } = require('url');
@@ -29,7 +30,10 @@ const {
   acessoRede,
   autenticacaoHttp: autenticacaoHttpCore,
   credencialInterna: credencialInternaCore,
+  elo: { capturarCorpoElo: eloCapturarCorpo },
 } = require('@lyra/projection-core');
+
+const { criarEloControlador } = require('./eloControlador');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -65,8 +69,8 @@ async function destinoEhMotorLocal(ctx, base) {
  * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado,
  * levando a credencial que o cliente mandou (E1.3 Fase B; ver `lib/proxyProjecaoJson.js`).
  */
-function proxyJsonToProjection(method, pathname, jsonBody, credenciais, base) {
-  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: base || projectionBaseUrl() });
+function proxyJsonToProjection(method, pathname, jsonBody, credenciais, base, assinar) {
+  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: base || projectionBaseUrl(), assinar });
 }
 
 /**
@@ -76,6 +80,17 @@ function proxyJsonToProjection(method, pathname, jsonBody, credenciais, base) {
  */
 async function iniciarServidorController(ctx, paths) {
   const db = getDb();
+
+  /*
+   * Elo interprocessos (Entrega 1): as chaves ficam SÓ neste processo (nunca no renderer). Assina o salto
+   * 3001→5510 quando há pareamento ativo e observa as chamadas s→c dos proxies do Servidor. Só observa.
+   */
+  ctx.eloControlador = criarEloControlador({
+    caminho: paths.eloPareamentosPath(),
+    nomePc: os.hostname(),
+    obterBase: projectionBaseUrl,
+    registrar: (info) => console.warn(`[Lyra][elo-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
+  });
   const expressApp = express();
 
   /*
@@ -106,20 +121,29 @@ async function iniciarServidorController(ctx, paths) {
     /* Credencial interna do painel (W): aceita só aqui, no contexto local; o resto vai à allowlist. */
     verificar: credencialInternaCore.criarVerificadorHttp({
       interna: ctx.credencialInterna || null,
-      verificarBase: (auth) =>
-        ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
+      verificarBase: (auth) => {
+        const local = ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
           ? ctx.projecaoLocal.verificarCredencial(auth)
-          : null,
+          : null;
+        if (local) return local;
+        /* Entrega 1: sem a allowlist aqui, pergunta ao Servidor PAREADO (veredito em cache; sem pareamento = null). */
+        return ctx.eloControlador ? ctx.eloControlador.verificarDelegado(auth) : null;
+      },
     }),
     registrar: (info) =>
       console.warn(`[Lyra][auth-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
     /* C1: classe, credencial esperada e motivo de uma recusa futura (só observa; nada é bloqueado). */
     registrarDecisao: (info) =>
       console.warn(`[Lyra][politica-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
+    /* Entrega 1: o elo existe neste processo; a credencial deixa de ser «inexistente». */
+    eloDisponivel: true,
   });
   expressApp.use(autenticacaoHttp.middleware);
 
-  expressApp.use(express.json({ limit: '800mb' }));
+  /* `verify`: guarda os bytes do corpo só quando há `X-Lyra-Via` (a assinatura cobre o hash do corpo). */
+  expressApp.use(express.json({ limit: '800mb', verify: eloCapturarCorpo }));
+  /* Elo (Entrega 1): confere a assinatura das rotas s→c e REGISTRA; nunca recusa. */
+  expressApp.use(ctx.eloControlador.elo.observador('controlador-3001'));
 
   const publicDir = path.join(__dirname, '../public');
   expressApp.use(express.static(publicDir));
@@ -299,7 +323,8 @@ async function iniciarServidorController(ctx, paths) {
         base,
         destinoEhMotorLocal: proprio,
       });
-      const pr = await proxyJsonToProjection('PUT', pathname, body, cred, base);
+      const pr = await proxyJsonToProjection('PUT', pathname, body, cred, base,
+        (info) => ctx.eloControlador.assinarParaServidor({ base, ...info }));
       res.status(pr.status);
       const ct = pr.headers['content-type'];
       if (ct) res.setHeader('Content-Type', ct);

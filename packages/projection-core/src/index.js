@@ -86,6 +86,12 @@ module.exports = {
   credencialInterna: require('./credencialInterna'),
   /* Prova de que o dono de uma porta local é o servidor que ESTE processo iniciou. */
   provaPropriedade: require('./provaPropriedade'),
+  /* Elo interprocessos (Entrega 1): HMAC X-Lyra-Via, chaves, pareamento X25519+SAS e token de sessão. */
+  elo: require('./elo'),
+  eloInterprocessos: require('./eloInterprocessos'),
+  eloChaves: require('./eloChaves'),
+  eloPareamento: require('./eloPareamento'),
+  sessaoControlador: require('./sessaoControlador'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),

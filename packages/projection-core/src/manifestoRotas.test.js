@@ -340,7 +340,7 @@ test('auditoria original: todas as rotas listadas na auditoria estão no manifes
 test('rotas novas (fora da auditoria original) estão identificadas e conhecidas', () => {
   const original = new Set(M.AUDITORIA_ORIGINAL);
   const novas = [...new Set(M.ROTAS.filter((r) => !original.has(`${r.metodo} ${r.caminho}`)).map((r) => `${r.metodo} ${r.caminho}`))].sort();
-  assert.deepEqual(novas, [...M.ROTAS_NOVAS_NA_C0].sort());
+  assert.deepEqual(novas, [...M.ROTAS_NOVAS_NA_C0, ...M.ROTAS_NOVAS_ENTREGA_1].sort());
 });
 
 test('números do manifesto (por servidor e classe) não mudam sem revisão consciente', () => {

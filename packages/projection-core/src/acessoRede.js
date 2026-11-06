@@ -47,7 +47,9 @@ const PORTAS_ORIGEM_PADRAO = Object.freeze([3001, 5510, 5001]);
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const METODOS_CORS = 'GET, PUT, POST, PATCH, DELETE, OPTIONS';
 /** Cabeçalhos que os clientes do Lyra enviam: JSON, credencial do dispositivo (E1.3) e versão do app. */
-const CABECALHOS_CORS = 'Content-Type, X-Lyra-Device, X-Lyra-Secret, X-Lyra-App';
+/* `X-Lyra-Session` (Entrega 1): token de sessão do controlador. Sem listá-lo o preflight do navegador
+   barraria a chamada inteira. `X-Lyra-Via` NÃO entra: o elo é entre processos, nunca de página. */
+const CABECALHOS_CORS = 'Content-Type, X-Lyra-Device, X-Lyra-Secret, X-Lyra-App, X-Lyra-Session';
 const MAX_RECUSAS_REGISTRADAS = 200;
 /** Por quanto tempo a lista de endereços das placas de rede é reaproveitada. */
 const VALIDADE_ENDERECOS_MS = 10000;
@@ -358,4 +360,4 @@ function criarProtecaoRede(opcoes = {}) {
   };
 }
 
-module.exports = { criarProtecaoRede, PORTAS_ORIGEM_PADRAO };
+module.exports = { criarProtecaoRede, PORTAS_ORIGEM_PADRAO, CABECALHOS_CORS };

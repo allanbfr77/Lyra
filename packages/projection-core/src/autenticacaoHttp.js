@@ -89,6 +89,7 @@ const ROTAS_LOOPBACK_ESTRITO = [
   /^\/api\/internal(\/|$)/,
   /^\/api\/docs(\/|$)/,
   /^\/api\/apresentacao\/midia\/importar$/,
+  /^\/api\/elo\/(pareamentos|chaves)(\/|$)/,
   /^\/api\/sync\/banco\/pedido\/(aceitar|recusar)$/,
 ];
 
@@ -112,6 +113,10 @@ function classificarRota(metodo, caminho) {
   // Webhook da INVB: quem chama é o servidor da INVB, que não tem credencial de dispositivo. Tem
   // segredo próprio (fail-closed, comparação em tempo constante — E1.1). Só este caminho exato.
   if (m === 'POST' && p === '/api/tom-memoria/webhook-invb') return 'publica';
+  // Pareamento do elo (Entrega 1): aberto à LAN de propósito (o Controlador de outro PC ainda não tem
+  // credencial); a proteção é a APROVAÇÃO do operador, o código de confirmação e o limite de pedidos.
+  // `verificar-dispositivo` se protege sozinha: exige o elo (X-Lyra-Via) válido.
+  if (/^\/api\/elo\/(parear|verificar-dispositivo)(\/|$)/.test(p)) return 'publica';
   if (p.startsWith('/api/comando/')) return 'comando';
   // Mídia da apresentação: <video>/<audio> não enviam cabeçalhos customizados. Fica pública
   // por ora — risco residual registrado no relatório da E1.3.
@@ -192,6 +197,8 @@ function criarAutenticacaoHttp(opcoes = {}) {
   const politica = registrarDecisaoFn ? carregarPolitica() : null;
   /** C2: gancho opcional que diz o que o bastão (write-lock) decidiria. Só vale nas rotas CMD do Servidor 5510. */
   const avaliarBastaoFn = typeof opcoes.avaliarBastao === 'function' ? opcoes.avaliarBastao : null;
+  /** Entrega 1: este processo TEM o elo interprocessos (a credencial deixa de ser «inexistente»). */
+  const eloDisponivel = opcoes.eloDisponivel === true;
   /** chave -> resumo de TODAS as decisões (inclusive as que não geram evento). */
   const decisoes = new Map();
   /** chaves de decisão «interessantes» já enviadas a `registrarDecisao`. */
@@ -229,6 +236,8 @@ function criarAutenticacaoHttp(opcoes = {}) {
       ambigua: r.ambigua === true,
       recusariaEmImpor: r.permitido === false ? true : r.permitido === true ? false : null,
       ...(Number.isFinite(r.candidatos) ? { candidatos: r.candidatos } : {}),
+      ...(r.identificadoPor === 'token-sessao' ? { identificadoPor: 'token-sessao' } : {}),
+      ...(typeof r.sessaoInvalida === 'string' ? { sessaoInvalida: r.sessaoInvalida.slice(0, 30) } : {}),
     };
   }
 
@@ -237,13 +246,13 @@ function criarAutenticacaoHttp(opcoes = {}) {
    * do Servidor 5510, e só com o gancho instalado). Nunca lança e nunca recebe segredo: o gancho
    * recebe apenas `{deviceId, autorizado}`.
    */
-  function observarBastao(d, c) {
+  function observarBastao(d, c, sessao) {
     if (!avaliarBastaoFn || contexto !== 'servidor-5510') return undefined;
     if (!d.encontrada || !Array.isArray(d.politica) || !d.politica.includes('CMD')) return undefined;
     const base = { aplicavel: true, via: 'dispositivo', donoAtual: null, ambigua: false };
     if (c.ok === null) return { ...base, permitido: null, motivo: 'nao-verificavel', recusariaEmImpor: null };
     try {
-      const r = normalizarBastao(avaliarBastaoFn({ deviceId: c.deviceId, autorizado: c.ok === true }));
+      const r = normalizarBastao(avaliarBastaoFn({ deviceId: c.deviceId, autorizado: c.ok === true, ...(sessao ? { sessao } : {}) }));
       if (r) return r;
     } catch (_) {
       /* cai na falha registrada abaixo */
@@ -260,10 +269,10 @@ function criarAutenticacaoHttp(opcoes = {}) {
     const ip = ipDoRequest(req);
     const loopback = ehLoopback(ip);
     const tipo = tipoApresentado(c);
-    const mot = politica.motivoRecusaFutura(d, { tipo, proxificada, loopback });
+    const mot = politica.motivoRecusaFutura(d, { tipo, proxificada, loopback, eloDisponivel, eloPresente: cabecalho(req, 'x-lyra-via') !== '' });
     const deviceId = deviceTruncado(c.deviceId);
     const caminho = caminhoParaRegistro(req);
-    const bastao = observarBastao(d, c);
+    const bastao = observarBastao(d, c, cabecalho(req, 'x-lyra-session').trim().slice(0, MAX_CREDENCIAL));
     const chaveBastao = bastao ? `${bastao.motivo || bastao.erro}${bastao.ambigua ? '~' : ''}` : '';
     const chave = [d.id || `?${caminhoParaChave(caminho)}`, metodo, tipo, deviceId, proxificada ? 'p' : '', loopback ? 'l' : '', chaveBastao].join('|');
 

@@ -24,7 +24,13 @@ const {
   paginaObs,
   acessoRede,
   autenticacaoHttp: autenticacaoHttpCore,
+  elo: eloCore,
+  eloPareamento: eloPareamentoCore,
+  sessaoControlador: sessaoControladorCore,
+  politicaRotas,
 } = require('@lyra/projection-core');
+const { registrarRotasElo } = require('./lib/rotasElo');
+const { criarEmissorSessao } = require('./lib/sessaoSocket');
 const { createProjectionState } = require('./lib/projectionState');
 const { lerBuildIdServidor } = require('./lib/serverBuildInfo');
 
@@ -40,7 +46,7 @@ const HTTP_OBS_PORT = 5001;
  * @param {{ screen: object, logError: Function, windowsApi: object, reiniciarApp?: Function, encerrarParaAtualizacao?: Function }} deps
  */
 function iniciarServidor(ctx, paths, deps) {
-  const { screen, logError, windowsApi, reiniciarApp, encerrarParaAtualizacao } = deps;
+  const { screen, logError, windowsApi, reiniciarApp, encerrarParaAtualizacao, pedirAprovacaoPareamento } = deps;
   const {
     estadoPublicoParaSocketsOuApi,
     garantirTelasAbertasParaProjecao,
@@ -206,6 +212,25 @@ function iniciarServidor(ctx, paths, deps) {
     maxHttpBufferSize: Math.max(Number(process.env.SOCKET_MAX_BUFFER_MB || 110), 110) * 1024 * 1024,
   });
 
+  /*
+   * Elo interprocessos (Entrega 1): chaves, verificador, pareamento e token de sessão do controlador.
+   * Só OBSERVA nas rotas ELO (nada é recusado). O pareamento exige a aprovação do operador desta máquina.
+   */
+  const sessoes = sessaoControladorCore.criarSessoesControlador();
+  const elo = eloCore.criarElo({
+    papel: 'servidor',
+    caminho: paths.eloChavesPath(),
+    avaliarRota: politicaRotas.avaliarRota,
+    registrar: (e) => console.warn(`[Lyra][elo-http] ${JSON.stringify(e)}`),
+  });
+  const pareamento = eloPareamentoCore.criarServicoPareamentoServidor({
+    armazem: elo.armazem,
+    aoSolicitar: (pedido) => {
+      console.warn(`[Lyra][elo] pedido de pareamento de «${pedido.nome}» (${pedido.ip})`);
+      if (typeof pedirAprovacaoPareamento === 'function') pedirAprovacaoPareamento(pedido, pareamento);
+    },
+  });
+
   // --- Controle de acesso: write-lock de controlador primário ---
   // Fim do "último a conectar vence": o PRIMEIRO controlador registrado comanda; os demais
   // entram somente-leitura até receberem o bastão explicitamente (forcar_assumir_controle).
@@ -227,6 +252,8 @@ function iniciarServidor(ctx, paths, deps) {
       ctx.controladorSocketId = ctx.acesso.getPrimarioSocketId();
       if (!ctx.controladorSocketId) ctx.ultimasPlaylistsControlador = null;
       console.log(`[acesso] ${evt}`, dados || '');
+      // Dispositivo revogado: os tokens de sessão dos sockets dele deixam de valer na hora.
+      if (evt === 'dispositivo_revogado' && dados && dados.deviceId) sessoes.revogarDispositivo(dados.deviceId);
       // Encaminha à janela de controle do servidor (UI: pendências, quem está no controle).
       try {
         const w = windowsApi.getJanelaControle && windowsApi.getJanelaControle();
@@ -309,27 +336,38 @@ function iniciarServidor(ctx, paths, deps) {
     registrarDecisao: (info) => console.warn(`[Lyra][politica-http] ${JSON.stringify(info)}`),
     /* C2: o que o bastão (write-lock) decidiria para uma rota CMD, pela MESMA função do Socket.IO.
        Só observa: o middleware segue em `registrar` e nada aqui altera resposta ou handler. */
-    avaliarBastao: (a) => ctx.acesso.avaliarEscrita(a),
+    avaliarBastao: (a) => sessaoControladorCore.resolverBastao({ acesso: ctx.acesso, sessoes, ...a }),
+    /* Entrega 1: o elo existe; a credencial deixa de ser «inexistente» no registro de política. */
+    eloDisponivel: true,
   });
   expressApp.use(autenticacaoHttp.middleware);
 
-  attachProxyMusicaAoControlador(expressApp, logError);
-  attachProxyBibliaAoControlador(expressApp, logError);
+  /* Elo s→c (Entrega 1): o Servidor assina o que repassa ao 3001 quando há pareamento; sem ele, nada muda. */
+  const assinarParaControlador = (info) => elo.assinarSaida(info);
+  attachProxyMusicaAoControlador(expressApp, logError, assinarParaControlador);
+  attachProxyBibliaAoControlador(expressApp, logError, assinarParaControlador);
   attachProxyApresentacaoVideoAoControlador(expressApp, logError, () => {
     const id = ctx.controladorSocketId;
     const info = id ? ctx.controladorSockets.get(id) : null;
     const ip = info && info.ip ? String(info.ip).trim() : '';
     return ip || process.env.CONTROLLER_HTTP_HOST || '127.0.0.1';
-  });
+  }, assinarParaControlador);
 
-  expressApp.use(express.json({ limit: '200mb' }));
+  /* `verify`: guarda os bytes do corpo só quando há `X-Lyra-Via` (a assinatura cobre o hash do corpo). */
+  expressApp.use(express.json({ limit: '200mb', verify: eloCore.capturarCorpoElo }));
+  /* Elo (Entrega 1): confere a assinatura nas rotas ELO e REGISTRA; nunca recusa. */
+  expressApp.use(elo.observador('servidor-5510'));
+  registrarRotasElo(expressApp, {
+    pareamento, armazem: elo.armazem, requisicaoVemDaMaquinaLocal, logError,
+    verificarElo: (req, dir) => elo.verificarRequisicao(req, dir), acesso: ctx.acesso,
+  });
 
   /* Identidade do host na 5510 — sem autenticação, usada pelo Controlador antes do
      handshake para distinguir este Servidor de um Controlador em modo local.
      `buildId` é identidade técnica do artefacto (companion update); não é versão de produto. */
   expressApp.get('/api/identity', (_req, res) => {
     const buildId = lerBuildIdServidor();
-    const payload = { role: 'server' };
+    const payload = { role: 'server', capacidades: elo.capacidades() };
     if (buildId) payload.buildId = buildId;
     res.json(payload);
   });
@@ -640,6 +678,9 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
+  /** Token de sessão do controlador (Entrega 1): emissão, reemissão e revogação (ver `lib/sessaoSocket.js`). */
+  const emissorSessao = criarEmissorSessao({ sessoes, logError });
+
   ctx.io.on('connection', (socket) => {
     console.log(`[+] Cliente conectado: ${socket.id}`);
 
@@ -664,6 +705,8 @@ function iniciarServidor(ctx, paths, deps) {
           nome: info.nomePc,
           ip: info.ip,
         });
+        // Token de sessão (Entrega 1): ligado a ESTE socket; o cliente o devolve em `X-Lyra-Session`.
+        emissorSessao.emitir(socket);
       } else {
         // Informa o cliente de que está em modo visualização (não autorizado a escrever).
         try {
@@ -933,6 +976,7 @@ function iniciarServidor(ctx, paths, deps) {
         enviarComandoAudioParaControle('audio_stop', {});
         ctx.audioOwnerSocketId = null;
       }
+      emissorSessao.encerrar(socket.id);
       const eraControlador = ctx.controladorSockets.has(socket.id);
       ctx.controladorSockets.delete(socket.id);
       if (eraControlador) {
