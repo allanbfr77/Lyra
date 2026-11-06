@@ -105,7 +105,8 @@ test('classificarRota: escritas da API são "escrita"', () => {
     ['POST', '/api/historico/limpar'], ['DELETE', '/api/historico/4'],
     ['PUT', '/api/apresentacao/video/ap_1'], ['PUT', '/api/apresentacao/state'],
     ['POST', '/api/open-display-devtools'], ['POST', '/api/letras/importar'],
-    ['POST', '/api/ministrantes'], ['POST', '/api/tom-memoria/webhook-invb'],
+    ['POST', '/api/ministrantes'],
+    // webhook-invb deixou de ser 'escrita' na Fase B: tem segredo proprio (ver autenticacaoHttp.faseB.test.js)
   ]) {
     assert.equal(classificarRota(metodo, caminho), 'escrita', `${metodo} ${caminho}`);
   }

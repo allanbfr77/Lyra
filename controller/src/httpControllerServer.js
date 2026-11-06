@@ -1,7 +1,6 @@
 'use strict';
 
 const http = require('http');
-const https = require('https');
 const path = require('path');
 const { URL } = require('url');
 const express = require('express');
@@ -11,6 +10,10 @@ const {
   saveSharedSyncMeta,
 } = require('./lib/sharedSyncMetaStore');
 const { SERVER_URL } = require('./lib/projectionServerUrl');
+const {
+  proxyJsonToProjection: encaminharJsonAoServidor,
+  credenciaisDoRequest,
+} = require('./lib/proxyProjecaoJson');
 const { registrarRotasMusicas } = require('./rotas/musicas');
 const { registrarRotasPlaylists } = require('./rotas/playlists');
 const { registrarRotasMinistrantes } = require('./rotas/ministrantes');
@@ -35,36 +38,11 @@ function projectionBaseUrl() {
 }
 
 /**
- * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado.
+ * Encaminha JSON ao servidor de projeção (5510) quando o controlador não tem socket ligado,
+ * levando a credencial que o cliente mandou (E1.3 Fase B; ver `lib/proxyProjecaoJson.js`).
  */
-function proxyJsonToProjection(method, pathname, jsonBody) {
-  const base = projectionBaseUrl();
-  const bodyBuf = jsonBody != null ? Buffer.from(JSON.stringify(jsonBody), 'utf8') : Buffer.alloc(0);
-  const port = base.port ? Number(base.port) : base.protocol === 'https:' ? 443 : 80;
-  const opts = {
-    hostname: base.hostname,
-    port,
-    path: pathname,
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': bodyBuf.length,
-    },
-  };
-  const lib = base.protocol === 'https:' ? https : http;
-  return new Promise((resolve, reject) => {
-    const req = lib.request(opts, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks);
-        resolve({ status: res.statusCode || 500, headers: res.headers, body: raw });
-      });
-    });
-    req.on('error', reject);
-    if (bodyBuf.length) req.write(bodyBuf);
-    req.end();
-  });
+function proxyJsonToProjection(method, pathname, jsonBody, credenciais) {
+  return encaminharJsonAoServidor(method, pathname, jsonBody, credenciais, { base: projectionBaseUrl() });
 }
 
 /**
@@ -279,7 +257,7 @@ async function iniciarServidorController(ctx, paths) {
   async function proxyDisplay(req, res, pathname) {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const pr = await proxyJsonToProjection('PUT', pathname, body);
+      const pr = await proxyJsonToProjection('PUT', pathname, body, credenciaisDoRequest(req));
       res.status(pr.status);
       const ct = pr.headers['content-type'];
       if (ct) res.setHeader('Content-Type', ct);

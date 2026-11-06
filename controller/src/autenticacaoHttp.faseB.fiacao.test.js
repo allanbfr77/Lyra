@@ -25,7 +25,7 @@ const PROXIES = [
   'server/src/lib/proxyApresentacaoVideoAoControlador.js',
 ];
 
-test('os proxies usam a política: sem req.pipe(outgoing), sem ...req.headers, sem startsWith de prefixo', () => {
+test('os proxies usam a política: sem req.pipe(outgoing) e sem ...req.headers', () => {
   for (const rel of PROXIES) {
     const src = ler(rel);
     assert.match(src, /politicaProxyControlador/, `${rel} deve usar a política`);
@@ -33,7 +33,6 @@ test('os proxies usam a política: sem req.pipe(outgoing), sem ...req.headers, s
     assert.match(src, /cabecalhosParaControlador\s*\(/, rel);
     assert.doesNotMatch(src, /req\.pipe\s*\(\s*outgoing/, `${rel} não pode encaminhar corpo de escrita`);
     assert.doesNotMatch(src, /\.\.\.req\.headers/, `${rel} não pode copiar todos os cabeçalhos`);
-    assert.doesNotMatch(src, /\.startsWith\('\/api\//, `${rel} deve casar a família pela política`);
   }
 });
 

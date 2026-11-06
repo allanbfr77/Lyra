@@ -87,18 +87,19 @@ test('o registro vai para o console/diário e nunca recebe o secret', () => {
   }
 });
 
-test('os proxies 5510→3001 marcam a requisição como proxificada (pista para o registro) e removem a marca do cliente', () => {
+test('os proxies 5510→3001 marcam a requisição como proxificada pela política (o cliente não controla a marca)', () => {
+  const pol = ler('server/src/lib/politicaProxyControlador.js');
+  assert.ok(pol.includes("saida['x-lyra-proxy'] = '1'"), 'a política deve marcar x-lyra-proxy: 1');
+  // a marca é gravada DEPOIS de copiar os cabeçalhos permitidos (e x-lyra-proxy não está na lista do cliente)
+  assert.ok(pol.indexOf("saida['x-lyra-proxy']") > pol.indexOf('CABECALHOS_PERMITIDOS) {'), 'a marca vem depois da cópia');
+  const lista = pol.slice(pol.indexOf('const CABECALHOS_PERMITIDOS'), pol.indexOf('];', pol.indexOf('const CABECALHOS_PERMITIDOS')));
+  assert.doesNotMatch(lista, /x-lyra-proxy/, 'o cliente não pode fornecer a marca');
   for (const arq of [
     'server/src/lib/proxyMusicaAoControlador.js',
     'server/src/lib/proxyBibliaAoControlador.js',
     'server/src/lib/proxyApresentacaoVideoAoControlador.js',
   ]) {
-    const src = ler(arq);
-    assert.match(src, /['"]x-lyra-proxy['"]\s*:\s*['"]1['"]/, `${arq} deve marcar x-lyra-proxy: 1`);
-    const linha = src.split('\n').find((l) => l.includes('...req.headers'));
-    assert.ok(linha, `${arq}: headers do proxy não encontrados`);
-    // a marca vem DEPOIS do spread dos cabeçalhos do cliente, para o cliente não poder anulá-la
-    assert.ok(linha.indexOf('...req.headers') < linha.indexOf('x-lyra-proxy'), `${arq}: a marca deve sobrepor o cabeçalho do cliente`);
+    assert.match(ler(arq), /cabecalhosParaControlador\(/, `${arq} deve montar os cabeçalhos pela política`);
   }
 });
 

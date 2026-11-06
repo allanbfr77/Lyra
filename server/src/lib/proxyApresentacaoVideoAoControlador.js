@@ -1,6 +1,11 @@
 'use strict';
 
 const http = require('http');
+const {
+  avaliarRequisicaoProxy,
+  cabecalhosParaControlador,
+  responderRecusa,
+} = require('./politicaProxyControlador');
 
 const CTL_HOST_DEFAULT = process.env.CONTROLLER_HTTP_HOST || '127.0.0.1';
 const CTL_PORT = Number(process.env.CONTROLLER_HTTP_PORT || 3001);
@@ -13,17 +18,22 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
   'content-length',
 ]);
 
-/** Prefixos que este proxy encaminha ao controlador. */
+/** Prefixos que este proxy intercepta (a política decide o que de fato atravessa). */
 const PREFIXOS_APRESENTACAO = ['/api/apresentacao/video', '/api/apresentacao/midia'];
 
 /**
- * Proxy HTTP para `/api/apresentacao/video*` e `/api/apresentacao/midia*` → controlador
- * (:3001). Os telões (PC servidor) não alcançam `127.0.0.1:3001` do controlador noutro
- * PC; passam a pedir a mídia em `:5510` e o servidor reencaminha.
+ * Proxy HTTP SOMENTE LEITURA para `/api/apresentacao/video/<id>` e
+ * `/api/apresentacao/midia/<id>` → controlador (:3001). Os telões (PC servidor) não alcançam
+ * `127.0.0.1:3001` do controlador noutro PC; passam a pedir a mídia em `:5510` e o servidor
+ * reencaminha (GET/HEAD, com Range/If-Range para o <video>/<audio> poder avançar).
  *
  * `/midia` é o caminho novo, o das mídias importadas por cópia de ficheiro — áudio
  * incluído. `/video` fica porque os vídeos gravados por versões anteriores continuam a
  * responder por lá.
+ *
+ * E1.3 Fase B: o proxy NÃO encaminha escrita. Em especial `POST /api/apresentacao/midia/importar`
+ * (importa por caminho de arquivo da máquina do controlador) e `PUT /video/<id>` (grava arquivo)
+ * não passam por aqui: a 3001 aceitaria a importação por vir "da própria máquina".
  *
  * @param {import('express').Express} expressApp
  * @param {(ctx: string, err: unknown) => void} logError
@@ -34,7 +44,9 @@ function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlH
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
     if (!PREFIXOS_APRESENTACAO.some((prefixo) => ou.startsWith(prefixo))) return next();
 
-    const pathRaw = typeof req.originalUrl === 'string' ? req.originalUrl : req.url || '/';
+    const aval = avaliarRequisicaoProxy(req, 'apresentacao');
+    if (!aval.ok) return responderRecusa(res, aval);
+
     let host = CTL_HOST_DEFAULT;
     try {
       const h = typeof getCtlHost === 'function' ? String(getCtlHost() || '').trim() : '';
@@ -45,16 +57,15 @@ function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlH
     // IPv6 com zona / forma `::ffff:x.x.x.x` já normalizada no registro do socket
     if (host.startsWith('::ffff:')) host = host.slice(7);
 
-    const isStream = req.method === 'GET' || req.method === 'HEAD';
     const outgoing = http.request(
       {
         hostname: host,
         port: CTL_PORT,
-        path: pathRaw,
+        path: aval.caminho,
         method: req.method,
-        headers: { ...req.headers, host: `${host}:${CTL_PORT}`, 'x-lyra-proxy': '1' },
+        headers: cabecalhosParaControlador(req.headers, `${host}:${CTL_PORT}`),
         /* GET/HEAD de vídeo pode demorar (Range + ficheiros grandes). */
-        timeout: isStream ? 0 : 120000,
+        timeout: 0,
       },
       (inc) => {
         res.status(inc.statusCode || 502);
@@ -82,12 +93,13 @@ function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlH
     req.on('error', (e) => {
       outgoing.destroy(e);
     });
+    // Telão/leitor que pula no vídeo cancela o pedido: o controlador para de ler o arquivo.
+    res.on('close', () => {
+      if (!res.writableEnded) outgoing.destroy();
+    });
 
-    if (isStream) {
-      outgoing.end();
-    } else {
-      req.pipe(outgoing);
-    }
+    outgoing.end();
+    return undefined;
   });
 }
 

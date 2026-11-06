@@ -1,6 +1,11 @@
 'use strict';
 
 const http = require('http');
+const {
+  avaliarRequisicaoProxy,
+  cabecalhosParaControlador,
+  responderRecusa,
+} = require('./politicaProxyControlador');
 
 const CTL_HOST = process.env.CONTROLLER_HTTP_HOST || '127.0.0.1';
 const CTL_PORT = Number(process.env.CONTROLLER_HTTP_PORT || 3001);
@@ -14,7 +19,8 @@ const IGNORE_DOWNSTREAM_HEADERS = new Set([
 ]);
 
 /**
- * Proxy HTTP para `/api/biblia*` → API SQLite do controlador (`localhost:3001`).
+ * Proxy HTTP SOMENTE LEITURA para `/api/biblia*` → API SQLite do controlador
+ * (`localhost:3001`). E1.3 Fase B: só GET/HEAD; qualquer outro método → 405.
  *
  * @param {import('express').Express} expressApp
  * @param {(ctx: string, err: unknown) => void} logError
@@ -24,15 +30,16 @@ function attachProxyBibliaAoControlador(expressApp, logError) {
     const ou = typeof req.originalUrl === 'string' ? req.originalUrl.split('?', 2)[0] : '';
     if (!ou.startsWith('/api/biblia')) return next();
 
-    const pathRaw = typeof req.originalUrl === 'string' ? req.originalUrl : req.url || '/';
+    const aval = avaliarRequisicaoProxy(req, 'biblia');
+    if (!aval.ok) return responderRecusa(res, aval);
 
     const outgoing = http.request(
       {
         hostname: CTL_HOST,
         port: CTL_PORT,
-        path: pathRaw,
+        path: aval.caminho,
         method: req.method,
-        headers: { ...req.headers, host: `${CTL_HOST}:${CTL_PORT}`, 'x-lyra-proxy': '1' },
+        headers: cabecalhosParaControlador(req.headers, `${CTL_HOST}:${CTL_PORT}`),
         timeout: 60000,
       },
       (inc) => {
@@ -61,12 +68,12 @@ function attachProxyBibliaAoControlador(expressApp, logError) {
     req.on('error', (e) => {
       outgoing.destroy(e);
     });
+    res.on('close', () => {
+      if (!res.writableEnded) outgoing.destroy();
+    });
 
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      outgoing.end();
-    } else {
-      req.pipe(outgoing);
-    }
+    outgoing.end();
+    return undefined;
   });
 }
 
