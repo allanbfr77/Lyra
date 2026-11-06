@@ -632,7 +632,7 @@ async function comSocketIo(fn, { modoAllowlist } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-rede-'));
   const allowlistPath = () => path.join(dir, 'allow.json');
   if (modoAllowlist) fs.writeFileSync(allowlistPath(), JSON.stringify({ modo: modoAllowlist, devices: {} }));
-  const acesso = controleAcesso.criarControleAcesso({
+  const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath,
     emitParaSocket: () => {},
     broadcast: () => {},

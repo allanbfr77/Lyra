@@ -58,7 +58,7 @@ function requisitar(porta, { method = 'GET', caminho = '/', headers = {}, corpo 
 async function comPilha({ modo }, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-faseb-'));
   const allowlistPath = () => path.join(dir, 'allow.json');
-  const acesso = controleAcesso.criarControleAcesso({ allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
+  const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true }, allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
   // TOFU só pelo handshake do socket: aqui o teste faz o papel dele.
   assert.strictEqual(acesso.autenticar({ deviceId: 'dev-ok-0001', secret: SEG_OK }).ok, true);
   acesso.travar();

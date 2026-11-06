@@ -49,7 +49,7 @@ async function comPilha({ modo = 'registrar', modoAllowlist = null, preparar } =
   const allowlistPath = () => path.join(dir, 'allow.json');
   if (modoAllowlist) fs.writeFileSync(allowlistPath(), JSON.stringify({ modo: modoAllowlist, devices: {} }));
   const notificados = [];
-  const acesso = controleAcesso.criarControleAcesso({
+  const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath,
     emitParaSocket: () => {},
     notificar: (evt) => notificados.push(evt),

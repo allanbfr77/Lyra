@@ -228,9 +228,9 @@ test('administrativas: loopback estrito; as que dependem do elo declaram credenc
   assert.deepEqual(restart.esperada.interprocessos, { esperada: true, existe: false, direcao: 'c→s', alternativaA: [] });
   const dev = avaliarRota(S, 'POST', '/api/open-public-devtools');
   assert.equal(dev.classe, 'administrativa');
-  assert.equal(dev.classeAtual, 'escrita', 'hoje é escrita comum, sem guarda');
+  assert.equal(dev.classeAtual, 'escrita', 'para a autenticação geral segue escrita comum (o `impor` geral não está ativo)');
   assert.equal(dev.esperada.loopback, true);
-  assert.equal(dev.guardaPropria, 'nenhuma');
+  assert.equal(dev.guardaPropria, 'local-ou-elo', 'Entrega 2: a própria rota exige a própria máquina ou o elo válido');
   const importar = avaliarRota(C, 'POST', '/api/apresentacao/midia/importar');
   assert.deepEqual(importar.politica, ['PL', 'LOC']);
   assert.equal(importar.esperada.interna, 'exigida');

@@ -15,6 +15,8 @@ function createUserPaths(userDataRoot) {
     sharedDbSyncPath: () => path.join(userDataRoot, 'shared-db-sync.json'),
     /** Allowlist de controladores autorizados (deviceId + secret). Usada pelo controleAcesso. */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
+    /** Dispositivos REVOGADOS (Entrega 2): arquivo próprio, para a revogação sobreviver ao reinício sem mudar a allowlist. */
+    revogadosPath: () => path.join(userDataRoot, 'controladores-revogados.json'),
     /** Chaves do elo interprocessos (Entrega 1). Arquivo próprio: não mexe no formato da allowlist. */
     eloChavesPath: () => path.join(userDataRoot, 'elo-chaves.json'),
     errorLogPath: () => path.join(userDataRoot, 'error.log'),

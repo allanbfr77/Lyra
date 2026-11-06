@@ -214,6 +214,8 @@ function trechoDaDeclaracao(d, todas) {
 function guardaDetectada(d, todas) {
   const { args, corpo } = trechoDaDeclaracao(d, todas);
   if (/\b(soDestaMaquina|soLocal)\b/.test(args)) return 'ip-loopback-middleware';
+  if (/\bexigirCredencial\b/.test(args)) return 'credencial-na-rota';
+  if (/\bexigirLocalOuElo\b/.test(args)) return 'local-ou-elo';
   if (/requisicaoVemDaMaquinaLocal\s*\(/.test(corpo)) return 'ip-loopback-handler';
   if (/LYRA_INVB_WEBHOOK_SECRET/.test(corpo) && /segredosIguais\(/.test(corpo)) return 'segredo-proprio';
   return 'nenhuma';
@@ -246,10 +248,11 @@ test('rotas administrativas com confiança adicional: loopback estrito na classe
   }
 });
 
-test('alerta honesto: rotas administrativas do Servidor que HOJE não têm nem loopback-estrito nem guarda', () => {
-  // open-*-devtools são «administrativas» por natureza, mas a classe atual é escrita e não têm guarda
+test('alerta honesto: rotas administrativas que HOJE não têm nem loopback-estrito nem guarda — Entrega 2 fechou as DevTools', () => {
+  // open-*-devtools são «administrativas» por natureza e a classe atual é escrita; desde a Entrega 2 a guarda «local-ou-elo» as protege
   const abertas = M.ROTAS.filter((r) => r.classe === 'administrativa' && r.classeAtual !== 'loopback-estrito' && r.guardaPropria === 'nenhuma').map((r) => r.caminho).sort();
-  assert.deepEqual(abertas, ['/api/open-display-devtools', '/api/open-ministrante-devtools', '/api/open-public-devtools']);
+  assert.deepEqual(abertas, []);
+  for (const r of M.ROTAS.filter((x) => /open-.*-devtools/.test(x.caminho))) assert.equal(r.guardaPropria, 'local-ou-elo');
 });
 
 /* ───────────────────────── invariantes de política ───────────────────────── */
@@ -340,7 +343,7 @@ test('auditoria original: todas as rotas listadas na auditoria estão no manifes
 test('rotas novas (fora da auditoria original) estão identificadas e conhecidas', () => {
   const original = new Set(M.AUDITORIA_ORIGINAL);
   const novas = [...new Set(M.ROTAS.filter((r) => !original.has(`${r.metodo} ${r.caminho}`)).map((r) => `${r.metodo} ${r.caminho}`))].sort();
-  assert.deepEqual(novas, [...M.ROTAS_NOVAS_NA_C0, ...M.ROTAS_NOVAS_ENTREGA_1].sort());
+  assert.deepEqual(novas, [...M.ROTAS_NOVAS_NA_C0, ...M.ROTAS_NOVAS_ENTREGA_1, ...M.ROTAS_NOVAS_ENTREGA_2].sort());
 });
 
 test('números do manifesto (por servidor e classe) não mudam sem revisão consciente', () => {

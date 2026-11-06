@@ -103,7 +103,7 @@ const { resolverBastao } = require('./sessaoControlador');
 
 function mundo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-sess-'));
-  const acesso = criarControleAcesso({ allowlistPath: () => path.join(dir, 'a.json'), emitParaSocket() {}, broadcast() {}, notificar() {} });
+  const acesso = criarControleAcesso({ opcoes: { inscricaoAutomatica: true }, allowlistPath: () => path.join(dir, 'a.json'), emitParaSocket() {}, broadcast() {}, notificar() {} });
   acesso.autenticar({ deviceId: 'pc-1', secret: 's' });
   acesso.autenticar({ deviceId: 'pc-2', secret: 's' });
   acesso.registrarControlador('A', { deviceId: 'pc-1', nome: 'PC1 janela 1' }); // primário

@@ -92,6 +92,9 @@ module.exports = {
   eloChaves: require('./eloChaves'),
   eloPareamento: require('./eloPareamento'),
   sessaoControlador: require('./sessaoControlador'),
+  /* Entrega 2: guardas por rota (credencial, local-ou-elo, limite de corpo/taxa) e diálogos do operador. */
+  guardasRotas: require('./guardasRotas'),
+  dialogoDispositivos: require('./dialogoDispositivos'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),

@@ -22,7 +22,7 @@ function novoControle(opcoes = {}, modo = null) {
     emitParaSocket: (id, evt, dados) => emitidos.push([id, evt, dados]),
     broadcast: (evt, dados) => broadcasts.push([evt, dados]),
     notificar: (evt, dados) => notificados.push([evt, dados]),
-    opcoes,
+    opcoes: { inscricaoAutomatica: true, ...opcoes },
   });
   return { ac, dir, allowlistPath, emitidos, notificados, broadcasts };
 }
@@ -218,6 +218,9 @@ test('locked: desconhecido pendente; aprovar autoriza; revogar remove; destravar
   assert.equal(ac.autenticar({ deviceId: 'd1', secret: 's1' }).ok, true);
 
   assert.equal(ac.revogarDispositivo('d1'), true);
+  // Entrega 2: revogado NÃO volta a «desconhecido» sozinho; só o operador o readmite (ver controleAcesso.inscricao.test.js)
+  assert.equal(ac.autenticar({ deviceId: 'd1', secret: 's1' }).motivo, 'revogado');
+  assert.equal(ac.readmitirDispositivo('d1'), true);
   assert.equal(ac.autenticar({ deviceId: 'd1', secret: 's1' }).pendente, true); // volta a desconhecido
 
   ac.destravar();
@@ -242,7 +245,7 @@ test('allowlist: auto-inscrição persiste em disco (nova instância enxerga o d
   ac.autenticar({ deviceId: 'd1', secret: 's1', nome: 'PC3' }); // TOFU auto-inscreve + salva
 
   // Nova instância apontando para o MESMO arquivo
-  const ac2 = criarControleAcesso({
+  const ac2 = criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath,
     emitParaSocket: () => {},
     broadcast: () => {},
@@ -267,7 +270,7 @@ test('sem credencial o dispositivo conecta mas não é autorizado a comandar', (
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-acesso-local-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-  const acesso = criarControleAcesso({
+  const acesso = criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath: () => path.join(dir, 'allowlist.json'),
     emitParaSocket: () => {},
     broadcast: () => {},
@@ -286,7 +289,7 @@ test('tofu: o primeiro acesso inscreve-se e o seguinte é reconhecido', (t) => {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const allowlistPath = () => path.join(dir, 'allowlist.json');
 
-  const acesso = criarControleAcesso({
+  const acesso = criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath,
     emitParaSocket: () => {},
     broadcast: () => {},
@@ -305,7 +308,7 @@ test('travado: um dispositivo novo fica de fora até ser aprovado', (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-acesso-local-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
-  const acesso = criarControleAcesso({
+  const acesso = criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath: () => path.join(dir, 'allowlist.json'),
     emitParaSocket: () => {},
     broadcast: () => {},

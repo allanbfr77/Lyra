@@ -195,6 +195,8 @@ app.whenReady().then(() => {
     logError,
     /* Entrega 1: o pareamento do elo só vale com a aprovação do operador desta máquina. */
     pedirAprovacaoPareamento: criarPedirAprovacaoPareamento({ dialog, obterJanela: () => ctx.windowControl }),
+    /* Entrega 2: diálogos do operador para inscrever/aprovar dispositivos. */
+    dialog,
     windowsApi,
     reiniciarApp: agendarReinicioServidorElectron,
     encerrarParaAtualizacao: encerrarServidorParaAtualizacao,

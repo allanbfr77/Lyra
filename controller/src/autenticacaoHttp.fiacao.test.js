@@ -52,7 +52,7 @@ test('servidor (5510): a autenticação entra depois da proteção de rede e ant
   const protecao = pos(src, /expressApp\.use\(\s*protecaoRede\.middleware\s*\)/);
   const auth = pos(src, /expressApp\.use\(\s*autenticacaoHttp\.middleware\s*\)/);
   assert.ok(protecao > 0 && auth > protecao, 'a autenticação deve vir depois da proteção de rede');
-  for (const re of [/attachProxyMusicaAoControlador\(expressApp/, /expressApp\.use\(express\.json/, /expressApp\.get\('\/api\/identity'/]) {
+  for (const re of [/attachProxyMusicaAoControlador\(expressApp/, /expressApp\.use\((?:express\.json|guardas\.selecionarJson)/, /expressApp\.get\('\/api\/identity'/]) {
     assert.ok(pos(src, re) > auth, `${re} deve vir DEPOIS da autenticação`);
   }
   assert.match(src, /ctx\.acesso\.verificarCredencial\s*\(/, 'o Servidor verifica na allowlist real');

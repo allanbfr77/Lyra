@@ -28,7 +28,7 @@ function novoAcesso(modo = null) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-c2-'));
   const allowlistPath = () => path.join(dir, 'allow.json');
   if (modo) fs.writeFileSync(allowlistPath(), JSON.stringify({ modo, devices: {} }));
-  return controleAcesso.criarControleAcesso({ allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
+  return controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true }, allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
 }
 
 /** Mesma fiação do httpServer.js: verificar pura + gancho do bastão sobre a função compartilhada. */

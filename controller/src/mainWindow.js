@@ -99,7 +99,7 @@ function setUpdateStatusTitle(ctx, status) {
   w.setTitle(`${base} — ${status}`);
 }
 
-function postOpenDisplayDevtoolsHttp(apiPath = 'api/open-display-devtools') {
+function postOpenDisplayDevtoolsHttp(apiPath = 'api/open-display-devtools', assinar = null) {
   const base = SERVER_URL.endsWith('/') ? SERVER_URL : `${SERVER_URL}/`;
   const url = new URL(apiPath, base);
   const lib = url.protocol === 'https:' ? https : http;
@@ -111,7 +111,8 @@ function postOpenDisplayDevtoolsHttp(apiPath = 'api/open-display-devtools') {
         port,
         path: url.pathname,
         method: 'POST',
-        headers: { 'Content-Length': 0 },
+        // Entrega 2: o Servidor só aceita DevTools da própria máquina ou com o elo; com pareamento a chamada vai assinada.
+        headers: { 'Content-Length': 0, ...(viaDoElo(assinar, 'POST', url.pathname, Buffer.alloc(0)) ? { 'X-Lyra-Via': viaDoElo(assinar, 'POST', url.pathname, Buffer.alloc(0)) } : {}) },
       },
       (res) => {
         const chunks = [];
@@ -307,7 +308,9 @@ async function abrirConsoleProjecaoServidor(
   let janelas = null;
 
   try {
-    const body = await postOpenDisplayDevtoolsHttp(httpPath);
+    const body = await postOpenDisplayDevtoolsHttp(httpPath, (i) => (ctx.eloControlador
+      ? ctx.eloControlador.assinarParaServidor({ base: SERVER_URL, ...i })
+      : null));
     janelas = typeof body.janelas === 'number' ? body.janelas : null;
   } catch (e) {
     await dialog.showMessageBox(w || undefined, {
@@ -567,6 +570,22 @@ function criarMenuAplicativo(ctx, updaterApi, companionApi) {
           label: 'Reiniciar servidor',
           visible: !ctx.projecaoLocal?.estaActiva(),
           click: () => enviarComandoMenuAoRenderer(ctx, 'tools-restart-local-server'),
+        },
+        {
+          /* Entrega 2: dispositivos do motor local (modo «projetar nesta máquina»). */
+          label: 'Abrir inscrição de dispositivos (5 min)',
+          visible: !!ctx.projecaoLocal?.estaActiva(),
+          click: () => { const d = ctx.projecaoLocal?.dialogosDispositivos?.(); if (d) void d.abrirJanela(); },
+        },
+        {
+          label: 'Fechar inscrição de dispositivos',
+          visible: !!ctx.projecaoLocal?.estaActiva(),
+          click: () => { const d = ctx.projecaoLocal?.dialogosDispositivos?.(); if (d) void d.fecharJanela(); },
+        },
+        {
+          label: 'Aprovar dispositivos pendentes…',
+          visible: !!ctx.projecaoLocal?.estaActiva(),
+          click: () => { const d = ctx.projecaoLocal?.dialogosDispositivos?.(); if (d) void d.aprovarPendentes(); },
         },
         {
           /* Entrega 1: autentica a comunicação Controlador↔Servidor. Exige APROVAÇÃO no PC do Servidor. */

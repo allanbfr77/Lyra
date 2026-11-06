@@ -215,7 +215,7 @@ const achar = (srv, marca, metodo) => srv.recs.filter((r) => r.url.includes(marc
 app.on('window-all-closed', () => {});
 
 app.whenReady().then(async () => {
-  const acesso = controleAcesso.criarControleAcesso({
+  const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath: () => path.join(TMP, 'allow.json'),
     emitParaSocket: () => {},
     broadcast: () => {},
