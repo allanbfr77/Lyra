@@ -82,6 +82,10 @@ function montarApp(usar) {
   app.get('/api/display-config', (_req, res) => conta(res, { cfg: 1 }));
   app.put('/api/display-config', express.json(), (_req, res) => conta(res));
   app.get('/api/monitores', (_req, res) => conta(res, []));
+  /* As três rotas que a janela de Histórico usa (listar, apagar um, limpar tudo). */
+  app.get('/api/historico', (_req, res) => conta(res, []));
+  app.delete('/api/historico/:id', (_req, res) => conta(res));
+  app.post('/api/historico/limpar', express.json(), (_req, res) => conta(res));
   /* Rota "só da própria máquina", como `soDestaMaquina` do controlador: confia no IP. */
   app.post('/api/apresentacao/midia/importar', express.json(), (req, res) => {
     const addr = String(req.socket.remoteAddress || '');
@@ -103,8 +107,13 @@ async function comServidor(usar, fn) {
   }
 }
 
+/** IP desta máquina nos testes (determinístico: não depende da placa de rede de quem roda). */
+const IP_DA_MAQUINA = '192.168.1.10';
+/** Um terceiro: outro PC da mesma rede (nunca é esta máquina). */
+const IP_DE_TERCEIRO = '192.168.1.77';
+
 function novaProtecao(env = {}) {
-  return acessoRede.criarProtecaoRede({ env, hostnameMaquina: NOME_MAQUINA });
+  return acessoRede.criarProtecaoRede({ env, hostnameMaquina: NOME_MAQUINA, enderecosMaquina: [IP_DA_MAQUINA] });
 }
 
 /* ─────────────── Comportamento anterior (réplica do bloco antigo) ─────────────── */
@@ -306,20 +315,18 @@ test('Origin ausente + Sec-Fetch-Site: cross-site: escrita é recusada (navegado
   });
 });
 
-/* ───────────────── Origin "null"/"file://" (telas de projeção) ───────────────── */
+/* ───────── Origin "null" e "file://" — e o que o Electron REALMENTE envia ─────────
+ *
+ * Observado no Electron 29.4.6: janelas file:// NÃO mandam Origin em fetch/XHR (só
+ * Sec-Fetch-Site: cross-site); só o WebSocket manda "Origin: file://". "Origin: null" vem de
+ * iframes isolados e páginas data: de sites comuns — nunca de uma janela do Lyra. */
 
-test('Origin null/file://: só os GET que as telas usam; o resto é recusado', async () => {
+test('Origin null é recusada em HTTP, em TODOS os caminhos e métodos (inclusive os dois GET das telas)', async () => {
   const p = novaProtecao();
   await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
-    for (const origin of ['null', 'file://']) {
-      const cfg = await requisitar(porta, { caminho: '/api/display-config', headers: { Origin: origin } });
-      assert.strictEqual(cfg.status, 200, origin);
-      assert.strictEqual(cfg.headers['access-control-allow-origin'], origin === 'null' ? 'null' : 'file://');
-      const mon = await requisitar(porta, { caminho: '/api/monitores', headers: { Origin: origin } });
-      assert.strictEqual(mon.status, 200, origin);
-    }
-    const antes = execucoes.total;
     for (const [method, caminho] of [
+      ['GET', '/api/display-config'],
+      ['GET', '/api/monitores'],
       ['GET', '/api/musicas'],
       ['GET', '/estatico.txt'],
       ['PUT', '/api/display-config'],
@@ -336,27 +343,108 @@ test('Origin null/file://: só os GET que as telas usam; o resto é recusado', a
       assert.strictEqual(r.status, 403, `${method} ${caminho} com Origin null`);
       assert.strictEqual(r.headers['access-control-allow-origin'], undefined);
     }
-    assert.strictEqual(execucoes.total, antes, 'nenhum handler extra pode executar');
+    assert.strictEqual(execucoes.total, 0, 'nenhum handler pode executar para Origin null');
   });
 });
 
-test('preflight com Origin null: só nos caminhos de leitura das telas', async () => {
+test('Origin file:// também é recusada em HTTP (só vale no Socket.IO, como visualizador)', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    for (const [method, caminho] of [
+      ['GET', '/api/display-config'],
+      ['GET', '/api/monitores'],
+      ['GET', '/api/musicas'],
+      ['POST', '/api/musicas'],
+      ['DELETE', '/api/musicas/1'],
+    ]) {
+      const r = await requisitar(porta, {
+        method,
+        caminho,
+        headers: { Origin: 'file://' },
+        corpo: method === 'POST' ? { a: 1 } : undefined,
+      });
+      assert.strictEqual(r.status, 403, `${method} ${caminho} com Origin file://`);
+      assert.strictEqual(r.headers['access-control-allow-origin'], undefined);
+    }
+    assert.strictEqual(execucoes.total, 0);
+  });
+});
+
+test('preflight com Origin null ou file:// é recusado em qualquer caminho', async () => {
   const p = novaProtecao();
   await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
-    const ok = await requisitar(porta, {
-      method: 'OPTIONS',
-      caminho: '/api/monitores',
-      headers: { Origin: 'null', 'Access-Control-Request-Method': 'GET' },
-    });
-    assert.strictEqual(ok.status, 204);
-    assert.strictEqual(ok.headers['access-control-allow-origin'], 'null');
-    const nao = await requisitar(porta, {
-      method: 'OPTIONS',
-      caminho: '/api/musicas',
-      headers: { Origin: 'null', 'Access-Control-Request-Method': 'DELETE' },
-    });
-    assert.strictEqual(nao.status, 403);
+    for (const origin of ['null', 'file://']) {
+      for (const caminho of ['/api/monitores', '/api/display-config', '/api/musicas']) {
+        const r = await requisitar(porta, {
+          method: 'OPTIONS',
+          caminho,
+          headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+        });
+        assert.strictEqual(r.status, 403, `${origin} ${caminho}`);
+        assert.strictEqual(r.headers['access-control-allow-origin'], undefined);
+      }
+    }
   });
+});
+
+test('Origin AUSENTE não é Origin null: janelas file:// do Electron (sem Origin) leem as telas como antes', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
+    const eletron = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors', 'User-Agent': 'Mozilla/5.0 Chrome/122 Electron/29.4.6' };
+    const cfg = await requisitar(porta, { caminho: '/api/display-config', headers: { ...eletron, Host: `localhost:${porta}` } });
+    assert.strictEqual(cfg.status, 200);
+    const mon = await requisitar(porta, { caminho: '/api/monitores', headers: { ...eletron, Host: `127.0.0.1:${porta}` } });
+    assert.strictEqual(mon.status, 200);
+  });
+});
+
+test('janela file:// do Electron não escreve na API (sem Origin + cross-site): recusada por desenho', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const eletron = { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors' };
+    for (const [method, caminho] of [['POST', '/api/historico/limpar'], ['DELETE', '/api/historico/1'], ['PUT', '/api/display-config']]) {
+      const r = await requisitar(porta, { method, caminho, headers: eletron, corpo: method === 'DELETE' ? undefined : { a: 1 } });
+      assert.strictEqual(r.status, 403, `${method} ${caminho}`);
+    }
+    assert.strictEqual(execucoes.total, 0);
+  });
+});
+
+/* ───────── Janela de Histórico (ajuste A): carregada pelo servidor local ───────── */
+
+test('janela de Histórico via http://127.0.0.1:3001 (cabeçalhos observados no Electron): GET, POST e DELETE funcionam', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const mesmaOrigem = { 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'cors', 'User-Agent': 'Mozilla/5.0 Chrome/122 Electron/29.4.6', Host: `127.0.0.1:${porta}` };
+    /* O Electron manda Origin só em POST/DELETE (GET same-origin vai sem Origin). */
+    const origem = { Origin: 'http://127.0.0.1:3001' };
+    const lista = await requisitar(porta, { caminho: '/api/historico?periodo=hoje', headers: mesmaOrigem });
+    assert.strictEqual(lista.status, 200, 'GET listagem');
+    const limpar = await requisitar(porta, { method: 'POST', caminho: '/api/historico/limpar', headers: { ...mesmaOrigem, ...origem }, corpo: { confirmar: true } });
+    assert.strictEqual(limpar.status, 200, 'POST (limpeza)');
+    const apagar = await requisitar(porta, { method: 'DELETE', caminho: '/api/historico/1', headers: { ...mesmaOrigem, ...origem } });
+    assert.strictEqual(apagar.status, 200, 'DELETE (exclusão individual)');
+    assert.strictEqual(execucoes.total, 3);
+  });
+});
+
+test('historico.html é servido pelo servidor local (static) e a CSP permite a API da 3001', async () => {
+  const p = novaProtecao();
+  const publico = path.join(__dirname, '..', 'public');
+  await comServidor(
+    (app) => {
+      app.use(p.middleware);
+      app.use(express.static(publico));
+    },
+    async ({ porta }) => {
+      const r = await requisitar(porta, { caminho: '/historico.html', headers: { Host: `127.0.0.1:${porta}`, 'Sec-Fetch-Site': 'none' } });
+      assert.strictEqual(r.status, 200);
+      assert.match(r.texto, /Histórico e relatórios/);
+      assert.match(r.texto, /connect-src http:\/\/127\.0\.0\.1:3001/);
+      const rebinding = await requisitar(porta, { caminho: '/historico.html', headers: { Host: 'rebind.attacker.com' } });
+      assert.strictEqual(rebinding.status, 403);
+    }
+  );
 });
 
 /* ───────────────────── Cabeçalhos manipulados / página externa ───────────────────── */
@@ -423,6 +511,85 @@ test('página externa não consegue usar rota "só da própria máquina" mesmo c
   });
 });
 
+/* ───────── Origens de terceiros, da própria máquina e cadastradas (ajuste C) ───────── */
+
+test('IP privado de TERCEIROS (outro PC da rede) é bloqueado em HTTP, mesmo nas portas do Lyra', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const origens = [
+      `http://${IP_DE_TERCEIRO}:5001`,
+      `http://${IP_DE_TERCEIRO}:3001`,
+      'http://10.0.0.7:5510',
+      'http://maquina-do-atacante:5001',
+      'http://atacante.local:5001',
+    ];
+    for (const origin of origens) {
+      for (const host of [`127.0.0.1:${porta}`, `${IP_DA_MAQUINA}:${porta}`]) {
+        const get = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: origin, Host: host } });
+        assert.strictEqual(get.status, 403, `GET Origin ${origin} Host ${host}`);
+        assert.strictEqual(get.headers['access-control-allow-origin'], undefined);
+        const post = await requisitar(porta, { method: 'POST', caminho: '/api/apresentacao/midia/importar', headers: { Origin: origin, Host: host }, corpo: { id: 'x', filePath: 'C:/segredo.mp3' } });
+        assert.strictEqual(post.status, 403, `POST rota só-local, Origin ${origin}`);
+        const pre = await requisitar(porta, { method: 'OPTIONS', caminho: '/api/musicas', headers: { Origin: origin, Host: host, 'Access-Control-Request-Method': 'DELETE' } });
+        assert.strictEqual(pre.status, 403);
+      }
+    }
+    assert.strictEqual(execucoes.total, 0);
+  });
+});
+
+test('origem da PRÓPRIA máquina (IP ou nome dela) é aceita, mesmo com outro Host', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
+    for (const origin of [
+      `http://${IP_DA_MAQUINA}:5001`,
+      `http://${IP_DA_MAQUINA}:3001`,
+      `http://${NOME_MAQUINA}:5001`,
+      `http://${NOME_MAQUINA.toUpperCase()}:5001`,
+      `http://${NOME_MAQUINA}.local:5510`,
+      'http://127.0.0.1:5001',
+      'http://localhost:5001',
+    ]) {
+      const r = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: origin, Host: `127.0.0.1:${porta}` } });
+      assert.strictEqual(r.status, 200, origin);
+      assert.strictEqual(r.headers['access-control-allow-origin'], origin.replace(/^(https?:\/\/)([^:/]+)/i, (_m, e, h) => e + h.toLowerCase()));
+    }
+  });
+});
+
+test('origem com o MESMO host da requisição é aceita (OBS servido pelo Lyra por NAT/VPN/nome cadastrado)', async () => {
+  const p = novaProtecao({ LYRA_HOSTS_PERMITIDOS: 'lyra.igreja.org.br' });
+  await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
+    const casos = [
+      ['http://172.20.0.5:5001', `172.20.0.5:${porta}`],
+      ['http://lyra.igreja.org.br:5001', `lyra.igreja.org.br:${porta}`],
+    ];
+    for (const [origin, host] of casos) {
+      const r = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: origin, Host: host } });
+      assert.strictEqual(r.status, 200, origin);
+    }
+    /* O mesmo nome como origem, mas a requisição indo para OUTRO host: não vale. */
+    const outro = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: 'http://lyra.igreja.org.br:5001', Host: `127.0.0.1:${porta}` } });
+    assert.strictEqual(outro.status, 403);
+  });
+});
+
+test('LYRA_ORIGENS_PERMITIDAS: a origem cadastrada funciona (inclusive de terceiros); as demais continuam bloqueadas', async () => {
+  const p = novaProtecao({ LYRA_ORIGENS_PERMITIDAS: `http://${IP_DE_TERCEIRO}:8081, http://localhost:8081` });
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const cadastrada = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: `http://${IP_DE_TERCEIRO}:8081`, Host: `127.0.0.1:${porta}` } });
+    assert.strictEqual(cadastrada.status, 200);
+    assert.strictEqual(cadastrada.headers['access-control-allow-origin'], `http://${IP_DE_TERCEIRO}:8081`);
+    const dev = await requisitar(porta, { method: 'POST', caminho: '/api/musicas', headers: { Origin: 'http://localhost:8081' }, corpo: { a: 1 } });
+    assert.strictEqual(dev.status, 200);
+    const outraPorta = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: `http://${IP_DE_TERCEIRO}:5001` } });
+    assert.strictEqual(outraPorta.status, 403);
+    const outroHost = await requisitar(porta, { caminho: '/api/musicas', headers: { Origin: 'http://192.168.1.78:8081' } });
+    assert.strictEqual(outroHost.status, 403);
+    assert.strictEqual(execucoes.total, 2);
+  });
+});
+
 /* ───────────────────── Clientes legítimos do Lyra (compatibilidade) ───────────────────── */
 
 test('compatibilidade: cada cliente legítimo do Lyra continua sendo atendido', async () => {
@@ -439,15 +606,19 @@ test('compatibilidade: cada cliente legítimo do Lyra continua sendo atendido', 
       ['mobile por nome da máquina', { Host: `${NOME_MAQUINA}:${porta}` }, 'GET', '/api/musicas'],
       ['mobile que envia Origin do servidor', { Origin: `http://${ip}:5510`, Host: `${ip}:${porta}` }, 'GET', '/api/musicas'],
       ['proxy do servidor → controlador (Node, sem Origin)', { Host: `${ip}:${porta}` }, 'GET', '/api/musicas'],
-      ['tela de projeção em file:// lendo a config', { Origin: 'null', Host: `localhost:${porta}` }, 'GET', '/api/display-config'],
-      ['janela de controle do servidor (file://) lendo monitores', { Origin: 'null', Host: `127.0.0.1:${porta}` }, 'GET', '/api/monitores'],
+      ['OBS no próprio servidor (origem loopback)', { Origin: 'http://127.0.0.1:5001', Host: `127.0.0.1:${porta}` }, 'GET', '/api/musicas'],
+      ['OBS no próprio servidor (origem pelo IP do servidor)', { Origin: `http://${ip}:5001`, Host: `127.0.0.1:${porta}` }, 'GET', '/api/musicas'],
+      ['tela de projeção em file:// lendo a config (Electron: sem Origin, cross-site)', { 'Sec-Fetch-Site': 'cross-site', Host: `localhost:${porta}` }, 'GET', '/api/display-config'],
+      ['janela de controle do servidor (file://, sem Origin) lendo monitores', { 'Sec-Fetch-Site': 'cross-site', Host: `127.0.0.1:${porta}` }, 'GET', '/api/monitores'],
+      ['janela de Histórico (loadURL, POST com Origin do painel)', { Origin: 'http://127.0.0.1:3001', 'Sec-Fetch-Site': 'same-origin', Host: `127.0.0.1:${porta}` }, 'POST', '/api/historico/limpar'],
+      ['janela de Histórico (loadURL, DELETE com Origin do painel)', { Origin: 'http://127.0.0.1:3001', 'Sec-Fetch-Site': 'same-origin', Host: `127.0.0.1:${porta}` }, 'DELETE', '/api/historico/1'],
     ];
     for (const [nome, headers, method, caminho] of clientes) {
       const r = await requisitar(porta, {
         method,
         caminho,
         headers,
-        corpo: method === 'GET' ? undefined : { ok: 1 },
+        corpo: method === 'GET' || method === 'DELETE' ? undefined : { ok: 1 },
       });
       assert.strictEqual(r.status, 200, nome);
     }
@@ -566,21 +737,48 @@ test('Socket.IO: cliente sem Origin (mobile) conecta e se autentica normalmente'
   });
 });
 
-test('Socket.IO: tela em file:// (Origin file:// ou null) conecta só como VISUALIZADOR e não se auto-inscreve (TOFU)', async () => {
+test('Socket.IO: tela em file:// (Origin file://) conecta só como VISUALIZADOR e não se auto-inscreve (TOFU)', async () => {
   await comSocketIo(async ({ porta, conexoes, lerAllowlist }) => {
-    for (const origin of ['file://', 'null']) {
-      const r = await conectarWs(porta, {
-        headers: { Origin: origin },
-        auth: { deviceId: `atacante-${origin}`, secret: 'x'.repeat(12) },
-      });
-      assert.strictEqual(r.aberto, true, origin);
-    }
-    assert.strictEqual(conexoes.length, 2);
-    for (const c of conexoes) {
-      assert.strictEqual(c.autorizado, false);
-      assert.strictEqual(c.motivo, 'origem-opaca');
-    }
-    assert.deepStrictEqual(Object.keys(lerAllowlist().devices || {}), [], 'nenhum dispositivo pode ser inscrito por origem opaca');
+    const r = await conectarWs(porta, {
+      headers: { Origin: 'file://' },
+      auth: { deviceId: 'atacante-file', secret: 'x'.repeat(12) },
+    });
+    assert.strictEqual(r.aberto, true);
+    assert.strictEqual(conexoes.length, 1);
+    assert.strictEqual(conexoes[0].autorizado, false);
+    assert.strictEqual(conexoes[0].motivo, 'origem-opaca');
+    assert.deepStrictEqual(Object.keys(lerAllowlist().devices || {}), [], 'nenhum dispositivo pode ser inscrito por file://');
+  });
+});
+
+test('Socket.IO: Origin null é recusada (WebSocket e polling), com ou sem credenciais', async () => {
+  await comSocketIo(async ({ porta, conexoes, lerAllowlist }) => {
+    const recusado = (r) => r.aberto === false && [400, 403].includes(r.status);
+    const ws = await conectarWs(porta, { headers: { Origin: 'null' }, auth: { deviceId: 'atacante-null', secret: 'x'.repeat(12) } });
+    assert.ok(recusado(ws), JSON.stringify(ws));
+    const polling = await requisitar(porta, { caminho: '/socket.io/?EIO=4&transport=polling', headers: { Origin: 'null' } });
+    assert.strictEqual(polling.status, 403);
+    assert.strictEqual(polling.headers['access-control-allow-origin'], undefined);
+    assert.strictEqual(conexoes.length, 0);
+    assert.deepStrictEqual(Object.keys(lerAllowlist().devices || {}), []);
+  });
+});
+
+test('Socket.IO: página de IP privado de TERCEIROS é recusada; a da própria máquina e o OBS conectam', async () => {
+  await comSocketIo(async ({ porta, conexoes }) => {
+    const recusado = (r) => r.aberto === false && [400, 403].includes(r.status);
+    const terceiro = await conectarWs(porta, { headers: { Origin: `http://${IP_DE_TERCEIRO}:5001` } });
+    assert.ok(recusado(terceiro), JSON.stringify(terceiro));
+    const terceiroPolling = await requisitar(porta, { caminho: '/socket.io/?EIO=4&transport=polling', headers: { Origin: `http://${IP_DE_TERCEIRO}:3001` } });
+    assert.strictEqual(terceiroPolling.status, 403);
+    assert.strictEqual(conexoes.length, 0);
+    const propria = await conectarWs(porta, { headers: { Origin: `http://${IP_DA_MAQUINA}:5001` } });
+    assert.strictEqual(propria.aberto, true);
+    const obsMesmoHost = await conectarWs(porta, { headers: { Origin: `http://${NOME_MAQUINA}:5001`, Host: `${NOME_MAQUINA}:${porta}` } });
+    assert.strictEqual(obsMesmoHost.aberto, true);
+    const polling = await requisitar(porta, { caminho: '/socket.io/?EIO=4&transport=polling', headers: { Origin: `http://${IP_DA_MAQUINA}:5001` } });
+    assert.strictEqual(polling.status, 200);
+    assert.strictEqual(polling.headers['access-control-allow-origin'], `http://${IP_DA_MAQUINA}:5001`);
   });
 });
 
@@ -594,7 +792,8 @@ test('Socket.IO (polling): handshake HTTP respeita Host/Origin e CORS', async ()
     assert.strictEqual(semOrigin.status, 200);
     assert.strictEqual(semOrigin.headers['access-control-allow-origin'], undefined);
     const nulo = await requisitar(porta, { caminho: url, headers: { Origin: 'null' } });
-    assert.strictEqual(nulo.status, 200);
+    assert.strictEqual(nulo.status, 403);
+    assert.strictEqual(nulo.headers['access-control-allow-origin'], undefined);
     const externo = await requisitar(porta, { caminho: url, headers: { Origin: 'https://evil.example' } });
     assert.strictEqual(externo.status, 403);
     assert.strictEqual(externo.headers['access-control-allow-origin'], undefined);

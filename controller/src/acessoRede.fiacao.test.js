@@ -75,6 +75,26 @@ test('servidor (5001, OBS): o overlay também passa pela proteção, antes das r
   assert.ok(pos(src, /obsApp\.get\('\/obs'/) > protecaoObs);
 });
 
+test('janela de Histórico: carregada pelo servidor local (loadURL), nunca por file://', () => {
+  const src = ler('controller/src/historicoWindow.js');
+  /* Por file:// o Electron não manda Origin e marca a requisição como cross-site, e a proteção
+     recusaria o DELETE e o POST da janela. Pelo servidor local ela é same-origin, como o painel. */
+  assert.doesNotMatch(src, /\.loadFile\s*\(/);
+  assert.match(src, /\{\s*HTTP_CONTROLLER_PORT\s*\}\s*=\s*require\('\.\/httpControllerServer'\)/);
+  assert.match(src, /\.loadURL\(\s*`http:\/\/127\.0\.0\.1:\$\{HTTP_CONTROLLER_PORT\}\/historico\.html`\s*\)/);
+  /* Continua isolada: sem Node na página, com isolamento de contexto e sandbox. */
+  assert.match(src, /nodeIntegration:\s*false/);
+  assert.match(src, /contextIsolation:\s*true/);
+  assert.match(src, /sandbox:\s*true/);
+});
+
+test('o Histórico é servido pela pasta estática do controlador (rota disponível)', () => {
+  assert.ok(fs.existsSync(path.join(RAIZ, 'controller/public/historico.html')));
+  const srv = ler(ARQUIVOS.controlador);
+  assert.match(srv, /express\.static\(publicDir\)/);
+  assert.match(srv, /const publicDir = path\.join\(__dirname, '\.\.\/public'\)/);
+});
+
 test('projeção local (controlador): API, Socket.IO e OBS protegidos antes das rotas', () => {
   const src = ler(ARQUIVOS.projecaoLocal);
   assert.match(src, /allowRequest\s*:\s*protecaoRede\.allowRequest/);
