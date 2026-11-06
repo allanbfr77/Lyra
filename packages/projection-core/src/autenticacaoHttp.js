@@ -1,0 +1,296 @@
+'use strict';
+
+/**
+ * Autenticação das APIs HTTP do Lyra (E1.3).
+ *
+ * O problema
+ * ----------
+ * Só o Socket.IO exige credencial (`deviceId` + `secret`, conferidos na allowlist). As rotas
+ * HTTP das portas 3001 e 5510 não exigem nada: a E1.2 barra navegadores de terceiros
+ * (Host/Origin), mas um cliente que não é navegador — curl, script, qualquer aparelho da LAN —
+ * passa e comanda tudo.
+ *
+ * O que este módulo faz NA FASE A
+ * -------------------------------
+ * NADA É BLOQUEADO. O middleware lê `X-Lyra-Device` / `X-Lyra-Secret`, pergunta ao
+ * verificador PURO (`controleAcesso.verificarCredencial`: não inscreve, não grava, não
+ * notifica) e REGISTRA o que seria recusado quando a autenticação for obrigatória. Com o
+ * registro de um culto real dá para saber, antes de impor, quais clientes (painel, celular,
+ * versões antigas do app) ainda não mandam credencial.
+ *
+ * Modos
+ * -----
+ *  - `desligado`: não faz nada (comportamento idêntico ao anterior à E1.3).
+ *  - `registrar`: avalia e registra; sempre deixa a requisição seguir. É o único usado.
+ *  - `impor`: recusa (401 sem/ com credencial inválida; 403 pendente). Existe e é testado,
+ *    mas NENHUM servidor o liga nesta fase.
+ *
+ * Políticas de rota (ver `classificarRota`)
+ * -----------------------------------------
+ *  publica · leitura · escrita · comando · loopback-estrito
+ *
+ * Segurança do registro: o `secret` nunca é registrado; o `deviceId` sai truncado; o caminho
+ * não inclui a query string e é limitado; eventos iguais são deduplicados e há um teto.
+ *
+ * Fora do escopo desta fase (de propósito): HMAC `X-Lyra-Via` entre 5510 e 3001, write-lock
+ * por dispositivo nos comandos, qualquer mudança em TOFU ou no Socket.IO.
+ */
+
+const path = require('path');
+
+const MODOS = new Set(['desligado', 'registrar', 'impor']);
+const MAX_REGISTROS_PADRAO = 500;
+const MAX_CAMINHO_REGISTRADO = 120;
+const MAX_CREDENCIAL = 256;
+const MAX_VERSAO_APP = 24;
+
+/* ───────────────────────── classificação de rotas ───────────────────────── */
+
+/**
+ * Normaliza o caminho para classificar: sem query, decodificado, com `.`/`..`/`//` resolvidos
+ * e em minúsculas (o Express casa rotas sem diferenciar maiúsculas). Assim uma rota crítica
+ * não é rebaixada por um caminho "enfeitado".
+ */
+function normalizarCaminho(bruto) {
+  let p = String(bruto || '/');
+  const q = p.indexOf('?');
+  if (q >= 0) p = p.slice(0, q);
+  const h = p.indexOf('#');
+  if (h >= 0) p = p.slice(0, h);
+  try {
+    p = decodeURIComponent(p);
+  } catch (_) {
+    /* percent-encoding inválido: classifica como veio */
+  }
+  p = p.replace(/\\/g, '/');
+  p = path.posix.normalize(`/${p}`).toLowerCase();
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+}
+
+const ROTAS_LOOPBACK_ESTRITO = [
+  /^\/api\/controladores(\/|$)/,
+  /^\/api\/internal(\/|$)/,
+  /^\/api\/docs(\/|$)/,
+  /^\/api\/apresentacao\/midia\/importar$/,
+  /^\/api\/sync\/banco\/pedido\/(aceitar|recusar)$/,
+];
+
+/**
+ * @param {string} metodo
+ * @param {string} caminho caminho (com ou sem query)
+ * @returns {'publica'|'leitura'|'escrita'|'comando'|'loopback-estrito'}
+ */
+function classificarRota(metodo, caminho) {
+  const m = String(metodo || 'GET').toUpperCase();
+  const p = normalizarCaminho(caminho);
+  const leituraSegura = m === 'GET' || m === 'HEAD';
+
+  if (p !== '/api' && !p.startsWith('/api/')) return 'publica'; // páginas, estáticos, /obs, /socket.io, /vosk-model
+  if (m === 'OPTIONS') return 'publica'; // preflight não carrega credencial
+
+  if (ROTAS_LOOPBACK_ESTRITO.some((r) => r.test(p))) return 'loopback-estrito';
+  if (leituraSegura && p === '/api/sync/banco/pedido') return 'loopback-estrito';
+
+  if (p === '/api/identity' && leituraSegura) return 'publica'; // usada antes do handshake
+  if (p.startsWith('/api/comando/')) return 'comando';
+  // Mídia da apresentação: <video>/<audio> não enviam cabeçalhos customizados. Fica pública
+  // por ora — risco residual registrado no relatório da E1.3.
+  if (leituraSegura && /^\/api\/apresentacao\/(video|midia)\//.test(p)) return 'publica';
+
+  return leituraSegura ? 'leitura' : 'escrita';
+}
+
+/* ───────────────────────── utilitários ───────────────────────── */
+
+function ipDoRequest(req) {
+  const bruto = String((req && req.socket && req.socket.remoteAddress) || '').trim();
+  return bruto.startsWith('::ffff:') ? bruto.slice(7) : bruto;
+}
+
+function ehLoopback(ip) {
+  return ip === '127.0.0.1' || ip === '::1';
+}
+
+function cabecalho(req, nome) {
+  const v = req && req.headers ? req.headers[nome] : undefined;
+  if (Array.isArray(v)) return String(v[0] || '');
+  return typeof v === 'string' ? v : '';
+}
+
+function deviceTruncado(deviceId) {
+  const id = String(deviceId || '');
+  if (!id) return '';
+  return `${id.slice(0, 8)}…`;
+}
+
+function versaoSaneada(valor) {
+  return String(valor || '').replace(/[^\w.-]/g, '').slice(0, MAX_VERSAO_APP);
+}
+
+function caminhoParaRegistro(req) {
+  let p = typeof req.path === 'string' && req.path ? req.path : String(req.originalUrl || req.url || '/');
+  const q = p.indexOf('?');
+  if (q >= 0) p = p.slice(0, q);
+  return p.length > MAX_CAMINHO_REGISTRADO ? `${p.slice(0, MAX_CAMINHO_REGISTRADO)}…` : p;
+}
+
+/** Troca ids no caminho por `:id` para a deduplicação não ser furada por /api/musicas/1, /2, … */
+function caminhoParaChave(p) {
+  return normalizarCaminho(p)
+    .split('/')
+    .map((seg) => (/^\d+$/.test(seg) || seg.length > 24 || /^[0-9a-f-]{16,}$/.test(seg) ? ':id' : seg))
+    .join('/');
+}
+
+/* ───────────────────────── fábrica ───────────────────────── */
+
+/**
+ * @param {object} [opcoes]
+ * @param {'desligado'|'registrar'|'impor'} [opcoes.modo] inválido → 'registrar'
+ * @param {string} [opcoes.contexto] 'servidor-5510' | 'controlador-3001' | 'local-5510'
+ * @param {(auth: {deviceId: string, secret: string}) => ({ok: boolean, classe: string}|null|undefined)} [opcoes.verificar]
+ *        Verificador puro. Pode devolver null/undefined (ainda indisponível → "nao-verificavel").
+ * @param {(evento: object) => void} [opcoes.registrar] recebe cada evento novo (deduplicado)
+ * @param {number} [opcoes.maxRegistros]
+ */
+function criarAutenticacaoHttp(opcoes = {}) {
+  const modo = MODOS.has(opcoes.modo) ? opcoes.modo : 'registrar';
+  const contexto = String(opcoes.contexto || 'desconhecido');
+  const verificar = typeof opcoes.verificar === 'function' ? opcoes.verificar : null;
+  const registrarFn = typeof opcoes.registrar === 'function' ? opcoes.registrar : null;
+  const maxRegistros = Number.isFinite(opcoes.maxRegistros) ? opcoes.maxRegistros : MAX_REGISTROS_PADRAO;
+
+  /** chave -> { total, evento } — alimenta o resumo e a deduplicação. */
+  const vistos = new Map();
+
+  function avaliarCredencial(req) {
+    const deviceId = cabecalho(req, 'x-lyra-device').trim().slice(0, MAX_CREDENCIAL);
+    const secret = cabecalho(req, 'x-lyra-secret').trim().slice(0, MAX_CREDENCIAL);
+    if (!deviceId || !secret) return { deviceId, ok: false, classe: 'ausente' };
+    let r = null;
+    try {
+      r = verificar ? verificar({ deviceId, secret }) : null;
+    } catch (_) {
+      r = null;
+    }
+    if (!r || typeof r !== 'object') return { deviceId, ok: null, classe: 'nao-verificavel' };
+    return { deviceId, ok: !!r.ok, classe: String(r.classe || (r.ok ? 'autorizado' : 'desconhecido')) };
+  }
+
+  function registrarEvento(evento, chaveExtra) {
+    const chave = [
+      contexto, evento.politica, evento.metodo, caminhoParaChave(evento.caminho),
+      evento.classe, evento.deviceId, evento.ip, evento.proxificada ? 'p' : '',
+      chaveExtra || '',
+    ].join('|');
+    const existente = vistos.get(chave);
+    if (existente) {
+      existente.total += 1;
+      return;
+    }
+    if (vistos.size >= maxRegistros) return;
+    vistos.set(chave, { total: 1, evento });
+    if (!registrarFn) return;
+    try {
+      registrarFn(evento);
+    } catch (_) {
+      /* o registro nunca pode derrubar a requisição */
+    }
+  }
+
+  function montarEvento(req, politica, extra) {
+    const app = cabecalho(req, 'x-lyra-app');
+    return {
+      evento: 'http-auth',
+      modo,
+      contexto,
+      politica,
+      metodo: String(req.method || 'GET').toUpperCase(),
+      caminho: caminhoParaRegistro(req),
+      deviceId: '',
+      classe: 'ausente',
+      ip: ipDoRequest(req),
+      temXLyraApp: !!app,
+      appVersao: versaoSaneada(app),
+      // Declarada pelo proxy 5510→3001; qualquer cliente pode forjá-la, então serve só de pista.
+      proxificada: cabecalho(req, 'x-lyra-proxy') === '1',
+      seriaRecusada: true,
+      ...extra,
+    };
+  }
+
+  function recusarImpor(res, classe) {
+    const pendente = classe === 'pendente';
+    res.statusCode = pendente ? 403 : 401;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({
+      ok: false,
+      erro: pendente ? 'Dispositivo aguardando aprovação.' : 'Credencial do dispositivo ausente ou inválida.',
+      motivo: classe,
+    }));
+  }
+
+  function middleware(req, res, next) {
+    if (modo === 'desligado') return next();
+
+    let decisao = { liberar: true };
+    try {
+      const politica = classificarRota(req.method, req.originalUrl || req.url || req.path);
+      if (politica === 'publica') return next();
+
+      if (politica === 'loopback-estrito') {
+        const ip = ipDoRequest(req);
+        const proxificada = cabecalho(req, 'x-lyra-proxy') === '1';
+        // Estas rotas são decididas pela guarda da própria rota (IP de loopback); aqui só
+        // se registra a tentativa de contorná-la: de fora da máquina ou por dentro do proxy.
+        if (proxificada) {
+          registrarEvento(montarEvento(req, politica, { classe: 'proxificada-em-rota-local' }));
+        } else if (!ehLoopback(ip)) {
+          registrarEvento(montarEvento(req, politica, { classe: 'nao-loopback' }));
+        }
+        return next();
+      }
+
+      const c = avaliarCredencial(req);
+      const aceita = c.ok === true;
+      if (!aceita) {
+        registrarEvento(
+          montarEvento(req, politica, {
+            deviceId: deviceTruncado(c.deviceId),
+            classe: c.classe,
+            seriaRecusada: c.ok === null ? null : true,
+          })
+        );
+      }
+      if (modo === 'impor' && c.ok !== true) decisao = { liberar: false, classe: c.classe };
+    } catch (_) {
+      /* falha interna do registro: a requisição segue como se o módulo não existisse */
+      decisao = { liberar: true };
+    }
+
+    if (!decisao.liberar) return recusarImpor(res, decisao.classe);
+    return next();
+  }
+
+  /** Contagem acumulada por evento distinto (inclui as repetições que a deduplicação omitiu). */
+  function resumo() {
+    return [...vistos.values()].map(({ total, evento }) => ({
+      total,
+      contexto: evento.contexto,
+      politica: evento.politica,
+      metodo: evento.metodo,
+      caminho: evento.caminho,
+      classe: evento.classe,
+      deviceId: evento.deviceId,
+      ip: evento.ip,
+      temXLyraApp: evento.temXLyraApp,
+      appVersao: evento.appVersao,
+      proxificada: evento.proxificada,
+    }));
+  }
+
+  return { middleware, modo, resumo };
+}
+
+module.exports = { criarAutenticacaoHttp, classificarRota, normalizarCaminho, MODOS };

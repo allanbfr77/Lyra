@@ -77,6 +77,8 @@ module.exports = {
   /* Host/Origin/CORS das portas HTTP e do Socket.IO (E1.2): os dois hosts e o controlador
      usam a mesma proteção, para nenhum servidor aceitar página externa nem DNS rebinding. */
   acessoRede: require('./acessoRede'),
+  /* Autenticação HTTP (E1.3). Fase A: só registra o que seria recusado; não bloqueia nada. */
+  autenticacaoHttp: require('./autenticacaoHttp'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),

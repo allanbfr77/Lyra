@@ -52,7 +52,7 @@ function attachProxyApresentacaoVideoAoControlador(expressApp, logError, getCtlH
         port: CTL_PORT,
         path: pathRaw,
         method: req.method,
-        headers: { ...req.headers, host: `${host}:${CTL_PORT}` },
+        headers: { ...req.headers, host: `${host}:${CTL_PORT}`, 'x-lyra-proxy': '1' },
         /* GET/HEAD de vídeo pode demorar (Range + ficheiros grandes). */
         timeout: isStream ? 0 : 120000,
       },

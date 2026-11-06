@@ -807,3 +807,90 @@ test('Socket.IO (polling): handshake HTTP respeita Host/Origin e CORS', async ()
     assert.strictEqual(preflight.headers['access-control-allow-origin'], undefined);
   });
 });
+
+/* ─────────────── E1.3 Fase A: CORS com os cabeçalhos de credencial ─────────────── */
+
+const CABECALHOS_LYRA = 'content-type,x-lyra-device,x-lyra-secret,x-lyra-app';
+
+test('E1.3 CORS: preflight do painel aceita X-Lyra-Device/Secret/App e o método PATCH, sem "*"', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
+    for (const metodo of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      const pre = await requisitar(porta, {
+        method: 'OPTIONS',
+        caminho: '/api/musicas/1/rotulo',
+        headers: {
+          Origin: 'http://127.0.0.1:3001',
+          'Access-Control-Request-Method': metodo,
+          'Access-Control-Request-Headers': CABECALHOS_LYRA,
+        },
+      });
+      assert.strictEqual(pre.status, 204, metodo);
+      assert.strictEqual(pre.headers['access-control-allow-origin'], 'http://127.0.0.1:3001');
+      assert.notStrictEqual(pre.headers['access-control-allow-origin'], '*');
+      const permitidos = String(pre.headers['access-control-allow-headers']).toLowerCase().split(',').map((s) => s.trim());
+      for (const h of CABECALHOS_LYRA.split(',')) assert.ok(permitidos.includes(h), `${h} deveria ser permitido`);
+      assert.ok(String(pre.headers['access-control-allow-methods']).split(',').map((s) => s.trim()).includes(metodo), metodo);
+    }
+  });
+});
+
+test('E1.3 CORS: os novos cabeçalhos não abrem a API para origem externa, null, file:// nem Host de rebinding', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const casos = [
+      ['site externo', { Origin: 'https://evil.example' }],
+      ['IP de terceiro na LAN', { Origin: `http://${IP_DE_TERCEIRO}:5510` }],
+      ['Origin null', { Origin: 'null' }],
+      ['file:// (só vale no Socket.IO)', { Origin: 'file://' }],
+      ['Host de DNS rebinding', { Origin: 'http://127.0.0.1:3001', Host: 'rebind.attacker.com:3001' }],
+    ];
+    for (const [nome, extra] of casos) {
+      const pre = await requisitar(porta, {
+        method: 'OPTIONS',
+        caminho: '/api/musicas',
+        headers: { 'Access-Control-Request-Method': 'PUT', 'Access-Control-Request-Headers': CABECALHOS_LYRA, ...extra },
+      });
+      assert.strictEqual(pre.status, 403, nome);
+      assert.strictEqual(pre.headers['access-control-allow-origin'], undefined, nome);
+      assert.strictEqual(pre.headers['access-control-allow-headers'], undefined, nome);
+
+      const real = await requisitar(porta, {
+        method: 'PUT',
+        caminho: '/api/display-config',
+        headers: { 'X-Lyra-Device': 'd', 'X-Lyra-Secret': 's', ...extra },
+        corpo: { a: 1 },
+      });
+      assert.strictEqual(real.status, 403, `${nome} (requisição real)`);
+    }
+    assert.strictEqual(execucoes.total, 0, 'nenhum handler executou');
+  });
+});
+
+test('E1.3 CORS: requisição real do painel com os cabeçalhos passa e a resposta nunca usa "*"', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta }) => {
+    const r = await requisitar(porta, {
+      method: 'PUT',
+      caminho: '/api/display-config',
+      headers: { Origin: 'http://127.0.0.1:3001', 'X-Lyra-Device': 'd', 'X-Lyra-Secret': 's', 'X-Lyra-App': '1.3.0', 'Sec-Fetch-Site': 'same-site' },
+      corpo: { a: 1 },
+    });
+    assert.strictEqual(r.status, 200);
+    assert.strictEqual(r.headers['access-control-allow-origin'], 'http://127.0.0.1:3001');
+  });
+});
+
+test('E1.3 CORS: escrita cross-site sem Origin continua recusada mesmo com credenciais', async () => {
+  const p = novaProtecao();
+  await comServidor((app) => app.use(p.middleware), async ({ porta, execucoes }) => {
+    const r = await requisitar(porta, {
+      method: 'POST',
+      caminho: '/api/musicas',
+      headers: { 'Sec-Fetch-Site': 'cross-site', 'X-Lyra-Device': 'd', 'X-Lyra-Secret': 's' },
+      corpo: { a: 1 },
+    });
+    assert.strictEqual(r.status, 403);
+    assert.strictEqual(execucoes.total, 0);
+  });
+});

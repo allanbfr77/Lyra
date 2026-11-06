@@ -22,7 +22,7 @@ const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
 const { registrarRotasLetras } = require('./rotas/letras');
 const { registrarRotasSyncInvbPlaylist } = require('./rotas/syncInvbPlaylist');
-const { acessoRede } = require('@lyra/projection-core');
+const { acessoRede, autenticacaoHttp: autenticacaoHttpCore } = require('@lyra/projection-core');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -90,6 +90,25 @@ async function iniciarServidorController(ctx, paths) {
       ),
   });
   expressApp.use(protecaoRede.middleware);
+
+  /*
+   * Autenticação HTTP (E1.3 — Fase A): só REGISTRA o que seria recusado quando a credencial
+   * passar a ser obrigatória; nada é bloqueado. A allowlist mora no Servidor (5510): aqui só
+   * há verificação real quando "projetar nesta máquina" está ativo (o Controlador hospeda a
+   * allowlist). Sem ela, credencial presente aparece como «nao-verificavel» e a ausência
+   * segue identificável. Declarada antes do leitor de JSON, dos estáticos e das rotas.
+   */
+  const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
+    modo: 'registrar',
+    contexto: 'controlador-3001',
+    verificar: (auth) =>
+      ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
+        ? ctx.projecaoLocal.verificarCredencial(auth)
+        : null,
+    registrar: (info) =>
+      console.warn(`[Lyra][auth-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
+  });
+  expressApp.use(autenticacaoHttp.middleware);
 
   expressApp.use(express.json({ limit: '800mb' }));
 

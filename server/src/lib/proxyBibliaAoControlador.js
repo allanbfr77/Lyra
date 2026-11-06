@@ -32,7 +32,7 @@ function attachProxyBibliaAoControlador(expressApp, logError) {
         port: CTL_PORT,
         path: pathRaw,
         method: req.method,
-        headers: { ...req.headers, host: `${CTL_HOST}:${CTL_PORT}` },
+        headers: { ...req.headers, host: `${CTL_HOST}:${CTL_PORT}`, 'x-lyra-proxy': '1' },
         timeout: 60000,
       },
       (inc) => {

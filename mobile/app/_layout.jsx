@@ -23,6 +23,10 @@ import {
 import { COLORS, FONTS, TYPE } from '../src/theme';
 import { SocketProvider } from '../src/SocketProvider';
 import HeaderHomeButton from '../src/HeaderHomeButton';
+import { instalarFetchLyra } from '../src/lyraFetch';
+
+/* E1.3 (Fase A): credencial do dispositivo só nas chamadas aos servidores do Lyra. */
+instalarFetchLyra();
 
 const headerComBotaoInicio = (title) => ({
   title,
