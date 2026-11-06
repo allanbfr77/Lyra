@@ -10,6 +10,9 @@ const ENV_KEYS_WINDOWS = [
   'LYRA_INVB_WEBHOOK_SECRET',
   'INVB_TONS_SYNC_URL',
   'LYRA_API_KEY',
+  /* E1.2: nomes extras aceitos pela validação de Host/Origin (ver `acessoRede.js` no Core). */
+  'LYRA_HOSTS_PERMITIDOS',
+  'LYRA_ORIGENS_PERMITIDAS',
 ];
 
 function parseEnvLine(line) {

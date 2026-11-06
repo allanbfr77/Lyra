@@ -74,6 +74,9 @@ module.exports = {
   /* Guarda de acesso à porta 5510. Vive aqui porque os dois hosts a servem, e o celular
      tem de se autenticar da mesma maneira nos dois modos. */
   controleAcesso: require('./controleAcesso'),
+  /* Host/Origin/CORS das portas HTTP e do Socket.IO (E1.2): os dois hosts e o controlador
+     usam a mesma proteção, para nenhum servidor aceitar página externa nem DNS rebinding. */
+  acessoRede: require('./acessoRede'),
   monitorsList: require('./monitorsList'),
   projectionEncerrar: require('./projectionEncerrar'),
   projectionPayloads: require('./projectionPayloads'),
