@@ -79,6 +79,8 @@ module.exports = {
   acessoRede: require('./acessoRede'),
   /* Autenticação HTTP (E1.3). Fase A: só registra o que seria recusado; não bloqueia nada. */
   autenticacaoHttp: require('./autenticacaoHttp'),
+  /* Política por contexto (C1): classifica e descreve a credencial esperada; só observa. */
+  politicaRotas: require('./politicaRotas'),
   /* Credencial interna efêmera do painel (E1.3 Fase B, arquitetura W): política de injeção,
      registro de janelas e verificadores. O segredo só existe na memória do processo principal. */
   credencialInterna: require('./credencialInterna'),

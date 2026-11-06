@@ -113,6 +113,9 @@ async function iniciarServidorController(ctx, paths) {
     }),
     registrar: (info) =>
       console.warn(`[Lyra][auth-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
+    /* C1: classe, credencial esperada e motivo de uma recusa futura (só observa; nada é bloqueado). */
+    registrarDecisao: (info) =>
+      console.warn(`[Lyra][politica-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
   });
   expressApp.use(autenticacaoHttp.middleware);
 

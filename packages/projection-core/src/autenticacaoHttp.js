@@ -44,6 +44,22 @@ const MAX_CAMINHO_REGISTRADO = 120;
 const MAX_CREDENCIAL = 256;
 const MAX_VERSAO_APP = 24;
 
+/**
+ * Política por contexto (C1): carregada sob demanda e protegida. Se o módulo (ou o manifesto que
+ * ele lê) falhar ao carregar, só o REGISTRO de decisões fica indisponível; a autenticação não é afetada.
+ */
+let politicaCarregada;
+function carregarPolitica() {
+  if (politicaCarregada === undefined) {
+    try {
+      politicaCarregada = require('./politicaRotas');
+    } catch (_) {
+      politicaCarregada = null;
+    }
+  }
+  return politicaCarregada;
+}
+
 /* ───────────────────────── classificação de rotas ───────────────────────── */
 
 /**
@@ -155,6 +171,8 @@ function caminhoParaChave(p) {
  * @param {(auth: {deviceId: string, secret: string}) => ({ok: boolean, classe: string}|null|undefined)} [opcoes.verificar]
  *        Verificador puro. Pode devolver null/undefined (ainda indisponível → "nao-verificavel").
  * @param {(evento: object) => void} [opcoes.registrar] recebe cada evento novo (deduplicado)
+ * @param {(evento: object) => void} [opcoes.registrarDecisao] (C1) recebe as decisões de POLÍTICA por
+ *        contexto: classe, credencial esperada, motivo de uma recusa futura. Só observa; nunca bloqueia.
  * @param {number} [opcoes.maxRegistros]
  */
 function criarAutenticacaoHttp(opcoes = {}) {
@@ -166,6 +184,84 @@ function criarAutenticacaoHttp(opcoes = {}) {
 
   /** chave -> { total, evento } — alimenta o resumo e a deduplicação. */
   const vistos = new Map();
+
+  /* ── C1: registro das decisões de política (somente observação) ── */
+  const registrarDecisaoFn = typeof opcoes.registrarDecisao === 'function' ? opcoes.registrarDecisao : null;
+  const politica = registrarDecisaoFn ? carregarPolitica() : null;
+  /** chave -> resumo de TODAS as decisões (inclusive as que não geram evento). */
+  const decisoes = new Map();
+  /** chaves de decisão «interessantes» já enviadas a `registrarDecisao`. */
+  const decisoesEmitidas = new Set();
+
+  function tipoApresentado(c) {
+    if (c.ok === null) return 'nao-verificavel';
+    if (c.classe === 'ausente') return 'ausente';
+    if (c.classe === 'interna') return 'interna';
+    if (c.ok === true) return 'dispositivo-autorizado';
+    return `dispositivo-${c.classe}`;
+  }
+
+  /** O que a CLASSE ATUAL (a que `impor` usaria hoje) faria; informativo, não decide nada. */
+  function recusariaPelaClasseAtual(classeAtual, c, proxificada, loopback) {
+    if (classeAtual === 'publica') return false;
+    if (classeAtual === 'loopback-estrito') return proxificada || !loopback;
+    return c.ok !== true;
+  }
+
+  function observarPolitica(req) {
+    const metodo = String(req.method || 'GET').toUpperCase();
+    const d = politica.avaliarRota(contexto, metodo, req.originalUrl || req.url || req.path);
+    if (d.origem === 'contexto-desconhecido') return;
+    const c = avaliarCredencial(req);
+    const proxificada = cabecalho(req, 'x-lyra-proxy') === '1';
+    const ip = ipDoRequest(req);
+    const loopback = ehLoopback(ip);
+    const tipo = tipoApresentado(c);
+    const mot = politica.motivoRecusaFutura(d, { tipo, proxificada, loopback });
+    const deviceId = deviceTruncado(c.deviceId);
+    const caminho = caminhoParaRegistro(req);
+    const chave = [d.id || `?${caminhoParaChave(caminho)}`, metodo, tipo, deviceId, proxificada ? 'p' : '', loopback ? 'l' : ''].join('|');
+
+    const existente = decisoes.get(chave);
+    if (existente) existente.total += 1;
+    else if (decisoes.size < maxRegistros) {
+      decisoes.set(chave, {
+        total: 1, contexto, id: d.id, metodo, caminho, politica: d.politica, apresentada: tipo, deviceId,
+        recusaria: mot.recusaria, proxificada, alcancavelPorProxy: !!d.alcancavelPorProxy,
+      });
+    }
+
+    const interessante = !d.encontrada || mot.recusaria !== false || d.divergeDaClasseAtual === true || (d.proxy && d.proxy.atravessa === false);
+    if (!interessante || decisoesEmitidas.has(chave) || decisoesEmitidas.size >= maxRegistros) return;
+    decisoesEmitidas.add(chave);
+
+    const evento = {
+      evento: 'politica-http',
+      modo,
+      contexto,
+      metodo,
+      caminho,
+      rota: { id: d.id, tipo: d.tipo, origem: d.origem, classe: d.classe, classeAtual: d.classeAtual, politica: d.politica },
+      esperada: d.esperada || null,
+      saida: d.saida || null,
+      apresentada: { tipo, deviceId, appVersao: versaoSaneada(cabecalho(req, 'x-lyra-app')) },
+      motivoFuturo: mot.motivo,
+      recusariaEmImpor: mot.recusaria,
+      credencialInexistente: mot.credencialInexistente,
+      divergeDaClasseAtual: d.divergeDaClasseAtual === undefined ? null : d.divergeDaClasseAtual,
+      seriaRecusadaPelaClasseAtual: recusariaPelaClasseAtual(d.classeAtual, c, proxificada, loopback),
+      proxificada,
+      alcancavelPorProxy: !!d.alcancavelPorProxy,
+      ip,
+      origemDaDecisao: d.encontrada ? `manifesto:${d.id}` : d.origem,
+      ...(d.proxy ? { proxy: d.proxy } : {}),
+    };
+    try {
+      registrarDecisaoFn(evento);
+    } catch (_) {
+      /* o registro nunca pode derrubar a requisição */
+    }
+  }
 
   function avaliarCredencial(req) {
     const deviceId = cabecalho(req, 'x-lyra-device').trim().slice(0, MAX_CREDENCIAL);
@@ -245,6 +341,14 @@ function criarAutenticacaoHttp(opcoes = {}) {
   function middleware(req, res, next) {
     if (modo === 'desligado') return next();
 
+    if (politica) {
+      try {
+        observarPolitica(req);
+      } catch (_) {
+        /* a observação de política nunca altera o fluxo da requisição */
+      }
+    }
+
     let decisao = { liberar: true };
     try {
       const politica = classificarRota(req.method, req.originalUrl || req.url || req.path);
@@ -304,7 +408,12 @@ function criarAutenticacaoHttp(opcoes = {}) {
     }));
   }
 
-  return { middleware, modo, resumo };
+  /** Contagem de TODAS as decisões de política (inclusive as que não geraram evento). */
+  function resumoPolitica() {
+    return [...decisoes.values()].map((x) => ({ ...x }));
+  }
+
+  return { middleware, modo, resumo, resumoPolitica };
 }
 
 module.exports = { criarAutenticacaoHttp, classificarRota, normalizarCaminho, MODOS };
