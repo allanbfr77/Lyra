@@ -125,7 +125,7 @@ function deviceTruncado(deviceId) {
 }
 
 function versaoSaneada(valor) {
-  return String(valor || '').replace(/[^\w.\-]/g, '').slice(0, MAX_VERSAO_APP);
+  return String(valor || '').replace(/[^\w.-]/g, '').slice(0, MAX_VERSAO_APP);
 }
 
 function caminhoParaRegistro(req) {

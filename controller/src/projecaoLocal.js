@@ -18,6 +18,7 @@ const {
   localIp,
   controleAcesso,
   acessoRede,
+  autenticacaoHttp: autenticacaoHttpCore,
 } = require('@lyra/projection-core');
 
 const { ligarTratadorMudancaDisplays } = displayChangePolicy;
@@ -474,8 +475,20 @@ function criarProjecaoLocal(deps) {
         }),
     });
 
+    /*
+     * Autenticação HTTP (E1.3 — Fase A): registra, sem bloquear, o que seria recusado quando
+     * a credencial passar a ser obrigatória. Verifica na allowlist deste processo.
+     */
+    const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
+      modo: 'registrar',
+      contexto: 'local-5510',
+      verificar: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      registrar: (info) => registarNoDiario('auth-http', info),
+    });
+
     const apiApp = express();
     apiApp.use(protecaoRede.middleware);
+    apiApp.use(autenticacaoHttp.middleware);
     montarRotasApi(apiApp);
     servidorApi = http.createServer(apiApp);
 
@@ -795,6 +808,11 @@ function criarProjecaoLocal(deps) {
     receberComando,
     publicarEstadoAudio,
     estaActiva: () => activa,
+    /**
+     * Verificação PURA de credencial (E1.3), para a API da 3001 deste mesmo processo. Devolve
+     * null quando o modo local está desligado (não há allowlist aqui nesse caso).
+     */
+    verificarCredencial: (auth) => (activa && acesso ? acesso.verificarCredencial(auth) : null),
     /** Exposto para o painel poder sincronizar-se ao ligar, sem esperar por um comando. */
     estadoParaClienteNovo: () => (activa ? estadoParaClienteNovo() : null),
     PORTA_PROJECAO,

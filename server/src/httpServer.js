@@ -23,6 +23,7 @@ const {
   ALCANCE_OUTROS,
   paginaObs,
   acessoRede,
+  autenticacaoHttp: autenticacaoHttpCore,
 } = require('@lyra/projection-core');
 const { createProjectionState } = require('./lib/projectionState');
 const { lerBuildIdServidor } = require('./lib/serverBuildInfo');
@@ -292,6 +293,20 @@ function iniciarServidor(ctx, paths, deps) {
 
   /* Primeiro middleware do app: nada (proxies, leitor de JSON, rotas) roda antes da validação. */
   expressApp.use(protecaoRede.middleware);
+
+  /*
+   * Autenticação HTTP (E1.3 — Fase A): só REGISTRA o que seria recusado quando a credencial
+   * (`X-Lyra-Device` / `X-Lyra-Secret`) passar a ser obrigatória. NÃO bloqueia nada e não
+   * inscreve dispositivo: `verificarCredencial` é pura (a allowlist só muda pelo socket).
+   * Fica antes dos proxies, para registrar também o que atravessa para a 3001.
+   */
+  const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
+    modo: 'registrar',
+    contexto: 'servidor-5510',
+    verificar: (auth) => ctx.acesso.verificarCredencial(auth),
+    registrar: (info) => console.warn(`[Lyra][auth-http] ${JSON.stringify(info)}`),
+  });
+  expressApp.use(autenticacaoHttp.middleware);
 
   attachProxyMusicaAoControlador(expressApp, logError);
   attachProxyBibliaAoControlador(expressApp, logError);

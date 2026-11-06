@@ -273,7 +273,7 @@ test('X-Lyra-App: presença e versão (saneada) entram no registro', () => {
   const o = novo();
   executar(o.auth.middleware, reqFalso({ headers: { 'x-lyra-app': '<script>alert(1)</script>'.repeat(5) } }));
   assert.equal(o.eventos[0].temXLyraApp, true);
-  assert.match(o.eventos[0].appVersao, /^[\w.\-]{0,24}$/);
+  assert.match(o.eventos[0].appVersao, /^[\w.-]{0,24}$/);
 });
 
 test('requisição declarada como proxificada é identificada', () => {
