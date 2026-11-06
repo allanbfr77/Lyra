@@ -273,15 +273,15 @@ function iniciarServidor(ctx, paths, deps) {
    * @returns {boolean} true se pode prosseguir; false → o handler deve retornar.
    */
   function comandoAutorizado(socket, ack) {
-    // Porta 1 — autenticação: só dispositivos autorizados escrevem (fecha o "estranho na rede").
-    // Vale para TODOS os clientes, inclusive não registrados como controlador (ex.: mobile).
-    if (!socket.data || socket.data.autorizado !== true) {
-      return recusarComando(socket, ack, 'nao-autorizado', null);
-    }
-    // Porta 2 — write-lock: entre controladores registrados, só o primário escreve.
-    if (ctx.acesso.estaRegistrado(socket.id) && !ctx.acesso.podeEscrever(socket.id)) {
-      return recusarComando(socket, ack, 'somente-leitura', ctx.acesso.papelDe(socket.id).donoAtual);
-    }
+    // As duas portas moram em `ctx.acesso.avaliarEscrita` (E1.3 C2), a mesma fonte que a
+    // observação HTTP usa. Porta 1 — autenticação: só dispositivos autorizados escrevem (vale para
+    // TODOS, inclusive não registrados como controlador, ex.: mobile). Porta 2 — write-lock: entre
+    // controladores registrados, só o primário escreve. Respostas de recusa: inalteradas.
+    const av = ctx.acesso.avaliarEscrita({
+      socketId: socket.id,
+      autorizado: !!(socket.data && socket.data.autorizado === true),
+    });
+    if (!av.permitido) return recusarComando(socket, ack, av.motivo, av.donoAtual);
     return true;
   }
 
@@ -307,6 +307,9 @@ function iniciarServidor(ctx, paths, deps) {
     registrar: (info) => console.warn(`[Lyra][auth-http] ${JSON.stringify(info)}`),
     /* C1: classe, credencial esperada e motivo de uma recusa futura (só observa; nada é bloqueado). */
     registrarDecisao: (info) => console.warn(`[Lyra][politica-http] ${JSON.stringify(info)}`),
+    /* C2: o que o bastão (write-lock) decidiria para uma rota CMD, pela MESMA função do Socket.IO.
+       Só observa: o middleware segue em `registrar` e nada aqui altera resposta ou handler. */
+    avaliarBastao: (a) => ctx.acesso.avaliarEscrita(a),
   });
   expressApp.use(autenticacaoHttp.middleware);
 

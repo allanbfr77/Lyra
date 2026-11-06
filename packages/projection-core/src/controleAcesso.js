@@ -307,6 +307,75 @@ function criarControleAcesso(deps) {
   }
 
   /**
+   * FONTE ÚNICA do direito de escrita (E1.3 C2): porta 1 «autorizado» + porta 2 «bastão».
+   *
+   * Duas vias, a mesma regra:
+   *  - via SOCKET (`socketId`): sabe exatamente quem é; é o que o `comandoAutorizado` do Socket.IO
+   *    sempre fez (a decisão é idêntica à anterior).
+   *  - via DISPOSITIVO (`deviceId`, usada pela observação HTTP): a requisição HTTP traz credencial
+   *    de dispositivo, não de socket. O mesmo `deviceId` pode ter VÁRIOS sockets registrados
+   *    (duas janelas do mesmo PC), e a credencial não diz qual deles enviou a requisição. Quando
+   *    isso torna a resposta incerta (há um primário entre vários sockets do dispositivo), devolve
+   *    `ambigua: true` e `permitido: null` — nunca finge uma equivalência que não existe.
+   *
+   * Motivos: `nao-autorizado` (porta 1), `somente-leitura` (porta 2), `isento` (autorizado, mas
+   * sem controlador registrado: mobile/OBS, como sempre), `ok` (é o dono do bastão), `ambiguo` e
+   * `identidade-ausente` (só via dispositivo / sem identidade).
+   *
+   * PURA: não altera a allowlist, não inscreve, não notifica e não mexe no primário.
+   *
+   * @param {{socketId?: string, deviceId?: string, autorizado?: boolean}} [p]
+   *        `autorizado` precisa ser estritamente `true` (o socket: `socket.data.autorizado`; HTTP:
+   *        veredito de `verificarCredencial`).
+   * @returns {{permitido: (boolean|null), motivo: string, donoAtual: (string|null), ambigua: boolean, via: ('socket'|'dispositivo'), candidatos?: number}}
+   */
+  function avaliarEscrita(p = {}) {
+    const { socketId, deviceId, autorizado } = p || {};
+    const donoDoBastao = () => (primarioSocketId ? nomeDe(primarioSocketId) : null);
+    const via = socketId !== undefined && socketId !== null && socketId !== '' ? 'socket' : 'dispositivo';
+
+    // Porta 1 — só dispositivo/socket autorizado escreve. Vale para todos, registrados ou não.
+    if (autorizado !== true) {
+      return { permitido: false, motivo: 'nao-autorizado', donoAtual: null, ambigua: false, via };
+    }
+
+    if (via === 'socket') {
+      if (controladores.has(socketId)) {
+        if (!podeEscrever(socketId)) {
+          return { permitido: false, motivo: 'somente-leitura', donoAtual: papelDe(socketId).donoAtual, ambigua: false, via };
+        }
+        return { permitido: true, motivo: 'ok', donoAtual: donoDoBastao(), ambigua: false, via };
+      }
+      return { permitido: true, motivo: 'isento', donoAtual: donoDoBastao(), ambigua: false, via };
+    }
+
+    // Via dispositivo (HTTP). Sem identidade nenhuma não há o que avaliar.
+    const id = String(deviceId || '').trim();
+    if (!id) return { permitido: null, motivo: 'identidade-ausente', donoAtual: null, ambigua: false, via };
+
+    const sockets = [];
+    for (const [sid, info] of controladores) if (info.deviceId === id) sockets.push(sid);
+    if (sockets.length === 0) {
+      return { permitido: true, motivo: 'isento', donoAtual: donoDoBastao(), ambigua: false, via };
+    }
+    if (allowlist.modo === 'aberto') {
+      return { permitido: true, motivo: 'ok', donoAtual: donoDoBastao(), ambigua: false, via };
+    }
+    const comOBastao = sockets.includes(primarioSocketId);
+    if (sockets.length === 1) {
+      return comOBastao
+        ? { permitido: true, motivo: 'ok', donoAtual: donoDoBastao(), ambigua: false, via }
+        : { permitido: false, motivo: 'somente-leitura', donoAtual: donoDoBastao(), ambigua: false, via };
+    }
+    // Vários sockets do mesmo dispositivo.
+    if (comOBastao) {
+      return { permitido: null, motivo: 'ambiguo', donoAtual: donoDoBastao(), ambigua: true, via, candidatos: sockets.length };
+    }
+    // Nenhum deles é o primário: qualquer um que tenha enviado é secundário → recusa é certa.
+    return { permitido: false, motivo: 'somente-leitura', donoAtual: donoDoBastao(), ambigua: false, via };
+  }
+
+  /**
    * Passagem explícita do bastão (o "forçar assumir" / breaker manual).
    * Deve ser acionado por confirmação humana — no PC do servidor (recomendado) ou via
    * fluxo de request/approve entre controladores. Não depende do heartbeat.
@@ -416,6 +485,7 @@ function criarControleAcesso(deps) {
     registrarControlador,
     removerControlador,
     podeEscrever,
+    avaliarEscrita,
     forcarAssumir,
     papelDe,
     getPrimarioSocketId: () => primarioSocketId,

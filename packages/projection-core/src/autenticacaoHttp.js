@@ -171,6 +171,8 @@ function caminhoParaChave(p) {
  * @param {(auth: {deviceId: string, secret: string}) => ({ok: boolean, classe: string}|null|undefined)} [opcoes.verificar]
  *        Verificador puro. Pode devolver null/undefined (ainda indisponível → "nao-verificavel").
  * @param {(evento: object) => void} [opcoes.registrar] recebe cada evento novo (deduplicado)
+ * @param {(a: {deviceId: string, autorizado: boolean}) => object} [opcoes.avaliarBastao] (C2) o que o bastão decidiria
+ *        para uma rota CMD do Servidor 5510. Só observação: enriquece o evento e nada mais.
  * @param {(evento: object) => void} [opcoes.registrarDecisao] (C1) recebe as decisões de POLÍTICA por
  *        contexto: classe, credencial esperada, motivo de uma recusa futura. Só observa; nunca bloqueia.
  * @param {number} [opcoes.maxRegistros]
@@ -188,6 +190,8 @@ function criarAutenticacaoHttp(opcoes = {}) {
   /* ── C1: registro das decisões de política (somente observação) ── */
   const registrarDecisaoFn = typeof opcoes.registrarDecisao === 'function' ? opcoes.registrarDecisao : null;
   const politica = registrarDecisaoFn ? carregarPolitica() : null;
+  /** C2: gancho opcional que diz o que o bastão (write-lock) decidiria. Só vale nas rotas CMD do Servidor 5510. */
+  const avaliarBastaoFn = typeof opcoes.avaliarBastao === 'function' ? opcoes.avaliarBastao : null;
   /** chave -> resumo de TODAS as decisões (inclusive as que não geram evento). */
   const decisoes = new Map();
   /** chaves de decisão «interessantes» já enviadas a `registrarDecisao`. */
@@ -208,6 +212,45 @@ function criarAutenticacaoHttp(opcoes = {}) {
     return c.ok !== true;
   }
 
+  /** Valida o que o gancho devolveu; `null` se não for uma decisão utilizável. */
+  function normalizarBastao(r) {
+    if (!r || typeof r !== 'object') return null;
+    if (typeof r.then === 'function') {
+      try { r.then(null, () => {}); } catch (_) { /* ignora */ }
+      return null; // o middleware é síncrono: promessa não é decisão
+    }
+    if (typeof r.motivo !== 'string' || !(r.permitido === true || r.permitido === false || r.permitido === null)) return null;
+    return {
+      aplicavel: true,
+      via: r.via === 'socket' ? 'socket' : 'dispositivo',
+      permitido: r.permitido,
+      motivo: r.motivo.slice(0, 40),
+      donoAtual: r.donoAtual === undefined || r.donoAtual === null ? null : String(r.donoAtual).slice(0, 40),
+      ambigua: r.ambigua === true,
+      recusariaEmImpor: r.permitido === false ? true : r.permitido === true ? false : null,
+      ...(Number.isFinite(r.candidatos) ? { candidatos: r.candidatos } : {}),
+    };
+  }
+
+  /**
+   * C2 — decisão do bastão para esta requisição, ou `undefined` quando não se aplica (só rotas CMD
+   * do Servidor 5510, e só com o gancho instalado). Nunca lança e nunca recebe segredo: o gancho
+   * recebe apenas `{deviceId, autorizado}`.
+   */
+  function observarBastao(d, c) {
+    if (!avaliarBastaoFn || contexto !== 'servidor-5510') return undefined;
+    if (!d.encontrada || !Array.isArray(d.politica) || !d.politica.includes('CMD')) return undefined;
+    const base = { aplicavel: true, via: 'dispositivo', donoAtual: null, ambigua: false };
+    if (c.ok === null) return { ...base, permitido: null, motivo: 'nao-verificavel', recusariaEmImpor: null };
+    try {
+      const r = normalizarBastao(avaliarBastaoFn({ deviceId: c.deviceId, autorizado: c.ok === true }));
+      if (r) return r;
+    } catch (_) {
+      /* cai na falha registrada abaixo */
+    }
+    return { ...base, permitido: null, motivo: null, recusariaEmImpor: null, erro: 'falha-no-gancho' };
+  }
+
   function observarPolitica(req) {
     const metodo = String(req.method || 'GET').toUpperCase();
     const d = politica.avaliarRota(contexto, metodo, req.originalUrl || req.url || req.path);
@@ -220,7 +263,9 @@ function criarAutenticacaoHttp(opcoes = {}) {
     const mot = politica.motivoRecusaFutura(d, { tipo, proxificada, loopback });
     const deviceId = deviceTruncado(c.deviceId);
     const caminho = caminhoParaRegistro(req);
-    const chave = [d.id || `?${caminhoParaChave(caminho)}`, metodo, tipo, deviceId, proxificada ? 'p' : '', loopback ? 'l' : ''].join('|');
+    const bastao = observarBastao(d, c);
+    const chaveBastao = bastao ? `${bastao.motivo || bastao.erro}${bastao.ambigua ? '~' : ''}` : '';
+    const chave = [d.id || `?${caminhoParaChave(caminho)}`, metodo, tipo, deviceId, proxificada ? 'p' : '', loopback ? 'l' : '', chaveBastao].join('|');
 
     const existente = decisoes.get(chave);
     if (existente) existente.total += 1;
@@ -228,10 +273,12 @@ function criarAutenticacaoHttp(opcoes = {}) {
       decisoes.set(chave, {
         total: 1, contexto, id: d.id, metodo, caminho, politica: d.politica, apresentada: tipo, deviceId,
         recusaria: mot.recusaria, proxificada, alcancavelPorProxy: !!d.alcancavelPorProxy,
+        ...(bastao ? { bastao } : {}),
       });
     }
 
-    const interessante = !d.encontrada || mot.recusaria !== false || d.divergeDaClasseAtual === true || (d.proxy && d.proxy.atravessa === false);
+    const interessante = !d.encontrada || mot.recusaria !== false || d.divergeDaClasseAtual === true || (d.proxy && d.proxy.atravessa === false)
+      || (bastao && bastao.recusariaEmImpor !== false);
     if (!interessante || decisoesEmitidas.has(chave) || decisoesEmitidas.size >= maxRegistros) return;
     decisoesEmitidas.add(chave);
 
@@ -255,6 +302,7 @@ function criarAutenticacaoHttp(opcoes = {}) {
       ip,
       origemDaDecisao: d.encontrada ? `manifesto:${d.id}` : d.origem,
       ...(d.proxy ? { proxy: d.proxy } : {}),
+      ...(bastao ? { bastao } : {}),
     };
     try {
       registrarDecisaoFn(evento);
