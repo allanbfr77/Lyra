@@ -6,6 +6,7 @@ const { BrowserWindow, ipcMain, dialog, shell } = require('electron');
 
 const { caminhoIconeApp } = require('./lib/iconPath');
 const historicoProjecao = require('./lib/historicoProjecao');
+const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
 
 /**
  * Janela «Histórico e relatórios».
@@ -21,10 +22,6 @@ const historicoProjecao = require('./lib/historicoProjecao');
 
 /** @type {BrowserWindow | null} */
 let janela = null;
-
-function paginaHistorico() {
-  return path.join(__dirname, '..', 'public', 'historico.html');
-}
 
 /**
  * Abre a janela, ou traz para a frente a que já está aberta.
@@ -81,7 +78,14 @@ function abrirJanelaHistorico(pai) {
     return { action: 'deny' };
   });
 
-  janela.loadFile(paginaHistorico());
+  /*
+   * Pelo servidor local (http://127.0.0.1:3001, a mesma origem da API e do painel), e não por
+   * `file://`. Uma janela `file://` do Electron não manda `Origin` e marca as requisições como
+   * `cross-site`, e a proteção de Host/Origin (E1.2) recusa então o DELETE e o POST — apagar
+   * um registro e limpar o histórico deixariam de funcionar. A página é a mesma e continua
+   * isolada (sem Node, com isolamento de contexto e sandbox); só muda de onde é servida.
+   */
+  janela.loadURL(`http://127.0.0.1:${HTTP_CONTROLLER_PORT}/historico.html`);
   return janela;
 }
 

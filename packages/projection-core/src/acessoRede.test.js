@@ -201,7 +201,19 @@ test('Origin externo é negado: sites, IP público, porta fora do Lyra, esquema 
     'http://localhost.evil.example:3001',
     'http://[2001:db8::1]:3001',
   ]) {
-    assert.strictEqual(r.classificarOrigin(o, { hostHeader: o.replace(/^[a-z-]+:\/\//, '') }).tipo, 'negada', o);
+    /* O Lyra é acessado pelo loopback ou pelo IP da própria máquina; a página é de fora. */
+    for (const hostHeader of ['127.0.0.1:3001', '192.168.1.10:5510']) {
+      assert.strictEqual(r.classificarOrigin(o, { hostHeader }).tipo, 'negada', `${o} → Host ${hostHeader}`);
+    }
+  }
+});
+
+test('DNS rebinding: Origin e Host iguais de um domínio externo continuam negados (o Host não é aceitável)', () => {
+  const r = rede();
+  for (const dominio of ['evil.example', 'rebind.attacker.com', 'localhost.evil.example', '127.0.0.1.evil.example']) {
+    const c = r.classificarOrigin(`http://${dominio}:3001`, { hostHeader: `${dominio}:3001` });
+    assert.strictEqual(c.tipo, 'negada', dominio);
+    assert.strictEqual(r.classificarHost(`${dominio}:3001`).ok, false);
   }
 });
 
