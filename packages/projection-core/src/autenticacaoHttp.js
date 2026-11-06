@@ -173,7 +173,9 @@ function criarAutenticacaoHttp(opcoes = {}) {
     if (!deviceId || !secret) return { deviceId, ok: false, classe: 'ausente' };
     let r = null;
     try {
-      r = verificar ? verificar({ deviceId, secret }) : null;
+      // `req` vai junto para o verificador poder restringir ao contexto local (credencial
+      // interna do painel); os verificadores da allowlist ignoram o segundo argumento.
+      r = verificar ? verificar({ deviceId, secret }, req) : null;
     } catch (_) {
       r = null;
     }

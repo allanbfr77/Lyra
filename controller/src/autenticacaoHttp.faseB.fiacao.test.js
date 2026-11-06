@@ -46,7 +46,8 @@ test('os proxies recusam antes de abrir conexão com o controlador (http.request
 test('3001: o salto para a 5510 passa a credencial do cliente (módulo próprio, sem autenticação interna)', () => {
   const src = ler('controller/src/httpControllerServer.js');
   assert.match(src, /proxyProjecaoJson/);
-  assert.match(src, /credenciaisDoRequest\s*\(\s*req\s*\)/);
+  // Desde a arquitetura W o salto usa `credenciaisParaSalto`: a do cliente, e a interna só ao motor local.
+  assert.match(src, /credenciaisParaSalto\s*\(\s*req\b/);
   assert.doesNotMatch(src, /x-lyra-via|LYRA_INTERNAL|internalSecret/i, 'sem autenticação interna improvisada');
   const mod = ler('controller/src/lib/proxyProjecaoJson.js');
   assert.doesNotMatch(mod, /process\.env/, 'o módulo não lê segredos do ambiente');

@@ -12,6 +12,7 @@
 
 const http = require('http');
 const https = require('https');
+const { contextoLocal } = require('@lyra/projection-core').credencialInterna;
 
 const MAX_CREDENCIAL = 256;
 const MAX_VERSAO_APP = 24;
@@ -28,13 +29,50 @@ function limpo(valor, max) {
   return valor.slice(0, max);
 }
 
-/** Credencial do cliente da requisição (strings vazias se ausente ou suspeita). */
-function credenciaisDoRequest(req) {
-  return {
+/**
+ * Credencial do cliente da requisição (strings vazias se ausente ou suspeita).
+ *
+ * A credencial INTERNA do painel (arquitetura W, injetada pelo processo principal) vale só nesta
+ * máquina e nunca sai dela: o salto 3001→5510 pode ir a um Servidor em outro PC, e repassá-la
+ * entregaria o segredo e transformaria o proxy numa fonte de autorização. Se o `deviceId` for o
+ * interno, nada é repassado.
+ *
+ * @param {object} req
+ * @param {{interna?: {ehDeviceInterno: (id: string) => boolean}|null}} [opcoes]
+ */
+function credenciaisDoRequest(req, opcoes) {
+  const cred = {
     deviceId: limpo(cabecalho(req, 'x-lyra-device'), MAX_CREDENCIAL),
     secret: limpo(cabecalho(req, 'x-lyra-secret'), MAX_CREDENCIAL),
     app: limpo(cabecalho(req, 'x-lyra-app'), MAX_VERSAO_APP),
   };
+  const interna = opcoes && opcoes.interna;
+  if (interna && cred.deviceId && interna.ehDeviceInterno(cred.deviceId)) {
+    return { deviceId: '', secret: '', app: '' };
+  }
+  return cred;
+}
+
+/**
+ * Credencial a levar no salto 3001→5510.
+ *
+ * - Dispositivo comum: a que o cliente mandou (como na Fase B).
+ * - Credencial INTERNA do painel: só segue se o destino é o motor de projeção LOCAL deste mesmo
+ *   processo (`destinoEhMotorLocal`: ativo, loopback, porta 5510 — decidido por quem chama), se
+ *   ela confere de verdade e se a requisição é do contexto local (loopback, sem marca de proxy).
+ *   Em qualquer outro caso nada é repassado: o proxy não entrega o segredo a outro PC nem a outro
+ *   processo, e não vira fonte de autorização para outros dispositivos.
+ *
+ * @param {object} req
+ * @param {{interna?: object|null, base?: URL, destinoEhMotorLocal?: boolean}} [opcoes]
+ */
+function credenciaisParaSalto(req, opcoes) {
+  const o = opcoes || {};
+  const bruta = credenciaisDoRequest(req);
+  const interna = o.interna;
+  if (!interna || !bruta.deviceId || !interna.ehDeviceInterno(bruta.deviceId)) return bruta;
+  if (o.destinoEhMotorLocal === true && interna.conferir(bruta) && contextoLocal(req)) return bruta;
+  return { deviceId: '', secret: '', app: '' };
 }
 
 /** Destino que pode receber credencial do Lyra: loopback, rede privada, `.local` ou nome simples. */
@@ -104,4 +142,10 @@ function proxyJsonToProjection(method, pathname, jsonBody, cred, opcoes) {
   });
 }
 
-module.exports = { proxyJsonToProjection, credenciaisDoRequest, cabecalhosParaProjecao, ehServidorDoLyra };
+module.exports = {
+  proxyJsonToProjection,
+  credenciaisDoRequest,
+  credenciaisParaSalto,
+  cabecalhosParaProjecao,
+  ehServidorDoLyra,
+};

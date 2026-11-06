@@ -2,10 +2,11 @@
 
 const path = require('path');
 const fs = require('fs');
-const { BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { BrowserWindow, ipcMain, dialog } = require('electron');
 
 const { caminhoIconeApp } = require('./lib/iconPath');
 const historicoProjecao = require('./lib/historicoProjecao');
+const credencialInternaPainel = require('./credencialInternaPainel');
 const { HTTP_CONTROLLER_PORT } = require('./httpControllerServer');
 
 /**
@@ -50,13 +51,18 @@ function abrirJanelaHistorico(pai) {
     backgroundColor: '#f5f3ee',
     show: false,
     autoHideMenuBar: true,
-    webPreferences: {
+    /* DevTools desligadas em produção (E1.3 W): esta janela recebe a credencial interna. */
+    webPreferences: credencialInternaPainel.webPreferencesAutorizada({
       preload: path.join(__dirname, 'preloadHistorico.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-    },
+    }),
   });
+
+  /* Credencial interna (E1.3 W): registrada ANTES de carregar a página; o registro cai ao fechar.
+     As guardas (navegação, window.open, DevTools) vêm junto. */
+  credencialInternaPainel.autorizarJanela(janela, { papel: 'historico', pagina: '/historico.html' });
 
   janela.once('ready-to-show', () => {
     if (pai && !pai.isDestroyed()) {
@@ -71,12 +77,8 @@ function abrirJanelaHistorico(pai) {
     janela = null;
   });
 
-  /* Nada nesta página abre links, mas se um dia abrir, abre no browser do sistema e não
-     numa janela do Electron sem barra de endereço. */
-  janela.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url).catch(() => {});
-    return { action: 'deny' };
-  });
+  /* `window.open` e navegação: tratados pelas guardas instaladas em `autorizarJanela` (nada abre
+     numa janela do Electron sem barra de endereço; só http(s) externo vai ao browser do sistema). */
 
   /*
    * Pelo servidor local (http://127.0.0.1:3001, a mesma origem da API e do painel), e não por

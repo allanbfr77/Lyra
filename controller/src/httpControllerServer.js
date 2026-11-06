@@ -12,7 +12,7 @@ const {
 const { SERVER_URL } = require('./lib/projectionServerUrl');
 const {
   proxyJsonToProjection: encaminharJsonAoServidor,
-  credenciaisDoRequest,
+  credenciaisParaSalto,
 } = require('./lib/proxyProjecaoJson');
 const { registrarRotasMusicas } = require('./rotas/musicas');
 const { registrarRotasPlaylists } = require('./rotas/playlists');
@@ -25,7 +25,11 @@ const { registrarRotasBiblia } = require('./rotas/biblia');
 const { registrarRotasVosk } = require('./rotas/vosk');
 const { registrarRotasLetras } = require('./rotas/letras');
 const { registrarRotasSyncInvbPlaylist } = require('./rotas/syncInvbPlaylist');
-const { acessoRede, autenticacaoHttp: autenticacaoHttpCore } = require('@lyra/projection-core');
+const {
+  acessoRede,
+  autenticacaoHttp: autenticacaoHttpCore,
+  credencialInterna: credencialInternaCore,
+} = require('@lyra/projection-core');
 
 const HTTP_CONTROLLER_PORT = 3001;
 
@@ -34,6 +38,21 @@ function projectionBaseUrl() {
     return new URL(SERVER_URL);
   } catch (_) {
     return new URL('http://127.0.0.1:5510');
+  }
+}
+
+/**
+ * O destino do salto é o motor de projeção LOCAL deste processo? (motor ativo + loopback + 5510).
+ * Só então a credencial interna do painel pode acompanhar a requisição.
+ */
+function destinoEhMotorLocal(ctx, base) {
+  try {
+    const ativo = !!(ctx.projecaoLocal && typeof ctx.projecaoLocal.estaActiva === 'function' && ctx.projecaoLocal.estaActiva());
+    const host = String((base && base.hostname) || '').toLowerCase();
+    const porta = String((base && base.port) || '');
+    return ativo && ['localhost', '127.0.0.1', '[::1]', '::1'].includes(host) && porta === '5510';
+  } catch (_) {
+    return false;
   }
 }
 
@@ -79,10 +98,14 @@ async function iniciarServidorController(ctx, paths) {
   const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
     modo: 'registrar',
     contexto: 'controlador-3001',
-    verificar: (auth) =>
-      ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
-        ? ctx.projecaoLocal.verificarCredencial(auth)
-        : null,
+    /* Credencial interna do painel (W): aceita só aqui, no contexto local; o resto vai à allowlist. */
+    verificar: credencialInternaCore.criarVerificadorHttp({
+      interna: ctx.credencialInterna || null,
+      verificarBase: (auth) =>
+        ctx.projecaoLocal && typeof ctx.projecaoLocal.verificarCredencial === 'function'
+          ? ctx.projecaoLocal.verificarCredencial(auth)
+          : null,
+    }),
     registrar: (info) =>
       console.warn(`[Lyra][auth-http:${HTTP_CONTROLLER_PORT}] ${JSON.stringify(info)}`),
   });
@@ -257,7 +280,15 @@ async function iniciarServidorController(ctx, paths) {
   async function proxyDisplay(req, res, pathname) {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      const pr = await proxyJsonToProjection('PUT', pathname, body, credenciaisDoRequest(req));
+      const base = projectionBaseUrl();
+      /* A credencial interna do painel só segue ao motor local DESTE processo; a de qualquer outro
+         dispositivo, como antes. Ver `credenciaisParaSalto`. */
+      const cred = credenciaisParaSalto(req, {
+        interna: ctx.credencialInterna || null,
+        base,
+        destinoEhMotorLocal: destinoEhMotorLocal(ctx, base),
+      });
+      const pr = await proxyJsonToProjection('PUT', pathname, body, cred);
       res.status(pr.status);
       const ct = pr.headers['content-type'];
       if (ct) res.setHeader('Content-Type', ct);

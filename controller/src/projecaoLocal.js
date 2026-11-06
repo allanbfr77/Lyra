@@ -19,6 +19,7 @@ const {
   controleAcesso,
   acessoRede,
   autenticacaoHttp: autenticacaoHttpCore,
+  credencialInterna: credencialInternaCore,
 } = require('@lyra/projection-core');
 
 const { ligarTratadorMudancaDisplays } = displayChangePolicy;
@@ -59,6 +60,8 @@ const PORTA_OBS = 5001;
  */
 function criarProjecaoLocal(deps) {
   const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel } = deps;
+  /* Credencial interna do painel (E1.3 Fase B, W): só conferência; o segredo vive no main.js. */
+  const credencialInterna = deps.credencialInterna || null;
   /* Diário de bordo das telas, criado pelo `main.js` — aqui só se usa e se repassa ao
      motor. Sem ele o motor cai no diário nulo e nada muda. */
   const diario = deps.diagnostico || null;
@@ -482,7 +485,10 @@ function criarProjecaoLocal(deps) {
     const autenticacaoHttp = autenticacaoHttpCore.criarAutenticacaoHttp({
       modo: 'registrar',
       contexto: 'local-5510',
-      verificar: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      verificar: credencialInternaCore.criarVerificadorHttp({
+        interna: credencialInterna,
+        verificarBase: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      }),
       registrar: (info) => registarNoDiario('auth-http', info),
     });
 
@@ -518,7 +524,11 @@ function criarProjecaoLocal(deps) {
           socket.data.authMotivo = 'origem-opaca';
           return next();
         }
-        const r = acesso.autenticar(socket.handshake.auth || {});
+        /* O par interno do painel nunca autentica nem é inscrito por TOFU aqui (só HTTP). */
+        const r = credencialInternaCore.protegerSocket({
+          interna: credencialInterna,
+          autenticar: (a) => acesso.autenticar(a),
+        })(socket.handshake.auth || {});
         socket.data.autorizado = !!r.ok;
         socket.data.device = r.device || null;
         socket.data.authMotivo = r.motivo || null;
