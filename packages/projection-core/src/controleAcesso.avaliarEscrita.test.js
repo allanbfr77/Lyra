@@ -23,7 +23,7 @@ function novo(modo = null) {
   const allowlistPath = () => path.join(dir, 'allow.json');
   if (modo) fs.writeFileSync(allowlistPath(), JSON.stringify({ modo, devices: {} }));
   const notificados = [];
-  const ac = criarControleAcesso({
+  const ac = criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath,
     emitParaSocket: () => {},
     broadcast: () => {},

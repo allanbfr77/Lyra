@@ -60,7 +60,7 @@ const CRITICAS = [
 async function comPilha(fn, { modoAllowlist = 'tofu', modoHttp = 'impor' } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-cred-int-'));
   const allowlistPath = () => path.join(dir, 'allow.json');
-  const acesso = controleAcesso.criarControleAcesso({ allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
+  const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true }, allowlistPath, emitParaSocket: () => {}, broadcast: () => {}, notificar: () => {} });
   acesso.autenticar({ deviceId: 'dev-ok-0001', secret: SEG_OK });
   if (modoAllowlist === 'locked') acesso.travar();
   const interna = credencialInterna.criarCredencialInterna();

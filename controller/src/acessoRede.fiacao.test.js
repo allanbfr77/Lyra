@@ -63,7 +63,7 @@ test('servidor (5510): Socket.IO com allowRequest/cors do Core, origem opaca sem
   assert.match(src, /origemOpacaDoRequest\(\s*socket\.request\s*\)/);
   const protecao = pos(src, /expressApp\.use\(\s*protecaoRede\.middleware\s*\)/);
   assert.ok(protecao > 0);
-  for (const re of [/attachProxyMusicaAoControlador\(expressApp/, /expressApp\.use\(express\.json/, /expressApp\.get\('\/api\/identity'/]) {
+  for (const re of [/attachProxyMusicaAoControlador\(expressApp/, /expressApp\.use\((?:express\.json|guardas\.selecionarJson)/, /expressApp\.get\('\/api\/identity'/]) {
     assert.ok(pos(src, re) > protecao, `${re} deve vir DEPOIS da proteção`);
   }
 });

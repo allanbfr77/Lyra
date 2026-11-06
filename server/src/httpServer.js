@@ -28,6 +28,8 @@ const {
   eloPareamento: eloPareamentoCore,
   sessaoControlador: sessaoControladorCore,
   politicaRotas,
+  guardasRotas: guardasRotasCore,
+  dialogoDispositivos: dialogoDispositivosCore,
 } = require('@lyra/projection-core');
 const { registrarRotasElo } = require('./lib/rotasElo');
 const { criarEmissorSessao } = require('./lib/sessaoSocket');
@@ -46,7 +48,7 @@ const HTTP_OBS_PORT = 5001;
  * @param {{ screen: object, logError: Function, windowsApi: object, reiniciarApp?: Function, encerrarParaAtualizacao?: Function }} deps
  */
 function iniciarServidor(ctx, paths, deps) {
-  const { screen, logError, windowsApi, reiniciarApp, encerrarParaAtualizacao, pedirAprovacaoPareamento } = deps;
+  const { screen, logError, windowsApi, reiniciarApp, encerrarParaAtualizacao, pedirAprovacaoPareamento, dialog } = deps;
   const {
     estadoPublicoParaSocketsOuApi,
     garantirTelasAbertasParaProjecao,
@@ -236,6 +238,8 @@ function iniciarServidor(ctx, paths, deps) {
   // entram somente-leitura até receberem o bastão explicitamente (forcar_assumir_controle).
   ctx.acesso = criarControleAcesso({
     allowlistPath: paths.allowlistPath,
+    /* Entrega 2: revogados persistentes (arquivo próprio); a allowlist não muda de formato. */
+    revogadosPath: paths.revogadosPath,
     emitParaSocket: (id, evt, dados) => {
       try { ctx.io.to(id).emit(evt, dados); } catch (_) {
         // intencional — socket pode ter saído
@@ -254,6 +258,8 @@ function iniciarServidor(ctx, paths, deps) {
       console.log(`[acesso] ${evt}`, dados || '');
       // Dispositivo revogado: os tokens de sessão dos sockets dele deixam de valer na hora.
       if (evt === 'dispositivo_revogado' && dados && dados.deviceId) sessoes.revogarDispositivo(dados.deviceId);
+      // Entrega 2: dispositivo novo aguardando aprovação → pergunta ao operador (deduplicado, em fila, com cooldown ao negar).
+      if (evt === 'dispositivo_pendente' && dados && ctx.dialogosDispositivos) ctx.dialogosDispositivos.aoPendente(dados);
       // Encaminha à janela de controle do servidor (UI: pendências, quem está no controle).
       try {
         const w = windowsApi.getJanelaControle && windowsApi.getJanelaControle();
@@ -263,9 +269,30 @@ function iniciarServidor(ctx, paths, deps) {
       }
     },
     logError,
-    opcoes: { pingIntervaloMs: 4000, maxFalhasConsecutivas: 3 },
+    /* Entrega 2: dispositivo novo só entra sozinho durante a JANELA aberta pelo operador. `LYRA_TOFU_LEGADO=1` volta ao TOFU
+       permanente de antes (inseguro; só para quem precisa de compatibilidade enquanto migra). */
+    opcoes: { pingIntervaloMs: 4000, maxFalhasConsecutivas: 3, inscricaoAutomatica: process.env.LYRA_TOFU_LEGADO === '1' },
   });
   ctx.acesso.iniciarHeartbeat();
+
+  /* Diálogos do operador para inscrever/aprovar dispositivos (Entrega 2). Sem `dialog` (testes) não há diálogo. */
+  ctx.dialogosDispositivos = dialog
+    ? dialogoDispositivosCore.criarDialogosDispositivos({
+      acesso: ctx.acesso, dialog, obterJanela: () => (windowsApi.getJanelaControle ? windowsApi.getJanelaControle() : undefined),
+    })
+    : null;
+
+  /*
+   * Guardas POR ROTA (Entrega 2) — não é o `impor` geral. `LYRA_GUARDAS_ROTAS=0` desliga todas (escape documentado,
+   * ex.: um mobile antigo sem credencial). Lida uma vez, na partida.
+   */
+  const guardasSocket = guardasRotasCore.criarGuardasSocket();
+  const guardas = guardasRotasCore.criarGuardasRotas({
+    verificar: (auth) => ctx.acesso.verificarCredencial(auth),
+    verificarElo: (req, dir) => elo.verificarRequisicao(req, dir),
+    registrar: (e) => console.warn(`[Lyra][guarda-rota] ${JSON.stringify(e)}`),
+    desligadas: process.env.LYRA_GUARDAS_ROTAS === '0',
+  });
 
   // Autenticação no handshake (etapa 3): NÃO bloqueia a conexão — visualizadores (telão, OBS,
   // mobile só a ver) entram normalmente. Apenas marca se o socket está autorizado a ESCREVER.
@@ -354,7 +381,14 @@ function iniciarServidor(ctx, paths, deps) {
   }, assinarParaControlador);
 
   /* `verify`: guarda os bytes do corpo só quando há `X-Lyra-Via` (a assinatura cobre o hash do corpo). */
-  expressApp.use(express.json({ limit: '200mb', verify: eloCore.capturarCorpoElo }));
+  /* Entrega 2: o corpo GRANDE (até 200 MB) só para quem provou quem é (credencial verificada) ou vem da própria máquina;
+     o resto cai em 1 MB. Escritas passam por um teto de taxa por IP (loopback isento). */
+  expressApp.use(guardas.limitarTaxa());
+  expressApp.use(guardas.selecionarJson({
+    pequeno: express.json({ limit: '1mb', verify: eloCore.capturarCorpoElo }),
+    grande: express.json({ limit: '200mb', verify: eloCore.capturarCorpoElo }),
+  }));
+  expressApp.use(guardas.tratarErroCorpo);
   /* Elo (Entrega 1): confere a assinatura nas rotas ELO e REGISTRA; nunca recusa. */
   expressApp.use(elo.observador('servidor-5510'));
   registrarRotasElo(expressApp, {
@@ -385,7 +419,8 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  expressApp.post('/api/sync/banco', (req, res) => {
+  /* Entrega 2: gravar o banco compartilhado exige dispositivo autorizado (o painel de outro PC já manda) ou o elo válido. */
+  expressApp.post('/api/sync/banco', guardas.exigirCredencial({ aceitaElo: true }), (req, res) => {
     try {
       const result = saveSharedDbSnapshot(paths.sharedDbSyncPath, req.body || {}, {
         respectUpdatedAt: true,
@@ -479,6 +514,28 @@ function iniciarServidor(ctx, paths, deps) {
     if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
     ctx.acesso.destravar();
     res.json({ ok: true, modo: ctx.acesso.getModo() });
+  });
+
+  // --- Janela de inscrição e revogados (Entrega 2): só a máquina do servidor decide ---
+  expressApp.get('/api/controladores/janela', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false, erro: 'Gestão disponível apenas localmente.' });
+    return res.json({ ok: true, ...ctx.acesso.getJanelaInscricao(), modo: ctx.acesso.getModo(), pendentes: ctx.acesso.listarPendentes(), revogados: ctx.acesso.listarRevogados() });
+  });
+
+  expressApp.post('/api/controladores/janela/abrir', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    return res.json({ ok: true, ...ctx.acesso.abrirJanelaInscricao({ duracaoMs: Number(req.body?.duracaoMs) }) });
+  });
+
+  expressApp.post('/api/controladores/janela/fechar', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    return res.json({ ok: true, fechada: ctx.acesso.fecharJanelaInscricao() });
+  });
+
+  expressApp.post('/api/controladores/readmitir', (req, res) => {
+    if (!requisicaoVemDaMaquinaLocal(req)) return res.status(403).json({ ok: false });
+    const deviceId = String(req.body?.deviceId || '').trim();
+    return res.json({ ok: ctx.acesso.readmitirDispositivo(deviceId) });
   });
 
   /**
@@ -646,7 +703,7 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  expressApp.post('/api/open-display-devtools', (_req, res) => {
+  expressApp.post('/api/open-display-devtools', guardas.exigirLocalOuElo(), (_req, res) => {
     try {
       const janelas = openDisplayDevTools();
       res.json({ ok: true, janelas });
@@ -656,7 +713,7 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  expressApp.post('/api/open-public-devtools', (_req, res) => {
+  expressApp.post('/api/open-public-devtools', guardas.exigirLocalOuElo(), (_req, res) => {
     try {
       const janelas = openPublicDevTools();
       res.json({ ok: true, janelas });
@@ -666,7 +723,7 @@ function iniciarServidor(ctx, paths, deps) {
     }
   });
 
-  expressApp.post('/api/open-ministrante-devtools', async (_req, res) => {
+  expressApp.post('/api/open-ministrante-devtools', guardas.exigirLocalOuElo(), async (_req, res) => {
     try {
       garantirTelasAbertasParaProjecao();
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -781,10 +838,27 @@ function iniciarServidor(ctx, paths, deps) {
     // "Forçar assumir controle" (breaker manual). Idealmente atrás de confirmação humana
     // — no PC do servidor ou via fluxo aprovado. Não depende do heartbeat.
     socket.on('forcar_assumir_controle', () => {
-      ctx.acesso.forcarAssumir(socket.id);
+      // Entrega 2: só controlador AUTORIZADO (e registrado: `forcarAssumir` já exige) e no máximo uma vez a cada 3 s
+      // (impede dois PCs de disputarem o bastão em loop). A troca continua sendo notificada ao operador.
+      if (!guardasSocket.soAutorizado(socket)) return;
+      if (!guardasSocket.permitidoGlobal('forcar_assumir_controle', 3000)) {
+        console.warn('[Lyra][acesso] forcar_assumir_controle recusado: aguarde 3 s entre trocas do bastão');
+        return;
+      }
+      if (ctx.acesso.forcarAssumir(socket.id)) guardasSocket.marcarGlobal('forcar_assumir_controle');
     });
 
     socket.on('solicitar_sincronizacao_banco', (payload = {}, ack) => {
+      // Entrega 2: só dispositivo AUTORIZADO pede sincronização (antes bastava registrar-se como controlador, e
+      // um visualizador sem credencial também se registra) e no máximo uma vez a cada 10 s por socket.
+      if (!guardasSocket.soAutorizado(socket)) {
+        if (typeof ack === 'function') ack({ notificados: 0, erro: 'nao-autorizado' });
+        return;
+      }
+      if (!guardasSocket.consumirPorSocket(socket, 'solicitar_sincronizacao_banco', 10000)) {
+        if (typeof ack === 'function') ack({ notificados: 0, erro: 'aguarde' });
+        return;
+      }
       let notificados = 0;
       try {
         const origem = ctx.controladorSockets.get(socket.id);
@@ -815,14 +889,17 @@ function iniciarServidor(ctx, paths, deps) {
     });
 
     socket.on('open_display_devtools', () => {
+      if (!guardasSocket.soAutorizado(socket)) return; // Entrega 2: DevTools só para dispositivo autorizado
       try { openDisplayDevTools(); } catch (e) { logError('open_display_devtools-ws', e); }
     });
 
     socket.on('open_public_devtools', () => {
+      if (!guardasSocket.soAutorizado(socket)) return;
       try { openPublicDevTools(); } catch (e) { logError('open_public_devtools-ws', e); }
     });
 
     socket.on('open_ministrante_devtools', () => {
+      if (!guardasSocket.soAutorizado(socket)) return;
       try { openMinistranteDevTools(); } catch (e) { logError('open_ministrante_devtools-ws', e); }
     });
 

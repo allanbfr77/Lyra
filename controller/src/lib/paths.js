@@ -84,6 +84,8 @@ function createUserPaths(userDataRoot) {
     displayConfigPath: () => path.join(userDataRoot, 'display-config.json'),
     /** Dispositivos autorizados a comandar a projeção desta máquina (celular, outro PC). */
     allowlistPath: () => path.join(userDataRoot, 'controladores-allowlist.json'),
+    /** Dispositivos REVOGADOS (Entrega 2): arquivo próprio; a allowlist não muda de formato. */
+    revogadosPath: () => path.join(userDataRoot, 'controladores-revogados.json'),
     /** Chaves do elo interprocessos (Entrega 1): pareamentos deste Controlador com Servidores. */
     eloPareamentosPath: () => path.join(userDataRoot, 'elo-pareamentos.json'),
     /**

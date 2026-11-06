@@ -7,6 +7,10 @@ const crypto = require('crypto');
 /**
  * Controle de acesso do servidor Lyra — duas camadas ortogonais:
  *
+ *  0) INSCRIÇÃO (Entrega 2): dispositivo desconhecido NÃO é mais autorizado automaticamente e para sempre. No modo
+ *     `tofu` só entra sozinho enquanto o OPERADOR mantém aberta uma janela de inscrição (curta, só em memória);
+ *     fora dela fica pendente até o operador aprovar. Revogado nunca volta como «novo» (a lista é persistente).
+ *
  *  1) AUTENTICAÇÃO (quem pode conectar): allowlist de credenciais por dispositivo.
  *     Cada instalação do controller gera um `deviceId` + `secret` na primeira execução
  *     (ver controller/src/lib/deviceIdentidade.js). O servidor guarda uma allowlist
@@ -77,6 +81,36 @@ function segredosConferem(a, b) {
   return crypto.timingSafeEqual(bufA, bufB);
 }
 
+/** Revogados persistentes (arquivo próprio): `{ versao: 1, revogados: { deviceId: ISO } }`. Ausente/corrompido = vazio. */
+function carregarRevogados(caminhoFn) {
+  if (typeof caminhoFn !== 'function') return [];
+  try {
+    const d = JSON.parse(fs.readFileSync(caminhoFn(), 'utf8'));
+    if (d && typeof d === 'object' && d.revogados && typeof d.revogados === 'object') {
+      return Object.entries(d.revogados).filter(([id, quando]) => typeof id === 'string' && typeof quando === 'string');
+    }
+  } catch (_) {
+    // intencional — arquivo ausente na primeira execução
+  }
+  return [];
+}
+
+const MAX_REVOGADOS = 2000;
+
+function salvarRevogados(caminhoFn, mapa) {
+  if (typeof caminhoFn !== 'function') return;
+  while (mapa.size > MAX_REVOGADOS) mapa.delete(mapa.keys().next().value);
+  const destino = caminhoFn();
+  const tmp = `${destino}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(destino), { recursive: true });
+    fs.writeFileSync(tmp, JSON.stringify({ versao: 1, revogados: Object.fromEntries(mapa) }, null, 2), 'utf8');
+    fs.renameSync(tmp, destino);
+  } catch (_) {
+    // a revogação já valeu em memória; falha de disco não derruba o controle de acesso
+  }
+}
+
 // ------------------------------------------------------------ gestor principal
 
 /**
@@ -98,6 +132,9 @@ function criarControleAcesso(deps) {
     emitParaSocket,
     broadcast = () => {},
     opcoes = {},
+    /** Entrega 2: arquivo próprio dos revogados (a allowlist NÃO muda de formato). */
+    revogadosPath = null,
+    agora = Date.now,
   } = deps;
 
   const pingIntervaloMs = Number.isFinite(opcoes.pingIntervaloMs) ? opcoes.pingIntervaloMs : 4000;
@@ -105,16 +142,22 @@ function criarControleAcesso(deps) {
 
   let allowlist = carregarAllowlist(allowlistPath);
 
+  /* Entrega 2 — inscrição por janela e revogação persistente. */
+  /** TOFU permanente de antes (só se pedido explicitamente; padrão: janela do operador). */
+  const inscricaoAutomatica = opcoes.inscricaoAutomatica === true;
+  const maxPendentes = Number.isFinite(opcoes.maxPendentes) ? opcoes.maxPendentes : 50;
+  const janelaPadraoMs = Number.isFinite(opcoes.janelaPadraoMs) ? opcoes.janelaPadraoMs : 5 * 60 * 1000;
+  const janelaMaxMs = Number.isFinite(opcoes.janelaMaxMs) ? opcoes.janelaMaxMs : 30 * 60 * 1000;
+  /** Fim da janela (ms). Só em memória: reiniciar o processo fecha a janela. */
+  let janelaAte = 0;
+  /** deviceId -> ISO da revogação (persistente). */
+  const revogados = new Map(carregarRevogados(revogadosPath));
+  const avisadosRevogados = new Set();
+
   /** socketId -> { deviceId, nome, ip, falhas, ultimoPong } dos controladores conectados. */
   const controladores = new Map();
   /** socketId do controlador primário (dono do bastão de escrita) ou null. */
   let primarioSocketId = null;
-  /**
-   * deviceIds revogados desde que o processo iniciou. Só serve para o log HTTP distinguir
-   * «revogado» de «desconhecido» (a revogação apaga a entrada da allowlist). Não é
-   * persistido de propósito: não altera o formato do arquivo; some ao reiniciar.
-   */
-  const revogadosNestaSessao = new Set();
   /** Handle do setInterval do heartbeat. */
   let heartbeatTimer = null;
 
@@ -151,8 +194,16 @@ function criarControleAcesso(deps) {
     }
     // Dispositivo desconhecido:
     const nome = String(auth.nome || '');
-    if (allowlist.modo === 'tofu') {
-      // Trust-on-first-use: auto-inscreve e autoriza (inscrição dos PCs conhecidos sem fricção).
+    // Revogado NUNCA volta como «novo» (nem com a janela aberta, nem travado): só o operador o readmite.
+    if (revogados.has(deviceId)) {
+      if (!avisadosRevogados.has(deviceId)) {
+        avisadosRevogados.add(deviceId);
+        notificar('dispositivo_revogado_tentou_voltar', { deviceId, nome });
+      }
+      return { ok: false, motivo: 'revogado' };
+    }
+    if (allowlist.modo === 'tofu' && (inscricaoAutomatica || janelaAberta())) {
+      // Inscrição por JANELA do operador (ou, só se pedido, a automática de antes).
       allowlist.devices[deviceId] = {
         secret,
         nome,
@@ -163,7 +214,8 @@ function criarControleAcesso(deps) {
       notificar('dispositivo_autoinscrito', { deviceId, nome });
       return { ok: true, device: { deviceId, nome } };
     }
-    // 'locked': fica pendente até aprovação manual do operador.
+    // Modo travado, ou `tofu` com a janela fechada: fica pendente até aprovação manual do operador.
+    if (listarPendentes().length >= maxPendentes) return { ok: false, motivo: 'limite-pendentes', pendente: true };
     allowlist.devices[deviceId] = { secret, nome, aprovadoEm: null, pendente: true };
     salvarAllowlist(allowlistPath, allowlist);
     notificar('dispositivo_pendente', { deviceId, nome });
@@ -194,7 +246,7 @@ function criarControleAcesso(deps) {
       ? allowlist.devices[deviceId]
       : null;
     if (!reg) {
-      return { ok: false, classe: revogadosNestaSessao.has(deviceId) ? 'revogado' : 'desconhecido' };
+      return { ok: false, classe: revogados.has(deviceId) ? 'revogado' : 'desconhecido' };
     }
     if (!segredosConferem(reg.secret, secret)) return { ok: false, classe: 'secret-invalido' };
     if (reg.pendente) return { ok: false, classe: 'pendente' };
@@ -212,6 +264,7 @@ function criarControleAcesso(deps) {
    */
   function travar() {
     allowlist.modo = 'locked';
+    janelaAte = 0; // travar fecha qualquer janela aberta
     salvarAllowlist(allowlistPath, allowlist);
     notificar('allowlist_travada', { total: Object.keys(allowlist.devices).length });
   }
@@ -234,14 +287,69 @@ function criarControleAcesso(deps) {
     return true;
   }
 
-  /** Revoga o acesso de um dispositivo (ex.: máquina descomissionada). */
+  /** Revoga o acesso de um dispositivo (ex.: máquina descomissionada). A revogação é PERSISTENTE. */
   function revogarDispositivo(deviceId) {
     if (!allowlist.devices[deviceId]) return false;
     delete allowlist.devices[deviceId];
-    revogadosNestaSessao.add(deviceId);
+    revogados.set(deviceId, new Date(agora()).toISOString());
+    avisadosRevogados.delete(deviceId);
     salvarAllowlist(allowlistPath, allowlist);
+    salvarRevogados(revogadosPath, revogados);
     notificar('dispositivo_revogado', { deviceId });
     return true;
+  }
+
+  /** Decisão EXPLÍCITA do operador: o dispositivo deixa de ser tratado como revogado (volta como desconhecido). */
+  function readmitirDispositivo(deviceId) {
+    if (!revogados.has(deviceId)) return false;
+    revogados.delete(deviceId);
+    salvarRevogados(revogadosPath, revogados);
+    notificar('dispositivo_readmitido', { deviceId });
+    return true;
+  }
+
+  function listarRevogados() {
+    return [...revogados.entries()].map(([deviceId, revogadoEm]) => ({ deviceId, revogadoEm }));
+  }
+
+  /** Pendentes de aprovação (inscritos mas ainda não autorizados). */
+  function listarPendentes() {
+    return Object.entries(allowlist.devices).filter(([, v]) => v && v.pendente).map(([deviceId, v]) => ({ deviceId, nome: v.nome || '' }));
+  }
+
+  /** O operador NEGA um pendente: some da lista (não vira autorizado nem revogado). */
+  function negarDispositivo(deviceId) {
+    const reg = allowlist.devices[deviceId];
+    if (!reg || !reg.pendente) return false;
+    delete allowlist.devices[deviceId];
+    salvarAllowlist(allowlistPath, allowlist);
+    notificar('dispositivo_negado', { deviceId, nome: reg.nome });
+    return true;
+  }
+
+  /* ---- janela de inscrição (aberta pelo operador; só em memória) ---- */
+  function janelaAberta() {
+    return janelaAte > agora();
+  }
+
+  function abrirJanelaInscricao({ duracaoMs } = {}) {
+    if (allowlist.modo !== 'tofu') return { aberta: false, expiraEm: null, motivo: allowlist.modo === 'locked' ? 'travada' : 'modo' };
+    const d = Number.isFinite(duracaoMs) && duracaoMs > 0 ? Math.min(duracaoMs, janelaMaxMs) : janelaPadraoMs;
+    janelaAte = agora() + d;
+    notificar('janela_inscricao_aberta', { expiraEm: janelaAte });
+    return { aberta: true, expiraEm: janelaAte };
+  }
+
+  function fecharJanelaInscricao() {
+    const era = janelaAberta();
+    janelaAte = 0;
+    if (era) notificar('janela_inscricao_fechada', {});
+    return era;
+  }
+
+  function getJanelaInscricao() {
+    const a = janelaAberta();
+    return { aberta: a, expiraEm: a ? janelaAte : null };
   }
 
   function listarDispositivos() {
@@ -477,6 +585,13 @@ function criarControleAcesso(deps) {
     verificarCredencial,
     aprovarDispositivo,
     revogarDispositivo,
+    readmitirDispositivo,
+    listarRevogados,
+    listarPendentes,
+    negarDispositivo,
+    abrirJanelaInscricao,
+    fecharJanelaInscricao,
+    getJanelaInscricao,
     listarDispositivos,
     getModo,
     travar,

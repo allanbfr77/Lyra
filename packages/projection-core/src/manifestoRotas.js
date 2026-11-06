@@ -37,7 +37,7 @@ const VOCAB = Object.freeze({
   classes: ['publica', 'leitura', 'leitura-sensivel', 'escrita', 'comando', 'administrativa'],
   /** Classe que `autenticacaoHttp.classificarRota` devolve hoje. */
   classesAtuais: ['publica', 'leitura', 'escrita', 'comando', 'loopback-estrito'],
-  guardas: ['nenhuma', 'ip-loopback-middleware', 'ip-loopback-handler', 'segredo-proprio', 'proxy-somente-leitura', 'nao-se-aplica'],
+  guardas: ['nenhuma', 'ip-loopback-middleware', 'ip-loopback-handler', 'segredo-proprio', 'proxy-somente-leitura', 'nao-se-aplica', 'credencial-na-rota', 'local-ou-elo'],
   politicas: ['PUB', 'PUB-LEVE', 'LER', 'ESC', 'CMD', 'PL', 'LOC', 'ELO', 'ADM', 'PEDIDO'],
   credDispositivo: ['exigida', 'nao', 'nao-usa'],
   credInterna: ['exigida', 'aceita', 'nao'],
@@ -322,15 +322,15 @@ nos2({ metodo: 'GET', caminho: '/api/monitores', classe: 'leitura', atual: 'leit
 nos2({ metodo: 'GET', caminho: '/api/display-routing', classe: 'leitura', atual: 'leitura', politica: ['LER'], clientes: ['mobile', 'painel'], testes: ['T1', 'T3'],
   compat: 'Mobile e painel enviam credencial.' }, { S: 534, L: 338 });
 nos2({ metodo: 'PUT', caminho: '/api/display-routing', classe: 'escrita', atual: 'escrita', politica: ['ESC'], clientes: ['mobile', 'painel'], testes: ['T1', 'T3', 'T9'],
-  compat: 'Abre e move janelas de projeção. O mobile usa.', riscos: 'Mobile sem inscrição perde a troca de saída quando imposta.', dep: ['pode abrir janelas de projeção (efeito físico)'] }, { S: 538, L: 342 });
+  compat: 'Abre e move janelas de projeção. O mobile usa.', riscos: 'Mobile sem inscrição perde a troca de saída quando imposta.', dep: ['pode abrir janelas de projeção (efeito físico)'] }, { S: 538, L: 342 }, { guarda: 'credencial-na-rota', compat: 'Abre e move janelas de projeção. No motor local (Entrega 2) exige credencial interna do painel ou dispositivo autorizado (o mobile atual envia); `LYRA_GUARDAS_ROTAS=0` desliga.' });
 nos2({ metodo: 'GET', caminho: '/api/display-config', classe: 'leitura', atual: 'leitura', politica: ['PUB-LEVE'], clientes: ['telao', 'mobile', 'painel'], testes: ['T1', 'T3', 'T4'],
   justificativaPublica: 'O Socket.IO já entrega `display_config` a qualquer visualizador; o telão a lê no arranque sem credencial.',
   compat: 'Hoje leitura: o GET do telão seria recusado em «impor» (a configuração ainda chegaria pelo socket).', riscos: 'Médio.' }, { S: 548, L: 353 });
 nos2({ metodo: 'PUT', caminho: '/api/display-config', classe: 'escrita', atual: 'escrita', politica: ['ESC', 'ELO'], elo: 'c→s', clientes: ['painel', 'mobile'], testes: ['T1', 'T3', 'T5', 'T9'],
   dep: ['recebe o salto do Controlador (3001) quando o painel muda a configuração'], compat: 'Direto (renderer) usa credencial de dispositivo; via salto usa o elo.',
-  riscos: 'Sem o elo, o salto 3001→5510 chega sem credencial.' }, { S: 561, L: 422 }, { politica: ['ESC'], elo: 'nao', dep: ['no motor local o salto do 3001 é do mesmo processo (credencial interna; sem elo)'] });
+  riscos: 'Sem o elo, o salto 3001→5510 chega sem credencial.' }, { S: 561, L: 422 }, { guarda: 'credencial-na-rota', politica: ['ESC'], elo: 'nao', dep: ['no motor local o salto do 3001 é do mesmo processo (credencial interna; sem elo)'] });
 nos2({ metodo: 'PUT', caminho: '/api/display-config/preview', classe: 'escrita', atual: 'escrita', politica: ['ESC', 'ELO'], elo: 'c→s', clientes: ['painel', 'mobile'], testes: ['T1', 'T3', 'T5', 'T9'],
-  dep: ['recebe o salto do Controlador (3001)'], compat: 'O mobile usa esta rota direto na 5510.', riscos: 'Idem.' }, { S: 583, L: 423 }, { politica: ['ESC'], elo: 'nao', dep: ['no motor local o salto do 3001 é do mesmo processo (credencial interna; sem elo)'] });
+  dep: ['recebe o salto do Controlador (3001)'], compat: 'O mobile usa esta rota direto na 5510.', riscos: 'Idem.' }, { S: 583, L: 423 }, { guarda: 'credencial-na-rota', politica: ['ESC'], elo: 'nao', dep: ['no motor local o salto do 3001 é do mesmo processo (credencial interna; sem elo)'] });
 
 /* Comandos: 10 no Servidor e 10 no motor local. No Servidor sem guarda; no motor local só loopback. */
 {
@@ -361,19 +361,33 @@ nos2({ metodo: 'PUT', caminho: '/api/display-config/preview', classe: 'escrita',
   }
 }
 
+/* Janela de inscrição e revogados (Entrega 2): só a máquina do operador, nos dois hospedeiros. */
+{
+  const itens = [['GET', '/janela', 519, 412, 'Estado da janela, pendentes e revogados.'],
+    ['POST', '/janela/abrir', 524, 415, 'Abre a inscrição automática por poucos minutos: qualquer processo local pode, como nas demais rotas de gestão.'],
+    ['POST', '/janela/fechar', 529, 418, 'Fecha a janela.'],
+    ['POST', '/readmitir', 534, 421, 'Tira um dispositivo da lista de revogados (decisão explícita do operador).']];
+  for (const [metodo, sufixo, ls, ll, nota] of itens) {
+    const comum = { metodo, caminho: `/api/controladores${sufixo}`, classe: 'administrativa', atual: 'loopback-estrito', politica: ['LOC'], clientes: ['nenhum-distribuido'], testes: ['T1'],
+      compat: 'Nenhum cliente distribuído chama estas rotas (menus do Servidor e do Controlador).', riscos: nota };
+    add({ servidor: 'S', linha: ls, guarda: 'ip-loopback-handler', ...comum });
+    add({ servidor: 'L', linha: ll, guarda: 'ip-loopback-middleware', ...comum });
+  }
+}
+
 /* Somente do Servidor separado. */
 {
   const s = (e) => add({ servidor: 'S', ...e });
   s({ metodo: 'GET', caminho: '/api/sync/banco', linha: 336, classe: 'leitura-sensivel', atual: 'leitura', politica: ['LER'], clientes: ['painel'], testes: ['T1', 'T3'],
     compat: 'Painel de outro PC lê o banco compartilhado com a identidade inscrita pelo socket.', riscos: 'Banco compartilhado inteiro.', dep: ['painel chama http://<ip-do-servidor>:5510'] });
-  s({ metodo: 'POST', caminho: '/api/sync/banco', linha: 345, classe: 'escrita', atual: 'escrita', politica: ['ESC'], clientes: ['painel'], testes: ['T1', 'T7'], riscos: 'Grava o banco compartilhado; corpo grande (E1.7).' });
+  s({ metodo: 'POST', caminho: '/api/sync/banco', linha: 345, classe: 'escrita', atual: 'escrita', guarda: 'credencial-na-rota', politica: ['ESC'], clientes: ['painel'], testes: ['T1', 'T7'], riscos: 'Grava o banco compartilhado; corpo grande (E1.7).' });
   s({ metodo: 'POST', caminho: '/api/internal/restart', linha: 358, classe: 'administrativa', atual: 'loopback-estrito', guarda: 'ip-loopback-handler', politica: ['ELO', 'LOC'], elo: 'c→s',
     clientes: ['processo-principal'], testes: ['T1', 'T5'], dep: ['chamada pelo processo principal do Controlador (menu «Reiniciar servidor»)'],
     compat: 'O chamador legítimo não tem credencial hoje.', riscos: 'Qualquer processo local reinicia o Servidor.' });
   s({ metodo: 'POST', caminho: '/api/internal/quit-for-update', linha: 381, classe: 'administrativa', atual: 'loopback-estrito', guarda: 'ip-loopback-handler', politica: ['ELO', 'LOC'], elo: 'c→s',
     clientes: ['processo-principal'], testes: ['T1', 'T5'], dep: ['chamada pelo Controlador antes de instalar a atualização do companion'],
     compat: 'Fluxo de atualização do companion depende desta chamada.', riscos: 'Qualquer processo local encerra o Servidor.' });
-  const devtools = { classe: 'administrativa', atual: 'escrita', guarda: 'nenhuma', politica: ['ELO', 'LOC'], elo: 'c→s', novaGuardaLoc: true, clientes: ['processo-principal'], testes: ['T1', 'T5'],
+  const devtools = { classe: 'administrativa', atual: 'escrita', guarda: 'local-ou-elo', politica: ['ELO', 'LOC'], elo: 'c→s', novaGuardaLoc: true, clientes: ['processo-principal'], testes: ['T1', 'T5'],
     dep: ['chamada pelo processo principal (menu «Abrir console do público/ministrante») sem credencial; não existe no motor local'],
     compat: 'Hoje é «escrita» comum: qualquer dispositivo inscrito pode chamá-la; o chamador legítimo não tem credencial.', riscos: 'Abre DevTools nos telões.' };
   s({ ...devtools, metodo: 'POST', caminho: '/api/open-display-devtools', linha: 606 });
@@ -541,6 +555,14 @@ const ROTAS_NOVAS_ENTREGA_1 = Object.freeze([
   'POST /api/elo/chaves/revogar',
 ]);
 
+/** Rotas acrescentadas pela Entrega 2 (janela de inscrição e revogados). */
+const ROTAS_NOVAS_ENTREGA_2 = Object.freeze([
+  'GET /api/controladores/janela',
+  'POST /api/controladores/janela/abrir',
+  'POST /api/controladores/janela/fechar',
+  'POST /api/controladores/readmitir',
+]);
+
 /** Incompatibilidades e lacunas identificadas ao montar o manifesto. */
 const INCOMPATIBILIDADES = Object.freeze([
   { id: 'I1', titulo: 'O 3001 não valida dispositivos com Servidor separado', texto: 'O verificador do 3001 chama o motor local; sem ele devolve «não verificável». Em «impor» recusaria mobile e outros clientes.', rotas: 'todas as rotas LER/ESC do 3001' },
@@ -569,9 +591,9 @@ function cont(filtro) { return ROTAS.filter(filtro).length; }
  * no motor local conta duas vezes).
  */
 const CONTAGENS_ESPERADAS = Object.freeze({
-  total: 136,
-  servidor: Object.freeze({ C: 64, S: 45, L: 27 }),
-  classe: Object.freeze({ publica: 19, leitura: 28, 'leitura-sensivel': 4, escrita: 41, comando: 20, administrativa: 24 }),
+  total: 144,
+  servidor: Object.freeze({ C: 64, S: 49, L: 31 }),
+  classe: Object.freeze({ publica: 19, leitura: 28, 'leitura-sensivel': 4, escrita: 41, comando: 20, administrativa: 32 }),
 });
 
 const NOME_SERVIDOR = { C: 'Controlador (3001)', S: 'Servidor separado (5510 e 5001)', L: 'Motor local do Controlador (5510 e 5001)' };
@@ -655,6 +677,10 @@ function renderizarMarkdown() {
   L.push('');
   for (const k of ROTAS_NOVAS_ENTREGA_1) L.push(`- \`${k}\``);
   L.push('');
+  L.push('Acrescentadas pela Entrega 2 (janela de inscrição e revogados):');
+  L.push('');
+  for (const k of ROTAS_NOVAS_ENTREGA_2) L.push(`- \`${k}\``);
+  L.push('');
   L.push('Também separadas na C0: cada rota presente no Servidor **e** no motor local (duplicatas) e a porta 5001 do OBS nos dois hospedeiros. Nenhuma rota da auditoria original ficou de fora.');
   L.push('');
 
@@ -730,6 +756,7 @@ module.exports = {
   AUDITORIA_ORIGINAL,
   ROTAS_NOVAS_NA_C0,
   ROTAS_NOVAS_ENTREGA_1,
+  ROTAS_NOVAS_ENTREGA_2,
   INCOMPATIBILIDADES,
   CONTAGENS_ESPERADAS,
   renderizarMarkdown,

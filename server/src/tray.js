@@ -24,9 +24,21 @@ function createTrayApi(ctx, paths, deps) {
     }
   }
 
+  /** Entrega 2: itens do operador para inscrever/aprovar dispositivos (usa `ctx.dialogosDispositivos`, criado com o servidor). */
+  function itensDispositivos() {
+    const d = () => ctx.dialogosDispositivos;
+    return [
+      { label: 'Abrir inscrição de dispositivos (5 min)', click: () => { if (d()) void d().abrirJanela(); } },
+      { label: 'Fechar inscrição de dispositivos', click: () => { if (d()) void d().fecharJanela(); } },
+      { label: 'Aprovar dispositivos pendentes…', click: () => { if (d()) void d().aprovarPendentes(); } },
+    ];
+  }
+
   function buildTrayMenu() {
     return Menu.buildFromTemplate([
       { label: 'Mostrar janela', click: () => showMainWindow() },
+      { type: 'separator' },
+      ...itensDispositivos(),
       { type: 'separator' },
       {
         id: 'tray-opt-minimize-band',
@@ -42,6 +54,10 @@ function createTrayApi(ctx, paths, deps) {
 
   function buildAppMenu() {
     const template = [
+      {
+        label: 'Dispositivos',
+        submenu: itensDispositivos(),
+      },
       {
         label: 'Janela',
         submenu: [

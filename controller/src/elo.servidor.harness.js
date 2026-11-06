@@ -21,7 +21,7 @@ const LOCAL = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const requisicaoVemDaMaquinaLocal = (req) => LOCAL.has(String((req && req.socket && req.socket.remoteAddress) || ''));
 const eventos = [];
 
-const acesso = controleAcesso.criarControleAcesso({
+const acesso = controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
   allowlistPath: () => path.join(DIR, 'allow.json'), emitParaSocket() {}, broadcast() {}, notificar() {},
 });
 acesso.autenticar({ deviceId: 'pc-1-harness', secret: 'seg-1' });

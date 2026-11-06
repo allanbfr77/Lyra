@@ -119,7 +119,7 @@ test.beforeEach(() => {
 
 function novoControleAcesso() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lyra-proxy-'));
-  return controleAcesso.criarControleAcesso({
+  return controleAcesso.criarControleAcesso({ opcoes: { inscricaoAutomatica: true },
     allowlistPath: () => path.join(dir, 'allow.json'),
     emitParaSocket: () => {},
     broadcast: () => {},

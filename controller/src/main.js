@@ -170,6 +170,8 @@ app.whenReady().then(async () => {
     },
     /* E é também quem toca o áudio, no lugar da janela de controle do Servidor. */
     obterJanelaPainel: () => mainWindow.getJanelaPrincipal(ctx),
+    /* Entrega 2: diálogos nativos do operador para inscrever/aprovar dispositivos. */
+    dialog: require('electron').dialog,
   });
 
   /*

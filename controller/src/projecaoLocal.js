@@ -20,6 +20,8 @@ const {
   acessoRede,
   autenticacaoHttp: autenticacaoHttpCore,
   credencialInterna: credencialInternaCore,
+  guardasRotas: guardasRotasCore,
+  dialogoDispositivos: dialogoDispositivosCore,
   provaPropriedade: provaPropriedadeCore,
 } = require('@lyra/projection-core');
 
@@ -60,7 +62,7 @@ const PORTA_OBS = 5001;
  * coordenação que escrevêssemos.
  */
 function criarProjecaoLocal(deps) {
-  const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel } = deps;
+  const { paths, logError, buscarMusicaPorId, aoEmitirParaPainel, obterJanelaPainel, dialog } = deps;
   /* Credencial interna do painel (E1.3 Fase B, W): só conferência; o segredo vive no main.js. */
   const credencialInterna = deps.credencialInterna || null;
   /* Diário de bordo das telas, criado pelo `main.js` — aqui só se usa e se repassa ao
@@ -73,6 +75,9 @@ function criarProjecaoLocal(deps) {
       // intencional — o diário nunca pode derrubar a projeção
     }
   };
+
+  /** Diálogos do operador (Entrega 2): só existem com `dialog` (Electron) e com o motor ligado. */
+  let dialogos = null;
 
   let io = null;
   let servidorApi = null;
@@ -325,7 +330,24 @@ function criarProjecaoLocal(deps) {
    *   foram por POST — daí o limite de 200 MB, igual ao do Servidor.
    */
   function montarRotasApi(apiApp) {
-    apiApp.use(express.json({ limit: '200mb' }));
+    /*
+     * Guardas POR ROTA (Entrega 2) — não é o `impor` geral. Verifica a credencial como a autenticação HTTP: interna do
+     * painel (só neste contexto local) ou dispositivo autorizado na allowlist deste processo. `LYRA_GUARDAS_ROTAS=0` desliga.
+     */
+    const guardas = guardasRotasCore.criarGuardasRotas({
+      verificar: credencialInternaCore.criarVerificadorHttp({
+        interna: credencialInterna,
+        verificarBase: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
+      }),
+      registrar: (info) => registarNoDiario('guarda-rota', info),
+      desligadas: process.env.LYRA_GUARDAS_ROTAS === '0',
+    });
+    const exigirCredencial = guardas.exigirCredencial();
+
+    /* Corpo GRANDE (até 200 MB) só para quem provou quem é (interna/dispositivo) ou vem da própria máquina; resto: 1 MB. */
+    apiApp.use(guardas.limitarTaxa());
+    apiApp.use(guardas.selecionarJson({ pequeno: express.json({ limit: '1mb' }), grande: express.json({ limit: '200mb' }) }));
+    apiApp.use(guardas.tratarErroCorpo);
 
     /* Identidade do host na 5510 — sem autenticação nem allowlist. Um Controlador
        remoto consulta isto ao ligar para não confundir este modo local com um Servidor. */
@@ -339,7 +361,7 @@ function criarProjecaoLocal(deps) {
       res.json(displayRouting.loadDisplayRouting(paths.displayRoutingPath));
     });
 
-    apiApp.put('/api/display-routing', (req, res) => {
+    apiApp.put('/api/display-routing', exigirCredencial, (req, res) => {
       try {
         const routing = displayRouting.saveDisplayRouting(paths.displayRoutingPath, req.body || {});
         engine.garantirTelasAbertasParaProjecao();
@@ -386,6 +408,20 @@ function criarProjecaoLocal(deps) {
       res.json({ ok: true, modo: acesso.getModo() });
     });
 
+    /* Janela de inscrição e revogados (Entrega 2): só desta máquina. */
+    apiApp.get('/api/controladores/janela', soLocal, (_req, res) => {
+      res.json({ ok: true, ...acesso.getJanelaInscricao(), modo: acesso.getModo(), pendentes: acesso.listarPendentes(), revogados: acesso.listarRevogados() });
+    });
+    apiApp.post('/api/controladores/janela/abrir', soLocal, (req, res) => {
+      res.json({ ok: true, ...acesso.abrirJanelaInscricao({ duracaoMs: Number(req.body?.duracaoMs) }) });
+    });
+    apiApp.post('/api/controladores/janela/fechar', soLocal, (_req, res) => {
+      res.json({ ok: true, fechada: acesso.fecharJanelaInscricao() });
+    });
+    apiApp.post('/api/controladores/readmitir', soLocal, (req, res) => {
+      res.json({ ok: acesso.readmitirDispositivo(String(req.body?.deviceId || '').trim()) });
+    });
+
     /* Gémeos HTTP dos comandos de config. Tal como no Servidor, não difundem
        `display_config` — respondem com a config aplicada, que é o que um cliente HTTP
        espera. */
@@ -419,8 +455,8 @@ function criarProjecaoLocal(deps) {
         res.status(500).json({ erro: e.message || String(e) });
       }
     };
-    apiApp.put('/api/display-config', rotaConfig(true));
-    apiApp.put('/api/display-config/preview', rotaConfig(false));
+    apiApp.put('/api/display-config', exigirCredencial, rotaConfig(true));
+    apiApp.put('/api/display-config/preview', exigirCredencial, rotaConfig(false));
 
     /*
      * Fallbacks HTTP dos comandos. O painel em modo local quase nunca os usa — a porta de
@@ -649,6 +685,10 @@ function criarProjecaoLocal(deps) {
      */
     acesso = controleAcesso.criarControleAcesso({
       allowlistPath: paths.allowlistPath,
+      /* Entrega 2: revogados persistentes (arquivo próprio); a allowlist não muda de formato. */
+      revogadosPath: paths.revogadosPath,
+      /* Entrega 2: dispositivo novo só entra sozinho durante a JANELA aberta pelo operador (`LYRA_TOFU_LEGADO=1` = TOFU de antes). */
+      opcoes: { inscricaoAutomatica: process.env.LYRA_TOFU_LEGADO === '1' },
       emitParaSocket: (id, evt, dados) => {
         try {
           io?.to(id).emit(evt, dados);
@@ -663,9 +703,16 @@ function criarProjecaoLocal(deps) {
           // intencional
         }
       },
-      notificar: (evt, dados) => registarErro(`acesso:${evt}`, dados || ''),
+      notificar: (evt, dados) => {
+        registarErro(`acesso:${evt}`, dados || '');
+        // Entrega 2: dispositivo novo aguardando aprovação → pergunta ao operador (deduplicado, em fila).
+        if (evt === 'dispositivo_pendente' && dados && dialogos) dialogos.aoPendente(dados);
+      },
       logError: registarErro,
     });
+    dialogos = dialog
+      ? dialogoDispositivosCore.criarDialogosDispositivos({ acesso, dialog, obterJanela: () => (typeof obterJanelaPainel === 'function' ? obterJanelaPainel() : undefined) })
+      : null;
 
     store = criarArmazemDeProjecao();
     /*
@@ -827,6 +874,8 @@ function criarProjecaoLocal(deps) {
     receberComando,
     publicarEstadoAudio,
     estaActiva: () => activa,
+    /** Diálogos do operador para inscrever/aprovar dispositivos (Entrega 2); null se o motor está desligado. */
+    dialogosDispositivos: () => (activa ? dialogos : null),
     /**
      * O dono de 127.0.0.1:5510 é o servidor HTTP que este processo iniciou? Só `true` com o motor
      * ativo E a conexão de sonda chegando ao nosso próprio objeto servidor (ver `provaPropriedade`).
