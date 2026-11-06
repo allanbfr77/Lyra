@@ -45,6 +45,7 @@ const VOCAB = Object.freeze({
   clientes: [
     'painel', 'historico', 'mobile', 'telao', 'obs', 'janela-controle-servidor', 'processo-principal',
     'outro-controlador', 'servidor-proxy', 'servico-externo', 'navegador-comum', 'nenhum-distribuido',
+    'ferramenta-acompanhamento-playlist',
   ],
   testes: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10'],
   relacoes: ['alias', 'duplicata-em-outro-hospedeiro', 'proxy-para', 'alcancavel-por-proxy', 'caminho-alternativo'],
@@ -52,7 +53,7 @@ const VOCAB = Object.freeze({
 
 const LEGENDA_POLITICAS = Object.freeze({
   PUB: 'pública, sem credencial; precisa continuar pública',
-  'PUB-LEVE': 'pública porque o Socket.IO já entrega o mesmo dado a qualquer visualizador',
+  'PUB-LEVE': 'pública: dado de baixa sensibilidade que precisa ser acessível a clientes sem credencial (telões, janela de controle, visualizadores)',
   LER: 'credencial de dispositivo inscrito, leitura',
   ESC: 'credencial de dispositivo inscrito, escrita',
   CMD: 'ESC mais paridade com o bastão do controlador primário',
@@ -252,7 +253,8 @@ const ctl = (arquivo) => (e) => add({ servidor: 'C', arquivo: `controller/src/ro
 /* — Playlists — */
 {
   const f = ctl('playlists.js');
-  f({ metodo: 'GET', caminho: '/api/playlists', linha: 22, classe: 'leitura', atual: 'leitura', politica: ['LER'], clientes: ['painel', 'mobile'], testes: ['T1', 'T3'] });
+  f({ metodo: 'GET', caminho: '/api/playlists', linha: 22, classe: 'leitura', atual: 'leitura', politica: ['LER'], clientes: ['painel', 'mobile', 'ferramenta-acompanhamento-playlist'], testes: ['T1', 'T3'],
+    compat: 'tools/acompanhamento-playlist/index.html (página aberta por duplo clique, em file://) usa esta rota como fallback, sem credencial. Com Origin: null a proteção E1.2 já recusa o HTTP e a ferramenta funciona pelo Socket.IO. Política LER e ferramenta inalteradas.' });
   f({ metodo: 'PUT', caminho: '/api/playlists', linha: 30, classe: 'escrita', atual: 'escrita', politica: ['PL'], clientes: ['painel'], testes: ['T1', 'T2'], riscos: 'Substitui todas as playlists.' });
   f({ metodo: 'POST', caminho: '/api/playlists/adicionar-musica', linha: 41, classe: 'escrita', atual: 'escrita', politica: ['PL'], clientes: ['painel'], testes: ['T1', 'T2'] });
 }
@@ -314,7 +316,7 @@ nos2({ metodo: 'GET', caminho: '/api/estado', classe: 'leitura', atual: 'leitura
   justificativaPublica: 'O Socket.IO já entrega o mesmo estado a qualquer visualizador sem credencial; proteger só o GET seria incoerente.',
   compat: 'Hoje classificada como leitura (exigiria credencial em «impor»).', riscos: 'Mobile/painel que a leem sem credencial quebrariam se continuasse leitura.' }, { S: 332, L: 355 });
 nos2({ metodo: 'GET', caminho: '/api/monitores', classe: 'leitura', atual: 'leitura', politica: ['PUB-LEVE'], clientes: ['telao', 'janela-controle-servidor', 'mobile', 'painel'], testes: ['T1', 'T3', 'T4'],
-  justificativaPublica: 'Telões (file://) e a janela de controle do Servidor não têm credencial; é só a lista de monitores da máquina.',
+  justificativaPublica: 'Exposição pública por compatibilidade com os telões (file://) e a janela de controle do Servidor, que não têm credencial. Não decorre de transmissão equivalente pelo Socket.IO (o socket não envia a lista de monitores a visualizadores). Dado de hardware de baixa sensibilidade: nome, resolução e posição dos monitores.',
   compat: 'Hoje leitura: em «impor» os telões e a janela de controle quebrariam.', riscos: 'Alto se for imposta sem reclassificar.',
   dep: ['telões chamam http://localhost:5510 (nome que pode resolver para ::1)'] }, { S: 530, L: 336 });
 nos2({ metodo: 'GET', caminho: '/api/display-routing', classe: 'leitura', atual: 'leitura', politica: ['LER'], clientes: ['mobile', 'painel'], testes: ['T1', 'T3'],
@@ -510,6 +512,7 @@ const INCOMPATIBILIDADES = Object.freeze([
   { id: 'I10', titulo: 'Painel só usa 127.0.0.1:3001', texto: 'A política PL exclui o painel aberto em navegador comum (sem a credencial interna).', rotas: 'todas as rotas PL' },
   { id: 'I11', titulo: 'Porta 5001 (OBS) sem autenticação HTTP montada', texto: 'Só protecaoRede (Host/Origin). As páginas são públicas por construção.', rotas: 'GET /obs, /obs/biblia, /obs/slides (S e L)' },
   { id: 'I12', titulo: 'express.static montado antes das rotas no 3001', texto: 'Um arquivo em controller/public com o mesmo nome de uma rota teria precedência sobre ela.', rotas: 'GET /* (C)' },
+  { id: 'I14', titulo: 'Ferramenta de acompanhamento da playlist usa HTTP sem credencial', texto: 'tools/acompanhamento-playlist abre em file:// (Origin: null) e consulta GET /api/playlists do 3001 como fallback; a E1.2 já recusa esse HTTP e a ferramenta usa o Socket.IO. Política LER mantida (C1).', rotas: 'GET /api/playlists (C)' },
   { id: 'I13', titulo: 'Proxies aceitam qualquer método e respondem 405 a escrita', texto: 'Os três proxies interceptam todos os métodos das famílias; só GET/HEAD atravessam.', rotas: 'proxies S' },
 ]);
 

@@ -496,6 +496,8 @@ function criarProjecaoLocal(deps) {
         verificarBase: (auth) => (acesso ? acesso.verificarCredencial(auth) : null),
       }),
       registrar: (info) => registarNoDiario('auth-http', info),
+      /* C1: classe, credencial esperada e motivo de uma recusa futura (só observa; nada é bloqueado). */
+      registrarDecisao: (info) => registarNoDiario('politica-http', info),
     });
 
     const apiApp = express();

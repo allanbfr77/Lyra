@@ -305,6 +305,8 @@ function iniciarServidor(ctx, paths, deps) {
     contexto: 'servidor-5510',
     verificar: (auth) => ctx.acesso.verificarCredencial(auth),
     registrar: (info) => console.warn(`[Lyra][auth-http] ${JSON.stringify(info)}`),
+    /* C1: classe, credencial esperada e motivo de uma recusa futura (só observa; nada é bloqueado). */
+    registrarDecisao: (info) => console.warn(`[Lyra][politica-http] ${JSON.stringify(info)}`),
   });
   expressApp.use(autenticacaoHttp.middleware);
 

@@ -358,13 +358,13 @@ test('documento docs/seguranca/manifesto-rotas.md está em dia com o manifesto',
   assert.equal(atual, gerado, 'documento desatualizado: regenere com `node -e "require(\'./packages/projection-core/src/manifestoRotas\').gravarDocumento()"`');
 });
 
-test('C0 não muda comportamento: nenhum código de produção importa o manifesto', () => {
+test('o manifesto só é importado pelo módulo de política (C1); nenhum outro código de produção o lê', () => {
   const importadores = [];
   for (const f of ARQUIVOS_FONTE) {
     if (f.endsWith('manifestoRotas.js')) continue;
     if (/manifestoRotas/.test(ler(f))) importadores.push(f);
   }
-  assert.deepEqual(importadores, []);
+  assert.deepEqual(importadores, ['packages/projection-core/src/politicaRotas.js']);
   const indice = ler('packages/projection-core/src/index.js');
   assert.ok(!/manifestoRotas/.test(indice), 'o manifesto não é exportado pelo núcleo nesta etapa');
 });
@@ -373,4 +373,31 @@ test('o manifesto não carrega segredos nem lê o ambiente', () => {
   const src = ler('packages/projection-core/src/manifestoRotas.js');
   assert.ok(!/process\.env/.test(src));
   assert.ok(!/(secret|segredo)\s*[:=]\s*['"][^'"]{8,}/i.test(src));
+});
+
+/* ───────────────────────── correções aprovadas na C1 ───────────────────────── */
+
+test('PUB-LEVE: definição corrigida (baixa sensibilidade para clientes sem credencial), sem atribuir ao Socket.IO o que ele não faz', () => {
+  assert.match(M.LEGENDA_POLITICAS['PUB-LEVE'], /baixa sensibilidade/);
+  assert.doesNotMatch(M.LEGENDA_POLITICAS['PUB-LEVE'], /Socket\.IO já entrega/);
+  for (const r of M.ROTAS.filter((x) => x.caminho === '/api/monitores')) {
+    assert.match(r.justificativaPublica, /compatibilidade com os telões/);
+    assert.match(r.justificativaPublica, /Não decorre de transmissão equivalente pelo Socket\.IO/);
+    assert.deepEqual(r.politicaPretendida, ['PUB-LEVE'], 'a política não muda');
+  }
+  // as outras duas PUB-LEVE continuam justificadas pelo socket, e isso é verdade para elas
+  for (const caminho of ['/api/estado', '/api/display-config']) {
+    for (const r of M.ROTAS.filter((x) => x.caminho === caminho && x.metodo === 'GET')) assert.match(r.justificativaPublica, /Socket\.IO já entrega/);
+  }
+});
+
+test('cliente omitido: a ferramenta de acompanhamento da playlist consta em GET /api/playlists, com a política LER intacta', () => {
+  const r = M.ROTAS.find((x) => x.servidor === 'C' && x.metodo === 'GET' && x.caminho === '/api/playlists');
+  assert.ok(r.clientes.includes('ferramenta-acompanhamento-playlist'));
+  assert.deepEqual(r.politicaPretendida, ['LER']);
+  assert.match(r.compatibilidade, /Origin: null/);
+  assert.match(r.compatibilidade, /E1\.2/);
+  assert.match(r.compatibilidade, /Socket\.IO/);
+  assert.ok(fs.existsSync(path.join(RAIZ, 'tools/acompanhamento-playlist/index.html')));
+  assert.ok(M.INCOMPATIBILIDADES.some((i) => /acompanhamento/i.test(i.titulo)));
 });
