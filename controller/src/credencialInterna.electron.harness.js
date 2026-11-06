@@ -36,8 +36,12 @@ const RH = { 'X-Lyra-Device': 'renderer-dev', 'X-Lyra-Secret': 'renderer-secret'
 
 const resultados = [];
 const logs = [];
+/** Problemas de INFRAESTRUTURA do harness (servidor/filho que não encerrou etc.): o teste falha se houver algum. */
+const problemas = [];
+let ultimoCenario = null;
 const rec = (cenario, ok, evidencia) => {
   resultados.push({ cenario, ok: !!ok, evidencia: evidencia === undefined ? '' : String(evidencia) });
+  ultimoCenario = cenario;
   const l = `${ok ? 'OK  ' : 'FALHA'} | ${cenario} | ${evidencia === undefined ? '' : evidencia}`;
   logs.push(l);
   console.log(l);
@@ -45,6 +49,78 @@ const rec = (cenario, ok, evidencia) => {
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 let marcador = 0;
 const novoMarcador = () => `m${++marcador}`;
+
+/**
+ * Espera ATIVA: reavalia `fn` a cada `passoMs` até devolver algo verdadeiro ou estourar `timeoutMs`.
+ * Devolve o valor, ou `null` no estouro (o cenário então registra a falha com a sua evidência: nada
+ * é escondido). O custo do limite só é pago quando a condição NÃO ocorre; no caminho normal a espera
+ * termina na primeira vez em que a condição vale.
+ */
+async function aguardarAte(fn, { timeoutMs = 5000, passoMs = 25 } = {}) {
+  const fim = Date.now() + timeoutMs;
+  for (;;) {
+    let v = null;
+    try { v = fn(); } catch (_) { v = null; }
+    if (v) return v;
+    if (Date.now() >= fim) return null;
+    await esperar(passoMs);
+  }
+}
+
+/* ───────────────────────── resultado atômico, vigia e filhos ───────────────────────── */
+
+/** Grava `OUT` por arquivo temporário + rename: o teste nunca lê um JSON pela metade. */
+function gravarResultado(completo, extra) {
+  const corpo = JSON.stringify({ electron: process.versions.electron, completo, ultimoCenario, problemas, resultados, ...(extra || {}) }, null, 1);
+  const tmp = `${OUT}.tmp`;
+  fs.writeFileSync(tmp, corpo);
+  fs.renameSync(tmp, OUT);
+}
+
+/** Processos filhos (Servidor «separado» simulado) ainda vivos: todos são mortos na saída. */
+const filhos = new Set();
+function matarFilhos() {
+  for (const f of filhos) { try { f.kill(); } catch (_) { /* ignora */ } }
+}
+
+/**
+ * Mata o filho e ESPERA ele sumir (a porta só fica livre depois). Dois sinais, o que vier primeiro:
+ * o evento `exit` ou o PID não existir mais no SO (sob CPU saturada o evento chega atrasado).
+ * Limitado; `false` se não saiu no prazo.
+ */
+function encerrarFilho(f, timeoutMs = 15000) {
+  const vivo = () => { try { process.kill(f.pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
+  return new Promise((resolve) => {
+    if (f.exitCode !== null || f.signalCode !== null) return resolve(true);
+    let fim = false;
+    const concluir = (ok) => { if (fim) return; fim = true; clearTimeout(t); clearInterval(i); resolve(ok); };
+    const t = setTimeout(() => concluir(false), timeoutMs);
+    const i = setInterval(() => { if (!vivo()) concluir(true); }, 50);
+    f.once('exit', () => concluir(true));
+    try { f.kill(); } catch (_) { /* ignora */ }
+  });
+}
+
+/**
+ * Vigia global: o harness inteiro leva ~11 s isolado e no máximo ~70 s sob carga total de CPU
+ * (medido, todos os núcleos saturados); 140 s dá o dobro de folga. Se estourar, grava o que existe (com o último
+ * cenário alcançado) e sai com código 2 — o travamento deixa de ser anônimo.
+ */
+const LIMITE_HARNESS_MS = 140000;
+let encerrando = false;
+function sairForcado(codigo, motivo) {
+  if (encerrando) return;
+  encerrando = true;
+  problemas.push(motivo);
+  console.log(`\nHARNESS INTERROMPIDO: ${motivo} | último cenário: ${ultimoCenario}`);
+  try { gravarResultado(false); } catch (_) { /* ignora */ }
+  matarFilhos();
+  setTimeout(() => process.exit(codigo), 2000);
+  try { app.exit(codigo); } catch (_) { process.exit(codigo); }
+}
+setTimeout(() => sairForcado(2, `vigia global: harness passou de ${LIMITE_HARNESS_MS} ms`), LIMITE_HARNESS_MS);
+process.on('uncaughtException', (e) => sairForcado(3, `exceção não tratada: ${e && e.stack ? e.stack : e}`));
+process.on('unhandledRejection', (e) => sairForcado(3, `rejeição não tratada: ${e && e.stack ? e.stack : e}`));
 
 /* ───────────────────────── servidores reais em portas de teste ───────────────────────── */
 
@@ -93,7 +169,26 @@ function criarServidor({ porta, contexto, interna, acesso, host = '127.0.0.1', c
     recs.push({ method: 'UPGRADE', url: req.url, headers: { ...req.headers } });
     sock.destroy();
   });
-  return new Promise((resolve) => server.listen(porta, host, () => resolve({ server, recs, eventosAuth, exec, porta, host })));
+  /* Sockets rastreados: o Chromium abre conexões de pré-conexão que nunca enviam requisição e que
+     seguram `server.close()` para sempre. Ao encerrar, todas são destruídas. */
+  const sockets = new Set();
+  server.on('connection', (s) => { sockets.add(s); s.on('close', () => sockets.delete(s)); });
+  /** Fecha o servidor e as conexões, com limite. `false` (e um problema registrado) se não fechou. */
+  const encerrar = (timeoutMs = 5000) => new Promise((resolve) => {
+    if (!server.listening) return resolve(true);
+    let fim = false;
+    const t = setTimeout(() => {
+      if (fim) return;
+      fim = true;
+      problemas.push(`servidor :${porta} (${host}) não fechou em ${timeoutMs} ms (sockets restantes=${sockets.size})`);
+      resolve(false);
+    }, timeoutMs);
+    server.close(() => { if (!fim) { fim = true; clearTimeout(t); resolve(true); } });
+    try { server.closeIdleConnections(); } catch (_) { /* ignora */ }
+    try { server.closeAllConnections(); } catch (_) { /* ignora */ }
+    for (const s of sockets) { try { s.destroy(); } catch (_) { /* ignora */ } }
+  });
+  return new Promise((resolve) => server.listen(porta, host, () => resolve({ server, recs, eventosAuth, exec, porta, host, encerrar })));
 }
 
 /* ───────────────────────── utilidades de página ───────────────────────── */
@@ -208,8 +303,9 @@ app.whenReady().then(async () => {
     const xhr = await painel.webContents.executeJavaScript(`new Promise(res=>{const x=new XMLHttpRequest();x.open('GET','${ORIGEM}/api/musicas?${m}');x.onloadend=()=>res(x.status);x.send()})`);
     const m2 = novoMarcador();
     await painel.webContents.executeJavaScript(`navigator.sendBeacon('${ORIGEM}/api/beacon?${m2}', new Blob(['{}'],{type:'application/json'}))`);
-    await esperar(300);
-    rec('P4 XMLHttpRequest e sendBeacon (ping) também recebem a credencial interna', xhr === 200 && !!achar(api, m2) && achar(api, m2).headers['x-lyra-secret'] === SECRET, `xhr=${xhr}`);
+    // sendBeacon é assíncrono: espera ativa (limitada) pelo servidor registrar o ping.
+    const ping = await aguardarAte(() => achar(api, m2), { timeoutMs: 5000 });
+    rec('P4 XMLHttpRequest e sendBeacon (ping) também recebem a credencial interna', xhr === 200 && !!ping && ping.headers['x-lyra-secret'] === SECRET, `xhr=${xhr} ping=${ping ? 'chegou' : 'NAO chegou em 5 s'}`);
   }
   {
     const m = novoMarcador();
@@ -238,7 +334,7 @@ app.whenReady().then(async () => {
     rec('R1 após reload (mesmo webContents) continua autorizado', st === 200 && painel.webContents.id === antes, `status=${st}`);
 
     painel.close();
-    await esperar(300);
+    await aguardarAte(() => !integ.registro.tem(antes), { timeoutMs: 5000 });
     const removida = !integ.registro.tem(antes);
     painel = await criarJanela(`${ORIGEM}/controller.html`);
     const idNovo = integ.autorizarJanela(painel, { papel: 'painel', pagina: '/controller.html' });
@@ -252,7 +348,7 @@ app.whenReady().then(async () => {
     intrusa.destroy();
 
     historico.close();
-    await esperar(300);
+    await aguardarAte(() => !integ.registro.tem(idHist), { timeoutMs: 5000 });
     rec('R4 fechar o Histórico remove o registro e não afeta o painel',
       !integ.registro.tem(idHist) && (await fetchNaPagina(painel.webContents, `${ORIGEM}/api/musicas?${novoMarcador()}`)) === 200, `registrado=${integ.registro.tem(idHist)}`);
   }
@@ -272,12 +368,14 @@ app.whenReady().then(async () => {
   {
     const antes = new Set(wcCriadas.keys());
     const retorno = await painel.webContents.executeJavaScript(`(()=>{const w=window.open('${ORIGEM}/child.html');return w===null?'nulo':'janela'})()`);
+    // Ausência de efeito (nenhuma janela filha): janela de observação fixa; o retorno nulo de window.open já é síncrono.
     await esperar(800);
     const novas = [...wcCriadas.keys()].filter((id) => !antes.has(id));
     rec('T3 window.open a partir do painel é NEGADO (nenhuma janela filha herda a credencial)', retorno === 'nulo' && novas.length === 0, `retorno=${retorno} novas=${novas.length}`);
   }
   {
     await painel.webContents.executeJavaScript(`location.href='${ORIGEM}/tela.html'; 1`);
+    // Ausência de efeito (navegação barrada): janela de observação fixa.
     await esperar(800);
     const url = painel.webContents.getURL();
     rec('T4 will-navigate: o painel não consegue navegar para outra página (/tela.html) e herdar a credencial', url.endsWith('/controller.html'), url);
@@ -324,8 +422,7 @@ app.whenReady().then(async () => {
   {
     const m = novoMarcador();
     await painel.webContents.executeJavaScript(`new Promise(r=>{const w=new WebSocket('ws://127.0.0.1:${P_API}/socket.io/?${m}');w.onclose=()=>r(1);w.onerror=()=>r(0)})`);
-    await esperar(300);
-    const up = achar(api, m, 'UPGRADE');
+    const up = await aguardarAte(() => achar(api, m, 'UPGRADE'), { timeoutMs: 5000 });
     rec('S1 handshake WebSocket do painel NÃO recebe a credencial interna (Socket.IO não a aceita)', !!up && up.headers['x-lyra-secret'] === undefined && up.headers['x-lyra-device'] === undefined, up ? 'upgrade sem segredo' : 'sem upgrade');
   }
 
@@ -360,6 +457,7 @@ app.whenReady().then(async () => {
     await new Promise((r) => { wProd.webContents.once('did-finish-load', r); wProd.loadURL(`${ORIGEM}/controller.html`); });
     prod.autorizarJanela(wProd, { papel: 'painel', pagina: '/controller.html' });
     try { wProd.webContents.openDevTools({ mode: 'detach' }); } catch (_) { /* esperado */ }
+    // Ausência de efeito (devTools:false: nada abre): não existe evento positivo a aguardar; janela de observação curta e fixa.
     await esperar(500);
     rec('V1 produção: webPreferences.devTools=false — openDevTools() não abre', prod.devToolsPermitido === false && wProd.webContents.isDevToolsOpened() === false, `aberto=${wProd.webContents.isDevToolsOpened()}`);
     rec('V2 produção: guardas de atalho instaladas (before-input-event/devtools-opened)', wProd.webContents.listenerCount('before-input-event') >= 1 && wProd.webContents.listenerCount('devtools-opened') >= 1, '');
@@ -374,9 +472,12 @@ app.whenReady().then(async () => {
     const wDev = new BrowserWindow({ show: false, webPreferences: integ.webPreferences({ sandbox: true, contextIsolation: true, nodeIntegration: false }) });
     await new Promise((r) => { wDev.webContents.once('did-finish-load', r); wDev.loadURL(`${ORIGEM}/tela.html`); });
     try { wDev.webContents.openDevTools({ mode: 'detach' }); } catch (_) { /* ignora */ }
-    await esperar(800);
-    rec('V4 desenvolvimento: DevTools continuam disponíveis', integ.devToolsPermitido === true && wDev.webContents.isDevToolsOpened() === true, `aberto=${wDev.webContents.isDevToolsOpened()}`);
+    // Abertura das DevTools é assíncrona e lenta sob carga: medido de ~2 s a ~16 s com todos os núcleos saturados; limite de 45 s (só consumidos se não abrir).
+    const t0V4 = Date.now();
+    const abriu = await aguardarAte(() => wDev.webContents.isDevToolsOpened(), { timeoutMs: 45000, passoMs: 50 });
+    rec('V4 desenvolvimento: DevTools continuam disponíveis', integ.devToolsPermitido === true && abriu === true && wDev.webContents.isDevToolsOpened() === true, `aberto=${wDev.webContents.isDevToolsOpened()} em ${Date.now() - t0V4} ms`);
     try { wDev.webContents.closeDevTools(); } catch (_) { /* ignora */ }
+    await aguardarAte(() => !wDev.webContents.isDevToolsOpened(), { timeoutMs: 5000 });
     wDev.destroy();
   }
 
@@ -402,16 +503,26 @@ app.whenReady().then(async () => {
     rec('Q2c «localhost»:5510 NUNCA recebe a interna, nem com o motor ativo (localhost não é comprovável)', orig(achar(proj, m1d)), '');
 
     /* Servidor separado de verdade: OUTRO PROCESSO do SO na mesma máquina e na mesma porta. */
-    await new Promise((r) => proj.server.close(r));
+    await proj.encerrar();
     const arq = path.join(TMP, 'separado.jsonl');
     const script = `const http=require('http'),fs=require('fs');http.createServer((q,s)=>{fs.appendFileSync(process.env.ARQ,JSON.stringify({url:q.url,h:q.headers})+'\\n');s.setHeader('Access-Control-Allow-Origin','*');s.setHeader('Access-Control-Allow-Headers','content-type, x-lyra-app, x-lyra-device, x-lyra-secret');s.setHeader('Access-Control-Allow-Methods','GET, PUT, OPTIONS');if(q.method==='OPTIONS'){s.statusCode=204;return s.end()}s.end('{}')}).listen(${P_PROJ},process.env.HOST,()=>console.log('pronto'))`;
     const abrirSeparado = (host) => new Promise((resolve, reject) => {
       const filho = spawn(process.execPath, ['-e', script], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ARQ: arq, HOST: host }, stdio: ['ignore', 'pipe', 'pipe'] });
+      filhos.add(filho);
+      filho.on('exit', () => filhos.delete(filho));
       let pronto = false;
-      filho.stdout.on('data', (d) => { if (String(d).includes('pronto') && !pronto) { pronto = true; resolve(filho); } });
-      filho.stderr.on('data', (d) => { if (!pronto && /EADDRINUSE|EACCES/.test(String(d))) reject(new Error('bind')); });
-      filho.on('exit', () => { if (!pronto) reject(new Error('saiu')); });
-      setTimeout(() => { if (!pronto) reject(new Error('timeout')); }, 8000);
+      let falhou = false;
+      const falhar = (motivo) => {
+        if (pronto || falhou) return;
+        falhou = true;
+        clearTimeout(limite);
+        try { filho.kill(); } catch (_) { /* ignora */ } // nenhum filho fica órfão num caminho de falha
+        reject(new Error(motivo));
+      };
+      const limite = setTimeout(() => falhar('timeout'), 8000);
+      filho.stdout.on('data', (d) => { if (String(d).includes('pronto') && !pronto && !falhou) { pronto = true; clearTimeout(limite); resolve(filho); } });
+      filho.stderr.on('data', (d) => { if (!pronto && /EADDRINUSE|EACCES/.test(String(d))) falhar('bind'); });
+      filho.on('exit', () => falhar('saiu'));
     });
     const lerSeparado = (marca) => {
       try {
@@ -430,8 +541,10 @@ app.whenReady().then(async () => {
     const rs2 = lerSeparado(m2b);
     rec('Q3b o mesmo vale para escrita cross-origin (PUT) no Servidor separado', !!rs2 && rs2.h['x-lyra-secret'] === 'renderer-secret', '');
     rec('Q3c o segredo interno jamais aparece no que o Servidor separado recebeu (arquivo inteiro)', !fs.readFileSync(arq, 'utf8').includes(SECRET), '');
-    sep.kill();
-    await esperar(500);
+    // Espera o `exit` do filho (a porta 45510 só fica livre depois dele), em vez de 500 ms fixos.
+    const t0Q3 = Date.now();
+    if (!(await encerrarFilho(sep))) problemas.push('Servidor separado (Q3) não encerrou em 15 s');
+    console.log(`[diag] filho Q3 encerrou em ${Date.now() - t0Q3} ms`);
 
     /* Reinício do motor local: NOVO objeto servidor na mesma porta → re-provado */
     const proj2 = await criarServidor({ porta: P_PROJ, contexto: 'local-5510', interna, acesso, host: '0.0.0.0' });
@@ -444,7 +557,9 @@ app.whenReady().then(async () => {
     let intruso = null;
     try { intruso = await abrirSeparado('127.0.0.1'); } catch (_) { intruso = null; }
     if (!intruso) {
-      rec('Q5 (intruso em 127.0.0.1:5510 com o motor em 0.0.0.0) — o SO não permitiu o bind específico; cenário inexistente aqui', true, 'ignorado');
+      // Cobertura obrigatória: sem o intruso, Q5 e Q5b NÃO foram exercitados. Isso é falha, não «ignorado».
+      rec('Q5 OUTRO processo ocupando 127.0.0.1:5510 (motor em 0.0.0.0): a prova falha, ninguém recebe a interna e os originais são preservados', false, 'cenário NÃO executado: não foi possível abrir o intruso em 127.0.0.1:5510');
+      rec('Q5b a prova de propriedade, feita por conexão nova, nega o motor enquanto o intruso ocupa 127.0.0.1:5510', false, 'cenário NÃO executado: sem intruso');
     } else {
       const m4 = novoMarcador();
       await fetchNaPagina(painel.webContents, `${URL5510}/api/monitores?${m4}`, { headers: RH });
@@ -455,15 +570,15 @@ app.whenReady().then(async () => {
       rec('Q5 OUTRO processo ocupando 127.0.0.1:5510 (motor em 0.0.0.0): a prova falha, ninguém recebe a interna e os originais são preservados',
         !!originais && !fs.readFileSync(arq, 'utf8').includes(SECRET) && !(noMotor && noMotor.headers['x-lyra-secret'] === SECRET), ri ? 'foi ao intruso, originais' : 'foi ao motor (keep-alive), originais');
       rec('Q5b a prova de propriedade, feita por conexão nova, nega o motor enquanto o intruso ocupa 127.0.0.1:5510', (await prova.provar()) === false, '');
-      intruso.kill();
-      await esperar(300);
+      if (!(await encerrarFilho(intruso))) problemas.push('intruso (Q5) não encerrou em 15 s');
     }
     servidorMotor = null;
-    await new Promise((r) => proj2.server.close(r));
+    await proj2.encerrar();
   }
 
   /* ====== Encerramento: logs e disco ====== */
   for (const w of BrowserWindow.getAllWindows()) w.destroy();
+  // Observação (ausência de segredo nos logs/disco depois que tudo foi fechado): janela fixa, não evento.
   await esperar(1500);
   rec('Z1 credencial AUSENTE nos logs do renderer e do processo principal', !logs.join('\n').includes(SECRET), `linhas=${logs.length}`);
   const achados = [];
@@ -483,9 +598,17 @@ app.whenReady().then(async () => {
   })(TMP);
   rec('Z2 credencial NÃO persistida em disco (userData temporário inteiro varrido)', achados.length === 0, `arquivos=${arquivos} achados=${achados.length}`);
 
-  fs.writeFileSync(OUT, JSON.stringify({ electron: process.versions.electron, resultados }, null, 1));
-  console.log(`\nElectron ${process.versions.electron} | TOTAL ${resultados.length} | FALHAS ${resultados.filter((r) => !r.ok).length}`);
-  const falhou = resultados.some((r) => !r.ok);
+  /* Servidores restantes (api, outra, alt): fechados com limite; quem não fechar vira «problema». */
+  for (const s of [api, outra, alt]) await s.encerrar();
+  matarFilhos();
+
+  if (encerrando) return; // o vigia já gravou o resultado parcial e está encerrando
+  encerrando = true;
+  console.log(`\nElectron ${process.versions.electron} | TOTAL ${resultados.length} | FALHAS ${resultados.filter((r) => !r.ok).length} | PROBLEMAS ${problemas.length}`);
+  const falhou = resultados.some((r) => !r.ok) || problemas.length > 0;
+  gravarResultado(true, { total: resultados.length });
   try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) { /* ignora */ }
+  // Cinto de segurança: se app.exit() não encerrar o processo, process.exit() encerra.
+  setTimeout(() => process.exit(falhou ? 1 : 0), 3000);
   app.exit(falhou ? 1 : 0);
-});
+}).catch((e) => sairForcado(3, `exceção no harness: ${e && e.stack ? e.stack : e}`));
