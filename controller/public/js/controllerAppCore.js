@@ -13550,33 +13550,39 @@ function configurarSeletorTemaPlaylist() {
   const sel = document.getElementById('playlist-tema-sel');
   const btnAdd = document.getElementById('playlist-tema-add');
   const btnAplicar = document.getElementById('playlist-tema-aplicar');
-  if (!sel || !btnAdd || !btnAplicar) return;
 
+  // Cada grupo só é configurado se os seus próprios elementos existirem.
   setupDropdownTemaPlaylist();
   configurarSeletorMinistranteCulto();
 
-  btnAplicar.addEventListener('click', () => {
-    inserirTemaNaPlaylistAtual(sel.value);
-  });
+  if (sel && btnAplicar) {
+    btnAplicar.addEventListener('click', () => {
+      inserirTemaNaPlaylistAtual(sel.value);
+    });
+  }
 
- btnAdd.addEventListener('click', async () => {
-  const nome = await appPrompt('Nome do novo tema:', {
-    title: '+ Tema',
-    defaultValue: '',
-    emptyMsg: 'Digite um nome para o tema.',
-  });
-  if (!nome) return;
-  garantirTemaNoCatalogoAtual(nome);
-  renderSeletorTemasPlaylist();
-  aplicarSelecaoTemaNaUi(nome);
-});
+  if (btnAdd) {
+    btnAdd.addEventListener('click', async () => {
+      const nome = await appPrompt('Nome do novo tema:', {
+        title: '+ Tema',
+        defaultValue: '',
+        emptyMsg: 'Digite um nome para o tema.',
+      });
+      if (!nome) return;
+      garantirTemaNoCatalogoAtual(nome);
+      renderSeletorTemasPlaylist();
+      aplicarSelecaoTemaNaUi(nome);
+    });
+  }
+}
 
+/** Ações da playlist que não dependem do bloco de temas (compartilhar, importar, copiar nomes). */
+function configurarAcoesPlaylist() {
   document.getElementById('playlist-compartilhar-btn')?.addEventListener('click', compartilharPlaylist);
-document.getElementById('playlist-importar-btn')?.addEventListener('click', importarPlaylist);
-document.getElementById('playlist-copiar-nomes-btn')?.addEventListener('click', () => {
-  copiarNomesMusicasPlaylist().catch(() => {});
-});
-
+  document.getElementById('playlist-importar-btn')?.addEventListener('click', importarPlaylist);
+  document.getElementById('playlist-copiar-nomes-btn')?.addEventListener('click', () => {
+    copiarNomesMusicasPlaylist().catch(() => {});
+  });
 }
 
 function configurarModalSyncPlaylist() {
@@ -25367,6 +25373,7 @@ configurarNavegadorAlfabeticoBiblioteca();
 configurarModalSyncPlaylist();
 configurarModalNovaMusicaManual();
 configurarSeletorTemaPlaylist();
+configurarAcoesPlaylist();
 document.getElementById('banco-busca-local-wrap')?.addEventListener('click', () => {
   garantirBuscaLocalEditavel();
   document.getElementById('busca')?.focus();
