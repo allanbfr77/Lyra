@@ -119,7 +119,7 @@
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-ui);
-    font-size: 16px;
+    font-size: var(--fs-600);
     display: flex;
     flex-direction: column;
     height: 100vh;
@@ -131,8 +131,8 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
-  h1 { margin: 0 0 2px; font-size: 19px; font-weight: 700; }
-  .sub { margin: 0 0 12px; font-size: 14.5px; color: var(--text-dim); }
+  h1 { margin: 0 0 2px; font-size: var(--fs-700); font-weight: 700; }
+  .sub { margin: 0 0 12px; font-size: var(--fs-500); color: var(--text-dim); }
 
   .barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
   .barra .espaco { flex: 1 1 auto; }
@@ -144,7 +144,7 @@
     background: var(--surface2);
     color: var(--text);
     font-family: inherit;
-    font-size: 15px;
+    font-size: var(--fs-500);
     cursor: pointer;
   }
   .btn:hover { border-color: var(--accent); }
@@ -160,7 +160,7 @@
     background: var(--surface2);
     color: var(--text);
     font-family: inherit;
-    font-size: 15px;
+    font-size: var(--fs-500);
     cursor: pointer;
   }
   .seg button + button { border-left: 1px solid var(--border); }
@@ -173,13 +173,13 @@
     background: var(--surface);
     color: var(--text);
     font-family: inherit;
-    font-size: 15px;
+    font-size: var(--fs-500);
     min-width: 210px;
   }
 
   main { flex: 1 1 auto; overflow: auto; padding: 0 18px 18px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--fs-500); }
   thead th {
     position: sticky;
     top: 0;
@@ -203,7 +203,7 @@
     background: none;
     color: var(--text-dim);
     cursor: pointer;
-    font-size: 17px;
+    font-size: var(--fs-650);
     line-height: 1;
     padding: 2px 6px;
     border-radius: 6px;
@@ -211,14 +211,14 @@
   .btn-linha:hover { color: var(--red); background: var(--surface2); }
 
   .vazio { padding: 44px 20px; text-align: center; color: var(--text-dim); line-height: 1.6; }
-  .vazio strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
+  .vazio strong { display: block; color: var(--text); font-size: var(--fs-500); margin-bottom: 6px; }
 
   .rodape {
     flex: 0 0 auto;
     padding: 9px 18px;
     border-top: 1px solid var(--border);
     background: var(--surface);
-    font-size: 14.5px;
+    font-size: var(--fs-500);
     color: var(--text-dim);
     display: flex;
     gap: 12px;
@@ -232,7 +232,7 @@
     border-radius: 9px;
     border: 1px solid color-mix(in srgb, var(--red) 45%, var(--border));
     background: color-mix(in srgb, var(--red) 10%, transparent);
-    font-size: 15px;
+    font-size: var(--fs-500);
   }
   .aviso[hidden] { display: none !important; }
 </style>

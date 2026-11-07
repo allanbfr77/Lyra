@@ -30,7 +30,9 @@
   --fs-700: 20px;
   --fs-750: 22px;
   --fs-800: 28px;
-  --fs-display: 32px; /* só títulos em Instrument Serif */
+  --fs-display: 36px; /* só títulos em Instrument Serif */
+  --fs-micro: 10px;   /* selos/legendas mínimos (9, 9.5 e 10px antigos) */
+  --fs-nano: 8px;     /* índice alfabético lateral */
 
   /* Aliases dos tokens antigos (mesmos valores de antes) */
   --fs-body-base: var(--fs-600);

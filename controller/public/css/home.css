@@ -10,9 +10,9 @@ body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apres
 .home-layout-v2 .home-search { display: flex; flex-direction: column; gap: 12px; padding: 16px var(--banco-lista-pad-x) 0; flex: none; }
 .home-layout-v2 .home-search-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 .home-search-tabs .btn {
-  flex: 1; min-width: 0; height: 32px; padding: 0 8px; font-size: 13px; line-height: 1;
+  flex: 1; min-width: 0; height: 32px; padding: 0 8px; font-size: var(--fs-300); line-height: 1;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  box-sizing: border-box; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em;
+  box-sizing: border-box; white-space: nowrap; text-transform: uppercase;
 }
 .home-search-tabs .btn svg { display: block; }
 /* A aba ativa já tem borda de destaque; o anel de foco extra virava uma segunda linha. */
@@ -39,7 +39,7 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 /* Campo online com o mesmo visual do campo da Biblioteca; a busca dispara com Enter. */
 .home-layout-v2 .home-search #busca-letras-q.search-box {
   background: var(--bib-busca-bg); border-color: transparent; border-radius: 6px;
-  padding: 7px 34px 7px 31px; font-size: 15px;
+  padding: 7px 34px 7px 31px; font-size: var(--fs-500);
 }
 .home-layout-v2 .home-search #busca-letras-q.search-box:focus { border-color: var(--bib-ouro); }
 .home-layout-v2 .home-search .search-box-limpavel > .bib-busca-lupa { z-index: 1; }
@@ -49,7 +49,7 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 .home-layout-v2 #banco-secao-internet { flex: 1; min-height: 0; padding-top: 0; padding-bottom: 0; }
 .home-layout-v2 #banco-secao-internet .lista-internet { flex: 1; min-height: 0; max-height: none; }
 .home-layout-v2 #banco-secao-internet .banco-fonte-dd { flex: none; }
-.home-layout-v2 .home-online-empty { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 0; }
+.home-layout-v2 .home-online-empty { font-size: var(--fs-300); color: var(--text-dim); line-height: 1.5; margin: 0; }
 .home-layout-v2 .home-online-empty[hidden] { display: none; }
 .home-layout-v2 #banco-secao-sqlite { padding-bottom: 0; }
 .home-layout-v2 .home-library-footer { flex: none; gap: 12px; padding-top: 0; padding-bottom: 12px; border-top: 0; }
@@ -62,17 +62,17 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 .home-layout-v2 .centro-toolbar { flex-shrink: 0; gap: 0; padding: 0; border: 0; }
 .home-song-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; min-height: 124px; padding: 16px 0; box-sizing: border-box; }
 .home-song-copy { flex: 1 1 200px; min-width: 0; }
-.home-song-title { margin: 0 0 8px; font-size: 36px; font-weight: 700; line-height: 44px; height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-song-subtitle { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--text-dim); font-size: 17px; min-height: 32px; }
-.home-song-subtitle .btn { height: 32px; min-height: 32px; padding: 0 8px; font-size: 12px; }
+.home-song-title { margin: 0 0 8px; font-weight: 700; line-height: 44px; height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-song-subtitle { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--text-dim); font-size: var(--fs-650); min-height: 32px; }
+.home-song-subtitle .btn { height: 32px; min-height: 32px; padding: 0 8px; font-size: var(--fs-200); }
 .home-song-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.home-song-actions .btn { height: 40px; min-height: 40px; padding: 0 12px; font-size: 14px; }
+.home-song-actions .btn { height: 40px; min-height: 40px; padding: 0 12px; font-size: var(--fs-400); }
 .home-layout-v2 #home-metadata-fields { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; padding: 8px 0; }
 .home-layout-v2 #home-metadata-fields input { width: 100%; min-width: 0; height: 40px; }
 .home-versions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 64px; padding: 12px 0; border-top: 1px solid var(--border); }
 .home-layout-v2 #musica-versoes-bar { flex: 1 1 280px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
 .home-layout-v2 #musica-versoes-bar[hidden] { display: none; }
-.home-layout-v2 #musica-versoes-bar .btn { height: 32px; min-height: 32px; border-radius: 16px; font-size: 12px; padding: 0 12px; }
+.home-layout-v2 #musica-versoes-bar .btn { height: 32px; min-height: 32px; border-radius: 16px; font-size: var(--fs-200); padding: 0 12px; }
 .home-layout-v2 #musica-versoes-bar .versao-nova-chip { border-style: dashed; }
 .home-other-versions { position: relative; max-width: 100%; }
 .home-other-versions summary { cursor: pointer; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 30px; }
@@ -90,17 +90,17 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 .home-layout-v2 #estrofes-slide-editor { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit { min-width: 0; border-radius: 12px; }
 .home-layout-v2 #estrofes-slide-editor .estrofe-slide-view-body { overflow-wrap: anywhere; }
-.home-slide-lines { font-size: 11px; color: var(--text-dim); white-space: nowrap; margin-left: auto; }
+.home-slide-lines { font-size: var(--fs-100); color: var(--text-dim); white-space: nowrap; margin-left: auto; }
 .home-new-slide { min-height: 144px; display: flex; flex-direction: column; justify-content: center; gap: 8px; border: 1px dashed var(--border); background: transparent; border-radius: 12px; color: var(--text-dim); }
-.home-new-slide > span:first-child { font-size: 28px; color: var(--accent); }
+.home-new-slide > span:first-child { font-size: var(--fs-800); color: var(--accent); }
 .home-layout-v2 .placeholder-msg--escolha-musica { white-space: normal; }
 
 .home-preview { position: fixed; z-index: 100; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 16px 48px #0005; overflow: hidden; box-sizing: border-box; }
-.home-preview-heading { display: flex; align-items: center; gap: 8px; height: 40px; flex: none; padding: 0 8px; border-bottom: 1px solid var(--border); background: var(--surface2); cursor: move; touch-action: none; user-select: none; font-size: 12px; color: var(--accent); }
+.home-preview-heading { display: flex; align-items: center; gap: 8px; height: 40px; flex: none; padding: 0 8px; border-bottom: 1px solid var(--border); background: var(--surface2); cursor: move; touch-action: none; user-select: none; font-size: var(--fs-200); color: var(--accent); }
 .home-preview-heading .btn { padding: 0; width: 24px; height: 32px; min-height: 32px; flex: none; }
-.home-preview-count { margin-left: auto; color: var(--text-dim); font-size: 11px; white-space: nowrap; }
-.home-preview .playlist-preview-head-titulo { font-size: 12px; }
-.home-preview .playlist-preview-hint { height: 20px; flex: none; padding: 2px 8px; font-size: 11px; border: 0; box-sizing: border-box; }
+.home-preview-count { margin-left: auto; color: var(--text-dim); font-size: var(--fs-100); white-space: nowrap; }
+.home-preview .playlist-preview-head-titulo { font-size: var(--fs-200); }
+.home-preview .playlist-preview-hint { height: 20px; flex: none; padding: 2px 8px; font-size: var(--fs-100); border: 0; box-sizing: border-box; }
 .home-preview .playlist-preview-body { flex: 1; min-height: 0; height: auto; padding: 8px; }
 .home-preview .playlist-preview-nav { height: 44px; flex: none; justify-content: center; padding: 4px; box-sizing: border-box; }
 .home-preview .playlist-preview-nav .btn { height: 32px; min-height: 32px; }
@@ -122,9 +122,8 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 }
 @media (max-width: 1120px) {
   .home-layout-v2 #estrofes-slide-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-song-title { font-size: 28px; }
   .home-song-heading { gap: 8px; padding: 8px 0; }
-  .home-song-actions .btn { padding: 0 8px; font-size: 12px; }
+  .home-song-actions .btn { padding: 0 8px; font-size: var(--fs-200); }
   .home-versions-row { gap: 8px; padding: 8px 0; }
 }
 @media (max-height: 720px) {
@@ -138,7 +137,7 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 /* ── Cabeçalho: ações principais ── */
 .home-song-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; transition: opacity .15s; }
 .home-song-actions.is-dimmed { opacity: .45; pointer-events: none; }
-.home-song-actions .btn { height: 40px; min-height: 40px; padding: 0 16px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.home-song-actions .btn { height: 40px; min-height: 40px; padding: 0 16px; font-size: var(--fs-400); font-weight: 500; white-space: nowrap; }
 .home-song-actions #btn-editar-letra { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .home-song-actions #btn-editar-letra:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .home-song-actions #btn-adicionar-playlist-home { background: var(--accent); border-color: var(--accent); color: #1a1405; }
@@ -148,14 +147,14 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 
 /* ── Linha de versões: pílulas, capitalização normal ── */
 .home-layout-v2 #musica-versoes-bar .btn,
-.home-other-versions summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1; }
+.home-other-versions summary { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-height: 36px; padding: 0 16px; border-radius: 999px; font-size: var(--fs-300); font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1; }
 .home-other-versions summary { line-height: 34px; }
 .home-layout-v2 #musica-versoes-bar .versao-nova-chip { color: var(--text); border-style: dashed; background: transparent; }
 .home-layout-v2 #musica-versoes-bar .versao-nova-chip svg { width: 14px; height: 14px; stroke-width: 2.4; }
 
 /* ── Grupo segmentado único: Prévia | visualizações | aA ── */
 .home-view-segment { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
-.home-view-segment .btn { height: 34px; min-height: 34px; min-width: 34px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; }
+.home-view-segment .btn { height: 34px; min-height: 34px; min-width: 34px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: var(--fs-300); font-weight: 500; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; }
 .home-view-segment .btn:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .home-view-segment .btn[aria-pressed="true"],
 .home-view-segment .btn.ativo { background: color-mix(in srgb, var(--text) 12%, var(--surface)); color: var(--accent); }
@@ -191,8 +190,8 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-other-versions summary::after { content: ''; width: 6px; height: 6px; margin-left: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s ease; flex: none; }
 .home-other-versions[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
 .home-other-versions[open] > summary { border-color: var(--accent); color: var(--accent); }
-.home-layout-v2 .home-versions-menu .btn.versao-chip { flex: none; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: auto; min-height: 0; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1.3; color: var(--text); text-align: left; }
-.home-versions-menu .btn.versao-chip .versao-chip-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.home-layout-v2 .home-versions-menu .btn.versao-chip { flex: none; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: auto; min-height: 0; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; font-size: var(--fs-300); font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1.3; color: var(--text); text-align: left; }
+.home-versions-menu .btn.versao-chip .versao-chip-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-300); }
 .home-versions-menu .btn.versao-chip svg { width: 14px; height: 14px; flex: none; color: var(--text-dim); }
 .home-versions-menu .btn.versao-chip:hover,
 .home-versions-menu .btn.versao-chip:focus-visible { background: #2a2a2f; }
@@ -200,7 +199,7 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-layout-v2 .home-versions-menu .btn.versao-chip.versao-musica-ativa { color: var(--accent); border: 0; box-shadow: none; }
 .home-versions-menu .btn.versao-chip.versao-musica-ativa svg { color: var(--accent); }
 .home-versions-menu .btn.versao-chip.versao-musica-ativa::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; margin-left: auto; }
-.home-versions-empty { padding: 8px 12px; font-size: 13px; color: var(--text-dim); }
+.home-versions-empty { padding: 8px 12px; font-size: var(--fs-300); color: var(--text-dim); }
 
 /* Menu «Outras versões» aberto: só a borda dourada de 1px, sem anel de foco extra.
    Fechado, o `:focus-visible` (teclado) continua com o anel normal. */
@@ -219,15 +218,15 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-song-heading.is-editing .home-song-title-input { margin-bottom: 6px; }
 .home-song-actions[hidden], .home-song-edit-actions[hidden], .home-dirty[hidden] { display: none; }
 .home-song-edit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
-.home-song-edit-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-height: 40px; padding: 0 16px; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.home-song-edit-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-height: 40px; padding: 0 16px; font-size: var(--fs-400); font-weight: 500; white-space: nowrap; }
 .home-song-edit-actions .btn svg { width: 16px; height: 16px; flex: none; }
 .home-song-edit-actions .home-ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
 .home-song-edit-actions .home-ghost:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .home-song-edit-actions #btn-salvar-musica:disabled { opacity: 1; background: var(--surface2, #2a2a2f); border-color: var(--border); color: #8c8c93; cursor: not-allowed; }
 .home-song-edit-actions #btn-salvar-musica:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #1a1405; }
-.home-dirty { margin-right: 8px; font-size: 12px; color: color-mix(in srgb, var(--accent) 80%, var(--text-dim)); white-space: nowrap; }
+.home-dirty { margin-right: 8px; font-size: var(--fs-200); color: color-mix(in srgb, var(--accent) 80%, var(--text-dim)); white-space: nowrap; }
 
-.home-song-copy .home-song-title-input { display: none; width: 100%; max-width: 620px; box-sizing: border-box; height: 44px; margin: 0 0 8px; padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font: inherit; font-size: 36px; font-weight: 700; line-height: 42px; }
+.home-song-copy .home-song-title-input { display: none; width: 100%; max-width: 620px; box-sizing: border-box; height: 44px; margin: 0 0 8px; padding: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font: inherit; font-weight: 700; line-height: 42px; }
 .home-song-copy .home-song-title-input:focus,
 .home-song-copy .home-song-title-input:focus-visible { outline: none; border-bottom-color: var(--accent); }
 .home-song-copy.is-editing-meta .home-song-title-input { display: block; }
@@ -236,16 +235,15 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-song-copy .home-field { display: none; flex-direction: column; gap: 6px; min-width: 0; }
 .home-song-copy.is-editing-meta .home-field-artist { display: flex; flex: 1 1 180px; max-width: 280px; }
 .home-song-copy.is-editing-meta.has-version .home-field-tag { display: flex; flex: 0 1 200px; }
-.home-field-label { font-size: 11px; line-height: 14px; color: #8c8c93; text-transform: none; letter-spacing: 0; }
+.home-field-label { font-size: var(--fs-100); line-height: 14px; color: #8c8c93; text-transform: none; letter-spacing: 0; }
 /* Artista e Tag usam exatamente o mesmo estilo (anula flex/padding/sombra herdados de .edit-field-artista). */
-.home-song-copy .home-field .home-meta-input { display: block; flex: none; box-sizing: border-box; width: 100%; min-width: 0; height: 34px; margin: 0; padding: 0 12px; border: 1px solid #2c2c30; border-radius: 8px; background: #1b1b1e; box-shadow: none; color: var(--text); font-family: inherit; font-size: 13px; line-height: 32px; }
+.home-song-copy .home-field .home-meta-input { display: block; flex: none; box-sizing: border-box; width: 100%; min-width: 0; height: 34px; margin: 0; padding: 0 12px; border: 1px solid #2c2c30; border-radius: 8px; background: #1b1b1e; box-shadow: none; color: var(--text); font-family: inherit; font-size: var(--fs-300); line-height: 32px; }
 .home-song-copy .home-field .home-meta-input:focus,
 .home-song-copy .home-field .home-meta-input:focus-visible { outline: none; box-shadow: none; border-color: var(--accent); }
 .home-song-copy.is-editing-meta .home-song-subtitle { align-items: flex-end; gap: 12px 18px; min-height: 54px; }
-.home-song-copy.is-editing-meta .home-song-count { font-size: 13px; line-height: 34px; color: var(--text-dim); }
+.home-song-copy.is-editing-meta .home-song-count { font-size: var(--fs-300); line-height: 34px; color: var(--text-dim); }
 .home-song-subtitle .home-oculto, .home-layout-v2 .home-oculto { display: none !important; }
 @media (max-width: 1120px) {
-  .home-song-copy .home-song-title-input { font-size: 28px; }
   .home-song-copy.is-editing-meta .home-field-artist,
   .home-song-copy.is-editing-meta.has-version .home-field-tag { flex: 1 1 100%; max-width: none; }
 }
@@ -260,49 +258,49 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 /* Pílulas de versão: nomes como salvos, 12.5px / 600 (o 11px herdado do chip antigo não vale na Home). */
 .home-layout-v2 #musica-versoes-bar .btn,
 .home-layout-v2 #musica-versoes-bar .versao-chip .versao-chip-txt,
-.home-other-versions summary { font-size: 12.5px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.home-other-versions summary { font-size: var(--fs-300); font-weight: 500; text-transform: none; letter-spacing: 0; }
 
 /* ═══ Modo edição: reprodução do edit_mockup.html (valores literais do mockup) ═══ */
 .home-layout-v2 .centro-toolbar.home-toolbar-card { box-sizing: border-box; background: #141416; border: 1px solid #2c2c30; border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; color: #f1efe9; }
 .home-toolbar-editing .home-song-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 0; padding: 0; border: 0; gap: 0 24px; }
 .home-toolbar-editing .home-song-copy { display: contents; }
-.home-toolbar-editing .home-song-title { grid-column: 1; grid-row: 1; margin: 0; height: auto; font-size: 30px; line-height: normal; color: #f1efe9; white-space: normal; }
-.home-toolbar-editing .home-song-copy .home-song-title-input { grid-column: 1; grid-row: 1; width: 100%; max-width: 620px; height: auto; margin: 0; padding: 2px 0 8px; border: 0; border-bottom: 1px solid #2c2c30; border-radius: 0; background: transparent; color: #f1efe9; font-size: 30px; font-weight: 700; line-height: normal; }
+.home-toolbar-editing .home-song-title { grid-column: 1; grid-row: 1; margin: 0; height: auto; line-height: normal; color: #f1efe9; white-space: normal; }
+.home-toolbar-editing .home-song-copy .home-song-title-input { grid-column: 1; grid-row: 1; width: 100%; max-width: 620px; height: auto; margin: 0; padding: 2px 0 8px; border: 0; border-bottom: 1px solid #2c2c30; border-radius: 0; background: transparent; color: #f1efe9; font-weight: 700; line-height: normal; }
 .home-toolbar-editing .home-song-copy .home-song-title-input:focus,
 .home-toolbar-editing .home-song-copy .home-song-title-input:focus-visible { outline: none; border-bottom-color: #d4a72c; }
 .home-toolbar-editing .home-song-edit-actions { grid-column: 2; grid-row: 1; gap: 10px; flex-wrap: nowrap; }
-.home-toolbar-editing .home-song-edit-actions .btn { height: 38px; min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: 13px; font-weight: 500; gap: 8px; border: 1px solid #2c2c30; background: #2a2a2f; color: #f1efe9; }
+.home-toolbar-editing .home-song-edit-actions .btn { height: 38px; min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: var(--fs-300); font-weight: 500; gap: 8px; border: 1px solid #2c2c30; background: #2a2a2f; color: #f1efe9; }
 .home-toolbar-editing .home-song-edit-actions .btn svg { width: 16px; height: 16px; stroke-width: 1.8; }
 .home-toolbar-editing .home-song-edit-actions .home-ghost { background: transparent; border-color: transparent; color: #8c8c93; }
 .home-toolbar-editing .home-song-edit-actions #btn-salvar-musica:not(:disabled) { background: #d4a72c; border-color: #d4a72c; color: #1a1405; }
 .home-toolbar-editing .home-song-edit-actions #btn-salvar-musica:disabled { background: #2a2a2f; border-color: #2c2c30; color: #8c8c93; cursor: not-allowed; opacity: 1; }
-.home-toolbar-editing .home-dirty { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-size: 12px; color: #c9a94f; }
+.home-toolbar-editing .home-dirty { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; font-size: var(--fs-200); color: #c9a94f; }
 .home-toolbar-editing .home-dirty::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #d4a72c; flex: none; }
 .home-toolbar-editing .home-dirty[hidden] { display: none; }
 /* Linha de campos */
-.home-toolbar-editing .home-song-subtitle { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 18px; min-height: 0; font-size: 13px; color: #8c8c93; }
+.home-toolbar-editing .home-song-subtitle { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 18px; min-height: 0; font-size: var(--fs-300); color: #8c8c93; }
 .home-toolbar-editing .home-song-copy .home-field { gap: 6px; }
 .home-toolbar-editing .home-song-copy.is-editing-meta .home-field-artist { flex: none; width: 280px; max-width: 100%; }
 .home-toolbar-editing .home-song-copy.is-editing-meta.has-version .home-field-tag { flex: none; width: 200px; max-width: 100%; }
-.home-toolbar-editing .home-field-label { font-size: 13px; line-height: normal; color: #8c8c93; }
-.home-toolbar-editing .home-song-copy .home-field .home-meta-input { height: 34px; padding: 0 12px; border: 1px solid #2c2c30; border-radius: 8px; background: #1b1b1e; color: #f1efe9; font-size: 13px; line-height: 32px; }
+.home-toolbar-editing .home-field-label { font-size: var(--fs-300); line-height: normal; color: #8c8c93; }
+.home-toolbar-editing .home-song-copy .home-field .home-meta-input { height: 34px; padding: 0 12px; border: 1px solid #2c2c30; border-radius: 8px; background: #1b1b1e; color: #f1efe9; font-size: var(--fs-300); line-height: 32px; }
 .home-toolbar-editing .home-song-copy .home-field .home-meta-input:focus,
 .home-toolbar-editing .home-song-copy .home-field .home-meta-input:focus-visible { border-color: #d4a72c; }
 .home-toolbar-editing .home-song-copy.is-editing-meta .home-song-count,
-.home-toolbar-editing .home-song-count { height: 34px; margin-left: 6px; display: flex; align-items: center; font-size: 13px; line-height: normal; color: #8c8c93; }
+.home-toolbar-editing .home-song-count { height: 34px; margin-left: 6px; display: flex; align-items: center; font-size: var(--fs-300); line-height: normal; color: #8c8c93; }
 /* Divisor e linha de versões / visualização */
 .home-toolbar-card .home-versions-row { margin-top: 22px; padding: 18px 0 0; min-height: 0; border-top: 1px solid #2c2c30; gap: 8px 24px; align-items: center; justify-content: space-between; }
 .home-toolbar-card #musica-versoes-bar { gap: 10px; }
-.home-toolbar-card #musica-versoes-bar .versao-bar-label { margin-right: 4px; font-size: 12px; letter-spacing: .1em; color: #8c8c93; }
+.home-toolbar-card #musica-versoes-bar .versao-bar-label { margin-right: 4px; font-size: var(--fs-200); color: #8c8c93; }
 .home-toolbar-card #musica-versoes-bar .versao-bar-label svg { display: none; }
 .home-layout-v2 .home-toolbar-card #musica-versoes-bar .btn,
-.home-toolbar-card .home-other-versions summary { height: 36px; min-height: 36px; padding: 0 16px; border-radius: 18px; gap: 8px; font-size: 12.5px; font-weight: 500; line-height: 1; background: #2a2a2f; border: 1px solid #2c2c30; color: #f1efe9; }
+.home-toolbar-card .home-other-versions summary { height: 36px; min-height: 36px; padding: 0 16px; border-radius: 18px; gap: 8px; font-size: var(--fs-300); font-weight: 500; line-height: 1; background: #2a2a2f; border: 1px solid #2c2c30; color: #f1efe9; }
 .home-layout-v2 .home-toolbar-card #musica-versoes-bar .versao-musica-ativa,
 .home-toolbar-card .home-other-versions summary.versao-musica-ativa { border-color: var(--accent); color: var(--accent); }
 .home-layout-v2 .home-toolbar-card #musica-versoes-bar .versao-nova-chip { background: transparent; border: 1px dashed #4a4a50; color: #8c8c93; }
 .home-toolbar-card .home-view-tools { gap: 14px; }
 .home-toolbar-card .home-view-segment { gap: 2px; padding: 3px; border: 1px solid #2c2c30; border-radius: 9px; background: #2a2a2f; }
-.home-toolbar-card .home-view-segment .btn { height: 30px; min-height: 30px; min-width: 34px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; font-weight: 500; gap: 6px; color: #8c8c93; background: transparent; }
+.home-toolbar-card .home-view-segment .btn { height: 30px; min-height: 30px; min-width: 34px; padding: 0 10px; border-radius: 6px; font-size: var(--fs-300); font-weight: 500; gap: 6px; color: #8c8c93; background: transparent; }
 .home-toolbar-card .home-view-segment .btn:hover:not(:disabled) { color: #f1efe9; background: #3a3a40; }
 .home-toolbar-card .home-view-segment .btn[aria-pressed="true"],
 .home-toolbar-card .home-view-segment .btn.ativo { background: #3a3a40; color: #d4a72c; }
@@ -323,15 +321,15 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 /* Ajustes da comparação com o mockup: peso 600 em todos os rótulos das pílulas e chevron fino. */
 .home-toolbar-card #musica-versoes-bar .versao-chip-txt,
 .home-toolbar-card #musica-versoes-bar .versao-nova-chip,
-.home-toolbar-card .home-other-versions summary { font-weight: 500; font-size: 12.5px; }
+.home-toolbar-card .home-other-versions summary { font-weight: 500; font-size: var(--fs-300); }
 .home-toolbar-card .home-other-versions summary::after { width: 5px; height: 5px; margin-left: 2px; border-right-width: 1.8px; border-bottom-width: 1.8px; color: #f1efe9; }
 
 /* Modo normal no mesmo desenho do modo edição: título/artista e botões com as mesmas medidas. */
 .home-toolbar-card .home-song-heading:not(.is-editing) { min-height: 0; padding: 0; border: 0; gap: 24px; align-items: center; }
-.home-toolbar-card .home-song-heading:not(.is-editing) .home-song-title { height: auto; margin: 0 0 8px; font-size: 30px; line-height: normal; white-space: normal; color: #f1efe9; }
-.home-toolbar-card .home-song-heading:not(.is-editing) .home-song-subtitle { min-height: 0; font-size: 14px; color: #8c8c93; }
+.home-toolbar-card .home-song-heading:not(.is-editing) .home-song-title { height: auto; margin: 0 0 8px; line-height: normal; white-space: normal; color: #f1efe9; }
+.home-toolbar-card .home-song-heading:not(.is-editing) .home-song-subtitle { min-height: 0; font-size: var(--fs-400); color: #8c8c93; }
 .home-toolbar-card .home-song-actions { gap: 10px; flex-wrap: nowrap; }
-.home-toolbar-card .home-song-actions .btn { height: 38px; min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: 13px; font-weight: 500; gap: 8px; }
+.home-toolbar-card .home-song-actions .btn { height: 38px; min-height: 38px; padding: 0 16px; border-radius: 8px; font-size: var(--fs-300); font-weight: 500; gap: 8px; }
 .home-toolbar-card .home-song-actions .btn svg { width: 16px; height: 16px; stroke-width: 1.8; }
 .home-toolbar-card .home-song-actions #btn-editar-letra { background: transparent; border: 1px solid #d4a72c; color: #d4a72c; }
 .home-toolbar-card .home-song-actions #btn-adicionar-playlist-home { background: #d4a72c; border: 1px solid #d4a72c; color: #1a1405; }
@@ -352,9 +350,9 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-drag-handle { width: 14px; height: 18px; padding: 0; font-size: 0; letter-spacing: 0; color: #5a5a62; cursor: grab; flex: none; display: block; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-drag-handle::before { content: ''; display: block; width: 14px; height: 18px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 18'%3E%3Ccircle cx='4' cy='3' r='1.4'/%3E%3Ccircle cx='10' cy='3' r='1.4'/%3E%3Ccircle cx='4' cy='9' r='1.4'/%3E%3Ccircle cx='10' cy='9' r='1.4'/%3E%3Ccircle cx='4' cy='15' r='1.4'/%3E%3Ccircle cx='10' cy='15' r='1.4'/%3E%3C/svg%3E") center / 14px 18px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 18'%3E%3Ccircle cx='4' cy='3' r='1.4'/%3E%3Ccircle cx='10' cy='3' r='1.4'/%3E%3Ccircle cx='4' cy='9' r='1.4'/%3E%3Ccircle cx='10' cy='9' r='1.4'/%3E%3Ccircle cx='4' cy='15' r='1.4'/%3E%3Ccircle cx='10' cy='15' r='1.4'/%3E%3C/svg%3E") center / 14px 18px no-repeat; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-drag-handle:active { cursor: grabbing; }
-.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-num-big { min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: 12px; background: #2a2a2f; box-shadow: none; color: #f1efe9; font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1; }
+.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-num-big { min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: 12px; background: #2a2a2f; box-shadow: none; color: #f1efe9; font-family: inherit; font-size: var(--fs-300); font-weight: 700; line-height: 1; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-edit:focus-within .estrofe-num-big { background: rgba(212, 167, 44, .16); color: #d4a72c; }
-.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .home-slide-lines { order: 2; margin-left: auto; font-size: 11px; line-height: 1; color: #8c8c93; }
+.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .home-slide-lines { order: 2; margin-left: auto; font-size: var(--fs-100); line-height: 1; color: #8c8c93; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .btn-del-estrofe { order: 3; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: #6f6f77; font-size: 0; opacity: 1; transition: opacity .12s, color .12s, background-color .12s; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .btn-del-estrofe::before { content: ''; display: block; width: 14px; height: 14px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / 14px 14px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / 14px 14px no-repeat; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .btn-del-estrofe:hover:not(:disabled) { color: #e5484d; background: rgba(229, 72, 77, .12); }
@@ -368,7 +366,7 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 }
 
 /* Área de texto */
-.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-ta { display: block; width: auto; align-self: stretch; box-sizing: border-box; margin: 8px -8px -10px 0; padding: 0 8px 10px 0; border: 0; background: transparent; color: #f1efe9; font-family: inherit; font-size: 15px; line-height: 1.6; outline: none; box-shadow: none; resize: vertical; overflow: hidden; max-height: none; }
+.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-ta { display: block; width: auto; align-self: stretch; box-sizing: border-box; margin: 8px -8px -10px 0; padding: 0 8px 10px 0; border: 0; background: transparent; color: #f1efe9; font-family: inherit; font-size: var(--fs-500); line-height: 1.6; outline: none; box-shadow: none; resize: vertical; overflow: hidden; max-height: none; }
 /* Cartões acompanham o conteúdo: sem altura fixa nem corte; as linhas da grade crescem pelo maior cartão. */
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao { grid-auto-rows: min-content; align-items: stretch; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-edit { height: auto; max-height: none; overflow: visible; }
@@ -385,9 +383,9 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 /* Cabeçalho do card */
 .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 8px; height: 28px; margin: 0; }
 .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-toolbar-left { gap: 8px; }
-.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-num-big { min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: 12px; background: #2a2a2f; box-shadow: none; color: #f1efe9; font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-num-big { min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: 12px; background: #2a2a2f; box-shadow: none; color: #f1efe9; font-family: inherit; font-size: var(--fs-300); font-weight: 700; line-height: 1; }
 .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit.ativa .estrofe-num-big { background: rgba(212, 167, 44, .16); color: #d4a72c; }
-.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .home-slide-lines { order: 2; margin-left: auto; font-size: 11px; line-height: 1; color: #8c8c93; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .home-slide-lines { order: 2; margin-left: auto; font-size: var(--fs-100); line-height: 1; color: #8c8c93; }
 
 /* Lápis de edição rápida: mesmo molde do X do modo edição */
 .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick { order: 3; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: #6f6f77; font-size: 0; opacity: 1; transform: none; transition: opacity .12s, color .12s, background-color .12s; }
@@ -402,7 +400,7 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 }
 
 /* Texto do slide */
-.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body { margin: 8px 0 0; padding: 0; min-height: 96px; color: #f1efe9; font-size: 15px; line-height: 1.6; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body { margin: 8px 0 0; padding: 0; min-height: 96px; color: #f1efe9; font-size: var(--fs-500); line-height: 1.6; }
 .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .home-new-slide { border-radius: 10px; min-height: 150px; }
 
 /* ═══ Letra completa: mesmo fundo/painel da grade de slides ═══ */
@@ -425,7 +423,7 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 
 /* ═══ Editor de letra completa: dica em uma linha, coluna centralizada, número/contador/destaque por estrofe ═══ */
 .home-layout-v2 .centro-letra-completa-wrap { gap: 0; }
-.home-layout-v2 .centro-letra-completa-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #8c8c93; }
+.home-layout-v2 .centro-letra-completa-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: var(--fs-300); line-height: 1.5; color: #8c8c93; }
 .home-layout-v2 .centro-letra-completa-hint-ico { width: 16px; height: 16px; flex: none; margin-top: 2px; color: #8c8c93; stroke: #8c8c93; }
 .home-layout-v2 .centro-letra-completa-hint strong { color: #f1efe9; font-weight: 500; }
 
@@ -448,9 +446,9 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .centro-letra-completa-estrofe-fundo { position: absolute; pointer-events: none; }
 .centro-letra-completa-estrofe-fundo.ativa { background: rgba(212, 167, 44, .05); }
 .centro-letra-completa-estrofe-fundo.ativa::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #d4a72c; }
-.centro-letra-completa-estrofe-num { position: absolute; box-sizing: border-box; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: #2a2a2f; color: #8c8c93; font-family: var(--font-ui); font-size: 12px; font-weight: 700; line-height: 24px; text-align: center; pointer-events: none; }
+.centro-letra-completa-estrofe-num { position: absolute; box-sizing: border-box; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: #2a2a2f; color: #8c8c93; font-family: var(--font-ui); font-size: var(--fs-200); font-weight: 700; line-height: 24px; text-align: center; pointer-events: none; }
 .centro-letra-completa-estrofe-num.ativa { background: rgba(212, 167, 44, .16); color: #d4a72c; }
-.centro-letra-completa-estrofe-cont { position: absolute; display: flex; align-items: center; justify-content: flex-end; font-family: var(--font-ui); font-size: 11px; color: #6f6f77; white-space: nowrap; pointer-events: none; }
+.centro-letra-completa-estrofe-cont { position: absolute; display: flex; align-items: center; justify-content: flex-end; font-family: var(--font-ui); font-size: var(--fs-100); color: #6f6f77; white-space: nowrap; pointer-events: none; }
 
 /* Ajustes finos do editor de letra completa: peso 500 uniforme (sem negrito sintético), entrelinha 1.6, só a barra fina. */
 .home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta { font-weight: var(--lyrics-weight); font-synthesis: none; line-height: var(--lyrics-lh); }
@@ -484,14 +482,14 @@ body[data-entrada="ponteiro"] .home-search-tabs .btn:focus-visible { outline: no
 
 /* ═══ Modo comparativo: mesma superfície, tipografia e dica dos modos Slides e Letra completa ═══ */
 .home-layout-v2 .centro-comparativo-wrap { box-sizing: border-box; margin-top: 0; gap: 0; padding: 20px 28px 24px; background: #141416; border: 1px solid #2c2c30; border-radius: 12px; }
-.home-layout-v2 .centro-comparativo-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #8c8c93; }
+.home-layout-v2 .centro-comparativo-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: var(--fs-300); line-height: 1.5; color: #8c8c93; }
 .home-layout-v2 .centro-comparativo-hint-ico { width: 16px; height: 16px; flex: none; margin-top: 2px; color: #8c8c93; stroke: #8c8c93; }
 .home-layout-v2 .centro-comparativo-hint strong { color: #f1efe9; font-weight: 500; }
 .home-layout-v2 .centro-comparativo-grid { gap: 16px; }
 .home-layout-v2 .centro-comparativo-col { gap: 0; }
 .home-layout-v2 .centro-comparativo-col-head { min-height: 0; margin-bottom: 8px; }
-.home-layout-v2 .centro-comparativo-col-rotulo { font-size: 13px; font-weight: 500; letter-spacing: 0; color: #f1efe9; }
-.home-layout-v2 .centro-comparativo-col-selo { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: #8c8c93; background: #2a2a2f; border: 1px solid #2c2c30; border-radius: 999px; }
+.home-layout-v2 .centro-comparativo-col-rotulo { font-size: var(--fs-300); font-weight: 500; letter-spacing: 0; color: #f1efe9; }
+.home-layout-v2 .centro-comparativo-col-selo { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; font-size: var(--fs-100); font-weight: 500; letter-spacing: 0; color: #8c8c93; background: #2a2a2f; border: 1px solid #2c2c30; border-radius: 999px; }
 .home-layout-v2 .centro-comparativo-col-selo[hidden] { display: none; }
 .home-layout-v2 .centro-comparativo-selo-ico { width: 12px; height: 12px; flex: none; }
 
@@ -510,10 +508,10 @@ body[data-entrada="ponteiro"] .home-search-tabs .btn:focus-visible { outline: no
 
 /* Barra inferior: resumo em chips à esquerda, legenda com amostras reais à direita. */
 .home-layout-v2 .centro-comparativo-rodape { margin-top: 12px; min-height: 0; flex-wrap: wrap; gap: 10px 16px; }
-.home-layout-v2 .centro-comparativo-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 500; color: #f1efe9; }
-.cmp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: #2a2a2f; border: 1px solid #2c2c30; color: #f1efe9; font-size: 11.5px; font-weight: 500; line-height: 1.4; white-space: nowrap; }
+.home-layout-v2 .centro-comparativo-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--fs-200); font-weight: 500; color: #f1efe9; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: #2a2a2f; border: 1px solid #2c2c30; color: #f1efe9; font-size: var(--fs-200); font-weight: 500; line-height: 1.4; white-space: nowrap; }
 .cmp-chip svg { width: 12px; height: 12px; flex: none; }
-.home-layout-v2 .centro-comparativo-legenda { gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: #8c8c93; }
+.home-layout-v2 .centro-comparativo-legenda { gap: 16px; flex-wrap: wrap; font-size: var(--fs-200); color: #8c8c93; }
 .home-layout-v2 .centro-comparativo-legenda span { gap: 6px; }
 .home-layout-v2 .centro-comparativo-legenda span.sr-only { position: absolute; }
 @media (max-width: 900px) {
@@ -609,7 +607,7 @@ html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app
   .home-other-versions[open] > summary.versao-musica-ativa,
   .home-other-versions[open] > summary.versao-musica-ativa:focus-visible { border-color: var(--select-bd); color: var(--select-fg); }
   .home-versions-menu .btn.versao-chip.versao-musica-ativa { background: var(--select-bg); color: var(--select-fg); }
-  .home-versions-menu .btn.versao-chip.versao-musica-ativa::after { content: "\2713"; width: auto; height: auto; border-radius: 0; background: none; font-size: 12px; line-height: 1; color: var(--select-fg); }
+  .home-versions-menu .btn.versao-chip.versao-musica-ativa::after { content: "\2713"; width: auto; height: auto; border-radius: 0; background: none; font-size: var(--fs-200); line-height: 1; color: var(--select-fg); }
   .home-versions-menu .btn.versao-chip:focus-visible { outline: 1px solid var(--select-bar); }
 
   /* ── Modo de visualização (Prévia, grade, lista, colunas, aA) ── */
@@ -640,6 +638,10 @@ html.dark body.home-layout-v2 .home-toolbar-card .home-versions-menu .btn.versao
 /* ═══ Tipografia: Instrument Serif só no título da música (e no campo de edição dele) — peso 400, --fs-display ═══ */
 html body.home-layout-v2 .centro-toolbar .home-song-heading .home-song-title,
 html body.home-layout-v2 .centro-toolbar .home-song-copy .home-song-title-input { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-display); }
+@media (max-width: 1120px) {
+  html body.home-layout-v2 .centro-toolbar .home-song-heading .home-song-title,
+  html body.home-layout-v2 .centro-toolbar .home-song-copy .home-song-title-input { font-size: var(--fs-800); }
+}
 /* Cabeçalhos de seção: interface (Inter) 500, maiúsculas, 0.08em */
 html body .sidebar-title, html body .sidebar-title > span,
 html body .panel-section-head,
