@@ -109,6 +109,11 @@ async function run() {
   await check('Cancelar restaura título',`document.getElementById('edit-titulo').value==='1000 Graus'`);
   await js(`document.getElementById('btn-modo-letra-completa').click()`); await pause();
   await check('letra completa sem alteração não mostra a faixa',`__homeTest.state().full && document.querySelector('.home-song-edit-actions').hidden && !document.querySelector('.home-song-actions').hidden`);
+  await check('letra completa abre em visualização (somente leitura)',`document.getElementById('centro-letra-completa-ta').readOnly===true`);
+  await js(`document.getElementById('btn-editar-letra').click()`); await pause(300);
+  await check('Editar na letra completa libera o texto e mostra Cancelar/Salvar (continua na letra completa)',`__homeTest.state().full && document.getElementById('centro-letra-completa-ta').readOnly===false && !document.querySelector('.home-song-edit-actions').hidden`);
+  await js(`document.getElementById('btn-cancelar-padrao').click()`); await pause(300);
+  await check('Cancelar volta à visualização da letra completa',`__homeTest.state().full && document.getElementById('centro-letra-completa-ta').readOnly===true && document.querySelector('.home-song-edit-actions').hidden`);
   await js(`(()=>{const t=document.getElementById('centro-letra-completa-ta');t.value=t.value+' x';t.dispatchEvent(new Event('input',{bubbles:true}))})()`); await pause();
   await check('alterar a letra completa mostra a faixa com aviso',`!document.querySelector('.home-song-edit-actions').hidden && !document.querySelector('.home-dirty').hidden && document.querySelector('.home-dirty').textContent.includes('não salvas') && !document.getElementById('btn-salvar-musica').disabled`);
   await js(`document.getElementById('centro-letra-completa-ta').value='Letra alterada';document.getElementById('centro-letra-completa-ta').dispatchEvent(new Event('input',{bubbles:true}));document.getElementById('btn-editar-nome-versao').click()`); await pause();
@@ -120,7 +125,7 @@ async function run() {
   await js(`window.__saveFail=true;document.getElementById('btn-salvar-musica').click()`);await pause();
   await check('falha ao salvar mantém editor aberto',`__homeTest.state().full && document.getElementById('centro-letra-completa-ta').value==='Letra alterada'`);
   await js(`window.__saveFail=false;document.getElementById('btn-salvar-musica').click()`);await pause(250);
-  await check('salvar volta aos cartões pelo handler existente',`!__homeTest.state().full && __homeTest.state().slides[0]==='Letra alterada'`);
+  await check('salvar grava pelo handler existente e volta à visualização da letra completa',`__homeTest.state().full && document.getElementById('centro-letra-completa-ta').readOnly===true && __homeTest.state().slides[0]==='Letra alterada'`);
   await js(`document.querySelector('[data-versao-id="3"]').click()`);await pause();
   await check('dropdown identifica versão ativa e atualiza prévia',`__homeTest.state().id===3 && document.querySelector('.home-other-versions summary').textContent.toUpperCase().includes('ACÚSTICA') && document.getElementById('pl-pv-slide').textContent.includes('VERSÃO ACÚSTICA')`);
   await js(`document.getElementById('btn-apagar-copia-versao').click()`);await pause();

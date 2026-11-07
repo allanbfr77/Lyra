@@ -3901,26 +3901,46 @@ body:not(.app-mod-slides) .centro-col-letras {
   margin: 0;
 }
 
-/* Linha que existe dos dois lados mas mudou: fundo âmbar discreto. */
-.centro-comparativo-espelho .cmp-linha--alterada {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-radius: 3px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+/* Estilos dos realces — UMA definição, usada pelo espelho dos painéis e pelas amostras da legenda. */
+.centro-comparativo-wrap {
+  --cmp-alt-bg: rgba(212, 167, 44, 0.10);
+  --cmp-alt-barra: #d4a72c;
+  --cmp-pal-bg: rgba(212, 167, 44, 0.32);
+  --cmp-pal-sub: #d4a72c;
+  --cmp-ex-bg: rgba(124, 140, 255, 0.12);
+  --cmp-ex-barra: #7c8cff;
 }
 
-/* Linha que só existe deste lado: fundo mais forte. */
-.centro-comparativo-espelho .cmp-linha--exclusiva {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: 3px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+/* Cada linha do espelho é um bloco que sangra até as bordas do painel (recuo compensado, texto não se move). */
+.centro-comparativo-espelho .cmp-row {
+  display: block;
+  margin: 0 calc(-1 * var(--cmp-pr, 0px)) 0 calc(-1 * var(--cmp-pl, 0px));
+  padding: 0 var(--cmp-pr, 0px) 0 var(--cmp-pl, 0px);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
-/* Palavra exacta que mudou, dentro de uma linha alterada. */
-.centro-comparativo-espelho .cmp-palavra {
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
+/* Linha que existe dos dois lados mas mudou: fundo dourado suave + barra de 2px à esquerda. */
+.cmp-linha--alterada {
+  background: var(--cmp-alt-bg);
+  box-shadow: inset 2px 0 0 var(--cmp-alt-barra);
+}
+
+/* Linha que só existe deste lado: azul suave + barra tracejada de 2px (forma diferente, não só cor). */
+.cmp-linha--exclusiva {
+  background-color: var(--cmp-ex-bg);
+  background-image: repeating-linear-gradient(180deg, var(--cmp-ex-barra) 0 4px, transparent 4px 7px);
+  background-size: 2px 100%;
+  background-repeat: no-repeat;
+  background-position: left top;
+}
+
+/* Palavra exacta que mudou, dentro de uma linha alterada: fundo mais forte + sublinhado de 1px. */
+.cmp-palavra {
+  background: var(--cmp-pal-bg);
   border-radius: 3px;
+  box-shadow: inset 0 -1px 0 var(--cmp-pal-sub);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -3959,25 +3979,22 @@ body:not(.app-mod-slides) .centro-col-letras {
   gap: 4px;
 }
 
-.centro-comparativo-legenda i {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+/* Amostras: reproduzem o estilo real de cada realce (mesmas classes do espelho). */
+.cmp-amostra {
   display: inline-block;
+  padding: 1px 10px;
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--text);
 }
-
-.centro-comparativo-legenda .amostra-alterada {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+.cmp-amostra--palavra {
+  background: var(--cmp-alt-bg);
+  box-shadow: inset 2px 0 0 var(--cmp-alt-barra);
 }
-
-.centro-comparativo-legenda .amostra-exclusiva {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-}
-
-.centro-comparativo-legenda .amostra-palavra {
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
+.cmp-amostra--palavra .cmp-palavra {
+  font-style: normal;
+  padding: 0 3px;
 }
 
 /* Diálogo «Comparar versões»: duas colunas empilhadas, opções em lista vertical. */

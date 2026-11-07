@@ -35,6 +35,26 @@ export function montarHomeLayout(actions) {
   tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', 'Modo de busca');
   const local = button('home-busca-biblioteca', 'Buscar na biblioteca', `${icons.database}Biblioteca`, tabs, () => mode(false));
   const online = button('home-busca-online', 'Buscar em outras fontes, incluindo catálogo offline', `${icons.globe}Online`, tabs, () => mode(true));
+  // Pílula única que desliza sob a opção ativa (puramente visual; o estado continua em aria-pressed).
+  const pill = element('span', 'home-search-pill', tabs);
+  pill.setAttribute('aria-hidden', 'true');
+  function placePill() {
+    const on = [local, online].find((b) => b.getAttribute('aria-pressed') === 'true');
+    if (!on || !tabs.offsetWidth) return;
+    pill.style.width = `${on.offsetWidth}px`;
+    pill.style.transform = `translateX(${on.offsetLeft}px)`;
+    pill.classList.add('pronta');
+  }
+  new ResizeObserver(placePill).observe(tabs);
+  document.fonts?.ready.then(placePill);
+  // Setas esquerda/direita alternam entre as duas opções (mesmo handler do clique).
+  tabs.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const alvo = e.key === 'ArrowLeft' ? local : online;
+    e.preventDefault();
+    if (alvo.getAttribute('aria-pressed') !== 'true') alvo.click();
+    alvo.focus();
+  });
   search.append($('banco-busca-local-wrap'), $('busca-letras-panel'), document.querySelector('.banco-filtros-checks'));
   $('busca').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); actions.filtrar(); }
@@ -67,6 +87,7 @@ export function montarHomeLayout(actions) {
     $('busca-letras-panel').hidden = !on;
     local.setAttribute('aria-pressed', String(!on));
     online.setAttribute('aria-pressed', String(on));
+    placePill();
     // Sem limpar, copiar termos, refazer requisições ou reconstruir resultados.
   }
   mode(false);
@@ -265,8 +286,9 @@ export function montarHomeLayout(actions) {
     closeMetadata() { applyMeta(false); },
     updateStrip(state) {
       // Só há modo de edição de fato com «Editar» (slides) ou texto alterado na letra completa/comparativo.
-      const editingLetter = !!state.editingSlides || (!!state.dirty && (!!state.full || !!state.comparison));
-      applyMeta(!!state.editingSlides);
+      const editingLetter = !!state.editingSlides || !!state.editingFull || (!!state.dirty && (!!state.full || !!state.comparison));
+      // Título/artista ficam editáveis ao clicar em «Editar», na grade ou na letra completa.
+      applyMeta(!!state.editingSlides || !!state.editingFull);
       versionName = state.versionName ?? '';
       copy.classList.toggle('has-version', state.versionName != null);
       if (document.activeElement !== versionInput) versionInput.value = versionName;

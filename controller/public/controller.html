@@ -331,7 +331,9 @@
         </div>
         <div id="centro-letra-completa-wrap" class="centro-letra-completa-wrap" hidden>
           <p class="centro-letra-completa-hint">
-            Edite aqui a letra inteira. Entre cada estrofe (slide) deixe uma <strong>linha em branco</strong> (Enter duas vezes). Use <strong>Salvar alterações</strong> para gravar no banco e voltar aos cartões, ou <strong>Cancelar</strong> para descartar.
+            <svg class="centro-letra-completa-hint-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span>Cada estrofe vira um slide. Para separar uma da outra, deixe uma <strong>linha em branco</strong> (aperte Enter duas vezes).</span>
+            <span class="sr-only">Edite aqui a letra inteira. Use Salvar alterações para gravar no banco e voltar aos cartões, ou Cancelar para descartar.</span>
           </p>
           <!-- O textarea continua a ser a única fonte de verdade do texto. A camada
                por baixo só desenha as divisórias entre estrofes (ver guiasEstrofesLetraCompleta). -->
@@ -345,13 +347,15 @@
              baixo, desenhada por `realcesComparativo` no controllerAppCore.js. -->
         <div id="centro-comparativo-wrap" class="centro-comparativo-wrap" hidden>
           <p class="centro-comparativo-hint">
-            Duas versões da mesma música lado a lado. O que estiver <strong>diferente</strong> fica destacado; se forem idênticas, nada é marcado. Edite qualquer um dos lados e use <strong>Salvar alterações</strong> para gravar, ou <strong>Cancelar</strong> para descartar.
+            <svg class="centro-comparativo-hint-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span>Duas versões da mesma música lado a lado. As <strong>diferenças</strong> ficam destacadas; se forem idênticas, nada é marcado. Edite qualquer lado e salve ou cancele pelo cabeçalho.</span>
+            <span class="sr-only">Use Salvar alterações para gravar, ou Cancelar para descartar.</span>
           </p>
           <div class="centro-comparativo-grid">
             <div class="centro-comparativo-col">
               <div class="centro-comparativo-col-head">
                 <span class="centro-comparativo-col-rotulo" id="comparativo-rotulo-a">—</span>
-                <span class="centro-comparativo-col-selo" id="comparativo-selo-a" hidden>original protegido</span>
+                <span class="centro-comparativo-col-selo" id="comparativo-selo-a" hidden><svg class="centro-comparativo-selo-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>original protegido</span>
               </div>
               <div class="centro-comparativo-editor" id="centro-comparativo-editor-a">
                 <div class="centro-comparativo-realces" id="comparativo-realces-a" aria-hidden="true"></div>
@@ -361,7 +365,7 @@
             <div class="centro-comparativo-col">
               <div class="centro-comparativo-col-head">
                 <span class="centro-comparativo-col-rotulo" id="comparativo-rotulo-b">—</span>
-                <span class="centro-comparativo-col-selo" id="comparativo-selo-b" hidden>original protegido</span>
+                <span class="centro-comparativo-col-selo" id="comparativo-selo-b" hidden><svg class="centro-comparativo-selo-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>original protegido</span>
               </div>
               <div class="centro-comparativo-editor" id="centro-comparativo-editor-b">
                 <div class="centro-comparativo-realces" id="comparativo-realces-b" aria-hidden="true"></div>
@@ -372,9 +376,10 @@
           <div class="centro-comparativo-rodape">
             <span class="centro-comparativo-resumo" id="comparativo-resumo"></span>
             <span class="centro-comparativo-legenda" id="comparativo-legenda" hidden>
-              <span><i class="amostra-alterada"></i>linha alterada</span>
-              <span><i class="amostra-palavra"></i>palavra</span>
-              <span><i class="amostra-exclusiva"></i>só de um lado</span>
+              <span aria-hidden="true"><i class="cmp-linha cmp-linha--alterada cmp-amostra">Aa</i>linha alterada</span>
+              <span aria-hidden="true"><i class="cmp-amostra cmp-amostra--palavra"><i class="cmp-palavra">Aa</i></i>palavra</span>
+              <span aria-hidden="true"><i class="cmp-linha cmp-linha--exclusiva cmp-amostra">Aa</i>só de um lado</span>
+              <span class="sr-only">Legenda: linha alterada, palavra alterada e linha que existe só de um lado.</span>
             </span>
           </div>
         </div>

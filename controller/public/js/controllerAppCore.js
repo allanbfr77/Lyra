@@ -8178,6 +8178,8 @@ let modoEdicaoEstrofes = false;
 let caixaLetrasEdicaoMaiuscula = false;
 /** Coluna central: ver letra inteira num só bloco (cópia), em vez dos cartões por slide. */
 let modoLetraCompletaCentral = false;
+/** Letra completa tem dois modos: visualização (somente leitura) e edição (depois de «Editar»). */
+let letraCompletaEditando = false;
 /** Cópia ao entrar no modo letra completa — «Cancelar» restaura isto (não aplica o textarea). */
 let snapshotLetraCompleta = null;
 /**
@@ -15434,6 +15436,7 @@ function estadoFaixaEdicaoHome() {
     dirty: temEdicaoMusicaNaoGravada(),
     // Na letra completa/comparativo a faixa só vale com texto alterado (dirty).
     editingSlides: modoEdicaoEstrofes && !modoLetraCompletaCentral && !modoComparativoCentral,
+    editingFull: modoLetraCompletaCentral && letraCompletaEditando && !modoComparativoCentral,
     // Nome da cópia/versão selecionada (null no Original, que não é renomeável).
     versionName: versaoCopiaSelecionadaAtual()?.rotulo ?? null,
   };
@@ -15527,6 +15530,10 @@ const guiasEstrofesLetraCompleta = (() => {
   let espelho = null;
   let desloca = null;
   let agendado = false;
+  /* Recuos e colunas laterais (número do slide / contador) vêm das variáveis --lc-* do textarea
+     em home.css (grade 44px | 1fr | 72px), para CSS e JS nunca divergirem. */
+  /** Estrofes da última renderização: corridas de linhas não vazias (índices de linha do textarea). */
+  let estrofesRuns = [];
 
   function elementos() {
     const ta = document.getElementById('centro-letra-completa-ta');
@@ -15581,7 +15588,7 @@ const guiasEstrofesLetraCompleta = (() => {
     if (!modoLetraCompletaCentral || guias.offsetParent === null) {
       if (espelho) espelho.textContent = '';
       if (desloca) {
-        desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+        desloca.querySelectorAll('.centro-letra-completa-guia, [data-estrofe]').forEach((n) => n.remove());
       }
       return;
     }
@@ -15608,7 +15615,7 @@ const guiasEstrofesLetraCompleta = (() => {
     const separadoras = indicesLinhasSeparadoras(linhas);
     const alvo = new Set(separadoras);
 
-    desloca.querySelectorAll('.centro-letra-completa-guia').forEach((n) => n.remove());
+    desloca.querySelectorAll('.centro-letra-completa-guia, [data-estrofe]').forEach((n) => n.remove());
     espelho.textContent = '';
     const marcas = [];
     linhas.forEach((linha, i) => {
@@ -15617,28 +15624,110 @@ const guiasEstrofesLetraCompleta = (() => {
       /* NBSP na linha vazia: sem caractere o bloco colapsa e o offset mente. */
       row.textContent = linha === '' ? '\u00a0' : linha;
       espelho.appendChild(row);
-      if (alvo.has(i)) marcas.push(row);
+      if (alvo.has(i)) {
+        row.dataset.i = String(i);
+        marcas.push(row);
+      }
     });
-
-    if (!marcas.length) {
-      desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
-      return;
-    }
 
     const alturaLinha = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
-    const recuoEsq = cs.paddingLeft;
-    const recuoDir = cs.paddingRight;
-    marcas.forEach((marca) => {
+    /* Linhas de largura total: recuos e larguras laterais lidos das variáveis CSS do textarea. */
+    const larg = ta.clientWidth;
+    const px = (nome, padrao) => {
+      const v = parseFloat(cs.getPropertyValue(nome));
+      return Number.isFinite(v) ? v : padrao;
+    };
+    const insEsq = px('--lc-ins-e', 20);
+    const insDir = px('--lc-ins-d', 24);
+    const alturaTotal = espelho.offsetHeight;
+
+    /* Estrofes = corridas de linhas não vazias (a mesma regra de splitTextoEmEstrofesPorLinhaVaziaStrict). */
+    estrofesRuns = [];
+    let ini = -1;
+    linhas.forEach((l, i) => {
+      if (l === '') {
+        if (ini !== -1) {
+          estrofesRuns.push({ ini, fim: i - 1 });
+          ini = -1;
+        }
+      } else if (ini === -1) ini = i;
+    });
+    if (ini !== -1) estrofesRuns.push({ ini, fim: linhas.length - 1 });
+
+    /* Todas as leituras de layout do espelho primeiro, depois as escritas no DOM visual. */
+    const geo = estrofesRuns.map((r) => {
+      const primeira = espelho.children[r.ini];
+      const ultima = espelho.children[r.fim];
+      if (!primeira || !ultima) return null;
+      return { topo: primeira.offsetTop };
+    });
+    /* Y de cada divisor (meio da linha em branco que separa), indexado pela estrofe que vem antes dele. */
+    const divisorApos = [];
+    const reguas = marcas.map((marca) => {
+      const h = marca.offsetHeight || alturaLinha;
+      const i = Number(marca.dataset.i);
+      const apos = estrofesRuns.filter((r) => r.fim < i).length - 1;
+      const y = Math.round(marca.offsetTop + h / 2);
+      divisorApos[apos] = y;
+      return { apos, y };
+    });
+    const frag = document.createDocumentFragment();
+    geo.forEach((g, k) => {
+      if (!g) return;
+      /* O destaque ocupa a altura inteira da linha da estrofe: de divisor a divisor. */
+      const yTopo = k === 0 ? 0 : divisorApos[k - 1] ?? g.topo - 16;
+      const yBase = divisorApos[k] ?? alturaTotal;
+      const fundo = document.createElement('div');
+      fundo.className = 'centro-letra-completa-estrofe-fundo';
+      fundo.dataset.estrofe = String(k);
+      fundo.style.cssText = `top:${yTopo}px;height:${Math.max(0, yBase - yTopo)}px;left:0;width:${larg}px`;
+      const num = document.createElement('span');
+      num.className = 'centro-letra-completa-estrofe-num';
+      num.dataset.estrofe = String(k);
+      num.textContent = String(k + 1);
+      num.style.cssText = `top:${Math.round(g.topo + 2)}px;left:${insEsq}px`;
+      const cont = document.createElement('span');
+      cont.className = 'centro-letra-completa-estrofe-cont';
+      cont.dataset.estrofe = String(k);
+      cont.textContent = `${estrofesRuns[k].fim - estrofesRuns[k].ini + 1} linhas`;
+      cont.style.cssText = `top:${g.topo}px;height:${alturaLinha}px;right:${insDir}px`;
+      frag.append(fundo, num, cont);
+    });
+    reguas.forEach(({ apos, y }) => {
       const regua = document.createElement('div');
       regua.className = 'centro-letra-completa-guia';
-      const h = marca.offsetHeight || alturaLinha;
-      regua.style.top = `${Math.round(marca.offsetTop + h / 2)}px`;
-      regua.style.left = recuoEsq;
-      regua.style.right = recuoDir;
-      desloca.appendChild(regua);
+      regua.dataset.apos = String(apos);
+      regua.style.top = `${y}px`;
+      regua.style.left = '0';
+      regua.style.width = `${larg}px`;
+      regua.style.right = 'auto';
+      frag.appendChild(regua);
     });
+    desloca.appendChild(frag);
 
     desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
+    atualizarAtiva();
+  }
+
+  /** Estrofe que contém o cursor (só com o textarea em foco): destaque dourado, sem tocar no texto. */
+  function atualizarAtiva() {
+    const ta = document.getElementById('centro-letra-completa-ta');
+    if (!ta || !desloca) return;
+    let ativa = -1;
+    if (document.activeElement === ta && estrofesRuns.length) {
+      const pos = ta.selectionStart ?? 0;
+      let linha = 0;
+      const v = ta.value;
+      for (let p = v.indexOf(String.fromCharCode(10)); p !== -1 && p < pos; p = v.indexOf(String.fromCharCode(10), p + 1)) linha++;
+      ativa = estrofesRuns.findIndex((r) => linha >= r.ini && linha <= r.fim);
+    }
+    desloca.querySelectorAll('[data-estrofe]').forEach((el) => {
+      el.classList.toggle('ativa', Number(el.dataset.estrofe) === ativa);
+    });
+    /* O divisor logo abaixo da estrofe ativa some, para não duplicar linhas com o destaque. */
+    desloca.querySelectorAll('.centro-letra-completa-guia').forEach((g) => {
+      g.classList.toggle('oculta', Number(g.dataset.apos) === ativa);
+    });
   }
 
   function sincronizarDeslocamento() {
@@ -15677,6 +15766,16 @@ const guiasEstrofesLetraCompleta = (() => {
     ta.addEventListener('paste', agendar);
     ta.addEventListener('cut', agendar);
     ta.addEventListener('scroll', sincronizarDeslocamento, { passive: true });
+    ta.addEventListener('focus', atualizarAtiva);
+    ta.addEventListener('blur', atualizarAtiva);
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === ta) atualizarAtiva();
+    });
+    /* A métrica muda quando a fonte (Poppins) termina de carregar: remede tudo. */
+    if (document.fonts) {
+      document.fonts.addEventListener('loadingdone', agendar);
+      document.fonts.ready.then(agendar);
+    }
     window.addEventListener('resize', agendar);
     if (typeof ResizeObserver === 'function') {
       /* Recalcula se a caixa mudar de tamanho (redimensionar a janela / o painel). */
@@ -15876,6 +15975,7 @@ async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo, op
 function entrarModoLetraCompletaCentral() {
   if (!musicaAtiva) return;
   modoLetraCompletaCentral = true;
+  letraCompletaEditando = false; // abre sempre em visualização
   aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
   /* Snapshot do texto já no painel — o ida-e-volta juntar/partir não conta como sujo. */
   const ta = document.getElementById('centro-letra-completa-ta');
@@ -15912,9 +16012,17 @@ async function alternarModoLetraCompletaCentral() {
         if (!ok) return;
         // Persistência já recarrega a música e limpa os modos; reforça layout.
         limparFlagsModoEdicaoMusica();
+        // Na Home, gravar volta à visualização da letra completa (não à grade).
+        if (homeLayout?.isHome() && musicaAtiva) entrarModoLetraCompletaCentral();
         atualizarToolbarModoEdicao();
         return;
       }
+    }
+    if (homeLayout?.isHome()) {
+      // Sem alteração (ou catálogo): sai da edição e continua na visualização.
+      letraCompletaEditando = false;
+      atualizarToolbarModoEdicao();
+      return;
     }
     sairDoModoLetraCompletaParaGrade();
     return;
@@ -16031,6 +16139,9 @@ async function alternarModoLetraCompletaOuVoltarGrade() {
 
 function atualizarToolbarModoLetraCompleta() {
   const btn = document.getElementById('btn-modo-letra-completa');
+  /* Visualização = somente leitura. No layout antigo (sem Home) o texto continua editável direto. */
+  const taLC = document.getElementById('centro-letra-completa-ta');
+  if (taLC) taLC.readOnly = !!homeLayout?.isHome() && !(modoLetraCompletaCentral && letraCompletaEditando);
   if (!btn) return;
   const m = !!musicaAtiva;
   btn.style.display = m ? '' : 'none';
@@ -16126,22 +16237,26 @@ const realcesComparativo = (() => {
     return { ta, camada, ...ref };
   }
 
-  /** Reproduz as marcas de uma coluna no espelho, linha a linha. */
+  /**
+   * Reproduz as marcas de uma coluna no espelho, uma LINHA por bloco. Cada linha do textarea
+   * vira um <div>: assim o fundo da linha ocupa a largura inteira (a barra lateral fica na
+   * borda do painel) sem mudar a posição do texto — o recuo é compensado com margem negativa
+   * + padding iguais (variáveis --cmp-pl/--cmp-pr, copiadas do textarea em `desenhar`).
+   */
   function pintar(espelho, marcas) {
     espelho.textContent = '';
-    marcas.forEach((m, i) => {
-      if (i > 0) espelho.appendChild(document.createTextNode('\n'));
+    marcas.forEach((m) => {
+      const linha = document.createElement('div');
+      linha.className = 'cmp-row';
       if (m.tipo === 'igual') {
-        if (m.texto) espelho.appendChild(document.createTextNode(m.texto));
+        /* NBSP na linha vazia: sem caractere o bloco colapsaria e as linhas desalinhariam. */
+        linha.textContent = m.texto ? m.texto : '\u00a0';
+        espelho.appendChild(linha);
         return;
       }
-      const linha = document.createElement('span');
-      linha.className =
-        m.tipo === 'exclusiva' ? 'cmp-linha cmp-linha--exclusiva' : 'cmp-linha cmp-linha--alterada';
+      linha.classList.add('cmp-linha', m.tipo === 'exclusiva' ? 'cmp-linha--exclusiva' : 'cmp-linha--alterada');
       if (!m.texto) {
-        /* Linha vazia exclusiva: sem um caractere o fundo teria largura zero e
-           não se veria. Um espaço fixo não muda a altura nem quebra a linha. */
-        linha.textContent = ' ';
+        linha.textContent = '\u00a0';
       } else if (m.tipo === 'alterada') {
         m.partes.forEach((p) => {
           if (!p.txt) return;
@@ -16161,12 +16276,32 @@ const realcesComparativo = (() => {
     });
   }
 
+  /** Resumo em chips (uma contagem por chip, sem chip com zero) + legenda só quando há diferenças. */
   function atualizarRodape(resultado) {
     const resumo = document.getElementById('comparativo-resumo');
     const legenda = document.getElementById('comparativo-legenda');
     if (resumo) {
-      resumo.textContent = resumirComparacao(resultado);
       resumo.classList.toggle('igual', !!resultado.iguais);
+      resumo.textContent = '';
+      const chip = (texto, check) => {
+        const el = document.createElement('span');
+        el.className = 'cmp-chip';
+        if (check) {
+          el.innerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+        }
+        el.appendChild(document.createTextNode(texto));
+        resumo.appendChild(el);
+      };
+      if (resultado.iguais) {
+        chip('Versões idênticas', true);
+      } else {
+        const { alteradas, exclusivasA, exclusivasB } = resultado.totais;
+        if (alteradas) chip(`${alteradas} ${alteradas === 1 ? 'linha alterada' : 'linhas alteradas'}`);
+        if (exclusivasA) chip(`${exclusivasA} só à esquerda`);
+        if (exclusivasB) chip(`${exclusivasB} só à direita`);
+        if (!alteradas && !exclusivasA && !exclusivasB) chip('Diferenças apenas em espaços');
+      }
     }
     if (legenda) legenda.hidden = !!resultado.iguais;
   }
@@ -16195,6 +16330,9 @@ const realcesComparativo = (() => {
       /* `clientWidth` já exclui a barra de deslocamento — largura útil certa. */
       ref.espelho.style.width = `${ref.ta.clientWidth}px`;
       ref.espelho.style.border = '0';
+      /* As linhas do espelho são blocos que sangram até as bordas do painel. */
+      ref.espelho.style.setProperty('--cmp-pl', cs.paddingLeft);
+      ref.espelho.style.setProperty('--cmp-pr', cs.paddingRight);
       ref.desloca.style.width = `${ref.ta.clientWidth}px`;
       /* Iguais: espelho vazio. É o requisito de não marcar nada nesse caso. */
       pintar(ref.espelho, resultado.iguais ? [] : marcas[lado]);
@@ -16234,6 +16372,12 @@ const realcesComparativo = (() => {
       if (typeof ResizeObserver === 'function') new ResizeObserver(agendar).observe(ta);
     }
     window.addEventListener('resize', agendar);
+    /* A métrica muda quando a fonte da letra termina de carregar: remede os realces. */
+    if (document.fonts && !ligar._fonts) {
+      ligar._fonts = true;
+      document.fonts.addEventListener('loadingdone', agendar);
+      document.fonts.ready.then(agendar);
+    }
     agendar();
   }
 
@@ -16737,6 +16881,15 @@ async function sairModoComparativoParaTrocarModo() {
 async function acionarEditarLetraBarraPadrao() {
   if (!musicaAtiva) return;
   if (!(await sairModoComparativoParaTrocarModo())) return;
+  if (homeLayout?.isHome() && modoLetraCompletaCentral) {
+    // Na letra completa, «Editar» só libera o texto para edição (continua na letra completa).
+    if (!letraCompletaEditando) {
+      letraCompletaEditando = true;
+      atualizarToolbarModoEdicao();
+      document.getElementById('centro-letra-completa-ta')?.focus();
+    }
+    return;
+  }
   if (homeLayout?.isHome()) {
     // Na Home «Editar letra» abre a edição por slides (antigo botão do lápis).
     if (modoEdicaoEstrofes) return;
@@ -16869,7 +17022,15 @@ async function acionarCancelarBarraPadrao() {
   }
   if (modoLetraCompletaCentral) {
     descartarEdicaoLetraCompletaSemSair();
-    if (homeLayout?.isHome()) sairDoModoLetraCompletaParaGrade();
+    if (homeLayout?.isHome()) {
+      // Cancelar volta à visualização da letra completa (não à grade) e restaura título/artista.
+      letraCompletaEditando = false;
+      const et = document.getElementById('edit-titulo');
+      const ea = document.getElementById('edit-artista');
+      if (et) et.value = musicaAtiva?.titulo || '';
+      if (ea) ea.value = musicaAtiva?.artista || '';
+      atualizarToolbarModoEdicao();
+    }
     return;
   }
   if (modoEdicaoEstrofes) {
@@ -17204,6 +17365,20 @@ function aplicarAlturasTextareasEstrofes(tas) {
     ta.style.height = alturas[i] + 'px';
     ta._alturaAuto = alturas[i];
   });
+  // Os cartões crescerem pode fazer a grade ganhar barra de rolagem e estreitar as colunas:
+  // as quebras de linha mudam. Confere (um reflow) e corrige o que ainda estiver cortado.
+  for (let passo = 0; passo < 3; passo++) {
+    const faltam = lista.filter((ta) => ta.scrollHeight > ta.clientHeight + 1);
+    if (!faltam.length) break;
+    faltam.forEach((ta) => {
+      ta.style.height = 'auto';
+    });
+    const novas = faltam.map((ta) => Math.max(minH, ta.scrollHeight, ta._alturaManual || 0));
+    faltam.forEach((ta, i) => {
+      ta.style.height = novas[i] + 'px';
+      ta._alturaAuto = novas[i];
+    });
+  }
 }
 
 /**
@@ -17223,10 +17398,32 @@ function aplicarAlturaCardEstrofe(cardEl) {
   if (ta) aplicarAlturaTextareaEstrofe(ta);
 }
 
+/**
+ * Texto do slide no modo exibição: a 1.ª linha lógica vai num <span> para ganhar peso 600
+ * (`::first-line` pegaria só a 1.ª linha visual quando o texto quebra). O texto em si —
+ * `textContent`, quebras de linha, contagem de linhas — fica exatamente o mesmo.
+ */
+function definirTextoCorpoSlide(body, txt) {
+  const t = String(txt ?? '');
+  body.textContent = '';
+  const i = t.indexOf('\n');
+  const primeira = document.createElement('span');
+  primeira.className = 'estrofe-primeira-linha';
+  primeira.textContent = i < 0 ? t : t.slice(0, i);
+  body.appendChild(primeira);
+  if (i >= 0) body.appendChild(document.createTextNode(t.slice(i)));
+}
+
 function reaplicarAlturasEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
   if (!wrap || !musicaAtiva || !musicaAtiva.estrofes) return;
   aplicarAlturasTextareasEstrofes([...wrap.querySelectorAll('textarea.estrofe-slide-ta')]);
+}
+
+/* O scrollHeight muda quando a fonte do slide (Poppins) termina de carregar: recalcula as alturas. */
+if (document.fonts) {
+  document.fonts.addEventListener('loadingdone', () => reaplicarAlturasEstrofesEditor());
+  document.fonts.ready.then(() => reaplicarAlturasEstrofesEditor());
 }
 
 /**
@@ -17256,7 +17453,7 @@ function atualizarEstrofesEditorInPlace() {
     const body = cards[i].querySelector('.estrofe-slide-view-body');
     if (!body) return false;
     const txt = String(musicaAtiva.estrofes[i] ?? '');
-    if (body.textContent !== txt) body.textContent = txt;
+    if (body.textContent !== txt) definirTextoCorpoSlide(body, txt);
     cards[i].classList.toggle('ativa', estrofeAtiva === i);
   }
   return true;
@@ -17420,7 +17617,7 @@ function renderEstrofesEditor() {
       `;
       const body = document.createElement('div');
       body.className = 'estrofe-slide-view-body';
-      body.textContent = txt;
+      definirTextoCorpoSlide(body, txt);
       div.appendChild(body);
 
       if (!ehModoSlidesOperador()) {

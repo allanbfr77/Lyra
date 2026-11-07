@@ -374,3 +374,148 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-edit { height: auto; max-height: none; overflow: visible; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-ta::-webkit-resizer { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='%234a4a50' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M9 1L1 9M9 5L5 9'/%3E%3C/svg%3E") center / 10px 10px no-repeat; }
 .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .home-new-slide { border-radius: 10px; min-height: 150px; }
+
+/* ═══ Grade de slides no modo normal: mesmo padrão aprovado do modo edição ═══ */
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao):not(.estrofes-slide-editor--vazio) { box-sizing: border-box; gap: 14px; padding: 24px 28px; margin-right: 0; background: #141416; border: 1px solid #2c2c30; border-radius: 12px; scroll-padding-bottom: 24px; grid-auto-rows: min-content; align-items: stretch; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit { box-sizing: border-box; height: auto; max-height: none; min-height: 150px; padding: 10px 14px 14px; background: #1b1b1e; border: 1px solid #2c2c30; border-radius: 10px; box-shadow: none; overflow: visible; transition: border-color .15s ease, box-shadow .15s ease; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit:hover { border-color: #3a3a40; }
+/* Slide selecionado: o mesmo destaque dourado do card em edição. */
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit.ativa { background: #1b1b1e; border-color: #8f7420; box-shadow: 0 0 0 3px rgba(212, 167, 44, .12); }
+
+/* Cabeçalho do card */
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 8px; height: 28px; margin: 0; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-toolbar-left { gap: 8px; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-num-big { min-width: 24px; height: 24px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: 12px; background: #2a2a2f; box-shadow: none; color: #f1efe9; font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit.ativa .estrofe-num-big { background: rgba(212, 167, 44, .16); color: #d4a72c; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .home-slide-lines { order: 2; margin-left: auto; font-size: 11px; line-height: 1; color: #8c8c93; }
+
+/* Lápis de edição rápida: mesmo molde do X do modo edição */
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick { order: 3; display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; box-shadow: none; color: #6f6f77; font-size: 0; opacity: 1; transform: none; transition: opacity .12s, color .12s, background-color .12s; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick::before { content: ''; display: block; width: 14px; height: 14px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E") center / 14px 14px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E") center / 14px 14px no-repeat; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick:hover:not(:disabled) { color: #d4a72c; background: rgba(212, 167, 44, .12); transform: none; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick:focus-visible { outline: 1px solid #d4a72c; outline-offset: 0; opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick { opacity: 0; }
+  .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit:hover .btn-estrofe-quick,
+  .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-edit:focus-within .btn-estrofe-quick,
+  .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .btn-estrofe-quick:focus-visible { opacity: 1; }
+}
+
+/* Texto do slide */
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body { margin: 8px 0 0; padding: 0; min-height: 96px; color: #f1efe9; font-size: 15px; line-height: 1.6; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .home-new-slide { border-radius: 10px; min-height: 150px; }
+
+/* ═══ Letra completa: mesmo fundo/painel da grade de slides ═══ */
+.home-layout-v2 .centro-letra-completa-wrap { box-sizing: border-box; margin-top: 0; gap: 12px; padding: 24px 28px; background: #141416; border: 1px solid #2c2c30; border-radius: 12px; }
+.home-layout-v2 .centro-letra-completa-hint { color: #8c8c93; }
+.home-layout-v2 .centro-letra-completa-guias { background: #1b1b1e; border-color: #2c2c30; border-radius: 10px; }
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta { border: 1px solid #2c2c30; border-radius: 10px; color: #f1efe9; }
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta:focus { border-color: #8f7420; box-shadow: 0 0 0 3px rgba(212, 167, 44, .12); }
+
+/* ═══ Tipografia do conteúdo dos slides: Poppins — definição ÚNICA, usada pela grade (edição/visualização) e pela letra completa ═══ */
+.home-layout-v2 { --font-lyrics: "Poppins", "Segoe UI", system-ui, sans-serif; --lyrics-size: 15.5px; --lyrics-lh: 1.65; --lyrics-weight: 500; --lyrics-color: #f1efe9; }
+/* Poppins 500/600, subset latin, hospedada em ../fonts (funciona offline/empacotado). local() é tentado primeiro. */
+@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 500; font-display: swap; src: local('Poppins Medium'), local('Poppins-Medium'), url('../fonts/poppins-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 600; font-display: swap; src: local('Poppins SemiBold'), local('Poppins-SemiBold'), url('../fonts/poppins-latin-600-normal.woff2') format('woff2'); }
+.home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao .estrofe-slide-ta,
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body,
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta { font-family: var(--font-lyrics); font-size: var(--lyrics-size); line-height: var(--lyrics-lh); font-weight: var(--lyrics-weight); font-synthesis: none; letter-spacing: 0; color: var(--lyrics-color); overflow-wrap: anywhere; }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body { min-height: calc(4 * var(--lyrics-lh) * 1em); }
+.home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-primeira-linha { font-weight: 600; }
+
+/* ═══ Editor de letra completa: dica em uma linha, coluna centralizada, número/contador/destaque por estrofe ═══ */
+.home-layout-v2 .centro-letra-completa-wrap { gap: 0; }
+.home-layout-v2 .centro-letra-completa-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #8c8c93; }
+.home-layout-v2 .centro-letra-completa-hint-ico { width: 16px; height: 16px; flex: none; margin-top: 2px; color: #8c8c93; stroke: #8c8c93; }
+.home-layout-v2 .centro-letra-completa-hint strong { color: #f1efe9; font-weight: 600; }
+
+/* O container carrega o fundo/borda; a camada de guias e o textarea ficam transparentes por cima. */
+.home-layout-v2 .centro-letra-completa-editor { background: #1b1b1e; border: 1px solid #2c2c30; border-radius: 10px; overflow: hidden; }
+.home-layout-v2 .centro-letra-completa-guias { background: transparent; border: 0; border-radius: 0; }
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta,
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta:focus { box-sizing: border-box; border: 0; border-radius: 0; box-shadow: none; outline: none;
+  /* Linhas de largura total: grade 44px | 1fr | 72px (56px em telas estreitas) com recuos 20/24px (16px). O JS lê estas variáveis (--lc-*) para posicionar número, contador e destaque. */
+  --lc-ins-e: 20px; --lc-ins-d: 24px; --lc-gut-e: 44px; --lc-gut-d: 72px;
+  padding: 16px calc(var(--lc-ins-d) + var(--lc-gut-d)) 16px calc(var(--lc-ins-e) + var(--lc-gut-e));
+  font-family: var(--font-lyrics); font-size: var(--lyrics-size); line-height: var(--lyrics-lh); font-weight: var(--lyrics-weight); letter-spacing: 0; color: var(--lyrics-color); overflow-wrap: anywhere; }
+.home-layout-v2 .centro-letra-completa-ta::-webkit-scrollbar { width: 6px; }
+.home-layout-v2 .centro-letra-completa-ta::-webkit-scrollbar-track { background: transparent; }
+.home-layout-v2 .centro-letra-completa-ta::-webkit-scrollbar-thumb { background: #3a3a40; border-radius: 3px; }
+
+/* Camada visual por estrofe (decorativa, atrás do texto) */
+.home-layout-v2 .centro-letra-completa-guia { height: 1px; background: rgba(255, 255, 255, .06); opacity: 1; }
+.home-layout-v2 .centro-letra-completa-guia.oculta { background: transparent; }
+.centro-letra-completa-estrofe-fundo { position: absolute; pointer-events: none; }
+.centro-letra-completa-estrofe-fundo.ativa { background: rgba(212, 167, 44, .05); }
+.centro-letra-completa-estrofe-fundo.ativa::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #d4a72c; }
+.centro-letra-completa-estrofe-num { position: absolute; box-sizing: border-box; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: #2a2a2f; color: #8c8c93; font-family: var(--font-ui); font-size: 12px; font-weight: 700; line-height: 24px; text-align: center; pointer-events: none; }
+.centro-letra-completa-estrofe-num.ativa { background: rgba(212, 167, 44, .16); color: #d4a72c; }
+.centro-letra-completa-estrofe-cont { position: absolute; display: flex; align-items: center; justify-content: flex-end; font-family: var(--font-ui); font-size: 11px; color: #6f6f77; white-space: nowrap; pointer-events: none; }
+
+/* Ajustes finos do editor de letra completa: peso 500 uniforme (sem negrito sintético), entrelinha 1.6, só a barra fina. */
+.home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta { font-weight: var(--lyrics-weight); font-synthesis: none; line-height: var(--lyrics-lh); }
+.home-layout-v2 .centro-letra-completa-ta::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+/* scrollbar-width/color anulariam o ::-webkit-scrollbar no Chromium; valem só para o Firefox. */
+@supports (-moz-appearance: none) {
+  .home-layout-v2 .centro-letra-completa-ta { scrollbar-width: thin; scrollbar-color: #3a3a40 transparent; }
+}
+
+/* Telas estreitas: 44px | 1fr | 56px com recuo lateral de 16px. */
+@media (max-width: 900px) {
+  .home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta,
+  .home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta:focus { --lc-ins-e: 16px; --lc-ins-d: 16px; --lc-gut-d: 56px; }
+}
+
+/* Home: sem a linha acima dos botões Sinc./Importar/Compartilhar/Outro PC (a de baixo continua separando do culto). */
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { border-top: 0; }
+
+/* ═══ Alternador segmentado BIBLIOTECA | ONLINE: container único com pílula deslizante (cores e textos inalterados) ═══ */
+.home-layout-v2 .home-search-tabs { position: relative; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border, #2c2c30); border-radius: 999px; background: var(--bg, #1b1b1e); }
+.home-layout-v2 .home-search-tabs .btn { position: relative; z-index: 1; flex: 1; min-width: 0; height: 30px; padding: 0 16px; gap: 8px; border: 0; border-radius: 999px; background: transparent; box-shadow: none; transition: color .15s ease; }
+.home-layout-v2 .home-search-tabs .btn:hover:not([aria-pressed="true"]):not(:disabled) { background: transparent; color: var(--text); }
+/* A ativa mantém as cores de hoje (texto/ícone dourados); fundo e borda douradas vêm da pílula. */
+.home-layout-v2 .home-search-tabs .btn[aria-pressed="true"] { background: transparent; border-color: transparent; }
+.home-search-pill { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; box-sizing: border-box; border: 1px solid var(--accent); border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); pointer-events: none; opacity: 0; }
+.home-search-pill.pronta { opacity: 1; transition: transform .15s ease, width .15s ease, background-color .15s ease, border-color .15s ease; }
+.home-layout-v2 .home-search-tabs .btn:focus-visible,
+.home-layout-v2 .home-search-tabs .btn[aria-pressed="true"]:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+body[data-entrada="ponteiro"] .home-search-tabs .btn:focus-visible { outline: none; }
+@media (max-width: 420px) { .home-layout-v2 .home-search-tabs .btn { padding: 0 8px; } }
+
+/* ═══ Modo comparativo: mesma superfície, tipografia e dica dos modos Slides e Letra completa ═══ */
+.home-layout-v2 .centro-comparativo-wrap { box-sizing: border-box; margin-top: 0; gap: 0; padding: 20px 28px 24px; background: #141416; border: 1px solid #2c2c30; border-radius: 12px; }
+.home-layout-v2 .centro-comparativo-hint { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #8c8c93; }
+.home-layout-v2 .centro-comparativo-hint-ico { width: 16px; height: 16px; flex: none; margin-top: 2px; color: #8c8c93; stroke: #8c8c93; }
+.home-layout-v2 .centro-comparativo-hint strong { color: #f1efe9; font-weight: 600; }
+.home-layout-v2 .centro-comparativo-grid { gap: 16px; }
+.home-layout-v2 .centro-comparativo-col { gap: 0; }
+.home-layout-v2 .centro-comparativo-col-head { min-height: 0; margin-bottom: 8px; }
+.home-layout-v2 .centro-comparativo-col-rotulo { font-size: 13px; font-weight: 600; letter-spacing: 0; color: #f1efe9; }
+.home-layout-v2 .centro-comparativo-col-selo { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0; color: #8c8c93; background: #2a2a2f; border: 1px solid #2c2c30; border-radius: 999px; }
+.home-layout-v2 .centro-comparativo-col-selo[hidden] { display: none; }
+.home-layout-v2 .centro-comparativo-selo-ico { width: 12px; height: 12px; flex: none; }
+
+/* Painéis: mesmo cartão do editor de letra completa; a camada de realces e o textarea ficam transparentes por cima. */
+.home-layout-v2 .centro-comparativo-editor { background: #1b1b1e; border: 1px solid #2c2c30; border-radius: 10px; overflow: hidden; }
+.home-layout-v2 .centro-comparativo-realces { background: transparent; border: 0; border-radius: 0; }
+.home-layout-v2 .centro-comparativo-editor .centro-comparativo-ta,
+.home-layout-v2 .centro-comparativo-editor .centro-comparativo-ta:focus { box-sizing: border-box; border: 0; border-radius: 0; box-shadow: none; outline: none; padding: 16px 20px; font-family: var(--font-lyrics); font-size: var(--lyrics-size); line-height: var(--lyrics-lh); font-weight: var(--lyrics-weight); font-synthesis: none; letter-spacing: 0; color: var(--lyrics-color); overflow-wrap: anywhere; }
+.home-layout-v2 .centro-comparativo-ta::-webkit-scrollbar { width: 6px; }
+.home-layout-v2 .centro-comparativo-ta::-webkit-scrollbar-track { background: transparent; }
+.home-layout-v2 .centro-comparativo-ta::-webkit-scrollbar-thumb { background: #3a3a40; border-radius: 3px; }
+.home-layout-v2 .centro-comparativo-ta::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports (-moz-appearance: none) {
+  .home-layout-v2 .centro-comparativo-ta { scrollbar-width: thin; scrollbar-color: #3a3a40 transparent; }
+}
+
+/* Barra inferior: resumo em chips à esquerda, legenda com amostras reais à direita. */
+.home-layout-v2 .centro-comparativo-rodape { margin-top: 12px; min-height: 0; flex-wrap: wrap; gap: 10px 16px; }
+.home-layout-v2 .centro-comparativo-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; color: #f1efe9; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: #2a2a2f; border: 1px solid #2c2c30; color: #f1efe9; font-size: 11.5px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+.cmp-chip svg { width: 12px; height: 12px; flex: none; }
+.home-layout-v2 .centro-comparativo-legenda { gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: #8c8c93; }
+.home-layout-v2 .centro-comparativo-legenda span { gap: 6px; }
+.home-layout-v2 .centro-comparativo-legenda span.sr-only { position: absolute; }
+@media (max-width: 900px) {
+  .home-layout-v2 .centro-comparativo-rodape { flex-direction: column; align-items: flex-start; }
+}
