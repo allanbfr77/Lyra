@@ -48,10 +48,11 @@
  * =============================================================================
  */
 
+import { montarHomeLayout, organizarVersoesHome, atualizarVersoesHome } from './painel/homeLayout.js';
+
 import {
   LS_UI_MODO_SLIDES,
   LS_PREVIEW_PAINEL_OCULTO,
-  LS_PLAYLIST_PREVIEW_SLIDE_OCULTO,
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
   LS_APRESENTACAO_STATE,
@@ -7847,8 +7848,8 @@ let todasMusicas = [];
 let estadoServidor = null;
 /** Quando true, o cartão de pré-visualização fica recolhido só neste painel (não afeta monitores). */
 let previewPainelOcultoLocal = [false, false];
-/** Prévia de slide dentro do painel direito (playlist): corpo recolhido para ganhar altura na lista. */
-let playlistPreviewSlideOcultoLocal = false;
+/** Composição visual da Home; música, versões e edição continuam neste núcleo. */
+let homeLayout = null;
 let syncApresentacaoTimer = null;
 let syncApresentacaoInFlight = false;
 let syncApresentacaoPending = false;
@@ -14416,11 +14417,12 @@ function sincronizarPreviewOciosoMinistranteSlides() {
 }
 
 /**
- * Prévia na coluna playlist: só o estado da música/slides da coluna central (estrofeAtiva).
+ * Prévia flutuante da Home: só o estado da música/slides da coluna central (estrofeAtiva).
  * Tamanho da fonte por texto (linha mais longa + linhas) · sem quebra automática (`white-space: pre`).
  * Independente do socket · não altera projeção.
  */
 function atualizarPreviewPlaylistCentral() {
+  homeLayout?.updatePreview(estrofeAtiva, musicaAtiva?.estrofes?.length || 0);
   if (document.body.classList.contains('app-mod-slides')) return;
   const tit = document.getElementById('pl-pv-titulo');
   const slideEl = document.getElementById('pl-pv-slide');
@@ -15414,6 +15416,72 @@ function atualizarToolbarModoEdicao() {
   /* Por último: «Salvar alterações» e «Cancelar» dependem do resultado de todos
      os outros — cada um decide, pelo sub-modo activo, o que salvar/descartar. */
   atualizarBotoesSalvarCancelarBarraPadrao();
+  homeLayout?.update({
+    ...estadoFaixaEdicaoHome(),
+    key: musicaAtiva ? `${musicaBancoFonte}:${musicaAtiva.id}:${musicaVersaoLocalId || ''}` : '',
+    title: musicaAtiva?.titulo, artist: musicaAtiva?.artista,
+    slides: musicaAtiva?.estrofes?.length || 0,
+    metadataEditable: metadadosEditaveis, full, comparison: comp,
+    editing: ed || full || comp,
+  });
+}
+
+/** Estado que decide a faixa de edição da Home (recalculado também a cada tecla). */
+function estadoFaixaEdicaoHome() {
+  return {
+    full: modoLetraCompletaCentral,
+    comparison: modoComparativoCentral,
+    dirty: temEdicaoMusicaNaoGravada(),
+    // Na letra completa/comparativo a faixa só vale com texto alterado (dirty).
+    editingSlides: modoEdicaoEstrofes && !modoLetraCompletaCentral && !modoComparativoCentral,
+    // Nome da cópia/versão selecionada (null no Original, que não é renomeável).
+    versionName: versaoCopiaSelecionadaAtual()?.rotulo ?? null,
+  };
+}
+
+/**
+ * Renomeia a cópia/versão selecionada a partir do campo do cabeçalho (modo Editar).
+ * Mesmas regras do diálogo «Renomear versão»: nome vazio não grava, nome repetido avisa
+ * e não grava. Devolve true quando o nome foi gravado.
+ */
+async function renomearVersaoSelecionadaComNome(nomeBruto) {
+  const c = versaoCopiaSelecionadaAtual();
+  const nome = String(nomeBruto ?? '').trim();
+  if (!c || !nome || nome === String(c.rotulo || '').trim()) return false;
+  if (c.tipo === 'local') {
+    if (nomeVersaoJaUsadoNaMusica(c.rootId, nome, c.id)) {
+      await appAlert(`Já existe uma versão chamada «${nome}» nesta música. Escolha um nome diferente.`, 'Nome de versão repetido');
+      return false;
+    }
+    const up = atualizarCopiaLocal(c.rootId, c.id, { rotulo: nome });
+    if (!up.ok) {
+      await appAlert(up.erro || 'Não foi possível renomear a versão local.');
+      return false;
+    }
+    atualizarRotuloVersaoNasPlaylists(c.rootId, c.id, nome);
+    renderMusicaVersoesBar();
+    renderPlaylist();
+    return true;
+  }
+  const idNum = parseInt(c.id, 10);
+  if (!Number.isFinite(idNum)) return false;
+  try {
+    const url = `${getControllerApiBase()}/api/musicas/${idNum}/rotulo`;
+    const opts = { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rotulo: nome }) };
+    let res = await fetch(url, { method: 'PATCH', ...opts });
+    if (res.status === 404) res = await fetch(url, { method: 'POST', ...opts });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.codigo === ERRO_ROTULO_DUPLICADO_API) await appAlert(data.erro, 'Nome de versão repetido');
+      else await appAlert(data.erro || `Não foi possível renomear (HTTP ${res.status}).`);
+      return false;
+    }
+    await concluirRenomearVersaoServidor(c.rootId, c.id, idNum, String(data.rotulo || nome).trim());
+    return true;
+  } catch (e) {
+    await appAlert(e?.message || 'Não foi possível renomear a versão.');
+    return false;
+  }
 }
 
 function juntarEstrofesParaLetraCompleta() {
@@ -15751,6 +15819,7 @@ function temEdicaoMusicaNaoGravada() {
 }
 
 function limparFlagsModoEdicaoMusica() {
+  homeLayout?.closeMetadata();
   snapshotEdicaoEstrofes = null;
   modoEdicaoEstrofes = false;
   snapshotLetraCompleta = null;
@@ -15970,8 +16039,10 @@ function atualizarToolbarModoLetraCompleta() {
      apagaria o SVG). O texto reflete sempre o modo PARA ONDE o clique leva. */
   const txtModo = document.getElementById('txt-modo-letra-completa');
   const icoModo = document.getElementById('ico-modo-letra-completa');
-  if (txtModo) txtModo.textContent = modoLetraCompletaCentral ? 'Grade/Slide' : 'Letra Completa';
-  if (icoModo) {
+  // Na Home o botão é só «Letra Completa» (a grade tem botão próprio): ícone fixo.
+  const noHome = !!homeLayout?.isHome();
+  if (txtModo) txtModo.textContent = modoLetraCompletaCentral && !noHome ? 'Grade/Slide' : 'Letra Completa';
+  if (icoModo && !noHome) {
     icoModo.innerHTML = modoLetraCompletaCentral
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>';
@@ -16666,6 +16737,11 @@ async function sairModoComparativoParaTrocarModo() {
 async function acionarEditarLetraBarraPadrao() {
   if (!musicaAtiva) return;
   if (!(await sairModoComparativoParaTrocarModo())) return;
+  if (homeLayout?.isHome()) {
+    // Na Home «Editar letra» abre a edição por slides (antigo botão do lápis).
+    if (modoEdicaoEstrofes) return;
+    if (!(await confirmarProsseguirDescartandoEdicaoPendente())) return;
+  }
   entrarModoEdicao();
 }
 
@@ -16747,8 +16823,11 @@ function atualizarBotoesSalvarCancelarBarraPadrao() {
   if (btnCancelar) {
     btnCancelar.style.display = m ? '' : 'none';
     btnCancelar.disabled =
-      !m || !emSubModoEdicao || (!modoEdicaoEstrofes && !temAlteracaoPendente);
+      !m || (!emSubModoEdicao && !homeLayout?.metadataOpen()) ||
+      (!modoEdicaoEstrofes && !temAlteracaoPendente && !homeLayout?.isHome());
   }
+  // Cada edição passa por aqui: mantém a faixa da Home em dia sem recalcular o resto.
+  homeLayout?.updateStrip?.(estadoFaixaEdicaoHome());
 }
 
 /**
@@ -16790,10 +16869,18 @@ async function acionarCancelarBarraPadrao() {
   }
   if (modoLetraCompletaCentral) {
     descartarEdicaoLetraCompletaSemSair();
+    if (homeLayout?.isHome()) sairDoModoLetraCompletaParaGrade();
     return;
   }
   if (modoEdicaoEstrofes) {
     await sairModoEdicao();
+    return;
+  }
+  if (homeLayout?.isHome() && homeLayout.metadataOpen()) {
+    document.getElementById('edit-titulo').value = musicaAtiva?.titulo || '';
+    document.getElementById('edit-artista').value = musicaAtiva?.artista || '';
+    homeLayout.closeMetadata();
+    atualizarToolbarModoEdicao();
   }
 }
 
@@ -16812,9 +16899,14 @@ function atualizarToolbarCaixaLetrasEdicao() {
   btn.disabled = !habilitado;
   btn.classList.toggle('ativo', !!caixaLetrasEdicaoMaiuscula);
   btn.setAttribute('aria-pressed', caixaLetrasEdicaoMaiuscula ? 'true' : 'false');
-  btn.title = caixaLetrasEdicaoMaiuscula
-    ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
-    : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
+  // Habilitado só ao editar a letra (por slides ou letra completa): explica o motivo quando apagado.
+  const tituloCaixa = !habilitado
+    ? 'Caixa das letras: disponível ao editar a letra (clique em «Editar letra» ou use a visualização em lista)'
+    : caixaLetrasEdicaoMaiuscula
+      ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
+      : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
+  btn.title = tituloCaixa;
+  btn.setAttribute('aria-label', tituloCaixa);
 }
 
 /**
@@ -17056,9 +17148,15 @@ async function sairModoEdicao() {
   marcacaoEstrofeEditor();
 }
 
-/** Altura mínima equivalente a 5 linhas (medida a partir da fonte actual do elemento). */
+/**
+ * Altura mínima da área de texto de um slide, medida a partir da fonte actual do elemento.
+ * Home: 4 linhas (+ o respiro inferior que mantém a alça de redimensionar dentro do cartão);
+ * layout antigo: 5 linhas, como sempre.
+ */
 function alturaMinimaTextoEstrofePx(el) {
-  if (!el) return 5 * 13 * 1.55;
+  const home = document.body.classList.contains('home-layout-v2');
+  const linhas = home ? 4 : 5;
+  if (!el) return linhas * 13 * 1.55;
   const cs = getComputedStyle(el);
   const fs = parseFloat(cs.fontSize) || 13;
   const lhRaw = cs.lineHeight;
@@ -17071,29 +17169,52 @@ function alturaMinimaTextoEstrofePx(el) {
     const ratio = parseFloat(lhRaw);
     lhPx = Number.isFinite(ratio) ? ratio * fs : fs * 1.55;
   }
-  return 5 * lhPx;
+  const respiro = home ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
+  return linhas * lhPx + respiro;
+}
+
+/** Guarda o tamanho que o usuário arrastou na alça, para respeitá-lo até o conteúdo exigir mais. */
+function observarRedimensionamentoManualTextareaEstrofe(ta) {
+  if (ta.dataset.alturaManualLigada === '1') return;
+  ta.dataset.alturaManualLigada = '1';
+  ta.addEventListener('pointerup', () => {
+    const h = ta.offsetHeight;
+    if (Math.abs(h - (ta._alturaAuto || 0)) > 2) ta._alturaManual = h;
+  });
 }
 
 /**
- * Modo edição: altura mínima 5 linhas; expande até caber scrollHeight (várias passagens por causa do wrap).
+ * Auto-grow em lote: primeiro todas as escritas (`height:auto`), depois todas as leituras
+ * (`scrollHeight`), depois as escritas finais — um único reflow, mesmo com muitos slides.
+ * Overflow escondido (sem barra interna) e altura nunca menor que o conteúdo.
+ */
+function aplicarAlturasTextareasEstrofes(tas) {
+  const lista = tas.filter((ta) => ta && ta.classList.contains('estrofe-slide-ta'));
+  if (!lista.length) return;
+  const minH = alturaMinimaTextoEstrofePx(lista[0]);
+  lista.forEach((ta) => {
+    observarRedimensionamentoManualTextareaEstrofe(ta);
+    ta.style.maxHeight = 'none';
+    ta.style.minHeight = minH + 'px';
+    ta.style.overflow = 'hidden';
+    ta.style.height = 'auto';
+  });
+  const alturas = lista.map((ta) => Math.max(minH, ta.scrollHeight, ta._alturaManual || 0));
+  lista.forEach((ta, i) => {
+    ta.style.height = alturas[i] + 'px';
+    ta._alturaAuto = alturas[i];
+  });
+}
+
+/**
+ * Modo edição: altura mínima fixa de linhas; cresce e encolhe com o conteúdo.
  * Modo exibição: só CSS — `.estrofe-slide-view-body` em fluxo, sem altura fixa em JS.
  */
 function aplicarAlturaTextareaEstrofe(ta) {
   if (!ta || !ta.classList.contains('estrofe-slide-ta')) return;
-
-  const apply = () => {
-    const minH = alturaMinimaTextoEstrofePx(ta);
-    ta.style.maxHeight = 'none';
-    ta.style.minHeight = minH + 'px';
-    ta.style.overflow = 'hidden';
-    for (let i = 0; i < 5; i++) {
-      ta.style.height = 'auto';
-      ta.style.height = Math.max(minH, ta.scrollHeight) + 'px';
-    }
-    ta.style.overflow = 'auto';
-  };
-  apply();
-  requestAnimationFrame(() => requestAnimationFrame(apply));
+  aplicarAlturasTextareasEstrofes([ta]);
+  // Segunda passagem após o layout/fontes assentarem (quebras de linha podem mudar a altura).
+  requestAnimationFrame(() => requestAnimationFrame(() => aplicarAlturasTextareasEstrofes([ta])));
 }
 
 function aplicarAlturaCardEstrofe(cardEl) {
@@ -17105,9 +17226,7 @@ function aplicarAlturaCardEstrofe(cardEl) {
 function reaplicarAlturasEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
   if (!wrap || !musicaAtiva || !musicaAtiva.estrofes) return;
-  wrap.querySelectorAll('.estrofe-slide-edit').forEach((card) => {
-    aplicarAlturaCardEstrofe(card);
-  });
+  aplicarAlturasTextareasEstrofes([...wrap.querySelectorAll('textarea.estrofe-slide-ta')]);
 }
 
 /**
@@ -17351,6 +17470,7 @@ function renderEstrofesEditor() {
     wrap.appendChild(div);
   });
 
+  homeLayout?.decorateCards();
   queueMicrotask(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => reaplicarAlturasEstrofesEditor()));
   });
@@ -17556,7 +17676,7 @@ async function iniciarCriarNovaVersao() {
 
   if (
     !(await confirmarProsseguirDescartandoEdicaoPendente(
-      'Descartar alterações não gravadas e criar uma nova versão a partir do texto gravado no servidor?',
+      'Você tem alterações não salvas. Descartar e criar uma nova versão a partir do texto gravado no servidor?',
       'Criar nova versão'
     ))
   ) {
@@ -18468,37 +18588,6 @@ function alternarOcultacaoPreviewPainel(indice) {
   aplicarPreviewPainelOcultoNoDom();
 }
 
-function carregarPlaylistPreviewSlideOcultoDoArmazenamento() {
-  try {
-    playlistPreviewSlideOcultoLocal = localStorage.getItem(LS_PLAYLIST_PREVIEW_SLIDE_OCULTO) === '1';
-  } catch (_) {
-    playlistPreviewSlideOcultoLocal = false;
-  }
-}
-
-function aplicarPlaylistPreviewSlideOcultoNoDom() {
-  const card = document.getElementById('playlist-preview-card');
-  const btn = document.getElementById('btn-toggle-playlist-preview');
-  if (!card || !btn) return;
-  const oculto = !!playlistPreviewSlideOcultoLocal;
-  card.classList.toggle('playlist-preview-card--corpo-oculto', oculto);
-  btn.innerHTML = oculto ? SVG_OLHO_CORTADO : SVG_OLHO_ABERTO;
-  btn.setAttribute('aria-pressed', oculto ? 'true' : 'false');
-  btn.title = oculto
-    ? 'Mostrar prévia dos slides'
-    : 'Ocultar prévia dos slides para ampliar a lista';
-}
-
-function alternarOcultacaoPlaylistPreviewSlide() {
-  playlistPreviewSlideOcultoLocal = !playlistPreviewSlideOcultoLocal;
-  try {
-    localStorage.setItem(LS_PLAYLIST_PREVIEW_SLIDE_OCULTO, playlistPreviewSlideOcultoLocal ? '1' : '0');
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  aplicarPlaylistPreviewSlideOcultoNoDom();
-}
-
 let letrasPreviewPathPendente = '';
 let letrasPreviewCatalogIdPendente = null;
 let letrasPreviewUserIdPendente = null;
@@ -18535,7 +18624,8 @@ function atualizarUiToggleListaBancoSqlite() {
     lista.setAttribute('aria-hidden', bancoSqliteListaExpandida ? 'false' : 'true');
   }
   if (legenda) {
-    legenda.hidden = !bancoSqliteListaExpandida;
+    // A legenda agora pertence ao rodapé fixo, não ao conteúdo recolhível da lista.
+    legenda.hidden = false;
   }
   if (aviso) {
     aviso.hidden = bancoSqliteListaExpandida;
@@ -21432,6 +21522,7 @@ function atualizarChipAtivoBarraVersoes() {
     if (on) achou = true;
     chip.classList.toggle('versao-musica-ativa', on);
   });
+  atualizarVersoesHome(bar);
   return achou;
 }
 
@@ -21475,13 +21566,14 @@ function renderMusicaVersoesBar() {
   bar.hidden = false;
   bar.innerHTML = '';
 
-  const mkChip = (label, copiaId, ativo, svg) => {
+  const mkChip = (label, copiaId, ativo, svg, rotuloOriginal) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn sm versao-chip' + (ativo ? ' versao-musica-ativa' : '');
     b.dataset.versaoId = copiaId == null || copiaId === '' ? '__original__' : String(copiaId);
     b.innerHTML = (svg || '') + '<span class="versao-chip-txt"></span>';
     b.querySelector('.versao-chip-txt').textContent = label;
+    if (rotuloOriginal != null) b.dataset.rotuloOriginal = rotuloOriginal;
     b.onclick = () => void trocarVersaoMusicaCentral(copiaId);
     return b;
   };
@@ -21500,7 +21592,7 @@ function renderMusicaVersoesBar() {
      mostraria nenhuma versão assinalada. */
   if (originalAtivo || !copiaPadraoIdenticaAoOriginal(versoesSrv, rootId)) {
     bar.appendChild(
-      mkChip(rotuloVersaoMaiusculo('Original'), null, originalAtivo, SVG_VERSAO.original)
+      mkChip(rotuloVersaoMaiusculo('Original'), null, originalAtivo, SVG_VERSAO.original, 'Original')
     );
   }
 
@@ -21512,13 +21604,13 @@ function renderMusicaVersoesBar() {
     const rotulo = rotuloExibicaoVersaoServidor(v);
     /* Só o nome/badge — editar e apagar ficam no menu inferior contextual. */
     bar.appendChild(
-      mkChip(rotuloVersaoMaiusculo(rotulo), vid, ativo, iconeVersaoServidorPorRotulo(rotulo))
+      mkChip(rotuloVersaoMaiusculo(rotulo), vid, ativo, iconeVersaoServidorPorRotulo(rotulo), rotulo)
     );
   }
 
   copiasLocais.forEach((c) => {
     const rotuloVis = `${rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(c.rotulo))} (LOCAL)`;
-    bar.appendChild(mkChip(rotuloVis, c.id, musicaVersaoLocalId === c.id, SVG_VERSAO.local));
+    bar.appendChild(mkChip(rotuloVis, c.id, musicaVersaoLocalId === c.id, SVG_VERSAO.local, `${formatarRotuloVersaoExibicao(c.rotulo)} (local)`));
   });
 
   /* Chip de criação: mesmo destino do antigo botão «Criar nova versão». */
@@ -21529,6 +21621,7 @@ function renderMusicaVersoesBar() {
   nova.innerHTML = SVG_VERSAO.nova + '<span class="versao-chip-txt">Nova versão</span>';
   nova.onclick = () => void iniciarCriarNovaVersao();
   bar.appendChild(nova);
+  organizarVersoesHome(bar);
 }
 
 async function iniciarRenomearVersaoServidor(rootId, versaoId, rotuloAtual) {
@@ -21692,8 +21785,9 @@ async function trocarVersaoMusicaCentral(copiaId) {
   if (!Number.isFinite(rootId)) return;
   if (temEdicaoMusicaNaoGravada()) {
     const ok = await appConfirm(
-      'Descartar alterações não gravadas nesta sessão e trocar de versão?',
-      'Trocar versão'
+      'Você tem alterações não salvas. Descartar e trocar de versão?',
+      'Trocar versão',
+      { okLabel: 'Descartar', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
   }
@@ -22364,7 +22458,6 @@ exporCallbacksParaAtributosHtml({
   onBibliaMinistranteBgTypeCtrlChange,
   onBibliaPublicoCfgChange,
   onBibliaMinistranteCfgChange,
-  alternarOcultacaoPlaylistPreviewSlide,
   projecaoProximaMusicaPlaylist,
   fecharCfgModal,
   mudarAbaCfg,
@@ -25009,6 +25102,30 @@ window.addEventListener('beforeunload', () => {
 }
 });
 
+// A Home compõe os controles existentes; callbacks continuam usando o estado do núcleo.
+homeLayout = montarHomeLayout({
+  filtrar,
+  atualizar: atualizarToolbarModoEdicao,
+  renderPreview: atualizarPreviewPlaylistCentral,
+  cartoes: async () => {
+    if (!(await sairModoComparativoParaTrocarModo())) return;
+    if (modoLetraCompletaCentral) await irParaGradeSlidesDesdeLetraCompleta();
+  },
+  letraCompleta: async () => {
+    if (!musicaAtiva || modoLetraCompletaCentral) return;
+    if (!(await sairModoComparativoParaTrocarModo())) return;
+    entrarModoLetraCompletaCentral();
+  },
+  renomearVersao: (nome) => renomearVersaoSelecionadaComNome(nome),
+  novoSlide: async () => {
+    if (!musicaAtiva) return;
+    if (!modoEdicaoEstrofes) {
+      if (!(await confirmarProsseguirDescartandoEdicaoPendente())) return;
+      entrarModoEdicao();
+    }
+    novaEstrofe();
+  },
+});
 renderPlaylist();
 renderEstrofesEditor();
 renderSlidesStrip();
@@ -25020,8 +25137,6 @@ atualizarUiPlayerAudioRemoto();
 atualizarPreviewOperador();
 carregarPreviewPainelOcultoDoArmazenamento();
 aplicarPreviewPainelOcultoNoDom();
-carregarPlaylistPreviewSlideOcultoDoArmazenamento();
-aplicarPlaylistPreviewSlideOcultoNoDom();
 
 sincronizarUiLembrarIp();
 sincronizarUiAutoConectar();

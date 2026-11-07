@@ -2207,63 +2207,6 @@ body.app-mod-slides .slide-nota-cluster {
   border-color: var(--accent2);
 }
 
-/* Prévia na playlist: só no modo completo (no modo slides fica oculta — como antes). */
-.playlist-preview-card {
-  flex-shrink: 0;
-  margin: 8px 8px 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--surface);
-  padding-bottom: 0;
-}
-
-.playlist-preview-head {
-  font-family: var(--font-ui);
-  font-size: 14px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--accent);
-  padding: 8px 10px;
-  background: var(--surface2);
-  border-bottom: 1px solid var(--border);
-}
-
-.playlist-preview-head.playlist-preview-head--com-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-/*
-  Branco, e não o dourado que o cabeçalho do cartão herda: o dourado passou a ser a
-  marca das secções da barra (CULTO, MINISTRANTE, TEMA NA PLAYLIST, PLAYLIST), e a
-  prévia não é uma delas. O olho de ocultar segue a mesma cor do título.
-*/
-.playlist-preview-head-titulo {
-  color: var(--text);
-}
-
-.playlist-preview-head .btn.preview-painel-toggle-icon {
-  color: var(--text);
-}
-
-.playlist-preview-head .btn.preview-painel-toggle-icon:hover {
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.playlist-preview-head--com-toggle .playlist-preview-head-titulo {
-  min-width: 0;
-}
-
-.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-hint,
-.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-body,
-.playlist-preview-card.playlist-preview-card--corpo-oculto .playlist-preview-nav {
-  display: none !important;
-}
-
 .playlist-preview-hint {
   margin: 0;
   padding: 6px 10px;

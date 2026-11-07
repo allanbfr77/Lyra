@@ -8,7 +8,7 @@ export const LS_VOZ_SLIDES_ATIVO = 'lyra_voz_slides_ativo_v1';
 /** Preferência do microfone no modo Bíblia (independente do modo Slides). */
 export const LS_VOZ_BIBLIA_ATIVO = 'lyra_voz_biblia_ativo_v1';
 export const LS_PREVIEW_PAINEL_OCULTO = 'lyra_preview_paineis_ocultos';
-export const LS_PLAYLIST_PREVIEW_SLIDE_OCULTO = 'lyra_playlist_preview_slide_oculto';
+export const LS_HOME_PREVIEW = 'lyra_home_preview_v2';
 export const LS_MODO_APRESENTACAO_ATIVO = 'lyra_modo_apresentacao_ativo';
 export const LS_ROTAS_POR_MODO = 'lyra_rotas_por_modo_v1';
 /**
