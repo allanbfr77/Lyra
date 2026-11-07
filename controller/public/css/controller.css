@@ -865,7 +865,7 @@ body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-caption {
   font-size: var(--fs-caption-base);
   font-weight: 400;
   line-height: 1.1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: inherit;
   text-align: center;
@@ -1243,7 +1243,7 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   font-family: var(--font-ui);
   font-size: var(--fs-section-base);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
   display: flex;
@@ -1404,7 +1404,7 @@ body.app-mod-slides #playlist-panel-head {
   font-family: var(--font-ui);
   font-size: var(--fs-section-base);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .culto-ministrante-campo {
@@ -1573,7 +1573,7 @@ body.app-mod-slides #playlist-panel-head {
 }
 
 .playlist-tema-acao-btn-txt {
-  letter-spacing: .02em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
   pointer-events: none;
@@ -4794,7 +4794,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   font-family: var(--font-ui);
   font-size: var(--fs-section-base);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
   padding-left: 1px;
@@ -8925,7 +8925,7 @@ img.ap-card5-video-thumb {
   font-family: var(--font-ui);
   font-size: var(--fs-section-base);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
 }
@@ -10319,7 +10319,7 @@ html.dark {
   font-size: var(--fs-label-base);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--surface2) 85%, #fff 15%);
 }
@@ -10897,7 +10897,7 @@ html.dark {
 .cfg-form-label {
   font-size: var(--fs-label-base);
   color: var(--text-dim);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-family: var(--font-ui);
   font-weight: var(--fw-semibold);
@@ -10961,7 +10961,7 @@ html.dark .cfg-form-select {
 .cfg-form-input:focus, .cfg-form-select:focus { border-color: var(--accent); }
 .cfg-section-title {
   font-size: var(--fs-section-base);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
   font-family: var(--font-ui);
