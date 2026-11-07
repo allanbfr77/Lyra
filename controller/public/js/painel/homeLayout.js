@@ -108,13 +108,13 @@ export function montarHomeLayout(actions) {
     return f;
   };
   field('Artista', 'home-field-artist').append(artistInput);
-  const fieldTag = field('Tag', 'home-field-tag');
+  const fieldTag = field('Nome da Versão', 'home-field-tag');
   const count = element('span', 'home-song-count', subtitle);
   // Nome da versão (cópia selecionada): editável no modo Editar, grava com Enter ou ao sair do campo.
   const versionInput = element('input', 'home-meta-input home-version-input', fieldTag);
   versionInput.type = 'text'; versionInput.id = 'home-nome-versao'; versionInput.autocomplete = 'off';
   versionInput.placeholder = 'Nome da versão'; versionInput.maxLength = 80;
-  versionInput.setAttribute('aria-label', 'Tag (nome da versão)');
+  versionInput.setAttribute('aria-label', 'Nome da Versão');
   versionInput.title = 'Nome da versão — Enter ou sair do campo para renomear (Esc desfaz)';
   let versionName = '';
   let renaming = false;

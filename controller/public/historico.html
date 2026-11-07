@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:3001; img-src data:;">
+      content="default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:3001; img-src data:;">
 <title>Histórico e relatórios — Lyra</title>
+<link rel="stylesheet" href="./css/tipografia.css">
 <style>
   /* Paleta do controlador. Duplicada aqui de propósito: esta janela é um documento
      independente, sem acesso ao CSS do painel, e um `@import` por ficheiro seria uma
@@ -20,7 +21,6 @@
     --green: #2f7d4e;
     --red: #b03028;
     --on-accent: #1a1612;
-    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
     --scroll-track: transparent;
     --scroll-thumb: var(--border);
     --scroll-thumb-hover: color-mix(in srgb, var(--border) 72%, var(--text));
@@ -131,7 +131,7 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
-  h1 { margin: 0 0 2px; font-size: 19px; font-weight: 650; }
+  h1 { margin: 0 0 2px; font-size: 19px; font-weight: 700; }
   .sub { margin: 0 0 12px; font-size: 14.5px; color: var(--text-dim); }
 
   .barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
@@ -148,7 +148,7 @@
     cursor: pointer;
   }
   .btn:hover { border-color: var(--accent); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 500; }
   .btn.danger:hover { border-color: var(--red); color: var(--red); }
   .btn:disabled { opacity: 0.5; cursor: default; }
 
@@ -164,7 +164,7 @@
     cursor: pointer;
   }
   .seg button + button { border-left: 1px solid var(--border); }
-  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 500; }
 
   .busca {
     padding: 7px 11px;
@@ -188,7 +188,7 @@
     text-align: left;
     padding: 10px 10px 8px;
     border-bottom: 2px solid var(--border);
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
   }
   tbody td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }

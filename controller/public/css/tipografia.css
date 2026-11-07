@@ -1,0 +1,54 @@
+/* =============================================================================
+ * Lyra — tema tipográfico (fonte única da verdade)
+ * Consumido por controller.html e historico.html. Fontes locais (offline):
+ * ../fonts/*.woff2, subset latin (@fontsource). Não afeta a projeção/slide.
+ * ============================================================================= */
+
+/* Inter — interface */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/inter-latin-700-normal.woff2') format('woff2'); }
+/* Instrument Serif — título da música e cabeçalhos de seção (só existe o peso 400) */
+@font-face { font-family: 'Instrument Serif'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+/* JetBrains Mono — cifras e acordes */
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/jetbrains-mono-latin-700-normal.woff2') format('woff2'); }
+
+:root {
+  --font-ui: Inter, 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* Escala (valores da UI atual; nada diminui) */
+  --fs-100: 11px;
+  --fs-200: 12px;
+  --fs-300: 13px;
+  --fs-400: 14px;
+  --fs-500: 15px;
+  --fs-600: 16px;
+  --fs-650: 18px;
+  --fs-700: 20px;
+  --fs-750: 22px;
+  --fs-800: 28px;
+  --fs-display: 32px; /* só títulos em Instrument Serif */
+
+  /* Aliases dos tokens antigos (mesmos valores de antes) */
+  --fs-body-base: var(--fs-600);
+  --fs-text-base: var(--fs-600);
+  --fs-label-base: var(--fs-400);
+  --fs-section-base: var(--fs-500);
+  --fs-caption-base: var(--fs-400);
+  --fs-card-head-base: var(--fs-300);
+  --fs-card-text-base: var(--fs-500);
+  --fs-title: var(--fs-750);
+  --fs-subtitle: var(--fs-650);
+
+  /* Pesos permitidos: 400, 500, 700 */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 500;   /* 600 → 500 */
+  --fw-bold: 700;
+
+  --text-primary: #e8e6e1;
+  --text-secondary: #9a958c;
+}

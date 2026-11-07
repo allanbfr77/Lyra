@@ -222,23 +222,7 @@
 
   /* Prévia de slide na UI apenas — monitores físicos usam displayConfig.fontFamily. */
   --slide-font: 'CMG Sans', 'DM Sans', system-ui, sans-serif;
-  /* Chrome da aplicação (menus, botões, formulários, tabelas). */
-  --font-ui: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
-  /* Escala tipográfica da UI — hierarquia consistente (não afecta projeção). */
-  --fs-title: 22px;
-  --fs-subtitle: 18px;
-  --fs-body-base: 16px;
-  --fs-text-base: 16px;
-  --fs-label-base: 14px;
-  --fs-section-base: 15px;
-  --fs-caption-base: 14px;
-  --fs-card-head-base: 13px;
-  --fs-card-text-base: 15px;
-  --fw-regular: 400;
-  --fw-medium: 500;
-  --fw-semibold: 600;
-  --fw-bold: 700;
+  /* Fontes, escala e pesos: ver css/tipografia.css */
   --slide-chip-snippet-px-base: 18;
   --slide-chip-num-px-base: 22;
   /* Seta dos seletores (culto, ministrante, tema, tradução da Bíblia): uma só,
@@ -559,7 +543,7 @@ body.slides-rail-aberto {
 .hdr-projecao-nome {
   flex: 1 1 auto;
   min-width: 0;
-  font-family: var(--font-mono, ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace);
+  font-family: var(--font-mono);
   font-size: 13px;
   color: #cfcfd2;
   overflow: hidden;
@@ -1094,7 +1078,7 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   border-bottom-color: color-mix(in srgb, var(--border) 70%, var(--text) 10%);
   color: var(--text);
   padding: 7px 12px 6px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 16px;
   border-radius: 6px;
   width: 180px;
@@ -1139,9 +1123,9 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
 .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: var(--fw-bold); }
 .btn.primary:hover { background: #c49216; border-color: #c49216; color: var(--on-accent); }
 .btn.danger { border-color: var(--red); color: var(--red); }
-.btn.danger:hover { background: var(--red); color: #fff; }
+.btn.danger:hover { background: var(--red); color: var(--text-primary); }
 .btn.success { border-color: var(--green); color: var(--green); }
-.btn.success:hover { background: var(--green); color: #fff; }
+.btn.success:hover { background: var(--green); color: var(--text-primary); }
 .btn.sm { padding: 4px 8px; font-size: var(--fs-caption-base); font-weight: var(--fw-semibold); }
 
 /* Estado da ligação: fundo, borda e bolinha derivam todos de --status-cor,
@@ -1177,15 +1161,15 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
 
 .status-seg.status-seg--local #status-seg-local {
   background: #2f6db5;
-  color: #fff;
+  color: var(--text-primary);
 }
 .status-seg.status-seg--remoto #status-seg-remoto {
   background: var(--green);
-  color: #fff;
+  color: var(--text-primary);
 }
 .status-seg.status-seg--conectando #status-seg-remoto {
   background: var(--yellow);
-  color: #fff;
+  color: var(--text-primary);
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -1693,7 +1677,7 @@ body.app-mod-slides #playlist-panel-head {
   max-width: 260px;
 }
 
-html.dark .menu-flutuante-titulo { color: #fff; }
+html.dark .menu-flutuante-titulo { color: var(--text-primary); }
 
 .menu-flutuante-item {
   display: flex;
@@ -1859,7 +1843,7 @@ body.app-mod-slides .playlist-tema-wrap {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 8px 10px;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 16px;
   border-radius: 4px;
   outline: none;
@@ -1902,7 +1886,7 @@ body.app-mod-slides .playlist-tema-wrap {
 .culto-dd-btn:hover { border-color: var(--accent2); }
 .culto-dd.open .culto-dd-btn { border-color: var(--accent); }
 .culto-dd-col-data {
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   color: var(--text);
   white-space: nowrap;
 }
@@ -1959,7 +1943,7 @@ body.app-mod-slides .playlist-tema-wrap {
   background: rgba(166, 124, 45, 0.14);
 }
 .culto-dd-item .data {
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
   white-space: nowrap;
 }
 .culto-dd-item .desc {
@@ -2001,7 +1985,7 @@ body.app-mod-slides .playlist-tema-wrap {
   margin-top: 2px;
   letter-spacing: 0.06em;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   border-radius: 6px;
   border-style: dashed;
   border-color: var(--border);
@@ -3303,7 +3287,7 @@ body:not(.app-mod-slides) .centro-col-letras {
   flex: 0 0 auto;
   font-family: var(--font-ui);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-dim);
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -3416,7 +3400,7 @@ body:not(.app-mod-slides) .centro-col-letras {
    é a única ação primária da tela. Os demais botões deste grupo
    (visualização/navegação) são neutros, outline monocromático. */
 .centro-toolbar-acoes .btn-toolbar-letra-completa {
-  font-weight: 600;
+  font-weight: 500;
   border-style: solid;
   border-width: 1px;  /* fixado para não mudar entre estados */
   border-color: var(--border);
@@ -3469,7 +3453,7 @@ body:not(.app-mod-slides) .centro-col-letras {
 }
 .centro-toolbar-acoes .btn-caixa-letras .caixa-min {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-dim);
 }
 .centro-toolbar-acoes .btn-caixa-letras .caixa-maj {
@@ -3955,7 +3939,7 @@ body:not(.app-mod-slides) .centro-col-letras {
 
 .centro-comparativo-resumo {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-dim);
 }
 
@@ -4065,7 +4049,7 @@ body:not(.app-mod-slides) .centro-col-letras {
 
 .cmp-escolha-col-hint--ok {
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--accent);
   opacity: 1;
 }
@@ -4090,7 +4074,7 @@ body:not(.app-mod-slides) .centro-col-letras {
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
   flex-shrink: 0;
@@ -4542,7 +4526,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 14px;
   line-height: 1.35;
   white-space: pre-wrap;
@@ -4560,7 +4544,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
  */
 .op-slide-text:not(.vazio) {
   font-family: var(--m3-font-familia, var(--slide-font));
-  font-weight: var(--m3-font-peso, 600);
+  font-weight: var(--m3-font-peso, 500);
   font-style: var(--m3-font-estilo, normal);
   text-transform: var(--m3-font-caixa, uppercase);
 }
@@ -4659,7 +4643,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
   color: rgba(255, 230, 200, 0.92);
   letter-spacing: 0.04em;
@@ -4694,7 +4678,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
   color: rgba(255, 230, 200, 0.92);
   letter-spacing: 0.04em;
@@ -5269,7 +5253,7 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 
 .item .titulo {
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.28;
   white-space: nowrap;
   overflow: hidden;
@@ -6006,7 +5990,7 @@ html.dark #slides-projecao-instrucoes kbd.slides-dock-kbd {
 
 .slides-dock-bar-left .slides-dock-sep {
   color: var(--text-dim);
-  font-weight: 600;
+  font-weight: 500;
   opacity: 0.6;
   user-select: none;
 }
@@ -6350,7 +6334,7 @@ html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .plac
   border-color: var(--border);
   background: transparent;
   color: var(--text-dim);
-  font-weight: 600;
+  font-weight: 500;
 }
 .banco-nova-manual-wrap .btn:hover {
   border-color: var(--accent);
@@ -6399,7 +6383,7 @@ html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .plac
 .musica-excluir-dialog .musica-excluir-nome {
   margin: 0 0 14px;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--accent);
   line-height: 1.35;
   padding: 10px 12px;
@@ -6599,7 +6583,7 @@ html.letras-preview-aberto #letras-preview-backdrop .letras-preview-scroll .plac
   border: 1px solid color-mix(in srgb, var(--border) 76%, var(--accent) 10%);
   background: color-mix(in srgb, var(--surface2) 88%, var(--surface));
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.06em;
   transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.12s ease;
 }
@@ -7483,7 +7467,7 @@ body.app-mod-slides #layout-biblia {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   font-size: 15px;
-  font-weight: bold;
+  font-weight: 700;
   color: var(--text-dim);
   line-height: 1.25;
 }
@@ -7613,10 +7597,10 @@ body.app-mod-slides #layout-biblia {
   min-height: 64px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: bold;
+  font-weight: 700;
   text-align: center;
   line-height: 1.25;
-  color: #fff;
+  color: var(--text-primary);
   /* `position` + `transform` ficam no estado base para o realce entrar e sair
      sempre animado — se só existissem em `.selecionado`, a saída era um corte seco. */
   position: relative;
@@ -7658,7 +7642,7 @@ body.app-mod-slides #layout-biblia {
 
 .biblia-livro-btn .livro-sigla {
   font-size: 21px;
-  font-weight: 900;
+  font-weight: 700;
   display: block;
   margin-bottom: 4px;
   color: inherit;
@@ -7690,7 +7674,7 @@ body.app-mod-slides #layout-biblia {
   min-height: 52px;
   cursor: pointer;
   font-size: 19px;
-  font-weight: bold;
+  font-weight: 700;
   text-align: center;
   transition: background 0.15s;
 }
@@ -7718,7 +7702,7 @@ body.app-mod-slides #layout-biblia {
 
 .biblia-v-num {
   color: #e6a817;
-  font-weight: bold;
+  font-weight: 700;
   font-size: 18px;
   min-width: 28px;
   padding-top: 1px;
@@ -7798,7 +7782,7 @@ body.app-mod-slides #layout-biblia {
   border-radius: 4px;
   padding: 2px 6px;
   font-size: 13px;
-  font-weight: bold;
+  font-weight: 700;
   min-width: 32px;
   text-align: center;
 }
@@ -8011,7 +7995,7 @@ body.app-mod-docs #painel-modo-docs {
   padding: 1px 5px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.62);
-  color: #fff;
+  color: var(--text-primary);
   font-size: 10px;
   line-height: 15px;
   text-align: center;
@@ -8051,7 +8035,7 @@ body.app-mod-docs #painel-modo-docs {
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--red);
-  color: #fff;
+  color: var(--text-primary);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -8141,7 +8125,7 @@ body.app-mod-docs #painel-modo-docs {
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--red);
-  color: #fff;
+  color: var(--text-primary);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -8480,7 +8464,7 @@ img.ap-card5-video-thumb {
   border-radius: 999px;
   font-family: var(--font-ui);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #1a1208;
@@ -8528,7 +8512,7 @@ img.ap-card5-video-thumb {
 }
 .ap-card-remove:hover {
   border-color: var(--red);
-  color: #fff;
+  color: var(--text-primary);
   background: var(--red);
 }
 .ap-card-num {
@@ -8698,7 +8682,7 @@ img.ap-card5-video-thumb {
 .ap-quad-remove:hover {
   border-color: var(--red);
   background: var(--red);
-  color: #fff;
+  color: var(--text-primary);
 }
 .ap-card-file {
   position: relative;
@@ -8755,7 +8739,7 @@ img.ap-card5-video-thumb {
   background: color-mix(in srgb, var(--surface2) 88%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: color-mix(in srgb, var(--text-dim) 35%, var(--text));
   letter-spacing: 0.02em;
   text-transform: none;
@@ -8917,7 +8901,7 @@ img.ap-card5-video-thumb {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .ap-menu-action.delete:hover {
-  color: #fff;
+  color: var(--text-primary);
   border-color: var(--red);
   background: var(--red);
 }
@@ -9389,7 +9373,7 @@ img.ap-card5-video-thumb {
   width: 36px;
   height: 32px;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1;
   font-family: var(--font-ui);
 }
@@ -9512,7 +9496,7 @@ html.dark {
   --surface: #232328;
   --surface2: #2e2e35;
   --border: #3f3f48;
-  --accent: #c49a3a;
+  --accent: #E6B23E;
   --accent2: #a67c2d;
   --text: #e8e5e0;
   --text-dim: #9a9690;
@@ -9646,7 +9630,7 @@ html.dark {
 .app-dialog-head {
   padding: 10px 14px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 76%, #ce3a3a), color-mix(in srgb, var(--accent2) 70%, #ce3a3a));
-  color: #fff;
+  color: var(--text-primary);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -9962,7 +9946,7 @@ html.dark {
 }
 .conflito-import-col-tag {
   margin-left: 6px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
   color: var(--text-dim);
@@ -10090,7 +10074,7 @@ html.dark {
   justify-content: center;
 }
 .share-modal-code {
-  font-family: var(--font-mono, ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace);
+  font-family: var(--font-mono);
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -10126,7 +10110,7 @@ html.dark {
 .share-modal-input {
   width: 100%;
   box-sizing: border-box;
-  font-family: var(--font-mono, ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace);
+  font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -10199,7 +10183,7 @@ html.dark {
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 84%, #ce3a3a), color-mix(in srgb, var(--accent2) 74%, #ce3a3a));
-  color: #fff;
+  color: var(--text-primary);
 }
 .lyra-menu-modal-eyebrow {
   font-size: 13px;
@@ -10213,7 +10197,7 @@ html.dark {
   margin: 0;
   font-size: 24px;
   line-height: 1.15;
-  font-weight: 800;
+  font-weight: 700;
 }
 .lyra-menu-modal-subtitle {
   margin: 8px 0 0;
@@ -10224,7 +10208,7 @@ html.dark {
 .lyra-menu-modal-close-icon {
   border: 1px solid rgba(255,255,255,0.24);
   background: rgba(255,255,255,0.12);
-  color: #fff;
+  color: var(--text-primary);
   width: 34px;
   height: 34px;
   border-radius: 10px;
@@ -10374,7 +10358,7 @@ html.dark {
   gap: 18px;
   padding: 22px;
   background: radial-gradient(circle at top left, rgba(255,255,255,0.2), transparent 50%), linear-gradient(135deg, color-mix(in srgb, var(--accent) 82%, #cf4d4d), color-mix(in srgb, var(--accent2) 72%, #7340c8));
-  color: #fff;
+  color: var(--text-primary);
 }
 .lyra-about-icon {
   width: 84px;
@@ -10387,7 +10371,7 @@ html.dark {
 .lyra-about-name {
   margin: 0;
   font-size: 30px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
 }
 .lyra-about-tagline {
@@ -10464,13 +10448,13 @@ html.dark {
   background: color-mix(in srgb, #25b46a 16%, var(--surface2));
   color: #1f8a53;
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
 }
 .lyra-status-indicator--error {
   background: color-mix(in srgb, #d45252 14%, var(--surface2));
   color: #b13a3a;
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
 }
 .lyra-status-text h3 {
   margin: 0 0 6px;
@@ -11217,7 +11201,7 @@ html.dark .cfg-form-select {
 .cfg-ministrante-nome {
   flex: 1;
   min-width: 0;
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -11377,7 +11361,7 @@ html.dark .cfg-form-select {
   padding: 16px 18px 12px;
   border-bottom: 1px solid var(--border);
 }
-.prevoo-titulo { font-size: 18px; font-weight: 650; }
+.prevoo-titulo { font-size: 18px; font-weight: 700; }
 .prevoo-sub { font-size: 14.5px; color: var(--text-dim); margin-top: 2px; }
 .prevoo-fechar {
   margin-left: auto;
@@ -11412,12 +11396,12 @@ html.dark .cfg-form-select {
 }
 .prevoo-item.impede::before { background: var(--red); }
 .prevoo-item-txt { min-width: 0; }
-.prevoo-item-tit { font-size: 15.5px; font-weight: 600; margin-bottom: 3px; }
+.prevoo-item-tit { font-size: 15.5px; font-weight: 500; margin-bottom: 3px; }
 .prevoo-item-det { font-size: 14.5px; line-height: 1.55; color: var(--text-dim); }
 
 .prevoo-tudo-bem { padding: 34px 12px; text-align: center; }
 .prevoo-tudo-bem-ico { font-size: 36px; line-height: 1; color: var(--green); }
-.prevoo-tudo-bem-tit { font-size: 17px; font-weight: 600; margin: 10px 0 4px; }
+.prevoo-tudo-bem-tit { font-size: 17px; font-weight: 500; margin: 10px 0 4px; }
 .prevoo-tudo-bem-det { font-size: 14.5px; color: var(--text-dim); line-height: 1.6; }
 
 .prevoo-rodape {
@@ -11479,7 +11463,7 @@ html.dark .cfg-form-select {
   gap: 10px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
-  font-weight: 600;
+  font-weight: 500;
 }
 .contagem-painel-head .contagem-titulo { flex: 1; min-width: 0; }
 /* Cronómetro no cabeçalho: só na barra compacta (painel retraído). */
@@ -11550,7 +11534,7 @@ html.dark .cfg-form-select {
   font-size: 14px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -11677,7 +11661,7 @@ html.dark .cfg-form-select {
 .contagem-monitor-btn.ativo {
   border-color: var(--mode-contagem);
   background: color-mix(in srgb, var(--mode-contagem) 14%, var(--surface2));
-  font-weight: 600;
+  font-weight: 500;
 }
 .contagem-monitor-btn.ativo::before {
   background: var(--mode-contagem);
@@ -11700,7 +11684,7 @@ html.dark .cfg-form-select {
   padding: 8px;
   font-family: var(--slide-font);
 }
-.cfg-contagem-preview .prev-msg { font-size: 13px; font-weight: 600; letter-spacing: 0.05em; }
+.cfg-contagem-preview .prev-msg { font-size: 13px; font-weight: 500; letter-spacing: 0.05em; }
 .cfg-contagem-preview .prev-dig {
   font-size: 32px;
   font-weight: 700;
@@ -11931,7 +11915,7 @@ body.app-mod-biblia .route-dd.route-dd-open.route-dd--rota-live .route-dd-btn {
   white-space: nowrap;
 }
 .indicador-live-obs.indicador-live-obs--ativo {
-  color: #fff;
+  color: var(--text-primary);
   background: #e85d04;
   animation: live-obs-pulse 1.4s ease-in-out infinite;
 }
@@ -12218,7 +12202,7 @@ body.app-mod-docs #route-ministrante-dd {
 }
 .banco-secao-sqlite .bib-selecao-contagem {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.02em;
   color: color-mix(in srgb, var(--text) 72%, transparent);
   white-space: nowrap;
