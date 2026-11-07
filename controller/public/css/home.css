@@ -647,3 +647,22 @@ html body .sidebar-title, html body .sidebar-title > span,
 html body .panel-section-head,
 html body .playlist-panel-head-titulo, html body .playlist-lista-head-titulo,
 html body .culto-ministrante-label, html body .playlist-tema-label { font-family: var(--font-ui); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Home: os quatro cartões de ação (Sinc. Lyra DB, Importar código, Compartilhar, Outro PC) descem para o rodapé do painel direito. */
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { order: 99; flex: none; border-top: 1px solid var(--border, #2c2c30); border-bottom: 0; }
+
+/* Home: o rótulo «BIBLIOTECA» (span do título da seção) usa a cor neutra dos demais cabeçalhos, não o dourado. */
+html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .sidebar-title > span { color: var(--hdr); }
+
+/* Menu superior (tema escuro): cor única para todos os itens ativos (a mesma da Home), sublinhado dourado; inativos continuam apagados. */
+html.dark {
+  --nav-color-home: #f1efe9;
+  --nav-color-contador: #f1efe9;
+  --nav-color-biblia: #f1efe9;
+  --nav-color-slide: #f1efe9;
+  --nav-color-midias: #f1efe9;
+  --nav-color-docs: #f1efe9;
+  --nav-color-voz: #f1efe9;
+  --nav-color-ajustes: #f1efe9;
+}
+html.dark .hdr-btn-round::after { width: 22px; height: 2px; background: var(--select-bar, #d4a72c); }
