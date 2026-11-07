@@ -230,11 +230,11 @@
         <label class="sr-only" for="banco-fonte-dd-btn">Fonte da pesquisa (catálogo offline ou internet)</label>
         <div class="banco-fonte-dd" id="banco-fonte-dd">
           <button type="button" class="playlist-tema-dd-btn" id="banco-fonte-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="banco-fonte-dd-menu" title="Fonte da pesquisa de músicas">
-            <span class="playlist-tema-dd-label" id="banco-fonte-dd-label">HLYRCS</span>
+            <span class="playlist-tema-dd-label" id="banco-fonte-dd-label">BANCO ONLINE DO LYRA</span>
             <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
           </button>
           <ul class="playlist-tema-dd-menu" id="banco-fonte-dd-menu" role="listbox" hidden></ul>
-          <input type="hidden" id="banco-fonte-select" value="banco-local" autocomplete="off" />
+          <input type="hidden" id="banco-fonte-select" value="lyra-online" autocomplete="off" />
         </div>
         <div class="banco-filtros-checks">
           <label><input type="checkbox" id="filtro-busca-titulo" checked onchange="onFiltroBuscaChange()"> Música (título)</label>
@@ -259,7 +259,6 @@
       <section class="banco-secao-sqlite" id="banco-secao-sqlite" aria-labelledby="sidebar-title-sqlite">
         <div class="banco-secao-titulo-linha">
           <div class="sidebar-title sidebar-title--com-icone" id="sidebar-title-sqlite">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
             <span>Biblioteca</span>
             <span class="bib-total-contagem" id="bib-total-contagem" role="status" aria-live="polite" aria-atomic="true"></span>
           </div>
@@ -578,10 +577,11 @@
           </div>
         </div>
       </div>
-      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto" aria-label="Adicionar culto">+ Culto</button>
+      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto" aria-label="Adicionar novo culto">+ Novo Culto</button>
     </div>
     <div class="panel-section-head" id="playlist-lista-head">
       <span class="playlist-lista-head-titulo">Playlist</span>
+      <span class="playlist-lista-head-contagem" id="playlist-lista-contagem" aria-live="polite"></span>
       <button type="button" id="playlist-copiar-nomes-btn" class="btn sm playlist-copiar-nomes-btn" title="Copiar lista numerada das músicas (só o nome)" aria-label="Copiar lista de músicas da playlist">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>

@@ -6,7 +6,8 @@ const icon = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 const icons = {
   eye: icon('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'),
   grid: icon('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'),
-  database: icon('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/>'),
+  // Colcheia simples e cheia (cabeça, haste e bandeirola).
+  library: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><ellipse cx="8" cy="18" rx="4" ry="3" transform="rotate(-22 8 18)"/><path d="M10.2 3.5h1.8V18h-1.8z"/><path d="M12 3.5c.5 3.8 6.4 4.4 6.4 9.6 0 1.6-.6 2.8-1.6 3.8.3-3.8-1.6-5.5-4.8-6.6z"/></svg>',
   globe: icon('<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>'),
 };
 function element(tag, className, parent) {
@@ -33,7 +34,7 @@ export function montarHomeLayout(actions) {
   banco.prepend(search);
   const tabs = element('div', 'home-search-tabs', search);
   tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', 'Modo de busca');
-  const local = button('home-busca-biblioteca', 'Buscar na biblioteca', `${icons.database}Biblioteca`, tabs, () => mode(false));
+  const local = button('home-busca-biblioteca', 'Buscar na biblioteca', `${icons.library}Biblioteca`, tabs, () => mode(false));
   const online = button('home-busca-online', 'Buscar em outras fontes, incluindo catálogo offline', `${icons.globe}Online`, tabs, () => mode(true));
   // Pílula única que desliza sob a opção ativa (puramente visual; o estado continua em aria-pressed).
   const pill = element('span', 'home-search-pill', tabs);
@@ -168,7 +169,7 @@ export function montarHomeLayout(actions) {
   const views = element('div', 'home-view-segment', tools);
   views.setAttribute('role', 'group'); views.setAttribute('aria-label', 'Visualização da música');
   const sep = () => element('span', 'home-view-sep', views).setAttribute('aria-hidden', 'true');
-  const previewToggle = button('btn-toggle-playlist-preview', 'Mostrar prévia dos slides', `${icons.eye}<span>Prévia</span>`, views, () => setOpen(!open));
+  const previewToggle = button('btn-toggle-playlist-preview', 'Mostrar prévia dos slides', `${icons.eye}<span>PRÉVIA</span>`, views, () => setOpen(!open));
   previewToggle.setAttribute('aria-controls', 'playlist-preview-card');
   sep();
   const cards = button('home-ver-cartoes', 'Grade', icons.grid, views, () => actions.cartoes());

@@ -7066,7 +7066,7 @@ let bibAncoraScrollPendente = null;
 let resultadosLetrasCache = [];
 let letrasBuscaGeracao = 0;
 let letrasBuscaAbort = null;
-let letrasSiteFonte = 'banco-local';
+let letrasSiteFonte = 'lyra-online';
 let listaLocalRenderizada = [];
 /** Lista de músicas SQLite visível (padrão) ou recolhida. */
 let bancoSqliteListaExpandida = true;
@@ -10083,11 +10083,8 @@ function obterTemasDisponiveisPlaylist() {
   }
   const temasDoCatalogoDepois = getTemasDoCultoAtual();
   const temas = ordenarTemasLista(normalizarListaTemas([...temasDoCatalogoDepois, ...temasDaPlaylist]));
-  let atualAplicado = getTemaSelecionadoAtual();
-  if (atualAplicado && !temas.includes(atualAplicado)) {
-    setTemaSelecionadoAtual('');
-    atualAplicado = '';
-  }
+  const atualAplicado = getTemaSelecionadoAtual();
+  if (atualAplicado && !temas.includes(atualAplicado)) setTemaSelecionadoAtual('');
   return temas;
 }
 
@@ -12091,6 +12088,48 @@ function renderPlaylist() {
 }
 
 function renderPlaylistPainel() {
+  renderPlaylistPainelCorpo();
+  atualizarContagensPlaylist();
+}
+
+function textoContagemMusicas(n) {
+  return `${n} ${n === 1 ? 'música' : 'músicas'}`;
+}
+
+/**
+ * Contagens da lista já desenhada: por bloco («4 músicas») e na barra («6 músicas · 3 momentos»).
+ * Lê o DOM, não o array: é o que está na tela, e roda a cada `renderPlaylistPainel`.
+ */
+function atualizarContagensPlaylist() {
+  const lista = document.getElementById('playlist-list');
+  const total = document.getElementById('playlist-lista-contagem');
+  if (!lista) return;
+  const secoes = lista.querySelectorAll('.playlist-tema-section');
+  secoes.forEach((sec) => {
+    const n = sec.querySelectorAll('.playlist-tema-section-body .playlist-row').length;
+    const c = sec.querySelector('.playlist-tema-head-count');
+    if (c) c.textContent = textoContagemMusicas(n);
+    /* Bloco expandido sem músicas: uma linha discreta, para o corpo não parecer defeito. */
+    const corpo = sec.querySelector('.playlist-tema-section-body');
+    if (corpo && n === 0 && !corpo.querySelector('.playlist-tema-vazio')) {
+      const vazio = document.createElement('div');
+      vazio.className = 'playlist-tema-vazio';
+      vazio.textContent = 'Nenhuma música neste momento';
+      corpo.appendChild(vazio);
+    }
+  });
+  if (!total) return;
+  if (!cultoId) {
+    total.textContent = '';
+    return;
+  }
+  const musicas = lista.querySelectorAll('.playlist-row').length;
+  const momentos = secoes.length;
+  total.textContent =
+    `${textoContagemMusicas(musicas)} · ${momentos} ${momentos === 1 ? 'momento' : 'momentos'}`;
+}
+
+function renderPlaylistPainelCorpo() {
   const el = document.getElementById('playlist-list');
   el.innerHTML = '';
   renderSeletorTemasPlaylist();
@@ -12362,6 +12401,34 @@ function moverMusicaParaTemaVazioNaPlaylist(cid, fromIdx, markerIdx) {
   return destino;
 }
 
+/**
+ * Move uma música para o FIM de um bloco de tema (arrasto largado sobre o bloco recolhido).
+ *
+ * Com o bloco recolhido as linhas não existem na tela, logo não há linha-alvo: o destino vem
+ * do marcador — a música entra depois da última do bloco. Mesma correção de índice do arrasto
+ * entre linhas (o destino é medido com a música ainda na lista) e mesma regra de etiqueta.
+ *
+ * @returns {number|null} índice final da música, ou `null` se nada mudou
+ */
+function moverMusicaParaFimDoBlocoTemaNaPlaylist(cid, fromIdx, markerIdx) {
+  const pl = getPlaylist(cid);
+  if (!Array.isArray(pl)) return null;
+  const item = pl[fromIdx];
+  if (!item || ehMarcadorTemaPlaylist(item)) return null;
+  if (!ehMarcadorTemaPlaylist(pl[markerIdx])) return null;
+
+  let fim = markerIdx + 1;
+  while (fim < pl.length && !ehMarcadorTemaPlaylist(pl[fim])) fim++;
+  let destino = fim;
+  if (fromIdx < destino) destino--;
+  if (destino === fromIdx) return null;
+
+  pl.splice(fromIdx, 1);
+  pl.splice(destino, 0, item);
+  item.tema = temaDoBlocoDeDestinoNaPlaylist(pl, destino);
+  return destino;
+}
+
 const MIME_MUSICA_PLAYLIST = 'application/x-lyra-pl-musica-idx';
 
 /**
@@ -12543,6 +12610,52 @@ function configurarDropMusicaEmTemaVazioPlaylist(secao, markerPlIdx) {
   });
 }
 
+/**
+ * Largada de música sobre um bloco RECOLHIDO que já tem músicas.
+ *
+ * O bloco recolhido só mostra o cabeçalho, e a zona de largada de uma música é sempre outra
+ * linha — que ali está oculta. A música cai no fim do bloco, e o bloco expande para o
+ * operador ver onde ela foi parar. Só age enquanto recolhido: expandido, quem manda são as
+ * linhas (este alvo nem responde), e bloco vazio já tem o seu próprio alvo.
+ */
+function configurarDropMusicaEmSecaoRecolhidaPlaylist(secao, markerPlIdx, rotuloTema) {
+  const recolhida = () => secao.classList.contains('playlist-tema-section--colapsada');
+
+  secao.addEventListener('dragover', (ev) => {
+    if (!recolhida() || !ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.dataTransfer.dropEffect = 'move';
+    if (secao.classList.contains('playlist-tema-section--drop-dentro')) return;
+    limparIndicadoresDropMusicaPlaylist();
+    secao.classList.add('playlist-tema-section--drop-dentro');
+  });
+
+  secao.addEventListener('dragleave', (ev) => {
+    if (ev.relatedTarget instanceof Node && secao.contains(ev.relatedTarget)) return;
+    secao.classList.remove('playlist-tema-section--drop-dentro');
+  });
+
+  secao.addEventListener('drop', (ev) => {
+    if (!recolhida() || !ev.dataTransfer.types.includes(MIME_MUSICA_PLAYLIST)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    limparIndicadoresDropMusicaPlaylist();
+    const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
+    arrastandoMusicaPlaylistIdx = null;
+    if (!Number.isFinite(fromIdx) || !cultoId) return;
+    const destino = moverMusicaParaFimDoBlocoTemaNaPlaylist(cultoId, fromIdx, markerPlIdx);
+    if (destino === null) return;
+    definirSecaoTemaPlaylistRecolhida(String(cultoId), rotuloTema, false);
+    savePlaylists();
+    renderPlaylist();
+    realcarLinhaPlaylist(
+      document.querySelector(`#playlist-list .playlist-row[data-pl-idx="${destino}"]`),
+      'playlist-row--flash-move'
+    );
+  });
+}
+
 function removePlItem(idx) {
   getPlaylist(cultoId).splice(idx, 1);
   savePlaylists();
@@ -12570,16 +12683,14 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   lab.textContent = texto;
   lab.dataset.dica = texto;
 
-  /* Rótulo da coluna do tom, na mesma fileira do nome do tema (ex.: ABERTURA),
-     alinhado por cima dos seletores. `aria-hidden`: o <select> já tem aria-label. */
-  const tonsLab = document.createElement('span');
-  tonsLab.className = 'playlist-tema-head-tons';
-  tonsLab.textContent = 'TONS';
-  tonsLab.setAttribute('aria-hidden', 'true');
+  /* Contagem de músicas do bloco («4 músicas»); preenchida por `atualizarContagensPlaylist`
+     depois que as linhas são anexadas. */
+  const contagem = document.createElement('span');
+  contagem.className = 'playlist-tema-head-count';
 
   row.appendChild(btnExpand);
   row.appendChild(lab);
-  row.appendChild(tonsLab);
+  row.appendChild(contagem);
 
   if (idxMarcador != null && idxMarcador !== undefined) {
     // O ✕ vive numa zona própria no canto direito: é o hover dela — e não o do card
@@ -12627,6 +12738,8 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
        próprio a receber o arrasto (ver a função). */
     if (blocoTemaPlaylistVazio(getPlaylist(cultoId), idxMarcador)) {
       configurarDropMusicaEmTemaVazioPlaylist(wrap, idxMarcador);
+    } else {
+      configurarDropMusicaEmSecaoRecolhidaPlaylist(wrap, idxMarcador, texto);
     }
   }
 
@@ -19490,10 +19603,10 @@ function initBancoPainelFromStorage() {
 
   setupLyraSelectDropdownWrap(wrap);
 
-  // Padrão ao abrir o controlador: banco offline (não restaura Cifra Club / Letras da sessão anterior).
-  letrasSiteFonte = 'banco-local';
+  // Padrão ao abrir o controlador: banco online do Lyra (não restaura Cifra Club / Letras da sessão anterior).
+  letrasSiteFonte = 'lyra-online';
   renderItensLyraSelectDropdown(wrap, BANCO_FONTE_OPCOES, {
-    valorAtual: 'banco-local',
+    valorAtual: 'lyra-online',
     aoSelecionar: () => onBancoFonteChange(),
   });
   aplicarPlaceholderBuscaLetras();

@@ -611,9 +611,6 @@ html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app
   .home-toolbar-card .home-view-segment #btn-toggle-playlist-preview[aria-pressed="true"] { background: var(--select-view-bg); color: var(--select-fg); border: 0; }
   .home-toolbar-card .home-view-segment .btn:not([aria-pressed="true"]):not(.ativo):hover:not(:disabled) { background: #3a3a40; color: var(--ui-text); }
 
-  /* ── Números da playlist ── */
-  .pl-num-badge,
-  .playlist-row.ativo .pl-num-badge { background: var(--ui-chip); color: #c9c7c0; border-color: var(--ui-line); box-shadow: none; }
 }
 
 /* Pílulas de versão com largura única e fixa (o texto longo ganha reticências). */
@@ -695,3 +692,69 @@ body.app-mod-slides .playlist-momento-add { display: none !important; }
 .menu-flutuante-item-mais:hover, .menu-flutuante-item-mais:focus-visible { background: #2a2a2f; color: var(--text); }
 .menu-flutuante-item-mais:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: -1px; }
 .menu-flutuante-linha > .menu-flutuante-item:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: -1px; }
+
+/* ═══ Playlist (painel direito): barra, seções achatadas, linhas de 52px, chip de tom ═══
+   Só estilo (+ contagens e remoção do rótulo TONS no JS). IDs, handlers e drag-and-drop intactos. */
+.playlist-lista-head-contagem { font-size: var(--fs-200); font-weight: 400; color: var(--text-dim); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+.playlist-tema-head-count { flex: none; font-family: var(--font-mono); font-size: var(--fs-200); font-weight: 400; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+body.app-mod-slides .playlist-tema-head-count,
+body.app-mod-slides .playlist-lista-head-contagem { display: none; }
+
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+  /* Barra da playlist: fora de qualquer cartão, acima da lista */
+  #playlist-lista-head { padding: 14px 16px 6px; justify-content: flex-start; align-items: center; gap: 10px; border: 0; }
+  #playlist-lista-head .playlist-lista-head-titulo { font-size: var(--fs-100); font-weight: 500; letter-spacing: 0.08em; color: var(--hdr, #8c8c93); }
+  #playlist-lista-head .playlist-lista-head-titulo::before { display: none; }
+  #playlist-lista-head #playlist-copiar-nomes-btn { margin-left: auto; }
+
+  /* Um cartão por seção */
+  #playlist-list { padding: 4px 14px 12px; }
+  .playlist-tema-section { margin-bottom: 12px; border-radius: 12px; }
+  .playlist-tema-section-body { border-radius: 0 0 11px 11px; }
+  .playlist-tema-head-row { height: 38px; min-height: 38px; box-sizing: border-box; padding: 0 6px 0 12px; gap: 6px; border-radius: 11px 11px 0 0; overflow: hidden; }
+  .playlist-tema-section--colapsada .playlist-tema-head-row { border-radius: 11px; }
+  .playlist-tema-head-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #5a5a62; pointer-events: none; }
+  .playlist-tema-head-row .playlist-tema-head-label { font-size: var(--fs-200); font-weight: 700; letter-spacing: 0.08em; line-height: 38px; }
+  .playlist-tema-head-zona-del { position: static; flex: none; width: 24px; height: 100%; border-radius: 0; }
+
+  /* Linhas: 52px, sem cartão próprio, separadas por hairline */
+  .playlist-row { min-height: 52px; padding: 0 12px 0 8px; display: flex; align-items: center; }
+  .playlist-row.ativo { background: var(--pl-linha-ativa-bg); }
+  .pl-num-badge,
+  .playlist-row.ativo .pl-num-badge { min-width: 18px; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-family: var(--font-mono); font-size: var(--fs-300); font-weight: 400; color: var(--text-dim); text-align: center; }
+  .playlist-row.ativo .pl-num-badge { color: var(--text); }
+  .pl-col-titulo.tit, .playlist-row .pl-col-titulo.tit { font-size: var(--fs-600); font-weight: 500; line-height: 1.3; }
+  .pl-col-artista { font-size: var(--fs-400); font-weight: 400; color: var(--text-dim); }
+
+  /* Tom: chip de 26px (mín. 44px), mono, sem borda */
+  .pl-col-tom { display: flex; justify-content: flex-end; }
+  .pl-sel-tom { appearance: none; -webkit-appearance: none; width: auto; min-width: 44px; height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: #2a2a2f; color: var(--text); font-family: var(--font-mono); font-size: var(--fs-200); font-weight: 500; text-align: center; text-align-last: center; cursor: pointer; transition: background-color .15s ease; }
+  .pl-sel-tom:hover { background: #34343a; }
+  .pl-sel-tom:focus, .pl-sel-tom:focus-visible { border: 0; outline: 1px solid var(--select-bar, #d4a72c); outline-offset: 1px; }
+}
+
+/* Estado vazio de um bloco expandido: linha discreta com a altura das linhas normais. */
+.playlist-tema-vazio { display: flex; align-items: center; min-height: 52px; box-sizing: border-box; padding: 0 12px 0 14px; border-top: 1px solid var(--pl-linha-divisor); font-size: var(--fs-200); font-weight: 400; color: var(--text-dim); }
+
+/* Rótulo «PRÉVIA» (caixa alta, como os demais rótulos pequenos). */
+.home-view-segment #btn-toggle-playlist-preview span { letter-spacing: 0.08em; }
+
+/* Logo do Lyra preenche a altura útil do cabeçalho; «Controlador» cresce na mesma proporção (15/44 do logo). */
+.logo-wrap {
+  --logo-size: calc(var(--nav-item-h) + var(--nav-dock-pad) * 2 + 2px + var(--nav-dock-respiro) * 2 - 17px);
+  gap: calc(var(--logo-size) * 0.3);
+}
+.logo-wrap .logo-texto { font-size: calc(var(--logo-size) * 0.34); }
+/* Com o logo maior, abaixo disto o «Controlador» invadiria o dock central: some o rótulo, o logo fica. */
+@media (max-width: 1399px) { .logo-wrap .logo-texto { display: none; } }
+
+/* Biblioteca: índice A–Z sempre visível (antes só aparecia ao rolar/aproximar o mouse). */
+.bib-nav-alfabeto { opacity: 1; pointer-events: auto; }
+/* «+» e visto (gaivota) com respiro: ficam ~14px para dentro da borda do cartão de realce. */
+.lista-sqlite .item-acoes-banco { margin-right: 26px; }
+
+/* Biblioteca: título e selo da quantidade com mais destaque (cor clara, peso 700; selo mais claro e maior). */
+html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+  #sidebar-title-sqlite > span:first-of-type { color: var(--ui-text, #f1efe9); font-weight: 700; font-size: var(--fs-600); }
+  #sidebar-title-sqlite .bib-total-contagem { background: #34343a; border-color: #44444c; color: #e0ddd6; font-size: var(--fs-200); font-weight: 500; padding: 2px 10px; }
+}

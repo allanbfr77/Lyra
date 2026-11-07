@@ -57,7 +57,7 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
   try {
     let data = fs.readFileSync(file);
-    if (name === '/controller.html') data = data.toString().replace('<head>\n', '<head>\n<script>' + fixture + '</script>');
+    if (name === '/controller.html') data = data.toString().replace(/<head>\r?\n/, '<head>\n<script>' + fixture + '</script>');
     if (name === '/js/controllerAppCore.js') data = data.toString() + '\n' + bridge;
     res.setHeader('Content-Type', ({ '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png' })[path.extname(file)] || 'application/octet-stream');
     res.end(data);
@@ -84,10 +84,10 @@ async function run() {
   await check('sem painel de prévia na direita',`!document.querySelector('.panel-playlist #playlist-preview-card')`);
   await check('título e versão ativos',`document.querySelector('.home-song-title').textContent==='1000 Graus' && document.querySelector('.versao-musica-ativa').textContent.toUpperCase().includes('CÓPIA')`);
   await js(`document.getElementById('busca').value='Graus'; document.getElementById('home-busca-online').click();document.getElementById('busca-letras-q').value='Teste';`);
-  await check('campo único online e fonte preservada',`document.getElementById('banco-busca-local-wrap').hidden && !document.getElementById('busca-letras-panel').hidden && document.getElementById('banco-fonte-select').value==='banco-local'`);
+  await check('campo único online e fonte preservada',`document.getElementById('banco-busca-local-wrap').hidden && !document.getElementById('busca-letras-panel').hidden && document.getElementById('banco-fonte-select').value==='lyra-online'`);
   await js(`document.getElementById('busca-letras-q').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));`);
   await pause();
-  await check('Enter online usa busca existente e filtros',`__requests.some(r=>r.path==='/api/letras/buscar-local' && r.search.includes('q=Teste') && r.search.includes('titulo=1'))`);
+  await check('Enter online usa busca existente e filtros',`__requests.some(r=>r.path==='/api/letras/buscar' && r.search.includes('fonte=lyra-online') && r.search.includes('q=Teste') && r.search.includes('titulo=1'))`);
   await js(`document.getElementById('home-busca-biblioteca').click();`);
   await check('troca preserva termos e resultados',`document.getElementById('busca').value==='Graus' && document.getElementById('busca-letras-q').value==='Teste' && document.getElementById('lista-internet').textContent.includes('Resultado de teste')`);
   await js(`document.getElementById('busca').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));`);

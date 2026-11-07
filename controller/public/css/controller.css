@@ -2815,33 +2815,9 @@ body.app-mod-slides .playlist-tema-head-row {
   background: transparent;
 }
 
-/*
-  Rótulo «TONS» dentro do card, na mesma fileira do nome do tema (ABERTURA, …),
-  centrado por cima da coluna dos seletores. `right` espelha o padding direito
-  da .playlist-row (10px) + botões + gap da grelha.
-*/
-.playlist-tema-head-tons {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: calc(10px + var(--pl-col-btns-w) + var(--pl-cols-gap));
-  width: var(--pl-col-tom-w);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  font-size: var(--fs-100);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  opacity: 0.85;
-}
 
-/* Modo slides não tem coluna de tom (ver `.pl-col-tom`), logo não tem rótulo. */
-body.app-mod-slides .playlist-tema-head-tons {
-  display: none !important;
-}
+
+
 
 /* Recolhida, o cabeçalho é o cartão inteiro e arredonda dos dois lados. */
 .playlist-tema-section--colapsada .playlist-tema-head-row {
