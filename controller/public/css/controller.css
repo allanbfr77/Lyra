@@ -1450,35 +1450,12 @@ body.app-mod-slides #playlist-panel-head {
 .banco-fonte-dd {
   height: fit-content;
 }
-
-.playlist-tema-wrap {
-  padding: 8px 14px 10px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.playlist-tema-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-/* Seletor e ações lado a lado. É o seletor que cede espaço (nome do tema em
-   reticências); só quebra para a linha de baixo quando a barra lateral fica
-   estreita demais — e aí os dois botões descem juntos. */
+/* Base dos seletores customizados (ministrante, fonte de pesquisa, tradução da Bíblia). */
 .playlist-tema-dd {
   position: relative;
   flex: 1 1 80px;
   min-width: 80px;
   max-width: 100%;
-}
-/* Largura de conteúdo: toda a folga da linha vai para o seletor. */
-.playlist-tema-acoes {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 .playlist-tema-dd-btn {
   width: 100%;
@@ -1546,97 +1523,6 @@ body.app-mod-slides #playlist-panel-head {
 }
 .playlist-tema-dd-item[aria-selected="true"] {
   background: rgba(166, 124, 45, 0.14);
-}
-
-/* Ações da área de temas: ícone + rótulo, na linha do rótulo da secção.
-   Renomear/excluir saíram daqui — agora vivem no menu de contexto da lista.
-   Seletor mais específico para vencer o `.btn.sm` do bloco tipográfico lá em baixo. */
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn {
-  flex: 0 1 auto;
-  height: 32px;
-  min-width: 0;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: var(--fs-300);
-  line-height: 1;
-  white-space: nowrap;
-  border-radius: 6px;
-}
-
-.playlist-tema-acao-btn svg {
-  display: block;
-  flex: 0 0 auto;
-  pointer-events: none;
-}
-
-.playlist-tema-acao-btn-txt {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-  pointer-events: none;
-}
-
-/*
-  «Inserir» é a ação principal desta linha e passa a dizê-lo com preenchimento dourado,
-  no mesmo tom da barra de ações do topo. Ao lado, o «+» fica de contorno simples: a
-  hierarquia entre os dois lê-se antes de se ler o texto de qualquer um deles.
-
-  O hover genérico `.btn:hover` também mexe na cor, por isso o estado activo é
-  reafirmado aqui em vez de se deixar ao acaso da ordem das folhas.
-*/
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria {
-  border-color: var(--pl-acao-dourado);
-  color: var(--pl-acao-dourado-txt);
-  background: var(--pl-acao-dourado);
-}
-
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover:not(:disabled),
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible:not(:disabled) {
-  border-color: var(--pl-acao-dourado-hover);
-  color: var(--pl-acao-dourado-txt);
-  background: var(--pl-acao-dourado-hover);
-}
-
-/* Tema já presente na playlist: o botão fica visível, mas sem convite a clicar. */
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:disabled {
-  border-color: var(--border);
-  color: var(--text-dim);
-  background: transparent;
-}
-
-/*
-  «Novo» reduzido ao «+»: mesma altura do «Inserir», largura de um quadrado e o peso de
-  uma ação secundária — contorno, sem preenchimento.
-
-  O rótulo saiu porque nesta linha ele repetia o que o ícone já diz, e roubava ao seletor
-  de temas (que mostra nomes longos em reticências) a largura de que ele precisa. O que o
-  botão faz continua no `title` e no `aria-label`, que é de onde um leitor de ecrã já o
-  lia antes.
-*/
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone {
-  width: 32px;
-  min-width: 32px;
-  flex: 0 0 auto;
-  padding: 0;
-  gap: 0;
-  border-color: var(--border);
-  background: transparent;
-  color: var(--text-dim);
-}
-
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone svg {
-  width: 16px;
-  height: 16px;
-}
-
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:hover:not(:disabled),
-.playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:focus-visible:not(:disabled) {
-  border-color: var(--pl-acao-dourado);
-  color: var(--pl-acao-dourado);
-  background: transparent;
 }
 
 /*
@@ -1745,9 +1631,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
 #playlist-linha-ctx-menu .menu-flutuante-item--perigo:hover,
 #playlist-linha-ctx-menu .menu-flutuante-item--perigo:focus-visible {
   color: #ffd8d3;
-}
-body.app-mod-slides .playlist-tema-wrap {
-  display: none !important;
 }
 
 /*

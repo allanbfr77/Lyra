@@ -42,6 +42,10 @@
 /** Folga mínima entre o menu e a borda da janela, para nunca aparecer cortado. */
 const FOLGA_BORDA_PX = 8;
 
+/** Ícone «⋯» do botão de ações do item. Markup estático do código. */
+const SVG_MAIS_ACOES =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+
 /** Respiro entre a âncora e o menu, para não parecerem um bloco só. */
 const FOLGA_ANCORA_PX = 10;
 
@@ -104,6 +108,10 @@ function colocarMenu(node, x, y) {
  * @property {'perigo'} [variante] Ações destrutivas, realçadas a vermelho.
  * @property {boolean} [separadorAntes] Traço acima do item, para afastar do que vem antes.
  * @property {() => void|Promise<void>} aoEscolher Corre depois de o menu fechar.
+ * @property {boolean} [desabilitado] Item visível mas não escolhível (`disabled` + `aria-disabled`).
+ * @property {string} [dica] Texto do `title` do item (ex.: porque está desabilitado).
+ * @property {(e: MouseEvent) => void} [aoContexto] Botão direito sobre o item (o navegador não abre o menu nativo).
+ * @property {{rotulo: string, aoEscolher: () => void|Promise<void>}} [acao] Botão «⋯» ao lado do item (outro `<button>`, alcançável por Tab).
  */
 
 /**
@@ -116,7 +124,7 @@ function colocarMenu(node, x, y) {
  * @typedef {object} MenuFlutuante
  * @property {HTMLElement} node
  * @property {(clientX: number, clientY: number, conteudo: ConteudoMenuFlutuante) => void} abrirNoPonto
- * @property {(ancora: Element, conteudo: ConteudoMenuFlutuante) => void} abrirNaAncora
+ * @property {(ancora: Element, conteudo: ConteudoMenuFlutuante, opcoes?: {acima?: boolean, larguraDaAncora?: boolean}) => void} abrirNaAncora
  * @property {() => void} fechar
  * @property {() => boolean} estaAberto
  */
@@ -125,10 +133,10 @@ function colocarMenu(node, x, y) {
  * Cria um menu flutuante. Chamar uma vez por menu, no carregamento — o nó vive no
  * `<body>` e é reaproveitado em todas as aberturas.
  *
- * @param {{id: string, rotuloAria?: string}} opcoes
+ * @param {{id: string, rotuloAria?: string, aoFechar?: () => void}} opcoes
  * @returns {MenuFlutuante}
  */
-export function criarMenuFlutuante({ id, rotuloAria }) {
+export function criarMenuFlutuante({ id, rotuloAria, aoFechar }) {
   instalarListenersGlobais();
 
   let node = null;
@@ -155,8 +163,10 @@ export function criarMenuFlutuante({ id, rotuloAria }) {
     },
 
     fechar() {
-      if (menuAbertoAtual === menu) menuAbertoAtual = null;
+      const estavaAberto = menuAbertoAtual === menu;
+      if (estavaAberto) menuAbertoAtual = null;
       if (node) node.hidden = true;
+      if (estavaAberto) aoFechar?.();
     },
 
     abrirNoPonto(clientX, clientY, conteudo) {
@@ -166,13 +176,25 @@ export function criarMenuFlutuante({ id, rotuloAria }) {
       menuAbertoAtual = menu;
     },
 
-    /** Sempre abaixo da âncora e alinhado à esquerda dela — ver «Duas ancoragens». */
-    abrirNaAncora(ancora, conteudo) {
+    /**
+     * Sempre abaixo da âncora e alinhado à esquerda dela — ver «Duas ancoragens».
+     * `acima` abre por cima (âncora no rodapé); `larguraDaAncora` usa a largura dela como mínimo.
+     */
+    abrirNaAncora(ancora, conteudo, { acima = false, larguraDaAncora = false } = {}) {
       if (!ancora) return;
       const el = montarConteudo(conteudo);
       if (!el) return;
       const r = ancora.getBoundingClientRect();
-      colocarMenu(el, r.left, r.bottom + FOLGA_ANCORA_PX);
+      el.style.minWidth = larguraDaAncora ? `${Math.round(r.width)}px` : '';
+      if (acima) {
+        el.hidden = false;
+        el.style.left = '-9999px';
+        el.style.top = '0';
+        const { height } = el.getBoundingClientRect();
+        colocarMenu(el, r.left, r.top - FOLGA_ANCORA_PX - height);
+      } else {
+        colocarMenu(el, r.left, r.bottom + FOLGA_ANCORA_PX);
+      }
       menuAbertoAtual = menu;
     },
   };
@@ -217,6 +239,18 @@ export function criarMenuFlutuante({ id, rotuloAria }) {
         (item.variante === 'perigo' ? ' menu-flutuante-item--perigo' : '');
       if (item.svg) btn.innerHTML = item.svg;
       btn.appendChild(document.createTextNode(item.rotulo || ''));
+      if (item.dica) btn.title = item.dica;
+      if (item.desabilitado) {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+      }
+      if (item.aoContexto) {
+        btn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          item.aoContexto(e);
+        });
+      }
       /* `await` para que uma acção assíncrona que rejeite caia neste catch, e não num
          unhandled rejection que só apareceria no console do DevTools. */
       btn.addEventListener('click', async (e) => {
@@ -229,7 +263,34 @@ export function criarMenuFlutuante({ id, rotuloAria }) {
           console.error('[Lyra] menuFlutuante', err);
         }
       });
-      el.appendChild(btn);
+      if (!item.acao) {
+        el.appendChild(btn);
+        return;
+      }
+      /* Item com ações próprias: o botão principal e o «⋯» ficam na mesma linha, cada um um
+         `<button>` real — Tab percorre os dois, e o clique direito continua como atalho. */
+      const linha = document.createElement('div');
+      linha.className = 'menu-flutuante-linha';
+      linha.appendChild(btn);
+      const mais = document.createElement('button');
+      mais.type = 'button';
+      mais.className = 'menu-flutuante-item-mais';
+      mais.setAttribute('aria-label', item.acao.rotulo);
+      mais.setAttribute('aria-haspopup', 'menu');
+      mais.title = item.acao.rotulo;
+      mais.innerHTML = SVG_MAIS_ACOES;
+      mais.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        menu.fechar();
+        try {
+          await item.acao.aoEscolher?.();
+        } catch (err) {
+          console.error('[Lyra] menuFlutuante', err);
+        }
+      });
+      linha.appendChild(mais);
+      el.appendChild(linha);
     });
 
     return el;

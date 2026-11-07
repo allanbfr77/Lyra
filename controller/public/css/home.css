@@ -587,12 +587,6 @@ html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app
   .home-song-edit-actions #btn-salvar-musica:disabled { background: var(--ui-chip); border-color: var(--ui-line); color: var(--ui-dim); cursor: not-allowed; opacity: 1; }
   .home-song-actions #btn-editar-letra { background: transparent; border: 1px solid #3a3a40; color: #d8d6d0; transition: border-color .15s ease, color .15s ease; }
   .home-song-actions #btn-editar-letra:hover:not(:disabled) { background: transparent; border-color: #4a4a52; }
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria { background: transparent; border: 1px solid #4a4a52; color: var(--ui-text); transition: border-color .15s ease; }
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:hover:not(:disabled),
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:focus-visible:not(:disabled) { background: transparent; border-color: #5a5a62; color: var(--ui-text); }
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--primaria:disabled { background: transparent; border-color: var(--ui-line); color: var(--ui-dim); cursor: not-allowed; }
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:hover:not(:disabled),
-  .playlist-tema-acoes .btn.sm.playlist-tema-acao-btn--icone:focus-visible:not(:disabled) { border-color: #5a5a62; color: var(--ui-text); }
 
   /* ── Versões: pílula da versão ativa = etiqueta suave + ponto de 6px ── */
   .home-toolbar-card #musica-versoes-bar .versao-chip:not(.versao-musica-ativa):not(.versao-nova-chip) { background: var(--ui-chip); border-color: var(--ui-line); color: var(--ui-text); }
@@ -666,3 +660,38 @@ html.dark {
   --nav-color-ajustes: #f1efe9;
 }
 html.dark .hdr-btn-round::after { width: 22px; height: 2px; background: var(--select-bar, #d4a72c); }
+
+/* ═══ Home — painel direito: CULTO + MINISTRANTE num único cartão ═══
+   Só estilo (+ rótulo do botão). Os IDs e handlers são os mesmos; o rótulo «Ministrante»
+   fica no DOM, visível só para leitores de tela. */
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+  .culto-ministrante-grid { margin: 14px 14px 6px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
+  .culto-select-wrap { display: contents; }
+  .culto-select-wrap > .playlist-panel-head-titulo { grid-column: 1; grid-row: 1; font-size: var(--fs-100); font-weight: 500; letter-spacing: 0.08em; color: var(--hdr, #8c8c93); }
+  .culto-select-wrap > .playlist-panel-head-titulo::before { display: none; }
+  .culto-adicionar-btn { grid-column: 2; grid-row: 1; width: auto; margin: 0; height: 28px; min-height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-dim); font-size: var(--fs-200); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .culto-adicionar-btn:hover { border-color: #4a4a52; background: transparent; color: var(--text); }
+  .culto-select-wrap > .culto-dd { grid-column: 1 / -1; grid-row: 2; }
+  .culto-ministrante-wrap { grid-column: 1 / -1; grid-row: 3; }
+  .culto-ministrante-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .culto-dd-btn, #culto-ministrante-dd-btn { height: 42px; min-height: 42px; padding-top: 0; padding-bottom: 0; border-radius: 8px; }
+  #culto-ministrante-dd-btn { justify-content: flex-start; gap: 10px; }
+  #culto-ministrante-dd-btn::before { content: ''; flex: none; width: 16px; height: 16px; background: var(--text-dim); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cline x1='12' x2='12' y1='19' y2='22'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cline x1='12' x2='12' y1='19' y2='22'/%3E%3C/svg%3E") center / contain no-repeat; }
+  #culto-ministrante-dd-btn .playlist-tema-dd-label { flex: 1; }
+}
+
+/* ═══ «+ Adicionar momento» (substitui o bloco «TEMA NA PLAYLIST») ═══ */
+.playlist-momento-add { flex: none; margin: 10px 14px 14px; height: 42px; border: 1px dashed var(--border, #2c2c30); border-radius: 8px; background: transparent; color: var(--text-dim); font-family: var(--font-ui); font-size: var(--fs-300); font-weight: 500; cursor: pointer; transition: border-color .15s ease, color .15s ease; }
+.playlist-momento-add:hover { border-color: #4a4a52; color: var(--text); }
+.playlist-momento-add[aria-expanded="true"] { border-color: #4a4a52; color: var(--text); }
+.playlist-momento-add:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: 2px; }
+body.app-mod-slides .playlist-momento-add { display: none !important; }
+#playlist-momento-menu .menu-flutuante-item:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Item de menu flutuante com botão «⋯» ao lado (menu de momentos). */
+.menu-flutuante-linha { display: flex; align-items: center; gap: 2px; }
+.menu-flutuante-linha > .menu-flutuante-item { flex: 1; min-width: 0; width: auto; }
+.menu-flutuante-item-mais { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; margin-right: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); cursor: pointer; transition: background-color .15s ease, color .15s ease; }
+.menu-flutuante-item-mais:hover, .menu-flutuante-item-mais:focus-visible { background: #2a2a2f; color: var(--text); }
+.menu-flutuante-item-mais:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: -1px; }
+.menu-flutuante-linha > .menu-flutuante-item:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: -1px; }

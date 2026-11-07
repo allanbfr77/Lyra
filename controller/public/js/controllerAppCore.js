@@ -6754,7 +6754,6 @@ function resolverCultoInicialPorAgenda() {
 const SELETORES_CULTO_TEXTO_IDS = Object.freeze([
   'culto-dd-desc',
   'culto-ministrante-dd-label',
-  'playlist-tema-dd-label',
 ]);
 const SELETOR_CULTO_CORPO_MIN_PX = 11;
 
@@ -9941,42 +9940,6 @@ function playlistAtualJaTemTema(tema) {
   return getPlaylist(cultoId).some((it) => normalizarTemaPlaylist(it?.tema) === t);
 }
 
-/** «Inserir» fica desativado enquanto o tema escolhido já estiver na playlist. */
-function atualizarEstadoBotaoInserirTema() {
-  const btn = document.getElementById('playlist-tema-aplicar');
-  const sel = document.getElementById('playlist-tema-sel');
-  if (!btn || !sel) return;
-  const t = normalizarTemaPlaylist(sel.value);
-  const duplicado = !!t && playlistAtualJaTemTema(t);
-  btn.disabled = duplicado;
-  btn.title = duplicado
-    ? `O tema «${t}» já está na playlist deste culto`
-    : 'Inserir este tema no fim da playlist; novas músicas entram neste bloco';
-}
-
-function aplicarSelecaoTemaNaUi(valor) {
-  const sel = document.getElementById('playlist-tema-sel');
-  const menu = document.getElementById('playlist-tema-dd-menu');
-  const label = document.getElementById('playlist-tema-dd-label');
-  if (!sel || !menu || !label) return;
-  const v = valor || '';
-  sel.value = v;
-  const itens = menu.querySelectorAll('.playlist-tema-dd-item');
-  let textoSelecionado = '';
-  itens.forEach((b) => {
-    const ehPlaceholder = b.dataset.value === '';
-    const selecionado = b.dataset.value === v;
-    // O placeholder nunca ganha o destaque de "selecionado": evita repetir visualmente o mesmo
-    // texto do botão fechado já realçado como se fosse um item escolhido (efeito de "duplicado").
-    b.setAttribute('aria-selected', selecionado && !ehPlaceholder ? 'true' : 'false');
-    if (selecionado) textoSelecionado = b.textContent;
-  });
-  // Fallback do botão fechado: usa o placeholder guardado (ele pode não existir mais como item da lista).
-  if (!textoSelecionado) textoSelecionado = menu.dataset.placeholder || (itens[0] ? itens[0].textContent : '');
-  label.textContent = textoSelecionado;
-  atualizarEstadoBotaoInserirTema();
-}
-
 /**
  * Um seletor aberto de cada vez: fecha todos os dropdowns customizados excepto `excetoWrap`.
  * Não mexe em opções nem na lógica de escolha — só no estado aberto/fechado.
@@ -10080,46 +10043,13 @@ function renderItensLyraSelectDropdown(wrap, items, opts = {}) {
   });
 }
 
-function fecharDropdownTemaPlaylist() {
-  const wrap = document.getElementById('playlist-tema-dd');
-  const menu = document.getElementById('playlist-tema-dd-menu');
-  const btn = document.getElementById('playlist-tema-dd-btn');
-  if (wrap) wrap.classList.remove('open');
-  if (menu) menu.hidden = true;
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-}
-
-function setupDropdownTemaPlaylist() {
-  const wrap = document.getElementById('playlist-tema-dd');
-  const btn = document.getElementById('playlist-tema-dd-btn');
-  const menu = document.getElementById('playlist-tema-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  btn.addEventListener('click', (e) => {
-    // `stopPropagation` impede o handler do documento de fechar o menu de contexto,
-    // por isso ele é fechado aqui — senão ficaria sobreposto ao seletor.
-    e.stopPropagation();
-    fecharMenuContextoTemaPlaylist();
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharDropdownTemaPlaylist();
-    }
-  });
-  document.addEventListener('click', fecharDropdownTemaPlaylist);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharDropdownTemaPlaylist();
-  });
-}
-
-function renderSeletorTemasPlaylist() {
-  const sel = document.getElementById('playlist-tema-sel');
-  const menu = document.getElementById('playlist-tema-dd-menu');
-  const label = document.getElementById('playlist-tema-dd-label');
-  if (!sel || !menu || !label) return;
+/**
+ * Sincroniza o catálogo de temas com a playlist do culto e devolve os temas disponíveis,
+ * já ordenados. Só acrescenta ao catálogo temas vindos da playlist; não substitui o catálogo
+ * pelo merge (substituir apagava temas criados em «Novo momento…» que ainda não tinham
+ * música na playlist). Se o tema selecionado deixou de existir, a seleção é limpa.
+ */
+function obterTemasDisponiveisPlaylist() {
   const pl = cultoId ? getPlaylist(cultoId) : [];
   const temasDaPlaylist = [
     ...new Set(
@@ -10158,71 +10088,12 @@ function renderSeletorTemasPlaylist() {
     setTemaSelecionadoAtual('');
     atualAplicado = '';
   }
-  /** O que o usuário acabou de escolher no menu (não o tema já ativado com «Inserir na playlist»). */
-  const escolhaNaUi = normalizarTemaPlaylist(sel.value);
-  const preferido =
-    escolhaNaUi && temas.includes(escolhaNaUi)
-      ? escolhaNaUi
-      : atualAplicado && temas.includes(atualAplicado)
-        ? atualAplicado
-        : '';
-  const textoPlaceholder = temas.length ? 'Selecione o tema…' : 'Use + Tema para criar';
-  // Guarda o texto do placeholder para o botão fechado, sem depender de ele existir como item da lista.
-  menu.dataset.placeholder = textoPlaceholder;
-  menu.innerHTML = '';
-  // O placeholder só entra na lista quando há um tema selecionado (aí serve como "limpar seleção").
-  // Quando nada está selecionado, ele já é o valor exibido no botão fechado — não repetir na lista.
-  if (preferido) {
-    const liPh = document.createElement('li');
-    liPh.setAttribute('role', 'presentation');
-    const btnPh = document.createElement('button');
-    btnPh.type = 'button';
-    btnPh.className = 'playlist-tema-dd-item';
-    btnPh.dataset.value = '';
-    btnPh.textContent = textoPlaceholder;
-    liPh.appendChild(btnPh);
-    menu.appendChild(liPh);
-  }
-  temas.forEach((t) => {
-    const li = document.createElement('li');
-    li.setAttribute('role', 'presentation');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'playlist-tema-dd-item';
-    b.dataset.value = t;
-    b.textContent = t;
-    li.appendChild(b);
-    menu.appendChild(li);
-  });
-  menu.querySelectorAll('.playlist-tema-dd-item').forEach((b) => {
-    b.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      aplicarSelecaoTemaNaUi(b.dataset.value || '');
-      fecharDropdownTemaPlaylist();
-    });
-    // Botão direito sobre o nome do tema: menu de contexto com renomear/excluir/inserir.
-    // O placeholder («Selecione o tema…») não tem tema por trás, logo não abre menu.
-    b.addEventListener('contextmenu', (ev) => {
-      const t = normalizarTemaPlaylist(b.dataset.value || '');
-      if (!t) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      // Menu aberto para outro tema: a seleção anterior é limpa para o seletor não
-      // exibir um tema ativo diferente daquele que o menu está a manipular.
-      const selecionado = normalizarTemaPlaylist(sel.value) || getTemaSelecionadoAtual();
-      if (selecionado && selecionado !== t) {
-        setTemaSelecionadoAtual('');
-        aplicarSelecaoTemaNaUi('');
-        // Redesenha a lista para o placeholder sair de dentro dela (só entra quando
-        // há tema selecionado); `t` já está guardado, logo trocar os itens é seguro.
-        renderSeletorTemasPlaylist();
-      }
-      // A lista fecha para o menu de ações não tapar os nomes dos outros temas.
-      fecharDropdownTemaPlaylist();
-      abrirMenuContextoTemaPlaylist(t);
-    });
-  });
-  aplicarSelecaoTemaNaUi(preferido || '');
+  return temas;
+}
+
+/** Mantém o nome histórico: chamado após qualquer mudança de tema/playlist para sincronizar o catálogo. */
+function renderSeletorTemasPlaylist() {
+  obterTemasDisponiveisPlaylist();
 }
 
 let enviarPlaylistsServidorTimer = null;
@@ -13456,14 +13327,13 @@ function fecharMenuContextoTemaPlaylist() {
 }
 
 /**
- * Abre as ações do tema numa posição fixa: logo abaixo do dropdown «TEMA NA PLAYLIST»,
+ * Abre as ações do tema numa posição fixa: junto do botão «+ Adicionar momento»,
  * alinhado à esquerda dele. Não depende do item clicado — só o conteúdo do menu muda.
  */
 function abrirMenuContextoTemaPlaylist(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
-  const ancora =
-    document.getElementById('playlist-tema-dd-btn') || document.getElementById('playlist-tema-dd');
+  const ancora = document.getElementById('playlist-momento-add');
   if (!ancora) return;
   menuContextoTemaPlaylist.abrirNaAncora(ancora, {
     titulo: t,
@@ -13486,6 +13356,82 @@ function abrirMenuContextoTemaPlaylist(tema) {
       },
     ],
   });
+  menuContextoTemaPlaylist.node.querySelector('button')?.focus();
+}
+
+/* «+ Adicionar momento»: menu com os temas do catálogo + «Novo momento…». Substitui o antigo
+   bloco «TEMA NA PLAYLIST» (seletor + «Inserir» + «+»). Botão direito num tema abre as ações
+   de sempre (inserir, editar nome, excluir). */
+const menuMomentoPlaylist = criarMenuFlutuante({
+  id: 'playlist-momento-menu',
+  rotuloAria: 'Adicionar momento',
+  aoFechar: () => document.getElementById('playlist-momento-add')?.setAttribute('aria-expanded', 'false'),
+});
+
+async function criarNovoMomentoPlaylist() {
+  const nome = await appPrompt('Nome do novo momento:', {
+    title: 'Novo momento',
+    defaultValue: '',
+    emptyMsg: 'Digite um nome para o momento.',
+  });
+  if (!nome) return;
+  garantirTemaNoCatalogoAtual(nome);
+  renderSeletorTemasPlaylist();
+  inserirTemaNaPlaylistAtual(nome);
+}
+
+function abrirMenuMomentoPlaylist() {
+  const btn = document.getElementById('playlist-momento-add');
+  if (!btn) return;
+  const temas = obterTemasDisponiveisPlaylist();
+  const itens = temas.map((t) => {
+    const jaNaPlaylist = playlistAtualJaTemTema(t);
+    return {
+      rotulo: t,
+      desabilitado: jaNaPlaylist,
+      dica: jaNaPlaylist
+        ? `O tema «${t}» já está na playlist deste culto`
+        : 'Inserir este tema no fim da playlist; novas músicas entram neste bloco',
+      aoEscolher: () => inserirTemaNaPlaylistAtual(t),
+      // «⋯» visível e focável: abre as ações do tema (inserir, editar nome, excluir).
+      acao: { rotulo: `Ações do tema ${t}`, aoEscolher: () => abrirMenuContextoTemaPlaylist(t) },
+      // Atalho adicional: botão direito no item.
+      aoContexto: () => {
+        menuMomentoPlaylist.fechar();
+        abrirMenuContextoTemaPlaylist(t);
+      },
+    };
+  });
+  itens.push({
+    rotulo: 'Novo momento…',
+    separadorAntes: temas.length > 0,
+    aoEscolher: () => criarNovoMomentoPlaylist(),
+  });
+  menuMomentoPlaylist.abrirNaAncora(btn, { itens }, { acima: true, larguraDaAncora: true });
+  btn.setAttribute('aria-expanded', 'true');
+  menuMomentoPlaylist.node.querySelector('button:not(:disabled)')?.focus();
+}
+
+function configurarMenuMomentoPlaylist() {
+  const btn = document.getElementById('playlist-momento-add');
+  if (!btn) return;
+  btn.addEventListener('click', (e) => {
+    // Sem isto o clique chegaria ao handler global do menu, que o fecharia logo após abrir.
+    e.stopPropagation();
+    if (menuMomentoPlaylist.estaAberto()) {
+      menuMomentoPlaylist.fechar();
+      return;
+    }
+    fecharOutrosSeletoresDropdown(btn);
+    abrirMenuMomentoPlaylist();
+  });
+  // Esc com o foco dentro do menu: devolve o foco ao botão que o abriu (o menu fecha em seguida).
+  menuMomentoPlaylist.node.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') btn.focus();
+  });
+  menuContextoTemaPlaylist.node.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') btn.focus();
+  });
 }
 
 /** Insere o tema no fim da playlist do culto; novas músicas passam a entrar nesse bloco. */
@@ -13501,7 +13447,6 @@ function inserirTemaNaPlaylistAtual(tema) {
   }
   if (playlistAtualJaTemTema(t)) {
     appAlert(`O tema «${t}» já está na playlist deste culto.`, 'Inserir tema');
-    atualizarEstadoBotaoInserirTema();
     return;
   }
   if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(cultoId);
@@ -13528,7 +13473,6 @@ async function renomearTemaPeloMenuContexto(tema) {
   if (!renomearTemaNoCulto(atual, novo)) return;
   renderSeletorTemasPlaylist();
   renderPlaylist();
-  if (getTemaSelecionadoAtual() === novo) aplicarSelecaoTemaNaUi(novo);
 }
 
 async function excluirTemaPeloMenuContexto(tema) {
@@ -13547,33 +13491,8 @@ async function excluirTemaPeloMenuContexto(tema) {
 }
 
 function configurarSeletorTemaPlaylist() {
-  const sel = document.getElementById('playlist-tema-sel');
-  const btnAdd = document.getElementById('playlist-tema-add');
-  const btnAplicar = document.getElementById('playlist-tema-aplicar');
-
-  // Cada grupo só é configurado se os seus próprios elementos existirem.
-  setupDropdownTemaPlaylist();
+  // O seletor de ministrante tem guarda própria; não depende de nenhum elemento de tema.
   configurarSeletorMinistranteCulto();
-
-  if (sel && btnAplicar) {
-    btnAplicar.addEventListener('click', () => {
-      inserirTemaNaPlaylistAtual(sel.value);
-    });
-  }
-
-  if (btnAdd) {
-    btnAdd.addEventListener('click', async () => {
-      const nome = await appPrompt('Nome do novo tema:', {
-        title: '+ Tema',
-        defaultValue: '',
-        emptyMsg: 'Digite um nome para o tema.',
-      });
-      if (!nome) return;
-      garantirTemaNoCatalogoAtual(nome);
-      renderSeletorTemasPlaylist();
-      aplicarSelecaoTemaNaUi(nome);
-    });
-  }
 }
 
 /** Ações da playlist que não dependem do bloco de temas (compartilhar, importar, copiar nomes). */
@@ -25374,6 +25293,7 @@ configurarModalSyncPlaylist();
 configurarModalNovaMusicaManual();
 configurarSeletorTemaPlaylist();
 configurarAcoesPlaylist();
+configurarMenuMomentoPlaylist();
 document.getElementById('banco-busca-local-wrap')?.addEventListener('click', () => {
   garantirBuscaLocalEditavel();
   document.getElementById('busca')?.focus();

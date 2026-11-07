@@ -578,31 +578,7 @@
           </div>
         </div>
       </div>
-      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto">+ ADICIONAR CULTO</button>
-    </div>
-    <div class="playlist-tema-wrap">
-      <div class="playlist-tema-label">TEMA NA PLAYLIST</div>
-      <div class="playlist-tema-row">
-        <div class="playlist-tema-dd" id="playlist-tema-dd">
-          <button type="button" class="playlist-tema-dd-btn" id="playlist-tema-dd-btn" title="Escolha o tema — botão direito num tema da lista para renomear ou excluir" aria-haspopup="listbox" aria-expanded="false" aria-controls="playlist-tema-dd-menu">
-            <span class="playlist-tema-dd-label" id="playlist-tema-dd-label">Selecione o tema…</span>
-            <span class="playlist-tema-dd-caret" aria-hidden="true"></span>
-          </button>
-          <ul class="playlist-tema-dd-menu" id="playlist-tema-dd-menu" role="listbox" hidden></ul>
-          <input type="hidden" id="playlist-tema-sel" value="" autocomplete="off" />
-        </div>
-        <div class="playlist-tema-acoes">
-          <button type="button" id="playlist-tema-aplicar" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--primaria" title="Inserir este tema no fim da playlist; novas músicas entram neste bloco" aria-label="Inserir tema na playlist abaixo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v9"/><path d="m9 14 3 3 3-3"/><path d="M5 21h14"/></svg>
-            <span class="playlist-tema-acao-btn-txt">Inserir</span>
-          </button>
-          <!-- Só o «+»: o rótulo repetia o que o ícone diz e roubava largura ao seletor de
-               temas. O que o botão faz continua no `title` e no `aria-label`. -->
-          <button type="button" id="playlist-tema-add" class="btn sm playlist-tema-acao-btn playlist-tema-acao-btn--icone" title="Criar um novo tema" aria-label="Criar novo tema">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          </button>
-        </div>
-      </div>
+      <button type="button" class="btn sm culto-adicionar-btn" id="btn-adicionar-culto" aria-label="Adicionar culto">+ Culto</button>
     </div>
     <div class="panel-section-head" id="playlist-lista-head">
       <span class="playlist-lista-head-titulo">Playlist</span>
@@ -611,6 +587,7 @@
       </button>
     </div>
     <div class="playlist-list" id="playlist-list"></div>
+    <button type="button" class="playlist-momento-add" id="playlist-momento-add" aria-haspopup="menu" aria-expanded="false" aria-label="Adicionar momento à playlist">+ Adicionar momento</button>
   </aside>
 
   <section id="painel-modo-apresentacao">
