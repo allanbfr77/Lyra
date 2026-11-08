@@ -24,11 +24,11 @@ test('clampSlidesChipZoom alinha a passos de 5% e limita 50–150', () => {
   assert.equal(clampSlidesChipZoom(3), 1.5);
 });
 
-test('normalizarSlidesPorLinha só aceita 7, 5 ou 3', () => {
-  assert.equal(normalizarSlidesPorLinha(7), 7);
+test('normalizarSlidesPorLinha só aceita 3, 4 ou 5', () => {
+  assert.equal(normalizarSlidesPorLinha(7), SLIDES_POR_LINHA_PADRAO);
   assert.equal(normalizarSlidesPorLinha(5), 5);
   assert.equal(normalizarSlidesPorLinha(3), 3);
-  assert.equal(normalizarSlidesPorLinha(4), SLIDES_POR_LINHA_PADRAO);
+  assert.equal(normalizarSlidesPorLinha(4), 4);
   assert.equal(normalizarSlidesPorLinha('x'), SLIDES_POR_LINHA_PADRAO);
 });
 

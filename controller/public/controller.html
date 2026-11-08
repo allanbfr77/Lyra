@@ -397,12 +397,6 @@
               <div id="pv-live-letras" class="pv-live-letras vazio"></div>
             </div>
           </div>
-          <div class="slide-nota-bar" id="slide-nota-bar" hidden>
-            <div class="slide-nota-cluster">
-              <span class="slide-nota-badge" id="slide-nota-exibicao" hidden></span>
-              <button type="button" class="btn-slide-nota" id="btn-slide-nota" title="Nota do slide (só no controlador)" aria-label="Adicionar ou editar nota do slide"></button>
-            </div>
-          </div>
         </div>
         <div class="preview-card preview-card--dual-screen preview-card--operator preview-stack-item" data-preview-tela-idx="1">
           <div class="preview-card-head preview-card-head--com-toggle">
@@ -426,6 +420,25 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+      <!--
+        Botões do painel de controle do modo slides (coluna direita). Só aparecem com
+        `body.app-mod-slides` (ver controller.css). Reaproveitam as ações que já existem:
+        setas = `navegarEstrofe`, Próxima música = o mesmo botão de sempre (mesmo id),
+        Tela preta = `irParaSlidePretoModoSlides`, Encerrar = a tecla Esc (mesmo caminho do atalho).
+      -->
+      <div class="slides-ctrl-acoes">
+        <div class="slides-ctrl-linha slides-ctrl-linha--nav">
+          <button type="button" class="btn" id="btn-slides-anterior" onclick="navegarEstrofe(-1)" title="Anterior (←)">‹ Anterior</button>
+          <button type="button" class="btn" id="btn-slides-proximo" onclick="navegarEstrofe(1)" title="Próximo (→)">Próximo ›</button>
+        </div>
+        <button type="button" class="btn primary" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
+          Próxima música ››
+        </button>
+        <div class="slides-ctrl-linha">
+          <button type="button" class="btn" id="btn-slides-tela-preta" onclick="irParaSlidePretoModoSlides()" title="Vai direto ao slide preto (último)">Tela preta</button>
+          <button type="button" class="btn" id="btn-slides-encerrar" onclick="document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))" title="Encerrar (Esc)">Encerrar</button>
         </div>
       </div>
     </div>
@@ -763,17 +776,14 @@
       <span class="slides-dock-marca">Slides</span>
       <span class="slides-dock-sep" aria-hidden="true">•</span>
       <span id="slides-musica-nome"></span>
-      <div class="slides-dock-bar-center">
-        <div id="slides-projecao-instrucoes" aria-live="polite"></div>
-      </div>
     </div>
     <div class="slides-dock-bar-right">
       <div class="slides-dock-ctrl slides-dock-cols-group" role="radiogroup" aria-label="Quantidade de slides por linha" title="Quantos slides por linha no painel central">
-        <span class="slides-dock-ctrl-label">Qt. de Slides</span>
+        <span class="slides-dock-ctrl-label">Colunas</span>
         <div class="slides-dock-cols-btns">
-          <button type="button" class="slides-dock-cols-btn ativo" data-cols="7" role="radio" aria-checked="true" aria-label="7 slides por linha">7</button>
+          <button type="button" class="slides-dock-cols-btn ativo" data-cols="3" role="radio" aria-checked="true" aria-label="3 slides por linha">3</button>
+          <button type="button" class="slides-dock-cols-btn" data-cols="4" role="radio" aria-checked="false" aria-label="4 slides por linha">4</button>
           <button type="button" class="slides-dock-cols-btn" data-cols="5" role="radio" aria-checked="false" aria-label="5 slides por linha">5</button>
-          <button type="button" class="slides-dock-cols-btn" data-cols="3" role="radio" aria-checked="false" aria-label="3 slides por linha">3</button>
         </div>
       </div>
       <div class="slides-dock-ctrl slides-dock-zoom-group" title="Tamanho dos cartões na faixa">
@@ -784,9 +794,16 @@
           <button type="button" class="btn sm" id="slides-zoom-mais" aria-label="Aumentar slides">+</button>
         </div>
       </div>
-      <button type="button" class="btn sm primary slides-dock-ctrl" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
-        Próxima música
-      </button>
+      <!-- Nota do slide (lápis) e «?» no canto direito: Colunas · Zoom · lápis · ?. Mesmos ids. -->
+      <div class="slide-nota-bar" id="slide-nota-bar" hidden>
+        <div class="slide-nota-cluster">
+          <span class="slide-nota-badge" id="slide-nota-exibicao" hidden></span>
+          <button type="button" class="btn-slide-nota" id="btn-slide-nota" title="Nota do slide (só no controlador)" aria-label="Adicionar ou editar nota do slide"></button>
+        </div>
+      </div>
+      <div class="slides-dock-bar-center">
+        <div id="slides-projecao-instrucoes" aria-live="polite"></div>
+      </div>
     </div>
   </div>
   <div class="slides-grid-viewport" id="slides-grid-viewport">
@@ -800,8 +817,10 @@
         Escolha uma música na playlist, à direita.
       </div>
     </div>
-    <div class="slides-grid" id="slides-grid" data-slides-cols="7"></div>
+    <div class="slides-grid" id="slides-grid" data-slides-cols="3"></div>
   </div>
+  <!-- Texto gerado por CSS (contadores). Fica DEPOIS da grade para enxergar os contadores — ver controller.css. -->
+  <div class="slides-dock-subtitulo" id="slides-dock-subtitulo"><span id="slides-musica-artista"></span></div>
 </div>
 
 

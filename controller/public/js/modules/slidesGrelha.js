@@ -20,8 +20,8 @@ import {
 export const SLIDES_CHIP_ZOOM_MIN_PCT = 50;
 export const SLIDES_CHIP_ZOOM_MAX_PCT = 150;
 export const SLIDES_CHIP_ZOOM_PASSO_PCT = 5;
-export const SLIDES_POR_LINHA_OPCOES = [7, 5, 3];
-export const SLIDES_POR_LINHA_PADRAO = 7;
+export const SLIDES_POR_LINHA_OPCOES = [3, 4, 5];
+export const SLIDES_POR_LINHA_PADRAO = 3;
 
 const GRELHA_FIT_LOTE = 4;
 const GRELHA_FIT_MARGEM_PERTO_PX = 120;

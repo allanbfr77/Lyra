@@ -465,7 +465,7 @@ body[data-entrada="ponteiro"] :is(.home-song-edit-actions, .home-view-tools, .ho
 }
 
 /* Home: sem a linha acima dos botões Sinc./Importar/Compartilhar/Outro PC (a de baixo continua separando do culto). */
-body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { border-top: 0; }
+body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { border-top: 0; }
 
 /* ═══ Alternador segmentado BIBLIOTECA | ONLINE: container único com pílula deslizante (cores e textos inalterados) ═══ */
 .home-layout-v2 .home-search-tabs { position: relative; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border, #2c2c30); border-radius: 999px; background: var(--bg, #1b1b1e); }
@@ -640,7 +640,7 @@ html body .playlist-panel-head-titulo, html body .playlist-lista-head-titulo,
 html body .culto-ministrante-label, html body .playlist-tema-label { font-family: var(--font-ui); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* Home: os quatro cartões de ação (Sinc. Lyra DB, Importar código, Compartilhar, Outro PC) descem para o rodapé do painel direito. */
-body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { order: 99; flex: none; border-top: 1px solid var(--border, #2c2c30); border-bottom: 0; }
+body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { order: 99; flex: none; border-top: 1px solid var(--border, #2c2c30); border-bottom: 0; }
 
 /* Home: o rótulo «BIBLIOTECA» (span do título da seção) usa a cor neutra dos demais cabeçalhos, não o dourado. */
 html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .sidebar-title > span { color: var(--hdr); }
@@ -661,7 +661,7 @@ html.dark .hdr-btn-round::after { width: 22px; height: 2px; background: var(--se
 /* ═══ Home — painel direito: CULTO + MINISTRANTE num único cartão ═══
    Só estilo (+ rótulo do botão). Os IDs e handlers são os mesmos; o rótulo «Ministrante»
    fica no DOM, visível só para leitores de tela. */
-body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
   .culto-ministrante-grid { margin: 14px 14px 6px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
   .culto-select-wrap { display: contents; }
   .culto-select-wrap > .playlist-panel-head-titulo { grid-column: 1; grid-row: 1; font-size: var(--fs-100); font-weight: 500; letter-spacing: 0.08em; color: var(--hdr, #8c8c93); }
@@ -682,7 +682,9 @@ body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apres
 .playlist-momento-add:hover { border-color: #4a4a52; color: var(--text); }
 .playlist-momento-add[aria-expanded="true"] { border-color: #4a4a52; color: var(--text); }
 .playlist-momento-add:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: 2px; }
-body.app-mod-slides .playlist-momento-add { display: none !important; }
+/* Slides: mesmos cabeçalhos do painel CULTO/PLAYLIST do Home (cor neutra do tema escuro). */
+html.dark body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label) { color: var(--hdr); }
+html.dark body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label)::before { background-color: var(--hdr-icon); }
 #playlist-momento-menu .menu-flutuante-item:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Item de menu flutuante com botão «⋯» ao lado (menu de momentos). */
@@ -697,10 +699,8 @@ body.app-mod-slides .playlist-momento-add { display: none !important; }
    Só estilo (+ contagens e remoção do rótulo TONS no JS). IDs, handlers e drag-and-drop intactos. */
 .playlist-lista-head-contagem { font-size: var(--fs-200); font-weight: 400; color: var(--text-dim); text-transform: none; letter-spacing: 0; white-space: nowrap; }
 .playlist-tema-head-count { flex: none; font-family: var(--font-mono); font-size: var(--fs-200); font-weight: 400; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-body.app-mod-slides .playlist-tema-head-count,
-body.app-mod-slides .playlist-lista-head-contagem { display: none; }
 
-body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
   /* Barra da playlist: fora de qualquer cartão, acima da lista */
   #playlist-lista-head { padding: 14px 16px 6px; justify-content: flex-start; align-items: center; gap: 10px; border: 0; }
   #playlist-lista-head .playlist-lista-head-titulo { font-size: var(--fs-100); font-weight: 500; letter-spacing: 0.08em; color: var(--hdr, #8c8c93); }

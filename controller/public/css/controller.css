@@ -1351,14 +1351,6 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
   to { transform: rotate(360deg); }
 }
 
-body.app-mod-slides #playlist-head-actions {
-  display: none !important;
-}
-
-body.app-mod-slides #playlist-panel-head {
-  display: none !important;
-}
-
 /*
   CULTO e MINISTRANTE lado a lado, numa grelha de duas colunas.
 
@@ -1879,9 +1871,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--surface2) 88%, var(--accent) 6%);
   color: var(--text);
-}
-body.app-mod-slides .culto-adicionar-btn {
-  display: none !important;
 }
 
 .preview-telao-col {
@@ -2580,25 +2569,6 @@ html:not(.dark) .pl-sel {
 }
 
 /*
-  Modo slides: só na linha da música seleccionada (.ativo) escondemos o kebab
-  (evita apagar ou repor a música que está no ar ao operar a faixa). As outras linhas
-  mantêm o hover.
-*/
-body.app-mod-slides .playlist-row.ativo .playlist-btns {
-  display: none !important;
-}
-
-/* Modo slides: sem remover bloco de tema (✕) na playlist. */
-body.app-mod-slides .playlist-tema-head-zona-del,
-body.app-mod-slides .playlist-tema-head-del {
-  display: none !important;
-}
-
-body.app-mod-slides .playlist-tema-head-row {
-  padding-right: 8px;
-}
-
-/*
   Feedback da mudança de posição.
 
   O deslize das duas linhas é feito em JS (FLIP: mede antes, mede depois, anima a
@@ -2814,10 +2784,6 @@ body.app-mod-slides .playlist-tema-head-row {
   border-radius: 9px 9px 0 0;
   background: transparent;
 }
-
-
-
-
 
 /* Recolhida, o cabeçalho é o cartão inteiro e arredonda dos dois lados. */
 .playlist-tema-section--colapsada .playlist-tema-head-row {
@@ -3042,7 +3008,6 @@ body.app-mod-slides .playlist-tema-head-row {
   color: var(--green);
   background: color-mix(in srgb, var(--green) 12%, transparent);
 }
-
 
 /* Centro — prévias + conteúdo dinâmico */
 .panel-centro {
@@ -5997,6 +5962,10 @@ body.app-mod-slides .slides-grid {
   max-width: 100%;
 }
 
+body.app-mod-slides .slides-grid[data-slides-cols="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 body.app-mod-slides .slides-grid[data-slides-cols="5"] {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   --slide-chip-h: calc(202px * var(--slide-chip-zoom, 1));
@@ -7088,71 +7057,9 @@ body.app-mod-slides #slides-projecao-instrucoes kbd.slides-dock-kbd {
   margin: 0 1px;
 }
 
-/* ── Playlist lateral fixa (coluna estreita) — compactação ── */
-body.app-mod-slides .panel-playlist .panel-section-head {
-  padding: 10px 10px 8px;
-
-  font-size: var(--fs-400);
-  align-items: center;
-}
-
 .playlist-panel-head-titulo {
   min-width: 0;
   white-space: nowrap;
-}
-
-body.app-mod-slides .panel-playlist .culto-ministrante-grid {
-  padding: 8px 10px;
-}
-
-/* O Ministrante é exclusivo do Home (ver mais abaixo): aqui a grelha fica de uma coluna
-   só, senão o seletor de culto ocupava metade da largura e o resto ficava vazio. */
-body.app-mod-slides .panel-playlist .culto-ministrante-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-body.app-mod-slides .panel-playlist .culto-dd-btn {
-  grid-template-columns: auto 1fr auto;
-  gap: 6px;
-  padding: 0 8px;
-  min-height: 34px;
-  font-size: var(--fs-500);
-}
-
-body.app-mod-slides .panel-playlist .culto-dd-col-desc {
-  padding-left: 6px;
-}
-
-/* Itens do menu: a data ocupa só o seu conteúdo (02/08) em vez de uma coluna fixa —
-   o espaço que sobrava vai para o nome, que assim cabe na mesma linha. Fonte um pouco
-   menor pela mesma razão; o `wrap` do estilo base fica como rede de segurança. */
-body.app-mod-slides .panel-playlist .culto-dd-item {
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  padding: 7px 9px;
-  font-size: var(--fs-400);
-  align-items: center;
-}
-body.app-mod-slides .panel-playlist .culto-dd-item .desc {
-  padding-left: 8px;
-}
-
-/* Scroll próprio, independente da grelha de slides. */
-body.app-mod-slides .panel-playlist .playlist-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 6px;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row {
-  padding: 6px 8px;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row .tit {
-  font-size: var(--fs-650);
-  font-weight: 700;
-  line-height: 1.25;
 }
 
 /* Linha compacta do modo Slides: a pastilha à esquerda, título e artista à direita.
@@ -7171,132 +7078,364 @@ body.app-mod-slides .panel-playlist .playlist-row .tit {
   flex: 1;
 }
 
-body.app-mod-slides .panel-playlist .pl-num-badge {
-  min-width: 20px;
-  height: 18px;
-  padding: 0 4px;
-  font-size: var(--fs-300);
-  border-radius: 5px;
-}
-
-/* Modo slides: playlist compacta (sem Ministrante/Tom — exclusivos do Home). */
-body.app-mod-slides .pl-col-tom {
-  display: none !important;
-}
-/* Ministrante é do culto inteiro e só se define no Home. */
-body.app-mod-slides .culto-ministrante-wrap {
-  display: none !important;
-}
-
-/* Nome do artista também numa linha só (o `.tit` já era nowrap + reticências). */
-body.app-mod-slides .panel-playlist .playlist-row .mini {
-  margin-top: 3px;
-  font-size: var(--fs-500);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/*
-  A coluna de ações reserva largura mesmo com o ícone invisível — no Home é isso que
-  segura o seletor de tom no lugar. Aqui não há coluna de tom para proteger, e numa
-  coluna de 200px essa largura saía do título («1. Mil Gr…»): o kebab passa a flutuar
-  por cima da linha, só no hover.
-*/
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  z-index: 2;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface2) 88%, #000000 12%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  /*
-    A placa mede o que lá está dentro em vez de herdar a largura reservada na grelha do
-    modo Home: posicionada pela direita, a largura a mais não empurraria o botão —
-    esticaria a placa escura (e a sombra) para dentro do título.
-  */
-  width: auto;
-
-  /*
-    Só aqui a faixa se apaga inteira, e não apenas o ícone: neste modo ela tem placa
-    escura e sombra próprias, e essas continuariam a marcar o canto de todas as linhas
-    com o kebab já invisível. No Home a faixa não tem desenho nenhum — só reserva a
-    coluna — e por isso lá quem se apaga é o botão.
-  */
-  opacity: 0;
-  transition: opacity 0.14s ease;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row:hover .playlist-btns,
-body.app-mod-slides .panel-playlist .playlist-row:focus-within .playlist-btns,
-body.app-mod-slides .panel-playlist .playlist-row--menu-aberto .playlist-btns {
-  opacity: 1;
-}
-
-/* Kebab compacto — não compete com o título agora que a fonte da lista subiu. */
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-kebab {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row .playlist-btns .pl-btn-kebab svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* Coluna estreita: a alça encolhe com o resto da linha. */
-body.app-mod-slides .panel-playlist .pl-grip {
-  width: 12px;
-  height: 18px;
-}
-
-body.app-mod-slides .panel-playlist .pl-grip svg {
-  width: 14px;
-  height: 14px;
-}
-
-/*
-  A faixa do kebab flutua por cima da linha (ver acima: numa coluna de 230 px não pode
-  reservar largura em permanência). Só que «por cima» era mesmo por cima do título —
-  «3. Que Ele Cre▮▮▮» com o botão colado ao texto, ilegível justamente na linha
-  que se está a apontar.
-
-  A correção é dar ao título, e só enquanto a faixa está à vista, um recuo à direita
-  do tamanho dela: o título volta a terminar em reticências antes do botão, em vez
-  de desaparecer debaixo dele. Fora do hover o recuo desaparece e o título usa a
-  largura toda — que é o que interessa nas outras linhas.
-
-  26 px é a largura medida da faixa: 18 (kebab) + 4 + 4 (padding da faixa). A folga entre
-  as reticências e o botão sai de graça — são os 8 px de padding da linha menos os 3 px
-  a que a faixa está da borda direita, 5 px medidos.
-*/
-body.app-mod-slides .panel-playlist .playlist-row .tit {
-  transition: padding-right 0.14s ease;
-}
-
-body.app-mod-slides .panel-playlist .playlist-row:hover .tit,
-body.app-mod-slides .panel-playlist .playlist-row:focus-within .tit {
-  padding-right: 26px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body.app-mod-slides .panel-playlist .playlist-row .tit,
-  body.app-mod-slides .panel-playlist .playlist-row .playlist-btns {
-    transition: none;
-  }
-}
-
 body.app-mod-slides .centro-col-letras {
   display: none !important;
 }
 
 body.app-mod-slides #layout-biblia {
   display: none !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Modo Slides — layout em 3 colunas (só posicionamento; cores, bordas e
+   seleção continuam as das regras acima).
+
+     ┌───────────┬──────────────────────────────────────┬─────────────┐
+     │ cabeçalho (linha 1, atravessa tudo)                              │
+     ├───────────┼──────────────────────────────────────┼─────────────┤
+     │ PLAYLIST  │ título + subtítulo      Colunas Zoom │ TELÃO 16:9  │
+     │ (col 1,   ├──────────────────────────────────────┤ TV    16:9  │
+     │  altura   │ grade de slides (rola na vertical)   │ botões      │
+     │  total)   │                                      │ (col 3)     │
+     └───────────┴──────────────────────────────────────┴─────────────┘
+
+   Fica depois de todas as regras de `body.app-mod-slides` de propósito: mesma
+   especificidade, a última vence.
+   ══════════════════════════════════════════════════════════════════════ */
+body.app-mod-slides,
+body.app-mod-slides.slides-rail-aberto {
+  --slides-playlist-w: 360px;
+  --slides-ctrl-w: 400px;
+  grid-template-columns: var(--slides-playlist-w) minmax(0, 1fr) var(--slides-ctrl-w);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* Coluna 1 — playlist, altura total. */
+body.app-mod-slides .panel-playlist {
+  grid-column: 1;
+  grid-row: 2 / span 2;
+  /* Divisória fina entre playlist e grade. */
+  border-right: 1px solid var(--border);
+}
+
+/* Coluna 2 — cabeçalho da grade (título à esquerda, Colunas/Zoom à direita)… */
+body.app-mod-slides .slides-dock-bar {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+  align-items: flex-start;
+  /* 34px embaixo reservam a linha do subtítulo (`.slides-dock-subtitulo`, sobreposto aqui). */
+  padding: 12px 16px 36px;
+  gap: 16px;
+}
+
+/* …a divisória arrastável media a altura das prévias, que agora têm proporção própria. */
+body.app-mod-slides .slides-resize-handle {
+  display: none;
+}
+
+/* …e a grade de slides, que rola na vertical. */
+body.app-mod-slides .slides-grid-viewport {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+body.app-mod-slides .slides-dock-bar-left {
+  flex: 1 1 0;
+  max-width: none;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  align-items: center;
+  column-gap: 8px;
+}
+
+/* Lápis da nota do slide, ao lado do «?». */
+body.app-mod-slides .slides-dock-bar-right .slide-nota-bar {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+}
+
+body.app-mod-slides .slides-dock-bar-left .slides-dock-marca,
+body.app-mod-slides .slides-dock-bar-left .slides-dock-sep {
+  display: none;
+}
+
+body.app-mod-slides .slides-dock-bar-left #slides-musica-nome {
+  grid-area: 1 / 1;
+  /* Mesmo desenho do título do Home (serif grande, claro). */
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 52px;
+  color: #f1efe9;
+  max-width: 100%;
+}
+
+/* O «?» fica na ponta direita: o balão abre para a esquerda, senão sairia da tela. */
+body.app-mod-slides .slides-dock-bar-right #slides-projecao-instrucoes {
+  left: auto;
+  right: -8px;
+}
+
+/*
+  Subtítulo no formato do Home: «Artista · N slides». O artista vem do JS (#slides-musica-artista);
+  o «· N slides» sai de contadores CSS. O elemento fica depois da grade no DOM, na mesma célula
+  do cabeçalho (col 2, linha 2), logo abaixo do título. N = miniaturas reais (sem a «preta»).
+*/
+.slides-dock-subtitulo {
+  display: none;
+}
+
+body.app-mod-slides .slides-grid-viewport {
+  counter-reset: slides-n slides-x;
+}
+
+body.app-mod-slides .slides-grid .slide-chip:not(.slide-chip--preto) {
+  counter-increment: slides-n 1 slides-x 1;
+}
+
+body.app-mod-slides .slides-grid .slide-chip.ativo ~ .slide-chip:not(.slide-chip--preto) {
+  counter-increment: slides-n 1 slides-x 0;
+}
+
+body.app-mod-slides:has(#slides-grid .slide-chip) .slides-dock-subtitulo {
+  display: block;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  justify-self: start;
+  /* 64px = 12 (respiro do cabeçalho) + 52 (linha do título): fica colado embaixo dele. */
+  padding: 64px 16px 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  pointer-events: none;
+  font-size: var(--fs-650);
+  line-height: 24px;
+  color: #8c8c93;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* «Artista» (JS) + « · N slides» (contador CSS), como no Home. */
+body.app-mod-slides .slides-dock-subtitulo::after {
+  content: ' · ' counter(slides-n) ' slides';
+}
+
+/* Colunas e Zoom lado a lado, na ponta direita do cabeçalho. */
+body.app-mod-slides .slides-dock-bar-right {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  margin-left: auto;
+  gap: 10px;
+}
+
+body.app-mod-slides .slides-dock-bar-right > .slides-dock-cols-group,
+body.app-mod-slides .slides-dock-bar-right > .slides-dock-zoom-group {
+  width: auto;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+/* Coluna 3 — painel de controle de largura fixa: prévias 16:9 + botões. */
+body.app-mod-slides .panel-centro {
+  grid-column: 3;
+  grid-row: 2 / span 3;
+  /* Divisória fina entre grade e painel de controle. */
+  border-left: 1px solid var(--border);
+  justify-self: stretch;
+  width: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.app-mod-slides .centro-split-musicas {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+body.app-mod-slides .centro-col-preview-stack {
+  flex-direction: column;
+  align-items: stretch;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin-inline: 0;
+  gap: 16px;
+}
+
+/*
+  Títulos fora da caixa: o cartão deixa de ter moldura; o cabeçalho vira texto simples
+  acima, e a moldura (mesmas cores de antes) passa para o corpo. Sem olho: a prévia fica
+  sempre visível.
+*/
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-card--dual-screen {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item .preview-card-head,
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item--painel-oculto .preview-card-head {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 0 6px !important;
+  background: none;
+  border: 0;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  font-size: var(--fs-100);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-card-head .preview-painel-toggle-icon {
+  display: none !important;
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item--painel-oculto .preview-card-body {
+  display: flex !important;
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item .preview-card-body {
+  background: #050505;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgba(166, 124, 45, 0.22),
+    inset 0 1px 0 rgba(200, 169, 110, 0.06);
+}
+
+/* Painel da TV: sem «próximo slide» (o elemento segue no DOM, o JS continua a escrevê-lo). */
+body.app-mod-slides .panel-centro #op-proximo {
+  display: none !important;
+}
+
+body.app-mod-slides .centro-col-preview-stack .preview-telao-col,
+body.app-mod-slides .centro-col-preview-stack > .preview-stack-item {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item,
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-telao-col > .preview-stack-item {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item .preview-card {
+  height: auto;
+  max-height: none;
+}
+
+/* Prévia 16:9: o corpo do cartão fixa a proporção (o cabeçalho fica por cima). */
+body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item .preview-card-body {
+  flex: 0 0 auto;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Botões: ‹ Anterior | Próximo ›, Próxima música ››, Tela preta | Limpar texto. */
+.slides-ctrl-acoes {
+  display: none;
+}
+
+body.app-mod-slides .slides-ctrl-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+body.app-mod-slides .slides-ctrl-linha {
+  display: flex;
+  gap: 10px;
+}
+
+body.app-mod-slides .slides-ctrl-acoes .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: var(--slides-dock-ctrl-h);
+  min-height: var(--slides-dock-ctrl-h);
+  padding: 0 10px;
+  font-size: var(--fs-400);
+  font-weight: 700;
+  border-radius: 8px;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+body.app-mod-slides .slides-ctrl-linha > .btn {
+  flex: 1 1 0;
+}
+
+/* Próximo é o botão principal: maior que o Anterior. */
+/* Anterior e Próximo: mesmo tamanho e mesma cor (só «Próxima música» é amarelo). */
+body.app-mod-slides .slides-ctrl-linha--nav > .btn {
+  flex: 1 1 0;
+}
+
+body.app-mod-slides .slides-ctrl-acoes > #btn-proxima-musica-playlist {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+/* Miniaturas: número no canto superior direito, texto centralizado. */
+body.app-mod-slides .slide-chip {
+  position: relative;
+  justify-content: center;
+  /* 16:9 com altura automática (antes: altura fixa `--slide-chip-h`, ~4:3). */
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 16 / 9;
+}
+
+body.app-mod-slides .slides-grid {
+  grid-auto-rows: auto;
+}
+
+body.app-mod-slides .slide-chip .slide-num {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Slides já passados: texto mais apagado. */
+body.app-mod-slides #slides-grid[data-strip-projecao="1"] .slide-chip:not(.slide-chip--preto):has(~ .slide-chip.ativo) .slide-snippet {
+  opacity: 0.45;
 }
 
 /* ── Modo Bíblia ─────────────────────────────────────── */
@@ -12077,4 +12216,74 @@ body.app-mod-docs #route-ministrante-dd {
 .banco-secao-sqlite .bib-selecao-acoes .btn {
   padding: 4px 9px;
   font-size: var(--fs-100);
+}
+
+/* Modo Slides: painel da playlist enxuto — fica só o SELETOR DE CULTO e a lista de músicas.
+   Sem título «CULTO», sem «Novo culto», sem Ministrante, sem «+ Adicionar momento» e sem os
+   cartões Sinc./Importar/Compartilhar/Outro PC. */
+body.app-mod-slides .panel-playlist .culto-select-wrap > .playlist-panel-head-titulo,
+body.app-mod-slides .panel-playlist .culto-adicionar-btn,
+body.app-mod-slides .panel-playlist .culto-ministrante-wrap,
+body.app-mod-slides .panel-playlist #playlist-panel-head,
+body.app-mod-slides .panel-playlist .playlist-momento-add {
+  display: none !important;
+}
+
+/* Modo Slides: os 3 pontinhos (kebab) do hover ficam colados na borda direita da playlist. */
+body.app-mod-slides .panel-playlist .playlist-row {
+  padding-right: 2px;
+}
+
+body.app-mod-slides .panel-playlist .playlist-list,
+body.app-mod-slides .panel-playlist #playlist-list {
+  /* 16px dos dois lados: os cartões não encostam na linha (mesmo respiro do painel da direita). */
+  padding-left: 16px !important;
+  padding-right: 16px !important;
+}
+
+body.app-mod-slides .panel-playlist .culto-ministrante-grid {
+  margin-left: 16px !important;
+  margin-right: 16px !important;
+}
+
+/* A linha compacta ocupa o espaço todo: sem isto ela encolhia ao tamanho do texto e o kebab
+   ficava colado nele, no meio da linha, em vez de na borda direita. */
+body.app-mod-slides .panel-playlist .playlist-row > .pl-linha-simples {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Respiro igual dos dois lados das linhas finas: o padrão é o da linha direita
+   (16px entre a linha e o conteúdo do painel de controle). A grade de slides usa os mesmos
+   16px junto à linha esquerda e junto à direita. */
+body.app-mod-slides .slides-grid-viewport {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+body.app-mod-slides .slides-grid {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Música já transmitida: check verde ao lado do número, só na playlist do modo Slides (não vai para o Home).
+   Desenhado por máscara (centrado de verdade, sem depender da fonte) e posicionado por fora
+   da pastilha; todas as linhas reservam o vão, então o título não anda nas marcadas. */
+body.app-mod-slides .playlist-row .pl-num-badge {
+  position: relative;
+  margin-right: 16px;
+}
+
+body.app-mod-slides .playlist-row--transmitida .pl-num-badge::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  margin-left: 4px;
+  background: var(--green);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5l5 5L20 6.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5l5 5L20 6.5'/%3E%3C/svg%3E") center / contain no-repeat;
 }

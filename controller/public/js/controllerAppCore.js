@@ -11057,6 +11057,145 @@ function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
   return j < lista.length ? j : -1;
 }
 
+/* ── Músicas já transmitidas da playlist (check verde ao lado do número) ──
+   Uma música ganha o check quando o operador passa para OUTRA música (ver `atualizarChecksAoProjetar`).
+   Guardado por culto no localStorage, para sobreviver a recarregar o painel. */
+const LS_PLAYLIST_TRANSMITIDAS = 'lyra_playlist_transmitidas_v1';
+let playlistTransmitidas = null;
+
+function carregarPlaylistTransmitidas() {
+  if (playlistTransmitidas) return playlistTransmitidas;
+  playlistTransmitidas = new Set();
+  try {
+    const arr = JSON.parse(localStorage.getItem(LS_PLAYLIST_TRANSMITIDAS) || '[]');
+    if (Array.isArray(arr)) arr.forEach((k) => playlistTransmitidas.add(String(k)));
+  } catch (_) {
+    // intencional — sem localStorage a marcação vale só nesta sessão
+  }
+  return playlistTransmitidas;
+}
+
+function chaveTransmitidaPlaylist(it) {
+  return `${cultoId}|${Number(it?.id)}|${it?.versaoLocalId ?? ''}|${it?.bancoFonte ?? ''}`;
+}
+
+function playlistItemFoiTransmitido(it) {
+  return !!it && !ehMarcadorTemaPlaylist(it) && carregarPlaylistTransmitidas().has(chaveTransmitidaPlaylist(it));
+}
+
+function salvarPlaylistTransmitidas() {
+  try {
+    localStorage.setItem(LS_PLAYLIST_TRANSMITIDAS, JSON.stringify([...carregarPlaylistTransmitidas()]));
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+}
+
+/**
+ * Tira as marcações de músicas que já não estão na playlist deste culto. É o que impede
+ * uma música excluída e adicionada de novo de herdar o check de antes.
+ */
+function podarTransmitidasDoCultoAtual(pl) {
+  if (!cultoId) return;
+  const set = carregarPlaylistTransmitidas();
+  const prefixo = `${cultoId}|`;
+  const validas = new Set((Array.isArray(pl) ? pl : []).filter((it) => it && !ehMarcadorTemaPlaylist(it)).map(chaveTransmitidaPlaylist));
+  let mudou = false;
+  for (const k of [...set]) {
+    if (k.startsWith(prefixo) && !validas.has(k)) {
+      set.delete(k);
+      mudou = true;
+    }
+  }
+  if (mudou) salvarPlaylistTransmitidas();
+}
+
+/** «Resetar» do modo Slides: apaga os checks de todas as músicas da playlist deste culto. */
+function limparChecksTransmitidosDoCulto() {
+  if (!cultoId) return;
+  const set = carregarPlaylistTransmitidas();
+  const prefixo = `${cultoId}|`;
+  let mudou = false;
+  for (const k of [...set]) {
+    if (k.startsWith(prefixo)) {
+      set.delete(k);
+      mudou = true;
+    }
+  }
+  if (!mudou) return;
+  salvarPlaylistTransmitidas();
+  renderPlaylist();
+}
+
+const LS_PLAYLIST_ULTIMA_PROJETADA = 'lyra_playlist_ultima_projetada_v1';
+let ultimaChaveProjetada = null;
+
+/**
+ * O check de uma música só acende quando o operador PASSA para outra: ao projetar a 2, a 1
+ * ganha o check (ela terminou); a 2 só ganha o seu quando a 3 for projetada, e assim por
+ * diante. Chamado a cada envio de slide às telas.
+ */
+function atualizarChecksAoProjetar() {
+  if (!musicaAtiva || !cultoId) return;
+  const item = getPlaylist(cultoId).find((it) => playlistItemMesmaVersaoQueAtiva(it));
+  if (!item) return;
+  const atual = chaveTransmitidaPlaylist(item);
+  const musicas = getPlaylist(cultoId).filter((it) => it && !ehMarcadorTemaPlaylist(it));
+  const ehPrimeira = musicas.length > 0 && chaveTransmitidaPlaylist(musicas[0]) === atual;
+  if (ultimaChaveProjetada == null) {
+    try {
+      ultimaChaveProjetada = localStorage.getItem(LS_PLAYLIST_ULTIMA_PROJETADA) || null;
+    } catch (_) {
+      // intencional — sem localStorage vale só nesta sessão
+    }
+  }
+  const anterior = ultimaChaveProjetada;
+  let mudou = false;
+  if (ehPrimeira) {
+    /* Projetar a música 1 começa uma passagem nova: os checks de ensaios anteriores somem,
+       para o culto de verdade começar limpo. */
+    const set = carregarPlaylistTransmitidas();
+    for (const k of [...set]) {
+      if (k.startsWith(`${cultoId}|`)) {
+        set.delete(k);
+        mudou = true;
+      }
+    }
+    if (mudou) salvarPlaylistTransmitidas();
+  } else if (anterior && anterior !== atual && anterior.startsWith(`${cultoId}|`)) {
+    const set = carregarPlaylistTransmitidas();
+    if (!set.has(anterior)) {
+      set.add(anterior);
+      salvarPlaylistTransmitidas();
+      mudou = true;
+    }
+  }
+  ultimaChaveProjetada = atual;
+  try {
+    localStorage.setItem(LS_PLAYLIST_ULTIMA_PROJETADA, atual);
+  } catch (_) {
+    // intencional — erro ignorado
+  }
+  if (mudou) renderPlaylist();
+}
+
+/**
+ * A última música da playlist não tem «próxima» que a faça passar: o check dela acende
+ * quando a projeção é encerrada (Encerrar/Esc/limpar tela) estando ela no ar.
+ */
+function marcarUltimaMusicaAoEncerrar() {
+  if (!musicaAtiva || !cultoId || !projecaoMusicaEmitidaNoServidor) return;
+  const musicas = getPlaylist(cultoId).filter((it) => it && !ehMarcadorTemaPlaylist(it));
+  const ultima = musicas[musicas.length - 1];
+  if (!ultima || !playlistItemMesmaVersaoQueAtiva(ultima)) return;
+  const set = carregarPlaylistTransmitidas();
+  const k = chaveTransmitidaPlaylist(ultima);
+  if (set.has(k)) return;
+  set.add(k);
+  salvarPlaylistTransmitidas();
+  renderPlaylist();
+}
+
 /** Há música seguinte após a actualmente activa (para o botão «Próxima música»). */
 function haProximaMusicaNaPlaylistAtiva() {
   if (!musicaAtiva) return false;
@@ -11974,6 +12113,7 @@ function renderPlaylistItensComMarcadores(el, pl) {
     );
     const rotuloVersao = sufixoRotuloVersaoPlaylist(item);
     row.innerHTML = htmlLinhaPlaylistModoAtual(item, songNum, rotuloVersao);
+    if (playlistItemFoiTransmitido(item)) row.classList.add('playlist-row--transmitida');
     ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl);
     songAppendParent.appendChild(row);
   };
@@ -12142,6 +12282,7 @@ function renderPlaylistPainelCorpo() {
     return;
   }
   const pl = getPlaylist(cultoId);
+  podarTransmitidasDoCultoAtual(pl);
   if (!pl.length) {
     el.innerHTML = ehModoSlidesOperador()
       ? '<div class="placeholder-msg" style="margin:16px">📝 Nenhuma música neste culto.<br>Abra <strong>TELA INICIAL</strong> (topo) e, no <strong>banco de músicas à esquerda</strong>, toque em <strong>+</strong> em cada música para incluir na playlist.</div>'
@@ -12180,6 +12321,7 @@ function renderPlaylistPainelCorpo() {
       playlistItemDestacadoNaUi(item)
     );
     row.innerHTML = htmlLinhaPlaylistModoAtual(item, nLista, rotuloVersao);
+    if (playlistItemFoiTransmitido(item)) row.classList.add('playlist-row--transmitida');
     ligarBotoesESeletoresLinhaPlaylist(row, item, idx);
     songAppendParent.appendChild(row);
   }
@@ -13418,7 +13560,8 @@ function abrirMenuAcoesLinhaPlaylist(btn, row, idxPl) {
       {
         rotulo: 'Resetar',
         svg: SVG_MENU_RESETAR_LINHA,
-        aoEscolher: () => limparMinistranteTomDeTodaPlaylist(),
+        /* Home: repõe ministrante e tons. Slides: só limpa os checks de «já transmitida». */
+        aoEscolher: () => (ehModoSlidesOperador() ? limparChecksTransmitidosDoCulto() : limparMinistranteTomDeTodaPlaylist()),
       },
       {
         rotulo: 'Excluir',
@@ -14861,6 +15004,8 @@ function definirVazioDaFaixaSlidesVisivel(mostrar) {
 /** Nome na barra da faixa de slides — texto e dica saem sempre juntos daqui. */
 function definirNomeMusicaBarraSlides(el, titulo) {
   el.textContent = titulo;
+  const artistaEl = document.getElementById('slides-musica-artista');
+  if (artistaEl) artistaEl.textContent = titulo ? (musicaAtiva?.artista || 'Sem artista') : '';
   if (titulo) el.dataset.dica = titulo;
   else delete el.dataset.dica;
 }
@@ -22425,6 +22570,7 @@ function emitirEstrofeAoServidor(index) {
     emitirEstadoMinistranteAoServidor();
   }
   registarProjecaoNoHistorico();
+  atualizarChecksAoProjetar();
 }
 
 /**
@@ -22566,6 +22712,12 @@ function navegarEstrofePassadorSlides(direcao, opts) {
   }
 }
 
+/** Botão «Tela preta» do modo slides: vai direto ao último slide (o preto, índice N). */
+function irParaSlidePretoModoSlides() {
+  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
+  projecionarEstrofeModoSlides(musicaAtiva.estrofes.length);
+}
+
 /** Comando de voz / atalho: projeta estrofe no índice dado (0 … N, N = tela preta). */
 function projecionarEstrofeModoSlides(index) {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
@@ -22674,6 +22826,7 @@ exporCallbacksParaAtributosHtml({
   acionarCancelarBarraPadrao,
   novaEstrofe,
   navegarEstrofe,
+  irParaSlidePretoModoSlides,
   limparTela,
   // SAIR na barra: encerra a prévia E limpa a seleção (música + slides), voltando ao estado inicial.
   encerrarProjecaoDoControlador: () => encerrarProjecaoDoControlador({ limparMusica: true }),
@@ -22803,6 +22956,7 @@ function sincronizarEstrofeAtiva(estado) {
 
 function limparTela() {
   if (!projecao.ligada()) return;
+  marcarUltimaMusicaAoEncerrar();
   estrofeAtiva = -1;
   slidesDockVisivel = ehModoSlidesOperador();
   projecaoMusicaEmitidaNoServidor = false;
@@ -22816,6 +22970,7 @@ function limparTela() {
 
 /** `limparMusica`: modo slides — ESC desassocia a música do painel (playlist sem linha ativa, faixa de slides oculta). */
 function encerrarProjecaoDoControlador(opts = {}) {
+  marcarUltimaMusicaAoEncerrar();
   const limparMusica = !!opts.limparMusica;
   if (limparMusica) {
     musicaAtiva = null;
