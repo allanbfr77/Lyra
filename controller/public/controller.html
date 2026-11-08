@@ -87,10 +87,9 @@
         <span class="hdr-lembrar-monitor-texto">Lembrar monitor</span>
       </label>
       <button type="button" class="hdr-encerrar-projecao-btn" id="hdr-encerrar-projecao" title="Encerrar projeção" aria-label="Encerrar projeção">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9"/>
-          <path d="m15 9-6 6"/>
-          <path d="m9 9 6 6"/>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v8"/>
+          <path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>
         </svg>
       </button>
       <span class="hdr-monitores-aviso oculto" id="hdr-monitores-aviso" role="status"></span>
@@ -607,35 +606,24 @@
     <div class="apresentacao-layout">
       <div class="apresentacao-grid" id="apresentacao-grid"></div>
       <div class="ap-menu">
-        <div class="ap-menu-files-block">
-          <div class="ap-menu-section-label">Arquivos no menu</div>
-          <div class="ap-dd-toolbar">
-            <div class="culto-dd ap-dd" id="ap-files-dd">
-              <button type="button" class="culto-dd-btn ap-dd-btn" id="ap-files-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="ap-files-dd-menu">
-                <span class="culto-dd-col-desc" id="ap-files-selected">Selecione um arquivo...</span>
-                <span class="culto-dd-caret" aria-hidden="true"></span>
-              </button>
-              <div id="ap-files-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
-                <div id="apresentacao-menu-list"></div>
-              </div>
-            </div>
-            <button type="button" class="ap-menu-plus" id="apresentacao-menu-add" title="Adicionar ao menu">+</button>
+        <div class="ap-menu-files-block ap-lib-block">
+          <div class="ap-lib-head">
+            <div class="ap-menu-section-label">Arquivos</div>
+            <button type="button" class="ap-lib-import" id="ap-lib-import" aria-label="Importar arquivos">+ Importar</button>
           </div>
+          <label class="ap-lib-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="ap-lib-search" placeholder="Buscar arquivo" aria-label="Buscar arquivo" autocomplete="off" />
+          </label>
+          <div class="ap-lib-tabs" role="tablist" aria-label="Tipo de arquivo">
+            <button type="button" class="ap-lib-tab" role="tab" data-tab="image" aria-selected="true">Imagens</button>
+            <button type="button" class="ap-lib-tab" role="tab" data-tab="video" aria-selected="false">Vídeos</button>
+            <button type="button" class="ap-lib-tab" role="tab" data-tab="audio" aria-selected="false">Áudios</button>
+          </div>
+          <div class="ap-lib-list" id="ap-lib-list" role="listbox" aria-label="Arquivos"></div>
         </div>
         <div class="ap-menu-audio-block">
           <div class="ap-menu-section-label">Player (áudio e vídeo)</div>
-          <div class="ap-dd-toolbar">
-            <div class="culto-dd ap-dd" id="ap-audio-dd">
-              <button type="button" class="culto-dd-btn ap-dd-btn" id="ap-audio-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="ap-audio-dd-menu">
-                <span class="culto-dd-col-desc" id="ap-audio-selected">Selecione um áudio...</span>
-                <span class="culto-dd-caret" aria-hidden="true"></span>
-              </button>
-              <div id="ap-audio-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
-                <div id="apresentacao-audio-list"></div>
-              </div>
-            </div>
-            <button type="button" class="ap-menu-plus" id="apresentacao-audio-add" title="Adicionar áudio">+</button>
-          </div>
           <div class="ap-audio-player">
             <div id="ap-audio-now" class="ap-player-now">Nenhuma mídia no player</div>
             <div class="ap-vol-row" aria-label="Volume">
@@ -713,10 +701,9 @@
       </div>
     </div>
   </section>
-  <input type="file" id="apresentacao-add-menu-input" accept="image/*,video/*,application/pdf,.ppt,.pptx,.odp" style="display:none" multiple />
+  <input type="file" id="apresentacao-add-menu-input" accept="image/*,video/*,audio/*,application/pdf,.ppt,.pptx,.odp,.mp3,.wav,.ogg,.m4a,.aac" style="display:none" multiple />
   <input type="file" id="apresentacao-add-video-input" accept="video/*,.mp4,.webm,.mov,.mkv,.m4v,.ogv" style="display:none" multiple />
   <input type="file" id="apresentacao-add-card-input" accept="image/*,application/pdf,.ppt,.pptx,.odp" style="display:none" />
-  <input type="file" id="apresentacao-add-audio-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" style="display:none" multiple />
 
   <!-- DOCS — área própria do modo `app-mod-docs`. Por agora só a importação de
        ficheiros; abrir, exibir e projetar documentos ainda não existe. O bloco

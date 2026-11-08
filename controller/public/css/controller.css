@@ -8952,6 +8952,230 @@ img.ap-card5-video-thumb {
 .ap-menu-audio-block .ap-menu-section-label {
   margin: 0 0 14px 0;
 }
+/* ─── Biblioteca única de arquivos (modo Mídias) ───
+   Ocupa a altura livre do painel; só a lista rola. Dourado só na aba ativa e na
+   borda do item em uso — o resto segue o texto neutro do tema. */
+.ap-menu-files-block.ap-lib-block {
+  flex: 1 1 0;
+  min-height: 180px;
+  padding-bottom: 12px;
+  container-type: inline-size;
+}
+.ap-lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ap-lib-head .ap-menu-section-label {
+  margin: 0;
+}
+.ap-lib-import {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-400);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ap-lib-import:hover {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+.ap-lib-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  flex: 0 0 auto;
+}
+.ap-lib-search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+}
+.ap-lib-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-400);
+  min-height: 36px;
+}
+.ap-lib-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  margin-bottom: 8px;
+  flex: 0 0 auto;
+}
+.ap-lib-tab {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: var(--fs-400);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+}
+.ap-lib-tab:hover {
+  color: var(--text);
+}
+.ap-lib-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.ap-lib-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 6px;
+}
+@container (min-width: 300px) {
+  .ap-lib-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ap-lib-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 4px;
+  font-size: var(--fs-400);
+  text-align: center;
+}
+.ap-lib-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px 6px 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.ap-lib-item[draggable="true"] { cursor: grab; }
+.ap-lib-item:hover,
+.ap-lib-item:focus-visible {
+  background: var(--surface2);
+  outline: none;
+}
+.ap-lib-item[aria-selected="true"] {
+  border-left-color: var(--accent);
+  background: var(--surface2);
+}
+.ap-lib-thumb {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface2);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ap-lib-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ap-lib-thumb svg {
+  width: 20px;
+  height: 20px;
+}
+.ap-lib-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ap-lib-name,
+.ap-lib-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ap-lib-name {
+  font-size: var(--fs-400);
+  color: var(--text);
+}
+.ap-lib-meta {
+  font-size: var(--fs-300);
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.ap-lib-more {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-500);
+  line-height: 1;
+  cursor: pointer;
+}
+.ap-lib-more:hover,
+.ap-lib-more[aria-expanded="true"] {
+  background: var(--surface2);
+  color: var(--text);
+}
+.ap-lib-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+.ap-lib-menu[hidden] { display: none; }
+.ap-lib-menu button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-400);
+  text-align: left;
+  cursor: pointer;
+}
+.ap-lib-menu button:hover { background: var(--surface2); }
+.ap-lib-menu button.is-danger { color: var(--red); }
 /* ─── Playlist de vídeos ───
    Ocupa a altura restante do painel; só a lista interna rola. */
 .ap-menu-playlist-block {
@@ -11697,31 +11921,31 @@ html.dark .cfg-form-select {
 /* Select nativo não permite espaçamento nas opções no Windows — lista customizada */
 .hdr-encerrar-projecao-btn {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   box-sizing: border-box;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: color-mix(in srgb, var(--red) 88%, var(--text) 12%);
+  background: color-mix(in srgb, var(--surface2) 82%, var(--red) 18%);
+  border: 1px solid color-mix(in srgb, var(--red) 30%, var(--border));
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--red) 55%, #ff9a94);
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .hdr-encerrar-projecao-btn:hover {
-  border-color: color-mix(in srgb, var(--red) 62%, var(--border));
-  background: color-mix(in srgb, var(--surface2) 86%, var(--red) 14%);
-  color: color-mix(in srgb, var(--red) 95%, var(--text) 5%);
+  border-color: color-mix(in srgb, var(--red) 60%, var(--border));
+  background: color-mix(in srgb, var(--surface2) 70%, var(--red) 30%);
+  color: #ffb3ae;
 }
 .hdr-encerrar-projecao-btn:active {
   transform: scale(0.96);
 }
 .hdr-encerrar-projecao-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: block;
   pointer-events: none;
 }
@@ -11812,20 +12036,20 @@ body.app-mod-docs .hdr-lembrar-monitor {
   border-color: var(--accent);
 }
 
-/* Rota «Não exibir» (-1): sem projeção em monitor externo — só pré-visualizações no painel */
+/* Rota «Não exibir» (-1): sem projeção em monitor externo — só pré-visualizações no painel.
+   Âmbar de aviso (o mesmo de .hdr-monitores-aviso), não o vermelho de alerta. */
 .route-dd.route-dd--rota-desativada .route-dd-btn {
-  border-color: color-mix(in srgb, var(--red) 52%, var(--border));
-  background: color-mix(in srgb, var(--surface2) 86%, var(--red) 14%);
-  color: color-mix(in srgb, var(--red) 88%, var(--text) 12%);
+  border-color: color-mix(in srgb, #ffb347 52%, var(--border));
+  background: color-mix(in srgb, var(--surface2) 88%, #ffb347 12%);
+  color: #ffb347;
 }
 
 .route-dd.route-dd--rota-desativada .route-dd-btn:hover {
-  border-color: color-mix(in srgb, var(--red) 62%, var(--border));
-  color: color-mix(in srgb, var(--red) 95%, var(--text) 5%);
+  border-color: color-mix(in srgb, #ffb347 70%, var(--border));
 }
 
 .route-dd-open.route-dd--rota-desativada .route-dd-btn {
-  border-color: color-mix(in srgb, var(--red) 70%, var(--accent) 30%);
+  border-color: #ffb347;
 }
 
 .route-dd.route-dd--bloqueado-apresentacao .route-dd-btn:disabled {
@@ -11834,7 +12058,7 @@ body.app-mod-docs .hdr-lembrar-monitor {
 }
 
 /* Só um monitor de projeção: o retorno do ministrante não tem para onde ir.
-   Cinzento neutro, e não vermelho de «Não exibir» — não é um erro de configuração,
+   Cinzento neutro, e não o âmbar de «Não exibir» — não é um erro de configuração,
    é o limite do hardware ligado. */
 .route-dd.route-dd--sem-monitor .route-dd-btn:disabled {
   cursor: not-allowed;
@@ -12274,3 +12498,58 @@ body.app-mod-slides .playlist-row .pl-num-badge {
   margin-right: 16px;
 }
 
+
+/* ─── Modo Mídias: paleta neutra, alinhada ao modo Home ───
+   Dourado só onde sinaliza estado (aba ativa, item em uso, repetir ligado, playlist
+   tocando). Títulos, divisórias, bordas e hovers ficam em tons neutros. */
+#painel-modo-apresentacao .ap-menu-section-label {
+  color: var(--text-dim);
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+}
+#painel-modo-apresentacao .ap-menu-section-label::before {
+  opacity: 0.7;
+}
+#painel-modo-apresentacao .ap-menu-audio-block,
+#painel-modo-apresentacao .ap-menu-playlist-block {
+  border-top-color: var(--border);
+}
+#painel-modo-apresentacao .ap-lib-import:hover,
+#painel-modo-apresentacao .ap-lib-search:focus-within,
+#painel-modo-apresentacao .ap-playlist-overflow-btn:hover,
+#painel-modo-apresentacao .ap-playlist-overflow-btn[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--text) 32%, var(--border));
+}
+#painel-modo-apresentacao .ap-lib-tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+#painel-modo-apresentacao .ap-lib-item {
+  border-color: var(--border);
+  border-left-color: transparent;
+  background: var(--surface);
+}
+#painel-modo-apresentacao .ap-lib-item:hover,
+#painel-modo-apresentacao .ap-lib-item:focus-visible,
+#painel-modo-apresentacao .ap-lib-item[aria-selected="true"] {
+  background: var(--surface2);
+}
+#painel-modo-apresentacao .ap-lib-item[aria-selected="true"] {
+  border-left-color: var(--accent);
+}
+
+/* Modo Mídias: títulos dos cards (CARD 1…6) centralizados.
+   Padding lateral reserva o espaço do botão de remover (canto direito). */
+#painel-modo-apresentacao .ap-card-num {
+  left: 0;
+  right: 0;
+  padding: 0 40px;
+  text-align: center;
+  box-sizing: border-box;
+}
+#painel-modo-apresentacao .ap-card.ap-card--aviso .ap-card-num {
+  display: block;
+  padding: 0;
+}

@@ -4097,122 +4097,329 @@ function criarItemApresentacaoDeArquivo(file, onDone) {
   entregarPorDataUrl();
 }
 
-function renderListaAudiosApresentacao() {
-  const list = document.getElementById('apresentacao-audio-list');
-  const selLabel = document.getElementById('ap-audio-selected');
-  if (!list) return;
-  list.innerHTML = '';
-  const atual = apresentacaoAudios.find((x) => x.id === apresentacaoAudioAtualId) || null;
-  if (selLabel) {
-    selLabel.textContent = atual ? `Áudio: ${atual.name}` : 'Selecione um áudio...';
-    selLabel.title = atual && atual.name ? String(atual.name) : '';
+/* ═══════════════════════════════════════════════════════════════════════════
+   Biblioteca de arquivos (modo Mídias)
+   Substitui os dois seletores antigos ("Arquivos no menu" e "Player"). Os dados são os
+   mesmos: `apresentacaoBiblioteca` (imagem, vídeo, PDF…) e `apresentacaoAudios`. Clique
+   seleciona (id próprio de cada lista), duplo clique projeta — exatamente como antes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SS_AP_LIB_ABA = 'lyra.apLibAba';
+let apLibBusca = '';
+let apLibAba = (() => {
+  try {
+    const v = sessionStorage.getItem(SS_AP_LIB_ABA);
+    return v === 'video' || v === 'audio' ? v : 'image';
+  } catch (_) {
+    return 'image';
   }
-  if (!apresentacaoAudios.length) {
-    list.innerHTML = '<div class="placeholder-msg" style="margin:4px 0 0;">Lista suspensa com todos os áudios.</div>';
+})();
+
+function apLibDefinirAba(aba, { render = true } = {}) {
+  apLibAba = aba === 'video' || aba === 'audio' ? aba : 'image';
+  try {
+    sessionStorage.setItem(SS_AP_LIB_ABA, apLibAba);
+  } catch (_) {
+    /* sem sessionStorage: a aba só não é lembrada */
+  }
+  if (render) renderBibliotecaMidiasApresentacao();
+}
+
+function apLibAbaDoItem(item, origem) {
+  if (origem === 'audio') return 'audio';
+  const k = String(item?.kind || '').toLowerCase();
+  if (k === 'video' || k === 'audio') return k;
+  return 'image';
+}
+
+function apLibFecharMenus() {
+  document.querySelectorAll('.ap-lib-menu').forEach((m) => {
+    m.hidden = true;
+  });
+  document.querySelectorAll('#ap-lib-list .ap-lib-more[aria-expanded="true"]').forEach((b) => {
+    b.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function apLibRenomear(entry, nameEl) {
+  const { item, origem } = entry;
+  const main = nameEl?.parentElement;
+  if (!nameEl || !main || main.querySelector('input.ap-menu-edit-input')) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ap-menu-edit-input';
+  input.value = String(item.name || '').trim();
+  input.maxLength = 140;
+  input.setAttribute('aria-label', 'Novo nome do arquivo');
+  nameEl.replaceWith(input);
+  ['click', 'mousedown', 'dblclick', 'dragstart'].forEach((t) => input.addEventListener(t, (e) => e.stopPropagation()));
+  input.focus();
+  input.select();
+  let feito = false;
+  const salvar = () => {
+    if (feito) return;
+    feito = true;
+    const novo = String(input.value || '').trim();
+    if (!novo) {
+      renderBibliotecaMidiasApresentacao();
+      return;
+    }
+    if (origem === 'audio') {
+      const alvo = apresentacaoAudios.find((x) => x && x.id === item.id);
+      if (alvo) {
+        alvo.name = novo;
+        alvo.title = novo;
+      }
+      if (apresentacaoAudioAtualId === item.id && audioStateRemoto.name) {
+        audioStateRemoto = { ...audioStateRemoto, name: novo };
+        atualizarUiPlayerAudioRemoto();
+      }
+    } else {
+      const atualizar = (obj) => {
+        if (!obj || obj.id !== item.id) return;
+        obj.name = novo;
+        obj.title = novo;
+      };
+      apresentacaoBiblioteca.forEach(atualizar);
+      apresentacaoCards.forEach(atualizar);
+    }
+    salvarEstadoModoApresentacaoNoStorage();
+    renderBibliotecaMidiasApresentacao();
+    if (origem !== 'audio') renderGridApresentacao();
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      salvar();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      feito = true;
+      renderBibliotecaMidiasApresentacao();
+    }
+  });
+  input.addEventListener('blur', salvar);
+}
+
+async function apLibExcluir(entry) {
+  const { item, origem } = entry;
+  if (origem === 'audio') {
+    const ok = await appConfirm(`Excluir "${item.name}" da lista de áudios?`, 'Modo apresentação');
+    if (!ok) return;
+    const eraAtual = apresentacaoAudioAtualId === item.id;
+    apresentacaoAudios = (apresentacaoAudios || []).filter((x) => x && x.id !== item.id);
+    if (eraAtual) {
+      apresentacaoAudioAtualId = null;
+      pararAudioServidorPlayback();
+      atualizarUiPlayerAudioRemoto();
+      sincronizarPillProjecaoNav();
+    }
+    salvarEstadoModoApresentacaoNoStorage();
+    renderBibliotecaMidiasApresentacao();
     return;
   }
-  apresentacaoAudios.forEach((item) => {
+  const ok = await appConfirm(`Excluir "${item.name}" do menu de arquivos?`, 'Modo apresentação');
+  if (!ok) return;
+  apresentacaoBiblioteca = (apresentacaoBiblioteca || []).filter((x) => x && x.id !== item.id);
+  apresentacaoCards = (apresentacaoCards || []).map((x) => (x && x.id === item.id ? null : x));
+  apresentacaoCard4Imagens = (apresentacaoCard4Imagens || []).map((x) => (x && x.id === item.id ? null : x));
+  if (apresentacaoArquivoSelecionadoId === item.id) apresentacaoArquivoSelecionadoId = null;
+  if (apresentacaoMidiaProjetadaId === item.id) {
+    apresentacaoMidiaProjetadaId = null;
+    void emitirEncerrarApresentacaoPublicoAoServidor();
+  }
+  salvarEstadoModoApresentacaoNoStorage();
+  renderBibliotecaMidiasApresentacao();
+  atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Arquivo removido do menu.' });
+}
+
+function renderBibliotecaMidiasApresentacao() {
+  const list = document.getElementById('ap-lib-list');
+  if (!list) return;
+  document.querySelectorAll('#painel-modo-apresentacao .ap-lib-tab').forEach((t) => {
+    t.setAttribute('aria-selected', t.dataset.tab === apLibAba ? 'true' : 'false');
+  });
+  const entradas = [
+    ...apresentacaoBiblioteca.map((item) => ({ item, origem: 'bib' })),
+    ...apresentacaoAudios.map((item) => ({ item, origem: 'audio' })),
+  ].filter((e) => e.item && apLibAbaDoItem(e.item, e.origem) === apLibAba);
+  const q = apLibBusca.trim().toLowerCase();
+  const filtradas = q ? entradas.filter((e) => String(e.item.name || '').toLowerCase().includes(q)) : entradas;
+
+  document.querySelectorAll('body > .ap-lib-menu').forEach((m) => m.remove());
+  list.innerHTML = '';
+  if (!filtradas.length) {
+    const vazio = document.createElement('div');
+    vazio.className = 'placeholder-msg ap-lib-empty';
+    const nomes = { image: 'imagem', video: 'vídeo', audio: 'áudio' };
+    vazio.textContent = q
+      ? 'Nenhum arquivo encontrado.'
+      : `Nenhum${apLibAba === 'image' ? 'a' : ''} ${nomes[apLibAba]}. Use + Importar.`;
+    list.appendChild(vazio);
+    return;
+  }
+  filtradas.forEach((entry) => {
+    const { item, origem } = entry;
+    const selecionado = origem === 'audio' ? apresentacaoAudioAtualId === item.id : apresentacaoArquivoSelecionadoId === item.id;
     const row = document.createElement('div');
-    row.className = 'ap-menu-item';
-    row.innerHTML = `
-      <div class="ap-menu-item-main">
-        <div class="ap-menu-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-        <span class="ap-menu-item-meta">áudio</span>
-      </div>
-      <div class="ap-menu-item-actions">
-        <button type="button" class="ap-menu-action edit" title="Editar nome" aria-label="Editar nome">✏</button>
-        <button type="button" class="ap-menu-action delete" title="Excluir do menu" aria-label="Excluir do menu">✕</button>
-      </div>
-    `;
+    row.className = 'ap-lib-item';
     row.setAttribute('role', 'option');
-    row.setAttribute('aria-selected', apresentacaoAudioAtualId && item.id === apresentacaoAudioAtualId ? 'true' : 'false');
-    row.addEventListener('dblclick', () => {
-      projetarItemApresentacao(item);
-      renderListaAudiosApresentacao();
-      fecharApAudioDropdown();
-    });
-    row.addEventListener('click', (ev) => {
-      if (ev.target instanceof HTMLElement && ev.target.closest('.ap-menu-item-actions, .ap-menu-edit-input')) return;
-      apresentacaoAudioAtualId = item.id;
-      salvarEstadoModoApresentacaoNoStorage();
-      renderListaAudiosApresentacao();
-      fecharApAudioDropdown();
-    });
-
-    const btnEdit = row.querySelector('.ap-menu-action.edit');
-    const btnDelete = row.querySelector('.ap-menu-action.delete');
-    const nameWrap = row.querySelector('.ap-menu-item-name');
-    const mainWrap = row.querySelector('.ap-menu-item-main');
-
-    btnEdit?.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (!nameWrap || !mainWrap) return;
-      if (mainWrap.querySelector('input.ap-menu-edit-input')) return;
-      const valorAtual = String(item.name || '').trim();
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'ap-menu-edit-input';
-      input.value = valorAtual;
-      input.maxLength = 140;
-      nameWrap.replaceWith(input);
-      input.addEventListener('click', (e) => e.stopPropagation());
-      input.addEventListener('mousedown', (e) => e.stopPropagation());
-      input.focus();
-      input.select();
-
-      const salvarNome = () => {
-        const novoNome = String(input.value || '').trim();
-        if (!novoNome) {
-          renderListaAudiosApresentacao();
-          return;
-        }
-        const alvo = apresentacaoAudios.find((x) => x && x.id === item.id);
-        if (alvo) {
-          alvo.name = novoNome;
-          alvo.title = novoNome;
-        }
-        if (apresentacaoAudioAtualId === item.id && audioStateRemoto.name) {
-          audioStateRemoto = { ...audioStateRemoto, name: novoNome };
-          atualizarUiPlayerAudioRemoto();
-        }
-        salvarEstadoModoApresentacaoNoStorage();
-        renderListaAudiosApresentacao();
-      };
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          salvarNome();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          renderListaAudiosApresentacao();
-        }
+    row.setAttribute('aria-selected', selecionado ? 'true' : 'false');
+    row.tabIndex = 0;
+    if (origem === 'bib') {
+      row.draggable = true;
+      row.dataset.itemId = item.id;
+      row.addEventListener('dragstart', (ev) => {
+        ev.dataTransfer.setData('text/plain', item.id);
+        ev.dataTransfer.effectAllowed = 'copyMove';
       });
-      input.addEventListener('blur', salvarNome);
-    });
+    }
+    const thumb = document.createElement('div');
+    thumb.className = 'ap-lib-thumb';
+    const kind = String(item.kind || (origem === 'audio' ? 'audio' : '')).toLowerCase();
+    const imgSrc =
+      kind === 'image' ? srcImagemApresentacaoSeguro(item.src, item) : kind === 'video' ? obterThumbVideoApresentacao(item) : '';
+    if (imgSrc) {
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.draggable = false;
+      thumb.appendChild(img);
+    } else {
+      thumb.innerHTML = svgIconeTipoMidiaApresentacao(kind);
+    }
+    const main = document.createElement('div');
+    main.className = 'ap-lib-main';
+    const nome = document.createElement('div');
+    nome.className = 'ap-lib-name';
+    nome.textContent = String(item.name || 'arquivo');
+    nome.title = String(item.name || '');
+    const meta = document.createElement('div');
+    meta.className = 'ap-lib-meta';
+    const dur = Number(item.duration) > 0 ? ` · ${fmtTempoAudio(item.duration)}` : '';
+    meta.textContent = rotuloTipoMidiaApresentacao(kind) + dur;
+    main.append(nome, meta);
 
-    btnDelete?.addEventListener('click', async (ev) => {
-      ev.preventDefault();
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'ap-lib-more';
+    more.setAttribute('aria-label', `Mais ações para ${item.name || 'arquivo'}`);
+    more.setAttribute('aria-haspopup', 'menu');
+    more.setAttribute('aria-expanded', 'false');
+    more.textContent = '⋯';
+    const menu = document.createElement('div');
+    menu.className = 'ap-lib-menu';
+    menu.setAttribute('role', 'menu');
+    menu.hidden = true;
+    const bRen = document.createElement('button');
+    bRen.type = 'button';
+    bRen.setAttribute('role', 'menuitem');
+    bRen.textContent = 'Renomear';
+    const bDel = document.createElement('button');
+    bDel.type = 'button';
+    bDel.setAttribute('role', 'menuitem');
+    bDel.className = 'is-danger';
+    bDel.textContent = 'Excluir';
+    menu.append(bRen, bDel);
+    more.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      const ok = await appConfirm(`Excluir "${item.name}" da lista de áudios?`, 'Modo apresentação');
-      if (!ok) return;
-      const eraAtual = apresentacaoAudioAtualId === item.id;
-      apresentacaoAudios = (apresentacaoAudios || []).filter((x) => x && x.id !== item.id);
-      if (eraAtual) {
-        apresentacaoAudioAtualId = null;
-        pararAudioServidorPlayback();
-        atualizarUiPlayerAudioRemoto();
-        /* A faixa saiu do ar com ela: sem isto a pill ficava a anunciar uma projeção
-           que já não existe até ao próximo redesenho do feedback. */
-        sincronizarPillProjecaoNav();
+      const abrir = menu.hidden;
+      apLibFecharMenus();
+      menu.hidden = !abrir;
+      more.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+      if (abrir) {
+        /* No <body> e position: fixed — a lista rola e o container do painel contém o layout, e ambos cortariam o menu. */
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.hidden = false;
+        const r = more.getBoundingClientRect();
+        const h = menu.offsetHeight || 96;
+        const w = menu.offsetWidth || 140;
+        const abaixo = r.bottom + 4 + h <= window.innerHeight - 8;
+        menu.style.top = `${Math.max(8, abaixo ? r.bottom + 4 : r.top - h - 4)}px`;
+        menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
       }
-      salvarEstadoModoApresentacaoNoStorage();
-      renderListaAudiosApresentacao();
+    });
+    bRen.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      apLibFecharMenus();
+      apLibRenomear(entry, nome);
+    });
+    bDel.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      apLibFecharMenus();
+      void apLibExcluir(entry);
     });
 
+    const escolher = () => {
+      if (origem === 'audio') apresentacaoAudioAtualId = item.id;
+      else apresentacaoArquivoSelecionadoId = item.id || null;
+      salvarEstadoModoApresentacaoNoStorage();
+      renderBibliotecaMidiasApresentacao();
+    };
+    const ehControle = (ev) =>
+      ev.target instanceof HTMLElement && ev.target.closest('.ap-lib-more, .ap-lib-menu, .ap-menu-edit-input');
+    row.addEventListener('click', (ev) => {
+      if (ehControle(ev)) return;
+      escolher();
+    });
+    row.addEventListener('dblclick', (ev) => {
+      if (ehControle(ev)) return;
+      projetarItemApresentacao(item);
+      if (origem === 'audio') renderBibliotecaMidiasApresentacao();
+    });
+    row.addEventListener('keydown', (ev) => {
+      if (ev.target !== row) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        escolher();
+      }
+    });
+    row.append(thumb, main, more, menu);
     list.appendChild(row);
   });
+}
+
+function configurarBibliotecaMidiasApresentacao() {
+  document.querySelectorAll('#painel-modo-apresentacao .ap-lib-tab').forEach((t) => {
+    t.addEventListener('click', () => apLibDefinirAba(t.dataset.tab));
+  });
+  document.getElementById('ap-lib-search')?.addEventListener('input', (e) => {
+    apLibBusca = String(e.target.value || '');
+    renderBibliotecaMidiasApresentacao();
+  });
+  document.getElementById('ap-lib-list')?.addEventListener('scroll', apLibFecharMenus, { passive: true });
+  document.getElementById('ap-lib-import')?.addEventListener('click', () => escolherArquivoModoApresentacao());
+  document.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element) || !e.target.closest('.ap-lib-more, .ap-lib-menu')) apLibFecharMenus();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') apLibFecharMenus();
+  });
+}
+
+/** Mantidos como pontos de entrada: muitos fluxos chamam estes nomes ao mudar os dados. */
+function renderMenuApresentacao() {
+  renderBibliotecaMidiasApresentacao();
+}
+
+function renderListaAudiosApresentacao() {
+  renderBibliotecaMidiasApresentacao();
+}
+
+/** Importação única: áudio segue o fluxo do Player; o resto, o de "Arquivos no menu". */
+function importarArquivosBibliotecaMidias(files) {
+  const lista = Array.from(files || []);
+  if (!lista.length) return;
+  const kindDe = (f) => detectarKindApresentacaoPorMimeOuNome(String(f.type || ''), String(f.name || ''));
+  const audios = lista.filter((f) => kindDe(f) === 'audio');
+  const demais = lista.filter((f) => kindDe(f) !== 'audio');
+  const primeiro = kindDe(lista[0]);
+  apLibDefinirAba(primeiro === 'video' || primeiro === 'audio' ? primeiro : 'image', { render: false });
+  apLibBusca = '';
+  const campo = document.getElementById('ap-lib-search');
+  if (campo) campo.value = '';
+  if (audios.length) adicionarAudiosAoMenu(audios);
+  if (demais.length) adicionarArquivosAoMenu(demais);
+  renderBibliotecaMidiasApresentacao();
 }
 
 function adicionarAudiosAoMenu(files) {
@@ -4740,132 +4947,6 @@ function pararAudioServidor() {
   }
 }
 
-function renderMenuApresentacao() {
-  const list = document.getElementById('apresentacao-menu-list');
-  const selLabel = document.getElementById('ap-files-selected');
-  if (!list) return;
-  list.innerHTML = '';
-  const atual = apresentacaoBiblioteca.find((x) => x.id === apresentacaoArquivoSelecionadoId) || null;
-  if (selLabel) {
-    selLabel.textContent = atual ? `Arquivo: ${atual.name}` : 'Selecione um arquivo...';
-    selLabel.title = atual && atual.name ? String(atual.name) : '';
-  }
-  if (!apresentacaoBiblioteca.length) {
-    list.innerHTML = '<div class="placeholder-msg">Sem arquivos no menu.</div>';
-    return;
-  }
-  apresentacaoBiblioteca.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'ap-menu-item';
-    row.draggable = true;
-    row.dataset.itemId = item.id;
-    row.setAttribute('role', 'option');
-    row.setAttribute('aria-selected', apresentacaoArquivoSelecionadoId && item.id === apresentacaoArquivoSelecionadoId ? 'true' : 'false');
-    row.innerHTML = `
-      <div class="ap-menu-item-main">
-        <div class="ap-menu-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-        <span class="ap-menu-item-meta">${escapeHtml(item.kind)}</span>
-      </div>
-      <div class="ap-menu-item-actions">
-        <button type="button" class="ap-menu-action edit" title="Editar nome" aria-label="Editar nome">✏</button>
-        <button type="button" class="ap-menu-action delete" title="Excluir do menu" aria-label="Excluir do menu">✕</button>
-      </div>
-    `;
-    row.addEventListener('dragstart', (ev) => {
-      ev.dataTransfer.setData('text/plain', item.id);
-      ev.dataTransfer.effectAllowed = 'copyMove';
-    });
-    row.addEventListener('dblclick', () => {
-      projetarItemApresentacao(item);
-      fecharApFilesDropdown();
-    });
-    row.addEventListener('click', (ev) => {
-      if (ev.target instanceof HTMLElement && ev.target.closest('.ap-menu-item-actions, .ap-menu-edit-input')) return;
-      apresentacaoArquivoSelecionadoId = item.id || null;
-      salvarEstadoModoApresentacaoNoStorage();
-      renderMenuApresentacao();
-      fecharApFilesDropdown();
-    });
-
-    const btnEdit = row.querySelector('.ap-menu-action.edit');
-    const btnDelete = row.querySelector('.ap-menu-action.delete');
-    const nameWrap = row.querySelector('.ap-menu-item-name');
-    const mainWrap = row.querySelector('.ap-menu-item-main');
-
-    btnEdit?.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (!nameWrap || !mainWrap) return;
-      if (mainWrap.querySelector('input.ap-menu-edit-input')) return;
-      const valorAtual = String(item.name || '').trim();
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'ap-menu-edit-input';
-      input.value = valorAtual;
-      input.maxLength = 140;
-      nameWrap.replaceWith(input);
-      input.addEventListener('click', (e) => e.stopPropagation());
-      input.addEventListener('mousedown', (e) => e.stopPropagation());
-      input.focus();
-      input.select();
-
-      const salvarNome = () => {
-        const novoNome = String(input.value || '').trim();
-        if (!novoNome) {
-          renderMenuApresentacao();
-          return;
-        }
-        const atualizarNome = (obj) => {
-          if (!obj || obj.id !== item.id) return;
-          obj.name = novoNome;
-          obj.title = novoNome;
-        };
-        apresentacaoBiblioteca.forEach(atualizarNome);
-        apresentacaoCards.forEach(atualizarNome);
-        if (apresentacaoArquivoSelecionadoId === item.id) {
-          const selecionado = apresentacaoBiblioteca.find((x) => x.id === item.id);
-          if (selecionado) {
-            selecionado.name = novoNome;
-            selecionado.title = novoNome;
-          }
-        }
-        salvarEstadoModoApresentacaoNoStorage();
-        renderMenuApresentacao();
-        renderGridApresentacao();
-      };
-
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          salvarNome();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          renderMenuApresentacao();
-        }
-      });
-      input.addEventListener('blur', salvarNome);
-    });
-
-    btnDelete?.addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const ok = await appConfirm(`Excluir "${item.name}" do menu de arquivos?`, 'Modo apresentação');
-      if (!ok) return;
-      apresentacaoBiblioteca = (apresentacaoBiblioteca || []).filter((x) => x && x.id !== item.id);
-      apresentacaoCards = (apresentacaoCards || []).map((x) => (x && x.id === item.id ? null : x));
-      apresentacaoCard4Imagens = (apresentacaoCard4Imagens || []).map((x) => (x && x.id === item.id ? null : x));
-      if (apresentacaoArquivoSelecionadoId === item.id) apresentacaoArquivoSelecionadoId = null;
-      if (apresentacaoMidiaProjetadaId === item.id) {
-        apresentacaoMidiaProjetadaId = null;
-        void emitirEncerrarApresentacaoPublicoAoServidor();
-      }
-      salvarEstadoModoApresentacaoNoStorage();
-      renderMenuApresentacao();
-      atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Arquivo removido do menu.' });
-    });
-    list.appendChild(row);
-  });
-}
 
 /**
  * URL segura para `<img>` nos cards: só conteúdo **imagem** (`data:image/…`, `blob:` ou
@@ -6828,76 +6909,6 @@ function setupCultoDropdown() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') fecharCultoDropdown();
-  });
-}
-
-function fecharApAudioDropdown() {
-  const wrap = document.getElementById('ap-audio-dd');
-  const btn = document.getElementById('ap-audio-dd-btn');
-  const menu = document.getElementById('ap-audio-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  wrap.classList.remove('open');
-  menu.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-}
-
-function fecharApFilesDropdown() {
-  const wrap = document.getElementById('ap-files-dd');
-  const btn = document.getElementById('ap-files-dd-btn');
-  const menu = document.getElementById('ap-files-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  wrap.classList.remove('open');
-  menu.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-}
-
-function setupApAudioDropdown() {
-  const wrap = document.getElementById('ap-audio-dd');
-  const btn = document.getElementById('ap-audio-dd-btn');
-  const menu = document.getElementById('ap-audio-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharApAudioDropdown();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!wrap.contains(e.target)) fecharApAudioDropdown();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharApAudioDropdown();
-  });
-}
-
-function setupApFilesDropdown() {
-  const wrap = document.getElementById('ap-files-dd');
-  const btn = document.getElementById('ap-files-dd-btn');
-  const menu = document.getElementById('ap-files-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharApFilesDropdown();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!wrap.contains(e.target)) fecharApFilesDropdown();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharApFilesDropdown();
   });
 }
 
@@ -9949,8 +9960,6 @@ function fecharOutrosSeletoresDropdown(excetoWrap) {
     if (w !== excetoWrap) fecharLyraSelectDropdownWrap(w);
   });
   if (document.getElementById('culto-dd') !== excetoWrap) fecharCultoDropdown();
-  if (document.getElementById('ap-audio-dd') !== excetoWrap) fecharApAudioDropdown();
-  if (document.getElementById('ap-files-dd') !== excetoWrap) fecharApFilesDropdown();
   if (document.getElementById('docs-files-dd') !== excetoWrap) fecharDocsFilesDropdown();
   document.querySelectorAll('.route-dd').forEach((wrap) => {
     if (wrap === excetoWrap) return;
@@ -25410,8 +25419,7 @@ try {
       musicaAtiva && Array.isArray(musicaAtiva.estrofes) ? musicaAtiva.estrofes.length : 0,
     ehModoSlides: ehModoSlidesOperador,
   });
-  setupApAudioDropdown();
-  setupApFilesDropdown();
+  configurarBibliotecaMidiasApresentacao();
   carregarDocsBibliotecaDoStorage();
   setupDocsFilesDropdown();
   renderListaDocsImportados();
@@ -25572,7 +25580,8 @@ document.getElementById('busca-letras-panel')?.addEventListener('click', () => {
 });
 document.getElementById('apresentacao-add-menu-input')?.addEventListener('change', (e) => {
   const files = e?.target?.files;
-  if (files?.length) adicionarArquivosAoMenu(files);
+  if (files?.length) importarArquivosBibliotecaMidias(files);
+  if (e.target) e.target.value = '';
 });
 document.getElementById('apresentacao-add-card-input')?.addEventListener('change', (e) => {
   const f = e?.target?.files?.[0];
@@ -25588,11 +25597,6 @@ document.getElementById('apresentacao-add-card-input')?.addEventListener('change
   }
   if (e.target) e.target.value = '';
 });
-document.getElementById('apresentacao-add-audio-input')?.addEventListener('change', (e) => {
-  const files = e?.target?.files;
-  if (files?.length) adicionarAudiosAoMenu(files);
-});
-document.getElementById('apresentacao-menu-add')?.addEventListener('click', () => escolherArquivoModoApresentacao());
 document.getElementById('docs-menu-add')?.addEventListener('click', () => escolherArquivoModoDocs());
 /* Mesma regra do clique na miniatura e do teclado: com projeção no ar, a página nova vai
    ao telão; parado, os botões só escolhem. */
@@ -25611,12 +25615,6 @@ document.getElementById('docs-add-input')?.addEventListener('change', (e) => {
   const files = e?.target?.files;
   if (files?.length) adicionarArquivosAosDocs(files);
   if (e.target) e.target.value = '';
-});
-document.getElementById('apresentacao-audio-add')?.addEventListener('click', () => {
-  const input = document.getElementById('apresentacao-add-audio-input');
-  if (!input) return;
-  input.value = '';
-  input.click();
 });
 document.getElementById('apresentacao-add-video-input')?.addEventListener('change', (e) => {
   const files = e?.target?.files;
