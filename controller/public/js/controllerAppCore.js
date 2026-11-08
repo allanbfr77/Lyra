@@ -636,46 +636,81 @@ function salvarDocsBibliotecaNoStorage() {
 }
 }
 
+let docsBusca = '';
+
 function renderListaDocsImportados() {
-  const list = document.getElementById('docs-menu-list');
-  const selLabel = document.getElementById('docs-files-selected');
+  const list = document.getElementById('docs-lib-list');
   if (!list) return;
+  document.querySelectorAll('body > .ap-lib-menu').forEach((m) => m.remove());
   list.innerHTML = '';
-  const atual = docsBiblioteca.find((x) => x.id === docsSelecionadoId) || null;
-  if (selLabel) {
-    selLabel.textContent = atual ? atual.name : 'Selecione um arquivo...';
-    selLabel.title = atual ? String(atual.name) : '';
-  }
-  if (!docsBiblioteca.length) {
-    list.innerHTML =
-      '<div class="placeholder-msg" style="margin:4px 0 0;">Nenhum documento importado. Use o «+» para adicionar PowerPoint, PDF ou Word.</div>';
+  const q = docsBusca.trim().toLowerCase();
+  const itens = q ? docsBiblioteca.filter((x) => String(x.name || '').toLowerCase().includes(q)) : docsBiblioteca;
+  if (!itens.length) {
+    const vazio = document.createElement('div');
+    vazio.className = 'placeholder-msg ap-lib-empty';
+    vazio.textContent = q ? 'Nenhum documento encontrado.' : 'Nenhum documento. Use + Importar.';
+    list.appendChild(vazio);
     return;
   }
-  docsBiblioteca.forEach((item) => {
+  itens.forEach((item) => {
     const row = document.createElement('div');
-    row.className = 'ap-menu-item';
-    row.innerHTML = `
-      <div class="ap-menu-item-main">
-        <div class="ap-menu-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-        <span class="ap-menu-item-meta">${escapeHtml(rotuloTipoDocumento(item.name))}</span>
-      </div>
-      <div class="ap-menu-item-actions">
-        <button type="button" class="ap-menu-action delete" title="Remover da lista" aria-label="Remover da lista">✕</button>
-      </div>
-    `;
+    row.className = 'ap-lib-item';
     row.setAttribute('role', 'option');
     row.setAttribute('aria-selected', docsSelecionadoId && item.id === docsSelecionadoId ? 'true' : 'false');
-    row.addEventListener('click', (ev) => {
-      if (ev.target instanceof HTMLElement && ev.target.closest('.ap-menu-item-actions')) return;
-      docsSelecionadoId = item.id;
-      salvarDocsBibliotecaNoStorage();
-      renderListaDocsImportados();
-      fecharDocsFilesDropdown();
-      void abrirDocumentoSelecionadoNoDocs();
+    row.tabIndex = 0;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'ap-lib-thumb';
+    thumb.innerHTML = svgIconeTipoMidiaApresentacao('pdf');
+    const main = document.createElement('div');
+    main.className = 'ap-lib-main';
+    const nome = document.createElement('div');
+    nome.className = 'ap-lib-name';
+    nome.textContent = String(item.name || 'documento');
+    nome.title = String(item.name || '');
+    const meta = document.createElement('div');
+    meta.className = 'ap-lib-meta';
+    meta.textContent = rotuloTipoDocumento(item.name);
+    main.append(nome, meta);
+
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'ap-lib-more';
+    more.setAttribute('aria-label', `Mais ações para ${item.name || 'documento'}`);
+    more.setAttribute('aria-haspopup', 'menu');
+    more.setAttribute('aria-expanded', 'false');
+    more.textContent = '⋯';
+    const menu = document.createElement('div');
+    menu.className = 'ap-lib-menu';
+    menu.setAttribute('role', 'menu');
+    menu.hidden = true;
+    const bDel = document.createElement('button');
+    bDel.type = 'button';
+    bDel.setAttribute('role', 'menuitem');
+    bDel.className = 'is-danger';
+    bDel.textContent = 'Remover da lista';
+    menu.append(bDel);
+    more.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const abrir = menu.hidden;
+      apLibFecharMenus();
+      menu.hidden = !abrir;
+      more.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+      if (abrir) {
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.hidden = false;
+        const r = more.getBoundingClientRect();
+        const h = menu.offsetHeight || 56;
+        const w = menu.offsetWidth || 140;
+        const abaixo = r.bottom + 4 + h <= window.innerHeight - 8;
+        menu.style.top = `${Math.max(8, abaixo ? r.bottom + 4 : r.top - h - 4)}px`;
+        menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+      }
     });
-    row.querySelector('.ap-menu-action.delete')?.addEventListener('click', async (ev) => {
+    bDel.addEventListener('click', async (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      apLibFecharMenus();
       const ok = await appConfirm(`Remover "${item.name}" da lista de documentos?`, 'DOCS');
       if (!ok) return;
       const eraOAberto = docsDocumentoAbertoId === item.id;
@@ -687,8 +722,35 @@ function renderListaDocsImportados() {
       renderListaDocsImportados();
       if (eraOAberto) void abrirDocumentoSelecionadoNoDocs();
     });
+
+    const escolher = () => {
+      docsSelecionadoId = item.id;
+      salvarDocsBibliotecaNoStorage();
+      renderListaDocsImportados();
+      void abrirDocumentoSelecionadoNoDocs();
+    };
+    row.addEventListener('click', (ev) => {
+      if (ev.target instanceof HTMLElement && ev.target.closest('.ap-lib-more, .ap-lib-menu')) return;
+      escolher();
+    });
+    row.addEventListener('keydown', (ev) => {
+      if (ev.target !== row) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        escolher();
+      }
+    });
+    row.append(thumb, main, more);
     list.appendChild(row);
   });
+}
+
+function configurarBuscaDocsImportados() {
+  document.getElementById('docs-lib-search')?.addEventListener('input', (e) => {
+    docsBusca = String(e.target.value || '');
+    renderListaDocsImportados();
+  });
+  document.getElementById('docs-lib-list')?.addEventListener('scroll', apLibFecharMenus, { passive: true });
 }
 
 /**
@@ -743,41 +805,6 @@ function escolherArquivoModoDocs() {
   if (!input) return;
   input.value = '';
   input.click();
-}
-
-function fecharDocsFilesDropdown() {
-  const wrap = document.getElementById('docs-files-dd');
-  const btn = document.getElementById('docs-files-dd-btn');
-  const menu = document.getElementById('docs-files-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  wrap.classList.remove('open');
-  menu.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-}
-
-function setupDocsFilesDropdown() {
-  const wrap = document.getElementById('docs-files-dd');
-  const btn = document.getElementById('docs-files-dd-btn');
-  const menu = document.getElementById('docs-files-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharDocsFilesDropdown();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!wrap.contains(e.target)) fecharDocsFilesDropdown();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharDocsFilesDropdown();
-  });
 }
 
 /* ─── DOCS — faixa de páginas, prévia e projeção ───────────────────────────
@@ -9960,7 +9987,6 @@ function fecharOutrosSeletoresDropdown(excetoWrap) {
     if (w !== excetoWrap) fecharLyraSelectDropdownWrap(w);
   });
   if (document.getElementById('culto-dd') !== excetoWrap) fecharCultoDropdown();
-  if (document.getElementById('docs-files-dd') !== excetoWrap) fecharDocsFilesDropdown();
   document.querySelectorAll('.route-dd').forEach((wrap) => {
     if (wrap === excetoWrap) return;
     wrap.classList.remove('route-dd-open');
@@ -25421,7 +25447,7 @@ try {
   });
   configurarBibliotecaMidiasApresentacao();
   carregarDocsBibliotecaDoStorage();
-  setupDocsFilesDropdown();
+  configurarBuscaDocsImportados();
   renderListaDocsImportados();
   cultoId = resolverCultoInicialPorAgenda();
   initCultoSelect();

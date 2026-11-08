@@ -199,8 +199,8 @@
   --nav-color-slide: #257956;
   --nav-color-midias: #735fa7;
   --nav-color-docs: #2f62ac;
-  /* Seleção da página na faixa do DOCS — azul forte, contra miniatura branca. */
-  --docs-selecao: #1558c4;
+  /* Seleção da página na faixa do DOCS — verde, contra miniatura branca. */
+  --docs-selecao: #2f7d4e;
   --nav-color-voz: #5c5c63;
   --nav-color-ajustes: #9e5171;
 
@@ -8005,7 +8005,7 @@ body.app-mod-docs #painel-modo-docs {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 /*
-  Seleção em azul, não no dourado da casa.
+  Seleção em verde, não no dourado da casa.
 
   O dourado da aplicação é discreto de propósito e, sobre uma miniatura branca,
   quase desaparecia. O azul separa-se do vermelho do «no ar» mesmo para quem não
@@ -9788,7 +9788,7 @@ html.dark {
   --nav-color-slide: #3EC98F;
   --nav-color-midias: #A084E8;
   --nav-color-docs: #5F94F2;
-  --docs-selecao: #5aa3ff;
+  --docs-selecao: #3aad65;
   --nav-color-voz: #AAAAB2;
   --nav-color-ajustes: #D879A4;
 
@@ -12660,3 +12660,44 @@ body.app-mod-slides .playlist-row .pl-num-badge {
 }
 .contagem-rodape .contagem-nota[hidden] { display: none; }
 .contagem-rodape .contagem-nota { font-size: var(--fs-300); }
+
+/* Modo Docs: mesma biblioteca neutra do modo Mídias (classes .ap-lib-*). */
+#painel-modo-docs .ap-menu-section-label {
+  color: var(--text-dim);
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+}
+#painel-modo-docs .ap-menu-section-label::before { opacity: 0.7; }
+#painel-modo-docs .ap-menu-files-block.ap-lib-block { padding: 0; }
+#painel-modo-docs .ap-lib-import:hover,
+#painel-modo-docs .ap-lib-search:focus-within { border-color: color-mix(in srgb, var(--text) 32%, var(--border)); }
+#painel-modo-docs .ap-lib-item { border-color: var(--border); border-left-color: transparent; background: var(--surface); }
+#painel-modo-docs .ap-lib-item:hover,
+#painel-modo-docs .ap-lib-item:focus-visible,
+#painel-modo-docs .ap-lib-item[aria-selected="true"] { background: var(--surface2); }
+#painel-modo-docs .ap-lib-item[aria-selected="true"] { border-left-color: var(--accent); }
+
+/* Contagem regressiva: menos amarelo. O dourado fica só no botão Iniciar. */
+.contagem-painel { border-color: var(--border); }
+.contagem-painel .contagem-preset:hover { border-color: color-mix(in srgb, var(--text) 32%, var(--border)); }
+.contagem-painel .contagem-rodape .contagem-link { color: var(--text); }
+.contagem-painel .contagem-link:hover { color: var(--text-dim); }
+.contagem-painel .contagem-situacao[data-situacao='pausada'] { color: var(--text-dim); }
+
+/* Docs: números maiores — contador da cápsula (3 / 58) e badge das miniaturas. */
+.docs-nav-contador {
+  min-width: 96px;
+  font-size: var(--fs-600);
+  font-weight: 600;
+  color: var(--text);
+}
+.docs-miniatura-num {
+  left: 6px;
+  bottom: 6px;
+  min-width: 28px;
+  padding: 3px 8px;
+  font-size: var(--fs-400);
+  font-weight: 700;
+  line-height: 20px;
+}

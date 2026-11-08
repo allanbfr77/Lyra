@@ -734,20 +734,16 @@
 
       <!-- Direita: seletor dos documentos importados. -->
       <div class="ap-menu docs-menu">
-        <div class="ap-menu-files-block">
-          <div class="ap-menu-section-label">Documentos importados</div>
-          <div class="ap-dd-toolbar">
-            <div class="culto-dd ap-dd" id="docs-files-dd">
-              <button type="button" class="culto-dd-btn ap-dd-btn" id="docs-files-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="docs-files-dd-menu">
-                <span class="culto-dd-col-desc" id="docs-files-selected">Selecione um arquivo...</span>
-                <span class="culto-dd-caret" aria-hidden="true"></span>
-              </button>
-              <div id="docs-files-dd-menu" class="culto-dd-menu ap-dd-menu" role="listbox" hidden>
-                <div id="docs-menu-list"></div>
-              </div>
-            </div>
-            <button type="button" class="ap-menu-plus" id="docs-menu-add" title="Importar documento (PowerPoint, PDF ou Word)">+</button>
+        <div class="ap-menu-files-block ap-lib-block">
+          <div class="ap-lib-head">
+            <div class="ap-menu-section-label">Documentos</div>
+            <button type="button" class="ap-lib-import" id="docs-menu-add" aria-label="Importar documento (PowerPoint, PDF ou Word)" title="Importar documento (PowerPoint, PDF ou Word)">+ Importar</button>
           </div>
+          <label class="ap-lib-search">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="docs-lib-search" placeholder="Buscar documento" aria-label="Buscar documento" autocomplete="off" />
+          </label>
+          <div class="ap-lib-list" id="docs-lib-list" role="listbox" aria-label="Documentos importados"></div>
         </div>
       </div>
     </div>
