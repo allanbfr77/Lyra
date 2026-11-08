@@ -2295,59 +2295,65 @@
     </div>
 
     <div class="contagem-painel-corpo" id="contagem-painel-corpo">
-      <div class="contagem-alerta-rota" id="contagem-alerta-rota" hidden>
-        <span id="contagem-alerta-rota-texto"></span>
-      </div>
-
       <div class="contagem-grupo">
-        <div class="contagem-grupo-rotulo">Selecione o monitor</div>
+        <div class="contagem-grupo-rotulo" id="contagem-monitor-rotulo">Monitor da contagem</div>
         <div class="contagem-monitores" id="contagem-monitores"></div>
       </div>
 
       <div class="contagem-mostrador" id="contagem-mostrador">
-        <div class="contagem-mostrador-valor" id="contagem-mostrador-valor">00:00</div>
-        <div class="contagem-situacao" id="contagem-situacao" data-situacao="parada">Parada</div>
+        <button type="button" class="contagem-ajuste-btn" id="contagem-btn-menos" disabled title="Tirar um minuto sem parar a contagem">−1 min</button>
+        <div class="contagem-mostrador-centro">
+          <div class="contagem-mostrador-valor" id="contagem-mostrador-valor">00:00</div>
+          <div class="contagem-situacao" id="contagem-situacao" data-situacao="parada">Parada</div>
+        </div>
+        <button type="button" class="contagem-ajuste-btn" id="contagem-btn-mais" disabled title="Somar um minuto sem parar a contagem">+1 min</button>
       </div>
 
       <div class="contagem-grupo">
         <div class="contagem-grupo-rotulo">Tempo</div>
         <div class="contagem-tempo-linha">
           <div class="contagem-campo">
-            <label class="contagem-campo-rotulo" for="contagem-minutos">Minutos</label>
+            <label class="sr-only" for="contagem-minutos">Minutos</label>
             <input type="number" id="contagem-minutos" min="0" max="1439" step="1" value="5" inputmode="numeric">
+            <span class="contagem-campo-unid" aria-hidden="true">min</span>
           </div>
           <div class="contagem-campo">
-            <label class="contagem-campo-rotulo" for="contagem-segundos">Segundos</label>
+            <label class="sr-only" for="contagem-segundos">Segundos</label>
             <input type="number" id="contagem-segundos" min="0" max="59" step="1" value="0" inputmode="numeric">
+            <span class="contagem-campo-unid" aria-hidden="true">seg</span>
           </div>
+          <div class="contagem-presets" id="contagem-presets"></div>
         </div>
-        <div class="contagem-presets" id="contagem-presets"></div>
       </div>
 
       <div class="contagem-grupo">
-        <div class="contagem-grupo-rotulo">Mensagens no telão</div>
-        <input type="text" id="contagem-msg-topo" maxlength="160" placeholder="Acima dos dígitos — ex.: O culto começa em">
-        <input type="text" id="contagem-msg-rodape" maxlength="160" placeholder="Abaixo dos dígitos — ex.: Desligue o celular">
+        <div class="contagem-grupo-rotulo">Mensagem no telão</div>
+        <input type="text" id="contagem-msg-topo" maxlength="160" aria-label="Mensagem acima dos dígitos" placeholder="Acima dos dígitos, ex.: O culto começa em">
+        <input type="text" id="contagem-msg-rodape" maxlength="160" aria-label="Mensagem abaixo dos dígitos" placeholder="Abaixo dos dígitos, ex.: Desligue o celular">
       </div>
 
       <div class="contagem-acoes">
-        <button type="button" class="btn primary" id="contagem-btn-principal">Iniciar</button>
-        <button type="button" class="btn danger" id="contagem-btn-encerrar" disabled>Encerrar</button>
+        <button type="button" class="btn primary contagem-acao-principal" id="contagem-btn-principal">Iniciar</button>
+        <button type="button" class="btn danger contagem-acao-encerrar" id="contagem-btn-encerrar" disabled>Encerrar</button>
+        <button type="button" class="btn contagem-acao-reiniciar" id="contagem-btn-reiniciar" disabled aria-label="Reiniciar" title="Voltar ao tempo dos campos acima">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        </button>
       </div>
 
-      <div class="contagem-acoes-secundarias">
-        <button type="button" class="btn sm" id="contagem-btn-menos" disabled title="Tirar um minuto sem parar a contagem">−1 min</button>
-        <button type="button" class="btn sm" id="contagem-btn-mais" disabled title="Somar um minuto sem parar a contagem">+1 min</button>
-        <button type="button" class="btn sm" id="contagem-btn-reiniciar" disabled title="Voltar ao tempo dos campos acima">Reiniciar</button>
-      </div>
-
-      <div class="contagem-nota">
-        A contagem aparece nos monitores escolhidos acima — só nestes, independentemente
-        do monitor da Bíblia, dos Slides ou das Mídias. Enquanto está no ar, cobre o que
-        estiver projetado <strong>nesse monitor</strong> sem o perder: ao encerrar, a
-        música ou o versículo que estava por baixo volta ao ecrã.
-        <strong>Não vai para o OBS</strong> — as fontes de Browser Source são para letra e
-        versículo, e a transmissão tem o seu próprio contador.
+      <div class="contagem-rodape">
+        <div class="contagem-rodape-linha">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span class="contagem-rodape-texto">Aparece só nos monitores escolhidos. Não vai para o OBS.</span>
+          <button type="button" class="contagem-link" id="contagem-como-btn" aria-expanded="false" aria-controls="contagem-como">Como funciona</button>
+        </div>
+        <div class="contagem-nota" id="contagem-como" hidden>
+          A contagem aparece nos monitores escolhidos acima — só nestes, independentemente
+          do monitor da Bíblia, dos Slides ou das Mídias. Enquanto está no ar, cobre o que
+          estiver projetado <strong>nesse monitor</strong> sem o perder: ao encerrar, a
+          música ou o versículo que estava por baixo volta ao ecrã.
+          <strong>Não vai para o OBS</strong> — as fontes de Browser Source são para letra e
+          versículo, e a transmissão tem o seu próprio contador.
+        </div>
       </div>
     </div>
   </div>

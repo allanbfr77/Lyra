@@ -28819,61 +28819,57 @@ function renderSeletorMonitorContagem() {
   const atual = chaveMonitorSelecionadoContagem();
   host.innerHTML = '';
 
+  const sel = document.createElement('select');
+  sel.id = 'contagem-monitor-select';
+  sel.className = 'contagem-monitor-select';
+  sel.setAttribute('aria-labelledby', 'contagem-monitor-rotulo');
+  opcoes.forEach((o) => {
+    const op = document.createElement('option');
+    op.value = o.chave;
+    op.textContent = o.chave === '-1' ? 'Nenhum monitor selecionado' : o.label;
+    if (o.title) op.title = o.title;
+    sel.appendChild(op);
+  });
+  sel.value = atual;
+  sel.classList.toggle('sem-monitor', sel.value === '-1');
+  sel.addEventListener('change', () => {
+    const escolhida = opcoesMonitorContagem().find((o) => o.chave === sel.value);
+    if (escolhida) void definirMonitorDoTelaoDaContagem(escolhida);
+  });
+  host.appendChild(sel);
+
   /* Só «Não exibir» significa que não há para onde projetar — dizer isso é mais útil do
      que oferecer uma lista de um item que não leva a lado nenhum. */
   if (opcoes.length <= 1) {
-    const vazio = document.createElement('div');
-    vazio.className = 'contagem-nota';
-    vazio.textContent =
-      'Nenhum monitor além do principal foi encontrado. Ligue um segundo monitor (ou ' +
-      'projetor) e reabra este painel.';
-    host.appendChild(vazio);
-    return;
+    const ajuda = document.createElement('div');
+    ajuda.className = 'contagem-ajuda';
+    ajuda.textContent =
+      'Só foi encontrado o monitor principal. Ligue um segundo monitor ou projetor e reabra este painel.';
+    host.appendChild(ajuda);
   }
-
-  opcoes.forEach((o) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'contagem-monitor-btn';
-    b.dataset.chave = o.chave;
-    b.textContent = o.label;
-    if (o.title) b.title = o.title;
-    const ativo = o.chave === atual;
-    b.classList.toggle('ativo', ativo);
-    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-    b.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      void definirMonitorDoTelaoDaContagem(o);
-    });
-    host.appendChild(b);
-  });
 }
 
 /**
- * Acerta o destaque sem reconstruir o DOM.
+ * Acerta o valor do seletor sem reconstruir o DOM.
  *
- * Corre a cada tick do painel (cinco vezes por segundo), e é por isso que não recria os
- * botões: recriá-los tiraria o foco de quem estivesse a navegar por teclado, e piscaria.
- * Só quando a própria lista de monitores muda — alguém ligou um projetor com o painel
- * aberto — é que vale a pena redesenhar.
+ * Corre a cada tick do painel (cinco vezes por segundo), e é por isso que não recria o
+ * <select>: recriá-lo fecharia a lista aberta e tiraria o foco. Só quando a própria lista
+ * de monitores muda — alguém ligou um projetor com o painel aberto — é que vale a pena
+ * redesenhar.
  */
 function sincronizarSeletorMonitorContagem() {
   const host = document.getElementById('contagem-monitores');
   if (!host) return;
 
-  const botoes = host.querySelectorAll('.contagem-monitor-btn');
+  const sel = host.querySelector('select.contagem-monitor-select');
   const opcoes = opcoesMonitorContagem();
-  if (botoes.length !== (opcoes.length > 1 ? opcoes.length : 0)) {
+  if (!sel || sel.options.length !== opcoes.length) {
     renderSeletorMonitorContagem();
     return;
   }
-
   const atual = chaveMonitorSelecionadoContagem();
-  botoes.forEach((b) => {
-    const ativo = b.dataset.chave === atual;
-    b.classList.toggle('ativo', ativo);
-    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-  });
+  if (sel.value !== atual) sel.value = atual;
+  sel.classList.toggle('sem-monitor', sel.value === '-1');
 }
 
 /**
@@ -29058,7 +29054,8 @@ async function encerrarContagemDoPainel() {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'contagem-preset';
-      b.textContent = `${min} min`;
+      b.textContent = String(min);
+      b.setAttribute('aria-label', `${min} minutos`);
       b.addEventListener('click', () => {
         setInputVal('contagem-minutos', min);
         setInputVal('contagem-segundos', 0);
@@ -29068,6 +29065,13 @@ async function encerrarContagemDoPainel() {
     });
   }
 
+  document.getElementById('contagem-como-btn')?.addEventListener('click', (ev) => {
+    const caixa = document.getElementById('contagem-como');
+    if (!caixa) return;
+    const abrir = caixa.hidden;
+    caixa.hidden = !abrir;
+    ev.currentTarget.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  });
   document.getElementById('contagem-fechar')?.addEventListener('click', fecharPainelContagem);
   document.getElementById('contagem-retrair')?.addEventListener('click', alternarRetrairPainelContagem);
   document.getElementById('contagem-abrir-ajustes')?.addEventListener('click', () => {

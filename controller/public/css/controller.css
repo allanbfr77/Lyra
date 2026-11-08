@@ -12553,3 +12553,110 @@ body.app-mod-slides .playlist-row .pl-num-badge {
   display: block;
   padding: 0;
 }
+
+/* ─── Contagem regressiva: painel enxuto ───
+   Seletor de monitor único, relógio com −1/+1 ao lado, tempo numa linha, ações fixas
+   no fim e rodapé curto com «Como funciona». */
+.contagem-painel { width: min(477px, 94vw); }
+.contagem-painel .contagem-painel-corpo { padding: 16px; gap: 16px; }
+.contagem-painel .contagem-grupo { gap: 8px; }
+.contagem-painel .contagem-grupo-rotulo { font-size: var(--fs-300); letter-spacing: 0.08em; opacity: 0.7; }
+
+.contagem-monitores { display: flex; flex-direction: column; gap: 8px; }
+.contagem-monitor-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-500);
+  cursor: pointer;
+}
+.contagem-monitor-select.sem-monitor {
+  border-color: color-mix(in srgb, var(--red) 55%, var(--border));
+  color: color-mix(in srgb, var(--red) 60%, #ff9a94);
+}
+.contagem-monitor-select option { color: var(--text); background: var(--surface); }
+.contagem-ajuda { font-size: var(--fs-300); line-height: 1.45; color: var(--text-dim); }
+
+.contagem-mostrador {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+}
+.contagem-mostrador-centro { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.contagem-mostrador-valor { font-size: 60px; }
+.contagem-ajuste-btn {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-400);
+  cursor: pointer;
+}
+.contagem-ajuste-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 32%, var(--border)); }
+.contagem-ajuste-btn:disabled { opacity: 0.5; cursor: default; }
+
+.contagem-tempo-linha { align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.contagem-campo { flex-direction: row; align-items: center; gap: 8px; }
+.contagem-campo input { width: 64px; min-height: 44px; padding: 0 8px; box-sizing: border-box; }
+.contagem-campo-unid { font-size: var(--fs-300); color: var(--text-dim); }
+.contagem-presets { margin-left: auto; gap: 6px; }
+.contagem-preset {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: var(--fs-400);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.contagem-painel input[type='text'] { min-height: 44px; box-sizing: border-box; font-size: var(--fs-500); }
+.contagem-grupo:has(.contagem-presets) { gap: 8px; }
+
+.contagem-acoes {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 8px 0;
+  background: var(--surface);
+}
+.contagem-acoes .btn { min-height: 48px; min-width: 0; }
+.contagem-acoes .contagem-acao-principal { flex: 2 1 0; }
+.contagem-acoes .contagem-acao-encerrar { flex: 1 1 0; }
+.contagem-acoes .contagem-acao-encerrar:not(:disabled) {
+  background: transparent;
+  color: color-mix(in srgb, var(--red) 60%, #ff9a94);
+  border-color: color-mix(in srgb, var(--red) 55%, var(--border));
+}
+.contagem-acoes .contagem-acao-reiniciar { flex: 0 0 48px; width: 48px; padding: 0; }
+
+.contagem-rodape { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.contagem-rodape-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: var(--fs-300); color: var(--text-dim); }
+.contagem-rodape-linha svg { flex: 0 0 auto; }
+.contagem-rodape-texto { flex: 1 1 auto; min-width: 0; }
+.contagem-rodape .contagem-link {
+  background: none;
+  border: 0;
+  padding: 0 4px;
+  min-height: 44px;
+  font: inherit;
+  font-size: var(--fs-300);
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.contagem-rodape .contagem-nota[hidden] { display: none; }
+.contagem-rodape .contagem-nota { font-size: var(--fs-300); }
