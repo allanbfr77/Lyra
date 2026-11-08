@@ -114,10 +114,14 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 @media (max-width: 1280px) {
   .home-layout-v2 #estrofes-slide-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Home: colunas laterais com a mesma largura (biblioteca à esquerda, playlist à direita). */
+  body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .dashboard-main {
+  grid-template-columns: 380px minmax(0, 1fr) 380px;
+}
 @media (max-width: 1400px) {
   body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .dashboard-main {
     /* Limites inferiores já existentes nas laterais: preserva espaço útil no editor. */
-    grid-template-columns: 272px minmax(0, 1fr) 360px;
+    grid-template-columns: 350px minmax(0, 1fr) 350px;
   }
 }
 @media (max-width: 1120px) {
@@ -757,4 +761,121 @@ body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod
 html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
   #sidebar-title-sqlite > span:first-of-type { color: var(--ui-text, #f1efe9); font-weight: 700; font-size: var(--fs-600); }
   #sidebar-title-sqlite .bib-total-contagem { background: #34343a; border-color: #44444c; color: #e0ddd6; font-size: var(--fs-200); font-weight: 500; padding: 2px 10px; }
+}
+
+/* Home: a coluna do tom fica mais estreita e o título pode ir a duas linhas, em vez de cortar com «…». */
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+  --pl-col-tom-w: 60px;
+}
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .playlist-row .pl-col-titulo.tit {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Home: respiro acima e abaixo do título/artista, para as linhas (e as divisórias) não ficarem coladas. */
+body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .playlist-row {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* «+ Nova música manual» e «+ Adicionar momento»: mesmo botão (tamanho, fonte, sem caixa alta)
+   e o mesmo efeito ao passar o mouse (borda e texto clareiam, sem amarelo). */
+.home-library-footer .banco-nova-manual-wrap .btn-nova-manual,
+.playlist-momento-add {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px dashed var(--border, #2c2c30);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: var(--fs-300);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.home-library-footer .banco-nova-manual-wrap .btn-nova-manual:hover,
+.playlist-momento-add:hover,
+.playlist-momento-add[aria-expanded="true"] {
+  border-color: #4a4a52;
+  background: transparent;
+  color: var(--text);
+}
+
+/* «+ Adicionar momento» tem margem lateral própria: a largura 100% a empurrava para fora do painel. */
+.playlist-momento-add {
+  width: auto;
+  align-self: stretch;
+}
+
+/* Modo Slides: mesmo formato do Home — título grande quebra em até duas linhas, com respiro nas linhas. */
+body.app-mod-slides .panel-playlist .playlist-row .pl-linha-simples-txt .tit {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+body.app-mod-slides .panel-playlist .playlist-row {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Modo Slides: linha da playlist com as mesmas medidas do Home (respiro, tipografia, posição do título). */
+body.app-mod-slides .panel-playlist .playlist-row {
+  min-height: 52px;
+  padding: 10px 12px 10px 8px !important;
+}
+body.app-mod-slides .panel-playlist .playlist-row > .pl-linha-simples {
+  gap: 0;
+}
+body.app-mod-slides .panel-playlist .playlist-row .pl-linha-simples-txt .tit {
+  font-size: var(--fs-600);
+  font-weight: 500;
+  line-height: 1.3;
+}
+body.app-mod-slides .panel-playlist .playlist-row .pl-linha-simples-txt .mini {
+  margin-top: 0;
+  font-size: var(--fs-400);
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--text-dim);
+  white-space: normal;
+}
+body.app-mod-slides .panel-playlist .playlist-row .pl-num-badge {
+  margin-left: 4px;
+  margin-right: 12px;
+}
+/* «+ Adicionar momento»: mesma distância da linha de baixo que a «+ Nova música manual» (~11px).
+   O restante vinha da margem superior de 10px do bloco dos cartões de ação. */
+.playlist-momento-add {
+  margin-bottom: 1px;
+}
+
+/* Modo Slides: música já transmitida = número em verde e título/artista apagados (lê-se como
+   «concluída» sem competir com a música ativa, que segue em destaque dourado). */
+body.app-mod-slides .playlist-row--transmitida .pl-num-badge {
+  color: var(--green) !important;
+}
+body.app-mod-slides .playlist-row--transmitida .pl-linha-simples-txt .tit {
+  color: var(--text-dim) !important;
+}
+body.app-mod-slides .playlist-row--transmitida .pl-linha-simples-txt .mini {
+  color: color-mix(in srgb, var(--text-dim) 70%, transparent) !important;
+}
+
+/* Modo Slides: número da música na playlist um pouco maior e em negrito. */
+body.app-mod-slides .panel-playlist .playlist-row .pl-num-badge {
+  font-size: var(--fs-500);
+  font-weight: 700;
 }

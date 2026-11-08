@@ -14925,7 +14925,7 @@ function atualizarSlidesInstrucoes() {
   }
   if (ehModoSlidesOperador() && !faixaSlidesHabilitadaPorPlaylistNoModoSlides) {
     renderInstrucoesProjecao('<strong>Modo slides</strong>', [
-      'Toque numa música <strong>na playlist à direita</strong> para mostrar os slides aqui',
+      'Toque numa música <strong>na playlist à esquerda</strong> para mostrar os slides aqui',
       'Clique carrega; duplo clique projeta',
       'Música aberta só pelo banco (modo completo) não preenche esta faixa',
     ]);

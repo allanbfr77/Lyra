@@ -162,6 +162,8 @@ export function atualizarNotaSlideControladorUI() {
   const temMusica = id != null && nSlides > 0;
 
   bar.hidden = !emSlides;
+  /* O lápis aparece sempre; sem música o botão fica só desabilitado (cinza, sem ação). */
+  if (!btn.querySelector('svg')) btn.innerHTML = SVG_NOTA_LAPIS;
   if (!emSlides || !temMusica) {
     exib.hidden = true;
     exib.textContent = '';
