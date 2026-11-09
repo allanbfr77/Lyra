@@ -51,7 +51,11 @@ window.__homeTest = {
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>aplicarFiltroBiblioteca(++filtrarBibliotecaGeracao),
  openContagem:abrirPainelContagem,
- closeContagem:fecharPainelContagem,
+ closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
+ setMonitores:(m)=>{monitoresServidorCache=m},
+ rotas:()=>rotasPorModo,
+ contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:popularFormCfgContagem,rota:rotaContagemParaServidor},
+ docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
  dialogo:{confirm:appConfirm,prompt:appPrompt,fechar:fecharAppDialog,estado:appDialogEstado},
@@ -304,6 +308,71 @@ async function run() {
   await check('Sincronizar: erro com ação de correção à mão',`document.querySelector('.share-modal-erro').textContent==='Falhou' && document.getElementById('app-dialog-ok').textContent==='Corrigir' && document.getElementById('app-dialog-ok').style.display===''`);
   await js("document.getElementById('app-dialog-ok').click()");await pause(50);
   await check('Sincronizar: a ação de correção fecha o modal e é executada',`!(${dlgAberto}) && window.__acao===1 && __homeTest.dialogo.estado.sincronizarResolver===null`);
+  /* DOCS e Contagem extraídos do núcleo (painel/docs.js e painel/contagemRegressiva.js): fluxos no renderer real, sem rede
+     (fetch simulado). Cobrem o estado privado dos módulos, os callbacks do HTML, o Escape do núcleo e a ordem de inicialização. */
+  const ctgPosts = "__requests.filter(r=>r.path==='/api/comando/exibir_contagem'&&r.method==='POST').length";
+  await js('__homeTest.openContagem()');await pause(300);
+  await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1',size:{width:1920,height:1080}},{index:1,label:'Projetor',size:{width:1920,height:1080}},{index:2,label:'TV',size:{width:1280,height:720}}]);__homeTest.contagem.renderSeletor()");await pause(100);
+  await check('Contagem: o seletor lista os monitores de projeção (sem o principal) e segue sem monitor',`(()=>{const s=document.getElementById('contagem-monitor-select');const t=[...s.options].map(o=>o.textContent);return s.classList.contains('sem-monitor') && t.includes('Projetor') && t.includes('TV') && !t.some(x=>x.includes('Monitor 1'))})()`);
+  await js("(()=>{const s=document.getElementById('contagem-monitor-select');s.value='1';s.dispatchEvent(new Event('change'))})()");await pause(250);
+  await check('Contagem: escolher o monitor sai do estado «sem monitor» e grava a escolha',`(()=>{const s=document.getElementById('contagem-monitor-select');const p=JSON.parse(localStorage.getItem('lyra_contagem_monitor_v1')||'{}');return !s.classList.contains('sem-monitor') && s.value==='1' && p.publicoIndex===1})()`);
+  await js("document.querySelectorAll('#contagem-presets .contagem-preset')[1].click()");await pause(50);
+  await check('Contagem: o preset define os minutos e zera os segundos',`document.getElementById('contagem-minutos').value==='10' && document.getElementById('contagem-segundos').value==='0'`);
+  await js("window.__c0="+ctgPosts);
+  await js("document.getElementById('contagem-btn-principal').click()");await pause(400);
+  await check('Contagem: Iniciar envia o comando ao servidor e entra no ar',`${ctgPosts}===window.__c0+1 && !document.getElementById('contagem-btn-encerrar').disabled && !document.getElementById('contagem-btn-menos').disabled && /^\\d{1,2}:\\d{2}/.test(document.getElementById('contagem-mostrador-valor').textContent.trim())`);
+  await check('Contagem: no ar, o pin enviado ao servidor é o monitor escolhido',`__homeTest.contagem.rota().publicoIndex===1 && __homeTest.contagem.rota().ministranteIndex===-1`);
+  await js("window.__c1="+ctgPosts+";document.getElementById('contagem-btn-mais').click()");await pause(300);
+  await check('Contagem: «+1 min» ajusta sem parar e fala com o servidor',`${ctgPosts}===window.__c1+1`);
+  await js("document.getElementById('contagem-btn-encerrar').click()");await pause(300);
+  await check('Contagem: Encerrar avisa o servidor, volta ao estado parado e liberta o pin',`__requests.some(r=>r.path==='/api/comando/encerrar_contagem'&&r.method==='POST') && document.getElementById('contagem-btn-encerrar').disabled && document.getElementById('contagem-btn-principal').textContent==='Iniciar' && __homeTest.contagem.rota().publicoIndex===-1`);
+  await js("document.getElementById('contagem-como-btn').click()");await pause(50);
+  await check('Contagem: «Como funciona» abre e fecha',`!document.getElementById('contagem-como').hidden && document.getElementById('contagem-como-btn').getAttribute('aria-expanded')==='true'`);
+  await js("document.getElementById('contagem-como-btn').click()");
+  await js("document.getElementById('contagem-retrair').click()");await pause(80);
+  await check('Contagem: retrair deixa só a barra compacta',`document.querySelector('#contagem-backdrop .contagem-painel').classList.contains('retraido') && document.getElementById('contagem-retrair').getAttribute('aria-expanded')==='false'`);
+  await js("document.getElementById('contagem-retrair').click()");await pause(80);
+  await check('Contagem: expandir volta ao painel completo',`!document.querySelector('#contagem-backdrop .contagem-painel').classList.contains('retraido') && document.getElementById('contagem-retrair').getAttribute('aria-expanded')==='true'`);
+  await js("__homeTest.contagem.setPos('top')");await pause(80);
+  await check('Contagem: a posição vertical é gravada e refletida no formulário de Ajustes',`JSON.parse(localStorage.getItem('lyra_contagem_cfg_v1')||'{}').verticalPosition==='top' && document.querySelector('#cfg-contagem-posy-group .cfg-btn-pos.ativo')?.dataset.val==='top'`);
+  await js("document.getElementById('cfg-contagem-fontsize').value='20';document.getElementById('cfg-contagem-fontsize').dispatchEvent(new Event('input',{bubbles:true}));__homeTest.contagem.cfgChange()");await pause(300);
+  await check('Contagem: alterar a aparência (callback do HTML) persiste no armazenamento',`Number(JSON.parse(localStorage.getItem('lyra_contagem_cfg_v1')||'{}').fontSize)===20`);
+  await js("document.getElementById('btn-modo-contagem').click()");await pause(150);
+  await check('Contagem: o botão do cabeçalho (callback do HTML) fecha o painel aberto',`!document.getElementById('contagem-backdrop').classList.contains('aberto')`);
+  await js("document.getElementById('btn-modo-contagem').click()");await pause(150);
+  await check('Contagem: o botão do cabeçalho reabre o painel',`document.getElementById('contagem-backdrop').classList.contains('aberto')`);
+  await js('__homeTest.closeContagem()');await pause(100);
+  await js("localStorage.setItem('lyra_docs_biblioteca_v1',JSON.stringify({version:1,itens:[{id:'d1',name:'Aviso.pdf',title:'Aviso.pdf',mime:'application/pdf',size:10,filePath:''},{id:'d2',name:'Culto.pptx',title:'Culto.pptx',mime:'',size:20,filePath:''}]}));sessionStorage.removeItem('lyra_docs_selecionado_sessao_v1')");
+  // Ordem de inicialização: depois de recarregar, a escolha e a aparência voltam do armazenamento
+  await win.loadURL(origin+'/controller.html');
+  for(let i=0;i<100;i++){if(await js('!!window.__homeTest'))break;await pause();}
+  await js('__homeTest.openContagem()');await pause(300);
+  await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'},{index:2,label:'TV'}]);__homeTest.contagem.renderSeletor();__homeTest.contagem.popularForm()");await pause(100);
+  await check('Contagem: após recarregar, o monitor escolhido e a aparência voltam do armazenamento (ordem de inicialização)',`document.getElementById('contagem-monitor-select').value==='1' && document.querySelector('#cfg-contagem-posy-group .cfg-btn-pos.ativo')?.dataset.val==='top' && document.getElementById('cfg-contagem-fontsize').value==='20'`);
+  await js('__homeTest.closeContagem()');await pause(100);
+  // DOCS
+  await check('DOCS: a biblioteca carregada do armazenamento no arranque aparece (ordem de inicialização) na lista com o tipo de cada arquivo',`(()=>{const it=[...document.querySelectorAll('#docs-lib-list .ap-lib-item')];return it.length===2 && it[0].querySelector('.ap-lib-name').textContent==='Aviso.pdf' && it[0].querySelector('.ap-lib-meta').textContent==='PDF' && it[1].querySelector('.ap-lib-meta').textContent==='PowerPoint'})()`);
+  await js("(()=>{const i=document.getElementById('docs-lib-search');i.value='culto';i.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(60);
+  await check('DOCS: a busca filtra a lista',`document.querySelectorAll('#docs-lib-list .ap-lib-item').length===1 && document.querySelector('#docs-lib-list .ap-lib-name').textContent==='Culto.pptx'`);
+  await js("(()=>{const i=document.getElementById('docs-lib-search');i.value='zzz';i.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(60);
+  await check('DOCS: busca sem resultado mostra a mensagem',`document.querySelector('#docs-lib-list .ap-lib-empty')?.textContent==='Nenhum documento encontrado.'`);
+  await js("(()=>{const i=document.getElementById('docs-lib-search');i.value='';i.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(60);
+  await js("document.querySelectorAll('#docs-lib-list .ap-lib-item')[1].click()");await pause(120);
+  await check('DOCS: clicar numa linha seleciona o documento',`document.querySelectorAll('#docs-lib-list .ap-lib-item')[1].getAttribute('aria-selected')==='true' && document.querySelectorAll('#docs-lib-list .ap-lib-item')[0].getAttribute('aria-selected')==='false'`);
+  await js("document.getElementById('btn-modo-docs').click()");await pause(400);
+  await check('DOCS: o botão do cabeçalho (callback do HTML) entra no modo e abre o documento selecionado',`document.body.classList.contains('app-mod-docs') && document.title==='Lyra — DOCS' && document.getElementById('btn-modo-docs').getAttribute('aria-pressed')==='true' && !document.getElementById('docs-preview-vazio').hidden`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(100);
+  await check('DOCS: Escape sem nada no ar não faz nada (o modo continua aberto)',`document.body.classList.contains('app-mod-docs') && __homeTest.docs.paginaProjetada()===false`);
+  await check('DOCS: sem páginas, a navegação fica desabilitada',`document.getElementById('docs-nav-anterior').disabled && document.getElementById('docs-nav-proxima').disabled && document.getElementById('docs-nav-contador').textContent==='—' && __homeTest.docs.paginaSel()===-1`);
+  await js("__homeTest.docs.adicionar([{name:'foto.png',size:5}])");await pause(120);
+  await check('DOCS: arquivo de formato não aceito é recusado com aviso e a lista não muda',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Só entram PowerPoint') && document.getElementById('app-dialog-body').textContent.includes('foto.png') && JSON.parse(localStorage.getItem('lyra_docs_biblioteca_v1')).itens.length===2`);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(60);
+  await js("__homeTest.rotas().docs={publicoIndex:1,ministranteIndex:-1,live:false}");
+  await js("document.getElementById('hdr-encerrar-projecao').click()");await pause(250);
+  await check('DOCS: «Encerrar projeção» do cabeçalho desativa a rota do DOCS (estado de rotas do núcleo)',`__homeTest.rotas().docs.publicoIndex===-1 && __homeTest.docs.paginaProjetada()===false`);
+  await js("document.getElementById('btn-tela-inicial').click()");
+  for(let i=0;i<40&&await js("document.body.classList.contains('app-mod-docs')");i++) await pause(100); /* a transição de visualização leva mais que 300ms na janela oculta */
+  await check('DOCS: voltar à tela inicial fecha o modo e restaura o título',`!document.body.classList.contains('app-mod-docs') && document.title==='Lyra — Controlador' && document.getElementById('btn-modo-docs').getAttribute('aria-pressed')==='false'`);
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
