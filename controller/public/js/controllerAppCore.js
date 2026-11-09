@@ -138,6 +138,7 @@ import {
   textoSlideMaiusculo,
   textoSlideSnippetHtmlParaChip,
 } from './modules/slidesGrelha.js';
+import { criarIrParaSlideNumero } from './modules/slidesIrParaNumero.js';
 import {
   detectarKindApresentacaoPorMimeOuNome,
   ehArquivoPowerPointLocal,
@@ -2528,10 +2529,18 @@ function criarSeletorMonitorAvisoCard6() {
   const spanLbl = document.createElement('span');
   spanLbl.className = 'route-dd-label';
   spanLbl.textContent = rotulo;
+  /* Ícone de monitor à esquerda e seta (chevron) à direita — só visual. */
+  const icoMonitor = document.createElement('span');
+  icoMonitor.className = 'route-dd-ico-monitor';
+  icoMonitor.setAttribute('aria-hidden', 'true');
+  icoMonitor.innerHTML =
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.3"/><path d="M5.5 14h5M8 11v3"/></svg>';
   const caret = document.createElement('span');
   caret.className = 'route-dd-caret';
   caret.setAttribute('aria-hidden', 'true');
-  caret.textContent = '▾';
+  caret.innerHTML =
+    '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>';
+  btn.appendChild(icoMonitor);
   btn.appendChild(spanLbl);
   btn.appendChild(caret);
 
@@ -5361,7 +5370,8 @@ function renderGridApresentacao() {
       btnRemove.className = 'ap-card-remove';
       btnRemove.title = 'Remover arquivo do card';
       btnRemove.setAttribute('aria-label', `Remover arquivo do card ${i + 1}`);
-      btnRemove.textContent = 'X';
+      btnRemove.innerHTML =
+        '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>';
       btnRemove.addEventListener('click', (ev) => {
         ev.stopPropagation();
         if (item.id && apresentacaoMidiaProjetadaId === item.id) {
@@ -5441,7 +5451,7 @@ function renderGridApresentacao() {
   ta.className = 'ap-card6-aviso-textarea';
   ta.dataset.apCard6CfgField = '1';
   ta.setAttribute('aria-label', 'Texto de avisos para projetar no card 6');
-  ta.placeholder = 'Digite avisos rápidos… Use o botão Projetar ou duplo clique no texto.';
+  ta.placeholder = 'Digite o aviso… (duplo clique projeta)';
   ta.value = apresentacaoCard6Texto;
   aplicarEstiloTextareaAvisoCard6(ta, apresentacaoCard6AvisoCfg);
   ta.addEventListener('click', (ev) => ev.stopPropagation());
@@ -5490,8 +5500,11 @@ function renderGridApresentacao() {
   footer6.appendChild(criarSeletorMonitorAvisoCard6());
   const btnProjCard6 = document.createElement('button');
   btnProjCard6.type = 'button';
-  btnProjCard6.className = 'btn sm primary';
-  btnProjCard6.textContent = 'Projetar';
+  btnProjCard6.className = 'btn sm primary ap-card6-btn-projetar';
+  /* Visual: ▶ + «Projetar»; com o aviso no ar, pontinho verde + «Projetando». */
+  btnProjCard6.innerHTML = apresentacaoAvisoCard6Ativo
+    ? '<span class="ap-card6-dot" aria-hidden="true"></span><span>Projetando</span>'
+    : '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg><span>Projetar</span>';
   btnProjCard6.title = 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)';
   btnProjCard6.addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -5499,9 +5512,11 @@ function renderGridApresentacao() {
   });
   const btnEncerrarAviso = document.createElement('button');
   btnEncerrarAviso.type = 'button';
-  btnEncerrarAviso.className = 'btn sm danger';
-  btnEncerrarAviso.textContent = 'Encerrar';
-  btnEncerrarAviso.title = 'Encerra só a projeção do aviso — a mídia do cabeçalho continua no ar';
+  btnEncerrarAviso.className = 'btn sm danger ap-card6-btn-icone ap-card6-btn-encerrar';
+  btnEncerrarAviso.innerHTML =
+    '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg>';
+  btnEncerrarAviso.title = 'Encerrar';
+  btnEncerrarAviso.setAttribute('aria-label', 'Encerrar');
   btnEncerrarAviso.disabled = !apresentacaoAvisoCard6Ativo;
   btnEncerrarAviso.addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -5509,8 +5524,12 @@ function renderGridApresentacao() {
   });
   const btnLimparTxt = document.createElement('button');
   btnLimparTxt.type = 'button';
-  btnLimparTxt.className = 'btn sm';
-  btnLimparTxt.textContent = 'Limpar texto';
+  btnLimparTxt.className = 'btn sm ap-card6-btn-limpar';
+  /* Ícone (borracha/backspace) + rótulo «Limpar»; em card estreito o rótulo some (CSS) e fica o ícone. */
+  btnLimparTxt.innerHTML =
+    '<svg class="ap-card6-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h7.5a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6L1.8 8z"/><path d="M8.5 6l3 4M11.5 6l-3 4"/></svg><span class="ap-card6-btn-rotulo">Limpar</span>';
+  btnLimparTxt.title = 'Limpar texto';
+  btnLimparTxt.setAttribute('aria-label', 'Limpar texto');
   btnLimparTxt.addEventListener('click', (ev) => {
     ev.stopPropagation();
     apresentacaoCard6Texto = '';
@@ -22752,6 +22771,33 @@ function irParaSlidePretoModoSlides() {
   if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
   projecionarEstrofeModoSlides(musicaAtiva.estrofes.length);
 }
+
+/**
+ * Atalho «número + Enter» do modo slides: projeta o slide N da música atual.
+ * Captura os dígitos no teclado todo (sem foco no campo), menos em campos de texto e com
+ * modal / painel por cima. Detalhes em `modules/slidesIrParaNumero.js`.
+ */
+const irParaSlideNumero = criarIrParaSlideNumero({
+  ehModoSlides: ehModoSlidesOperador,
+  totalEstrofes: () =>
+    musicaAtiva && Array.isArray(musicaAtiva.estrofes) ? musicaAtiva.estrofes.length : 0,
+  projetar: (indice) => projecionarEstrofeModoSlides(indice),
+  interfaceBloqueada: () => {
+    if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return true;
+    if (document.getElementById('cfg-modal-overlay-ctrl')?.classList.contains('aberto')) return true;
+    return [
+      'musica-excluir-backdrop',
+      'nova-musica-manual-backdrop',
+      'letras-preview-backdrop',
+      'slide-delete-confirm-backdrop',
+      'slide-quick-edit-backdrop',
+    ].some((id) => {
+      const el = document.getElementById(id);
+      return !!el && !el.hidden;
+    });
+  },
+});
+irParaSlideNumero.ligar();
 
 /** Comando de voz / atalho: projeta estrofe no índice dado (0 … N, N = tela preta). */
 function projecionarEstrofeModoSlides(index) {

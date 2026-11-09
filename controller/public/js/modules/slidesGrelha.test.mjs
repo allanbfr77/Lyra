@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   zoomPercentualSlides,
-  clampSlidesChipZoom,
+  zoomPorColunasSlides,
   normalizarSlidesPorLinha,
   digestEstrofesParaStripFaixa,
   textoSlideMaiusculo,
@@ -16,16 +16,19 @@ test('zoomPercentualSlides arredonda para percentagem inteira', () => {
   assert.equal(zoomPercentualSlides(Number.NaN), 100);
 });
 
-test('clampSlidesChipZoom alinha a passos de 5% e limita 50–150', () => {
-  assert.equal(clampSlidesChipZoom(1), 1);
-  assert.equal(clampSlidesChipZoom(0.52), 0.5);
-  assert.equal(clampSlidesChipZoom(0.53), 0.55);
-  assert.equal(clampSlidesChipZoom(0.1), 0.5);
-  assert.equal(clampSlidesChipZoom(3), 1.5);
+test('zoomPorColunasSlides: 3 por linha = 100%, vai de 150% (2) a 50% (6)', () => {
+  assert.equal(zoomPercentualSlides(zoomPorColunasSlides(2)), 150);
+  assert.equal(zoomPercentualSlides(zoomPorColunasSlides(3)), 100);
+  assert.equal(zoomPercentualSlides(zoomPorColunasSlides(4)), 75);
+  assert.equal(zoomPercentualSlides(zoomPorColunasSlides(5)), 60);
+  assert.equal(zoomPercentualSlides(zoomPorColunasSlides(6)), 50);
 });
 
-test('normalizarSlidesPorLinha só aceita 3, 4 ou 5', () => {
+test('normalizarSlidesPorLinha aceita de 2 a 6', () => {
   assert.equal(normalizarSlidesPorLinha(7), SLIDES_POR_LINHA_PADRAO);
+  assert.equal(normalizarSlidesPorLinha(1), SLIDES_POR_LINHA_PADRAO);
+  assert.equal(normalizarSlidesPorLinha(2), 2);
+  assert.equal(normalizarSlidesPorLinha(6), 6);
   assert.equal(normalizarSlidesPorLinha(5), 5);
   assert.equal(normalizarSlidesPorLinha(3), 3);
   assert.equal(normalizarSlidesPorLinha(4), 4);

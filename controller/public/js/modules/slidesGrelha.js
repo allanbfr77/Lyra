@@ -6,7 +6,7 @@
  * no núcleo — só chama daqui digest, colunas e encaixe.
  */
 
-import { LS_SLIDES_CHIP_ZOOM, LS_SLIDES_POR_LINHA } from './chavesArmazenamentoLocal.js';
+import { LS_SLIDES_POR_LINHA } from './chavesArmazenamentoLocal.js';
 import {
   deltaScrollGrelhaSlidesAntecipado,
   indiceChipAntecipacao,
@@ -17,11 +17,14 @@ import {
   criarMedidorLarguraProporcionalCanvas,
 } from '../painel/tipografiaPainelPreview.js';
 
-export const SLIDES_CHIP_ZOOM_MIN_PCT = 50;
-export const SLIDES_CHIP_ZOOM_MAX_PCT = 150;
-export const SLIDES_CHIP_ZOOM_PASSO_PCT = 5;
-export const SLIDES_POR_LINHA_OPCOES = [3, 4, 5];
+/**
+ * O zoom do modo slides anda em passos que fecham a linha: cada passo é um número de
+ * cartões por linha (2 a 6). 3 por linha = 100%; o zoom é 3 / colunas (2 → 150%, 4 → 75%,
+ * 5 → 60%, 6 → 50%). Os botões «Colunas» 3/4/5 são atalhos dos mesmos passos.
+ */
+export const SLIDES_POR_LINHA_OPCOES = [2, 3, 4, 5, 6];
 export const SLIDES_POR_LINHA_PADRAO = 3;
+export const SLIDES_COLUNAS_REF_ZOOM_100 = 3;
 
 const GRELHA_FIT_LOTE = 4;
 const GRELHA_FIT_MARGEM_PERTO_PX = 120;
@@ -31,10 +34,9 @@ export function zoomPercentualSlides(z) {
   return Number.isFinite(pct) ? pct : 100;
 }
 
-export function clampSlidesChipZoom(z) {
-  const alinhado = Math.round(zoomPercentualSlides(z) / SLIDES_CHIP_ZOOM_PASSO_PCT) * SLIDES_CHIP_ZOOM_PASSO_PCT;
-  const limitado = Math.min(SLIDES_CHIP_ZOOM_MAX_PCT, Math.max(SLIDES_CHIP_ZOOM_MIN_PCT, alinhado));
-  return limitado / 100;
+/** Fator de escala dos cartões para N por linha (1 = 3 por linha). */
+export function zoomPorColunasSlides(colunas) {
+  return SLIDES_COLUNAS_REF_ZOOM_100 / normalizarSlidesPorLinha(colunas);
 }
 
 export function normalizarSlidesPorLinha(n) {
@@ -88,14 +90,20 @@ export function criarSlidesGrelha(d) {
   let grelhaFitGeracao = 0;
   let slidesGridViewportFitTimer = null;
 
-  function applySlidesChipZoomLevel(z) {
-    slidesChipZoomLevel = clampSlidesChipZoom(z);
+  /** Escala (padding, número, espaços) e rótulo «%» do zoom a partir de quantos cartões cabem por linha. */
+  function aplicarZoomDaLinha() {
+    slidesChipZoomLevel = zoomPorColunasSlides(slidesPorLinha);
     const dock = document.getElementById('slides-dock');
     if (dock) dock.style.setProperty('--slide-chip-zoom', String(slidesChipZoomLevel));
-    localStorage.setItem(LS_SLIDES_CHIP_ZOOM, String(slidesChipZoomLevel));
     const lab = document.getElementById('slides-zoom-val');
-    if (lab) lab.textContent = `${Math.round(slidesChipZoomLevel * 100)}%`;
-    queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
+    if (lab) lab.textContent = `${zoomPercentualSlides(slidesChipZoomLevel)}%`;
+  }
+
+  /** Mantida por compatibilidade: um zoom em fração vira o passo (nº de colunas) mais próximo. */
+  function applySlidesChipZoomLevel(z) {
+    const zz = Number(z);
+    if (!Number.isFinite(zz) || zz <= 0) return;
+    applySlidesPorLinha(Math.round(SLIDES_COLUNAS_REF_ZOOM_100 / zz));
   }
 
   function slideChipSnippetBaseFontPx() {
@@ -432,21 +440,24 @@ export function criarSlidesGrelha(d) {
     ro.observe(vp);
   }
 
+  /** O zoom agora vem de «por linha» (init em `initSlidesPorLinhaFromStorage`); o antigo valor salvo é ignorado. */
   function initSlidesChipZoomFromStorage() {
-    const raw = parseFloat(localStorage.getItem(LS_SLIDES_CHIP_ZOOM), 10);
-    applySlidesChipZoomLevel(Number.isFinite(raw) ? raw : 1);
+    aplicarZoomDaLinha();
+  }
+
+  /** «+» aproxima (menos cartões por linha); «−» afasta (mais cartões por linha). */
+  function moverZoomPorLinha(delta) {
+    const opcoes = SLIDES_POR_LINHA_OPCOES;
+    const alvo = Math.min(opcoes[opcoes.length - 1], Math.max(opcoes[0], slidesPorLinha + delta));
+    applySlidesPorLinha(alvo);
   }
 
   function setupSlidesChipZoomButtons() {
     const menos = document.getElementById('slides-zoom-menos');
     const mais = document.getElementById('slides-zoom-mais');
     if (!menos || !mais) return;
-    menos.addEventListener('click', () => {
-      applySlidesChipZoomLevel((zoomPercentualSlides(slidesChipZoomLevel) - SLIDES_CHIP_ZOOM_PASSO_PCT) / 100);
-    });
-    mais.addEventListener('click', () => {
-      applySlidesChipZoomLevel((zoomPercentualSlides(slidesChipZoomLevel) + SLIDES_CHIP_ZOOM_PASSO_PCT) / 100);
-    });
+    menos.addEventListener('click', () => moverZoomPorLinha(+1));
+    mais.addEventListener('click', () => moverZoomPorLinha(-1));
   }
 
   function atualizarBotoesSlidesPorLinha() {
@@ -469,6 +480,7 @@ export function criarSlidesGrelha(d) {
       // intencional — sem localStorage a preferência só vale nesta sessão
     }
     atualizarBotoesSlidesPorLinha();
+    aplicarZoomDaLinha();
     if (mudou) {
       queueMicrotask(() => {
         ajustarEncaixeGrelhaSlidesModoSlides();

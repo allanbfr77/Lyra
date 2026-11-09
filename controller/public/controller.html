@@ -429,8 +429,8 @@
       -->
       <div class="slides-ctrl-acoes">
         <div class="slides-ctrl-linha slides-ctrl-linha--nav">
-          <button type="button" class="btn" id="btn-slides-anterior" onclick="navegarEstrofe(-1)" title="Anterior (←)">‹ Anterior</button>
-          <button type="button" class="btn" id="btn-slides-proximo" onclick="navegarEstrofe(1)" title="Próximo (→)">Próximo ›</button>
+          <button type="button" class="btn" id="btn-slides-anterior" onclick="navegarEstrofe(-1)" title="Slide anterior (←)">‹ Slide anterior</button>
+          <button type="button" class="btn" id="btn-slides-proximo" onclick="navegarEstrofe(1)" title="Próximo slide (→)">Slide próximo ›</button>
         </div>
         <button type="button" class="btn primary" id="btn-proxima-musica-playlist" onclick="projecaoProximaMusicaPlaylist()" title="Carrega a próxima música da playlist e projeta a 1.ª estrofe sem fechar as telas">
           Próxima música ››
@@ -439,6 +439,15 @@
           <button type="button" class="btn" id="btn-slides-tela-preta" onclick="irParaSlidePretoModoSlides()" title="Vai direto ao slide preto (último)">Tela preta</button>
           <button type="button" class="btn" id="btn-slides-encerrar" onclick="document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))" title="Encerrar (Esc)">Encerrar</button>
         </div>
+        <!--
+          Ir direto a um slide: o campo só mostra o número digitado. A digitação é capturada
+          no teclado inteiro (ver `slidesIrParaNumero.js`), sem precisar clicar aqui.
+        -->
+        <input type="text" class="slides-ir-slide" id="slides-ir-slide-input" readonly
+               inputmode="none" autocomplete="off" spellcheck="false"
+               placeholder="Digite o número do slide e pressione Enter"
+               aria-label="Ir para o slide: digite o número e pressione Enter"
+               title="Digite o número do slide em qualquer lugar da tela e pressione Enter" />
       </div>
     </div>
 

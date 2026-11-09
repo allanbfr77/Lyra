@@ -5953,8 +5953,14 @@ body.app-mod-slides .slides-grid-viewport {
   Com menos colunas os cartões ficam mais largos; a altura sobe um pouco para
   o cartão não virar uma faixa achatada.
 */
+/*
+  Modo slides: o zoom anda em passos que fecham a linha (2 a 6 cartões por linha,
+  `data-slides-cols`). O cartão ocupa a largura da coluna e a altura vem do 16:9; o JS
+  põe `--slide-chip-zoom` = 3 / colunas, que escala padding, número e espaços.
+*/
 body.app-mod-slides .slides-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  --slides-cols: 3;
+  grid-template-columns: repeat(var(--slides-cols), minmax(0, 1fr));
   align-content: start;
   overflow: visible;
   flex: 0 0 auto;
@@ -5962,19 +5968,11 @@ body.app-mod-slides .slides-grid {
   max-width: 100%;
 }
 
-body.app-mod-slides .slides-grid[data-slides-cols="4"] {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-body.app-mod-slides .slides-grid[data-slides-cols="5"] {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  --slide-chip-h: calc(202px * var(--slide-chip-zoom, 1));
-}
-
-body.app-mod-slides .slides-grid[data-slides-cols="3"] {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  --slide-chip-h: calc(252px * var(--slide-chip-zoom, 1));
-}
+body.app-mod-slides .slides-grid[data-slides-cols="2"] { --slides-cols: 2; }
+body.app-mod-slides .slides-grid[data-slides-cols="3"] { --slides-cols: 3; }
+body.app-mod-slides .slides-grid[data-slides-cols="4"] { --slides-cols: 4; }
+body.app-mod-slides .slides-grid[data-slides-cols="5"] { --slides-cols: 5; }
+body.app-mod-slides .slides-grid[data-slides-cols="6"] { --slides-cols: 6; }
 
 /* Número no topo (alinhado entre cartões); o texto centra-se no vão restante. */
 body.app-mod-slides .slide-chip .slide-snippet {
@@ -7410,6 +7408,54 @@ body.app-mod-slides .slides-ctrl-acoes > #btn-proxima-musica-playlist {
   flex: 0 0 auto;
 }
 
+/*
+  Respiro por grupo (10px dentro do grupo, 22px entre grupos):
+  navegação (Anterior/Próximo + Próxima música) · ações que tiram o conteúdo da tela
+  (Tela preta/Encerrar) · ir para o slide. Encerrar ficava a 10px do «Próxima música» —
+  fácil de acertar sem querer com pressa.
+*/
+body.app-mod-slides .slides-ctrl-acoes > .slides-ctrl-linha:not(.slides-ctrl-linha--nav),
+body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide {
+  margin-top: 12px;
+}
+
+/* Campo «ir para o slide»: mesma largura e altura do «Próxima música». Só exibe o que foi digitado. */
+body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide {
+  width: 100%;
+  flex: 0 0 auto;
+  height: var(--slides-dock-ctrl-h);
+  min-height: var(--slides-dock-ctrl-h);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-400);
+  font-weight: 700;
+  text-align: center;
+  cursor: text;
+  caret-color: transparent;
+}
+
+body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide::placeholder {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide.com-numero {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(166, 124, 45, 0.28);
+  font-size: var(--fs-500, 1.1em);
+  letter-spacing: 0.08em;
+}
+
+body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide:focus {
+  outline: none;
+  border-color: var(--accent2);
+}
+
 /* Miniaturas: número no canto superior direito, texto centralizado. */
 body.app-mod-slides .slide-chip {
   position: relative;
@@ -7419,6 +7465,9 @@ body.app-mod-slides .slide-chip {
   min-height: 0;
   max-height: none;
   aspect-ratio: 16 / 9;
+  /* Tudo no cartão escala com o zoom (a fonte da letra se ajusta ao tamanho dele, via JS). */
+  padding: calc(8px * var(--slide-chip-zoom, 1));
+  border-radius: calc(8px * var(--slide-chip-zoom, 1));
 }
 
 body.app-mod-slides .slides-grid {
@@ -7427,9 +7476,9 @@ body.app-mod-slides .slides-grid {
 
 body.app-mod-slides .slide-chip .slide-num {
   position: absolute;
-  top: 6px;
-  right: 8px;
-  font-size: 14px;
+  top: calc(6px * var(--slide-chip-zoom, 1));
+  right: calc(8px * var(--slide-chip-zoom, 1));
+  font-size: calc(14px * var(--slide-chip-zoom, 1));
   color: var(--text-dim);
 }
 
@@ -8349,6 +8398,227 @@ body.app-mod-docs #painel-modo-docs {
   max-height: min(240px, 40vh);
   overflow-y: auto;
 }
+
+/*
+  Card 6 — AVISOS, layout compacto (só visual; ids, classes de lógica e eventos intactos):
+
+    ┌──────────────── CARD 6 — AVISOS ────────────────┐
+    │ [▭ Não exibir ⌄] [      ▶ Projetar      ] [■] [⌫] │
+    │ ┌─────────────────────────────────────────────┐ │
+    │ │ Digite o aviso… (duplo clique projeta)      │ │
+    │ └─────────────────────────────────────────────┘ │
+
+  Depois das regras gerais do card/rodapé acima, com seletores mais específicos.
+*/
+.ap-card.ap-card--aviso {
+  /* Topo igual ao dos outros cards (título na mesma altura); laterais e base com respiro. */
+  padding: 8px 12px 12px;
+  box-sizing: border-box;
+  gap: 12px;
+}
+/* Título no mesmo tamanho e peso dos demais cards (herda a regra base de `.ap-card-num`). */
+.ap-card.ap-card--aviso .ap-card-num {
+  display: block;
+  flex: 0 0 auto;
+  /* Aqui o título está no fluxo (position: relative); sem zerar, o `top: 8px` / `left: 10px`
+     da regra base empurravam-no para baixo e para a direita, fora do alinhamento dos outros cards. */
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  font-size: var(--fs-300);
+  font-weight: 700;
+  color: var(--text);
+}
+.ap-card.ap-card--aviso .ap-card-body.ap-card-body--aviso {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  gap: 12px;
+  overflow: visible;
+}
+/* O «Projetando» do botão já diz que está no ar; a pílula «AO VIVO» ficaria sobre o título. */
+.ap-card.ap-card--aviso .ap-card-live-pill {
+  display: none;
+}
+
+.ap-card.ap-card--aviso .ap-card6-footer {
+  gap: 8px;
+  margin: 0;
+  height: 30px;
+  flex: 0 0 30px;
+}
+.ap-card.ap-card--aviso .ap-card6-footer .btn,
+.ap-card.ap-card--aviso .ap-card6-footer .route-dd-btn {
+  height: 30px;
+  min-height: 30px;
+  box-sizing: border-box;
+  border-radius: 6px;
+}
+
+/* Seletor de monitor: largura fixa, ícone à esquerda, seta à direita. */
+.ap-card.ap-card--aviso .ap-card6-footer .route-dd--card6-aviso {
+  flex: 0 0 150px;
+  width: 150px;
+  min-height: 30px;
+}
+.route-dd--card6-aviso .route-dd-btn {
+  gap: 7px;
+  padding: 0 8px;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text);
+  font-size: var(--fs-300);
+}
+/* Neutro como no layout novo (o âmbar de «Não exibir» fica de fora só neste card). */
+.route-dd.route-dd--card6-aviso.route-dd--rota-desativada .route-dd-btn {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.route-dd--card6-aviso .route-dd-ico-monitor,
+.route-dd--card6-aviso .route-dd-caret {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+.route-dd--card6-aviso .route-dd-ico-monitor > svg {
+  width: 15px;
+  height: 15px;
+}
+.route-dd--card6-aviso .route-dd-caret > svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Projetar: ocupa o resto da linha; é a única ação em destaque. */
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-projetar {
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 7px;
+  padding: 0 10px;
+  font-size: var(--fs-400);
+  font-weight: 700;
+}
+.ap-card6-ico {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  display: block;
+}
+.ap-card6-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #3ddc84;
+  box-shadow: 0 0 0 2px rgba(61, 220, 132, 0.28);
+}
+
+/* Encerrar e Limpar: só ícone, 34px. */
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-icone {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-icone .ap-card6-ico {
+  width: 14px;
+  height: 14px;
+}
+/*
+  Limpar: ícone + rótulo «Limpar», com texto na cor normal (antes era um ícone de 14px em
+  cinza apagado, difícil de reconhecer). Largura pelo conteúdo; em card estreito, só o ícone.
+*/
+.ap-card.ap-card--aviso .ap-card6-footer {
+  container-type: inline-size;
+}
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-limpar {
+  flex: 0 0 auto;
+  width: auto;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text);
+  font-size: var(--fs-300);
+  font-weight: 600;
+}
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-limpar .ap-card6-ico {
+  width: 16px;
+  height: 16px;
+}
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-limpar:hover {
+  border-color: color-mix(in srgb, var(--text) 40%, var(--border));
+  background: color-mix(in srgb, var(--surface2) 80%, var(--text) 6%);
+}
+/* Seletor encolhe antes de espremer o Projetar; no card estreito o Limpar vira só ícone. */
+.ap-card.ap-card--aviso .ap-card6-footer .route-dd--card6-aviso {
+  flex: 0 1 150px;
+  min-width: 112px;
+}
+@container (max-width: 360px) {
+  .ap-card6-btn-limpar .ap-card6-btn-rotulo {
+    display: none;
+  }
+  .ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-limpar {
+    flex: 0 0 34px;
+    width: 34px;
+    padding: 0;
+  }
+}
+/* Sem projeção: apagado, em vermelho escuro (mantém os 4 controles sempre visíveis). */
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-encerrar:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--red) 36%, var(--border));
+  color: color-mix(in srgb, var(--red) 62%, #000);
+  cursor: not-allowed;
+}
+/* Projetando: vermelho vivo. */
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-encerrar:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 20%, var(--surface));
+  border-color: var(--red);
+  color: var(--red);
+}
+.ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-encerrar:not(:disabled):hover {
+  background: var(--red);
+  color: #fff;
+}
+
+/* Foco de teclado visível nos quatro controles. */
+.ap-card.ap-card--aviso .ap-card6-footer .btn:focus-visible,
+.ap-card.ap-card--aviso .ap-card6-footer .route-dd-btn:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 1px;
+}
+
+/* Campo: ocupa o resto do card, mais escuro que o fundo, sem borda dupla. */
+.ap-card.ap-card--aviso .ap-card6-aviso-textarea {
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 6px;
+  background: #080809;
+  resize: none;
+  padding: 12px 14px;
+}
+.ap-card.ap-card--aviso .ap-card6-aviso-textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 0.7;
+  font-weight: 500;
+}
+.ap-card.ap-card--aviso .ap-card6-aviso-textarea:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: -2px;
+}
 .ap-card.ap-card--video {
   background: color-mix(in srgb, var(--surface) 92%, #0a0a12);
 }
@@ -8489,31 +8759,45 @@ img.ap-card5-video-thumb {
 .ap-card.ap-card--vazio .ap-card-num {
   opacity: 0.65;
 }
+/*
+  «×» minimalista: sem círculo nem borda, só o ícone, alinhado ao centro do título «CARD N»
+  (no topo, fora da área da mídia). Aparece com o hover no card e, para teclado, com foco.
+  No hover do próprio botão ganha um fundo vermelho suave.
+*/
 .ap-card-remove {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface2) 88%, #000);
-  color: var(--text);
+  top: 6px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
   cursor: pointer;
-  font-size: var(--fs-500);
-  line-height: 1;
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
 }
-.ap-card:hover .ap-card-remove {
-  display: inline-flex;
+.ap-card-remove > svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  pointer-events: none;
+}
+.ap-card:hover .ap-card-remove,
+.ap-card-remove:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 .ap-card-remove:hover {
-  border-color: var(--red);
-  color: var(--text-primary);
-  background: var(--red);
+  background: color-mix(in srgb, var(--red) 24%, transparent);
+  color: #ff8a84;
 }
 .ap-card-num {
   position: absolute;
