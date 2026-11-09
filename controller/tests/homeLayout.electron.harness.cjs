@@ -50,6 +50,8 @@ window.__homeTest = {
  state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>aplicarFiltroBiblioteca(++filtrarBibliotecaGeracao),
+ openContagem:abrirPainelContagem,
+ closeContagem:fecharPainelContagem,
 };`;
 const server = http.createServer((req, res) => {
   const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -143,17 +145,19 @@ async function run() {
   await js(`document.getElementById('home-preview-move').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));`);
   await check('mover por teclado não navega slide',`__homeTest.state().index===1`);
   await check('geometria e abertura persistidas',`JSON.parse(localStorage.getItem('lyra_home_preview_v2')).open===true && Number.isFinite(JSON.parse(localStorage.getItem('lyra_home_preview_v2')).x)`);
+  /* Mouse real via sendInputEvent: sem 'leftButtonDown' nos eventos o pointerdown chega, mas o Chromium recusa
+     setPointerCapture (botão não ativo) e o arraste nunca começa — falha do teste, não do app. */
   const initial = await js(`(()=>{const r=document.getElementById('playlist-preview-card').getBoundingClientRect();return {x:r.x,y:r.y,w:r.width}})()`);
   const movePoint=await js(`(()=>{const r=document.getElementById('home-preview-move').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`);
   win.webContents.sendInputEvent({type:'mouseMove',...movePoint});
-  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...movePoint});
-  win.webContents.sendInputEvent({type:'mouseMove',x:movePoint.x+40,y:movePoint.y-40});
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,modifiers:['leftButtonDown'],...movePoint});
+  win.webContents.sendInputEvent({type:'mouseMove',x:movePoint.x+40,y:movePoint.y-40,modifiers:['leftButtonDown']});
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:movePoint.x+40,y:movePoint.y-40});await pause();
   await check('arraste real move a prévia',`document.getElementById('playlist-preview-card').getBoundingClientRect().x > ${initial.x+20}`);
   const resizePoint=await js(`(()=>{const r=document.getElementById('home-preview-resize').getBoundingClientRect();return {x:Math.round(r.x+10),y:Math.round(r.y+10)}})()`);
   win.webContents.sendInputEvent({type:'mouseMove',...resizePoint});
-  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...resizePoint});
-  win.webContents.sendInputEvent({type:'mouseMove',x:resizePoint.x+60,y:resizePoint.y+30});
+  win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,modifiers:['leftButtonDown'],...resizePoint});
+  win.webContents.sendInputEvent({type:'mouseMove',x:resizePoint.x+60,y:resizePoint.y+30,modifiers:['leftButtonDown']});
   win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:resizePoint.x+60,y:resizePoint.y+30});await pause();
   await check('redimensionamento real altera largura',`document.getElementById('playlist-preview-card').getBoundingClientRect().width > ${initial.w+30}`);
   await js(`document.documentElement.classList.add('dark')`);await pause(200);
@@ -162,7 +166,7 @@ async function run() {
   await js(`document.getElementById('home-preview-close').click();document.getElementById('btn-banco-sqlite-toggle-lista').click()`);
   await check('legenda persiste com lista recolhida',`!document.getElementById('bib-origem-legenda').hidden`);
   await js(`document.getElementById('btn-banco-sqlite-toggle-lista').click()`);
-  for(const [w,h] of [[1024,640],[1280,800],[1366,768],[1920,1080]]) {
+  for(const [w,h] of [[1024,640],[1120,800],[1280,800],[1366,768],[1920,1080]]) {
     win.setContentSize(w,h); await pause(120);
     for(const dark of [true,false]) {
       await js(`document.documentElement.classList.toggle('dark',${dark});`);
@@ -172,7 +176,12 @@ async function run() {
       await check(`sem overflow externo ${w}x${h} ${dark?'escuro':'claro'}`,`document.documentElement.scrollWidth<=innerWidth`);
       await check(`rodapé visível ${w}x${h}`,`(()=>{const r=document.querySelector('.home-library-footer').getBoundingClientRect();return r.top>0 && r.bottom<=innerHeight+1})()`);
       await check(`editor utilizável ${w}x${h}`,`document.querySelector('.panel-centro').getBoundingClientRect().width>=320`);
+      /* Cabeçalho: nenhum item (logo, 8 botões do dock, status de conexão) pode cobrir outro. Com espaço o dock fica no
+         centro exato da janela; sem espaço (≤~1175px) ele se desloca para a esquerda em vez de o status cobrir o «Ajustes». */
+      await check(`cabeçalho sem sobreposição ${w}x${h}`,`(()=>{const itens=['.logo-img','#btn-tela-inicial','#btn-modo-contagem','#btn-modo-biblia','#btn-toggle-modo-slides','#btn-modo-apresentacao','#btn-modo-docs','#btn-voz-slides-toggle','#btn-cfg-geral','.status-conn-wrap'].map(q=>document.querySelector(q)).filter(Boolean).map(e=>e.getBoundingClientRect()).filter(r=>r.width&&r.height);if(itens.length<10)return false;for(let i=0;i<itens.length;i++)for(let j=i+1;j<itens.length;j++){const a=itens[i],b=itens[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)return false}return itens.every(r=>r.left>=0&&r.right<=innerWidth)})()`);
+      if(w>=1280) await check(`dock centralizado na janela ${w}x${h}`,`(()=>{const r=document.querySelector('.hdr-icons-bar').getBoundingClientRect();return Math.abs((r.left+r.right)/2-innerWidth/2)<=1})()`);
       await check(`ícones contidos ${w}x${h}`,`[...document.querySelectorAll('.home-song-heading svg')].every(e=>e.getBoundingClientRect().width<=20)`);
+      await check(`ações e visualização contidas na coluna central ${w}x${h}`,`(()=>{const c=document.querySelector('.centro-col-letras').getBoundingClientRect();return ['.home-song-actions','.home-view-segment'].every(q=>{const r=document.querySelector(q).getBoundingClientRect();return r.left>=c.left-1&&r.right<=c.right+1})})()`);
       const overflow = await js(`(()=>{const p=document.querySelector('.centro-col-letras');return [...p.querySelectorAll('button,summary')].filter(e=>e.getBoundingClientRect().width && e.getBoundingClientRect().right>p.getBoundingClientRect().right+1).map(e=>e.id||e.className)})()`);
       if(overflow.length) failures.push('Controles fora do editor '+w+': '+overflow.join(','));
       fs.writeFileSync(path.join(out,`home-${w}-${h}-${dark?'dark':'light'}.png`),(await win.webContents.capturePage()).toPNG());
@@ -182,6 +191,14 @@ async function run() {
   win.setContentSize(1024,640);
   await win.loadURL(origin+'/controller.html');await pause(300);
   await check('restauração limitada à viewport',`(()=>{const r=document.getElementById('playlist-preview-card').getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})()`);
+  /* Contagem (redesenhada): o aviso de rota virou o estado do seletor — vermelho e «Nenhum monitor selecionado». */
+  await js('__homeTest.openContagem()');await pause(150);
+  await check('Contagem: sem monitor, o seletor sinaliza a ausência',`(()=>{const s=document.getElementById('contagem-monitor-select');return !!s && s.classList.contains('sem-monitor') && s.options[s.selectedIndex].textContent==='Nenhum monitor selecionado'
+    && s.getAttribute('aria-labelledby')==='contagem-monitor-rotulo' && !document.getElementById('contagem-alerta-rota')})()`);
+  await js("document.getElementById('contagem-btn-principal').click()");await pause(150);
+  await check('Contagem: Iniciar sem monitor avisa e não inicia',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Escolha um monitor') && document.getElementById('contagem-btn-encerrar').disabled`);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(100);
+  await js('__homeTest.closeContagem()');await pause(100);
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
