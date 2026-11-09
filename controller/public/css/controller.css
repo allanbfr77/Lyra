@@ -410,8 +410,13 @@ body.slides-rail-aberto {
   /* 3 colunas: laterais com largura igual reservada (minmax(0,1fr) deixa-as
      encolher abaixo do conteúdo) e o dock em `auto` no meio. Assim o centro
      do menu bate sempre com o centro real da barra, independentemente da
-     largura do bloco do logo à esquerda ou do status à direita. */
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+     largura do bloco do logo à esquerda ou do status à direita.
+
+     A coluna direita tem como mínimo a largura do próprio status («Este PC / Servidor»,
+     ~211px). Com espaço, as duas laterais seguem iguais e o dock fica no centro exato;
+     abaixo de ~1175px (ex.: 1024px) não cabem 700px de dock + 2×211px, e então o dock se
+     desloca para a esquerda só o necessário, em vez de o status passar por cima do «Ajustes». */
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
   align-items: center;
   /* Altura da pílula (item + padding + borda) mais o respiro em cima e em baixo. */
   min-height: calc(

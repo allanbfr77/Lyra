@@ -879,3 +879,20 @@ body.app-mod-slides .panel-playlist .playlist-row .pl-num-badge {
   font-size: var(--fs-500);
   font-weight: 700;
 }
+
+/*
+  Home em janelas estreitas (≤1120px, ex.: 1024px): o desenho do mockup se mantém e as colunas
+  laterais continuam com a largura de sempre; só o cartão da música se aperta para caber na
+  coluna central (~300px). Fica no fim do arquivo de propósito: as regras de «.home-toolbar-card»
+  acima são mais específicas que as do bloco de 1120px anterior e anulavam o ajuste dele —
+  «Adicionar à playlist» e o «aA» passavam da borda da coluna.
+*/
+@media (max-width: 1120px) {
+  .home-layout-v2 .centro-toolbar.home-toolbar-card { padding-left: 16px; padding-right: 16px; }
+  .home-toolbar-card .home-song-actions { gap: 8px; flex-wrap: wrap; }
+  .home-toolbar-card .home-song-actions .btn { padding: 0 10px; font-size: var(--fs-200); gap: 6px; }
+  .home-toolbar-card .home-view-segment { max-width: 100%; box-sizing: border-box; }
+  .home-toolbar-card .home-view-segment .btn { min-width: 30px; padding: 0 6px; gap: 4px; }
+  .home-toolbar-card .home-view-segment #btn-toggle-playlist-preview { padding: 0 8px; }
+  .home-toolbar-card .home-view-segment #btn-caixa-letras-edicao { padding: 0 6px; }
+}
