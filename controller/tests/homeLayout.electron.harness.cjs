@@ -52,6 +52,11 @@ window.__homeTest = {
  filter:()=>aplicarFiltroBiblioteca(++filtrarBibliotecaGeracao),
  openContagem:abrirPainelContagem,
  closeContagem:fecharPainelContagem,
+ lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
+ banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
+ dialogo:{confirm:appConfirm,estado:appDialogEstado},
+ handoff:()=>companionHandoffEmCurso,
+ handoffReset:()=>{companionHandoffEmCurso=false},
 };`;
 const server = http.createServer((req, res) => {
   const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -199,6 +204,38 @@ async function run() {
   await check('Contagem: Iniciar sem monitor avisa e não inicia',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Escolha um monitor') && document.getElementById('contagem-btn-encerrar').disabled`);
   await js("document.getElementById('app-dialog-ok').click()");await pause(100);
   await js('__homeTest.closeContagem()');await pause(100);
+  /* Extração de appDialog / menuLyra / bannerAtualizacao do núcleo: integração no renderer real (dependências registradas,
+     estado partilhado do diálogo e o Escape do núcleo). */
+  await js("__homeTest.lyra.comando({command:'help-open-about'})");await pause(150);
+  await check('Menu Lyra: Sobre abre a janela',`(()=>{const o=document.getElementById('lyra-menu-modal-overlay');return !o.hidden && o.classList.contains('aberto') && document.getElementById('lyra-menu-modal-title').textContent==='Lyra' && !!document.querySelector('#lyra-menu-modal-body .lyra-about-card') && document.getElementById('lyra-menu-modal').classList.contains('lyra-menu-modal--about')})()`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(100);
+  await check('Menu Lyra: Escape fecha a janela (listener do núcleo)',`document.getElementById('lyra-menu-modal-overlay').hidden && document.getElementById('lyra-menu-modal-body').innerHTML===''`);
+  await js("__homeTest.lyra.comando({command:'help-open-manual'})");await pause(100);
+  await check('Menu Lyra: Manual',`document.getElementById('lyra-menu-modal-title').textContent==='Manual básico do Lyra' && document.querySelectorAll('#lyra-menu-modal-body .lyra-doc-section').length>0`);
+  await js("__homeTest.lyra.comando({command:'help-open-shortcuts'})");await pause(100);
+  await check('Menu Lyra: Atalhos',`document.getElementById('lyra-menu-modal-title').textContent==='Atalhos de teclado' && document.querySelectorAll('#lyra-menu-modal-body .lyra-shortcuts-table').length>0`);
+  await js("document.getElementById('lyra-menu-modal-close').click()");await pause(100);
+  await check('Menu Lyra: botão Fechar',`document.getElementById('lyra-menu-modal-overlay').hidden`);
+  await js("__homeTest.lyra.status('starting','Reiniciando…')");await pause(100);
+  await check('Menu Lyra: reinício em andamento não deixa fechar',`document.getElementById('lyra-menu-modal').classList.contains('lyra-menu-modal--status') && document.getElementById('lyra-menu-modal-close').disabled && !!document.querySelector('.lyra-status-indicator--progress')`);
+  await js("__homeTest.lyra.status('error','Falhou')");await pause(100);
+  await check('Menu Lyra: erro libera o Fechar',`!document.getElementById('lyra-menu-modal-close').disabled && !!document.querySelector('.lyra-status-indicator--error')`);
+  await js("__homeTest.lyra.fechar(true)");await pause(50);
+  await js("__homeTest.banner.disponivel({version:'9.9.9'})");await pause(100);
+  await check('Banner de atualização: aparece com título e ações',`(()=>{const h=document.getElementById('lyra-update-banner');return !!h && !h.hidden && document.getElementById('lyra-update-banner-title').textContent.length>0 && h.querySelectorAll('button').length>0})()`);
+  await js("__homeTest.banner.esconder()");await pause(50);
+  await check('Banner de atualização: esconder',`document.getElementById('lyra-update-banner').hidden`);
+  await js("__homeTest.banner.progressoCompanion({stage:'handoff',percent:100})");await pause(50);
+  await check('Banner dos componentes: handoff atualiza a flag do núcleo',`__homeTest.handoff()===true && document.getElementById('lyra-update-banner-title').textContent==='A instalar componentes'`);
+  await js("__homeTest.handoffReset();__homeTest.banner.esconder()");
+  await js("window.__dlg='pendente';__homeTest.dialogo.confirm('Teste?').then(v=>{window.__dlg=v});void 0");await pause(50);
+  await check('Diálogo: confirmação abre e marca o estado partilhado',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-cancel').style.display==='' && __homeTest.dialogo.estado.fecharNoBackdrop===true`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(100);
+  await check('Diálogo: Escape do núcleo cancela (lê o estado do módulo)',`window.__dlg===false && document.getElementById('app-dialog-overlay').hidden && __homeTest.dialogo.estado.fecharNoBackdrop===false`);
+  await js("window.__dlg='pendente';__homeTest.dialogo.confirm('De novo?').then(v=>{window.__dlg=v});void 0");await pause(50);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(50);
+  await check('Diálogo: OK confirma',`window.__dlg===true && document.getElementById('app-dialog-overlay').hidden`);
+
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
