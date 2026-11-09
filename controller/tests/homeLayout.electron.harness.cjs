@@ -19,6 +19,7 @@ window.__songs = [
 window.__fixtureFetch = async (url, opts = {}) => {
  const u = new URL(String(url), location.href); const p=u.pathname;
  window.__requests.push({path:p,search:u.search,method:opts.method||'GET'});
+ if(p.endsWith('/api/comando/exibir_apresentacao')&&opts.body){try{(window.__apresentacoes ||= []).push(JSON.parse(opts.body))}catch(_){}}
  if(window.__saveFail && opts.method==='PUT') return new Response(JSON.stringify({erro:'Falha simulada'}),{status:500});
  let data={};
  if(p==='/api/musicas') data=[window.__songs[0]];
@@ -54,6 +55,7 @@ window.__homeTest = {
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
  setMonitores:(m)=>{monitoresServidorCache=m},
  rotas:()=>rotasPorModo,
+ espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
  contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:popularFormCfgContagem,rota:rotaContagemParaServidor},
  docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
@@ -72,11 +74,30 @@ const server = http.createServer((req, res) => {
     let data = fs.readFileSync(file);
     if (name === '/controller.html') data = data.toString().replace(/<head>\r?\n/, '<head>\n<script>' + fixture + '</script>');
     if (name === '/js/controllerAppCore.js') data = data.toString() + '\n' + bridge;
-    res.setHeader('Content-Type', ({ '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png' })[path.extname(file)] || 'application/octet-stream');
+    res.setHeader('Content-Type', ({ '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json' })[path.extname(file)] || 'application/octet-stream');
     res.end(data);
   } catch (_) { res.writeHead(404).end(); }
 });
 const pause = (ms=100) => new Promise(r=>setTimeout(r,ms));
+/* PDF mínimo e válido (xref correto) com N páginas de texto — o DOCS renderiza com o pdf.js vendorizado. */
+function gerarPdfBase64(paginas) {
+  const objs = []; const add = (o) => { objs.push(o); return objs.length; };
+  add('<< /Type /Catalog /Pages 2 0 R >>'); add('PAGES'); add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const kids = [];
+  for (let i = 0; i < paginas; i++) {
+    const conteudo = 'BT /F1 48 Tf 72 700 Td (Pagina ' + (i + 1) + ') Tj ET';
+    const pg = add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ' + (objs.length + 2) + ' 0 R /Resources << /Font << /F1 3 0 R >> >> >>');
+    add('<< /Length ' + conteudo.length + ' >>\nstream\n' + conteudo + '\nendstream'); kids.push(pg + ' 0 R');
+  }
+  objs[1] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + paginas + ' >>';
+  let out = '%PDF-1.4\n'; const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('');
+  out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF';
+  return Buffer.from(out, 'latin1').toString('base64');
+}
+
 let win;
 async function run() {
   await app.whenReady();
@@ -349,6 +370,11 @@ async function run() {
   await js('__homeTest.openContagem()');await pause(300);
   await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'},{index:2,label:'TV'}]);__homeTest.contagem.renderSeletor();__homeTest.contagem.popularForm()");await pause(100);
   await check('Contagem: após recarregar, o monitor escolhido e a aparência voltam do armazenamento (ordem de inicialização)',`document.getElementById('contagem-monitor-select').value==='1' && document.querySelector('#cfg-contagem-posy-group .cfg-btn-pos.ativo')?.dataset.val==='top' && document.getElementById('cfg-contagem-fontsize').value==='20'`);
+  // Contagem depois de recarregar: os controles continuam funcionando (Iniciar, Encerrar)
+  await js("window.__c0="+ctgPosts+";document.getElementById('contagem-btn-principal').click()");await pause(450);
+  await check('Contagem: após recarregar, Iniciar envia o comando e entra no ar',`${ctgPosts}===window.__c0+1 && !document.getElementById('contagem-btn-encerrar').disabled`);
+  await js("document.getElementById('contagem-btn-encerrar').click()");await pause(350);
+  await check('Contagem: após recarregar, Encerrar volta ao estado parado',`__requests.some(r=>r.path==='/api/comando/encerrar_contagem'&&r.method==='POST') && document.getElementById('contagem-btn-encerrar').disabled && document.getElementById('contagem-btn-principal').textContent==='Iniciar'`);
   await js('__homeTest.closeContagem()');await pause(100);
   // DOCS
   await check('DOCS: a biblioteca carregada do armazenamento no arranque aparece (ordem de inicialização) na lista com o tipo de cada arquivo',`(()=>{const it=[...document.querySelectorAll('#docs-lib-list .ap-lib-item')];return it.length===2 && it[0].querySelector('.ap-lib-name').textContent==='Aviso.pdf' && it[0].querySelector('.ap-lib-meta').textContent==='PDF' && it[1].querySelector('.ap-lib-meta').textContent==='PowerPoint'})()`);
@@ -367,15 +393,59 @@ async function run() {
   await js("__homeTest.docs.adicionar([{name:'foto.png',size:5}])");await pause(120);
   await check('DOCS: arquivo de formato não aceito é recusado com aviso e a lista não muda',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Só entram PowerPoint') && document.getElementById('app-dialog-body').textContent.includes('foto.png') && JSON.parse(localStorage.getItem('lyra_docs_biblioteca_v1')).itens.length===2`);
   await js("document.getElementById('app-dialog-ok').click()");await pause(60);
+  // DOCS com um PDF real (pdf.js vendorizado): faixa, prévia, navegação e projeção até o limite da rede (o monitor físico não é simulado)
+  const aguardar = async (expr, ms = 12000) => { for (let t = 0; t < ms / 100; t++) { if (await js(expr)) return true; await pause(100); } return false; };
+  const pdfB64 = gerarPdfBase64(3);
+  await js("(()=>{const b=atob('" + pdfB64 + "');const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);window.__docsPdf=new File([u],'Teste.pdf',{type:'application/pdf'})})()");
+  await js("__homeTest.docs.adicionar([window.__docsPdf]);void 0");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='1 / 3' && !document.getElementById('docs-preview-img').hidden");
+  await check('DOCS (PDF real): faixa com uma miniatura por página e prévia central na primeira página',`document.querySelectorAll('#docs-faixa .docs-miniatura').length===3 && !document.getElementById('docs-preview-img').hidden && document.getElementById('docs-preview-img').src.startsWith('data:image/jpeg') && document.getElementById('docs-nav-contador').textContent==='1 / 3' && document.getElementById('docs-nav-anterior').disabled && !document.getElementById('docs-nav-proxima').disabled && JSON.parse(localStorage.getItem('lyra_docs_biblioteca_v1')).itens.length===3`);
+  await js("document.getElementById('docs-nav-proxima').click()");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='2 / 3'");
+  await check('DOCS (PDF real): «próxima» avança a página',`document.getElementById('docs-nav-contador').textContent==='2 / 3' && __homeTest.docs.paginaSel()===1`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='3 / 3'");
+  await check('DOCS (PDF real): a seta → do teclado (núcleo) chega à última página e desabilita «próxima»',`document.getElementById('docs-nav-contador').textContent==='3 / 3' && document.getElementById('docs-nav-proxima').disabled`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}))");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='2 / 3'");
+  await check('DOCS (PDF real): a seta ← do teclado volta uma página',`document.getElementById('docs-nav-contador').textContent==='2 / 3'`);
+  await js("document.querySelectorAll('#docs-faixa .docs-miniatura')[0].click()");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='1 / 3'");
+  await check('DOCS (PDF real): clicar numa miniatura seleciona a página sem projetar',`document.getElementById('docs-nav-contador').textContent==='1 / 3' && document.querySelectorAll('#docs-faixa .docs-miniatura')[0].classList.contains('selecionada') && !(window.__apresentacoes||[]).length && __homeTest.docs.paginaProjetada()===false`);
+  // Projeção: a rota escolhida e a página renderizada seguem para o servidor (POST simulado)
+  await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'}]);__homeTest.rotas().docs={publicoIndex:1,ministranteIndex:-1,live:false};window.__apresentacoes=[]");
+  await js("document.querySelectorAll('#docs-faixa .docs-miniatura')[1].click()");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='2 / 3'");
+  await js("document.getElementById('docs-preview').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+  await aguardar("window.__apresentacoes.length>=1", 15000);
+  await aguardar("(()=>{const m=document.querySelectorAll('#docs-faixa .docs-miniatura')[1];return !!m && m.classList.contains('no-ar')})()", 5000);
+  await check('DOCS (PDF real): duplo clique na prévia projeta a página escolhida (corpo enviado ao servidor)',`(()=>{const a=window.__apresentacoes||[];const p=a[0]||{};return a.length===1 && p.kind==='image' && String(p.src).startsWith('data:image/jpeg') && p.name==='Teste.pdf' && p.title==='Teste.pdf — página 2' && p.transicao==='fade' && !!p.alvoProjecao && __homeTest.docs.paginaProjetada()===true && document.querySelectorAll('#docs-faixa .docs-miniatura')[1].classList.contains('no-ar')})()`);
+  await js("document.getElementById('docs-preview').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");await pause(2500); /* renderizar a página em 1920px leva mais que 700ms: sem a guarda, o 2º envio chegaria depois */
+  await check('DOCS (PDF real): a mesma página já no ar não é reenviada',`window.__apresentacoes.length===1`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}))");
+  await aguardar("window.__apresentacoes.length>=2", 15000);
+  await check('DOCS (PDF real): com projeção no ar, a seta → leva a página seguinte ao servidor',`window.__apresentacoes.length===2 && window.__apresentacoes[1].title==='Teste.pdf — página 3' && document.getElementById('docs-nav-contador').textContent==='3 / 3'`);
+  await js("__homeTest.espiarProjecao();document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(500);
+  await check('DOCS (PDF real): Escape (núcleo) encerra a projeção, avisa o servidor e solta a rota',`__homeTest.docs.paginaProjetada()===false && window.__enviados.some(e=>e[0]==='encerrar_apresentacao_publico'&&e[1]&&e[1].alvoProjecao==='publico') && __homeTest.rotas().docs.publicoIndex===-1 && document.body.classList.contains('app-mod-docs') && !document.querySelector('#docs-faixa .docs-miniatura.no-ar')`);
+  await js("window.__restaurarEnviar()");
   await js("__homeTest.rotas().docs={publicoIndex:1,ministranteIndex:-1,live:false}");
   await js("document.getElementById('hdr-encerrar-projecao').click()");await pause(250);
   await check('DOCS: «Encerrar projeção» do cabeçalho desativa a rota do DOCS (estado de rotas do núcleo)',`__homeTest.rotas().docs.publicoIndex===-1 && __homeTest.docs.paginaProjetada()===false`);
   await js("document.getElementById('btn-tela-inicial').click()");
   for(let i=0;i<40&&await js("document.body.classList.contains('app-mod-docs')");i++) await pause(100); /* a transição de visualização leva mais que 300ms na janela oculta */
   await check('DOCS: voltar à tela inicial fecha o modo e restaura o título',`!document.body.classList.contains('app-mod-docs') && document.title==='Lyra — Controlador' && document.getElementById('btn-modo-docs').getAttribute('aria-pressed')==='false'`);
+  // Depois de recarregar o painel: o PDF volta do IndexedDB e as páginas reaparecem
+  await win.loadURL(origin+'/controller.html');
+  for(let i=0;i<100;i++){if(await js('!!window.__homeTest'))break;await pause();}
+  await js("document.getElementById('btn-modo-docs').click()");
+  await aguardar("document.getElementById('docs-nav-contador').textContent==='1 / 3' && !document.getElementById('docs-preview-img').hidden", 15000);
+  await check('DOCS (PDF real): após recarregar, o documento volta do armazenamento e as páginas reaparecem',`document.body.classList.contains('app-mod-docs') && document.querySelectorAll('#docs-faixa .docs-miniatura').length===3 && !document.getElementById('docs-preview-img').hidden && document.getElementById('docs-nav-contador').textContent==='1 / 3'`);
+  await js("document.getElementById('btn-tela-inicial').click()");
+  for(let i=0;i<40&&await js("document.body.classList.contains('app-mod-docs')");i++) await pause(100);
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
+  checks.push('sem erros de console no renderer (inicialização e fluxos)'); if(errors.length) failures.push('Erros de console: '+errors.slice(0,5).join(' | '));
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({complete:true,checks,failures,errors},null,2));
   if(failures.length) throw Error(failures.join('\n'));
 }
