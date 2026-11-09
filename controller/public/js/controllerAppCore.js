@@ -44,7 +44,10 @@
  *   copiasLocaisLetra.js — versão `c_*` vs SQLite e mapa no localStorage
  *   playlistVersaoMusica.js — id de fetch/pré-voo, fonte e igualdade de item
  *   fonteLetrasSite.js — seletor, placeholder e fonte do POST importar
- * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui)
+ * `js/painel/` — utilitários reutilizáveis (extrair gradualmente mais blocos aqui):
+ *   appDialog.js — diálogo padrão (alerta, confirmação, texto, escolha); estado em `appDialogEstado`
+ *   menuLyra.js / lyraMenuConteudo.js — menu Ajuda/Ferramentas do Lyra (janela, fluxos, manual, atalhos)
+ *   bannerAtualizacao.js — banner de atualização do app e dos componentes (companion)
  * =============================================================================
  */
 
@@ -317,6 +320,58 @@ import {
   consolidar,
   resumoPreVoo,
 } from './modules/preVooPlaylist.js';
+import {
+  appDialogEstado,
+  fecharAppDialog,
+  appAlert,
+  appConfirm,
+  appPrompt,
+  appEscolherOpcao,
+  registrarDependenciasAppDialog,
+} from './painel/appDialog.js';
+import {
+  fecharLyraMenuModal,
+  atualizarModalStatusReinicioServidor,
+  encerrarServidorRemotoViaMenu,
+  tratarComandoMenuLyra,
+  registrarDependenciasMenuLyra,
+} from './painel/menuLyra.js';
+import {
+  lyraUpdaterUiState,
+  esconderBannerAtualizacao,
+  mostrarBannerAtualizacaoDisponivel,
+  mostrarBannerProgressoAtualizacao,
+  mostrarBannerAtualizacaoPronta,
+  mostrarBannerCompanionDisponivel,
+  mostrarBannerCompanionProgresso,
+  registrarDependenciasBannerAtualizacao,
+} from './painel/bannerAtualizacao.js';
+
+/*
+ * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
+ * registadas aqui, no topo, antes de qualquer diálogo poder abrir. Tudo é lido de forma preguiçosa
+ * (funções que chamam a do núcleo / getters): as variáveis do núcleo são reatribuídas mais adiante.
+ */
+registrarDependenciasAppDialog({
+  getModalSincronizarTimer: () => modalSincronizarTimerAutoFechar,
+  getModalImportarTimer: () => modalImportarTimerAutoFechar,
+  liberarBloqueioFecharImportPlaylist: (...a) => liberarBloqueioFecharImportPlaylist(...a),
+  normalizarTemaPlaylist: (...a) => normalizarTemaPlaylist(...a),
+});
+registrarDependenciasMenuLyra({
+  getSocket: () => socket,
+  emModoProjecaoLocal: (...a) => emModoProjecaoLocal(...a),
+  interromperReconexaoSocket: (...a) => interromperReconexaoSocket(...a),
+  correrPreVooDoCulto: (...a) => correrPreVooDoCulto(...a),
+  recarregarPainelControlador: (...a) => recarregarPainelControlador(...a),
+  alternarProjecaoNestaMaquina: (...a) => alternarProjecaoNestaMaquina(...a),
+  abrirCfgModal: (...a) => abrirCfgModal(...a),
+});
+registrarDependenciasBannerAtualizacao({
+  setCompanionHandoffEmCurso: (valor) => {
+    companionHandoffEmCurso = valor;
+  },
+});
 
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
@@ -8975,8 +9030,8 @@ function abrirModalCompartilharPlaylist() {
   ov.hidden = false;
   ov.classList.add('aberto');
   // Clique no escuro não fecha. Escape cancela (limpeza do resolver).
-  appDialogFecharNoBackdrop = true;
-  appCompartilharResolver = () => {};
+  appDialogEstado.fecharNoBackdrop = true;
+  appDialogEstado.compartilharResolver = () => {};
   return wrap;
 }
 
@@ -9224,12 +9279,12 @@ let appImportarBloqueadoFechar = false;
 
 function liberarBloqueioFecharImportPlaylist() {
   appImportarBloqueadoFechar = false;
-  appDialogFecharNoBackdrop = true;
+  appDialogEstado.fecharNoBackdrop = true;
 }
 
 function bloquearFecharImportPlaylistEmAndamento() {
   appImportarBloqueadoFechar = true;
-  appDialogFecharNoBackdrop = false;
+  appDialogEstado.fecharNoBackdrop = false;
 }
 
 function importarPlaylist() {
@@ -9302,8 +9357,8 @@ function abrirModalImportarPlaylistInput(valorInicial = '') {
   ov.hidden = false;
   ov.classList.add('aberto');
   // Clique no escuro não fecha. Escape cancela (limpeza do resolver), salvo spinner bloqueado.
-  appDialogFecharNoBackdrop = true;
-  appImportarResolver = () => {};
+  appDialogEstado.fecharNoBackdrop = true;
+  appDialogEstado.importarResolver = () => {};
   setTimeout(() => {
     try {
       input.focus();
@@ -9383,7 +9438,7 @@ function modalImportarPlaylistSucesso(wrap, msg, autoFechar = true) {
   if (autoFechar) {
     modalImportarTimerAutoFechar = setTimeout(() => {
       // Só fecha se ainda for o modal de importação que está aberto.
-      if (appImportarResolver) fecharAppDialog(false);
+      if (appDialogEstado.importarResolver) fecharAppDialog(false);
     }, 2600);
   }
 }
@@ -10335,15 +10390,15 @@ function abrirModalSincronizarBanco() {
   ov.hidden = false;
   ov.classList.add('aberto');
   // Clique no escuro não fecha. Escape cancela (limpeza do resolver).
-  appDialogFecharNoBackdrop = true;
-  appSincronizarResolver = () => {};
+  appDialogEstado.fecharNoBackdrop = true;
+  appDialogEstado.sincronizarResolver = () => {};
   return wrap;
 }
 
 /** Estado de sucesso (verde) — banco enviado e outros PCs notificados. */
 function modalSincronizarSucesso(wrap, msg) {
   // Se o usuário já fechou o modal durante o loading, não mexe nos botões compartilhados.
-  if (!appSincronizarResolver) return;
+  if (!appDialogEstado.sincronizarResolver) return;
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   if (wrap) {
@@ -10361,13 +10416,13 @@ function modalSincronizarSucesso(wrap, msg) {
   }
   clearTimeout(modalSincronizarTimerAutoFechar);
   modalSincronizarTimerAutoFechar = setTimeout(() => {
-    if (appSincronizarResolver) fecharAppDialog(false);
+    if (appDialogEstado.sincronizarResolver) fecharAppDialog(false);
   }, 2600);
 }
 
 /** Estado de aviso (amarelo) — não é sucesso; envio sem destinatário/pré-condição. */
 function modalSincronizarAviso(wrap, msg) {
-  if (!appSincronizarResolver) return;
+  if (!appDialogEstado.sincronizarResolver) return;
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   clearTimeout(modalSincronizarTimerAutoFechar);
@@ -10398,7 +10453,7 @@ function modalSincronizarAviso(wrap, msg) {
  *  outro PC é quase sempre endereço errado, e a correção tem de estar à mão de quem está
  *  a olhar para o erro — não escondida atrás de um menu. */
 function modalSincronizarErro(wrap, msg, acao) {
-  if (!appSincronizarResolver) return;
+  if (!appDialogEstado.sincronizarResolver) return;
   const ok = document.getElementById('app-dialog-ok');
   const cancel = document.getElementById('app-dialog-cancel');
   clearTimeout(modalSincronizarTimerAutoFechar);
@@ -16693,7 +16748,7 @@ function escolherVersoesParaComparar(versoes, rootId) {
   if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(null);
 
   return new Promise((resolve) => {
-    appEscolhaResolver = resolve;
+    appDialogEstado.escolhaResolver = resolve;
     head.textContent = 'Comparar versões';
     body.innerHTML = '';
     dialog?.classList.add('app-dialog--cmp-escolha');
@@ -16798,9 +16853,9 @@ function escolherVersoesParaComparar(versoes, rootId) {
     body.appendChild(wrap);
 
     const finish = (v) => {
-      if (!appEscolhaResolver) return;
-      const r = appEscolhaResolver;
-      appEscolhaResolver = null;
+      if (!appDialogEstado.escolhaResolver) return;
+      const r = appDialogEstado.escolhaResolver;
+      appDialogEstado.escolhaResolver = null;
       body.innerHTML = '';
       dialog?.classList.remove('app-dialog--cmp-escolha');
       ok.style.display = '';
@@ -16839,7 +16894,7 @@ function escolherVersoesParaComparar(versoes, rootId) {
 
     ov.hidden = false;
     ov.classList.add('aberto');
-    appDialogFecharNoBackdrop = true;
+    appDialogEstado.fecharNoBackdrop = true;
   });
 }
 
@@ -25897,1278 +25952,11 @@ setTimeout(() => {
 //  Dark Mode + Configurações de Exibição (Controlador remoto)
 // ════════════════════════════════════════════════════════════
 
-let appDialogResolver = null;
-/**
- * Se false, Escape não dispensa o app-dialog (alertas só-OK).
- * Clique no escuro nunca fecha um aviso do sistema — só OK/Cancelar/Fechar.
- */
-let appDialogFecharNoBackdrop = false;
-let appPromptResolver = null;
-let appEscolhaResolver = null;
-let appCompartilharResolver = null;
-let appImportarResolver = null;
-let appSincronizarResolver = null;
+// (extraído) Diálogo padrão do app → painel/appDialog.js
 
-function fecharAppDialog(resultado) {
-  appDialogFecharNoBackdrop = false;
-  const ov = document.getElementById('app-dialog-overlay');
-  const body = document.getElementById('app-dialog-body');
-  const okBtn = document.getElementById('app-dialog-ok');
-  if (appSincronizarResolver) {
-    const r = appSincronizarResolver;
-    appSincronizarResolver = null;
-    clearTimeout(modalSincronizarTimerAutoFechar);
-    if (body) {
-      body.innerHTML = '';
-      body.style.whiteSpace = '';
-    }
-    if (okBtn) {
-      okBtn.style.display = '';
-      okBtn.textContent = 'OK';
-    }
-    const cancelBtn = document.getElementById('app-dialog-cancel');
-    if (cancelBtn) {
-      cancelBtn.textContent = 'Cancelar';
-      cancelBtn.style.display = 'none';
-    }
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    r(null);
-    return;
-  }
-  if (appImportarResolver) {
-    const r = appImportarResolver;
-    appImportarResolver = null;
-    liberarBloqueioFecharImportPlaylist();
-    clearTimeout(modalImportarTimerAutoFechar);
-    if (body) {
-      body.innerHTML = '';
-      body.style.whiteSpace = '';
-    }
-    if (okBtn) {
-      okBtn.style.display = '';
-      okBtn.textContent = 'OK';
-    }
-    const cancelBtn = document.getElementById('app-dialog-cancel');
-    if (cancelBtn) {
-      cancelBtn.textContent = 'Cancelar';
-      cancelBtn.style.display = 'none';
-    }
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    r(null);
-    return;
-  }
-  if (appCompartilharResolver) {
-    const r = appCompartilharResolver;
-    appCompartilharResolver = null;
-    if (body) body.innerHTML = '';
-    if (body) body.style.whiteSpace = '';
-    if (okBtn) okBtn.style.display = '';
-    const cancelBtn = document.getElementById('app-dialog-cancel');
-    if (cancelBtn) {
-      cancelBtn.textContent = 'Cancelar';
-      cancelBtn.style.display = 'none';
-    }
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    r(null);
-    return;
-  }
-  if (appEscolhaResolver) {
-    const r = appEscolhaResolver;
-    appEscolhaResolver = null;
-    if (body) body.innerHTML = '';
-    if (okBtn) okBtn.style.display = '';
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    r(null);
-    return;
-  }
-  if (appPromptResolver) {
-    const r = appPromptResolver;
-    appPromptResolver = null;
-    if (body) body.textContent = '';
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    r(null);
-    return;
-  }
-  if (ov) {
-    ov.classList.remove('aberto');
-    ov.hidden = true;
-  }
-  const resolver = appDialogResolver;
-  appDialogResolver = null;
-  if (resolver) resolver(!!resultado);
-}
+// (extraído) Conteúdo e janela do menu Lyra → painel/lyraMenuConteudo.js e painel/menuLyra.js
 
-function abrirAppDialog(msg, opts = {}) {
-  const ov = document.getElementById('app-dialog-overlay');
-  const body = document.getElementById('app-dialog-body');
-  const head = document.getElementById('app-dialog-head');
-  const ok = document.getElementById('app-dialog-ok');
-  const cancel = document.getElementById('app-dialog-cancel');
-  if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(false);
-  body.textContent = String(msg || '');
-  head.textContent = String(opts.title || 'Lyra');
-  ok.textContent = String(opts.okLabel || 'OK');
-  cancel.textContent = String(opts.cancelLabel || 'Cancelar');
-  cancel.style.display = opts.confirm ? '' : 'none';
-  /* Clique no escuro nunca fecha. O flag só permite Escape como Cancelar (não em alertas só-OK). */
-  appDialogFecharNoBackdrop = !!opts.confirm;
-  ov.hidden = false;
-  ov.classList.add('aberto');
-  return new Promise((resolve) => {
-    appDialogResolver = resolve;
-    ok.onclick = () => fecharAppDialog(true);
-    cancel.onclick = () => fecharAppDialog(false);
-  });
-}
-
-function appAlert(msg, title) {
-  return abrirAppDialog(msg, { title: title || 'Lyra', confirm: false });
-}
-
-function appConfirm(msg, title, opts = {}) {
-  return abrirAppDialog(msg, {
-    title: title || 'Lyra',
-    confirm: true,
-    okLabel: opts.okLabel,
-    cancelLabel: opts.cancelLabel,
-  });
-}
-
-/** Diálogo com campo de texto; resolve string normalizada ou null (cancelar).
- *  `opts.normalizar` (opcional): valida e normaliza o texto, devolvendo vazio quando não
- *  serve. Por omissão trata o campo como nome de tema — o que este diálogo sempre pediu.
- *  Endereços de rede precisam de outra regra, e não de outro diálogo. */
-function appPrompt(msg, opts = {}) {
-  const ov = document.getElementById('app-dialog-overlay');
-  const body = document.getElementById('app-dialog-body');
-  const head = document.getElementById('app-dialog-head');
-  const ok = document.getElementById('app-dialog-ok');
-  const cancel = document.getElementById('app-dialog-cancel');
-  if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(null);
-  head.textContent = String(opts.title || 'Lyra');
-  ok.textContent = 'OK';
-  cancel.textContent = 'Cancelar';
-  body.textContent = '';
-  const auxText = opts.auxText != null ? String(opts.auxText) : '';
-  const fieldLabel = opts.fieldLabel != null ? String(opts.fieldLabel) : '';
-  const msgText = String(msg || '');
-  if (auxText) {
-    const aux = document.createElement('p');
-    aux.style.margin = '0 0 10px 0';
-    aux.style.fontSize = '15px';
-    aux.textContent = auxText;
-    body.appendChild(aux);
-  }
-  if (fieldLabel) {
-    const labelEl = document.createElement('label');
-    labelEl.style.display = 'block';
-    labelEl.style.margin = auxText ? '0 0 6px 0' : '0 0 10px 0';
-    labelEl.style.fontSize = '15px';
-    labelEl.textContent = fieldLabel;
-    body.appendChild(labelEl);
-  } else if (msgText) {
-    const p = document.createElement('p');
-    p.style.margin = '0 0 10px 0';
-    p.style.fontSize = '15px';
-    p.textContent = msgText;
-    body.appendChild(p);
-  }
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.maxLength = Number.isFinite(Number(opts.maxLength)) ? Number(opts.maxLength) : 40;
-  input.value = String(opts.defaultValue || '');
-  input.style.width = '100%';
-  input.style.boxSizing = 'border-box';
-  input.style.padding = '8px 10px';
-  input.style.borderRadius = '6px';
-  input.style.border = '1px solid var(--border)';
-  input.style.background = 'var(--surface2)';
-  input.style.color = 'var(--text)';
-  input.style.fontFamily = 'var(--font-ui)';
-  body.appendChild(input);
-  const err = document.createElement('div');
-  err.className = 'app-prompt-err';
-  err.style.marginTop = '8px';
-  err.style.fontSize = '14px';
-  err.style.color = 'var(--danger, #c44)';
-  err.style.minHeight = '16px';
-  body.appendChild(err);
-  cancel.style.display = '';
-  ov.hidden = false;
-  ov.classList.add('aberto');
-  appDialogFecharNoBackdrop = true;
-  return new Promise((resolve) => {
-    appPromptResolver = resolve;
-    const normalizar =
-      typeof opts.normalizar === 'function' ? opts.normalizar : normalizarTemaPlaylist;
-    const fecharOk = () => {
-      const v = normalizar(input.value);
-      if (!v) {
-        err.textContent = opts.emptyMsg || 'Digite um nome válido.';
-        try {
-          input.focus();
-        } catch (_) {
-  // intencional — erro ignorado
-}
-        return;
-      }
-      appPromptResolver = null;
-      body.textContent = '';
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-      resolve(v);
-    };
-    ok.onclick = fecharOk;
-    cancel.onclick = () => fecharAppDialog(false);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        fecharOk();
-      }
-    });
-    setTimeout(() => {
-      try {
-        input.focus();
-        input.select();
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    }, 50);
-  });
-}
-
-/** Várias opções com botões; resolve o `value` escolhido ou `null` (Cancelar).
- *  `textoDetalhe` (opcional): parágrafo acima dos botões (use \\n para quebras).
- *  `opts.itensEmLista` (opcional): alinha o texto dos botões à esquerda, para quando as
- *  opções formam uma lista de rótulos de comprimentos diferentes. Sem ele, o diálogo
- *  mantém-se exactamente como estava — botões de acção continuam centrados. */
-function appEscolherOpcao(titulo, opcoes, textoDetalhe, opts = {}) {
-  const ov = document.getElementById('app-dialog-overlay');
-  const body = document.getElementById('app-dialog-body');
-  const head = document.getElementById('app-dialog-head');
-  const ok = document.getElementById('app-dialog-ok');
-  const cancel = document.getElementById('app-dialog-cancel');
-  if (!ov || !body || !head || !ok || !cancel || !Array.isArray(opcoes)) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    appEscolhaResolver = resolve;
-    head.textContent = String(titulo || 'Escolher');
-    ok.style.display = 'none';
-    body.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.style.display = 'flex';
-    wrap.style.flexDirection = 'column';
-    wrap.style.gap = '10px';
-    if (textoDetalhe != null && String(textoDetalhe).trim() !== '') {
-      const det = document.createElement('p');
-      det.style.margin = '0 0 12px 0';
-      det.style.fontSize = '15px';
-      det.style.lineHeight = '1.55';
-      det.style.whiteSpace = 'pre-line';
-      det.style.color = 'var(--text-muted, #7a726b)';
-      det.textContent = String(textoDetalhe);
-      body.appendChild(det);
-    }
-    const finish = (v) => {
-      if (!appEscolhaResolver) return;
-      const r = appEscolhaResolver;
-      appEscolhaResolver = null;
-      body.innerHTML = '';
-      ok.style.display = '';
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-      r(v);
-    };
-    opcoes.forEach((op) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = opts.itensEmLista ? 'btn primary app-dialog-opcao--lista' : 'btn primary';
-      b.style.width = '100%';
-      b.textContent = op.label;
-      b.onclick = () => finish(op.value);
-      wrap.appendChild(b);
-    });
-    body.appendChild(wrap);
-    cancel.style.display = '';
-    cancel.textContent = String(opts.cancelLabel || 'Cancelar');
-    cancel.onclick = () => finish(null);
-    ov.hidden = false;
-    ov.classList.add('aberto');
-    appDialogFecharNoBackdrop = true;
-  });
-}
-
-const LYRA_MANUAL_SECTIONS = [
-  {
-    title: 'Visão geral',
-    items: [
-      'O Lyra trabalha com duas frentes: o Servidor abre e alimenta as telas de projeção, e o Controlador concentra a operação do culto, evento ou transmissão.',
-      'Na rotina normal, deixe o Servidor aberto no computador conectado aos monitores e use o Controlador para selecionar o conteúdo, acompanhar prévias e disparar a projeção.',
-    ],
-  },
-  {
-    title: 'Modos disponíveis',
-    items: [
-      '<strong>Slide:</strong> opera músicas, estrofes, playlist do culto, próxima música e projeção em telão/ministrante.',
-      '<strong>Bíblia:</strong> permite buscar livro, capítulo e versículo, navegar rapidamente e projetar textos bíblicos com configuração visual própria.',
-      '<strong>Mídias:</strong> projeta imagens, PDFs e apresentações nos cards 1 a 4, vídeo no card 5 (exclusivo para vídeo) e avisos rápidos no card 6 — inclusive em canais separados do telão e do ministrante.',
-      '<strong>Contagem:</strong> abre o relógio pré-culto no telão («O culto começa em 04:32»), com pausa, ajuste de tempo em pleno ar e mensagens livres acima e abaixo dos dígitos.',
-    ],
-  },
-  {
-    title: 'Contagem regressiva',
-    items: [
-      'O botão <strong>Contagem</strong>, no cabeçalho, abre o painel do tempo: escolha os minutos (ou use um dos atalhos de 5, 10, 15 e 30) e clique em <strong>Iniciar</strong>.',
-      'Com a contagem no ar, o mesmo botão <strong>pausa</strong> e <strong>retoma</strong>; <strong>−1 min</strong> e <strong>+1 min</strong> esticam ou encurtam o tempo <em>sem</em> reiniciar os dígitos, para quando o culto atrasa.',
-      'As duas mensagens (acima e abaixo dos dígitos) são texto livre e podem ser trocadas com a contagem já projetada — o telão acompanha sem perder o tempo que corre.',
-      'A contagem <strong>cobre</strong> o que estiver no telão em vez de o apagar: ao encerrar, o slide ou versículo que estava por baixo volta sozinho. O <strong>ESC</strong> numa janela de projeção também a encerra.',
-      'Fonte, tamanho, cores, fundo (cor, gradiente ou imagem), formato do tempo e o que fazer ao chegar a zero ficam em <strong>Ajustes → Contagem</strong>. Mudanças ali aparecem no ato, sem reiniciar o tempo.',
-      'Em <strong>Ao chegar a zero</strong> escolha entre ficar em 00:00, contar para cima (<code>+00:42</code>, útil para medir atraso) ou encerrar sozinha e devolver o telão.',
-    ],
-  },
-  {
-    title: 'Onde a projeção acontece',
-    items: [
-      '<strong>Por padrão, o Lyra projeta nesta máquina.</strong> Ao abrir, ele já assume os monitores deste PC — nada precisa ser configurado, e nenhum servidor precisa estar rodando. É o caso de quem opera no mesmo computador que tem os projetores.',
-      'Os monitores secundários ficam <strong>pretos</strong> quando não há nada projetado, com o relógio por cima se você o tiver ligado em Ajustes. Isso é proposital: a área de trabalho do operador nunca aparece no telão.',
-      'O menu <strong>Ferramentas → Projetar nesta máquina</strong> mostra e controla esse modo. A marca indica se ele está mesmo de pé.',
-      '<strong>Dois PCs:</strong> se os monitores estiverem em outro computador, abra o app <strong>Servidor</strong> nele e, aqui, use <strong>Ferramentas → Conectar a servidor remoto…</strong> (ou Ajustes → Conexão), informe o IP daquele PC e clique em <strong>Conectar</strong>.',
-      '<strong>A conexão vale só para a sessão atual.</strong> O Lyra não guarda essa escolha: ao fechar e reabrir, ele volta sempre a projetar nesta máquina, e você conecta de novo se quiser. O IP digitado continua salvo, para não ser preciso redigitá-lo — mas nada se conecta sozinho.',
-      'Para voltar ao padrão sem reiniciar, use <strong>Ferramentas → Projetar nesta máquina</strong>.',
-      'O Servidor publica a API principal na porta 5510 e exibe o IP local. Se a conexão cair, revise IP, firewall e rede local — o Lyra foi pensado para uso em LAN confiável, com Servidor e Controlador na mesma rede.',
-      'O item <strong>Ferramentas → Reiniciar servidor</strong> só aparece quando você está conectado a um Servidor remoto; ele reinicia esse servidor e aguarda até ele responder novamente.',
-      'Os dois modos não podem coexistir na mesma máquina: quem chegar primeiro à porta 5510 fica com ela, e o outro avisa em vez de disputar as telas.',
-    ],
-  },
-  {
-    title: 'Projeção nos monitores',
-    items: [
-      'O roteamento permite escolher onde cada modo será exibido: público (M2), ministrante (M3) ou live/OBS, sem precisar alterar o restante da operação.',
-      'No modo Slide, o telão e o ministrante podem continuar ativos ao mesmo tempo; no modo Apresentação, cada mídia pode ser enviada para público, ministrante, ambos ou live.',
-      'Use as prévias do painel para confirmar o que está indo para cada destino antes de projetar.',
-    ],
-  },
-  {
-    title: 'OBS e modo Live',
-    items: [
-      'Quando a rota do público estiver em <strong>Live</strong>, o Lyra não usa monitor físico para esse canal e prepara a saída para captura no OBS — ideal quando o texto ou a mídia precisam entrar na cena sem ocupar uma tela física.',
-      'Fonte única (traz tudo junto — Bíblia, slides/letra e avisos), para quem usa uma só Browser Source em uma cena: <code>http://127.0.0.1:5001/obs</code>',
-      'Fonte só da Bíblia — adicione como Browser Source na cena da pregação: <code>http://127.0.0.1:5001/obs/biblia</code>',
-      'Fonte só de slides/letra — adicione como Browser Source na cena de louvor: <code>http://127.0.0.1:5001/obs/slides</code>',
-      'A troca de cena continua manual no OBS: o Lyra apenas liga/desliga o conteúdo de cada fonte, e cada Browser Source só aparece quando você seleciona a cena correspondente.',
-      'Todas as fontes têm fundo transparente por padrão. Use o campo “Custom CSS” da Browser Source para estilizar cores, fontes e fundo — classes: <code>.biblia-texto</code>, <code>.biblia-referencia</code>, <code>.slide-titulo</code>, <code>.slide-linha</code>.',
-    ],
-  },
-  {
-    title: 'Playlist e compartilhamento',
-    items: [
-      'A playlist fica associada ao culto selecionado e permite organizar ordem, temas, versões e próxima música.',
-      'O botão de compartilhamento gera um código temporário da playlist; outro controlador compatível pode importar esse código para receber a mesma seleção.',
-      'Esse recurso ajuda a transferir a programação entre máquinas sem exportações manuais.',
-    ],
-  },
-];
-
-const LYRA_SHORTCUT_GROUPS = [
-  {
-    title: 'Operação principal',
-    rows: [
-      { keys: ['F10'], action: 'Alterna o blackout das telas de projeção.' },
-      {
-        keys: ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'],
-        action: 'Navega pelos slides ou versículos conforme o modo ativo do painel.',
-      },
-      {
-        keys: ['PageDown', 'ArrowRight', 'ArrowDown', 'Numpad2', 'Numpad6', 'NumpadEnter', 'Enter', 'Space'],
-        action: 'Avança a projeção quando usado como passador ou navegação de slides. A tecla Espaço entra apenas no modo Slide.',
-      },
-      {
-        keys: ['PageUp', 'ArrowLeft', 'ArrowUp', 'Numpad4', 'Numpad9', 'Backspace'],
-        action: 'Volta a projeção quando usado como passador ou navegação de slides.',
-      },
-      {
-        keys: ['Escape'],
-        action: 'Na Home, limpa a música selecionada (também no modo letra completa). No modo Slide, encerra a projeção atual e limpa as telas. No modo Bíblia, fecha a busca rápida aberta ou encerra a projeção bíblica.',
-      },
-    ],
-  },
-  {
-    title: 'Busca rápida da Bíblia',
-    rows: [
-      {
-        keys: ['Qualquer caractere'],
-        action: 'Abre a busca rápida da Bíblia e já preenche o campo com a tecla digitada.',
-      },
-      {
-        keys: ['Backspace'],
-        action: 'Abre a busca rápida da Bíblia limpando o texto atual.',
-      },
-      {
-        keys: ['ArrowDown', 'ArrowUp'],
-        action: 'Navega entre os livros e resultados da busca rápida.',
-      },
-      {
-        keys: ['Enter'],
-        action: 'Confirma o livro, capítulo ou versículo selecionado na busca rápida.',
-      },
-      {
-        keys: ['Escape'],
-        action: 'Fecha a busca rápida da Bíblia.',
-      },
-    ],
-  },
-  {
-    title: 'Menus, modais e telas auxiliares',
-    rows: [
-      {
-        keys: ['Escape'],
-        action: 'Fecha calendário de culto, dropdowns, menus de roteamento, menu de contexto do strip, notas por slide, diálogos do app e esta janela de ajuda.',
-      },
-      {
-        keys: ['Enter'],
-        action: 'Confirma prompts e renomeações rápidas de itens de áudio, arquivos e campos equivalentes.',
-      },
-      {
-        keys: ['Escape'],
-        action: 'Cancela renomeações rápidas e fecha modais contextuais compatíveis.',
-      },
-    ],
-  },
-  {
-    title: 'Janelas de projeção e servidor',
-    rows: [
-      {
-        keys: ['Escape'],
-        action: 'Na janela pública, na janela do ministrante e no display do servidor, encerra a projeção ativa daquela tela.',
-      },
-    ],
-  },
-];
-
-const lyraMenuModalState = {
-  canClose: true,
-};
-
-const lyraServerRestartUiState = {
-  emAndamento: false,
-  stage: 'idle',
-  message: '',
-};
-
-function obterLyraMenuModalEls() {
-  return {
-    overlay: document.getElementById('lyra-menu-modal-overlay'),
-    panel: document.getElementById('lyra-menu-modal'),
-    eyebrow: document.getElementById('lyra-menu-modal-eyebrow'),
-    title: document.getElementById('lyra-menu-modal-title'),
-    subtitle: document.getElementById('lyra-menu-modal-subtitle'),
-    body: document.getElementById('lyra-menu-modal-body'),
-    footer: document.querySelector('#lyra-menu-modal-overlay .lyra-menu-modal-footer'),
-    close: document.getElementById('lyra-menu-modal-close'),
-    closeX: document.getElementById('lyra-menu-modal-close-x'),
-  };
-}
-
-function limparVariantesLyraMenuModal(panel) {
-  if (!panel) return;
-  panel.classList.remove('lyra-menu-modal--wide', 'lyra-menu-modal--about', 'lyra-menu-modal--status');
-}
-
-function nomeTeclaPtBrLyra(key) {
-  const mapa = {
-    ArrowRight: 'Seta Direita',
-    ArrowLeft: 'Seta Esquerda',
-    ArrowUp: 'Seta para Cima',
-    ArrowDown: 'Seta para Baixo',
-    PageDown: 'Page Down',
-    PageUp: 'Page Up',
-    Escape: 'Esc',
-    Enter: 'Enter',
-    Backspace: 'Retrocesso',
-    Space: 'Barra de Espaço',
-    NumpadEnter: 'Enter Numérico',
-    Numpad2: 'Teclado Numérico 2',
-    Numpad4: 'Teclado Numérico 4',
-    Numpad6: 'Teclado Numérico 6',
-    Numpad9: 'Teclado Numérico 9',
-    F10: 'F10',
-  };
-  return mapa[String(key || '')] || String(key || '');
-}
-
-function renderizarAtalhosLyra(keys) {
-  const lista = Array.isArray(keys) ? keys : [keys];
-  return lista.map((key, idx) => {
-    const sep = idx === 0 ? '' : '<span class="lyra-shortcuts-alt">ou</span>';
-    return `${sep}<kbd>${escapeHtml(nomeTeclaPtBrLyra(key))}</kbd>`;
-  }).join('');
-}
-
-function renderizarTabelaAtalhosLyra(rows) {
-  return `
-    <table class="lyra-shortcuts-table">
-      <thead>
-        <tr>
-          <th>Atalho</th>
-          <th>Ação</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map((row) => `
-          <tr>
-            <td>${renderizarAtalhosLyra(row.keys)}</td>
-            <td>${escapeHtml(String(row.action || ''))}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
-}
-
-function montarHtmlManualLyra() {
-  return `
-    <p>
-      Este manual resume o fluxo principal do Lyra com base nas funções já disponíveis no projeto:
-      operação por modos, ligação com o servidor, roteamento de monitores, OBS, playlists e
-      compartilhamento.
-    </p>
-    <div class="lyra-doc-grid">
-      ${LYRA_MANUAL_SECTIONS.map((section) => `
-        <section class="lyra-doc-section">
-          <h3>${section.title}</h3>
-          <ul class="lyra-doc-list">
-            ${section.items.map((item) => `<li>${item}</li>`).join('')}
-          </ul>
-        </section>
-      `).join('')}
-    </div>
-    <div class="lyra-doc-callout">
-      <strong>Dica prática:</strong> para operação estável, abra primeiro o Servidor no computador
-      conectado às telas, confira o IP e os monitores configurados, e depois use o Controlador para
-      operar Slides, Bíblia, Mídias e playlists no mesmo culto.
-    </div>
-  `;
-}
-
-function montarHtmlAtalhosLyra() {
-  return LYRA_SHORTCUT_GROUPS.map((group) => `
-    <section class="lyra-shortcuts-group">
-      <h3>${group.title}</h3>
-      ${renderizarTabelaAtalhosLyra(group.rows)}
-    </section>
-  `).join('');
-}
-
-function montarHtmlSobreLyra(version) {
-  const versao = escapeHtml(String(version || 'Não disponível'));
-  return `
-    <div class="lyra-about-card">
-      <div class="lyra-about-hero">
-        <img class="lyra-about-icon" src="./images/lyra-logo.png" alt="Ícone do Lyra">
-        <div>
-          <div class="lyra-about-name">Lyra</div>
-          <div class="lyra-about-tagline">Controlador de projeção para igrejas e eventos ao vivo</div>
-          <div class="lyra-about-version">Versão ${versao}</div>
-        </div>
-      </div>
-      <div class="lyra-about-body">
-        <div class="lyra-about-row">
-          <div class="lyra-about-label">Nome</div>
-          <div class="lyra-about-value">Lyra</div>
-        </div>
-        <div class="lyra-about-row">
-          <div class="lyra-about-label">Versão</div>
-          <div class="lyra-about-value">${versao}</div>
-        </div>
-        <div class="lyra-about-row">
-          <div class="lyra-about-label">Descrição</div>
-          <div class="lyra-about-value">Controlador de projeção para igrejas e eventos ao vivo</div>
-        </div>
-        <div class="lyra-about-row">
-          <div class="lyra-about-label">Desenvolvedor</div>
-          <div class="lyra-about-value">Alan Pereira</div>
-        </div>
-        <div class="lyra-about-row">
-          <div class="lyra-about-label">Organização</div>
-          <div class="lyra-about-value">Ministério de Comunicações — INVB</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function montarHtmlStatusReinicioServidor(statusKind, message) {
-  const indicadorClasse =
-    statusKind === 'success'
-      ? 'lyra-status-indicator lyra-status-indicator--success'
-      : statusKind === 'error'
-        ? 'lyra-status-indicator lyra-status-indicator--error'
-        : 'lyra-status-indicator lyra-status-indicator--progress';
-  const indicadorTexto = statusKind === 'success' ? 'OK' : statusKind === 'error' ? '!' : '';
-  const titulo =
-    statusKind === 'success'
-      ? 'Servidor disponível'
-      : statusKind === 'error'
-        ? 'Reinício não concluído'
-        : 'Processando reinício';
-
-  return `
-    <div class="lyra-status-card">
-      <div class="${indicadorClasse}">${indicadorTexto}</div>
-      <div class="lyra-status-text">
-        <h3>${titulo}</h3>
-        <p>${escapeHtml(String(message || 'Aguarde alguns instantes.'))}</p>
-      </div>
-    </div>
-  `;
-}
-
-function configurarLyraMenuModal(opts = {}) {
-  const els = obterLyraMenuModalEls();
-  if (!els.overlay || !els.panel || !els.body || !els.title || !els.close || !els.closeX) return false;
-
-  const variantClass =
-    opts.variant === 'about'
-      ? 'lyra-menu-modal--about'
-      : opts.variant === 'status'
-        ? 'lyra-menu-modal--status'
-        : 'lyra-menu-modal--wide';
-  const canClose = opts.canClose !== false;
-
-  limparVariantesLyraMenuModal(els.panel);
-  els.panel.classList.add(variantClass);
-
-  els.title.textContent = String(opts.title || 'Lyra');
-
-  if (els.eyebrow) {
-    const mostrarEyebrow = String(opts.eyebrow || '').trim() !== '';
-    els.eyebrow.hidden = !mostrarEyebrow;
-    els.eyebrow.textContent = mostrarEyebrow ? String(opts.eyebrow) : '';
-  }
-
-  if (els.subtitle) {
-    const mostrarSubtitle = String(opts.subtitle || '').trim() !== '';
-    els.subtitle.hidden = !mostrarSubtitle;
-    els.subtitle.textContent = mostrarSubtitle ? String(opts.subtitle) : '';
-  }
-
-  els.body.innerHTML = String(opts.html || '');
-  els.close.textContent = String(opts.closeLabel || 'Fechar');
-  els.close.disabled = !canClose;
-  els.closeX.disabled = !canClose;
-  els.closeX.hidden = opts.showCloseIcon === false;
-  if (els.footer) els.footer.hidden = opts.showFooter === false;
-
-  lyraMenuModalState.canClose = canClose;
-  return true;
-}
-
-function abrirLyraMenuModal(opts = {}) {
-  const els = obterLyraMenuModalEls();
-  if (!configurarLyraMenuModal(opts) || !els.overlay) return false;
-  els.overlay.hidden = false;
-  els.overlay.classList.add('aberto');
-  requestAnimationFrame(() => {
-    try {
-      if (lyraMenuModalState.canClose) {
-        (els.closeX.hidden ? els.close : els.closeX)?.focus({ preventScroll: true });
-      }
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  });
-  return true;
-}
-
-function atualizarLyraMenuModal(opts = {}) {
-  const els = obterLyraMenuModalEls();
-  if (!els.overlay) return false;
-  if (els.overlay.hidden || !els.overlay.classList.contains('aberto')) {
-    return abrirLyraMenuModal(opts);
-  }
-  return configurarLyraMenuModal(opts);
-}
-
-function fecharLyraMenuModal(force = false) {
-  const els = obterLyraMenuModalEls();
-  if (!els.overlay) return false;
-  if (!force && !lyraMenuModalState.canClose) return false;
-  els.overlay.classList.remove('aberto');
-  els.overlay.hidden = true;
-  if (els.body) els.body.innerHTML = '';
-  if (els.close) {
-    els.close.disabled = false;
-    els.close.textContent = 'Fechar';
-  }
-  if (els.closeX) {
-    els.closeX.disabled = false;
-    els.closeX.hidden = false;
-  }
-  lyraMenuModalState.canClose = true;
-  return true;
-}
-
-async function obterVersaoAppLyra() {
-  try {
-    const version = await window.lyraElectron?.obterVersaoApp?.();
-    return version ? String(version) : 'Não disponível';
-  } catch (_) {
-    return 'Não disponível';
-  }
-}
-
-function abrirManualUsuarioLyra() {
-  abrirLyraMenuModal({
-    variant: 'wide',
-    eyebrow: 'Ajuda',
-    title: 'Manual básico do Lyra',
-    subtitle: 'Resumo de operação do controlador, do servidor e dos fluxos de projeção.',
-    html: montarHtmlManualLyra(),
-  });
-}
-
-function abrirAtalhosLyra() {
-  abrirLyraMenuModal({
-    variant: 'wide',
-    eyebrow: 'Ajuda',
-    title: 'Atalhos de teclado',
-    subtitle: 'Levantamento dos atalhos já implementados no código do projeto.',
-    html: montarHtmlAtalhosLyra(),
-  });
-}
-
-async function abrirSobreLyra() {
-  const version = await obterVersaoAppLyra();
-  abrirLyraMenuModal({
-    variant: 'about',
-    eyebrow: 'Sobre',
-    title: 'Lyra',
-    subtitle: 'Informações da aplicação.',
-    html: montarHtmlSobreLyra(version),
-  });
-}
-
-function atualizarModalStatusReinicioServidor(stage, message) {
-  if (stage) lyraServerRestartUiState.stage = String(stage);
-  if (message) lyraServerRestartUiState.message = String(message);
-
-  const kind =
-    lyraServerRestartUiState.stage === 'ready'
-      ? 'success'
-      : lyraServerRestartUiState.stage === 'error'
-        ? 'error'
-        : 'progress';
-
-  atualizarLyraMenuModal({
-    variant: 'status',
-    eyebrow: 'Ferramentas',
-    title:
-      kind === 'success'
-        ? 'Servidor reiniciado'
-        : kind === 'error'
-          ? 'Falha ao reiniciar o servidor'
-          : 'Reiniciando servidor',
-    subtitle:
-      kind === 'success'
-        ? 'O servidor local já voltou a responder.'
-        : kind === 'error'
-          ? 'Confira a mensagem abaixo antes de tentar novamente.'
-          : 'Aguarde enquanto o servidor local é reiniciado.',
-    html: montarHtmlStatusReinicioServidor(kind, lyraServerRestartUiState.message),
-    canClose: kind !== 'progress',
-    closeLabel: kind === 'progress' ? 'Aguarde...' : 'Fechar',
-    showCloseIcon: kind !== 'progress',
-  });
-}
-
-async function limparCacheElectronViaMenu() {
-  if (typeof window.lyraElectron?.limparCacheElectron !== 'function') {
-    await appAlert('Este recurso só está disponível no aplicativo Electron.', 'Limpar cache');
-    return;
-  }
-  try {
-    const result = await window.lyraElectron.limparCacheElectron();
-    await appAlert(
-      String(result?.message || 'Cache e dados temporários limpos com sucesso.'),
-      'Limpar cache'
-    );
-  } catch (err) {
-    await appAlert(
-      String(err?.message || err || 'Não foi possível limpar o cache da sessão.'),
-      'Limpar cache'
-    );
-  }
-}
-
-async function reiniciarServidorLocalViaMenu() {
-  if (lyraServerRestartUiState.emAndamento) {
-    atualizarModalStatusReinicioServidor(
-      lyraServerRestartUiState.stage || 'starting',
-      lyraServerRestartUiState.message || 'Já existe um reinício em andamento.'
-    );
-    return;
-  }
-  if (typeof window.lyraElectron?.reiniciarServidorLocal !== 'function') {
-    await appAlert('Este recurso só está disponível no aplicativo Electron.', 'Reiniciar servidor');
-    return;
-  }
-
-  lyraServerRestartUiState.emAndamento = true;
-  lyraServerRestartUiState.stage = 'starting';
-  lyraServerRestartUiState.message = 'Solicitando reinicialização do servidor local...';
-  atualizarModalStatusReinicioServidor();
-
-  try {
-    const result = await window.lyraElectron.reiniciarServidorLocal();
-    lyraServerRestartUiState.stage = 'ready';
-    lyraServerRestartUiState.message = String(result?.message || 'Servidor local reiniciado com sucesso.');
-    atualizarModalStatusReinicioServidor();
-  } catch (err) {
-    lyraServerRestartUiState.stage = 'error';
-    lyraServerRestartUiState.message = String(
-      err?.message || err || 'Não foi possível reiniciar o servidor local.'
-    );
-    atualizarModalStatusReinicioServidor();
-  } finally {
-    lyraServerRestartUiState.emAndamento = false;
-  }
-}
-
-/**
- * Pede ao Servidor remoto que encerre o processo (cenário de dois PCs).
- * Corta reconnect já no emit; o disconnect existente reassume o modo local.
- */
-async function encerrarServidorRemotoViaMenu() {
-  if (emModoProjecaoLocal() || !socket || !socket.connected) {
-    await appAlert(
-      'Conecte ao Servidor remoto (Ajustes › Conexão) para poder encerrá-lo.',
-      'Encerrar Server'
-    );
-    return;
-  }
-  const ok = await appConfirm(
-    'Encerrar o Servidor no PC de projeção?\n\n' +
-      'As telas desse PC fecham e este Controlador volta a projetar nesta máquina.',
-    'Encerrar Server'
-  );
-  if (!ok) return;
-  /* Antes do emit: se o Servidor cair a seguir, o cliente não tenta ligar outra vez. */
-  interromperReconexaoSocket();
-  try {
-    await new Promise((resolve) => {
-      let feito = false;
-      const acabar = () => {
-        if (feito) return;
-        feito = true;
-        resolve();
-      };
-      const t = setTimeout(acabar, 2000);
-      try {
-        socket.emit('encerrar_servidor', {}, (ack) => {
-          clearTimeout(t);
-          if (ack && ack.ok === false) {
-            void appAlert(
-              ack.erro === 'somente-leitura'
-                ? 'Só o Controlador primário pode encerrar o Servidor.'
-                : (ack.erro || 'O Servidor recusou o encerramento.'),
-              'Encerrar Server'
-            );
-          }
-          acabar();
-        });
-      } catch (_) {
-        clearTimeout(t);
-        acabar();
-      }
-    });
-  } catch (err) {
-    await appAlert(
-      String(err?.message || err || 'Não foi possível enviar o comando ao Servidor.'),
-      'Encerrar Server'
-    );
-  }
-}
-
-async function tratarComandoMenuLyra(payload) {
-  const command = String(payload?.command || '');
-  if (!command) return;
-
-  if (command === 'culto-prevoo') {
-    await correrPreVooDoCulto();
-    return;
-  }
-  if (command === 'tools-clear-cache') {
-    await limparCacheElectronViaMenu();
-    return;
-  }
-  if (command === 'tools-recarregar-painel') {
-    recarregarPainelControlador();
-    return;
-  }
-  if (command === 'tools-restart-local-server') {
-    await reiniciarServidorLocalViaMenu();
-    return;
-  }
-  if (command === 'tools-encerrar-servidor') {
-    await encerrarServidorRemotoViaMenu();
-    return;
-  }
-  if (command === 'tools-projetar-nesta-maquina') {
-    const r = await alternarProjecaoNestaMaquina();
-    if (r && r.ok === false && r.erro) alert(r.erro);
-    return;
-  }
-  /* Leva ao sítio onde o IP se escreve; quem liga é o botão «Conectar» de lá. O menu é só
-     o atalho descobrível — e a ligação vale para a sessão, nada se grava. */
-  if (command === 'tools-conectar-servidor-remoto') {
-    abrirCfgModal('conexao');
-    document.getElementById('ip-input')?.focus();
-    return;
-  }
-  if (command === 'help-open-manual') {
-    abrirManualUsuarioLyra();
-    return;
-  }
-  if (command === 'help-open-shortcuts') {
-    abrirAtalhosLyra();
-    return;
-  }
-  if (command === 'help-open-about') {
-    await abrirSobreLyra();
-  }
-}
-
-const lyraUpdaterUiState = {
-  downloadEmAndamento: false,
-  percentualDownload: 0,
-  ultimoPayload: null,
-};
-
-function montarTextoDetalhesAtualizacao(payload, incluirPergunta = true) {
-  const partes = [];
-  const versao = String(payload?.version || '');
-  if (versao) {
-    partes.push(`Nova versão disponível: ${versao}`);
-  } else {
-    partes.push('Há uma nova versão disponível para o Lyra Controlador.');
-  }
-  if (payload?.releaseName) {
-    partes.push(`Release: ${String(payload.releaseName)}`);
-  }
-  if (payload?.notes) {
-    partes.push(`Notas da release:\n${String(payload.notes).trim()}`);
-  }
-  if (incluirPergunta) {
-    partes.push('Deseja baixar a atualização agora?');
-  }
-  return partes.join('\n\n');
-}
-
-function obterBannerAtualizacaoElementos() {
-  let host = document.getElementById('lyra-update-banner');
-  if (!host) {
-    host = document.createElement('section');
-    host.id = 'lyra-update-banner';
-    host.hidden = true;
-    host.style.position = 'fixed';
-    host.style.right = '18px';
-    host.style.bottom = '18px';
-    host.style.width = 'min(420px, calc(100vw - 36px))';
-    host.style.background = 'var(--surface)';
-    host.style.border = '1px solid var(--border)';
-    host.style.borderRadius = '14px';
-    host.style.boxShadow = '0 18px 54px rgba(0, 0, 0, 0.35)';
-    host.style.padding = '14px 14px 12px';
-    host.style.zIndex = '9500';
-    host.style.display = 'flex';
-    host.style.flexDirection = 'column';
-    host.style.gap = '10px';
-
-    const titulo = document.createElement('div');
-    titulo.id = 'lyra-update-banner-title';
-    titulo.style.fontSize = '16px';
-    titulo.style.fontWeight = '700';
-    titulo.style.color = 'var(--text)';
-
-    const detalhe = document.createElement('div');
-    detalhe.id = 'lyra-update-banner-body';
-    detalhe.style.fontSize = '15px';
-    detalhe.style.lineHeight = '1.5';
-    detalhe.style.color = 'var(--text-muted, #7a726b)';
-    detalhe.style.whiteSpace = 'pre-line';
-
-    const progressWrap = document.createElement('div');
-    progressWrap.id = 'lyra-update-banner-progress-wrap';
-    progressWrap.hidden = true;
-    progressWrap.style.display = 'flex';
-    progressWrap.style.flexDirection = 'column';
-    progressWrap.style.gap = '6px';
-
-    const progressLabel = document.createElement('div');
-    progressLabel.id = 'lyra-update-banner-progress-label';
-    progressLabel.style.fontSize = '14px';
-    progressLabel.style.color = 'var(--text-muted, #7a726b)';
-
-    const progress = document.createElement('progress');
-    progress.id = 'lyra-update-banner-progress';
-    progress.max = 100;
-    progress.value = 0;
-    progress.style.width = '100%';
-    progress.style.height = '12px';
-
-    progressWrap.appendChild(progressLabel);
-    progressWrap.appendChild(progress);
-
-    const actions = document.createElement('div');
-    actions.id = 'lyra-update-banner-actions';
-    actions.style.display = 'flex';
-    actions.style.justifyContent = 'flex-end';
-    actions.style.flexWrap = 'wrap';
-    actions.style.gap = '8px';
-
-    host.appendChild(titulo);
-    host.appendChild(detalhe);
-    host.appendChild(progressWrap);
-    host.appendChild(actions);
-    document.body.appendChild(host);
-  }
-  return {
-    host,
-    titulo: document.getElementById('lyra-update-banner-title'),
-    detalhe: document.getElementById('lyra-update-banner-body'),
-    progressWrap: document.getElementById('lyra-update-banner-progress-wrap'),
-    progressLabel: document.getElementById('lyra-update-banner-progress-label'),
-    progress: document.getElementById('lyra-update-banner-progress'),
-    actions: document.getElementById('lyra-update-banner-actions'),
-  };
-}
-
-function configurarBannerAtualizacao({ titulo, mensagem, botoes = [], mostrarProgresso = false, progresso = 0 }) {
-  const els = obterBannerAtualizacaoElementos();
-  if (!els.host || !els.titulo || !els.detalhe || !els.actions) return;
-  els.titulo.textContent = titulo;
-  els.detalhe.textContent = mensagem;
-  els.actions.innerHTML = '';
-  botoes.forEach((botao) => {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.className = `btn${botao.primary ? ' primary' : ''}`;
-    el.textContent = botao.label;
-    el.disabled = !!botao.disabled;
-    el.onclick = () => {
-      if (typeof botao.onClick === 'function') botao.onClick();
-    };
-    els.actions.appendChild(el);
-  });
-  if (els.progressWrap && els.progress && els.progressLabel) {
-    els.progressWrap.hidden = !mostrarProgresso;
-    els.progressWrap.style.display = mostrarProgresso ? 'flex' : 'none';
-    els.progress.value = Math.max(0, Math.min(100, Math.round(Number(progresso || 0))));
-    els.progressLabel.textContent = mostrarProgresso
-      ? `Download em andamento: ${Math.round(Number(progresso || 0))}%`
-      : '';
-  }
-  els.host.hidden = false;
-  els.host.style.display = 'flex';
-}
-
-function esconderBannerAtualizacao() {
-  const els = obterBannerAtualizacaoElementos();
-  if (!els.host) return;
-  els.host.hidden = true;
-  els.host.style.display = 'none';
-}
-
-function mostrarBannerAtualizacaoDisponivel(payload) {
-  const texto = montarTextoDetalhesAtualizacao(payload, true);
-  configurarBannerAtualizacao({
-    titulo: 'Atualização disponível',
-    mensagem: texto,
-    botoes: [
-      {
-        label: 'Depois',
-        onClick: () => esconderBannerAtualizacao(),
-      },
-      {
-        label: 'Atualizar',
-        primary: true,
-        onClick: async () => {
-          lyraUpdaterUiState.downloadEmAndamento = true;
-          lyraUpdaterUiState.percentualDownload = 0;
-          mostrarBannerProgressoAtualizacao(payload);
-          try {
-            const ok = await window.lyraElectron?.baixarAtualizacao?.();
-            if (!ok) {
-              lyraUpdaterUiState.downloadEmAndamento = false;
-              esconderBannerAtualizacao();
-              await appAlert(
-                'Não há atualização pendente para download neste momento.',
-                'Atualização'
-              );
-            }
-          } catch (err) {
-            lyraUpdaterUiState.downloadEmAndamento = false;
-            esconderBannerAtualizacao();
-            await appAlert(
-              String(err?.message || err || 'Não foi possível iniciar o download da atualização.'),
-              'Atualização'
-            );
-          }
-        },
-      },
-    ],
-  });
-}
-
-function mostrarBannerProgressoAtualizacao(payload) {
-  const texto = montarTextoDetalhesAtualizacao(payload, false);
-  configurarBannerAtualizacao({
-    titulo: 'Baixando atualização',
-    mensagem: texto,
-    botoes: [
-      {
-        label: 'Baixando…',
-        primary: true,
-        disabled: true,
-      },
-    ],
-    mostrarProgresso: true,
-    progresso: lyraUpdaterUiState.percentualDownload,
-  });
-}
-
-function mostrarBannerAtualizacaoPronta(payload) {
-  configurarBannerAtualizacao({
-    titulo: 'Atualização pronta',
-    mensagem:
-      `${montarTextoDetalhesAtualizacao(payload, false)}\n\n` +
-      'A atualização já foi baixada. Deseja reiniciar o app agora para concluir a instalação?',
-    botoes: [
-      {
-        label: 'Depois',
-        onClick: () => esconderBannerAtualizacao(),
-      },
-      {
-        label: 'Reiniciar agora',
-        primary: true,
-        onClick: async () => {
-          try {
-            const ok = await window.lyraElectron?.instalarAtualizacaoAgora?.();
-            if (!ok) {
-              await appAlert(
-                'A atualização ainda não está pronta para instalação.',
-                'Atualização'
-              );
-            }
-          } catch (err) {
-            await appAlert(
-              String(err?.message || err || 'Não foi possível reiniciar para instalar a atualização.'),
-              'Atualização'
-            );
-          }
-        },
-      },
-    ],
-  });
-}
-
-function mostrarBannerCompanionDisponivel(_payload) {
-  configurarBannerAtualizacao({
-    titulo: 'Componentes do Lyra',
-    mensagem:
-      'Há uma atualização disponível para os componentes do Lyra.\n\n' +
-      'O Servidor será reiniciado durante a instalação e a projeção poderá ficar ' +
-      'indisponível por alguns segundos.\n\n' +
-      'Deseja atualizar agora?',
-    botoes: [
-      {
-        label: 'Depois',
-        onClick: () => esconderBannerAtualizacao(),
-      },
-      {
-        label: 'Atualizar componentes',
-        primary: true,
-        onClick: async () => {
-          mostrarBannerCompanionProgresso({
-            stage: 'download',
-            message: 'A descarregar componentes do Lyra…',
-            percent: 0,
-          });
-          try {
-            await window.lyraElectron?.instalarCompanionServidor?.();
-          } catch (err) {
-            esconderBannerAtualizacao();
-            await appAlert(
-              String(err?.message || err || 'Não foi possível atualizar os componentes do Lyra.'),
-              'Componentes do Lyra'
-            );
-          }
-        },
-      },
-    ],
-  });
-}
-
-function mostrarBannerCompanionProgresso(payload) {
-  const stage = String(payload?.stage || '');
-  if (stage === 'handoff' || stage === 'quit') {
-    companionHandoffEmCurso = true;
-  }
-  const pct = Math.max(0, Math.min(100, Math.round(Number(payload?.percent || 0))));
-  const msg = String(
-    payload?.message ||
-      'A atualizar componentes do Lyra. O Servidor será reiniciado e a projeção poderá ficar indisponível por alguns segundos.'
-  );
-  const titulo =
-    stage === 'install' || stage === 'quit' || stage === 'waiting' || stage === 'handoff'
-      ? 'A instalar componentes'
-      : 'A descarregar componentes';
-
-  /* Em download, só atualiza a barra — reconstruir botões a cada % engasgava o UI. */
-  if (stage === 'download') {
-    const els = obterBannerAtualizacaoElementos();
-    if (els.host && !els.host.hidden && els.progressWrap && !els.progressWrap.hidden) {
-      if (els.titulo) els.titulo.textContent = titulo;
-      if (els.detalhe) els.detalhe.textContent = msg;
-      if (els.progress) els.progress.value = pct;
-      if (els.progressLabel) els.progressLabel.textContent = `Download em andamento: ${pct}%`;
-      return;
-    }
-  }
-
-  configurarBannerAtualizacao({
-    titulo,
-    mensagem: msg,
-    botoes: [
-      {
-        label:
-          stage === 'download'
-            ? 'A descarregar…'
-            : stage === 'handoff'
-              ? 'A reiniciar…'
-              : 'Aguarde…',
-        primary: true,
-        disabled: true,
-      },
-    ],
-    mostrarProgresso: stage === 'download',
-    progresso: pct,
-  });
-}
+// (extraído) Banner de atualização → painel/bannerAtualizacao.js
 
 window.alert = (msg) => { appAlert(msg); };
 let currentCfgCtrl = {
@@ -28151,7 +26939,7 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       /* Importação em andamento: Escape não dispensa o spinner. */
       if (appImportarBloqueadoFechar) return;
-      if (!appDialogFecharNoBackdrop) return;
+      if (!appDialogEstado.fecharNoBackdrop) return;
       fecharAppDialog(false);
       return;
     }
