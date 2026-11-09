@@ -54,7 +54,9 @@ window.__homeTest = {
  closeContagem:fecharPainelContagem,
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
- dialogo:{confirm:appConfirm,estado:appDialogEstado},
+ dialogo:{confirm:appConfirm,prompt:appPrompt,fechar:fecharAppDialog,estado:appDialogEstado},
+ normTema:normalizarTemaPlaylist,
+ fluxos:{compartilhar:abrirModalCompartilharPlaylist,codigo:modalCompartilharMostrarCodigo,importar:importarPlaylist,impLoading:modalImportarPlaylistLoading,impErro:modalImportarPlaylistErro,impSucesso:modalImportarPlaylistSucesso,sincronizar:abrirModalSincronizarBanco,sincSucesso:modalSincronizarSucesso,sincAviso:modalSincronizarAviso,sincErro:modalSincronizarErro},
  handoff:()=>companionHandoffEmCurso,
  handoffReset:()=>{companionHandoffEmCurso=false},
 };`;
@@ -236,6 +238,72 @@ async function run() {
   await js("document.getElementById('app-dialog-ok').click()");await pause(50);
   await check('Diálogo: OK confirma',`window.__dlg===true && document.getElementById('app-dialog-overlay').hidden`);
 
+  /* Fluxos que partilham o #app-dialog (compartilhar, importar e sincronizar): só estados de interface, sem rede nem gravação.
+     Cobrem o estado partilhado (appDialogEstado), o Escape do núcleo, o bloqueio durante o spinner e os timers de auto-fechar. */
+  await js("window.__t2600=[];window.__clears=[];(()=>{const st=window.setTimeout.bind(window),ct=window.clearTimeout.bind(window);window.setTimeout=(f,ms,...a)=>{const id=st(f,ms,...a);if(ms===2600)window.__t2600.push(id);return id};window.clearTimeout=(id)=>{window.__clears.push(id);return ct(id)}})()");
+  const dlgAberto = "!document.getElementById('app-dialog-overlay').hidden";
+  const esc = "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))";
+  await check('Callbacks do HTML: todo onclick/onchange resolve em window',`(()=>{const nomes=new Set();document.querySelectorAll('*').forEach(e=>{for(const a of e.attributes){if(/^on/.test(a.name)){const m=a.value.match(/^\\s*(?:return\\s+)?([A-Za-z_]\\w*)\\s*\\(/);if(m)nomes.add(m[1])}}});const ignorar=['if','this','document','window','confirm','alert'];const faltam=[...nomes].filter(n=>!ignorar.includes(n)&&typeof window[n]!=='function');window.__faltam=faltam;return nomes.size>40&&faltam.length===0})()`);
+  // Compartilhar
+  await js("window.__w=__homeTest.fluxos.compartilhar();void 0");await pause(50);
+  await check('Compartilhar: modal abre em carregamento e reserva o estado partilhado',`${dlgAberto} && document.getElementById('app-dialog-head').textContent==='Compartilhar Playlist' && document.getElementById('app-dialog-ok').style.display==='none' && document.getElementById('app-dialog-cancel').textContent==='Fechar' && __homeTest.dialogo.estado.fecharNoBackdrop===true && typeof __homeTest.dialogo.estado.compartilharResolver==='function' && !!document.querySelector('.share-modal-loading')`);
+  await js("__homeTest.fluxos.codigo(window.__w,'ABCD-1234','31/12/2099')");
+  await check('Compartilhar: mostra o código gerado',`document.querySelector('.share-modal-code').textContent==='ABCD-1234' && document.querySelector('.share-modal-exp').textContent.includes('31/12/2099')`);
+  await js(esc);await pause(80);
+  await check('Compartilhar: Escape fecha e limpa o estado',`!(${dlgAberto}) && __homeTest.dialogo.estado.compartilharResolver===null && document.getElementById('app-dialog-body').innerHTML===''`);
+  await js("window.__w=__homeTest.fluxos.compartilhar();void 0");await pause(50);
+  await js("document.getElementById('app-dialog-cancel').click()");await pause(50);
+  await check('Compartilhar: botão Fechar fecha e limpa o estado',`!(${dlgAberto}) && __homeTest.dialogo.estado.compartilharResolver===null`);
+  // Importar
+  await js("__homeTest.fluxos.importar()");await pause(80);
+  await check('Importar: abre o campo de código com o estado reservado',`${dlgAberto} && document.getElementById('app-dialog-head').textContent==='Importar Playlist' && !!document.querySelector('.share-modal-input') && document.getElementById('app-dialog-ok').textContent==='OK' && typeof __homeTest.dialogo.estado.importarResolver==='function' && __homeTest.dialogo.estado.fecharNoBackdrop===true`);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(50);
+  await check('Importar: código vazio mostra o erro e continua no campo',`${dlgAberto} && !document.querySelector('.share-modal-erro').hidden && document.querySelector('.share-modal-erro').textContent.includes('Digite o código') && !!document.querySelector('.share-modal-input')`);
+  await js("window.__w=document.querySelector('#app-dialog-body .share-modal');__homeTest.fluxos.impLoading(window.__w);void 0");
+  await js(esc);await pause(80);
+  await check('Importar: com o spinner, Escape não dispensa o modal',`${dlgAberto} && __homeTest.dialogo.estado.fecharNoBackdrop===false && document.getElementById('app-dialog-ok').style.display==='none' && document.getElementById('app-dialog-cancel').style.display==='none' && !!document.querySelector('.share-modal-loading')`);
+  await js("__homeTest.fluxos.impErro(window.__w,'Código inválido','COD')");
+  await check('Importar: erro libera o fechamento e oferece «Tentar de novo»',`document.getElementById('app-dialog-ok').textContent==='Tentar de novo' && document.getElementById('app-dialog-cancel').textContent==='Fechar' && __homeTest.dialogo.estado.fecharNoBackdrop===true && document.querySelector('.share-modal-erro').textContent==='Código inválido'`);
+  await js(esc);await pause(80);
+  await check('Importar: Escape após o erro fecha e limpa o estado',`!(${dlgAberto}) && __homeTest.dialogo.estado.importarResolver===null`);
+  await js("__homeTest.fluxos.importar()");await pause(80);
+  await js("window.__w=document.querySelector('#app-dialog-body .share-modal');__homeTest.fluxos.impLoading(window.__w);void 0");
+  await js("__homeTest.dialogo.fechar(false)");await pause(50);
+  await js("window.__dlg='pendente';__homeTest.dialogo.confirm('Depois do spinner?').then(v=>{window.__dlg=v});void 0");await pause(50);
+  await js(esc);await pause(80);
+  await check('Importar: fechar durante o spinner libera o bloqueio (Escape volta a funcionar no diálogo seguinte)',`!(${dlgAberto}) && window.__dlg===false`);
+  await js("__homeTest.fluxos.importar()");await pause(80);
+  await js("window.__w=document.querySelector('#app-dialog-body .share-modal');__homeTest.fluxos.impSucesso(window.__w,'Importada',true);void 0");
+  await check('Importar: sucesso sem OK e com Fechar',`document.getElementById('app-dialog-ok').style.display==='none' && document.getElementById('app-dialog-cancel').textContent==='Fechar' && document.querySelector('.share-modal-sucesso').textContent==='Importada'`);
+  await js("window.__clears.length=0;document.getElementById('app-dialog-cancel').click()");await pause(50);
+  await check('Importar: fechar à mão limpa o timer de auto-fechar do sucesso (via dependência do núcleo)',`window.__t2600.length>=1 && window.__clears.includes(window.__t2600[window.__t2600.length-1])`);
+  await js("window.__dlg='pendente';__homeTest.dialogo.confirm('Outro diálogo?').then(v=>{window.__dlg=v});void 0");
+  await pause(3000);
+  await check('Importar: fechar à mão cancela o auto-fechar (timer não derruba o diálogo seguinte)',`${dlgAberto} && window.__dlg==='pendente' && document.getElementById('app-dialog-body').textContent==='Outro diálogo?'`);
+  await js("document.getElementById('app-dialog-cancel').click()");await pause(50);
+  // Texto (appPrompt): normalizador padrão vem do núcleo
+  await js("window.__r='pendente';__homeTest.dialogo.prompt('Nome do tema',{defaultValue:'  Louvor  '}).then(v=>{window.__r=v});void 0");await pause(80);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(80);
+  await check('Texto: o normalizador padrão do núcleo valida o nome do tema',`typeof window.__r==='string' && window.__r.length>0 && window.__r===__homeTest.normTema('  Louvor  ') && !(${dlgAberto})`);
+  // Sincronizar
+  await js("window.__w=__homeTest.fluxos.sincronizar();void 0");await pause(50);
+  await check('Sincronizar: abre em carregamento, sem botões, com o estado reservado',`${dlgAberto} && document.getElementById('app-dialog-head').textContent==='Sincronizar banco' && document.getElementById('app-dialog-ok').style.display==='none' && document.getElementById('app-dialog-cancel').style.display==='none' && typeof __homeTest.dialogo.estado.sincronizarResolver==='function' && __homeTest.dialogo.estado.fecharNoBackdrop===true && !!document.querySelector('.share-modal-loading')`);
+  await js(esc);await pause(80);
+  await check('Sincronizar: Escape durante o carregamento fecha e limpa o estado',`!(${dlgAberto}) && __homeTest.dialogo.estado.sincronizarResolver===null`);
+  await js("window.__w=__homeTest.fluxos.sincronizar();__homeTest.fluxos.sincSucesso(window.__w,'Banco enviado.');void 0");await pause(50);
+  await check('Sincronizar: sucesso mostra a mensagem e o Fechar',`document.querySelector('.share-modal-sucesso').textContent==='Banco enviado.' && document.getElementById('app-dialog-cancel').textContent==='Fechar'`);
+  await js("window.__clears.length=0;window.__antes=window.__t2600.length;document.getElementById('app-dialog-cancel').click()");await pause(50);
+  await check('Sincronizar: fechar à mão limpa o timer de auto-fechar do sucesso (via dependência do núcleo)',`window.__t2600.length>=1 && window.__clears.includes(window.__t2600[window.__t2600.length-1])`);
+  await js("window.__dlg='pendente';__homeTest.dialogo.confirm('Diálogo seguinte?').then(v=>{window.__dlg=v});void 0");
+  await pause(3000);
+  await check('Sincronizar: fechar à mão cancela o auto-fechar (timer não derruba o diálogo seguinte)',`${dlgAberto} && window.__dlg==='pendente' && document.getElementById('app-dialog-body').textContent==='Diálogo seguinte?'`);
+  await js("document.getElementById('app-dialog-cancel').click()");await pause(50);
+  await js("window.__w=__homeTest.fluxos.sincronizar();__homeTest.fluxos.sincAviso(window.__w,'Sem destinatário');void 0");await pause(50);
+  await check('Sincronizar: aviso (amarelo) com Fechar',`!!document.querySelector('.share-modal-aviso') && document.getElementById('app-dialog-cancel').textContent==='Fechar'`);
+  await js("window.__acao=0;__homeTest.fluxos.sincErro(window.__w,'Falhou',{label:'Corrigir',onClick:()=>{window.__acao=1}})");await pause(50);
+  await check('Sincronizar: erro com ação de correção à mão',`document.querySelector('.share-modal-erro').textContent==='Falhou' && document.getElementById('app-dialog-ok').textContent==='Corrigir' && document.getElementById('app-dialog-ok').style.display===''`);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(50);
+  await check('Sincronizar: a ação de correção fecha o modal e é executada',`!(${dlgAberto}) && window.__acao===1 && __homeTest.dialogo.estado.sincronizarResolver===null`);
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
