@@ -30,8 +30,10 @@ window.__fixtureFetch = async (url, opts = {}) => {
   data=window.__songs.find(s=>s.id===id)||window.__songs[0];
  }
  else if(p.includes('/letras/buscar')) data={sucesso:true,resultados:[{titulo:'Resultado de teste',artista:'Artista de teste',path:'/teste',id:10}]};
- else if(p.includes('/biblia/traducoes')) data=[];
- else if(p.includes('/monitores')) data={monitores:[]};
+ else if(/\\/api\\/biblia\\/[^/]+\\/[^/]+\\/caps$/.test(p)) data={total:3};
+ else if(/\\/api\\/biblia\\/[^/]+\\/[^/]+\\/\\d+$/.test(p)) data=[{versiculo:1,texto:'No princípio, criou Deus os céus e a terra.'},{versiculo:2,texto:'A terra, porém, estava sem forma e vazia.'},{versiculo:3,texto:'Disse Deus: Haja luz; e houve luz.'}];
+ else if(p.includes('/biblia/traducoes')) data=[{traducao:'ARA',nome:'Almeida Revista e Atualizada'}];
+ else if(p.includes('/monitores')) data={monitores:window.__monitoresFixture||[]};
  return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
 };
 window.fetch=window.__fixtureFetch;
@@ -55,8 +57,15 @@ window.__homeTest = {
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
  setMonitores:(m)=>{monitoresServidorCache=m},
  rotas:()=>rotasPorModo,
+ renderRotas:(m,r)=>renderRoteamentoTelas(m,r),
+ espiarBiblia:()=>{const o={p:projecao.pronta,l:projecao.ligada,e:projecao.enfileirar,s:projecao.enviar};window.__enfileirados=[];window.__enviados=[];projecao.ligada=()=>true;projecao.pronta=()=>true;projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{projecao.pronta=o.p;projecao.ligada=o.l;projecao.enfileirar=o.e;projecao.enviar=o.s}},
+ biblia:{haParte:bibliaHaParteProjetada},
+ ultimo:()=>ultimoConteudoProjetadoModoUnificado,
+ estado:()=>estadoServidor,
+ setEstado:(e)=>{estadoServidor=e},
+ cor:(c)=>aplicarCorComentarioMinistranteNoPainel(c),
  espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
- contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:popularFormCfgContagem,rota:rotaContagemParaServidor},
+ contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:rotaContagemParaServidor},
  docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
@@ -442,6 +451,86 @@ async function run() {
   await check('DOCS (PDF real): após recarregar, o documento volta do armazenamento e as páginas reaparecem',`document.body.classList.contains('app-mod-docs') && document.querySelectorAll('#docs-faixa .docs-miniatura').length===3 && !document.getElementById('docs-preview-img').hidden && document.getElementById('docs-nav-contador').textContent==='1 / 3'`);
   await js("document.getElementById('btn-tela-inicial').click()");
   for(let i=0;i<40&&await js("document.body.classList.contains('app-mod-docs')");i++) await pause(100);
+  /* Bíblia e Exibição extraídas do núcleo (painel/biblia.js e painel/configExibicao.js): fluxos no renderer real, sem rede.
+     A projeção é espiada (projecao.ligada/enfileirar/enviar): o teste vai até o que seria enviado ao servidor. */
+  const livrosBtn = "document.querySelectorAll('#biblia-col-livros .biblia-livro-btn')";
+  await js("document.getElementById('btn-modo-biblia').click()");
+  await aguardar("!document.getElementById('app-dialog-overlay').hidden && [...document.querySelectorAll('#app-dialog-body button')].some(b=>b.textContent.includes('ARA'))", 8000);
+  await check('Bíblia: entrar no modo pergunta a tradução da sessão',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-head').textContent==='Versão da Bíblia' && [...document.querySelectorAll('#app-dialog-body button')].some(b=>b.textContent.includes('ARA — Almeida'))`);
+  await js("[...document.querySelectorAll('#app-dialog-body button')].find(b=>b.textContent.includes('ARA')).click()");
+  await aguardar("document.body.classList.contains('app-mod-biblia')", 10000);
+  await check('Bíblia: o modo abre com a tradução escolhida, o botão do cabeçalho ativo e os 66 livros',`document.body.classList.contains('app-mod-biblia') && document.title==='Lyra — Modo Bíblia' && document.getElementById('traducao-sel').value==='ARA' && ${livrosBtn}.length===66 && document.getElementById('btn-modo-biblia').getAttribute('aria-pressed')==='true' && sessionStorage.getItem('lyra_biblia_traducao_sessao_v1')==='ARA'`);
+  await js("document.getElementById('biblia-filtro-nt').click()");await pause(150);
+  await check('Bíblia: o filtro Novo Testamento reduz a grade a 27 livros',`${livrosBtn}.length===27 && document.getElementById('biblia-filtro-nt').getAttribute('aria-pressed')==='true'`);
+  await js("document.getElementById('biblia-filtro-at').click()");await pause(150);
+  await check('Bíblia: o filtro Antigo Testamento troca para 39 livros',`${livrosBtn}.length===39 && document.getElementById('biblia-filtro-at').getAttribute('aria-pressed')==='true' && document.getElementById('biblia-filtro-nt').getAttribute('aria-pressed')==='false'`);
+  await js("document.getElementById('biblia-filtro-at').click()");await pause(150);
+  await check('Bíblia: clicar de novo no filtro ativo volta aos 66 livros',`${livrosBtn}.length===66`);
+  await js("[...document.querySelectorAll('#biblia-col-livros .biblia-livro-btn')].find(b=>b.dataset.nome==='Gênesis').click()");
+  await aguardar("document.querySelectorAll('#biblia-col-caps .biblia-cap-btn').length===3", 8000);
+  await check('Bíblia: escolher o livro carrega os capítulos e destaca o livro',`document.querySelectorAll('#biblia-col-caps .biblia-cap-btn').length===3 && document.querySelector('.biblia-livro-btn.selecionado')?.dataset.nome==='Gênesis'`);
+  await js("document.querySelector('#biblia-col-caps .biblia-cap-btn').click()");
+  await aguardar("document.querySelectorAll('#biblia-col-versiculos .biblia-v-card').length===3", 8000);
+  await check('Bíblia: escolher o capítulo carrega e desenha os versículos',`(()=>{const c=[...document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')];return c.length===3 && c[0].querySelector('.biblia-v-num').textContent==='1' && c[2].querySelector('.biblia-v-texto').textContent.includes('Haja luz') && document.querySelector('.biblia-cap-btn.selecionado')?.textContent==='1'})()`);
+  await js("document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].click()");await pause(150);
+  await check('Bíblia: clicar no versículo só o seleciona (sem projetar)',`document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].classList.contains('selecionado') && !document.querySelector('.biblia-v-card.projetado') && __homeTest.biblia.haParte()===false`);
+  // Projeção até o limite da rede: a rota escolhida e o versículo seguem para o servidor (espiados)
+  /* O servidor simulado passa a devolver estes monitores: a rota é «sanitizada» contra a lista do servidor, e sem o monitor 1 ela voltaria a «Não exibir». */
+  await js("window.__monitoresFixture=[{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'}];__homeTest.setMonitores(window.__monitoresFixture);__homeTest.renderRotas(window.__monitoresFixture,{publicoIndex:-1,ministranteIndex:-1,live:false});__homeTest.espiarBiblia()");await pause(150);
+  // A escolha do monitor é feita no seletor do cabeçalho (a Bíblia sincroniza a rota a partir dele)
+  await js("document.getElementById('route-publico-btn').click()");await pause(150);
+  await js("[...document.querySelectorAll('#route-publico-menu .route-dd-item')].find(b=>b.textContent.includes('Monitor 2')).click()");await pause(400);
+  await check('Bíblia: escolher o monitor no seletor do cabeçalho grava a rota do modo',`__homeTest.rotas().biblia.publicoIndex===1 && document.getElementById('route-publico-display').textContent.includes('Monitor 2')`);
+  await js("document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].click()");
+  await aguardar("(window.__enfileirados||[]).length>=1", 8000);
+  await check('Bíblia: clicar de novo no versículo selecionado o projeta (payload enviado ao servidor)',`(()=>{const e=window.__enfileirados||[];const p=(e[0]||[])[1]||{};return e.length===1 && e[0][0]==='exibir_versiculo' && String(p.livro)==='Gênesis' && String(p.capitulo)==='1' && String(p.versiculo)==='2' && String(p.texto).includes('sem forma') && p.traducao==='ARA' && p.somenteTexto===false && !!p.alvoProjecao && document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].classList.contains('projetado') && __homeTest.biblia.haParte()===true && __homeTest.ultimo()?.tipo==='biblia' && String(__homeTest.ultimo().payload.versiculo)==='2'})()`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))");
+  await aguardar("window.__enfileirados.length>=2", 8000);
+  await check('Bíblia: com projeção no ar, a seta ↓ (teclado do núcleo) leva o versículo seguinte (só texto)',`(()=>{const e=window.__enfileirados;const p=(e[1]||[])[1]||{};return e.length===2 && String(p.versiculo)==='3' && p.somenteTexto===true && document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[2].classList.contains('projetado') && !document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].classList.contains('projetado')})()`);
+  await js("__homeTest.setEstado({tipo:'biblia',titulo:'Gênesis 1',linhas:['x'],telaLimpa:false})");
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(300);
+  await check('Bíblia: Escape (estado do núcleo via setter) zera o estado do servidor e o último conteúdo',`__homeTest.estado().tipo===null && __homeTest.estado().telaLimpa===true && __homeTest.ultimo()==null`);
+  await check('Bíblia: Escape (núcleo) encerra a projeção, avisa o servidor e limpa a marca do versículo',`window.__enviados.some(e=>e[0]==='encerrar_projecao_biblia') && __homeTest.biblia.haParte()===false && !document.querySelector('.biblia-v-card.projetado')`);
+  await js("window.__restaurarBiblia()");
+  // Busca rápida (teclado): abre o popup, reconhece a sigla e avança de etapa; Escape fecha
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'g',bubbles:true}))");await pause(200);
+  await check('Bíblia: digitar uma letra abre a busca rápida e mostra o que foi digitado',`!document.getElementById('biblia-nav-popup').classList.contains('oculto') && document.getElementById('bnp-livro-display').textContent==='g'`);
+  await js("(()=>{const i=document.getElementById('biblia-busca-rapida');i.value='Gn';i.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(300);
+  await check('Bíblia: a sigla exata («Gn») escolhe o livro e passa à etapa do capítulo',`document.getElementById('bnp-linha-cap').style.display!=='none' && document.getElementById('bnp-livro-display').textContent.length>0`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(150);
+  await check('Bíblia: Escape fecha a busca rápida',`document.getElementById('biblia-nav-popup').classList.contains('oculto')`);
+  // Exibição (Ajustes): modal, abas, busca, formulário da Bíblia, avisos, tema escuro
+  await js("document.getElementById('btn-cfg-geral').click()");await pause(500);
+  await check('Exibição: a inicialização publicou em window os atalhos usados por outros scripts',`['setInputVal','setSelVal','setChkVal','getChkVal','toggleCfgSwitch','lerNumeroInput','debounceSalvarCfg','aplicarWrapImediato','getCurrentCfgCtrl','setCurrentCfgCtrl','getElLetras'].every(n=>typeof window[n]==='function') && typeof window.bibliaCfgExibicao==='object' && window.bibliaCfgExibicao!==null && window.bibliaCfgExibicao.fontSize>0 && typeof window.bibliaCfgMinistrante==='object'`);
+  await check('Exibição: o botão Ajustes (callback do HTML) abre o modal',`document.getElementById('cfg-modal-overlay-ctrl').classList.contains('aberto')`);
+  await js("document.getElementById('cfg-tab-ctrl-biblia').click()");await pause(200);
+  await check('Exibição: a aba Bíblia fica ativa e as outras apagam',`document.getElementById('cfg-tab-ctrl-biblia').classList.contains('ativo') && document.getElementById('cfg-panel-ctrl-biblia').classList.contains('ativo') && !document.getElementById('cfg-tab-ctrl-slides').classList.contains('ativo')`);
+  await js("__homeTest.espiarBiblia()");
+  await js("(()=>{const f=document.getElementById('cfg-biblia-pub-fontsize-ctrl');f.value='7';f.dispatchEvent(new Event('input',{bubbles:true}));f.dispatchEvent(new Event('change',{bubbles:true}))})()");await pause(500);
+  await check('Exibição: alterar a fonte do público (callback do HTML) grava a aparência da Bíblia',`Number(JSON.parse(localStorage.getItem('lyra_biblia_cfg_v1')||'{}').exibicao?.fontSize)===7`);
+  await check('Exibição: a aparência alterada é enviada ao servidor (projeção espiada)',`window.__enviados.some(e=>e[0]==='set_display_config'||e[0]==='preview_display_config')`);
+  await js("window.__restaurarBiblia()");
+  await js("document.getElementById('cfg-tab-ctrl-avisos').click()");await pause(200);
+  await js("window.setPosAvisoCard6Ctrl('top')");await pause(200);
+  await check('Exibição: a posição do aviso (estado do núcleo via setter/getter) volta ao formulário',`document.querySelector('#cfg-card6-posy-ctrl-group .cfg-btn-pos.ativo')?.dataset.val==='top'`);
+  await js("window.setPosAvisoCard6Ctrl('bottom')");await pause(200);
+  await check('Exibição: trocar a posição do aviso atualiza o botão ativo',`document.querySelector('#cfg-card6-posy-ctrl-group .cfg-btn-pos.ativo')?.dataset.val==='bottom'`);
+  await js("(()=>{const i=document.getElementById('cfg-busca-ctrl');i.value='zzzz-nada-assim';i.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(200);
+  await check('Exibição: a busca sem resultado esconde as linhas e mostra a mensagem de vazio',`document.getElementById('cfg-modal-body-ctrl').classList.contains('buscando') && !document.getElementById('cfg-busca-vazio-ctrl').hidden && [...document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row[data-busca]')].every(r=>r.hidden)`);
+  await js("document.getElementById('cfg-busca-limpar-ctrl').click()");await pause(200);
+  await check('Exibição: limpar a busca devolve as linhas',`!document.getElementById('cfg-modal-body-ctrl').classList.contains('buscando') && document.getElementById('cfg-busca-vazio-ctrl').hidden`);
+  await js("window.toggleDarkCtrl()");
+  await check('Exibição: o tema escuro alterna e persiste',`document.documentElement.classList.contains('dark')===(localStorage.getItem('holyrics-ctrl-dark')==='1')`);
+  await js("window.toggleDarkCtrl()");
+  await check('Exibição: cor do comentário do ministrante usa o estado do núcleo e mantém a última válida',`__homeTest.cor('#ff0000')==='#ff0000' && __homeTest.cor('lixo-invalido')==='#ff0000'`);
+  /* Com o foco num campo de texto o Escape não fecha o modal (é do campo, por projeto): tira o foco antes. */
+  await js("document.activeElement&&document.activeElement.blur&&document.activeElement.blur()");
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(300);
+  await check('Exibição: Escape (núcleo) fecha o modal de Ajustes',`!document.getElementById('cfg-modal-overlay-ctrl').classList.contains('aberto')`);
+  // Sair do modo Bíblia pelo botão do cabeçalho
+  await js("document.getElementById('btn-modo-biblia').click()");
+  for (let i = 0; i < 40 && await js("document.body.classList.contains('app-mod-biblia')"); i++) await pause(100);
+  await check('Bíblia: o botão do cabeçalho sai do modo e restaura o título',`!document.body.classList.contains('app-mod-biblia') && document.title==='Lyra — Controlador' && document.getElementById('btn-modo-biblia').getAttribute('aria-pressed')==='false'`);
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
