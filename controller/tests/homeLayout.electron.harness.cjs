@@ -56,6 +56,7 @@ window.__homeTest = {
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
  versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  comparativo:()=>modoComparativoCentral,
+ culto:{id:()=>cultoId,playlists:()=>playlists},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
@@ -196,6 +197,11 @@ async function run() {
   await js("window.alternarModoComparativoCentral();void 0");await pause(400);
   await check('Comparativo: sem alterações, alternar de novo sai do modo',`__homeTest.comparativo()===false`);
   await js("__homeTest.seed()");await pause(150);
+  // Culto do dia (painel/cultoDoDia.js): seletor lista os cultos e a escolha chega ao estado do núcleo
+  await check('Culto do dia: o seletor lista os cultos do mês (ids e rótulos do módulo)',`document.querySelectorAll('#culto-dd-menu .culto-dd-item').length>=1`);
+  await js("(()=>{const it=[...document.querySelectorAll('#culto-dd-menu .culto-dd-item')].find(b=>b.dataset.value);window.__cultoEsc=it.dataset.value;it.click()})()");await pause(250);
+  await check('Culto do dia: escolher um culto grava o id no estado do núcleo e na interface',`__homeTest.culto.id()===window.__cultoEsc && document.getElementById('culto-sel').value===window.__cultoEsc && document.getElementById('culto-dd-data').textContent!=='--/--'`);
+
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
   await js(`document.getElementById('home-preview-close').click()`);
