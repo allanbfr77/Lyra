@@ -43,17 +43,19 @@ window.addEventListener('unhandledrejection',e=>{(window.__errors ||= []).push(S
 `;
 const bridge = `
 window.__homeTest = {
- seed() {
-  limparFlagsModoEdicaoMusica();
+ async seed() {
+  const lc=await import('./painel/letraCompleta.js'), ee=await import('./painel/editorEstrofes.js');
+  lc.limparFlagsModoEdicaoMusica();
   musicaBancoFonte='user'; musicaRootId=1; musicaVersaoLocalId=null;
   musicaAtiva=structuredClone(window.__songs[1]); estrofeAtiva=0;
   versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
-  renderEstrofesEditor();renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
+  ee.renderEstrofesEditor();renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
  },
  state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
  versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
+ comparativo:()=>modoComparativoCentral,
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
@@ -182,8 +184,18 @@ async function run() {
   await js(`document.getElementById('app-dialog-cancel').click();__songs[1].estrofes=structuredClone(__songs[0].estrofes);__homeTest.seed()`);await pause();
   await js(`document.getElementById('home-novo-slide').click()`); await pause();
   await check('Novo slide usa edição existente',`__homeTest.state().editing && __homeTest.state().slides.length===8 && document.querySelectorAll('.estrofe-slide-ta').length===8`);
-  await js('__homeTest.seed();document.getElementById("btn-toggle-playlist-preview").click()');
+  await js('(async()=>{await __homeTest.seed();document.getElementById("btn-toggle-playlist-preview").click()})()');
   await check('prévia reutiliza renderer',`!document.getElementById('playlist-preview-card').hidden && document.getElementById('pl-pv-slide').textContent.includes('PRIMEIRA LINHA')`);
+  // Comparativo de versões (painel/comparativoVersoes.js)
+  await js("(async()=>{await __homeTest.seed();window.alternarModoComparativoCentral()})()");
+  await js("window.__cmpDialogo=null;void 0");await pause(400);
+  await check('Comparativo: com várias versões pergunta quais comparar (diálogo do app)',`!document.getElementById('app-dialog-overlay').hidden && document.querySelectorAll('.cmp-escolha-col').length===2`);
+  await js("document.querySelectorAll('.cmp-escolha-col')[0].querySelectorAll('.cmp-escolha-opcao')[0].click();document.querySelectorAll('.cmp-escolha-col')[1].querySelectorAll('.cmp-escolha-opcao')[1].click();document.getElementById('app-dialog-ok').click();void 0");
+  for(let i=0;i<60&&!await js("document.getElementById('comparativo-ta-a').value.length>0 && document.getElementById('comparativo-ta-b').value.length>0");i++)await pause(100);
+  await check('Comparativo: abrir carrega as duas versões lado a lado e liga o modo no núcleo',`__homeTest.comparativo()===true && document.getElementById('comparativo-ta-a').value!==document.getElementById('comparativo-ta-b').value && document.getElementById('comparativo-ta-a').value.startsWith('Primeira linha') && document.getElementById('comparativo-ta-b').value.startsWith('Versão acústica')`);
+  await js("window.alternarModoComparativoCentral();void 0");await pause(400);
+  await check('Comparativo: sem alterações, alternar de novo sai do modo',`__homeTest.comparativo()===false`);
+  await js("__homeTest.seed()");await pause(150);
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
   await js(`document.getElementById('home-preview-close').click()`);
