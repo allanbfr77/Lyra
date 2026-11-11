@@ -57,51 +57,60 @@ const __mm = await import('./painel/menuApresentacaoModo.js');
 const __rtu = await import('./painel/roteamentoTelasUi.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
+const __m_bannerAtualizacao = await import('./painel/bannerAtualizacao.js');
+const __m_biblia = await import('./painel/biblia.js');
+const __m_contagemRegressiva = await import('./painel/contagemRegressiva.js');
+const __m_docs = await import('./painel/docs.js');
+const __m_estadoPainel = await import('./painel/estadoPainel.js');
+const __m_menuLyra = await import('./painel/menuLyra.js');
+const __m_previewProjecao = await import('./painel/previewProjecao.js');
+const __m_conteudoUnificadoAviso = await import('./painel/conteudoUnificadoAviso.js');
+const __m_playlistTemas = await import('./painel/playlistTemas.js');
 window.__homeTest = {
  async seed() {
   const lc=await import('./painel/letraCompleta.js'), ee=await import('./painel/editorEstrofes.js');
   lc.limparFlagsModoEdicaoMusica();
-  estadoPainel.musicaBancoFonte='user'; estadoPainel.musicaRootId=1; estadoPainel.musicaVersaoLocalId=null;
-  estadoPainel.musicaAtiva=structuredClone(window.__songs[1]); estadoPainel.estrofeAtiva=0;
-  estadoPainel.versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
-  ee.renderEstrofesEditor();__vm.renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
+  __m_estadoPainel.estadoPainel.musicaBancoFonte='user'; __m_estadoPainel.estadoPainel.musicaRootId=1; __m_estadoPainel.estadoPainel.musicaVersaoLocalId=null;
+  __m_estadoPainel.estadoPainel.musicaAtiva=structuredClone(window.__songs[1]); __m_estadoPainel.estadoPainel.estrofeAtiva=0;
+  __m_estadoPainel.estadoPainel.versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
+  ee.renderEstrofesEditor();__vm.renderMusicaVersoesBar();__m_previewProjecao.atualizarPreviewPlaylistCentral();
  },
- state:()=>({id:estadoPainel.musicaAtiva?.id, title:estadoPainel.musicaAtiva?.titulo, slides:estadoPainel.musicaAtiva?.estrofes, index:estadoPainel.estrofeAtiva, full:estadoPainel.modoLetraCompletaCentral, editing:estadoPainel.modoEdicaoEstrofes}),
- preview:atualizarPreviewPlaylistCentral,
+ state:()=>({id:__m_estadoPainel.estadoPainel.musicaAtiva?.id, title:__m_estadoPainel.estadoPainel.musicaAtiva?.titulo, slides:__m_estadoPainel.estadoPainel.musicaAtiva?.estrofes, index:__m_estadoPainel.estadoPainel.estrofeAtiva, full:__m_estadoPainel.estadoPainel.modoLetraCompletaCentral, editing:__m_estadoPainel.estadoPainel.modoEdicaoEstrofes}),
+ preview:__m_previewProjecao.atualizarPreviewPlaylistCentral,
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
- versaoBase:{aplicar:(b,i,v)=>__vm.aplicarBaseMusicaSelecionada(b,i,v),local:()=>estadoPainel.musicaVersaoLocalId,raiz:()=>estadoPainel.musicaRootId},
- comparativo:()=>estadoPainel.modoComparativoCentral,
- midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>estadoPainel.apresentacaoBiblioteca,cards:()=>estadoPainel.apresentacaoCards,card4:()=>estadoPainel.apresentacaoCard4Imagens},
+ versaoBase:{aplicar:(b,i,v)=>__vm.aplicarBaseMusicaSelecionada(b,i,v),local:()=>__m_estadoPainel.estadoPainel.musicaVersaoLocalId,raiz:()=>__m_estadoPainel.estadoPainel.musicaRootId},
+ comparativo:()=>__m_estadoPainel.estadoPainel.modoComparativoCentral,
+ midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>__m_estadoPainel.estadoPainel.apresentacaoBiblioteca,cards:()=>__m_estadoPainel.estadoPainel.apresentacaoCards,card4:()=>__m_estadoPainel.estadoPainel.apresentacaoCard4Imagens},
  preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
  modoMidias:{fechar:__mm.fecharMenuModoApresentacao},
  remover:{pedir:__rm.solicitarRemoverMusicaDoBancoServidor},
- eventosPorta:{ligar:()=>{window.__hand=new Map();window.__tpOrig=null;projecao.usarTransporte({pronto:()=>true,enviar:()=>true,enfileirar(){},inscrever(e,h){(window.__hand.get(e)||window.__hand.set(e,new Set()).get(e)).add(h)},desinscrever(e,h){window.__hand.get(e)?.delete(h)}})},emitir:(e,d)=>{(window.__hand.get(e)||[]).forEach(h=>h(d))},inscritos:()=>[...window.__hand.keys()].join(','),desligar:()=>projecao.usarTransporte(null)},
- previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:projecao.pronta,l:projecao.ligada};projecao.pronta=()=>true;projecao.ligada=()=>true}else if(window.__projOrig){projecao.pronta=window.__projOrig.p;projecao.ligada=window.__projOrig.l}}},
- culto:{id:()=>estadoPainel.cultoId,playlists:()=>estadoPainel.playlists,temas:()=>estadoPainel.temasPorCulto},
+ eventosPorta:{ligar:()=>{window.__hand=new Map();window.__tpOrig=null;__m_estadoPainel.projecao.usarTransporte({pronto:()=>true,enviar:()=>true,enfileirar(){},inscrever(e,h){(window.__hand.get(e)||window.__hand.set(e,new Set()).get(e)).add(h)},desinscrever(e,h){window.__hand.get(e)?.delete(h)}})},emitir:(e,d)=>{(window.__hand.get(e)||[]).forEach(h=>h(d))},inscritos:()=>[...window.__hand.keys()].join(','),desligar:()=>__m_estadoPainel.projecao.usarTransporte(null)},
+ previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:__m_estadoPainel.projecao.pronta,l:__m_estadoPainel.projecao.ligada};__m_estadoPainel.projecao.pronta=()=>true;__m_estadoPainel.projecao.ligada=()=>true}else if(window.__projOrig){__m_estadoPainel.projecao.pronta=window.__projOrig.p;__m_estadoPainel.projecao.ligada=window.__projOrig.l}}},
+ culto:{id:()=>__m_estadoPainel.estadoPainel.cultoId,playlists:()=>__m_estadoPainel.estadoPainel.playlists,temas:()=>__m_estadoPainel.estadoPainel.temasPorCulto},
  sincBanco:{snapshot:__sb.snapshotMetaCompartilhadaAtual},
- pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>estadoPainel.playlists[estadoPainel.cultoId]||[]},
+ pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>__m_estadoPainel.estadoPainel.playlists[__m_estadoPainel.estadoPainel.cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
- openContagem:abrirPainelContagem,
+ openContagem:__m_contagemRegressiva.abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
- setMonitores:(m)=>{estadoPainel.monitoresServidorCache=m},
- rotas:()=>estadoPainel.rotasPorModo,
+ setMonitores:(m)=>{__m_estadoPainel.estadoPainel.monitoresServidorCache=m},
+ rotas:()=>__m_estadoPainel.estadoPainel.rotasPorModo,
  renderRotas:(m,r)=>__rtu.renderRoteamentoTelas(m,r),
- espiarBiblia:()=>{const o={p:projecao.pronta,l:projecao.ligada,e:projecao.enfileirar,s:projecao.enviar};window.__enfileirados=[];window.__enviados=[];projecao.ligada=()=>true;projecao.pronta=()=>true;projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{projecao.pronta=o.p;projecao.ligada=o.l;projecao.enfileirar=o.e;projecao.enviar=o.s}},
- biblia:{haParte:bibliaHaParteProjetada},
- ultimo:()=>getUltimoConteudoProjetadoModoUnificado(),
- estado:()=>estadoPainel.estadoServidor,
- setEstado:(e)=>{estadoPainel.estadoServidor=e},
+ espiarBiblia:()=>{const o={p:__m_estadoPainel.projecao.pronta,l:__m_estadoPainel.projecao.ligada,e:__m_estadoPainel.projecao.enfileirar,s:__m_estadoPainel.projecao.enviar};window.__enfileirados=[];window.__enviados=[];__m_estadoPainel.projecao.ligada=()=>true;__m_estadoPainel.projecao.pronta=()=>true;__m_estadoPainel.projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};__m_estadoPainel.projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{__m_estadoPainel.projecao.pronta=o.p;__m_estadoPainel.projecao.ligada=o.l;__m_estadoPainel.projecao.enfileirar=o.e;__m_estadoPainel.projecao.enviar=o.s}},
+ biblia:{haParte:__m_biblia.bibliaHaParteProjetada},
+ ultimo:()=>__m_conteudoUnificadoAviso.getUltimoConteudoProjetadoModoUnificado(),
+ estado:()=>__m_estadoPainel.estadoPainel.estadoServidor,
+ setEstado:(e)=>{__m_estadoPainel.estadoPainel.estadoServidor=e},
  cor:(c)=>__ce.aplicarCorComentarioMinistranteNoPainel(c),
- espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
+ espiarProjecao:()=>{const orig=__m_estadoPainel.projecao.enviar;window.__enviados=[];__m_estadoPainel.projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{__m_estadoPainel.projecao.enviar=orig}},
  contagem:{renderSeletor:__cr.renderSeletorMonitorContagem,setPos:__cr.setPosContagemCtrl,cfgChange:__cr.onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:__cr.rotaContagemParaServidor},
- docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
- lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
- banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
+ docs:{carregar:__m_docs.carregarDocsBibliotecaDoStorage,render:__m_docs.renderListaDocsImportados,paginaProjetada:__m_docs.docsHaPaginaProjetada,paginaSel:__m_docs.docsPaginaSelecionadaAtual,adicionar:__m_docs.adicionarArquivosAosDocs},
+ lyra:{comando:__m_menuLyra.tratarComandoMenuLyra,fechar:__m_menuLyra.fecharLyraMenuModal,status:__m_menuLyra.atualizarModalStatusReinicioServidor},
+ banner:{disponivel:__m_bannerAtualizacao.mostrarBannerAtualizacaoDisponivel,progressoCompanion:__m_bannerAtualizacao.mostrarBannerCompanionProgresso,esconder:__m_bannerAtualizacao.esconderBannerAtualizacao,estado:__m_bannerAtualizacao.lyraUpdaterUiState},
  dialogo:{confirm:__dlg.appConfirm,prompt:__dlg.appPrompt,fechar:__dlg.fecharAppDialog,estado:__dlg.appDialogEstado},
- normTema:normalizarTemaPlaylist,
+ normTema:__m_playlistTemas.normalizarTemaPlaylist,
  fluxos:{confirmarImport:__pc.abrirJanelaConfirmarImport,conflitoImport:__pc.abrirJanelaConflitoImport,compartilhar:__pc.abrirModalCompartilharPlaylist,codigo:__pc.modalCompartilharMostrarCodigo,importar:__pc.importarPlaylist,impLoading:__pc.modalImportarPlaylistLoading,impErro:__pc.modalImportarPlaylistErro,impSucesso:__pc.modalImportarPlaylistSucesso,sincronizar:__sb.abrirModalSincronizarBanco,sincSucesso:__sb.modalSincronizarSucesso,sincAviso:__sb.modalSincronizarAviso,sincErro:__sb.modalSincronizarErro},
- handoff:()=>estadoPainel.companionHandoffEmCurso,
- handoffReset:()=>{estadoPainel.companionHandoffEmCurso=false},
+ handoff:()=>__m_estadoPainel.estadoPainel.companionHandoffEmCurso,
+ handoffReset:()=>{__m_estadoPainel.estadoPainel.companionHandoffEmCurso=false},
 };`;
 const server = http.createServer((req, res) => {
   const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);

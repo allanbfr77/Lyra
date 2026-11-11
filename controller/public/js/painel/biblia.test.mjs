@@ -22,7 +22,6 @@ const {
   bibliaZerarVersiculoSelecionado,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
-  registrarDependenciasBiblia,
 } = await import('./biblia.js');
 
 test('LIVROS: 66 livros, 39 do Antigo e 27 do Novo Testamento, de Gênesis a Apocalipse', () => {
@@ -143,7 +142,3 @@ test('estado exposto ao núcleo: nada projetado e aparência padrão legível', 
   assert.notEqual(pub, min);
 });
 
-test('registrarDependenciasBiblia aceita valor vazio sem lançar', () => {
-  assert.doesNotThrow(() => registrarDependenciasBiblia(undefined));
-  assert.doesNotThrow(() => registrarDependenciasBiblia({}));
-});

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './_stubDom.mjs';
+import { setModalSincronizarTimerAutoFechar } from './sincronizacaoBanco.js';
 import {
   appDialogEstado,
-  registrarDependenciasAppDialog,
   fecharAppDialog,
   abrirAppDialog,
   appAlert,
@@ -58,12 +59,6 @@ function zerarEstado() {
     compartilharResolver: null,
     importarResolver: null,
     sincronizarResolver: null,
-  });
-  registrarDependenciasAppDialog({
-    getModalSincronizarTimer: () => null,
-    getModalImportarTimer: () => null,
-    liberarBloqueioFecharImportPlaylist: () => {},
-    normalizarTemaPlaylist: (t) => String(t || '').trim(),
   });
 }
 
@@ -124,7 +119,7 @@ test('appPrompt: valida com o normalizador, mostra erro e só fecha com valor v�
   assert.equal(els['app-dialog-overlay'].hidden, false);
   input.value = '  Louvor  ';
   els['app-dialog-ok'].onclick();
-  assert.equal(await p, 'Louvor');
+  assert.equal(await p, 'LOUVOR', 'o normalizador padrão é o do tema da playlist (maiúsculas)');
   assert.equal(els['app-dialog-overlay'].hidden, true);
   assert.equal(appDialogEstado.promptResolver, null);
 });
@@ -147,12 +142,7 @@ test('fecharAppDialog com o modal de sincronizar aberto: limpa o timer pelo dep 
   const realClear = globalThis.clearTimeout;
   globalThis.clearTimeout = (t) => { limpos.push(t); realClear(t); };
   try {
-    registrarDependenciasAppDialog({
-      getModalSincronizarTimer: () => timer,
-      getModalImportarTimer: () => null,
-      liberarBloqueioFecharImportPlaylist: () => {},
-      normalizarTemaPlaylist: (t) => t,
-    });
+    setModalSincronizarTimerAutoFechar(timer);
     let resultado = 'pendente';
     appDialogEstado.sincronizarResolver = (v) => { resultado = v; };
     els['app-dialog-body'].innerHTML = '<x/>';
@@ -168,23 +158,18 @@ test('fecharAppDialog com o modal de sincronizar aberto: limpa o timer pelo dep 
     assert.equal(els['app-dialog-overlay'].hidden, true);
   } finally {
     globalThis.clearTimeout = realClear;
+    setModalSincronizarTimerAutoFechar(null);
   }
 });
 
 test('fecharAppDialog com o modal de importar aberto: libera o bloqueio de fechar', () => {
   zerarEstado();
   montarDom();
-  let liberado = 0;
-  registrarDependenciasAppDialog({
-    getModalSincronizarTimer: () => null,
-    getModalImportarTimer: () => null,
-    liberarBloqueioFecharImportPlaylist: () => { liberado += 1; },
-    normalizarTemaPlaylist: (t) => t,
-  });
+  appDialogEstado.fecharNoBackdrop = false;
   let resultado = 'pendente';
   appDialogEstado.importarResolver = (v) => { resultado = v; };
   fecharAppDialog(false);
-  assert.equal(liberado, 1);
+  assert.equal(appDialogEstado.fecharNoBackdrop, true, 'liberarBloqueioFecharImportPlaylist devolve o fechar no backdrop');
   assert.equal(resultado, null);
   assert.equal(appDialogEstado.importarResolver, null);
 });

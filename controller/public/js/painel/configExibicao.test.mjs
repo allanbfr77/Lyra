@@ -10,7 +10,6 @@ import {
   sanitizarCfgSlidesLocal,
   lerCurrentCfgCtrl,
   iniciarConfigExibicao,
-  registrarDependenciasConfigExibicao,
 } from './configExibicao.js';
 
 test('as oito abas do modal de Ajustes, na ordem do menu lateral', () => {
@@ -80,8 +79,6 @@ test('config corrente inicial: tamanho, espaçamento e posição padrão do moda
   assert.equal(typeof cfg.publico, 'object');
 });
 
-test('inicialização e dependências são funções exportadas (antes eram instruções soltas do núcleo)', () => {
+test('a inicialização é uma função exportada (antes eram instruções soltas do núcleo)', () => {
   assert.equal(typeof iniciarConfigExibicao, 'function');
-  assert.doesNotThrow(() => registrarDependenciasConfigExibicao(undefined));
-  assert.doesNotThrow(() => registrarDependenciasConfigExibicao({}));
 });
