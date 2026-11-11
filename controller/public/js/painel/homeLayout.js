@@ -392,7 +392,12 @@ export function organizarVersoesHome(bar) {
   const itens = () => [...list.querySelectorAll('[role="menuitem"]')];
   const focar = (i) => { const l = itens(); if (l.length) l[(i + l.length) % l.length].focus(); };
   dropdown.addEventListener('toggle', () => summary.setAttribute('aria-expanded', String(dropdown.open)));
+  /* Sem outras versões o controlo está desabilitado: nem o clique nem o teclado abrem o menu. */
+  summary.addEventListener('click', (e) => {
+    if (dropdown.classList.contains('home-other-versions--off')) e.preventDefault();
+  });
   dropdown.addEventListener('keydown', (e) => {
+    if (dropdown.classList.contains('home-other-versions--off')) { if (e.key !== 'Tab') e.preventDefault(); return; }
     const l = itens(); const atual = l.indexOf(document.activeElement);
     if (e.key === 'Escape') { e.stopPropagation(); dropdown.open = false; summary.focus(); return; }
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
@@ -416,6 +421,12 @@ export function atualizarVersoesHome(bar) {
   const ativoTxt = active?.textContent.trim();
   summary.textContent = `${ativoTxt || 'Outras versões'} (${chips.length})`;
   summary.classList.toggle('versao-musica-ativa', !!active);
+  /* «Outras versões» só vale com pelo menos uma versão adicional na lista. */
+  const semOutras = details.querySelectorAll('[role="menuitem"]').length === 0;
+  details.classList.toggle('home-other-versions--off', semOutras);
+  summary.setAttribute('aria-disabled', semOutras ? 'true' : 'false');
+  summary.tabIndex = semOutras ? -1 : 0;
+  if (semOutras) details.open = false;
   bar.querySelectorAll('.versao-chip:not([role="menuitem"])').forEach((c) => c.setAttribute('aria-pressed', String(c.classList.contains('versao-musica-ativa'))));
   details.querySelectorAll('[role="menuitem"]').forEach((c) => {
     if (c.classList.contains('versao-musica-ativa')) c.setAttribute('aria-current', 'true'); else c.removeAttribute('aria-current');
