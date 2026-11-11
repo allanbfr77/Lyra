@@ -614,6 +614,16 @@ async function run() {
   await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(300);
   await check('Bíblia: Escape (estado do núcleo via setter) zera o estado do servidor e o último conteúdo',`__homeTest.estado().tipo===null && __homeTest.estado().telaLimpa===true && __homeTest.ultimo()==null`);
   await check('Bíblia: Escape (núcleo) encerra a projeção, avisa o servidor e limpa a marca do versículo',`window.__enviados.some(e=>e[0]==='encerrar_projecao_biblia') && __homeTest.biblia.haParte()===false && !document.querySelector('.biblia-v-card.projetado')`);
+  // Eco do servidor: encerrar a Bíblia por fora (outro controlador/ESC no telão) tem de limpar o marcador local
+  await js("window.__enfileirados.length=0;document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].click()");await pause(300);
+  await js("document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].click()");await pause(400);
+  await js("__homeTest.eventosPorta.ligar();void 0");
+  const haParteAntes = await js("__homeTest.biblia.haParte()");
+  await js("__homeTest.eventosPorta.emitir('estado',{tipo:'biblia',titulo:'Gênesis 1',linhas:['No princípio'],telaLimpa:false});void 0");await pause(200);
+  await check('Bíblia: o eco do servidor com a Bíblia ainda no ar mantém a marca do versículo',`${haParteAntes}===true && __homeTest.biblia.haParte()===true`);
+  await js("__homeTest.eventosPorta.emitir('estado',{tipo:'musica',titulo:'Outra',linhas:['y'],telaLimpa:false});void 0");await pause(200);
+  await check('Bíblia: o eco do servidor com outro conteúdo (Bíblia encerrada por fora) limpa a marca do versículo',`__homeTest.biblia.haParte()===false`);
+  await js("__homeTest.eventosPorta.desligar();__homeTest.setEstado(null);void 0");
   await js("window.__restaurarBiblia()");
   // Busca rápida (teclado): abre o popup, reconhece a sigla e avança de etapa; Escape fecha
   await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'g',bubbles:true}))");await pause(200);
