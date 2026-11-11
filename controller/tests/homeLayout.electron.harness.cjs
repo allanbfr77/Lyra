@@ -51,6 +51,8 @@ const __pr = await import('./painel/previewLetras.js');
 const __ce = await import('./painel/configExibicao.js');
 const __rm = await import('./painel/removerMusicaBanco.js');
 const __pp = await import('./painel/previewProjecao.js');
+const __cr = await import('./painel/contagemRegressiva.js');
+const __vm = await import('./painel/versoesMusica.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -60,18 +62,20 @@ window.__homeTest = {
   musicaBancoFonte='user'; musicaRootId=1; musicaVersaoLocalId=null;
   musicaAtiva=structuredClone(window.__songs[1]); estrofeAtiva=0;
   versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
-  ee.renderEstrofesEditor();renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
+  ee.renderEstrofesEditor();__vm.renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
  },
  state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
- versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
+ versaoBase:{aplicar:(b,i,v)=>__vm.aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  comparativo:()=>modoComparativoCentral,
  midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
  preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
  remover:{pedir:__rm.solicitarRemoverMusicaDoBancoServidor},
+ eventosPorta:{ligar:()=>{window.__hand=new Map();window.__tpOrig=null;projecao.usarTransporte({pronto:()=>true,enviar:()=>true,enfileirar(){},inscrever(e,h){(window.__hand.get(e)||window.__hand.set(e,new Set()).get(e)).add(h)},desinscrever(e,h){window.__hand.get(e)?.delete(h)}})},emitir:(e,d)=>{(window.__hand.get(e)||[]).forEach(h=>h(d))},inscritos:()=>[...window.__hand.keys()].join(','),desligar:()=>projecao.usarTransporte(null)},
  previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:projecao.pronta,l:projecao.ligada};projecao.pronta=()=>true;projecao.ligada=()=>true}else if(window.__projOrig){projecao.pronta=window.__projOrig.p;projecao.ligada=window.__projOrig.l}}},
- culto:{id:()=>cultoId,playlists:()=>playlists},
+ culto:{id:()=>cultoId,playlists:()=>playlists,temas:()=>temasPorCulto},
+ sincBanco:{snapshot:__sb.snapshotMetaCompartilhadaAtual},
  pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
@@ -86,7 +90,7 @@ window.__homeTest = {
  setEstado:(e)=>{estadoServidor=e},
  cor:(c)=>__ce.aplicarCorComentarioMinistranteNoPainel(c),
  espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
- contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:rotaContagemParaServidor},
+ contagem:{renderSeletor:__cr.renderSeletorMonitorContagem,setPos:__cr.setPosContagemCtrl,cfgChange:__cr.onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:__cr.rotaContagemParaServidor},
  docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
@@ -223,6 +227,7 @@ async function run() {
   const tituloPl = "[...document.querySelectorAll('#playlist-list .playlist-row')].map(r=>r.textContent)";
   await check('Playlist: adicionar música grava no culto atual, persiste e desenha as linhas',`__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').map(x=>x.titulo).join(',')==='Alegria,Bondade' && JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/playlists/i.test(k))))[__homeTest.culto.id()].length>=2 && ${tituloPl}.length===2 && ${tituloPl}[0].includes('Alegria') && ${tituloPl}[1].includes('Bondade')`);
   await check('Playlist: a contagem mostra duas músicas',`document.getElementById('playlist-lista-contagem').textContent.includes('2')`);
+  await check('Sincronização: o snapshot do banco compartilhado leva as playlists e os mapas do núcleo (não objetos vazios)',`JSON.stringify(__homeTest.sincBanco.snapshot().playlists)===JSON.stringify(__homeTest.culto.playlists()) && Object.keys(__homeTest.sincBanco.snapshot().playlists).length>=1 && JSON.stringify(__homeTest.sincBanco.snapshot().temasPorCulto)===JSON.stringify(__homeTest.culto.temas())`);
   await js("(()=>{const l=__homeTest.pl.lista();const a=l.findIndex(x=>x.titulo==='Bondade'),b=l.findIndex(x=>x.titulo==='Alegria');__homeTest.pl.reordenar(__homeTest.culto.id(),a,b,'antes');__homeTest.pl.render()})()");await pause(500);
   await check('Playlist: reordenar põe a música no novo lugar e redesenha a lista',`__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').map(x=>x.titulo).join(',')==='Bondade,Alegria' && ${tituloPl}[0].includes('Bondade')`);
   await js("window.__semVersoes=false;void 0");
@@ -261,6 +266,12 @@ async function run() {
   await check('Prévia do telão: mostra o aviso que o estado do servidor (no núcleo) diz estar no ar',`document.getElementById('pv-live-letras').textContent==='Aviso do teste'`);
   await js("__homeTest.setEstado(null);__homeTest.previewTelao.atualizar();__homeTest.previewTelao.forcar(false);void 0");await pause(150);
   await check('Prévia do telão: sem estado do servidor a prévia fica vazia',`document.getElementById('pv-live-letras').textContent===''`);
+  // Eventos da porta de projeção (painel/eventosProjecao.js): as inscrições do iniciarEventosProjecao chegam ao núcleo
+  await js("__homeTest.eventosPorta.ligar();void 0");
+  await check('Eventos da projeção: o núcleo assina estado, áudio, display e monitores ao iniciar',`['estado','audio_state','display_config','monitores_alterados'].every(e=>__homeTest.eventosPorta.inscritos().split(',').includes(e))`);
+  await js("__homeTest.eventosPorta.emitir('estado',{tipo:'aviso',linhas:['Eco do servidor'],telaLimpa:false,semProjecao:false});void 0");await pause(200);
+  await check('Eventos da projeção: o evento «estado» atualiza o estado do servidor guardado no núcleo',`__homeTest.estado()&&__homeTest.estado().tipo==='aviso'&&__homeTest.estado().linhas[0]==='Eco do servidor'`);
+  await js("__homeTest.eventosPorta.desligar();__homeTest.setEstado(null);void 0");
 
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
