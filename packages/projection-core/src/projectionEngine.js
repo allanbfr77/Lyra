@@ -1545,9 +1545,17 @@ function createProjectionEngine(paths, deps) {
     /* Janela nascida já em «Não exibir» (a persistente do ministrante é o caso comum) não
        pode estrear com o conteúdo à vista: o `did-finish-load` chega depois da cadeia ter
        marcado, e o lençol tem de vir no mesmo payload. */
-    const baseMinistrante = hayProjecaoAtivaMinistrante()
+    let baseMinistrante = hayProjecaoAtivaMinistrante()
       ? snapshotMinistranteAtual()
       : estadoOciosoMinistrante();
+    /* Janela (re)aberta com a Bíblia só no M3: sem `modo`, o ministrante desenha o versículo
+       como texto de música/slides — é a formatação que «mudava» ao alternar de modo.
+       `atualizarDisplayMinistrante` já carimba o modo; o bootstrap tem de fazer o mesmo. */
+    if (!state.ministranteApresentacaoOverride && baseMinistrante && !baseMinistrante.modo) {
+      const tipoAtual = state.estadoAtual?.tipo;
+      if (tipoAtual === 'biblia') baseMinistrante = { ...baseMinistrante, modo: 'biblia' };
+      else if (tipoAtual === 'musica') baseMinistrante = { ...baseMinistrante, modo: 'musica' };
+    }
     const payload = estaSemExibicao(win)
       ? comLencolSeHouverConteudoMinistrante(baseMinistrante)
       : baseMinistrante;

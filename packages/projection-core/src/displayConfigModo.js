@@ -88,6 +88,10 @@ function resolverConfigParaJanelas(ctx, opts = {}) {
  */
 function inferirForcarModoJanelas(ctx) {
   if (ctx.estadoAtual?.tipo === 'biblia') return MODO_CFG_BIBLIA;
+  /* Conteúdo que não é Bíblia no ar (música, aviso…): o tema é o dos Slides, seja qual for o
+     último modo que mexeu na config. Sem isto, uma música projetada era reformatada com o
+     tema da Bíblia no reajuste de janelas disparado por uma simples troca de modo. */
+  if (ctx.estadoAtual?.tipo && !ctx.estadoAtual.telaLimpa) return MODO_CFG_SLIDES;
   if (ctx.modoVisualProjecaoAtivo === MODO_CFG_BIBLIA && ctx.displayConfigBiblia) {
     return MODO_CFG_BIBLIA;
   }
@@ -196,7 +200,15 @@ function processarDisplayConfigDoControlador(ctx, cfg, opts = {}) {
     displayConfigLib.saveDisplayConfig(opts.displayConfigPath, ctx.displayConfig);
   }
   const enviar = opts.enviar || ((o) => enviarDisplayConfigParaJanelas(ctx, o));
-  return enviar({ forcarModo: forcarModo || modoConfig });
+  /* O tema pedido é gravado no seu modo (acima), mas NÃO repinta o que já está no ar com o
+     tema do outro modo: Bíblia projetada continua com o tema da Bíblia, música com o dos
+     Slides. Sem isto, qualquer envio de config vindo do outro modo (ex.: ao navegar
+     Bíblia ⇄ Slides) reformatava o ministrante — maiúsculas, fonte e cores trocadas. */
+  const noAr = ctx.estadoAtual;
+  let modoEnvio = forcarModo || modoConfig;
+  if (noAr && noAr.tipo === 'biblia' && !noAr.telaLimpa) modoEnvio = MODO_CFG_BIBLIA;
+  else if (noAr && noAr.tipo === 'musica' && !noAr.telaLimpa) modoEnvio = MODO_CFG_SLIDES;
+  return enviar({ forcarModo: modoEnvio });
 }
 
 module.exports = {

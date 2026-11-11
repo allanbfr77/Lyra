@@ -12229,6 +12229,17 @@ html.dark .cfg-form-select {
 .hdr-encerrar-projecao-btn:active {
   transform: scale(0.96);
 }
+/* Sem projeção deste modo: cinza e inerte (mesmo opacity/cursor de `.btn:disabled`). */
+.hdr-encerrar-projecao-btn:disabled,
+.hdr-encerrar-projecao-btn:disabled:hover,
+.hdr-encerrar-projecao-btn:disabled:active {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text-dim);
+}
 .hdr-encerrar-projecao-btn svg {
   width: 18px;
   height: 18px;

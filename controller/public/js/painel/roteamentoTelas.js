@@ -4,7 +4,7 @@
  * `registrarDependenciasRoteamentoTelas`.
  */
 import { atualizarPreviewOperador, emitirEstadoMinistranteAoServidor, reiniciarAssinaturaEmitMinistrante } from './previewProjecao.js';
-import { bibliaAplicarCfgExibicao, marcarRotaBibliaSincronizada } from './biblia.js';
+import { bibliaAplicarCfgExibicao, bibliaHaParteProjetada, marcarRotaBibliaSincronizada } from './biblia.js';
 import { marcarRotaDocsSincronizada } from './docs.js';
 import { obterNaoExibirManualSlides, precisaReporRotaSlides, rotaSlidesReposta, sincronizarNaoExibirManualSlidesDaEscolha } from '../modules/reposicaoRotaSlides.js';
 import { ordemNaoExibirDoSeletorUnificado } from '../modules/ordemNaoExibirUnificado.js';
@@ -326,7 +326,10 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        sem que a configuração guardada em `rotasPorModo.slides` mude, que é o que
        `persistirIdentidadesDosModos()` acabou de gravar. Ver `modules/supressaoCanalSlides.js`. */
     slides:
-      modo === 'biblia'
+      /* Navegar para a Bíblia não encerra a música no ar: enquanto a projeção de slides está
+         activa e nenhum versículo foi projetado, o canal do Slides não é silenciado. A
+         supressão só vale quando a Bíblia, de facto, passa a mandar no telão. */
+      modo === 'biblia' && !(estadoPainel.projecaoMusicaEmitidaNoServidor && !bibliaHaParteProjetada())
         ? rotaSlidesParaEnvioComBiblia(estadoPainel.rotasPorModo.biblia, estadoPainel.rotasPorModo.slides)
         : /* Mesma ideia, para o monitor que as Mídias estão a ocupar: silencia-se o canal
              no pacote, sem tocar na configuração do operador. Ver o módulo. */
@@ -379,7 +382,7 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
     });
     if (modo === 'biblia') {
       marcarRotaBibliaSincronizada();
-      bibliaAplicarCfgExibicao();
+      bibliaAplicarCfgExibicao({ navegacao: true });
     }
     /* Same latch as the Bible: the key is the route the server accepted. A failed
        PUT leaves it unchanged, so the next docs page tries again. A monitor change

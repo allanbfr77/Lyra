@@ -278,7 +278,7 @@ export async function alternarModoBiblia() {
       limparOrdemNaoExibirUnificado();
       aplicarMonitorLembradoAoEntrarNoModo('biblia');
       sincronizarCheckboxLembrarMonitor();
-      bibliaAplicarCfgExibicao();
+      bibliaAplicarCfgExibicao({ navegacao: true });
       bibliaRotaSyncServidorChave = null;
       aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
       bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
@@ -1057,7 +1057,7 @@ function hayProjecaoBibliaAtivaParaPreservarEstado() {
  */
 export function bibliaSairModo() {
   if (!hayProjecaoBibliaAtivaParaPreservarEstado()) {
-    slidesAplicarCfgArmazenada();
+    slidesAplicarCfgArmazenada({ navegacao: true });
   }
   try {
     atualizarPreviewOperador();
@@ -1399,7 +1399,8 @@ export function bibliaPayloadCfgExibicao() {
 let bibliaPreviewTimer = null;
 const BIBLIA_PREVIEW_DEBOUNCE_MS = 140;
 
-export function bibliaAplicarCfgExibicao() {
+export function bibliaAplicarCfgExibicao(opts = {}) {
+  const preservarProjecaoAtiva = opts.navegacao === true;
   clearTimeout(bibliaPreviewTimer);
   bibliaPreviewTimer = setTimeout(() => {
     bibliaPreviewTimer = null;
@@ -1407,6 +1408,7 @@ export function bibliaAplicarCfgExibicao() {
     enviarPreviewDisplayConfig(null, {
       modoConfig: 'biblia',
       forcarModo: 'biblia',
+      preservarProjecaoAtiva,
     });
   }, BIBLIA_PREVIEW_DEBOUNCE_MS);
 }

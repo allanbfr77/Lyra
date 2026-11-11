@@ -196,7 +196,7 @@ export async function alternarModoSlidesOperador(opts = {}) {
         estadoPainel.rotasPorModo.slides = rotaSlidesReposta(estadoPainel.rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
         salvarRotasPorModoNoStorage();
       }
-      slidesAplicarCfgArmazenada();
+      slidesAplicarCfgArmazenada({ navegacao: true });
       syncRoteamentoTelasModoSlidesNaUi();
     } else {
       limparUiAoSairDoModoSlides();

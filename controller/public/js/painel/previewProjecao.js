@@ -803,7 +803,11 @@ export function atualizarPreviewOperador() {
       opP.className = 'op-slide-text vazio';
       limparEstiloPreviewSlide(opP);
       atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
+      /* Sem `emitirEstadoMinistranteAoServidor()` aqui, de propósito. Esta prévia está vazia
+         só porque a faixa de slides saiu de vista (saiu-se do modo Slides) — não porque o
+         ministrante não tenha letra. Emitir lia essa prévia vazia e mandava ao M3 um texto em
+         branco: a projeção do M3 sumia ao navegar, enquanto o M2 (que não passa por aqui)
+         ficava intacto. */
       return;
     }
 
@@ -862,6 +866,14 @@ export function emitirEstadoMinistranteAoServidor() {
    * música) é que pode voltar a mandar `exibir_ministrante`.
    */
   if (hayProjecaoAtivaNoServidor() && !estadoPainel.projecaoMusicaEmitidaNoServidor) return;
+  /* Versículo projetado SÓ no ministrante (M3): o estado público fica «limpo» e a guarda
+     acima não o vê. Sem esta, trocar Bíblia ⇄ Slides reemitia o ministrante a partir da
+     prévia do modo atual e reformatava o versículo no ar. */
+  if (estadoPainel.estadoServidor?.projecaoBibliaMinistrante && !estadoPainel.projecaoMusicaEmitidaNoServidor) return;
+  /* Fora do modo Slides a prévia do ministrante fica vazia de propósito (faixa fora de vista),
+     e o observador dela dispara uma emissão: ela mandaria o M3 para branco. O M3 já tem a
+     letra certa no servidor — não se reescreve a partir de uma prévia que não a espelha. */
+  if (previewMusicaEsperandoDockParaEspelharLetra()) return;
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (!opA || !opP) return;

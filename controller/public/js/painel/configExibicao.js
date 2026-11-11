@@ -432,6 +432,12 @@ function hayVideoDoCard5EmProjecao() {
   return !!(card && card.id === id && String(card.kind || '').toLowerCase() === 'video');
 }
 
+function hayConteudoProjetadoNoAr() {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor) return true;
+  const e = estadoPainel.estadoServidor;
+  return !!(e && !e.telaLimpa && (e.tipo === 'musica' || e.tipo === 'biblia') && Array.isArray(e.linhas) && e.linhas.length) || !!(e && e.projecaoBibliaMinistrante);
+}
+
 export function enviarPreviewDisplayConfig(cfg, opts = {}) {
   // Pull-by-role: um controlador somente-leitura NUNCA empurra config (nem no boot, nem ao
   // mexer no painel). O servidor já rejeitaria via guarda; aqui evitamos até o ruído do envio.
@@ -439,6 +445,9 @@ export function enviarPreviewDisplayConfig(cfg, opts = {}) {
   /* Só este caso: vídeo do card de vídeo no ar. Outras mídias e o resto dos modos
      continuam a empurrar o tema normalmente. */
   if (hayVideoDoCard5EmProjecao()) return;
+  /* Navegar entre modos (Bíblia ⇄ Slides) não reformata o que já está no ar: o servidor
+     reaplica o tema do modo certo quando o operador projetar algo. */
+  if (opts.preservarProjecaoAtiva && hayConteudoProjetadoNoAr()) return;
   const modo = opts.modoConfig || 'slides';
   let corpo = cfg && typeof cfg === 'object' ? cfg : {};
   if (modo === 'biblia') {
@@ -461,7 +470,7 @@ export function enviarPreviewDisplayConfig(cfg, opts = {}) {
   }).catch(() => {});
 }
 
-export function slidesAplicarCfgArmazenada() {
+export function slidesAplicarCfgArmazenada(opts = {}) {
   let cfg = carregarSlideCfgDoStorage();
   if (!cfg) {
     try {
@@ -489,6 +498,7 @@ export function slidesAplicarCfgArmazenada() {
   enviarPreviewDisplayConfig(cfg, {
     modoConfig: 'slides',
     forcarModo: 'slides',
+    preservarProjecaoAtiva: opts.navegacao === true,
   });
 }
 
