@@ -45,6 +45,7 @@ const bridge = `
 const __dlg = await import('./painel/appDialog.js');
 const __pa = await import('./painel/playlistAdicionar.js');
 const __pl = await import('./painel/playlistLista.js');
+const __ga = await import('./painel/gridApresentacao.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -61,6 +62,7 @@ window.__homeTest = {
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
  versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  comparativo:()=>modoComparativoCentral,
+ midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
  culto:{id:()=>cultoId,playlists:()=>playlists},
  pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
@@ -216,6 +218,19 @@ async function run() {
   await js("(()=>{const l=__homeTest.pl.lista();const a=l.findIndex(x=>x.titulo==='Bondade'),b=l.findIndex(x=>x.titulo==='Alegria');__homeTest.pl.reordenar(__homeTest.culto.id(),a,b,'antes');__homeTest.pl.render()})()");await pause(500);
   await check('Playlist: reordenar põe a música no novo lugar e redesenha a lista',`__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').map(x=>x.titulo).join(',')==='Bondade,Alegria' && ${tituloPl}[0].includes('Bondade')`);
   await js("window.__semVersoes=false;void 0");
+  // Mídias (painel/gridApresentacao.js, bibliotecaMidiasApresentacao.js, videoApresentacao.js, playlistVideoApresentacao.js)
+  await js("document.body.classList.add('app-mod-apresentacao');(()=>{const b=atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);window.__png=()=>new File([u],'foto.png',{type:'image/png'})})();__homeTest.midias.grid();void 0");await pause(200);
+  await check('Mídias: a grelha desenha os seis cards (vazios, o das 4 imagens e o do aviso)',`document.querySelectorAll('#apresentacao-grid > *').length===6 && document.querySelectorAll('#apresentacao-grid .ap-card--vazio').length===4 && !!document.querySelector('#apresentacao-grid .ap-card--quad') && !!document.querySelector('#apresentacao-grid .ap-card--aviso')`);
+  await js("__homeTest.midias.add([window.__png()]);void 0");
+  for(let i=0;i<50&&!await js("__homeTest.midias.biblioteca().length>=1 && document.querySelectorAll('#ap-lib-list .ap-lib-item').length>=1");i++)await pause(100);
+  await check('Mídias: importar um arquivo cria o item na biblioteca (estado do núcleo) e o lista',`__homeTest.midias.biblioteca().length>=1 && document.querySelectorAll('#ap-lib-list .ap-lib-item').length>=1 && document.querySelector('#ap-lib-list .ap-lib-name').textContent.includes('foto')`);
+  await js("(()=>{const b=document.getElementById('ap-lib-search');b.value='zzzz';b.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(300);
+  await check('Mídias: a busca da biblioteca esconde o que não casa',`document.querySelectorAll('#ap-lib-list .ap-lib-item').length===0`);
+  await js("(()=>{const b=document.getElementById('ap-lib-search');b.value='';b.dispatchEvent(new Event('input',{bubbles:true}))})()");await pause(300);
+  await js("__homeTest.midias.addCard(window.__png(),0);void 0");
+  for(let i=0;i<50&&!await js("!!__homeTest.midias.cards()[0]");i++)await pause(100);await pause(300);
+  await check('Mídias: soltar um arquivo no card guarda o item no card e o desenha preenchido',`!!__homeTest.midias.cards()[0] && !document.querySelector('#apresentacao-grid .ap-card[data-ap-card-idx="0"]').classList.contains('ap-card--vazio')`);
+  await js("document.body.classList.remove('app-mod-apresentacao');void 0");
 
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
