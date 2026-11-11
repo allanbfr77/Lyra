@@ -11,6 +11,7 @@ import { renderEstrofesEditor } from './editorEstrofes.js';
 import { renderMusicaVersoesBar } from './versoesMusica.js';
 import { renderPlaylist } from './playlistLista.js';
 import { renderSlidesStrip } from './slidesStrip.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -143,37 +144,37 @@ async function removerMusicaDoBancoNoServidor(idNum) {
  */
 function aplicarLimpezaUiAposRemocaoMusica(idNum, rootRemovido) {
     if (
-      dep.getSelecaoUiBiblioteca() &&
-      (Number(dep.getSelecaoUiBiblioteca().id) === idNum || Number(dep.getSelecaoUiBiblioteca().id) === rootRemovido)
+      estadoPainel.selecaoUiBiblioteca &&
+      (Number(estadoPainel.selecaoUiBiblioteca.id) === idNum || Number(estadoPainel.selecaoUiBiblioteca.id) === rootRemovido)
     ) {
-      dep.setSelecaoUiBiblioteca(null);
+      estadoPainel.selecaoUiBiblioteca = null;
     }
     if (
-      dep.getSelecaoUiPlaylist() &&
-      (Number(dep.getSelecaoUiPlaylist().id) === idNum || Number(dep.getSelecaoUiPlaylist().id) === rootRemovido)
+      estadoPainel.selecaoUiPlaylist &&
+      (Number(estadoPainel.selecaoUiPlaylist.id) === idNum || Number(estadoPainel.selecaoUiPlaylist.id) === rootRemovido)
     ) {
-      dep.setSelecaoUiPlaylist(null);
+      estadoPainel.selecaoUiPlaylist = null;
     }
     const eraAtiva =
-      dep.getMusicaAtiva() &&
-      (Number(dep.getMusicaAtiva().id) === idNum ||
-        Number(dep.getMusicaAtiva().id) === rootRemovido ||
+      estadoPainel.musicaAtiva &&
+      (Number(estadoPainel.musicaAtiva.id) === idNum ||
+        Number(estadoPainel.musicaAtiva.id) === rootRemovido ||
         obterRootIdMusicaAtiva() === rootRemovido);
     if (eraAtiva) {
-      dep.setMusicaAtiva(null);
-      dep.setMusicaVersaoLocalId(null);
-      dep.setMusicaRootId(null);
-      dep.setVersoesMusicaServidorCache({ rootId: null, versoes: [] });
-      dep.setMusicaBancoFonte('user');
+      estadoPainel.musicaAtiva = null;
+      estadoPainel.musicaVersaoLocalId = null;
+      estadoPainel.musicaRootId = null;
+      estadoPainel.versoesMusicaServidorCache = { rootId: null, versoes: [] };
+      estadoPainel.musicaBancoFonte = 'user';
       renderMusicaVersoesBar();
-      dep.setEstrofeAtiva(-1);
-      dep.setModoEdicaoEstrofes(false);
-      dep.setSnapshotEdicaoEstrofes(null);
-      dep.setModoLetraCompletaCentral(false);
+      estadoPainel.estrofeAtiva = -1;
+      estadoPainel.modoEdicaoEstrofes = false;
+      estadoPainel.snapshotEdicaoEstrofes = null;
+      estadoPainel.modoLetraCompletaCentral = false;
       aplicarLayoutModoLetraCompleta();
-      dep.setProjecaoMusicaEmitidaNoServidor(false);
-      dep.setBloqueioSincronizarEstrofeDoServidor(false);
-      dep.setSlidesDockVisivel(ehModoSlidesOperador());
+      estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+      estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
+      estadoPainel.slidesDockVisivel = ehModoSlidesOperador();
       renderEstrofesEditor();
       renderSlidesStrip();
       atualizarPreviewOperador();

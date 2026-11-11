@@ -10,6 +10,7 @@ import { carregarMusicas, refreshListaBanco } from './bibliotecaMusicas.js';
 import { ehMarcadorTemaPlaylist, fonteBancoItemPlaylist } from '../modules/playlistVersaoMusica.js';
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { getMinistrantePadraoCulto, getMinistrantePadraoPorCulto, normalizarTemaPlaylist, playlistPossuiMarcadoresTema, saveMinistrantePadraoPorCulto, setMinistrantePadraoCulto } from './playlistTemas.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -46,8 +47,8 @@ const renderPlaylist = (...a) => dep.renderPlaylist(...a);
  * continuaria a mostrar uma pessoa cujos tons acabaram de ser apagados da lista.
  */
 export function limparMinistranteTomDeTodaPlaylist() {
-  if (!dep.getCultoId()) return;
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.cultoId) return;
+  const pl = getPlaylist(estadoPainel.cultoId);
   if (!Array.isArray(pl) || !pl.length) return;
   let mudou = false;
   for (const it of pl) {
@@ -59,7 +60,7 @@ export function limparMinistranteTomDeTodaPlaylist() {
     }
   }
   if (!mudou) return;
-  setMinistrantePadraoCulto(dep.getCultoId(), null);
+  setMinistrantePadraoCulto(estadoPainel.cultoId, null);
   savePlaylists();
   renderPlaylist();
   refrescarAberturaM3SeMusicaAtivaNaPlaylist();
@@ -125,7 +126,7 @@ export function renderSeletorMinistranteCulto() {
   const wrap = document.getElementById('culto-ministrante-dd');
   const btn = document.getElementById('culto-ministrante-dd-btn');
   if (!wrap || !btn) return;
-  const atual = dep.getCultoId() ? getMinistrantePadraoCulto(dep.getCultoId()) : null;
+  const atual = estadoPainel.cultoId ? getMinistrantePadraoCulto(estadoPainel.cultoId) : null;
   const items = [{ value: '', label: 'Selecione o ministrante...' }];
   for (const m of obterCacheMinistrantes()) {
     const id = Number(m.id);
@@ -142,7 +143,7 @@ export function renderSeletorMinistranteCulto() {
       onMinistranteCultoChange(v).catch(() => {});
     },
   });
-  btn.disabled = !dep.getCultoId();
+  btn.disabled = !estadoPainel.cultoId;
 }
 
 /**
@@ -150,17 +151,17 @@ export function renderSeletorMinistranteCulto() {
  * e o operador vê o efeito na hora nos tons da lista.
  */
 async function onMinistranteCultoChange(valorSelect) {
-  if (!dep.getCultoId()) return;
+  if (!estadoPainel.cultoId) return;
   const btn = document.getElementById('culto-ministrante-dd-btn');
   const novoId = normalizarMinistranteIdPlaylist(valorSelect);
-  const pl = getPlaylist(dep.getCultoId());
-  setMinistrantePadraoCulto(dep.getCultoId(), novoId);
+  const pl = getPlaylist(estadoPainel.cultoId);
+  setMinistrantePadraoCulto(estadoPainel.cultoId, novoId);
   if (btn) btn.disabled = true;
   try {
     if (novoId) await aplicarMinistranteETonsEmTodasMusicas(pl, novoId);
     else limparMinistranteETonsDeTodasMusicas(pl);
   } finally {
-    if (btn) btn.disabled = !dep.getCultoId();
+    if (btn) btn.disabled = !estadoPainel.cultoId;
   }
   savePlaylists();
   renderPlaylist();
@@ -173,8 +174,8 @@ export function configurarSeletorMinistranteCulto() {
 }
 
 export function onPlaylistTomChange(idxPl, valorSelect) {
-  if (!dep.getCultoId()) return;
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.cultoId) return;
+  const pl = getPlaylist(estadoPainel.cultoId);
   const item = pl[idxPl];
   if (!item || ehMarcadorTemaPlaylist(item)) return;
   const tom = normalizarTomPlaylist(valorSelect);
@@ -189,7 +190,7 @@ export function onPlaylistTomChange(idxPl, valorSelect) {
 function refrescarAberturaM3SeMusicaAtivaNaPlaylist() {
   atualizarPreviewOperador();
   emitirEstadoMinistranteAoServidor();
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getProjecao().pronta() && dep.getMusicaAtiva() && dep.getEstrofeAtiva() === 0) {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && projecao.pronta() && estadoPainel.musicaAtiva && estadoPainel.estrofeAtiva === 0) {
     emitirEstrofeAoServidor(0);
   }
 }
@@ -316,7 +317,7 @@ async function onCfgMinistranteExcluir(id, nome) {
   if (!ok) return;
   try {
     await excluirMinistranteNoServidor(getControllerApiBase(), id);
-    if (limparMinistranteDasPlaylists(dep.getPlaylists(), id)) savePlaylists();
+    if (limparMinistranteDasPlaylists(estadoPainel.playlists, id)) savePlaylists();
     if (limparMinistrantePadraoPorCulto(getMinistrantePadraoPorCulto(), id)) saveMinistrantePadraoPorCulto();
     await renderListaCfgMinistrantes();
     renderPlaylist();
@@ -383,9 +384,9 @@ async function aposSyncTonsInvb(data) {
       if (res.ok) {
         const remoto = await res.json();
         if (remoto && typeof remoto === 'object' && !Array.isArray(remoto)) {
-          dep.setPlaylists(remoto);
+          estadoPainel.playlists = remoto;
           try {
-            localStorage.setItem(LS_PLAYLISTS, JSON.stringify(dep.getPlaylists()));
+            localStorage.setItem(LS_PLAYLISTS, JSON.stringify(estadoPainel.playlists));
           } catch (_) {
             // intencional
           }
@@ -544,7 +545,7 @@ export async function onSincronizarPlaylistLyraClick() {
     }
   };
   /* Importa só a playlist do site do culto selecionado (data + turno). */
-  const cultoIdSelecionado = String(dep.getCultoId() || '').trim();
+  const cultoIdSelecionado = String(estadoPainel.cultoId || '').trim();
   if (!cultoIdSelecionado) {
     alert('Selecione primeiro o culto para importar a playlist do site.');
     return;
@@ -568,8 +569,8 @@ export async function onSincronizarPlaylistLyraClick() {
     // Recarregar playlists do servidor
     const resP = await fetch(getControllerApiBase() + '/api/playlists');
     if (resP.ok) {
-      dep.setPlaylists(await resP.json());
-      localStorage.setItem(LS_PLAYLISTS, JSON.stringify(dep.getPlaylists()));
+      estadoPainel.playlists = await resP.json();
+      localStorage.setItem(LS_PLAYLISTS, JSON.stringify(estadoPainel.playlists));
     }
 
     // Selecionar ministrante e aplicar tons automaticamente por cultoId
@@ -584,7 +585,7 @@ export async function onSincronizarPlaylistLyraClick() {
         });
         if (encontrado) {
           setMinistrantePadraoCulto(cultoId, encontrado.id);
-          const pl = dep.getPlaylists()[cultoId];
+          const pl = estadoPainel.playlists[cultoId];
           if (Array.isArray(pl)) {
             await aplicarMinistranteETonsEmTodasMusicas(pl, encontrado.id);
           }

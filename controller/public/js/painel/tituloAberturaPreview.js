@@ -6,6 +6,7 @@
 import { lerCurrentCfgCtrl } from './configExibicao.js';
 import { normalizarTomPlaylist } from '../modules/playlistMinistranteTom.js';
 import { textoSlideMaiusculo } from '../modules/slidesGrelha.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -29,8 +30,8 @@ export function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
 
 /** Tom da música ativa na playlist do culto (vazio se não houver). */
 export function obterTomPlaylistMusicaAtiva() {
-  if (!dep.getMusicaAtiva() || !dep.getCultoId()) return '';
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.musicaAtiva || !estadoPainel.cultoId) return '';
+  const pl = getPlaylist(estadoPainel.cultoId);
   if (!Array.isArray(pl)) return '';
   const it = pl.find((x) => playlistItemMesmaVersaoQueAtiva(x));
   return normalizarTomPlaylist(it?.tom);
@@ -38,7 +39,7 @@ export function obterTomPlaylistMusicaAtiva() {
 
 /** Título do 1.º slide M3: «♪ Título | Tom» quando o tom estiver cadastrado. */
 export function tituloAberturaM3MusicaAtiva(tituloBase) {
-  const tit = String(tituloBase || dep.getMusicaAtiva()?.titulo || '').trim();
+  const tit = String(tituloBase || estadoPainel.musicaAtiva?.titulo || '').trim();
   const tom = obterTomPlaylistMusicaAtiva();
   if (!tit) return tom || '';
   const corpo = tom ? `${tit} | ${tom}` : tit;

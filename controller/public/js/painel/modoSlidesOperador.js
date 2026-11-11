@@ -21,6 +21,7 @@ import { abrirMenuModoApresentacao } from './menuApresentacaoModo.js';
 import { hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, marcarRotaLiveNoDom, rotaDesativada, salvarRotasPorModoNoStorage } from './rotasMonitores.js';
 import { rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
 import { syncRoteamentoTelasModoSlidesNaUi } from './canaisProjecao.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -72,7 +73,7 @@ function agendarTrabalhoPesadoAposModoSlides(ativo) {
  * ao encerrar música no M3 com imagem ainda no M2.
  */
 export function limparEspelhoLocalSoCamadaSlides() {
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   if (
     e &&
     !e.blackout &&
@@ -85,7 +86,7 @@ export function limparEspelhoLocalSoCamadaSlides() {
     return;
   }
   const minAp = !!(e && e.projecaoMinistranteApresentacao);
-  dep.setEstadoServidor({
+  estadoPainel.estadoServidor = {
     tipo: null,
     titulo: '',
     linhas: [],
@@ -95,7 +96,7 @@ export function limparEspelhoLocalSoCamadaSlides() {
     blackout: false,
     slidePretoFinal: false,
     projecaoMinistranteApresentacao: minAp,
-  });
+  };
 }
 
 /**
@@ -105,21 +106,21 @@ export function limparEspelhoLocalSoCamadaSlides() {
  * Nunca encerra a projeção real — isso fica para ESC / Encerrar.
  */
 export function limparUiAoSairDoModoSlides() {
-  dep.setSlidesDockVisivel(false);
-  if (dep.getProjecaoMusicaEmitidaNoServidor()) {
+  estadoPainel.slidesDockVisivel = false;
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
     /* Projeção no ar: mantém musicaAtiva, estrofeAtiva e a faixa armada. */
     return;
   }
-  dep.setEstrofeAtiva(-1);
-  dep.setProjecaoMusicaEmitidaNoServidor(false);
-  dep.setBloqueioSincronizarEstrofeDoServidor(false);
+  estadoPainel.estrofeAtiva = -1;
+  estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+  estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
   /**
    * Limpa a seleção da playlist do modo slides já na saída (e não só ao reentrar):
    * a faixa é sempre rearmada por clique na playlist, então deixá-la «ligada» aqui
    * fazia a linha voltar destacada sobre uma grade vazia.
    * `musicaAtiva` fica intacta de propósito — a Home continua com a música no editor.
    */
-  dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(false);
+  estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
   limparEspelhoLocalSoCamadaSlides();
 }
 
@@ -132,7 +133,7 @@ export async function alternarModoSlidesOperador(opts = {}) {
      * Com projeção activa, os monitores continuam — trocar para Slides é só navegação.
      */
     if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-      dep.getRotasPorModo().biblia = rotaDesativada();
+      estadoPainel.rotasPorModo.biblia = rotaDesativada();
       /*
        * Devolver o canal partilhado, e não só largar a rota da Bíblia.
        *
@@ -147,7 +148,7 @@ export async function alternarModoSlidesOperador(opts = {}) {
        * se toca, senão fechavam-se as janelas do que está a projetar.
        */
       if (!hayProjecaoApresentacaoModoAtiva()) {
-        dep.getRotasPorModo().apresentacao = rotaDesativada();
+        estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
       }
       marcarRotaLiveNoDom(false);
     }
@@ -172,7 +173,7 @@ export async function alternarModoSlidesOperador(opts = {}) {
       document.body.classList.remove('app-mod-slides');
     }
     const ativo = ehModoSlidesOperador();
-    dep.setSlidesDockVisivel(ativo);
+    estadoPainel.slidesDockVisivel = ativo;
     document.title = ativo ? 'Lyra — Modo slides' : 'Lyra — Controlador';
     try {
       localStorage.setItem(LS_UI_MODO_SLIDES, ativo ? '1' : '0');
@@ -180,13 +181,13 @@ export async function alternarModoSlidesOperador(opts = {}) {
   // intencional — erro ignorado
 }
     if (ativo) {
-      dep.setSlidesRailUserRecolhido(false);
-      if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getMusicaAtiva()) {
+      estadoPainel.slidesRailUserRecolhido = false;
+      if (estadoPainel.projecaoMusicaEmitidaNoServidor && estadoPainel.musicaAtiva) {
         /* Retoma a faixa no ponto da projeção que ficou no ar. */
-        dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(true);
-        dep.setSlidesDockVisivel(true);
+        estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+        estadoPainel.slidesDockVisivel = true;
       } else {
-        dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(false);
+        estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
       }
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
@@ -208,8 +209,8 @@ export async function alternarModoSlidesOperador(opts = {}) {
        * `rotaSlidesAoEntrarNoModo()` consulta a rota dele e desvia-se do que estiver
        * mesmo a projetar.
        */
-      if (precisaReporRotaSlides(dep.getRotasPorModo().slides)) {
-        dep.getRotasPorModo().slides = rotaSlidesReposta(dep.getRotasPorModo().slides, rotaSlidesAoEntrarNoModo());
+      if (precisaReporRotaSlides(estadoPainel.rotasPorModo.slides)) {
+        estadoPainel.rotasPorModo.slides = rotaSlidesReposta(estadoPainel.rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
         salvarRotasPorModoNoStorage();
       }
       slidesAplicarCfgArmazenada();
@@ -219,7 +220,7 @@ export async function alternarModoSlidesOperador(opts = {}) {
     }
     atualizarBtnToggleModoSlides();
     atualizarBtnModoApresentacao();
-    dep.setModoLetraCompletaCentral(false);
+    estadoPainel.modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
     agendarTrabalhoPesadoAposModoSlides(ativo);
   });

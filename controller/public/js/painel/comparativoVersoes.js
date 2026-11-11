@@ -8,6 +8,7 @@ import { appAlert, appDialogEstado } from './appDialog.js';
 import { carregarMusicas } from './bibliotecaMusicas.js';
 import { compararLetras } from '../modules/diffLetrasComparativo.js';
 import { aplicarLayoutModoLetraCompleta, confirmarProsseguirDescartandoEdicaoPendente, estrofesArraysIguaisParaEdicao, splitTextoLetraCompletaEmEstrofes } from './letraCompleta.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -176,7 +177,7 @@ const realcesComparativo = (() => {
     const refB = elementos('b');
     if (!refA || !refB) return;
 
-    if (!dep.getModoComparativoCentral() || refA.camada.offsetParent === null) {
+    if (!estadoPainel.modoComparativoCentral || refA.camada.offsetParent === null) {
       refA.espelho.textContent = '';
       refB.espelho.textContent = '';
       return;
@@ -495,9 +496,9 @@ function juntarEstrofesParaComparativo(estrofes) {
 }
 
 function preencherPainelComparativo() {
-  if (!dep.getComparativoLados()) return;
+  if (!estadoPainel.comparativoLados) return;
   for (const lado of ['a', 'b']) {
-    const dados = dep.getComparativoLados()[lado];
+    const dados = estadoPainel.comparativoLados[lado];
     const ta = comparativoTextarea(lado);
     const rotulo = document.getElementById(`comparativo-rotulo-${lado}`);
     const selo = document.getElementById(`comparativo-selo-${lado}`);
@@ -520,9 +521,9 @@ function estrofesLadoComparativo(lado) {
 }
 
 export function comparativoSujoVsSnapshot() {
-  if (!dep.getModoComparativoCentral() || !dep.getSnapshotComparativo()) return false;
+  if (!estadoPainel.modoComparativoCentral || !estadoPainel.snapshotComparativo) return false;
   return ['a', 'b'].some(
-    (lado) => !estrofesArraysIguaisParaEdicao(estrofesLadoComparativo(lado), dep.getSnapshotComparativo()[lado])
+    (lado) => !estrofesArraysIguaisParaEdicao(estrofesLadoComparativo(lado), estadoPainel.snapshotComparativo[lado])
   );
 }
 
@@ -535,12 +536,12 @@ export function comparativoSujoVsSnapshot() {
 export function aplicarLayoutModoComparativo() {
   const wrap = document.getElementById('centro-comparativo-wrap');
   if (!wrap) return;
-  if (!dep.getMusicaAtiva()) {
-    dep.setModoComparativoCentral(false);
-    dep.setComparativoLados(null);
-    dep.setSnapshotComparativo(null);
+  if (!estadoPainel.musicaAtiva) {
+    estadoPainel.modoComparativoCentral = false;
+    estadoPainel.comparativoLados = null;
+    estadoPainel.snapshotComparativo = null;
   }
-  const on = dep.getModoComparativoCentral();
+  const on = estadoPainel.modoComparativoCentral;
   wrap.hidden = !on;
   if (on) {
     const ed = document.getElementById('estrofes-slide-editor');
@@ -555,8 +556,8 @@ export function aplicarLayoutModoComparativo() {
 
 /** Abre o modo, perguntando antes que duas versões comparar. */
 async function abrirModoComparativo() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getMusicaBancoFonte() === 'catalog') {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.musicaBancoFonte === 'catalog') {
     await appAlert(
       'Música do catálogo: não há versões para comparar. Importe-a para o seu banco primeiro.',
       'Modo comparativo'
@@ -598,20 +599,20 @@ async function abrirModoComparativo() {
     const acharVersao = (id) => versoes.find((v) => Number(v.id) === Number(id)) || null;
     a.rotuloExibicao = rotuloVersaoComparativo(acharVersao(a.id) || { ...a, parent_id: a.imutavel ? null : 1 }, rootId);
     b.rotuloExibicao = rotuloVersaoComparativo(acharVersao(b.id) || { ...b, parent_id: b.imutavel ? null : 1 }, rootId);
-    dep.setComparativoLados({ a, b });
-    dep.setSnapshotComparativo({
+    estadoPainel.comparativoLados = { a, b };
+    estadoPainel.snapshotComparativo = {
       a: a.estrofes.map((s) => String(s)),
       b: b.estrofes.map((s) => String(s)),
-    });
-    dep.setModoComparativoCentral(true);
+    };
+    estadoPainel.modoComparativoCentral = true;
     aplicarLayoutModoComparativo();
     preencherPainelComparativo();
     realcesComparativo.agendar();
     atualizarToolbarModoEdicao();
   } catch (e) {
-    dep.setComparativoLados(null);
-    dep.setSnapshotComparativo(null);
-    dep.setModoComparativoCentral(false);
+    estadoPainel.comparativoLados = null;
+    estadoPainel.snapshotComparativo = null;
+    estadoPainel.modoComparativoCentral = false;
     aplicarLayoutModoComparativo();
     await appAlert(e?.message || 'Não foi possível abrir o modo comparativo.', 'Modo comparativo');
   }
@@ -619,9 +620,9 @@ async function abrirModoComparativo() {
 
 /** Fecha o painel e devolve a coluna central ao estado anterior. */
 export function fecharModoComparativo() {
-  dep.setModoComparativoCentral(false);
-  dep.setComparativoLados(null);
-  dep.setSnapshotComparativo(null);
+  estadoPainel.modoComparativoCentral = false;
+  estadoPainel.comparativoLados = null;
+  estadoPainel.snapshotComparativo = null;
   aplicarLayoutModoComparativo();
   /* Devolve os cartões por slide (ou o painel de letra completa, se estivesse aberto). */
   aplicarLayoutModoLetraCompleta();
@@ -636,15 +637,15 @@ export function fecharModoComparativo() {
  * avisado quando isso acontece.
  */
 export async function salvarComparativoNoServidor() {
-  if (!dep.getModoComparativoCentral() || !dep.getComparativoLados() || !dep.getSnapshotComparativo()) return false;
+  if (!estadoPainel.modoComparativoCentral || !estadoPainel.comparativoLados || !estadoPainel.snapshotComparativo) return false;
   const api = getControllerApiBase();
   const bifurcados = [];
   const gravados = [];
 
   for (const lado of ['a', 'b']) {
-    const dados = dep.getComparativoLados()[lado];
+    const dados = estadoPainel.comparativoLados[lado];
     const estrofes = estrofesLadoComparativo(lado);
-    if (estrofesArraysIguaisParaEdicao(estrofes, dep.getSnapshotComparativo()[lado])) continue;
+    if (estrofesArraysIguaisParaEdicao(estrofes, estadoPainel.snapshotComparativo[lado])) continue;
     if (!estrofes.length || estrofes.every((s) => !String(s).trim())) {
       await appAlert(
         `A versão «${dados.rotuloExibicao}» ficou sem nenhuma estrofe. Escreva ao menos uma linha antes de gravar.`,
@@ -678,7 +679,7 @@ export async function salvarComparativoNoServidor() {
   if (Number.isFinite(rootId)) await carregarVersoesMusicaServidor(rootId);
   /* Se um dos lados era a versão aberta no editor, recarrega-a para os cartões
      e a pré-visualização mostrarem o texto novo. */
-  if (dep.getMusicaAtiva() && gravados.some((id) => Number(id) === Number(dep.getMusicaAtiva().id))) {
+  if (estadoPainel.musicaAtiva && gravados.some((id) => Number(id) === Number(estadoPainel.musicaAtiva.id))) {
     await recarregarMusicaAtivaDoServidor();
   }
 
@@ -694,17 +695,17 @@ export async function salvarComparativoNoServidor() {
 
 /** Recarrega `musicaAtiva` do servidor mantendo o slide seleccionado. */
 async function recarregarMusicaAtivaDoServidor() {
-  if (!dep.getMusicaAtiva() || dep.getMusicaAtiva().id == null) return;
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaAtiva.id == null) return;
   try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(dep.getMusicaAtiva().id)}`);
+    const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(estadoPainel.musicaAtiva.id)}`);
     if (!res.ok) return;
     const nova = await res.json();
     if (!nova || !Array.isArray(nova.estrofes)) return;
-    dep.setMusicaAtiva(nova);
-    dep.setMusicaRootId(Number(nova.root_id ?? nova.id));
-    const n = dep.getMusicaAtiva().estrofes.length;
-    if (dep.getEstrofeAtiva() > n) dep.setEstrofeAtiva(n);
-    if (dep.getEstrofeAtiva() < -1) dep.setEstrofeAtiva(-1);
+    estadoPainel.musicaAtiva = nova;
+    estadoPainel.musicaRootId = Number(nova.root_id ?? nova.id);
+    const n = estadoPainel.musicaAtiva.estrofes.length;
+    if (estadoPainel.estrofeAtiva > n) estadoPainel.estrofeAtiva = n;
+    if (estadoPainel.estrofeAtiva < -1) estadoPainel.estrofeAtiva = -1;
     renderSlidesStrip();
     renderEstrofesEditor();
     atualizarPreviewOperador();
@@ -723,8 +724,8 @@ async function recarregarMusicaAtivaDoServidor() {
  * padrão (`acionarSalvarAlteracoesBarraPadrao` / `acionarCancelarBarraPadrao`).
  */
 export async function alternarModoComparativoCentral() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getModoComparativoCentral()) {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.modoComparativoCentral) {
     await cancelarModoComparativoCentral();
     return;
   }
@@ -736,7 +737,7 @@ export async function alternarModoComparativoCentral() {
  * alterações). Devolve true quando o comparativo já não está activo.
  */
 export async function sairModoComparativoParaTrocarModo() {
-  if (!dep.getModoComparativoCentral()) return true;
+  if (!estadoPainel.modoComparativoCentral) return true;
   await cancelarModoComparativoCentral();
-  return !dep.getModoComparativoCentral();
+  return !estadoPainel.modoComparativoCentral;
 }

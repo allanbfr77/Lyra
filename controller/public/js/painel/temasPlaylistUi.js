@@ -8,6 +8,7 @@ import { ehMarcadorTemaPlaylist } from '../modules/playlistVersaoMusica.js';
 import { encerrarProjecaoDoControlador } from './projecaoMusica.js';
 import { fecharCultoDropdown } from './cultoDoDia.js';
 import { filtrarPlaylistRemovendoTemaComMarcadores, getTemasDoCultoAtual, marcarAberturaRemovidaPeloUsuario, normalizarListaTemas, normalizarTemaPlaylist, ordenarTemasLista, playlistPossuiMarcadoresTema, saveTemaSelecionadoPorCulto, saveTemasPorCulto } from './playlistTemas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -26,35 +27,35 @@ const savePlaylists = (...a) => dep.savePlaylists(...a);
 export function excluirTemaDoCulto(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
-  if (t === TEMA_PADRAO_ABERTURA && dep.getCultoId()) marcarAberturaRemovidaPeloUsuario(dep.getCultoId());
-  dep.getTemasPorCulto()['__global__'] = getTemasDoCultoAtual().filter((x) => x !== t);
+  if (t === TEMA_PADRAO_ABERTURA && estadoPainel.cultoId) marcarAberturaRemovidaPeloUsuario(estadoPainel.cultoId);
+  estadoPainel.temasPorCulto['__global__'] = getTemasDoCultoAtual().filter((x) => x !== t);
   saveTemasPorCulto();
   // Remove da playlist do culto atual
-  if (dep.getCultoId()) {
-    const pl = getPlaylist(dep.getCultoId());
+  if (estadoPainel.cultoId) {
+    const pl = getPlaylist(estadoPainel.cultoId);
     const filtrado = playlistPossuiMarcadoresTema(pl)
       ? filtrarPlaylistRemovendoTemaComMarcadores(pl, t)
       : pl.filter((it) => normalizarTemaPlaylist(it.tema) !== t);
-    dep.getPlaylists()[dep.getCultoId()] = filtrado;
+    estadoPainel.playlists[estadoPainel.cultoId] = filtrado;
     if (getTemaSelecionadoAtual() === t) setTemaSelecionadoAtual('');
     savePlaylists();
-    const plDepois = getPlaylist(dep.getCultoId());
+    const plDepois = getPlaylist(estadoPainel.cultoId);
     const aindaNaLista =
-      !!dep.getMusicaAtiva() &&
+      !!estadoPainel.musicaAtiva &&
       plDepois.some((it) => !ehMarcadorTemaPlaylist(it) && playlistItemMesmaVersaoQueAtiva(it));
-    if (dep.getMusicaAtiva() && !aindaNaLista) encerrarProjecaoDoControlador({ limparMusica: true });
+    if (estadoPainel.musicaAtiva && !aindaNaLista) encerrarProjecaoDoControlador({ limparMusica: true });
   }
 }
 
 export function getTemaSelecionadoAtual() {
-  if (!dep.getCultoId()) return '';
-  return normalizarTemaPlaylist(dep.getTemaSelecionadoPorCulto()[dep.getCultoId()] || '');
+  if (!estadoPainel.cultoId) return '';
+  return normalizarTemaPlaylist(estadoPainel.temaSelecionadoPorCulto[estadoPainel.cultoId] || '');
 }
 
 export function setTemaSelecionadoAtual(v) {
-  if (!dep.getCultoId()) return;
+  if (!estadoPainel.cultoId) return;
   const t = normalizarTemaPlaylist(v);
-  dep.getTemaSelecionadoPorCulto()[dep.getCultoId()] = t;
+  estadoPainel.temaSelecionadoPorCulto[estadoPainel.cultoId] = t;
   saveTemaSelecionadoPorCulto();
 }
 
@@ -64,8 +65,8 @@ export function setTemaSelecionadoAtual(v) {
  */
 export function playlistAtualJaTemTema(tema) {
   const t = normalizarTemaPlaylist(tema);
-  if (!t || !dep.getCultoId()) return false;
-  return getPlaylist(dep.getCultoId()).some((it) => normalizarTemaPlaylist(it?.tema) === t);
+  if (!t || !estadoPainel.cultoId) return false;
+  return getPlaylist(estadoPainel.cultoId).some((it) => normalizarTemaPlaylist(it?.tema) === t);
 }
 
 /**
@@ -175,7 +176,7 @@ export function renderItensLyraSelectDropdown(wrap, items, opts = {}) {
  * música na playlist). Se o tema selecionado deixou de existir, a seleção é limpa.
  */
 export function obterTemasDisponiveisPlaylist() {
-  const pl = dep.getCultoId() ? getPlaylist(dep.getCultoId()) : [];
+  const pl = estadoPainel.cultoId ? getPlaylist(estadoPainel.cultoId) : [];
   const temasDaPlaylist = [
     ...new Set(
       pl.flatMap((x) => {
@@ -190,8 +191,8 @@ export function obterTemasDisponiveisPlaylist() {
   ];
   /* Só acrescenta à lista guardada temas vindos da playlist; não substituir o catálogo pelo merge
    * (substituir apagava temas criados com «+ TEMA» que ainda não tinham música na playlist). */
-  if (dep.getCultoId()) {
-    const base = normalizarListaTemas([...(dep.getTemasPorCulto()[dep.getCultoId()] || [])]);
+  if (estadoPainel.cultoId) {
+    const base = normalizarListaTemas([...(estadoPainel.temasPorCulto[estadoPainel.cultoId] || [])]);
     const seen = new Set(base);
     let mudou = false;
     temasDaPlaylist.forEach((t) => {
@@ -202,7 +203,7 @@ export function obterTemasDisponiveisPlaylist() {
       }
     });
     if (mudou) {
-      dep.getTemasPorCulto()[dep.getCultoId()] = ordenarTemasLista(normalizarListaTemas(base));
+      estadoPainel.temasPorCulto[estadoPainel.cultoId] = ordenarTemasLista(normalizarListaTemas(base));
       saveTemasPorCulto();
     }
   }

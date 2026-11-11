@@ -16,6 +16,7 @@ import { deltaScrollGrelhaSlidesAntecipado } from '../modules/scrollGrelhaSlides
 import { lembrarMonitorLigado } from '../modules/monitorLembrado.js';
 import { limparOrdemNaoExibirUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { svgIconeTipoMidiaApresentacao } from '../modules/midiaApresentacao.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -811,7 +812,7 @@ export function navegarPaginaDocs(passo, opts = {}) {
 let docsSyncedRouteKey = null;
 
 function docsRouteKey() {
-  const r = normalizarRota(dep.getRotasPorModo().docs);
+  const r = normalizarRota(estadoPainel.rotasPorModo.docs);
   return `${r.publicoIndex},${r.ministranteIndex},${r.live ? 1 : 0}`;
 }
 
@@ -833,7 +834,7 @@ async function sincronizarRotaDocsNoServidor() {
   }
   const chave = docsRouteKey();
   if (chave === docsSyncedRouteKey) return;
-  dep.getRotasPorModo().apresentacao = { ...normalizarRota(dep.getRotasPorModo().docs) };
+  estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.docs) };
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 }
 
@@ -853,13 +854,13 @@ export async function projetarPaginaDocs(indice) {
   }
   const seqProj = ++docsProjecaoSeq;
   if (docsPaginaSelecionada !== i) await selecionarPaginaDocs(i);
-  const rota = normalizarRota(dep.getRotasPorModo().docs);
+  const rota = normalizarRota(estadoPainel.rotasPorModo.docs);
   if (!rota.live && rota.publicoIndex < 0 && rota.ministranteIndex < 0) {
     await appAlert('Escolha primeiro um monitor no seletor do cabeçalho.', 'DOCS');
     return;
   }
   await sincronizarRotaDocsNoServidor();
-  const alvoProjecao = obterAlvoProjecaoDeRota(dep.getRotasPorModo().docs);
+  const alvoProjecao = obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.docs);
   const item = docsItemSelecionado();
   let render = null;
   try {
@@ -894,7 +895,7 @@ async function encerrarProjecaoPaginaDocs() {
   /* Encerrar ganha sempre à tecla: uma projeção adiada não pode reacender o telão. */
   docsCancelarProjecaoAdiada();
   if (!docsPaginaProjetadaChave) return;
-  const alvo = obterAlvoProjecaoDeRota(dep.getRotasPorModo().docs);
+  const alvo = obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.docs);
   const canais = canaisParaEncerrarConteudoApresentacao(alvo, null);
   docsPaginaProjetadaChave = null;
   aplicarEstadoVisualPaginasDocs();
@@ -921,7 +922,7 @@ export function encerrarRotaModoDocs() {
    * que quer aquele monitor.
    */
   if (!lembrarMonitorLigado(hostChaveMonitores(), 'docs')) {
-    dep.getRotasPorModo().docs = rotaDesativada();
+    estadoPainel.rotasPorModo.docs = rotaDesativada();
   }
   void aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
 }

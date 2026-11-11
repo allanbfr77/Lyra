@@ -12,6 +12,7 @@ import { precisaReporRotaSlides, rotaSlidesReposta } from '../modules/reposicaoR
 import { rotuloTipoMidiaApresentacao, svgIconeTipoMidiaApresentacao } from '../modules/midiaApresentacao.js';
 import { normalizarRota, salvarRotasPorModoNoStorage, sanitizarRotaProjecao } from './rotasMonitores.js';
 import { rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -27,19 +28,19 @@ const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
 const renderRoteamentoTelas = (...a) => dep.renderRoteamentoTelas(...a);
 
 function apresentacaoOcupandoCanalPublico() {
-  return normalizarRota(dep.getRotasPorModo().apresentacao).publicoIndex >= 0;
+  return normalizarRota(estadoPainel.rotasPorModo.apresentacao).publicoIndex >= 0;
 }
 
 export function apresentacaoOcupandoCanalMinistrante() {
-  return normalizarRota(dep.getRotasPorModo().apresentacao).ministranteIndex >= 0;
+  return normalizarRota(estadoPainel.rotasPorModo.apresentacao).ministranteIndex >= 0;
 }
 
 /** Projeção activa do modo Apresentação no canal público (rota apresentação + estado no telão). */
 export function apresentacaoProjecaoAtivaNoCanalPublico() {
-  const ap = normalizarRota(dep.getRotasPorModo().apresentacao);
+  const ap = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
   if (ap.live || ap.publicoIndex < 0) return false;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) {
     return true;
@@ -50,10 +51,10 @@ export function apresentacaoProjecaoAtivaNoCanalPublico() {
 
 /** Projeção activa do modo Apresentação no canal ministrante. */
 function apresentacaoProjecaoAtivaNoCanalMinistrante() {
-  const ap = normalizarRota(dep.getRotasPorModo().apresentacao);
+  const ap = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
   if (ap.live || ap.ministranteIndex < 0) return false;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   /* Apenas M3: telão no socket pode ficar «limpo» com projecaoMinistranteApresentacao. */
   if (e.projecaoMinistranteApresentacao) return true;
@@ -80,10 +81,10 @@ function apresentacaoProjecaoAtivaNoCanalMinistrante() {
  * badge, e «Imagem no Telão» não é «Versículo no Telão».
  */
 export function bibliaProjecaoAtivaNoCanalPublico() {
-  const b = normalizarRota(dep.getRotasPorModo().biblia);
+  const b = normalizarRota(estadoPainel.rotasPorModo.biblia);
   if (b.live || b.publicoIndex < 0) return false;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
 }
@@ -96,10 +97,10 @@ export function bibliaProjecaoAtivaNoCanalPublico() {
  * «ambos» não há override nenhum e o versículo viaja no próprio payload público.
  */
 export function bibliaProjecaoAtivaNoCanalMinistrante() {
-  const b = normalizarRota(dep.getRotasPorModo().biblia);
+  const b = normalizarRota(estadoPainel.rotasPorModo.biblia);
   if (b.live || b.ministranteIndex < 0) return false;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   if (e.projecaoBibliaMinistrante) return true;
   return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
@@ -126,8 +127,8 @@ export function canalMinistranteOcupadoPorOutroModoNoSlides() {
  * Usado pelo preview do modo Slide — não confundir bgImage da Bíblia com projeção.
  */
 export function estadoServidorEhProjecaoApresentacaoAtivaNoTelao() {
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.tipo === 'biblia' || e.tipo === 'musica') return false;
   if (e.telaLimpa || e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'apresentacao') {
@@ -152,8 +153,8 @@ function slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico() {
 function midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides() {
   if (!ehModoSlidesOperador()) return false;
   if (apresentacaoProjecaoAtivaNoCanalMinistrante()) return true;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'biblia' || e.tipo === 'contagem') return false;
   return !!e.projecaoMinistranteApresentacao;
@@ -176,12 +177,12 @@ function hayProjecaoAtivaNoCanalMinistranteParaPreviewSlides() {
   if (obterRotaSlidesParaUi().ministranteIndex < 0) return false;
 
   /* Letra já emitida neste painel: M3 tem conteúdo mesmo com override de Mídias no público. */
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getMusicaAtiva() && Number(dep.getEstrofeAtiva()) >= 0) {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && estadoPainel.musicaAtiva && Number(estadoPainel.estrofeAtiva) >= 0) {
     return true;
   }
 
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.blackout) return true;
   if (e.tipo === 'musica') {
     if (e.slidePretoFinal) return true;
@@ -198,7 +199,7 @@ function hayProjecaoAtivaNoCanalMinistranteParaPreviewSlides() {
 
 function preencherPreviewInformeMidiaApresentacaoSlide(el) {
   if (!el) return;
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   const ap = e && e.apresentacao ? e.apresentacao : {};
   const kind = String(ap.kind || 'image').toLowerCase();
   const tipoRotulo = rotuloTipoMidiaApresentacao(kind);
@@ -244,8 +245,8 @@ export function classificarSaidaMonitorPublicoSlides() {
    */
   if (r.publicoIndex < 0 && !canalPublicoOcupadoPorOutroModoNoSlides()) return { mode: 'idle' };
 
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return { mode: 'idle' };
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return { mode: 'idle' };
   if (e.blackout) return { mode: 'blackout' };
 
   /* Outros modos no M2 → só badge (não reproduzir o conteúdo visual). */
@@ -293,8 +294,8 @@ export function classificarSaidaMonitorMinistranteSlides() {
     return { mode: 'idle', clock: false };
   }
 
-  const e = dep.getEstadoServidor();
-  if (!dep.getProjecao().pronta()) return { mode: 'idle', clock: true };
+  const e = estadoPainel.estadoServidor;
+  if (!projecao.pronta()) return { mode: 'idle', clock: true };
   if (e && e.blackout) return { mode: 'blackout' };
 
   /* Mídia/aviso do Mídias no M3. */
@@ -327,7 +328,7 @@ export function classificarSaidaMonitorMinistranteSlides() {
   }
 
   /* Slides (música) no M3 — mesmo com Mídias ainda no M2 (tipo do socket pode ser apresentação). */
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getMusicaAtiva() && Number(dep.getEstrofeAtiva()) >= 0) {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && estadoPainel.musicaAtiva && Number(estadoPainel.estrofeAtiva) >= 0) {
     return { mode: 'slides' };
   }
   if (e && e.tipo === 'musica' && (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length))) {
@@ -388,7 +389,7 @@ export function atualizarPreviewMonitorMinistranteSlides() {
 
   if (cls.mode === 'slides') {
     definirPreviewRelogioOciosoMinistrante(false);
-    const e = dep.getEstadoServidor();
+    const e = estadoPainel.estadoServidor;
     const servidorMostraMusica =
       e &&
       e.tipo === 'musica' &&
@@ -396,9 +397,9 @@ export function atualizarPreviewMonitorMinistranteSlides() {
       (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length));
     const alinhado =
       servidorMostraMusica &&
-      dep.getMusicaAtiva() &&
+      estadoPainel.musicaAtiva &&
       musicaEstadoCombinaComAtiva(e) &&
-      dep.getProjecaoMusicaEmitidaNoServidor();
+      estadoPainel.projecaoMusicaEmitidaNoServidor;
     if (servidorMostraMusica && !alinhado) {
       preencherPreviewOperadorSomenteEstadoServidorMusica();
     } else if (
@@ -406,7 +407,7 @@ export function atualizarPreviewMonitorMinistranteSlides() {
       !selecaoLocalAlinhadaComProjecaoMusicaServidor()
     ) {
       preencherPreviewOperadorSomenteEstadoServidorMusica();
-    } else if (dep.getProjecaoMusicaEmitidaNoServidor() || podeEspelharLetraNosPreviewsModoSlide()) {
+    } else if (estadoPainel.projecaoMusicaEmitidaNoServidor || podeEspelharLetraNosPreviewsModoSlide()) {
       preencherPreviewOperadorSomenteMusicaLocal();
     } else if (servidorMostraMusica) {
       preencherPreviewOperadorSomenteEstadoServidorMusica();
@@ -433,8 +434,8 @@ export function atualizarPreviewsMonitoresVirtuaisModoSlides() {
 /** Apresentação no público e slides no público em monitores diferentes (convivência). */
 function slidesCanalPublicoSeparadoDaApresentacao() {
   if (!ehModoSlidesOperador()) return false;
-  const ap = normalizarRota(dep.getRotasPorModo().apresentacao);
-  const sl = normalizarRota(dep.getRotasPorModo().slides);
+  const ap = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
+  const sl = normalizarRota(estadoPainel.rotasPorModo.slides);
   if (ap.live || sl.publicoIndex < 0) return false;
   if (ap.publicoIndex >= 0 && sl.publicoIndex !== ap.publicoIndex) return true;
   if (ap.ministranteIndex >= 0 && sl.publicoIndex !== ap.ministranteIndex) return true;
@@ -446,13 +447,13 @@ function slidesCanalPublicoSeparadoDaApresentacao() {
  * (sem mascarar nem reatribuir monitores por conflito com Apresentação).
  */
 export function obterRotaSlidesParaUi() {
-  return sanitizarRotaProjecao(normalizarRota(dep.getRotasPorModo().slides), dep.getMonitoresServidorCache());
+  return sanitizarRotaProjecao(normalizarRota(estadoPainel.rotasPorModo.slides), estadoPainel.monitoresServidorCache);
 }
 
 /** Atualiza só a UI dos seletores Público/Ministrante no modo Slide. */
 export function syncRoteamentoTelasModoSlidesNaUi() {
   if (!ehModoSlidesOperador()) return;
-  renderRoteamentoTelas(dep.getMonitoresServidorCache(), obterRotaSlidesParaUi());
+  renderRoteamentoTelas(estadoPainel.monitoresServidorCache, obterRotaSlidesParaUi());
   atualizarEstiloRotasDesativadas();
 }
 
@@ -461,8 +462,8 @@ export function syncRoteamentoTelasModoSlidesNaUi() {
  * Slides que tinham sido desligados automaticamente — sem tocar em «Não exibir» manual.
  */
 export function restaurarRotaSlidesAposLibertarMonitores() {
-  if (!precisaReporRotaSlides(dep.getRotasPorModo().slides)) return false;
-  dep.getRotasPorModo().slides = rotaSlidesReposta(dep.getRotasPorModo().slides, rotaSlidesAoEntrarNoModo());
+  if (!precisaReporRotaSlides(estadoPainel.rotasPorModo.slides)) return false;
+  estadoPainel.rotasPorModo.slides = rotaSlidesReposta(estadoPainel.rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
   salvarRotasPorModoNoStorage();
   if (ehModoSlidesOperador()) {
     syncRoteamentoTelasModoSlidesNaUi();

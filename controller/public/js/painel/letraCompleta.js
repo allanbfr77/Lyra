@@ -4,6 +4,7 @@
  * (`controllerAppCore.js`); o que o núcleo ainda possui entra por `registrarDependenciasLetraCompleta`.
  */
 import { appAlert, appConfirm } from './appDialog.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -30,8 +31,8 @@ const sairModoComparativoParaTrocarModo = (...a) => dep.sairModoComparativoParaT
 const sincronizarFlagCaixaLetrasComTextoAtual = (...a) => dep.sincronizarFlagCaixaLetrasComTextoAtual(...a);
 
 function juntarEstrofesParaLetraCompleta() {
-  if (!dep.getMusicaAtiva()?.estrofes) return '';
-  return dep.getMusicaAtiva().estrofes
+  if (!estadoPainel.musicaAtiva?.estrofes) return '';
+  return estadoPainel.musicaAtiva.estrofes
     .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\s+$/, ''))
     .join('\n\n');
 }
@@ -127,7 +128,7 @@ export const guiasEstrofesLetraCompleta = (() => {
     const els = elementos();
     if (!els) return;
     const { ta, guias } = els;
-    if (!dep.getModoLetraCompletaCentral() || guias.offsetParent === null) {
+    if (!estadoPainel.modoLetraCompletaCentral || guias.offsetParent === null) {
       if (espelho) espelho.textContent = '';
       if (desloca) {
         desloca.querySelectorAll('.centro-letra-completa-guia, [data-estrofe]').forEach((n) => n.remove());
@@ -331,8 +332,8 @@ export const guiasEstrofesLetraCompleta = (() => {
 
 export function atualizarTextoPainelLetraCompleta() {
   const ta = document.getElementById('centro-letra-completa-ta');
-  if (!ta || !dep.getMusicaAtiva()?.estrofes) return;
-  if (!dep.getModoLetraCompletaCentral()) return;
+  if (!ta || !estadoPainel.musicaAtiva?.estrofes) return;
+  if (!estadoPainel.modoLetraCompletaCentral) return;
   const novo = juntarEstrofesParaLetraCompleta();
   if (ta.value === novo) return;
   ta.value = novo;
@@ -347,21 +348,21 @@ export function aplicarLayoutModoLetraCompleta(opts = {}) {
   const ed = document.getElementById('estrofes-slide-editor');
   const full = document.getElementById('centro-letra-completa-wrap');
   if (!ed || !full) return;
-  if (!dep.getMusicaAtiva()) {
-    dep.setModoLetraCompletaCentral(false);
-    dep.setSnapshotLetraCompleta(null);
+  if (!estadoPainel.musicaAtiva) {
+    estadoPainel.modoLetraCompletaCentral = false;
+    estadoPainel.snapshotLetraCompleta = null;
     full.hidden = true;
     ed.style.display = '';
     /* Sem música não há o que comparar — o painel comparativo também sai. */
-    if (dep.getModoComparativoCentral()) {
-      dep.setModoComparativoCentral(false);
-      dep.setComparativoLados(null);
-      dep.setSnapshotComparativo(null);
+    if (estadoPainel.modoComparativoCentral) {
+      estadoPainel.modoComparativoCentral = false;
+      estadoPainel.comparativoLados = null;
+      estadoPainel.snapshotComparativo = null;
       aplicarLayoutModoComparativo();
     }
     return;
   }
-  const on = dep.getModoLetraCompletaCentral();
+  const on = estadoPainel.modoLetraCompletaCentral;
   full.hidden = !on;
   ed.style.display = on ? 'none' : '';
   if (on && preencherTextarea) atualizarTextoPainelLetraCompleta();
@@ -370,7 +371,7 @@ export function aplicarLayoutModoLetraCompleta(opts = {}) {
   else guiasEstrofesLetraCompleta.agendar();
   /* O MODO COMPARATIVO tem painel próprio e manda no layout enquanto estiver
      activo — nem os cartões por slide nem a letra completa podem reaparecer. */
-  if (dep.getModoComparativoCentral()) {
+  if (estadoPainel.modoComparativoCentral) {
     ed.style.display = 'none';
     full.hidden = true;
   }
@@ -378,26 +379,26 @@ export function aplicarLayoutModoLetraCompleta(opts = {}) {
 
 /** Grava o conteúdo do textarea de letra completa em `musicaAtiva.estrofes` e atualiza faixa/previews. */
 export function sincronizarEstrofesDesdeTextareaLetraCompleta() {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   const ta = document.getElementById('centro-letra-completa-ta');
   if (!ta) return;
   const novas = splitTextoLetraCompletaEmEstrofes(ta.value);
-  dep.getMusicaAtiva().estrofes = novas;
+  estadoPainel.musicaAtiva.estrofes = novas;
   const n = novas.length;
   const idxPreto = n;
-  if (dep.getEstrofeAtiva() > idxPreto) dep.setEstrofeAtiva(idxPreto);
-  if (dep.getEstrofeAtiva() < -1) dep.setEstrofeAtiva(-1);
+  if (estadoPainel.estrofeAtiva > idxPreto) estadoPainel.estrofeAtiva = idxPreto;
+  if (estadoPainel.estrofeAtiva < -1) estadoPainel.estrofeAtiva = -1;
   renderSlidesStrip();
   atualizarPreviewOperador();
   renderEstrofesEditor();
   marcacaoEstrofeEditor();
   if (
-    dep.getProjecaoMusicaEmitidaNoServidor() &&
-    dep.getProjecao().pronta() &&
-    dep.getEstrofeAtiva() >= 0 &&
-    dep.getEstrofeAtiva() < n
+    estadoPainel.projecaoMusicaEmitidaNoServidor &&
+    projecao.pronta() &&
+    estadoPainel.estrofeAtiva >= 0 &&
+    estadoPainel.estrofeAtiva < n
   ) {
-    dep.getProjecao().enviar('exibir_musica', montarPayloadExibirMusica(dep.getEstrofeAtiva()));
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estadoPainel.estrofeAtiva));
   }
 }
 
@@ -414,8 +415,8 @@ export function estrofesArraysIguaisParaEdicao(a, b) {
 
 /** Estrofes atuais do editor por slides (textareas) ou de `musicaAtiva`. */
 function obterEstrofesAtuaisDaEdicao() {
-  if (!dep.getMusicaAtiva()) return [];
-  if (dep.getModoEdicaoEstrofes()) {
+  if (!estadoPainel.musicaAtiva) return [];
+  if (estadoPainel.modoEdicaoEstrofes) {
     const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
     if (tas.length) {
       const novas = [];
@@ -423,32 +424,32 @@ function obterEstrofesAtuaisDaEdicao() {
       return novas.length ? novas : [''];
     }
   }
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     const ta = document.getElementById('centro-letra-completa-ta');
     if (ta) return splitTextoLetraCompletaEmEstrofes(ta.value);
   }
-  return (dep.getMusicaAtiva().estrofes || []).map((s) => String(s ?? ''));
+  return (estadoPainel.musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
 }
 
 export function letraCompletaSujaVsSnapshot() {
-  if (!dep.getModoLetraCompletaCentral() || !dep.getSnapshotLetraCompleta()) return false;
+  if (!estadoPainel.modoLetraCompletaCentral || !estadoPainel.snapshotLetraCompleta) return false;
   const ta = document.getElementById('centro-letra-completa-ta');
   if (!ta) return false;
   return !estrofesArraysIguaisParaEdicao(
     splitTextoLetraCompletaEmEstrofes(ta.value),
-    dep.getSnapshotLetraCompleta().estrofes
+    estadoPainel.snapshotLetraCompleta.estrofes
   );
 }
 
 export function edicaoEstrofesSujaVsSnapshot() {
-  if (!dep.getModoEdicaoEstrofes() || !dep.getMusicaAtiva() || !dep.getSnapshotEdicaoEstrofes()) return false;
+  if (!estadoPainel.modoEdicaoEstrofes || !estadoPainel.musicaAtiva || !estadoPainel.snapshotEdicaoEstrofes) return false;
   const et = document.getElementById('edit-titulo');
   const ea = document.getElementById('edit-artista');
-  const titulo = et ? et.value : String(dep.getMusicaAtiva().titulo || '');
-  const artista = ea ? ea.value : String(dep.getMusicaAtiva().artista || '');
-  if (titulo !== String(dep.getSnapshotEdicaoEstrofes().titulo || '')) return true;
-  if (artista !== String(dep.getSnapshotEdicaoEstrofes().artista || '')) return true;
-  return !estrofesArraysIguaisParaEdicao(obterEstrofesAtuaisDaEdicao(), dep.getSnapshotEdicaoEstrofes().estrofes);
+  const titulo = et ? et.value : String(estadoPainel.musicaAtiva.titulo || '');
+  const artista = ea ? ea.value : String(estadoPainel.musicaAtiva.artista || '');
+  if (titulo !== String(estadoPainel.snapshotEdicaoEstrofes.titulo || '')) return true;
+  if (artista !== String(estadoPainel.snapshotEdicaoEstrofes.artista || '')) return true;
+  return !estrofesArraysIguaisParaEdicao(obterEstrofesAtuaisDaEdicao(), estadoPainel.snapshotEdicaoEstrofes.estrofes);
 }
 
 export function temEdicaoMusicaNaoGravada() {
@@ -460,14 +461,14 @@ export function temEdicaoMusicaNaoGravada() {
 }
 
 export function limparFlagsModoEdicaoMusica() {
-  dep.getHomeLayout()?.closeMetadata();
-  dep.setSnapshotEdicaoEstrofes(null);
-  dep.setModoEdicaoEstrofes(false);
-  dep.setSnapshotLetraCompleta(null);
-  dep.setModoLetraCompletaCentral(false);
-  dep.setModoComparativoCentral(false);
-  dep.setComparativoLados(null);
-  dep.setSnapshotComparativo(null);
+  estadoPainel.homeLayout?.closeMetadata();
+  estadoPainel.snapshotEdicaoEstrofes = null;
+  estadoPainel.modoEdicaoEstrofes = false;
+  estadoPainel.snapshotLetraCompleta = null;
+  estadoPainel.modoLetraCompletaCentral = false;
+  estadoPainel.modoComparativoCentral = false;
+  estadoPainel.comparativoLados = null;
+  estadoPainel.snapshotComparativo = null;
   aplicarLayoutModoComparativo();
   aplicarLayoutModoLetraCompleta();
 }
@@ -483,9 +484,9 @@ export function limparFlagsModoEdicaoMusica() {
 export async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo, opts) {
   const manterLetra = !!(opts && opts.manterLetraCompleta);
   if (!temEdicaoMusicaNaoGravada()) {
-    if (dep.getModoEdicaoEstrofes() || dep.getModoLetraCompletaCentral() || dep.getModoComparativoCentral()) {
-      if (manterLetra && dep.getModoLetraCompletaCentral() && !dep.getModoEdicaoEstrofes() && !dep.getModoComparativoCentral()) {
-        dep.setSnapshotLetraCompleta(null);
+    if (estadoPainel.modoEdicaoEstrofes || estadoPainel.modoLetraCompletaCentral || estadoPainel.modoComparativoCentral) {
+      if (manterLetra && estadoPainel.modoLetraCompletaCentral && !estadoPainel.modoEdicaoEstrofes && !estadoPainel.modoComparativoCentral) {
+        estadoPainel.snapshotLetraCompleta = null;
         return true;
       }
       limparFlagsModoEdicaoMusica();
@@ -498,12 +499,12 @@ export async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, tit
   );
   if (!ok) return false;
   if (manterLetra) {
-    dep.setSnapshotEdicaoEstrofes(null);
-    dep.setModoEdicaoEstrofes(false);
-    dep.setSnapshotLetraCompleta(null);
-    dep.setModoComparativoCentral(false);
-    dep.setComparativoLados(null);
-    dep.setSnapshotComparativo(null);
+    estadoPainel.snapshotEdicaoEstrofes = null;
+    estadoPainel.modoEdicaoEstrofes = false;
+    estadoPainel.snapshotLetraCompleta = null;
+    estadoPainel.modoComparativoCentral = false;
+    estadoPainel.comparativoLados = null;
+    estadoPainel.snapshotComparativo = null;
     aplicarLayoutModoComparativo();
     aplicarLayoutModoLetraCompleta();
   } else {
@@ -515,36 +516,36 @@ export async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, tit
 /** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade.
  *  Se já estiver neste modo, só atualiza o texto da música atual. */
 export function entrarModoLetraCompletaCentral() {
-  if (!dep.getMusicaAtiva()) return;
-  dep.setModoLetraCompletaCentral(true);
-  dep.setLetraCompletaEditando(false); // abre sempre em visualização
+  if (!estadoPainel.musicaAtiva) return;
+  estadoPainel.modoLetraCompletaCentral = true;
+  estadoPainel.letraCompletaEditando = false; // abre sempre em visualização
   aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
   /* Snapshot do texto já no painel — o ida-e-volta juntar/partir não conta como sujo. */
   const ta = document.getElementById('centro-letra-completa-ta');
-  dep.setSnapshotLetraCompleta({
+  estadoPainel.snapshotLetraCompleta = {
     estrofes: ta
       ? splitTextoLetraCompletaEmEstrofes(ta.value)
-      : dep.getMusicaAtiva().estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva: dep.getEstrofeAtiva(),
-  });
+      : estadoPainel.musicaAtiva.estrofes.map((s) => String(s ?? '')),
+    estrofeAtiva: estadoPainel.estrofeAtiva,
+  };
   sincronizarFlagCaixaLetrasComTextoAtual();
   atualizarToolbarModoEdicao();
 }
 
 export async function alternarModoLetraCompletaCentral() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getModoLetraCompletaCentral()) {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.modoLetraCompletaCentral) {
     const suja = letraCompletaSujaVsSnapshot() || metadadosMusicaSujosNaHome();
     // Captura titulo/artista dos inputs ANTES da sincronizacao: renderEstrofesEditor()
     // (chamado dentro da sync) sobrescreve os inputs com musicaAtiva.titulo/artista,
     // apagando as edicoes do usuario antes de persistirMusicaAtivaNoServidor() le-las.
     const _etLC = document.getElementById('edit-titulo');
     const _eaLC = document.getElementById('edit-artista');
-    if (_etLC) dep.getMusicaAtiva().titulo = _etLC.value;
-    if (_eaLC) dep.getMusicaAtiva().artista = _eaLC.value;
+    if (_etLC) estadoPainel.musicaAtiva.titulo = _etLC.value;
+    if (_eaLC) estadoPainel.musicaAtiva.artista = _eaLC.value;
     sincronizarEstrofesDesdeTextareaLetraCompleta();
     if (suja) {
-      if (dep.getMusicaBancoFonte() === 'catalog') {
+      if (estadoPainel.musicaBancoFonte === 'catalog') {
         await appAlert(
           'Música do catálogo: as alterações ficam só nesta sessão. Importe para o seu banco para gravar de forma permanente.',
           'Catálogo'
@@ -555,14 +556,14 @@ export async function alternarModoLetraCompletaCentral() {
         // Persistência já recarrega a música e limpa os modos; reforça layout.
         limparFlagsModoEdicaoMusica();
         // Na Home, gravar volta à visualização da letra completa (não à grade).
-        if (dep.getHomeLayout()?.isHome() && dep.getMusicaAtiva()) entrarModoLetraCompletaCentral();
+        if (estadoPainel.homeLayout?.isHome() && estadoPainel.musicaAtiva) entrarModoLetraCompletaCentral();
         atualizarToolbarModoEdicao();
         return;
       }
     }
-    if (dep.getHomeLayout()?.isHome()) {
+    if (estadoPainel.homeLayout?.isHome()) {
       // Sem alteração (ou catálogo): sai da edição e continua na visualização.
-      dep.setLetraCompletaEditando(false);
+      estadoPainel.letraCompletaEditando = false;
       atualizarToolbarModoEdicao();
       return;
     }
@@ -574,8 +575,8 @@ export async function alternarModoLetraCompletaCentral() {
 
 /** Transição partilhada de volta à grade de slides (destino de Salvar, Cancelar e Grade/Slide). */
 function sairDoModoLetraCompletaParaGrade() {
-  dep.setSnapshotLetraCompleta(null);
-  dep.setModoLetraCompletaCentral(false);
+  estadoPainel.snapshotLetraCompleta = null;
+  estadoPainel.modoLetraCompletaCentral = false;
   aplicarLayoutModoLetraCompleta();
   renderEstrofesEditor();
   if (ehModoSlidesOperador()) renderSlidesStrip();
@@ -584,25 +585,25 @@ function sairDoModoLetraCompletaParaGrade() {
 
 /** Sai do modo letra completa sem aplicar o textarea — restaura o estado de quando entrou. */
 export function cancelarModoLetraCompletaCentral() {
-  if (!dep.getModoLetraCompletaCentral()) return;
-  if (dep.getSnapshotLetraCompleta() && dep.getMusicaAtiva()) {
-    dep.getMusicaAtiva().estrofes = dep.getSnapshotLetraCompleta().estrofes.map((s) => String(s));
-    dep.setEstrofeAtiva(dep.getSnapshotLetraCompleta().estrofeAtiva);
-    const n = dep.getMusicaAtiva().estrofes.length;
+  if (!estadoPainel.modoLetraCompletaCentral) return;
+  if (estadoPainel.snapshotLetraCompleta && estadoPainel.musicaAtiva) {
+    estadoPainel.musicaAtiva.estrofes = estadoPainel.snapshotLetraCompleta.estrofes.map((s) => String(s));
+    estadoPainel.estrofeAtiva = estadoPainel.snapshotLetraCompleta.estrofeAtiva;
+    const n = estadoPainel.musicaAtiva.estrofes.length;
     const idxPreto = n;
-    if (dep.getEstrofeAtiva() > idxPreto) dep.setEstrofeAtiva(idxPreto);
-    if (dep.getEstrofeAtiva() < -1) dep.setEstrofeAtiva(-1);
+    if (estadoPainel.estrofeAtiva > idxPreto) estadoPainel.estrofeAtiva = idxPreto;
+    if (estadoPainel.estrofeAtiva < -1) estadoPainel.estrofeAtiva = -1;
     renderSlidesStrip();
     atualizarPreviewOperador();
     renderEstrofesEditor();
     marcacaoEstrofeEditor();
     if (
-      dep.getProjecaoMusicaEmitidaNoServidor() &&
-      dep.getProjecao().pronta() &&
-      dep.getEstrofeAtiva() >= 0 &&
-      dep.getEstrofeAtiva() < n
+      estadoPainel.projecaoMusicaEmitidaNoServidor &&
+      projecao.pronta() &&
+      estadoPainel.estrofeAtiva >= 0 &&
+      estadoPainel.estrofeAtiva < n
     ) {
-      dep.getProjecao().enviar('exibir_musica', montarPayloadExibirMusica(dep.getEstrofeAtiva()));
+      projecao.enviar('exibir_musica', montarPayloadExibirMusica(estadoPainel.estrofeAtiva));
     }
   }
   sairDoModoLetraCompletaParaGrade();
@@ -617,24 +618,24 @@ export function cancelarModoLetraCompletaCentral() {
  * «Cancelar» aqui é só desfazer a alteração pendente, no mesmo lugar.
  */
 export function descartarEdicaoLetraCompletaSemSair() {
-  if (!dep.getModoLetraCompletaCentral() || !dep.getSnapshotLetraCompleta() || !dep.getMusicaAtiva()) return;
-  dep.getMusicaAtiva().estrofes = dep.getSnapshotLetraCompleta().estrofes.map((s) => String(s));
-  dep.setEstrofeAtiva(dep.getSnapshotLetraCompleta().estrofeAtiva);
-  const n = dep.getMusicaAtiva().estrofes.length;
+  if (!estadoPainel.modoLetraCompletaCentral || !estadoPainel.snapshotLetraCompleta || !estadoPainel.musicaAtiva) return;
+  estadoPainel.musicaAtiva.estrofes = estadoPainel.snapshotLetraCompleta.estrofes.map((s) => String(s));
+  estadoPainel.estrofeAtiva = estadoPainel.snapshotLetraCompleta.estrofeAtiva;
+  const n = estadoPainel.musicaAtiva.estrofes.length;
   const idxPreto = n;
-  if (dep.getEstrofeAtiva() > idxPreto) dep.setEstrofeAtiva(idxPreto);
-  if (dep.getEstrofeAtiva() < -1) dep.setEstrofeAtiva(-1);
+  if (estadoPainel.estrofeAtiva > idxPreto) estadoPainel.estrofeAtiva = idxPreto;
+  if (estadoPainel.estrofeAtiva < -1) estadoPainel.estrofeAtiva = -1;
   atualizarTextoPainelLetraCompleta();
   guiasEstrofesLetraCompleta.agendar();
   renderSlidesStrip();
   atualizarPreviewOperador();
   if (
-    dep.getProjecaoMusicaEmitidaNoServidor() &&
-    dep.getProjecao().pronta() &&
-    dep.getEstrofeAtiva() >= 0 &&
-    dep.getEstrofeAtiva() < n
+    estadoPainel.projecaoMusicaEmitidaNoServidor &&
+    projecao.pronta() &&
+    estadoPainel.estrofeAtiva >= 0 &&
+    estadoPainel.estrofeAtiva < n
   ) {
-    dep.getProjecao().enviar('exibir_musica', montarPayloadExibirMusica(dep.getEstrofeAtiva()));
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estadoPainel.estrofeAtiva));
   }
   /* Conteúdo já bate com o snapshot outra vez — Salvar/Cancelar voltam a ficar
      desabilitados, mas o modo (Letra Completa) continua o mesmo. */
@@ -648,7 +649,7 @@ export function descartarEdicaoLetraCompletaSemSair() {
  * slides já avisa — o mesmo cuidado aplica-se aqui).
  */
 export async function irParaGradeSlidesDesdeLetraCompleta() {
-  if (!dep.getModoLetraCompletaCentral()) return;
+  if (!estadoPainel.modoLetraCompletaCentral) return;
   if (letraCompletaSujaVsSnapshot()) {
     const ok = await appConfirm(
       'Há alterações não gravadas. Descartar e voltar à grade de slides? Use «Salvar alterações» para gravar no banco.',
@@ -670,9 +671,9 @@ export async function irParaGradeSlidesDesdeLetraCompleta() {
  * gravava ao sair).
  */
 export async function alternarModoLetraCompletaOuVoltarGrade() {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   if (!(await sairModoComparativoParaTrocarModo())) return;
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     await irParaGradeSlidesDesdeLetraCompleta();
   } else {
     entrarModoLetraCompletaCentral();
@@ -683,9 +684,9 @@ export function atualizarToolbarModoLetraCompleta() {
   const btn = document.getElementById('btn-modo-letra-completa');
   /* Visualização = somente leitura. No layout antigo (sem Home) o texto continua editável direto. */
   const taLC = document.getElementById('centro-letra-completa-ta');
-  if (taLC) taLC.readOnly = !!dep.getHomeLayout()?.isHome() && !(dep.getModoLetraCompletaCentral() && dep.getLetraCompletaEditando());
+  if (taLC) taLC.readOnly = !!estadoPainel.homeLayout?.isHome() && !(estadoPainel.modoLetraCompletaCentral && estadoPainel.letraCompletaEditando);
   if (!btn) return;
-  const m = !!dep.getMusicaAtiva();
+  const m = !!estadoPainel.musicaAtiva;
   btn.style.display = m ? '' : 'none';
   btn.disabled = !m;
   /* Só o rótulo e o ícone mudam — não sobrescrever o botão inteiro (`textContent`
@@ -693,17 +694,17 @@ export function atualizarToolbarModoLetraCompleta() {
   const txtModo = document.getElementById('txt-modo-letra-completa');
   const icoModo = document.getElementById('ico-modo-letra-completa');
   // Na Home o botão é só «Letra Completa» (a grade tem botão próprio): ícone fixo.
-  const noHome = !!dep.getHomeLayout()?.isHome();
-  if (txtModo) txtModo.textContent = dep.getModoLetraCompletaCentral() && !noHome ? 'Grade/Slide' : 'Letra Completa';
+  const noHome = !!estadoPainel.homeLayout?.isHome();
+  if (txtModo) txtModo.textContent = estadoPainel.modoLetraCompletaCentral && !noHome ? 'Grade/Slide' : 'Letra Completa';
   if (icoModo && !noHome) {
-    icoModo.innerHTML = dep.getModoLetraCompletaCentral()
+    icoModo.innerHTML = estadoPainel.modoLetraCompletaCentral
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>';
   }
   // Toggle explícito: inativo = outline neutro, ativo (= modo actualmente aberto) = preenchido.
-  btn.setAttribute('aria-pressed', dep.getModoLetraCompletaCentral() ? 'true' : 'false');
-  btn.classList.toggle('ativo', dep.getModoLetraCompletaCentral());
-  btn.title = dep.getModoLetraCompletaCentral()
+  btn.setAttribute('aria-pressed', estadoPainel.modoLetraCompletaCentral ? 'true' : 'false');
+  btn.classList.toggle('ativo', estadoPainel.modoLetraCompletaCentral);
+  btn.title = estadoPainel.modoLetraCompletaCentral
     ? 'Volta aos cartões por slide sem gravar. Se houver alterações, pede confirmação.'
     : 'Editar ou copiar a letra inteira num só texto';
 }

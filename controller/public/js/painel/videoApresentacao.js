@@ -4,6 +4,7 @@
  * o núcleo ainda possui entra por `registrarDependenciasVideoApresentacao`.
  */
 import { obterThumbVideoApresentacao, reescreverUrlVideoParaTelas as reescreverUrlVideoParaTelasPuro, urlMidiaApresentacaoHttpPorId as urlMidiaApresentacaoHttpPorIdPuro } from '../modules/midiaApresentacao.js';
+import { APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -255,7 +256,7 @@ async function gerarThumbnailVideoApresentacao(src) {
 
 export async function garantirThumbnailVideoItem(item) {
   if (!item || item.kind !== 'video') return item;
-  if (videoProjetadoAtivoNoPlayer() && dep.getAudioStateRemoto().playing) return item;
+  if (videoProjetadoAtivoNoPlayer() && estadoPainel.audioStateRemoto.playing) return item;
   if (obterThumbVideoApresentacao(item)) return item;
   const srcThumb = /^https?:\/\//i.test(item.src) ? item.src : await resolverSrcProjecaoApresentacao(item);
   if (!srcThumb) return item;
@@ -295,21 +296,21 @@ export async function restaurarItemVideoApresentacao(item) {
 }
 
 export async function restaurarVideosModoApresentacao() {
-  const v5 = dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()];
+  const v5 = estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5];
   if (v5?.kind === 'video') {
     const it = await restaurarItemVideoApresentacao(v5);
     if (it) {
-      dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()] = it;
-      const bibIdx = dep.getApresentacaoBiblioteca().findIndex((x) => x && x.id === it.id);
-      if (bibIdx >= 0) dep.getApresentacaoBiblioteca()[bibIdx] = it;
+      estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
+      const bibIdx = estadoPainel.apresentacaoBiblioteca.findIndex((x) => x && x.id === it.id);
+      if (bibIdx >= 0) estadoPainel.apresentacaoBiblioteca[bibIdx] = it;
       salvarEstadoModoApresentacaoNoStorage();
     }
   }
-  for (let i = 0; i < dep.getApresentacaoVideoPlaylist().length; i += 1) {
-    const it0 = dep.getApresentacaoVideoPlaylist()[i];
+  for (let i = 0; i < estadoPainel.apresentacaoVideoPlaylist.length; i += 1) {
+    const it0 = estadoPainel.apresentacaoVideoPlaylist[i];
     if (it0?.kind !== 'video') continue;
     const it = await restaurarItemVideoApresentacao(it0);
-    if (it) dep.getApresentacaoVideoPlaylist()[i] = { ...it0, ...it };
+    if (it) estadoPainel.apresentacaoVideoPlaylist[i] = { ...it0, ...it };
   }
   if (videoProjetadoAtivoNoPlayer()) {
     const proj = obterItemVideoProjetadoNoPlayer();
@@ -353,19 +354,19 @@ async function resolverSrcProjecaoApresentacao(item) {
 export async function projetarItemApresentacao(item) {
   if (!item || !item.src) return;
   /** Qualquer projeção fora da orquestração da playlist a desativa (vídeo único, áudio, cards). */
-  if (!dep.get_playlistProjetando()) {
-    dep.setPlaylistVideoAtiva(false);
+  if (!estadoPainel._playlistProjetando) {
+    estadoPainel.playlistVideoAtiva = false;
     cancelarAvancoAutoPlaylist();
   }
   if (item.kind === 'audio') {
-    dep.setApresentacaoMidiaProjetadaId(null);
+    estadoPainel.apresentacaoMidiaProjetadaId = null;
     const ok = await tocarAudioServidorApresentacao(item);
     if (!ok) {
       alert('Não foi possível reproduzir o áudio no servidor. Verifique a ligação.');
       atualizarFeedbackProjecaoApresentacaoUi();
       return;
     }
-    dep.setApresentacaoAudioAtualId(item.id || null);
+    estadoPainel.apresentacaoAudioAtualId = item.id || null;
     atualizarRodapeAudioApresentacao(item);
     return;
   }
@@ -382,10 +383,10 @@ export async function projetarItemApresentacao(item) {
   }
   if (item.kind === 'video' && /^https?:\/\//i.test(srcLocal)) {
     item.src = srcLocal;
-    const noCard = dep.getApresentacaoCards()?.[dep.getAPRESENTACAO_IDX_CARD5()];
-    if (noCard?.id === item.id) dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()] = item;
-    const noBib = dep.getApresentacaoBiblioteca().findIndex((x) => x && x.id === item.id);
-    if (noBib >= 0) dep.getApresentacaoBiblioteca()[noBib] = item;
+    const noCard = estadoPainel.apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
+    if (noCard?.id === item.id) estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5] = item;
+    const noBib = estadoPainel.apresentacaoBiblioteca.findIndex((x) => x && x.id === item.id);
+    if (noBib >= 0) estadoPainel.apresentacaoBiblioteca[noBib] = item;
     salvarEstadoModoApresentacaoNoStorage();
   }
   const srcProj = item.kind === 'video' ? reescreverUrlVideoParaTelas(srcLocal) : srcLocal;
@@ -402,7 +403,7 @@ export async function projetarItemApresentacao(item) {
     atualizarFeedbackProjecaoApresentacaoUi();
     return;
   }
-  dep.setApresentacaoMidiaProjetadaId(item.id || null);
+  estadoPainel.apresentacaoMidiaProjetadaId = item.id || null;
   if (item.kind === 'video') {
     await prepararPlayerVideoAposProjetar(item);
   }
@@ -411,12 +412,12 @@ export async function projetarItemApresentacao(item) {
 }
 
 export function obterItemVideoProjetadoNoPlayer() {
-  if (!dep.getApresentacaoMidiaProjetadaId()) return null;
-  const id = dep.getApresentacaoMidiaProjetadaId();
+  if (!estadoPainel.apresentacaoMidiaProjetadaId) return null;
+  const id = estadoPainel.apresentacaoMidiaProjetadaId;
   const raw =
-    (dep.getApresentacaoCards() || []).find((x) => x && x.id === id) ||
-    (dep.getApresentacaoBiblioteca() || []).find((x) => x && x.id === id) ||
-    (dep.getApresentacaoVideoPlaylist() || []).find((x) => x && x.id === id) ||
+    (estadoPainel.apresentacaoCards || []).find((x) => x && x.id === id) ||
+    (estadoPainel.apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
+    (estadoPainel.apresentacaoVideoPlaylist || []).find((x) => x && x.id === id) ||
     null;
   const it = normalizarItemApresentacao(raw);
   return it && it.kind === 'video' ? it : null;

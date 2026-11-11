@@ -19,6 +19,7 @@ import { escapeHtml } from './textoHtmlSeguro.js';
 import { limparOrdemNaoExibirUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { resolverEnvioBiblia } from '../modules/rotaEnvioBiblia.js';
 import { enviarPreviewDisplayConfig, getChkVal, salvarSlideCfgNoStorage, setChkVal, setInputVal, setSelVal, setSpanText, slidesAplicarCfgArmazenada } from './configExibicao.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -288,14 +289,14 @@ export async function alternarModoBiblia() {
       carregarBibliaCfgDoStorage();
       if (hayProjecaoMidiaApresentacaoAtiva()) {
         /* Canal partilhado: adopta monitores da mídia ainda no ar — não os desativa. */
-        dep.getRotasPorModo().biblia = { ...normalizarRota(dep.getRotasPorModo().apresentacao) };
+        estadoPainel.rotasPorModo.biblia = { ...normalizarRota(estadoPainel.rotasPorModo.apresentacao) };
       } else if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-        dep.getRotasPorModo().biblia = rotaDesativada();
+        estadoPainel.rotasPorModo.biblia = rotaDesativada();
         marcarRotaLiveNoDom(false);
         /* Slides no ar: limpar rota partilhada residual para o merge do servidor não
            preferir `apresentacao` vazio e apagar a letra nos monitores. */
-        if (dep.getProjecaoMusicaEmitidaNoServidor() && !hayProjecaoApresentacaoModoAtiva()) {
-          dep.getRotasPorModo().apresentacao = rotaDesativada();
+        if (estadoPainel.projecaoMusicaEmitidaNoServidor && !hayProjecaoApresentacaoModoAtiva()) {
+          estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
         }
       }
       /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
@@ -1037,8 +1038,8 @@ function encerrarCamadaBibliaNoControlador(opts = {}) {
   } else {
     bibliaLimparEstadoOperador();
   }
-  if (dep.getEstadoServidor() && dep.getEstadoServidor().tipo === 'biblia') {
-    dep.setEstadoServidor({
+  if (estadoPainel.estadoServidor && estadoPainel.estadoServidor.tipo === 'biblia') {
+    estadoPainel.estadoServidor = {
       tipo: null,
       titulo: '',
       linhas: [],
@@ -1047,9 +1048,9 @@ function encerrarCamadaBibliaNoControlador(opts = {}) {
       telaLimpa: true,
       blackout: false,
       slidePretoFinal: false,
-    });
+    };
   }
-  dep.getProjecao().enviar('encerrar_projecao_biblia');
+  projecao.enviar('encerrar_projecao_biblia');
 }
 
 /** Encerra apenas a projeção da Bíblia (botão «Encerrar projeção» / ESC no modo Bíblia). */
@@ -1064,7 +1065,7 @@ export function encerrarProjecaoModoBiblia() {
  */
 function hayProjecaoBibliaAtivaParaPreservarEstado() {
   if (bibliaParteProjetadaChave != null) return true;
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   return !!(
     e &&
     e.tipo === 'biblia' &&
@@ -1317,13 +1318,13 @@ function bibliaClicarVersiculo(v, cardEl, index) {
 }
 
 function bibliaChaveRotaAtual() {
-  const r = normalizarRota(dep.getRotasPorModo().biblia);
+  const r = normalizarRota(estadoPainel.rotasPorModo.biblia);
   return `${r.publicoIndex},${r.ministranteIndex},${r.live ? 1 : 0}`;
 }
 
 async function bibliaSincronizarRotaComServidorSeMudou() {
   const fromUi = rotaSelecionadaNaUi();
-  if (fromUi) dep.getRotasPorModo().biblia = normalizarRota(fromUi);
+  if (fromUi) estadoPainel.rotasPorModo.biblia = normalizarRota(fromUi);
   salvarRotasPorModoNoStorage();
   const chave = bibliaChaveRotaAtual();
   if (chave === bibliaRotaSyncServidorChave) return;
@@ -1331,7 +1332,7 @@ async function bibliaSincronizarRotaComServidorSeMudou() {
 }
 
 async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
-  if (!dep.getProjecao().ligada()) return;
+  if (!projecao.ligada()) return;
   const livroRef = bibliaNormalizarCampoReferencia(v?.livro) || bibliaNormalizarCampoReferencia(bibliaSelecionadoLivro);
   const capituloRef =
     bibliaNormalizarCampoReferencia(v?.capitulo) || bibliaNormalizarCampoReferencia(bibliaSelecionadoCap);
@@ -1352,7 +1353,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
    */
   const { alvo, alvoEnvio, enviar } = await resolverEnvioBiblia({
     sincronizarRota: navegacaoRapida ? null : bibliaSincronizarRotaComServidorSeMudou,
-    lerRota: () => dep.getRotasPorModo().biblia,
+    lerRota: () => estadoPainel.rotasPorModo.biblia,
   });
   if (!enviar) {
     /* Único motivo legítimo para não enviar: «Não exibir» é o operador a dizer que não
@@ -1372,7 +1373,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
     alvoProjecao: alvoEnvio,
     somenteTexto: navegacaoRapida,
   };
-  dep.getProjecao().enfileirar('exibir_versiculo', payloadVersiculo);
+  projecao.enfileirar('exibir_versiculo', payloadVersiculo);
   dep.setUltimoConteudoProjetadoModoUnificado({ tipo: 'biblia', payload: payloadVersiculo });
   bibliaPrefetchCapitulosVizinhos();
 }

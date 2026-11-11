@@ -8,16 +8,7 @@
  * (`companionHandoffEmCurso`) entra por `registrarDependenciasBannerAtualizacao`.
  */
 import { appAlert } from './appDialog.js';
-
-let dep = {};
-
-/**
- * @param {object} d
- * @param {(valor: boolean) => void} d.setCompanionHandoffEmCurso
- */
-export function registrarDependenciasBannerAtualizacao(d) {
-  dep = d || {};
-}
+import { estadoPainel } from './estadoPainel.js';
 
 export const lyraUpdaterUiState = {
   downloadEmAndamento: false,
@@ -293,7 +284,7 @@ export function mostrarBannerCompanionDisponivel(_payload) {
 export function mostrarBannerCompanionProgresso(payload) {
   const stage = String(payload?.stage || '');
   if (stage === 'handoff' || stage === 'quit') {
-    dep.setCompanionHandoffEmCurso(true);
+    estadoPainel.companionHandoffEmCurso = true;
   }
   const pct = Math.max(0, Math.min(100, Math.round(Number(payload?.percent || 0))));
   const msg = String(

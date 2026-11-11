@@ -8,6 +8,7 @@ import { criarMotorAudioLocal } from '../modules/motorAudioLocal.js';
 import { criarTransporteLocal } from '../modules/projecaoPorta.js';
 import { slidesAplicarCfgArmazenada } from './configExibicao.js';
 import { renderSlidesStrip } from './slidesStrip.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -136,16 +137,16 @@ export async function ligarProjecaoNestaMaquina() {
   /* Desligar o socket antes de trocar de transporte: um Servidor ainda ligado continuaria
      a mandar `estado` para o painel e a disputar as telas com o motor local. */
   try {
-    if (dep.getSocket()) dep.getSocket().disconnect();
+    if (estadoPainel.socket) estadoPainel.socket.disconnect();
   } catch (_) {
     // intencional
   }
 
-  dep.getProjecao().usarTransporte(criarTransporteLocal(ponte));
+  projecao.usarTransporte(criarTransporteLocal(ponte));
   garantirMotorAudioLocal()?.ligar();
   /* Nada se grava aqui: o modo local é o padrão de todo arranque, e um padrão não precisa
      de ser lembrado. */
-  dep.setPapelControladorLocal({ primario: true, podeEscrever: true, donoAtual: null });
+  estadoPainel.papelControladorLocal = { primario: true, podeEscrever: true, donoAtual: null };
   setStatusServidorRemoto('ocioso');
   atualizarUiConexao(true);
   if (r.lanIp) {
@@ -182,7 +183,7 @@ export async function desligarProjecaoNestaMaquina() {
   projecaoLocalActiva = false;
   motorAudioLocal?.desligar();
   if (ponte) await ponte.desligar();
-  dep.getProjecao().usarTransporte(null);
+  projecao.usarTransporte(null);
   atualizarUiConexao(false);
   /* O badge único descreve a ligação ao Servidor remoto; ao desligar a projeção local
      não há Servidor em jogo, então volta ao estado ocioso (cinza), sem soar a avaria. */

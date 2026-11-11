@@ -14,6 +14,7 @@ import { criarMenuFlutuante } from '../modules/menuFlutuante.js';
 import { ehMarcadorTemaPlaylist, fonteBancoNormalizada } from '../modules/playlistVersaoMusica.js';
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { rotuloArtistaLista } from '../modules/playlistMinistranteTom.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -73,7 +74,7 @@ const SVG_MENU_SELECIONAR_VARIAS =
 export async function carregarMusicas() {
   try {
     const res = await fetch(`${getControllerApiBase()}/api/musicas`);
-    dep.setTodasMusicas(await res.json());
+    estadoPainel.todasMusicas = await res.json();
     bibDadosRev += 1;
     atualizarContagemTotalBiblioteca();
     filtrar();
@@ -97,7 +98,7 @@ export async function carregarMusicas() {
 function atualizarContagemTotalBiblioteca() {
   const el = document.getElementById('bib-total-contagem');
   if (!el) return;
-  const qtd = dep.getTodasMusicas().length;
+  const qtd = estadoPainel.todasMusicas.length;
   el.textContent = qtd === 1 ? '1 música' : `${qtd} músicas`;
 }
 
@@ -109,7 +110,7 @@ export function initBancoPainelFromStorage() {
   setupLyraSelectDropdownWrap(wrap);
 
   // Padrão ao abrir o controlador: banco online do Lyra (não restaura Cifra Club / Letras da sessão anterior).
-  dep.setLetrasSiteFonte('lyra-online');
+  estadoPainel.letrasSiteFonte = 'lyra-online';
   renderItensLyraSelectDropdown(wrap, BANCO_FONTE_OPCOES, {
     valorAtual: 'lyra-online',
     aoSelecionar: () => onBancoFonteChange(),
@@ -124,13 +125,13 @@ export function initBancoPainelFromStorage() {
   if (fl !== null) document.getElementById('filtro-busca-letra').checked = fl === '1';
 
   const gravadoLista = localStorage.getItem(LS_BANCO_SQLITE_LISTA_ABERTA);
-  dep.setBancoSqliteListaExpandida(gravadoLista !== '0');
+  estadoPainel.bancoSqliteListaExpandida = gravadoLista !== '0';
   atualizarUiToggleListaBancoSqlite();
 }
 
 export function onBancoFonteChange() {
   const sel = document.getElementById('banco-fonte-select');
-  dep.setLetrasSiteFonte(normalizarFonteLetrasSite(sel?.value));
+  estadoPainel.letrasSiteFonte = normalizarFonteLetrasSite(sel?.value);
   aplicarPlaceholderBuscaLetras();
   garantirBuscaLetrasEditavel();
   cancelarBuscaLetrasEmVoo();
@@ -352,7 +353,7 @@ function tituloParaDuplicataMusica(tituloOriginal) {
   const base = String(tituloOriginal || '').trim() || 'Música';
   const jaExiste = (t) => {
     const alvo = t.toLocaleLowerCase('pt-BR');
-    return dep.getTodasMusicas().some(
+    return estadoPainel.todasMusicas.some(
       (m) => String(m.titulo || '').trim().toLocaleLowerCase('pt-BR') === alvo
     );
   };
@@ -562,8 +563,8 @@ function bibChaveMusica(id, bancoFonte) {
  */
 function bibConjuntoMusicasNaPlaylist() {
   const set = new Set();
-  if (!dep.getCultoId()) return set;
-  for (const it of getPlaylist(dep.getCultoId())) {
+  if (!estadoPainel.cultoId) return set;
+  for (const it of getPlaylist(estadoPainel.cultoId)) {
     if (ehMarcadorTemaPlaylist(it)) continue;
     set.add(bibChaveMusica(it.id, it.bancoFonte));
   }
@@ -1079,7 +1080,7 @@ async function bibSelAdicionarLoteNaPlaylist() {
   if (!lote.length) return;
   /* `addMusicaNaPlaylist` avisa sobre isto sozinha, mas uma vez por música: com um lote
      de doze seriam doze avisos iguais para dizer a mesma coisa. */
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.cultoId) {
     alert('Selecione primeiro o dia do culto.');
     return;
   }
@@ -1506,9 +1507,9 @@ function renderizarListaLocal(lista) {
 
     /* Destaque só desta coluna: seleção na Playlist zera `selecaoUiBiblioteca`. */
     const ativo =
-      !!dep.getSelecaoUiBiblioteca() &&
-      Number(dep.getSelecaoUiBiblioteca().id) === Number(m.id) &&
-      dep.getSelecaoUiBiblioteca().fonte === rowFonte;
+      !!estadoPainel.selecaoUiBiblioteca &&
+      Number(estadoPainel.selecaoUiBiblioteca.id) === Number(m.id) &&
+      estadoPainel.selecaoUiBiblioteca.fonte === rowFonte;
     const jaAdicionada = naPlaylist.has(bibChaveMusica(m.id, rowFonte));
 
     const div = document.createElement('div');
@@ -1603,9 +1604,9 @@ function garantirDomBibliotecaCompleto() {
   const el = document.getElementById('lista');
   if (!el) return;
   const domOk =
-    bibDomRev === bibDadosRev && (dep.getTodasMusicas().length === 0 || el.querySelector('.item'));
+    bibDomRev === bibDadosRev && (estadoPainel.todasMusicas.length === 0 || el.querySelector('.item'));
   if (domOk) return;
-  renderizarListaLocal(dep.getTodasMusicas());
+  renderizarListaLocal(estadoPainel.todasMusicas);
   bibDomRev = bibDadosRev;
   bibFiltroQAplicado = null;
 }
@@ -1638,9 +1639,9 @@ function aplicarVisibilidadeBiblioteca(predicado, qAplicada) {
     if (!m) return;
     const rowFonte = fonteBancoNormalizada(linha.dataset.bibFonte);
     const ativo =
-      !!dep.getSelecaoUiBiblioteca() &&
-      Number(dep.getSelecaoUiBiblioteca().id) === Number(m.id) &&
-      dep.getSelecaoUiBiblioteca().fonte === rowFonte;
+      !!estadoPainel.selecaoUiBiblioteca &&
+      Number(estadoPainel.selecaoUiBiblioteca.id) === Number(m.id) &&
+      estadoPainel.selecaoUiBiblioteca.fonte === rowFonte;
     linha.classList.toggle('ativo', ativo);
   });
   /* Último passo de propósito: as alturas já são as definitivas, e o reset de scroll

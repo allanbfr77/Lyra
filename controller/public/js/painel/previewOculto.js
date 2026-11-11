@@ -4,6 +4,7 @@
  * o que o núcleo ainda possui entra por `registrarDependenciasPreviewOculto`.
  */
 import { LS_PREVIEW_PAINEL_OCULTO, SVG_OLHO_ABERTO, SVG_OLHO_CORTADO } from '../modules/chavesArmazenamentoLocal.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -36,7 +37,7 @@ function obterFlagsOcultarPreviewPorSincroniaModoSlides() {
     return [false, false];
   }
   if (ehModoBibliaOperador()) {
-    const r = normalizarRota(dep.getRotasPorModo().biblia);
+    const r = normalizarRota(estadoPainel.rotasPorModo.biblia);
     if (r.live) return [true, true];
     const pubOn = r.publicoIndex >= 0;
     const minOn = r.ministranteIndex >= 0;

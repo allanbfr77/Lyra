@@ -8,6 +8,7 @@ import { appAlert, appConfirm } from './appDialog.js';
 import { cultoIdPertenceAoMes, dataReferenciaCalendarioCultos, gerarCultosDoMes, gerarCultosParaDataManual, parseLabelCulto } from '../modules/cultosCalendario.js';
 import { ordenarCultosPorData, resolverProximoCultoPorHorarioBrasilia } from '../modules/proximoCulto.js';
 import { carregarMapaSecoesTemaPlaylistRecolhidas, garantirAberturaNoCatalogoCulto, garantirMarcadorAberturaNaPlaylist, getAberturaRemovidaPorCulto, getMinistrantePadraoPorCulto, saveAberturaRemovidaPorCulto, saveMinistrantePadraoPorCulto, saveTemaSelecionadoPorCulto, saveTemasPorCulto } from './playlistTemas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -42,7 +43,7 @@ export function loadCultosManuais() {
 
 export function saveCultosManuais() {
   try {
-    localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(dep.getCultosManuaisCache() || []));
+    localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(estadoPainel.cultosManuaisCache || []));
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -52,7 +53,7 @@ export function saveCultosManuais() {
 export function idsCultosJaNaLista() {
   const s = new Set();
   gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date())).forEach((c) => s.add(c.id));
-  (dep.getCultosManuaisCache() || []).forEach((c) => s.add(c.id));
+  (estadoPainel.cultosManuaisCache || []).forEach((c) => s.add(c.id));
   return s;
 }
 
@@ -64,14 +65,14 @@ export function listarCultosDisponiveis(dataRef = dataReferenciaCalendarioCultos
   const ref = dataRef instanceof Date ? dataRef : new Date();
   const auto = gerarCultosDoMes(ref);
   const idsAuto = new Set(auto.map((c) => c.id));
-  const manual = (dep.getCultosManuaisCache() || []).filter(
+  const manual = (estadoPainel.cultosManuaisCache || []).filter(
     (c) => !idsAuto.has(c.id) && cultoIdPertenceAoMes(c.id, ref)
   );
   return ordenarCultosPorData([...auto, ...manual]);
 }
 
 export function cultoIdEhManual(cid) {
-  return (dep.getCultosManuaisCache() || []).some((c) => c.id === cid);
+  return (estadoPainel.cultosManuaisCache || []).some((c) => c.id === cid);
 }
 
 function limparSecoesTemaRecolhidasDoCulto(cid) {
@@ -95,11 +96,11 @@ function limparSecoesTemaRecolhidasDoCulto(cid) {
 
 function excluirCultoManualPorId(cid) {
   if (!cid || !cultoIdEhManual(cid)) return;
-  dep.setCultosManuaisCache((dep.getCultosManuaisCache() || []).filter((c) => c.id !== cid));
+  estadoPainel.cultosManuaisCache = (estadoPainel.cultosManuaisCache || []).filter((c) => c.id !== cid);
   saveCultosManuais();
-  delete dep.getPlaylists()[cid];
-  delete dep.getTemasPorCulto()[cid];
-  delete dep.getTemaSelecionadoPorCulto()[cid];
+  delete estadoPainel.playlists[cid];
+  delete estadoPainel.temasPorCulto[cid];
+  delete estadoPainel.temaSelecionadoPorCulto[cid];
   delete getAberturaRemovidaPorCulto()[cid];
   delete getMinistrantePadraoPorCulto()[cid];
   limparSecoesTemaRecolhidasDoCulto(cid);
@@ -108,8 +109,8 @@ function excluirCultoManualPorId(cid) {
   saveTemaSelecionadoPorCulto();
   saveAberturaRemovidaPorCulto();
   saveMinistrantePadraoPorCulto();
-  if (dep.getCultoId() === cid) {
-    dep.setCultoId('');
+  if (estadoPainel.cultoId === cid) {
+    estadoPainel.cultoId = '';
   }
   initCultoSelect();
   onCultoChange();
@@ -118,7 +119,7 @@ function excluirCultoManualPorId(cid) {
 export async function solicitarExcluirCultoManual(ev, cid) {
   ev.preventDefault();
   ev.stopPropagation();
-  const item = (dep.getCultosManuaisCache() || []).find((c) => c.id === cid);
+  const item = (estadoPainel.cultosManuaisCache || []).find((c) => c.id === cid);
   const ok = await appConfirm(
     `Excluir o culto «${item?.label || cid}» e toda a playlist (temas e músicas)?`,
     'Excluir culto'
@@ -135,7 +136,7 @@ function adicionarCultosManuaisNaData(dt) {
     appAlert('Já existe culto para esta data na lista.', 'Adicionar culto');
     return;
   }
-  dep.setCultosManuaisCache(ordenarCultosPorData([...(dep.getCultosManuaisCache() || []), ...aInserir]));
+  estadoPainel.cultosManuaisCache = ordenarCultosPorData([...(estadoPainel.cultosManuaisCache || []), ...aInserir]);
   saveCultosManuais();
   let playlistMudou = false;
   aInserir.forEach((c) => {
@@ -143,9 +144,9 @@ function adicionarCultosManuaisNaData(dt) {
     if (garantirMarcadorAberturaNaPlaylist(c.id)) playlistMudou = true;
   });
   if (playlistMudou) savePlaylists();
-  dep.setCultoId(aInserir[0].id);
+  estadoPainel.cultoId = aInserir[0].id;
   initCultoSelect();
-  setCultoSelecionadoNaUi(dep.getCultoId());
+  setCultoSelecionadoNaUi(estadoPainel.cultoId);
   onCultoChange();
   fecharModalCalendarioCulto();
 }
@@ -322,7 +323,7 @@ export function setCultoSelecionadoNaUi(value) {
   if (!hid || !dataEl || !descEl) return;
   const v = String(value || '');
   hid.value = v;
-  const item = dep.getCultosDoMesCache().find((c) => c.id === v);
+  const item = estadoPainel.cultosDoMesCache.find((c) => c.id === v);
   if (!item) {
     dataEl.textContent = '--/--';
     descEl.textContent = 'Selecione o dia do culto...';
@@ -379,17 +380,17 @@ export function migrarPlaylistsCultosAntigos() {
   ];
   let mudou = false;
   mapLegado.forEach(([oldKey, finder]) => {
-    const arr = dep.getPlaylists()[oldKey];
+    const arr = estadoPainel.playlists[oldKey];
     if (!Array.isArray(arr) || arr.length === 0) return;
     const target = finder();
     if (!target) return;
-    if (!Array.isArray(dep.getPlaylists()[target.id])) dep.getPlaylists()[target.id] = [];
+    if (!Array.isArray(estadoPainel.playlists[target.id])) estadoPainel.playlists[target.id] = [];
     const mesclado = [...arr];
     mesclado.forEach((item) => {
-      const dup = dep.getPlaylists()[target.id].some((x) => Number(x.id) === Number(item.id));
-      if (!dup) dep.getPlaylists()[target.id].push(item);
+      const dup = estadoPainel.playlists[target.id].some((x) => Number(x.id) === Number(item.id));
+      if (!dup) estadoPainel.playlists[target.id].push(item);
     });
-    delete dep.getPlaylists()[oldKey];
+    delete estadoPainel.playlists[oldKey];
     mudou = true;
   });
   if (mudou) savePlaylists();

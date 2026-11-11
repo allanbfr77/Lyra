@@ -7,6 +7,7 @@ import { appConfirm } from './appDialog.js';
 import { detectarKindApresentacaoPorMimeOuNome, ehArquivoPowerPointLocal, fmtTempoAudio, obterThumbVideoApresentacao, rotuloTipoMidiaApresentacao, srcImagemApresentacaoSeguro, svgIconeTipoMidiaApresentacao } from '../modules/midiaApresentacao.js';
 import { atualizarUiPlayerAudioRemoto, pararAudioServidorPlayback } from './playerLocalMidia.js';
 import { importarMidiaApresentacaoPorCaminho, projetarItemApresentacao } from './videoApresentacao.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -143,13 +144,13 @@ function apLibRenomear(entry, nameEl) {
       return;
     }
     if (origem === 'audio') {
-      const alvo = dep.getApresentacaoAudios().find((x) => x && x.id === item.id);
+      const alvo = estadoPainel.apresentacaoAudios.find((x) => x && x.id === item.id);
       if (alvo) {
         alvo.name = novo;
         alvo.title = novo;
       }
-      if (dep.getApresentacaoAudioAtualId() === item.id && dep.getAudioStateRemoto().name) {
-        dep.setAudioStateRemoto({ ...dep.getAudioStateRemoto(), name: novo });
+      if (estadoPainel.apresentacaoAudioAtualId === item.id && estadoPainel.audioStateRemoto.name) {
+        estadoPainel.audioStateRemoto = { ...estadoPainel.audioStateRemoto, name: novo };
         atualizarUiPlayerAudioRemoto();
       }
     } else {
@@ -158,8 +159,8 @@ function apLibRenomear(entry, nameEl) {
         obj.name = novo;
         obj.title = novo;
       };
-      dep.getApresentacaoBiblioteca().forEach(atualizar);
-      dep.getApresentacaoCards().forEach(atualizar);
+      estadoPainel.apresentacaoBiblioteca.forEach(atualizar);
+      estadoPainel.apresentacaoCards.forEach(atualizar);
     }
     salvarEstadoModoApresentacaoNoStorage();
     renderBibliotecaMidiasApresentacao();
@@ -183,10 +184,10 @@ async function apLibExcluir(entry) {
   if (origem === 'audio') {
     const ok = await appConfirm(`Excluir "${item.name}" da lista de áudios?`, 'Modo apresentação');
     if (!ok) return;
-    const eraAtual = dep.getApresentacaoAudioAtualId() === item.id;
-    dep.setApresentacaoAudios((dep.getApresentacaoAudios() || []).filter((x) => x && x.id !== item.id));
+    const eraAtual = estadoPainel.apresentacaoAudioAtualId === item.id;
+    estadoPainel.apresentacaoAudios = (estadoPainel.apresentacaoAudios || []).filter((x) => x && x.id !== item.id);
     if (eraAtual) {
-      dep.setApresentacaoAudioAtualId(null);
+      estadoPainel.apresentacaoAudioAtualId = null;
       pararAudioServidorPlayback();
       atualizarUiPlayerAudioRemoto();
       sincronizarPillProjecaoNav();
@@ -197,12 +198,12 @@ async function apLibExcluir(entry) {
   }
   const ok = await appConfirm(`Excluir "${item.name}" do menu de arquivos?`, 'Modo apresentação');
   if (!ok) return;
-  dep.setApresentacaoBiblioteca((dep.getApresentacaoBiblioteca() || []).filter((x) => x && x.id !== item.id));
-  dep.setApresentacaoCards((dep.getApresentacaoCards() || []).map((x) => (x && x.id === item.id ? null : x)));
-  dep.setApresentacaoCard4Imagens((dep.getApresentacaoCard4Imagens() || []).map((x) => (x && x.id === item.id ? null : x)));
-  if (dep.getApresentacaoArquivoSelecionadoId() === item.id) dep.setApresentacaoArquivoSelecionadoId(null);
-  if (dep.getApresentacaoMidiaProjetadaId() === item.id) {
-    dep.setApresentacaoMidiaProjetadaId(null);
+  estadoPainel.apresentacaoBiblioteca = (estadoPainel.apresentacaoBiblioteca || []).filter((x) => x && x.id !== item.id);
+  estadoPainel.apresentacaoCards = (estadoPainel.apresentacaoCards || []).map((x) => (x && x.id === item.id ? null : x));
+  estadoPainel.apresentacaoCard4Imagens = (estadoPainel.apresentacaoCard4Imagens || []).map((x) => (x && x.id === item.id ? null : x));
+  if (estadoPainel.apresentacaoArquivoSelecionadoId === item.id) estadoPainel.apresentacaoArquivoSelecionadoId = null;
+  if (estadoPainel.apresentacaoMidiaProjetadaId === item.id) {
+    estadoPainel.apresentacaoMidiaProjetadaId = null;
     void emitirEncerrarApresentacaoPublicoAoServidor();
   }
   salvarEstadoModoApresentacaoNoStorage();
@@ -217,8 +218,8 @@ function renderBibliotecaMidiasApresentacao() {
     t.setAttribute('aria-selected', t.dataset.tab === apLibAba ? 'true' : 'false');
   });
   const entradas = [
-    ...dep.getApresentacaoBiblioteca().map((item) => ({ item, origem: 'bib' })),
-    ...dep.getApresentacaoAudios().map((item) => ({ item, origem: 'audio' })),
+    ...estadoPainel.apresentacaoBiblioteca.map((item) => ({ item, origem: 'bib' })),
+    ...estadoPainel.apresentacaoAudios.map((item) => ({ item, origem: 'audio' })),
   ].filter((e) => e.item && apLibAbaDoItem(e.item, e.origem) === apLibAba);
   const q = apLibBusca.trim().toLowerCase();
   const filtradas = q ? entradas.filter((e) => String(e.item.name || '').toLowerCase().includes(q)) : entradas;
@@ -237,7 +238,7 @@ function renderBibliotecaMidiasApresentacao() {
   }
   filtradas.forEach((entry) => {
     const { item, origem } = entry;
-    const selecionado = origem === 'audio' ? dep.getApresentacaoAudioAtualId() === item.id : dep.getApresentacaoArquivoSelecionadoId() === item.id;
+    const selecionado = origem === 'audio' ? estadoPainel.apresentacaoAudioAtualId === item.id : estadoPainel.apresentacaoArquivoSelecionadoId === item.id;
     const row = document.createElement('div');
     row.className = 'ap-lib-item';
     row.setAttribute('role', 'option');
@@ -329,8 +330,8 @@ function renderBibliotecaMidiasApresentacao() {
     });
 
     const escolher = () => {
-      if (origem === 'audio') dep.setApresentacaoAudioAtualId(item.id);
-      else dep.setApresentacaoArquivoSelecionadoId(item.id || null);
+      if (origem === 'audio') estadoPainel.apresentacaoAudioAtualId = item.id;
+      else estadoPainel.apresentacaoArquivoSelecionadoId = item.id || null;
       salvarEstadoModoApresentacaoNoStorage();
       renderBibliotecaMidiasApresentacao();
     };
@@ -405,7 +406,7 @@ function adicionarAudiosAoMenu(files) {
   Array.from(files || []).forEach((file) => {
     criarItemApresentacaoDeArquivo(file, (item) => {
       if (item.kind !== 'audio') return;
-      dep.getApresentacaoAudios().push(item);
+      estadoPainel.apresentacaoAudios.push(item);
       salvarEstadoModoApresentacaoNoStorage();
       renderListaAudiosApresentacao();
     });

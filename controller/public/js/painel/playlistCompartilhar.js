@@ -14,6 +14,7 @@ import { garantirAberturaNoCatalogoCulto, garantirMarcadorAberturaNaPlaylist } f
 import { idsCultosJaNaLista, listarCultosDisponiveis, saveCultosManuais, setCultoSelecionadoNaUi } from './cultoDoDia.js';
 import { isoFromCultoId, ordenarCultosPorData } from '../modules/proximoCulto.js';
 import { labelFallbackDeCultoIdImport, parseLabelCulto } from '../modules/cultosCalendario.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -240,8 +241,8 @@ async function aplicarMinistranteTomDoShareNaPlaylistMeta(m, musicaId, bancoFont
 
 export async function compartilharPlaylist() {
   if (compartilharPlaylistEmAndamento) return;
-  if (!dep.getCultoId()) return appAlert('Selecione um culto primeiro.', 'Compartilhar Playlist');
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.cultoId) return appAlert('Selecione um culto primeiro.', 'Compartilhar Playlist');
+  const pl = getPlaylist(estadoPainel.cultoId);
   if (!pl.length) return appAlert('A playlist está vazia.', 'Compartilhar Playlist');
 
   compartilharPlaylistEmAndamento = true;
@@ -280,7 +281,7 @@ export async function compartilharPlaylist() {
     const res = await fetch(`${CLOUD_SHARE_URL}/share`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cultoId: dep.getCultoId(), cultoNome: '', musicas }),
+      body: JSON.stringify({ cultoId: estadoPainel.cultoId, cultoNome: '', musicas }),
     });
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     const { codigo, expiraEm } = await res.json();
@@ -304,7 +305,7 @@ function garantirCultoDisponivelParaImportacaoCodigo(cultoIdCodigo, cultoNomeNuv
   if (!cid) return;
   if (idsCultosJaNaLista().has(cid)) return;
   const label = String(cultoNomeNuvem || '').trim() || labelFallbackDeCultoIdImport(cid);
-  dep.setCultosManuaisCache(ordenarCultosPorData([...(dep.getCultosManuaisCache() || []), { id: cid, label }]));
+  estadoPainel.cultosManuaisCache = ordenarCultosPorData([...(estadoPainel.cultosManuaisCache || []), { id: cid, label }]);
   saveCultosManuais();
   garantirAberturaNoCatalogoCulto(cid);
   if (garantirMarcadorAberturaNaPlaylist(cid)) savePlaylists();
@@ -313,9 +314,9 @@ function garantirCultoDisponivelParaImportacaoCodigo(cultoIdCodigo, cultoNomeNuv
 function ativarCultoNaUiParaImportacaoCodigo(cultoDestino) {
   const cid = String(cultoDestino || '').trim();
   if (!cid) return;
-  dep.setCultoId(cid);
+  estadoPainel.cultoId = cid;
   initCultoSelect();
-  setCultoSelecionadoNaUi(dep.getCultoId());
+  setCultoSelecionadoNaUi(estadoPainel.cultoId);
   onCultoChange();
 }
 
@@ -543,7 +544,7 @@ export function abrirJanelaConfirmarImport(ctx) {
     // Sem a janela no DOM não há como perguntar: segue com o destino do código.
     return Promise.resolve({
       confirmado: true,
-      cultoId: String(ctx?.cultoIdCodigo || dep.getCultoId() || '').trim(),
+      cultoId: String(ctx?.cultoIdCodigo || estadoPainel.cultoId || '').trim(),
       cultoLabel: String(ctx?.cultoNomeCodigo || '').trim(),
     });
   }
@@ -640,7 +641,7 @@ export function abrirJanelaConfirmarImport(ctx) {
   });
 
   // Pré-seleção: o culto do código; senão o culto ativo; senão o primeiro.
-  const preferido = [cultoIdCodigo, dep.getCultoId()].find((c) => c && opcoes.some((o) => o.id === c));
+  const preferido = [cultoIdCodigo, estadoPainel.cultoId].find((c) => c && opcoes.some((o) => o.id === c));
   sel.value = preferido || (opcoes[0] ? opcoes[0].id : '');
 
   const mes = document.getElementById('confirmar-import-mes');

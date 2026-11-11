@@ -12,6 +12,7 @@ import { rotaContagemParaServidor } from './contagemRegressiva.js';
 import { rotaSlidesParaEnvioComApresentacao, rotaSlidesParaEnvioComBiblia } from '../modules/supressaoCanalSlides.js';
 import { setPreVooMonitoresEmFalta } from './preVoo.js';
 import { aplicarPreviewPainelOcultoNoDom } from './previewOculto.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -51,14 +52,14 @@ export async function carregarRoteamentoTelasDoServidor() {
     ]);
     const mon = await rMon.json().catch(() => []);
     const route = await rRoute.json().catch(() => ({}));
-    dep.setMonitoresServidorCache(Array.isArray(mon) ? mon : []);
+    estadoPainel.monitoresServidorCache = Array.isArray(mon) ? mon : [];
     let slidesSrv;
     let apSrv;
     if (route && route.version === 2 && route.slides && route.apresentacao) {
-      slidesSrv = sanitizarRotaProjecao(route.slides, dep.getMonitoresServidorCache());
-      apSrv = sanitizarRotaProjecao(route.apresentacao, dep.getMonitoresServidorCache());
+      slidesSrv = sanitizarRotaProjecao(route.slides, estadoPainel.monitoresServidorCache);
+      apSrv = sanitizarRotaProjecao(route.apresentacao, estadoPainel.monitoresServidorCache);
     } else {
-      const leg = sanitizarRotaProjecao(route || {}, dep.getMonitoresServidorCache());
+      const leg = sanitizarRotaProjecao(route || {}, estadoPainel.monitoresServidorCache);
       slidesSrv = leg;
       apSrv = { publicoIndex: -1, ministranteIndex: -1, live: false };
     }
@@ -73,18 +74,18 @@ export async function carregarRoteamentoTelasDoServidor() {
        escolha da sessão anterior. Na primeira detecção (rota ainda virgem) aplica-se o
        padrão M2/M3; nas reconexões seguintes preserva-se o que o operador já escolheu. */
     const restSlides = rotaRestauradaPorIdentidade('slides', slidesSrv);
-    const restCompleto = rotaRestauradaPorIdentidade('completo', dep.getRotasPorModo().completo);
-    dep.getRotasPorModo().completo = restCompleto.rota;
+    const restCompleto = rotaRestauradaPorIdentidade('completo', estadoPainel.rotasPorModo.completo);
+    estadoPainel.rotasPorModo.completo = restCompleto.rota;
     const faltou = [...restSlides.faltou, ...restCompleto.faltou];
     avisarMonitoresConfiguradosEmFalta(faltou);
     /* O pré-voo relata o mesmo, mas só quando o operador pergunta — a faixa do cabeçalho
        avisa na hora, e a lista da verificação recolhe-o junto do resto. */
     setPreVooMonitoresEmFalta(faltou);
     /* Apresentação primeiro: a reposição do Slides desvia-se do que a mídia já ocupa. */
-    dep.getRotasPorModo().apresentacao = { ...apSrv };
-    if (precisaReporRotaSlides(dep.getRotasPorModo().slides)) {
-      dep.getRotasPorModo().slides = rotaSlidesReposta(
-        dep.getRotasPorModo().slides,
+    estadoPainel.rotasPorModo.apresentacao = { ...apSrv };
+    if (precisaReporRotaSlides(estadoPainel.rotasPorModo.slides)) {
+      estadoPainel.rotasPorModo.slides = rotaSlidesReposta(
+        estadoPainel.rotasPorModo.slides,
         rotaSlidesAoEntrarNoModo()
       );
     }
@@ -96,12 +97,12 @@ export async function carregarRoteamentoTelasDoServidor() {
           live: false,
         };
     const semSalvo =
-      normalizarRota(dep.getRotasPorModo().completo).publicoIndex === -1 &&
-      normalizarRota(dep.getRotasPorModo().completo).ministranteIndex === -1;
+      normalizarRota(estadoPainel.rotasPorModo.completo).publicoIndex === -1 &&
+      normalizarRota(estadoPainel.rotasPorModo.completo).ministranteIndex === -1;
     if (semSalvo) {
-      const padraoSlides = normalizarRota(dep.getRotasPorModo().slides);
+      const padraoSlides = normalizarRota(estadoPainel.rotasPorModo.slides);
       if (padraoSlides.publicoIndex >= 0 || padraoSlides.ministranteIndex >= 0) {
-        dep.getRotasPorModo().completo = { ...padraoSlides };
+        estadoPainel.rotasPorModo.completo = { ...padraoSlides };
         salvarRotasPorModoNoStorage();
       }
     }
@@ -111,18 +112,18 @@ export async function carregarRoteamentoTelasDoServidor() {
      * e `garantirTelasAbertasParaProjecao` deixava de abrir janelas — só prévias no painel.
      */
     if (ehModoSlidesOperador()) {
-      const s = normalizarRota(dep.getRotasPorModo().slides);
+      const s = normalizarRota(estadoPainel.rotasPorModo.slides);
       if (s.publicoIndex < 0 && s.ministranteIndex < 0) {
         /* Só preenche se não for «Não exibir» manual nesta sessão. */
         if (precisaReporRotaSlides(s)) {
-          dep.getRotasPorModo().slides = rotaSlidesAoEntrarNoModo();
+          estadoPainel.rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
           salvarRotasPorModoNoStorage();
         }
       }
     }
     await aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
     const modo = modoRoteamentoAtual();
-    const rotaLocalModo = normalizarRota(dep.getRotasPorModo()[modo]);
+    const rotaLocalModo = normalizarRota(estadoPainel.rotasPorModo[modo]);
     const servidorSemMonitores =
       mergedSrv.publicoIndex < 0 && mergedSrv.ministranteIndex < 0 && !mergedSrv.live;
     const modoTemMonitores =
@@ -161,7 +162,7 @@ function semExibicaoDoSeletorDoModo(modo) {
   }
   if (modo !== 'slides' && modo !== 'completo') return NENHUM;
 
-  const enviada = normalizarRota(dep.getRotasPorModo().slides);
+  const enviada = normalizarRota(estadoPainel.rotasPorModo.slides);
   if (enviada.live) return NENHUM;
 
   /*
@@ -178,7 +179,7 @@ function semExibicaoDoSeletorDoModo(modo) {
     modo === 'slides'
       ? obterNaoExibirManualSlides()
       : (() => {
-          const c = normalizarRota(dep.getRotasPorModo().completo);
+          const c = normalizarRota(estadoPainel.rotasPorModo.completo);
           return { publico: c.publicoIndex < 0, ministrante: c.ministranteIndex < 0 };
         })();
 
@@ -199,17 +200,17 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
       ? opts.canalEscolhido
       : null;
 
-  const slidesAntes = normalizarRota(dep.getRotasPorModo().slides);
+  const slidesAntes = normalizarRota(estadoPainel.rotasPorModo.slides);
 
   if (usarValoresDaUi) {
     const fromUi = rotaSelecionadaNaUi();
     if (!fromUi) return;
-    dep.getRotasPorModo()[modo] = { ...normalizarRota(fromUi) };
+    estadoPainel.rotasPorModo[modo] = { ...normalizarRota(fromUi) };
 
     /* Rede de segurança da regra «um monitor, uma saída». O clique já libertou a outra
        saída; isto cobre um DOM fora de sincronia e deixa a regra escrita num sítio só. */
     if (modo === 'slides' || modo === 'completo') {
-      dep.getRotasPorModo()[modo] = rotaSemMonitorRepetido(dep.getRotasPorModo()[modo], 'publico');
+      estadoPainel.rotasPorModo[modo] = rotaSemMonitorRepetido(estadoPainel.rotasPorModo[modo], 'publico');
     }
 
     if (modo === 'slides') {
@@ -218,14 +219,14 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
          E só para a saída que o clique mexeu: a rota vem do DOM com as duas, e o −1 que
          o outro seletor trazia é justamente o do conflito com as Mídias. */
       sincronizarNaoExibirManualSlidesDaEscolha(
-        dep.getRotasPorModo().slides,
+        estadoPainel.rotasPorModo.slides,
         canalEscolhido ? { publico: canalEscolhido === 'publico', ministrante: canalEscolhido === 'ministrante' } : null
       );
-      dep.getRotasPorModo().slides = normalizarRota(dep.getRotasPorModo().slides);
+      estadoPainel.rotasPorModo.slides = normalizarRota(estadoPainel.rotasPorModo.slides);
     } else if (modo === 'completo') {
-      dep.getRotasPorModo().slides = normalizarRota(dep.getRotasPorModo().completo);
+      estadoPainel.rotasPorModo.slides = normalizarRota(estadoPainel.rotasPorModo.completo);
     } else if (modo === 'apresentacao') {
-      const a = normalizarRota(dep.getRotasPorModo().apresentacao);
+      const a = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
       if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
         /*
          * «Não exibir» nas Mídias NÃO encerra a mídia.
@@ -281,9 +282,9 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        */
       if (hayProjecaoMidiaApresentacaoAtiva()) {
         /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
-        dep.getRotasPorModo().biblia = { ...normalizarRota(dep.getRotasPorModo().apresentacao) };
+        estadoPainel.rotasPorModo.biblia = { ...normalizarRota(estadoPainel.rotasPorModo.apresentacao) };
       } else {
-        dep.getRotasPorModo().apresentacao = { ...normalizarRota(dep.getRotasPorModo().biblia) };
+        estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.biblia) };
         /*
          * A rota do modo Slides NÃO se toca aqui — mesmo princípio do ramo `apresentacao`
          * acima, que já tinha sido corrigido: cada modo manda na configuração dele.
@@ -310,9 +311,9 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        * está a projetar.
        */
       if (hayProjecaoMidiaApresentacaoAtiva()) {
-        dep.getRotasPorModo().docs = { ...normalizarRota(dep.getRotasPorModo().apresentacao) };
+        estadoPainel.rotasPorModo.docs = { ...normalizarRota(estadoPainel.rotasPorModo.apresentacao) };
       } else {
-        dep.getRotasPorModo().apresentacao = { ...normalizarRota(dep.getRotasPorModo().docs) };
+        estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.docs) };
       }
     }
 
@@ -321,18 +322,18 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
     }
   }
 
-  dep.getRotasPorModo().slides = sanitizarRotaProjecao(dep.getRotasPorModo().slides, dep.getMonitoresServidorCache());
-  dep.getRotasPorModo().apresentacao = sanitizarRotaProjecao(dep.getRotasPorModo().apresentacao, dep.getMonitoresServidorCache());
-  dep.getRotasPorModo().apresentacaoAviso = sanitizarRotaProjecao(
-    dep.getRotasPorModo().apresentacaoAviso,
-    dep.getMonitoresServidorCache()
+  estadoPainel.rotasPorModo.slides = sanitizarRotaProjecao(estadoPainel.rotasPorModo.slides, estadoPainel.monitoresServidorCache);
+  estadoPainel.rotasPorModo.apresentacao = sanitizarRotaProjecao(estadoPainel.rotasPorModo.apresentacao, estadoPainel.monitoresServidorCache);
+  estadoPainel.rotasPorModo.apresentacaoAviso = sanitizarRotaProjecao(
+    estadoPainel.rotasPorModo.apresentacaoAviso,
+    estadoPainel.monitoresServidorCache
   );
-  dep.getRotasPorModo().contagem = sanitizarRotaProjecao(dep.getRotasPorModo().contagem, dep.getMonitoresServidorCache());
+  estadoPainel.rotasPorModo.contagem = sanitizarRotaProjecao(estadoPainel.rotasPorModo.contagem, estadoPainel.monitoresServidorCache);
   if (modo === 'biblia') {
-    dep.getRotasPorModo().biblia = sanitizarRotaProjecao(dep.getRotasPorModo().biblia, dep.getMonitoresServidorCache());
+    estadoPainel.rotasPorModo.biblia = sanitizarRotaProjecao(estadoPainel.rotasPorModo.biblia, estadoPainel.monitoresServidorCache);
   }
   if (modo === 'docs') {
-    dep.getRotasPorModo().docs = sanitizarRotaProjecao(dep.getRotasPorModo().docs, dep.getMonitoresServidorCache());
+    estadoPainel.rotasPorModo.docs = sanitizarRotaProjecao(estadoPainel.rotasPorModo.docs, estadoPainel.monitoresServidorCache);
   }
 
   /* Guardar QUAIS monitores ficaram em uso, não em que posição estavam — é isto que
@@ -347,12 +348,12 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        `persistirIdentidadesDosModos()` acabou de gravar. Ver `modules/supressaoCanalSlides.js`. */
     slides:
       modo === 'biblia'
-        ? rotaSlidesParaEnvioComBiblia(dep.getRotasPorModo().biblia, dep.getRotasPorModo().slides)
+        ? rotaSlidesParaEnvioComBiblia(estadoPainel.rotasPorModo.biblia, estadoPainel.rotasPorModo.slides)
         : /* Mesma ideia, para o monitor que as Mídias estão a ocupar: silencia-se o canal
              no pacote, sem tocar na configuração do operador. Ver o módulo. */
           rotaSlidesParaEnvioComApresentacao(
             obterRotaApresentacaoParaServidor(),
-            dep.getRotasPorModo().slides
+            estadoPainel.rotasPorModo.slides
           ),
     apresentacao: obterRotaApresentacaoParaServidor(),
     /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
@@ -407,12 +408,12 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
     if (modo === 'docs') {
       marcarRotaDocsSincronizada();
     }
-    if (dep.getProjecao().pronta() && modo === 'slides') {
-      const pubDepois = normalizarRota(dep.getRotasPorModo().slides).publicoIndex;
+    if (projecao.pronta() && modo === 'slides') {
+      const pubDepois = normalizarRota(estadoPainel.rotasPorModo.slides).publicoIndex;
       const publicoFoiAtivadoAgora = slidesAntes.publicoIndex < 0 && pubDepois >= 0;
       if (publicoFoiAtivadoAgora) {
-        if (dep.getMusicaAtiva() && Number.isFinite(dep.getEstrofeAtiva()) && dep.getEstrofeAtiva() >= 0) {
-          emitirEstrofeAoServidor(dep.getEstrofeAtiva());
+        if (estadoPainel.musicaAtiva && Number.isFinite(estadoPainel.estrofeAtiva) && estadoPainel.estrofeAtiva >= 0) {
+          emitirEstrofeAoServidor(estadoPainel.estrofeAtiva);
         }
       }
     }

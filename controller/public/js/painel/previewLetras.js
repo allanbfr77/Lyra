@@ -6,6 +6,7 @@
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { importarLetrasDoCatalogoParaBanco, importarLetrasParaBanco, limparBuscaLetras } from './bibliotecaMusicas.js';
 import { normalizarFonteLetrasSite } from '../modules/fonteLetrasSite.js';
+import {  } from './estadoPainel.js';
 
 let dep = {};
 

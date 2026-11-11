@@ -9,6 +9,7 @@ import { atualizarNotaSlideControladorUI } from '../modules/notasSlideControlado
 import { criarMenuFlutuante } from '../modules/menuFlutuante.js';
 import { digestEstrofesParaStripFaixa, textoSlideSnippetHtmlParaChip } from '../modules/slidesGrelha.js';
 import { persistirMusicaAtivaNoServidor, renderEstrofesEditor } from './editorEstrofes.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -49,7 +50,7 @@ export function renderSlidesStrip() {
     return;
   }
 
-  const semMusicaCarregada = !dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes;
+  const semMusicaCarregada = !estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes;
 
   /*
    * Esconder a faixa inteira só se vale para fora do modo slides.
@@ -79,7 +80,7 @@ export function renderSlidesStrip() {
    * vinda só do banco (modo completo), que não preenche a faixa ao alternar de modo.
    * Assim que a playlist arma uma música, o comportamento volta a ser o de sempre.
    */
-  if (ehModoSlidesOperador() && (semMusicaCarregada || !dep.getFaixaSlidesHabilitadaPorPlaylistNoModoSlides())) {
+  if (ehModoSlidesOperador() && (semMusicaCarregada || !estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides)) {
     dock.classList.toggle('oculto', false);
     if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, '');
     grid.innerHTML = '';
@@ -99,7 +100,7 @@ export function renderSlidesStrip() {
   }
 
   /* Home + letra completa: a faixa não é o destino. Não montar chips. */
-  if (dep.getModoLetraCompletaCentral() && !ehModoSlidesOperador()) {
+  if (estadoPainel.modoLetraCompletaCentral && !ehModoSlidesOperador()) {
     dock.classList.add('oculto');
     document.body.classList.remove('slides-rail-aberto');
     atualizarSlidesInstrucoes();
@@ -110,32 +111,32 @@ export function renderSlidesStrip() {
   definirVazioDaFaixaSlidesVisivel(false);
 
   if (podeAtualizarSomenteAtivoFaixaSlides()) {
-    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, dep.getMusicaAtiva().titulo || '');
+    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, estadoPainel.musicaAtiva.titulo || '');
     atualizarSomenteAtivoFaixaSlides();
     dock.classList.toggle('oculto', !ehModoSlidesOperador());
     document.body.classList.toggle(
       'slides-rail-aberto',
-      ehModoSlidesOperador() && !!dep.getMusicaAtiva() && !dep.getSlidesRailUserRecolhido()
+      ehModoSlidesOperador() && !!estadoPainel.musicaAtiva && !estadoPainel.slidesRailUserRecolhido
     );
     atualizarEstadoBtnProximaMusicaPlaylist();
     atualizarSlidesInstrucoes();
     return;
   }
 
-  if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, dep.getMusicaAtiva().titulo || '');
+  if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, estadoPainel.musicaAtiva.titulo || '');
 
   /* 1º frame com a fonte CSS; o auto-fit dos snippets corre depois, em lotes. */
   if (grid.style.visibility === 'hidden') grid.style.visibility = '';
   grid.innerHTML = '';
-  const nEst = dep.getMusicaAtiva().estrofes.length;
+  const nEst = estadoPainel.musicaAtiva.estrofes.length;
   const idxSlidePreto = nEst;
 
-  dep.getMusicaAtiva().estrofes.forEach((estrofe, i) => {
+  estadoPainel.musicaAtiva.estrofes.forEach((estrofe, i) => {
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'slide-chip' + (dep.getEstrofeAtiva() === i ? ' ativo' : '');
+    chip.className = 'slide-chip' + (estadoPainel.estrofeAtiva === i ? ' ativo' : '');
     chip.dataset.i = String(i);
-    chip.setAttribute('aria-current', dep.getEstrofeAtiva() === i ? 'true' : 'false');
+    chip.setAttribute('aria-current', estadoPainel.estrofeAtiva === i ? 'true' : 'false');
     chip.innerHTML = `
       <span class="slide-num">${i + 1}</span>
       <span class="slide-snippet">${textoSlideSnippetHtmlParaChip(estrofe)}</span>
@@ -144,14 +145,14 @@ export function renderSlidesStrip() {
       ev.preventDefault();
       /* Sem projeção: 1 clique só seleciona. Com projeção ativa: 1 clique troca o slide no ar.
          Nos dois casos a grelha rola como rolaria com as setas. */
-      if (dep.getProjecaoMusicaEmitidaNoServidor()) {
+      if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
         projetarPorDuploCliqueCentral(i, { rolarComoNasSetas: true });
         return;
       }
       exibirEstrofe(i);
     };
     /* Duplo clique só para iniciar a projeção — com ela já no ar, o clique único basta. */
-    if (!dep.getProjecaoMusicaEmitidaNoServidor()) {
+    if (!estadoPainel.projecaoMusicaEmitidaNoServidor) {
       chip.addEventListener('dblclick', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -168,20 +169,20 @@ export function renderSlidesStrip() {
 
   const chipPreto = document.createElement('button');
   chipPreto.type = 'button';
-  chipPreto.className = 'slide-chip slide-chip--preto' + (dep.getEstrofeAtiva() === idxSlidePreto ? ' ativo' : '');
+  chipPreto.className = 'slide-chip slide-chip--preto' + (estadoPainel.estrofeAtiva === idxSlidePreto ? ' ativo' : '');
   chipPreto.dataset.i = String(idxSlidePreto);
   chipPreto.innerHTML = '';
   chipPreto.setAttribute('aria-label', 'Slide preto');
-  chipPreto.setAttribute('aria-current', dep.getEstrofeAtiva() === idxSlidePreto ? 'true' : 'false');
+  chipPreto.setAttribute('aria-current', estadoPainel.estrofeAtiva === idxSlidePreto ? 'true' : 'false');
   chipPreto.onclick = (ev) => {
     ev.preventDefault();
-    if (dep.getProjecaoMusicaEmitidaNoServidor()) {
+    if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
       projetarPorDuploCliqueCentral(idxSlidePreto, { rolarComoNasSetas: true });
       return;
     }
     exibirEstrofe(idxSlidePreto);
   };
-  if (!dep.getProjecaoMusicaEmitidaNoServidor()) {
+  if (!estadoPainel.projecaoMusicaEmitidaNoServidor) {
     chipPreto.addEventListener('dblclick', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -194,7 +195,7 @@ export function renderSlidesStrip() {
   dock.classList.toggle('oculto', !ehModoSlidesOperador());
   document.body.classList.toggle(
     'slides-rail-aberto',
-    ehModoSlidesOperador() && !!dep.getMusicaAtiva() && !dep.getSlidesRailUserRecolhido()
+    ehModoSlidesOperador() && !!estadoPainel.musicaAtiva && !estadoPainel.slidesRailUserRecolhido
   );
 
   const btnNx = document.getElementById('btn-proxima-musica-playlist');
@@ -203,10 +204,10 @@ export function renderSlidesStrip() {
   }
 
   atualizarSlidesInstrucoes();
-  grid.dataset.stripMusicaId = String(dep.getMusicaAtiva().id ?? '');
+  grid.dataset.stripMusicaId = String(estadoPainel.musicaAtiva.id ?? '');
   grid.dataset.stripEstrofeCount = String(nEst);
-  grid.dataset.stripDigest = digestEstrofesParaStripFaixa(dep.getMusicaAtiva().estrofes);
-  grid.dataset.stripProjecao = dep.getProjecaoMusicaEmitidaNoServidor() ? '1' : '0';
+  grid.dataset.stripDigest = digestEstrofesParaStripFaixa(estadoPainel.musicaAtiva.estrofes);
+  grid.dataset.stripProjecao = estadoPainel.projecaoMusicaEmitidaNoServidor ? '1' : '0';
   queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
   } finally {
     try {
@@ -271,14 +272,14 @@ function resetarPosicaoDialogQuickEdit() {
  * Independente do slide aberto no modal de edição rápida.
  */
 function indiceEstrofeProjetadaNoTelao() {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes)) return null;
-  if (!dep.getProjecaoMusicaEmitidaNoServidor()) return null;
-  const e = dep.getEstadoServidor();
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes)) return null;
+  if (!estadoPainel.projecaoMusicaEmitidaNoServidor) return null;
+  const e = estadoPainel.estadoServidor;
   if (!e || e.tipo !== 'musica') return null;
-  if (e.musicaId != null && dep.getMusicaAtiva().id != null && Number(e.musicaId) !== Number(dep.getMusicaAtiva().id)) {
+  if (e.musicaId != null && estadoPainel.musicaAtiva.id != null && Number(e.musicaId) !== Number(estadoPainel.musicaAtiva.id)) {
     return null;
   }
-  if (e.slidePretoFinal) return dep.getMusicaAtiva().estrofes.length;
+  if (e.slidePretoFinal) return estadoPainel.musicaAtiva.estrofes.length;
   const idx = Number(e.estrofeIndex);
   return Number.isFinite(idx) ? idx : null;
 }
@@ -292,7 +293,7 @@ function atualizarUiProjecaoQuickEdit() {
   const emSlide = ehModoSlidesOperador();
   row.hidden = !emSlide;
   if (!emSlide) return;
-  const nEst = dep.getMusicaAtiva()?.estrofes?.length ?? 0;
+  const nEst = estadoPainel.musicaAtiva?.estrofes?.length ?? 0;
   const idx = indiceEstrofeProjetadaNoTelao();
   if (idx == null || nEst <= 0) {
     status.textContent = 'Slide projetado: —';
@@ -314,9 +315,9 @@ function atualizarUiProjecaoQuickEdit() {
  */
 function avancarProjecaoDoQuickEdit() {
   if (!ehModoSlidesOperador()) return;
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) return;
-  if (!dep.getProjecao().pronta() || !dep.getProjecaoMusicaEmitidaNoServidor()) return;
-  const idxMaxPreto = dep.getMusicaAtiva().estrofes.length;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) return;
+  if (!projecao.pronta() || !estadoPainel.projecaoMusicaEmitidaNoServidor) return;
+  const idxMaxPreto = estadoPainel.musicaAtiva.estrofes.length;
   const base = indiceEstrofeProjetadaNoTelao();
   if (base == null || !Number.isFinite(base)) return;
   const prox = Math.min(idxMaxPreto, base + 1);
@@ -330,11 +331,11 @@ function avancarProjecaoDoQuickEdit() {
 }
 
 export function abrirSlideQuickEditModal(slideIndex) {
-  if (!dep.getMusicaAtiva() || slideIndex < 0 || slideIndex >= dep.getMusicaAtiva().estrofes.length) return;
+  if (!estadoPainel.musicaAtiva || slideIndex < 0 || slideIndex >= estadoPainel.musicaAtiva.estrofes.length) return;
   fecharMenuContextoSlideStrip();
   slideQuickEditIndex = slideIndex;
   document.getElementById('slide-quick-edit-num').textContent = String(slideIndex + 1);
-  document.getElementById('slide-quick-edit-ta').value = dep.getMusicaAtiva().estrofes[slideIndex] ?? '';
+  document.getElementById('slide-quick-edit-ta').value = estadoPainel.musicaAtiva.estrofes[slideIndex] ?? '';
   const bd = document.getElementById('slide-quick-edit-backdrop');
   resetarPosicaoDialogQuickEdit();
   bd.classList.toggle('slide-quick-edit--arrastavel', ehModoSlidesOperador());
@@ -350,7 +351,7 @@ export function abrirSlideQuickEditModal(slideIndex) {
 
 async function confirmarSlideQuickEdit() {
   const idx = slideQuickEditIndex;
-  if (idx === null || !dep.getMusicaAtiva()) return;
+  if (idx === null || !estadoPainel.musicaAtiva) return;
   const ta = document.getElementById('slide-quick-edit-ta');
   aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, ta.value, { emitSocket: true });
   fecharSlideQuickEditModal();
@@ -367,7 +368,7 @@ export function fecharSlideDeleteConfirmModal() {
 
 function abrirSlideDeleteConfirmModal() {
   const idx = slideQuickEditIndex;
-  if (idx === null || !dep.getMusicaAtiva()) return;
+  if (idx === null || !estadoPainel.musicaAtiva) return;
   const nEl = document.getElementById('slide-delete-confirm-num');
   if (nEl) nEl.textContent = String(idx + 1);
   const delBd = document.getElementById('slide-delete-confirm-backdrop');
@@ -378,19 +379,19 @@ function abrirSlideDeleteConfirmModal() {
 
 async function executarExclusaoSlideConfirmada() {
   const idx = slideQuickEditIndex;
-  if (idx === null || !dep.getMusicaAtiva()) return;
-  if (dep.getMusicaAtiva().estrofes.length <= 1) {
+  if (idx === null || !estadoPainel.musicaAtiva) return;
+  if (estadoPainel.musicaAtiva.estrofes.length <= 1) {
     alert('É necessário pelo menos uma estrofe.');
     fecharSlideDeleteConfirmModal();
     return;
   }
 
-  dep.getMusicaAtiva().estrofes.splice(idx, 1);
-  if (dep.getEstrofeAtiva() === idx) dep.setEstrofeAtiva(Math.max(0, idx - 1));
-  else if (dep.getEstrofeAtiva() > idx) dep.setEstrofeAtiva(dep.getEstrofeAtiva() - 1);
+  estadoPainel.musicaAtiva.estrofes.splice(idx, 1);
+  if (estadoPainel.estrofeAtiva === idx) estadoPainel.estrofeAtiva = Math.max(0, idx - 1);
+  else if (estadoPainel.estrofeAtiva > idx) estadoPainel.estrofeAtiva = estadoPainel.estrofeAtiva - 1;
 
-  if (dep.getEstrofeAtiva() >= dep.getMusicaAtiva().estrofes.length) {
-    dep.setEstrofeAtiva(dep.getMusicaAtiva().estrofes.length - 1);
+  if (estadoPainel.estrofeAtiva >= estadoPainel.musicaAtiva.estrofes.length) {
+    estadoPainel.estrofeAtiva = estadoPainel.musicaAtiva.estrofes.length - 1;
   }
 
   fecharSlideDeleteConfirmModal();
@@ -401,12 +402,12 @@ async function executarExclusaoSlideConfirmada() {
   marcacaoEstrofeEditor();
 
   if (
-    dep.getProjecaoMusicaEmitidaNoServidor() &&
-    dep.getProjecao().pronta() &&
-    dep.getMusicaAtiva() &&
-    dep.getEstrofeAtiva() >= 0
+    estadoPainel.projecaoMusicaEmitidaNoServidor &&
+    projecao.pronta() &&
+    estadoPainel.musicaAtiva &&
+    estadoPainel.estrofeAtiva >= 0
   ) {
-    emitirEstrofeAoServidor(dep.getEstrofeAtiva());
+    emitirEstrofeAoServidor(estadoPainel.estrofeAtiva);
   }
 
   await persistirMusicaAtivaNoServidor();
@@ -414,8 +415,8 @@ async function executarExclusaoSlideConfirmada() {
 
 function excluirSlideEdicaoRapida() {
   const idx = slideQuickEditIndex;
-  if (idx === null || !dep.getMusicaAtiva()) return;
-  if (dep.getMusicaAtiva().estrofes.length <= 1) {
+  if (idx === null || !estadoPainel.musicaAtiva) return;
+  if (estadoPainel.musicaAtiva.estrofes.length <= 1) {
     alert('É necessário pelo menos uma estrofe.');
     return;
   }

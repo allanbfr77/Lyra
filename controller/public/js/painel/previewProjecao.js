@@ -10,6 +10,7 @@ import { escapeHtml } from './textoHtmlSeguro.js';
 import { rotuloTipoMidiaApresentacao, svgIconeTipoMidiaApresentacao } from '../modules/midiaApresentacao.js';
 import { textoSlideMaiusculo } from '../modules/slidesGrelha.js';
 import { aplicarPreviewTituloMusicaAbertura, limparPreviewTituloMusicaAbertura, primeirasLinhasEstrofeMinistrante, tituloAberturaM3MusicaAtiva } from './tituloAberturaPreview.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -44,15 +45,15 @@ const previewMinistranteHelpers = {
     try {
       return aplicarCorComentarioMinistranteNoPainel(lerCurrentCfgCtrl()?.ministrante?.commentColor);
     } catch (_) {
-      return dep.getCorComentarioMinistrantePainel();
+      return estadoPainel.corComentarioMinistrantePainel;
     }
   },
 };
 
 /** Há algo efetivamente enviado às telas de projeção (servidor ligado). */
 export function hayProjecaoAtivaNoServidor() {
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
   if (e.blackout) return true;
   if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) return true;
@@ -70,16 +71,16 @@ export function hayProjecaoAtivaNoServidor() {
  */
 function hayProjecaoAtivaNoServidorParaPreviews() {
   if (!hayProjecaoAtivaNoServidor()) return false;
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   if (!e) return false;
   if (e.blackout) return true;
   if (e.projecaoMinistranteApresentacao && e.tipo !== 'apresentacao' && e.tipo !== 'aviso') return true;
   if (e.tipo === 'biblia') return true;
   if (e.tipo === 'musica') {
-    if (!dep.getMusicaAtiva()) return true;
+    if (!estadoPainel.musicaAtiva) return true;
     if (!musicaEstadoCombinaComAtiva(e)) return false;
     /* Só espelhar letra de música nos cartões quando este painel já «armou» projeção (duplo clique, setas, próxima música…). */
-    if (!dep.getProjecaoMusicaEmitidaNoServidor()) return false;
+    if (!estadoPainel.projecaoMusicaEmitidaNoServidor) return false;
     return true;
   }
   return false;
@@ -90,12 +91,12 @@ function hayProjecaoAtivaNoServidorParaPreviews() {
  * (faixa de slides visível). Evita mostrar letra quando o servidor ainda guarda o estado anterior.
  */
 function previewMusicaEsperandoDockParaEspelharLetra() {
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   if (!e || e.tipo !== 'musica') return false;
-  if (dep.getMusicaAtiva() && !musicaEstadoCombinaComAtiva(e)) return false;
+  if (estadoPainel.musicaAtiva && !musicaEstadoCombinaComAtiva(e)) return false;
   if (e.blackout || e.slidePretoFinal || e.telaLimpa) return false;
   if (!e.linhas || !e.linhas.length) return false;
-  return !dep.getSlidesDockVisivel() && !ehModoSlidesOperador();
+  return !estadoPainel.slidesDockVisivel && !ehModoSlidesOperador();
 }
 
 /**
@@ -208,11 +209,11 @@ export function aplicarPreviewTelaoNoDom(estado) {
  */
 export function podeEspelharLetraNosPreviewsModoSlide() {
   if (!ehModoSlidesOperador()) return false;
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) {
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) {
     return false;
   }
-  if (dep.getEstrofeAtiva() < 0) return false;
-  return !!dep.getProjecaoMusicaEmitidaNoServidor();
+  if (estadoPainel.estrofeAtiva < 0) return false;
+  return !!estadoPainel.projecaoMusicaEmitidaNoServidor;
 }
 
 /**
@@ -224,10 +225,10 @@ function estadoPreviewTelaoLocalModoSlides() {
   if (!podeEspelharLetraNosPreviewsModoSlide()) {
     return { semProjecao: true };
   }
-  const idxPreto = dep.getMusicaAtiva().estrofes.length;
-  if (dep.getEstrofeAtiva() === idxPreto) return { tipo: 'musica', slidePretoFinal: true };
-  const cur = String(dep.getMusicaAtiva().estrofes[dep.getEstrofeAtiva()] ?? '');
-  return { tipo: 'musica', titulo: dep.getMusicaAtiva().titulo || '', telaLimpa: false, linhas: cur.split('\n') };
+  const idxPreto = estadoPainel.musicaAtiva.estrofes.length;
+  if (estadoPainel.estrofeAtiva === idxPreto) return { tipo: 'musica', slidePretoFinal: true };
+  const cur = String(estadoPainel.musicaAtiva.estrofes[estadoPainel.estrofeAtiva] ?? '');
+  return { tipo: 'musica', titulo: estadoPainel.musicaAtiva.titulo || '', telaLimpa: false, linhas: cur.split('\n') };
 }
 
 /** Telão no painel: espelha o servidor com as regras de `suprimirEspelhoPreviewsPorNavegacaoPlaylist`. */
@@ -237,7 +238,7 @@ export function atualizarPreviewTelaoPublico() {
     atualizarPreviewMonitorPublicoSlides();
     return;
   }
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   if (!hayProjecaoAtivaNoServidor() || !e) {
     aplicarPreviewTelaoNoDom({ semProjecao: true });
     return;
@@ -278,7 +279,7 @@ export function atualizarPreviewTelaoPublico() {
     aplicarPreviewTelaoNoDom({ semProjecao: true });
     return;
   }
-  aplicarPreviewTelaoNoDom(dep.getEstadoServidor());
+  aplicarPreviewTelaoNoDom(estadoPainel.estadoServidor);
 }
 
 /**
@@ -287,7 +288,7 @@ export function atualizarPreviewTelaoPublico() {
  * para o cartão «próximo» coincidir com a TV física e com o fluxo do controlador.
  */
 export function preencherPreviewOperadorSomenteEstadoServidorMusica() {
-  const e = dep.getEstadoServidor();
+  const e = estadoPainel.estadoServidor;
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (!e || e.tipo !== 'musica') return;
@@ -303,10 +304,10 @@ export function preencherPreviewOperadorSomenteEstadoServidorMusica() {
   }
   const idx = Number.isFinite(Number(e.estrofeIndex)) ? Number(e.estrofeIndex) : -1;
   const tituloMusica =
-    (dep.getMusicaAtiva() && musicaEstadoCombinaComAtiva(e) && dep.getMusicaAtiva().titulo) || e.titulo || '';
+    (estadoPainel.musicaAtiva && musicaEstadoCombinaComAtiva(e) && estadoPainel.musicaAtiva.titulo) || e.titulo || '';
   const abertura = idx === 0;
   aplicarPreviewTituloMusicaAbertura(
-    dep.getMusicaAtiva() && musicaEstadoCombinaComAtiva(e)
+    estadoPainel.musicaAtiva && musicaEstadoCombinaComAtiva(e)
       ? tituloAberturaM3MusicaAtiva(tituloMusica)
       : tituloMusica,
     abertura
@@ -314,11 +315,11 @@ export function preencherPreviewOperadorSomenteEstadoServidorMusica() {
 
   let curRaw = '';
   let proxRaw = '';
-  if (dep.getMusicaAtiva() && musicaEstadoCombinaComAtiva(e) && Array.isArray(dep.getMusicaAtiva().estrofes)) {
-    if (idx >= 0 && idx < dep.getMusicaAtiva().estrofes.length) curRaw = String(dep.getMusicaAtiva().estrofes[idx] ?? '');
+  if (estadoPainel.musicaAtiva && musicaEstadoCombinaComAtiva(e) && Array.isArray(estadoPainel.musicaAtiva.estrofes)) {
+    if (idx >= 0 && idx < estadoPainel.musicaAtiva.estrofes.length) curRaw = String(estadoPainel.musicaAtiva.estrofes[idx] ?? '');
     if (e.proximoSlidePreto) proxRaw = '';
-    else if (idx >= 0 && idx < dep.getMusicaAtiva().estrofes.length - 1) {
-      const nxt = String(dep.getMusicaAtiva().estrofes[idx + 1] ?? '');
+    else if (idx >= 0 && idx < estadoPainel.musicaAtiva.estrofes.length - 1) {
+      const nxt = String(estadoPainel.musicaAtiva.estrofes[idx + 1] ?? '');
       proxRaw = abertura ? primeirasLinhasEstrofeMinistrante(nxt, 2) : nxt;
     }
   } else {
@@ -348,7 +349,7 @@ export function preencherPreviewOperadorSomenteMusicaLocal() {
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
 
-  if (!dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes || dep.getMusicaAtiva().estrofes.length === 0) {
+  if (!estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes || estadoPainel.musicaAtiva.estrofes.length === 0) {
     limparPreviewTituloMusicaAbertura();
     opA.textContent = '';
     opA.className = 'op-slide-text vazio';
@@ -359,15 +360,15 @@ export function preencherPreviewOperadorSomenteMusicaLocal() {
     return;
   }
 
-  const nEst = dep.getMusicaAtiva().estrofes.length;
+  const nEst = estadoPainel.musicaAtiva.estrofes.length;
   const idxPreto = nEst;
 
-  if (dep.getEstrofeAtiva() < 0) {
+  if (estadoPainel.estrofeAtiva < 0) {
     limparPreviewTituloMusicaAbertura();
     opA.innerHTML = '';
     opA.className = 'op-slide-text vazio';
     limparEstiloPreviewSlide(opA);
-    const p0 = dep.getMusicaAtiva().estrofes[0];
+    const p0 = estadoPainel.musicaAtiva.estrofes[0];
     opP.className = 'op-slide-text';
     if (p0) {
       aplicarPreviewMinistranteNoElemento(opP, p0, previewMinistranteHelpers);
@@ -379,7 +380,7 @@ export function preencherPreviewOperadorSomenteMusicaLocal() {
     return;
   }
 
-  if (dep.getEstrofeAtiva() === idxPreto) {
+  if (estadoPainel.estrofeAtiva === idxPreto) {
     limparPreviewTituloMusicaAbertura();
     opA.innerHTML = '';
     opA.className = 'op-slide-text vazio';
@@ -390,12 +391,12 @@ export function preencherPreviewOperadorSomenteMusicaLocal() {
     return;
   }
 
-  const abertura = dep.getEstrofeAtiva() === 0;
-  aplicarPreviewTituloMusicaAbertura(tituloAberturaM3MusicaAtiva(dep.getMusicaAtiva().titulo || ''), abertura);
+  const abertura = estadoPainel.estrofeAtiva === 0;
+  aplicarPreviewTituloMusicaAbertura(tituloAberturaM3MusicaAtiva(estadoPainel.musicaAtiva.titulo || ''), abertura);
 
-  const cur = dep.getMusicaAtiva().estrofes[dep.getEstrofeAtiva()];
-  const proximoEhPreto = dep.getEstrofeAtiva() === nEst - 1;
-  const nxtFull = proximoEhPreto ? null : dep.getMusicaAtiva().estrofes[dep.getEstrofeAtiva() + 1];
+  const cur = estadoPainel.musicaAtiva.estrofes[estadoPainel.estrofeAtiva];
+  const proximoEhPreto = estadoPainel.estrofeAtiva === nEst - 1;
+  const nxtFull = proximoEhPreto ? null : estadoPainel.musicaAtiva.estrofes[estadoPainel.estrofeAtiva + 1];
   const nxt = nxtFull
     ? abertura
       ? primeirasLinhasEstrofeMinistrante(nxtFull, 2)
@@ -447,13 +448,13 @@ export function limparConteudoPreviewOperadorSlides() {
  * Se o operador clicou noutro chip sem projetar, a prévia deve continuar no servidor.
  */
 export function selecaoLocalAlinhadaComProjecaoMusicaServidor() {
-  const e = dep.getEstadoServidor();
-  if (!e || e.tipo !== 'musica' || !dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes)) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || e.tipo !== 'musica' || !estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes)) return false;
   if (!musicaEstadoCombinaComAtiva(e)) return false;
-  const idxPreto = dep.getMusicaAtiva().estrofes.length;
-  if (e.slidePretoFinal) return dep.getEstrofeAtiva() === idxPreto;
+  const idxPreto = estadoPainel.musicaAtiva.estrofes.length;
+  if (e.slidePretoFinal) return estadoPainel.estrofeAtiva === idxPreto;
   const idxSrv = Number(e.estrofeIndex);
-  return Number.isFinite(idxSrv) && dep.getEstrofeAtiva() === idxSrv;
+  return Number.isFinite(idxSrv) && estadoPainel.estrofeAtiva === idxSrv;
 }
 
 let previewRelogioOciosoTimer = null;
@@ -654,7 +655,7 @@ export function sincronizarPreviewOciosoMinistranteSlides() {
  * Independente do socket · não altera projeção.
  */
 export function atualizarPreviewPlaylistCentral() {
-  dep.getHomeLayout()?.updatePreview(dep.getEstrofeAtiva(), dep.getMusicaAtiva()?.estrofes?.length || 0);
+  estadoPainel.homeLayout?.updatePreview(estadoPainel.estrofeAtiva, estadoPainel.musicaAtiva?.estrofes?.length || 0);
   if (document.body.classList.contains('app-mod-slides')) return;
   const tit = document.getElementById('pl-pv-titulo');
   const slideEl = document.getElementById('pl-pv-slide');
@@ -668,25 +669,25 @@ export function atualizarPreviewPlaylistCentral() {
     limparEstiloPreviewSlide(slideEl);
   };
 
-  if (ehModoBibliaOperador() || !dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes || dep.getMusicaAtiva().estrofes.length === 0) {
+  if (ehModoBibliaOperador() || !estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes || estadoPainel.musicaAtiva.estrofes.length === 0) {
     limpar();
     return;
   }
 
   tit.classList.remove('vazio');
-  tit.textContent = (dep.getMusicaAtiva().titulo || '').toUpperCase();
+  tit.textContent = (estadoPainel.musicaAtiva.titulo || '').toUpperCase();
 
-  const nEst = dep.getMusicaAtiva().estrofes.length;
+  const nEst = estadoPainel.musicaAtiva.estrofes.length;
   const idxPreto = nEst;
 
-  if (dep.getEstrofeAtiva() < 0 || dep.getEstrofeAtiva() === idxPreto) {
+  if (estadoPainel.estrofeAtiva < 0 || estadoPainel.estrofeAtiva === idxPreto) {
     slideEl.textContent = '';
     slideEl.className = 'pl-slide-text vazio';
     limparEstiloPreviewSlide(slideEl);
     return;
   }
 
-  const cur = dep.getMusicaAtiva().estrofes[dep.getEstrofeAtiva()];
+  const cur = estadoPainel.musicaAtiva.estrofes[estadoPainel.estrofeAtiva];
   slideEl.textContent = cur ? textoSlideMaiusculo(cur) : '';
   slideEl.className = 'pl-slide-text';
   if (cur) {
@@ -744,12 +745,12 @@ export function atualizarPreviewOperador() {
     }
 
     if (
-      dep.getEstadoServidor() &&
-      dep.getEstadoServidor().tipo === 'biblia' &&
-      (!dep.getEstadoServidor().telaLimpa || dep.getEstadoServidor().projecaoSomenteMinistrante)
+      estadoPainel.estadoServidor &&
+      estadoPainel.estadoServidor.tipo === 'biblia' &&
+      (!estadoPainel.estadoServidor.telaLimpa || estadoPainel.estadoServidor.projecaoSomenteMinistrante)
     ) {
       limparPreviewTituloMusicaAbertura();
-      const linhasBib = Array.isArray(dep.getEstadoServidor().linhas) ? dep.getEstadoServidor().linhas : [];
+      const linhasBib = Array.isArray(estadoPainel.estadoServidor.linhas) ? estadoPainel.estadoServidor.linhas : [];
       const txtBib = linhasBib.map((s) => String(s ?? '')).join('\n').trim();
       opA.textContent = txtBib;
       opA.className = 'op-slide-text';
@@ -768,7 +769,7 @@ export function atualizarPreviewOperador() {
       return;
     }
 
-    const eMus = dep.getEstadoServidor();
+    const eMus = estadoPainel.estadoServidor;
     const servidorMostraMusicaProj =
       eMus &&
       eMus.tipo === 'musica' &&
@@ -777,9 +778,9 @@ export function atualizarPreviewOperador() {
 
     const painelAlinhadoComProjecaoServidor =
       servidorMostraMusicaProj &&
-      dep.getMusicaAtiva() &&
+      estadoPainel.musicaAtiva &&
       musicaEstadoCombinaComAtiva(eMus) &&
-      dep.getProjecaoMusicaEmitidaNoServidor();
+      estadoPainel.projecaoMusicaEmitidaNoServidor;
 
     if (servidorMostraMusicaProj && !painelAlinhadoComProjecaoServidor) {
       preencherPreviewOperadorSomenteEstadoServidorMusica();
@@ -789,13 +790,13 @@ export function atualizarPreviewOperador() {
     }
 
     const servidorMusicaAlinhado =
-      dep.getEstadoServidor() &&
-      dep.getEstadoServidor().tipo === 'musica' &&
+      estadoPainel.estadoServidor &&
+      estadoPainel.estadoServidor.tipo === 'musica' &&
       hayProjecaoAtivaNoServidorParaPreviews();
 
     if (!servidorMusicaAlinhado) {
       /* Home: nunca preencher TELÃO/TV com letra — só a prévia da playlist (`pl-pv-*`). */
-      const mostrarPreviewOpLocal = dep.getProjecaoMusicaEmitidaNoServidor();
+      const mostrarPreviewOpLocal = estadoPainel.projecaoMusicaEmitidaNoServidor;
       if (mostrarPreviewOpLocal) {
         preencherPreviewOperadorSomenteMusicaLocal();
       } else {
@@ -852,13 +853,13 @@ let lyraAssinaturaEmitMinistrante = null;
 
 export function emitirEstadoMinistranteAoServidor() {
   if (apresentacaoOcupandoCanalMinistrante()) return;
-  if (!dep.getProjecao().pronta()) return;
+  if (!projecao.pronta()) return;
   if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) return;
   if (
     ehModoBibliaOperador() &&
-    dep.getEstadoServidor() &&
-    dep.getEstadoServidor().tipo === 'biblia' &&
-    !dep.getEstadoServidor().telaLimpa
+    estadoPainel.estadoServidor &&
+    estadoPainel.estadoServidor.tipo === 'biblia' &&
+    !estadoPainel.estadoServidor.telaLimpa
   ) {
     return;
   }
@@ -869,7 +870,7 @@ export function emitirEstadoMinistranteAoServidor() {
    * Quem arma `projecaoMusicaEmitidaNoServidor` (duplo clique, setas, próxima
    * música) é que pode voltar a mandar `exibir_ministrante`.
    */
-  if (hayProjecaoAtivaNoServidor() && !dep.getProjecaoMusicaEmitidaNoServidor()) return;
+  if (hayProjecaoAtivaNoServidor() && !estadoPainel.projecaoMusicaEmitidaNoServidor) return;
   const opA = document.getElementById('op-atual');
   const opP = document.getElementById('op-proximo');
   if (!opA || !opP) return;
@@ -877,13 +878,13 @@ export function emitirEstadoMinistranteAoServidor() {
   const proximo = textoMinistranteDeElementoPreview(opP);
   /** Se ainda há saída ativa (inclui blackout/slide preto), não abrir relógio no ministrante. */
   const projecaoAtiva = hayProjecaoAtivaNoServidor();
-  const slidePretoFinal = !!(dep.getEstadoServidor() && dep.getEstadoServidor().slidePretoFinal);
+  const slidePretoFinal = !!(estadoPainel.estadoServidor && estadoPainel.estadoServidor.slidePretoFinal);
   const telaLimpa = !atual && !proximo && !projecaoAtiva;
-  const tituloMusica = tituloAberturaM3MusicaAtiva(dep.getMusicaAtiva()?.titulo || '');
+  const tituloMusica = tituloAberturaM3MusicaAtiva(estadoPainel.musicaAtiva?.titulo || '');
   const aberturaMusica =
     !slidePretoFinal &&
-    !!dep.getMusicaAtiva() &&
-    dep.getEstrofeAtiva() === 0 &&
+    !!estadoPainel.musicaAtiva &&
+    estadoPainel.estrofeAtiva === 0 &&
     !!(tituloMusica || atual || proximo);
   const payload = {
     titulo: tituloMusica,
@@ -902,7 +903,7 @@ export function emitirEstadoMinistranteAoServidor() {
 }
   if (assinatura !== null && assinatura === lyraAssinaturaEmitMinistrante) return;
   lyraAssinaturaEmitMinistrante = assinatura;
-  dep.getProjecao().enviar('exibir_ministrante', payload);
+  projecao.enviar('exibir_ministrante', payload);
 }
 
 export function configurarObserverPreviewMinistrante() {
@@ -956,7 +957,7 @@ export function atualizarSlidesInstrucoes() {
     renderInstrucoesProjecao('');
     return;
   }
-  if (!dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes) {
+  if (!estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes) {
     if (ehModoSlidesOperador()) {
       renderInstrucoesProjecao('<strong>Modo slides</strong>', [
         'Escolher uma música na playlist só a carrega — não projeta',
@@ -972,7 +973,7 @@ export function atualizarSlidesInstrucoes() {
     }
     return;
   }
-  if (ehModoSlidesOperador() && !dep.getFaixaSlidesHabilitadaPorPlaylistNoModoSlides()) {
+  if (ehModoSlidesOperador() && !estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides) {
     renderInstrucoesProjecao('<strong>Modo slides</strong>', [
       'Toque numa música <strong>na playlist à esquerda</strong> para mostrar os slides aqui',
       'Clique carrega; duplo clique projeta',
@@ -980,8 +981,8 @@ export function atualizarSlidesInstrucoes() {
     ]);
     return;
   }
-  const n = dep.getMusicaAtiva().estrofes.length;
-  if (dep.getModoEdicaoEstrofes()) {
+  const n = estadoPainel.musicaAtiva.estrofes.length;
+  if (estadoPainel.modoEdicaoEstrofes) {
     renderInstrucoesProjecao(`<strong>Edição</strong> — ${n} slide(s)`, [
       '<strong>Linha vazia</strong> (Enter duplo, sem carácter no meio) cria outro slide na hora',
       'Linha com <strong>um espaço</strong> mantém tudo no mesmo slide',
@@ -993,7 +994,7 @@ export function atualizarSlidesInstrucoes() {
   } else if (ehModoSlidesOperador()) {
     renderInstrucoesProjecao(
       `<strong>${n} slide(s)</strong>`,
-      dep.getProjecaoMusicaEmitidaNoServidor()
+      estadoPainel.projecaoMusicaEmitidaNoServidor
         ? [
             'Com projeção ativa, <strong>um clique</strong> num chip envia esse slide às telas',
             'Último chip = preto',
@@ -1054,7 +1055,7 @@ export function definirVazioDaFaixaSlidesVisivel(mostrar) {
 export function definirNomeMusicaBarraSlides(el, titulo) {
   el.textContent = titulo;
   const artistaEl = document.getElementById('slides-musica-artista');
-  if (artistaEl) artistaEl.textContent = titulo ? (dep.getMusicaAtiva()?.artista || 'Sem artista') : '';
+  if (artistaEl) artistaEl.textContent = titulo ? (estadoPainel.musicaAtiva?.artista || 'Sem artista') : '';
   if (titulo) el.dataset.dica = titulo;
   else delete el.dataset.dica;
 }

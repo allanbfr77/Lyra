@@ -124,9 +124,6 @@ import {
   criarSlidesGrelha,
 } from './modules/slidesGrelha.js';
 import {
-  clonarCfgAvisoCard6Padrao,
-} from './modules/midiaApresentacao.js';
-import {
   definirLembrarMonitor,
 } from './modules/monitorLembrado.js';
 import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
@@ -134,9 +131,6 @@ import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import {
   configurarNotasSlideControlador,
 } from './modules/notasSlideControlador.js';
-import {
-  COR_COMENTARIO_MINISTRANTE_PADRAO,
-} from './modules/comentariosSlide.js';
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
 
 migrarChavesLegadoLocalStorage();
@@ -144,9 +138,6 @@ import { escapeHtml } from './painel/textoHtmlSeguro.js';
 import {
   reaplicarFontesPreviewPainel,
 } from './painel/tipografiaPainelPreview.js';
-import {
-  criarPortaProjecao,
-} from './modules/projecaoPorta.js';
 import {
   resumirComparacao,
 } from './modules/diffLetrasComparativo.js';
@@ -170,7 +161,6 @@ import {
   mostrarBannerAtualizacaoPronta,
   mostrarBannerCompanionDisponivel,
   mostrarBannerCompanionProgresso,
-  registrarDependenciasBannerAtualizacao,
 } from './painel/bannerAtualizacao.js';
 import {
   fecharModoDocs,
@@ -666,6 +656,7 @@ import {
   rotuloVersaoMaiusculo,
   sufixoRotuloVersaoPlaylist,
 } from './painel/playlistLinhaUi.js';
+import { APRESENTACAO_IDX_CARD5, estadoPainel, projecao } from './painel/estadoPainel.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -679,18 +670,12 @@ registrarDependenciasAppDialog({
   normalizarTemaPlaylist: (...a) => normalizarTemaPlaylist(...a),
 });
 registrarDependenciasMenuLyra({
-  getSocket: () => socket,
   emModoProjecaoLocal: (...a) => emModoProjecaoLocal(...a),
   interromperReconexaoSocket: (...a) => interromperReconexaoSocket(...a),
   correrPreVooDoCulto: (...a) => correrPreVooDoCulto(...a),
   recarregarPainelControlador: (...a) => recarregarPainelControlador(...a),
   alternarProjecaoNestaMaquina: (...a) => alternarProjecaoNestaMaquina(...a),
   abrirCfgModal: (...a) => abrirCfgModal(...a),
-});
-registrarDependenciasBannerAtualizacao({
-  setCompanionHandoffEmCurso: (valor) => {
-    companionHandoffEmCurso = valor;
-  },
 });
 registrarDependenciasDocs({
   apLibFecharMenus,
@@ -716,9 +701,6 @@ registrarDependenciasDocs({
   rotaDesativada,
   salvarRoteamentoTelasNoServidor,
   sincronizarCheckboxLembrarMonitor,
-  getRotasPorModo: () => rotasPorModo,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getProjecao: () => projecao,
 });
 registrarDependenciasContagem({
   abrirCfgModal,
@@ -740,9 +722,6 @@ registrarDependenciasContagem({
   setInputVal,
   setSelVal,
   setSpanText,
-  getRotasPorModo: () => rotasPorModo,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getProjecao: () => projecao,
 });
 registrarDependenciasBiblia({
   aplicarMonitorLembradoAoEntrarNoModo,
@@ -773,15 +752,8 @@ registrarDependenciasBiblia({
   salvarRotasPorModoNoStorage,
   salvarRoteamentoTelasNoServidor,
   sincronizarCheckboxLembrarMonitor,
-  getEstadoServidor: () => estadoServidor,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
   getReconhecimentoVozSlides: () => reconhecimentoVozSlides,
-  getRotasPorModo: () => rotasPorModo,
   getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
-  setEstadoServidor: (valor) => {
-    estadoServidor = valor;
-  },
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
     setUltimoConteudoProjetadoModoUnificado(valor);
   },
@@ -808,19 +780,8 @@ registrarDependenciasConfigExibicao({
   lerBibliaCfgDoFormularioPublico,
   salvarBibliaCfgNoStorage,
   getApresentacaoIdxCard5: () => APRESENTACAO_IDX_CARD5,
-  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
-  getCorComentarioMinistrantePainel: () => corComentarioMinistrantePainel,
-  getProjecao: () => projecao,
-  setApresentacaoCard6AvisoCfg: (valor) => {
-    apresentacaoCard6AvisoCfg = valor;
-  },
-  setCorComentarioMinistrantePainel: (valor) => {
-    corComentarioMinistrantePainel = valor;
-  },
 });
 registrarDependenciasBibliotecaMusicas({
   abrirModalPreviewLetras,
@@ -843,20 +804,6 @@ registrarDependenciasBibliotecaMusicas({
   getSVG_MENU_EDITAR: () => SVG_MENU_EDITAR,
   getSVG_MENU_EXCLUIR: () => SVG_MENU_EXCLUIR,
   getSVG_MENU_INSERIR: () => SVG_MENU_INSERIR,
-  getBancoSqliteListaExpandida: () => bancoSqliteListaExpandida,
-  setBancoSqliteListaExpandida: (valor) => {
-    bancoSqliteListaExpandida = valor;
-  },
-  getCultoId: () => cultoId,
-  getLetrasSiteFonte: () => letrasSiteFonte,
-  setLetrasSiteFonte: (valor) => {
-    letrasSiteFonte = valor;
-  },
-  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
-  getTodasMusicas: () => todasMusicas,
-  setTodasMusicas: (valor) => {
-    todasMusicas = valor;
-  },
 });
 registrarDependenciasVersoesMusica({
   atualizarCopiaLocal,
@@ -884,45 +831,6 @@ registrarDependenciasVersoesMusica({
   rotuloVersaoMaiusculo,
   splitTextoLetraCompletaEmEstrofes,
   temEdicaoMusicaNaoGravada,
-  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
-  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
-    bloqueioSincronizarEstrofeDoServidor = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  getMusicaAtiva: () => musicaAtiva,
-  setMusicaAtiva: (valor) => {
-    musicaAtiva = valor;
-  },
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  setMusicaBancoFonte: (valor) => {
-    musicaBancoFonte = valor;
-  },
-  getMusicaRootId: () => musicaRootId,
-  setMusicaRootId: (valor) => {
-    musicaRootId = valor;
-  },
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
-  setMusicaVersaoLocalId: (valor) => {
-    musicaVersaoLocalId = valor;
-  },
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  setProjecaoMusicaEmitidaNoServidor: (valor) => {
-    projecaoMusicaEmitidaNoServidor = valor;
-  },
-  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
-  setSnapshotEdicaoEstrofes: (valor) => {
-    snapshotEdicaoEstrofes = valor;
-  },
-  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
-  setSnapshotLetraCompleta: (valor) => {
-    snapshotLetraCompleta = valor;
-  },
-  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
 });
 registrarDependenciasLetraCompleta({
   atualizarPreviewOperador,
@@ -939,47 +847,6 @@ registrarDependenciasLetraCompleta({
   renderEstrofesEditor,
   sairModoComparativoParaTrocarModo,
   sincronizarFlagCaixaLetrasComTextoAtual,
-  getComparativoLados: () => comparativoLados,
-  setComparativoLados: (valor) => {
-    comparativoLados = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getHomeLayout: () => homeLayout,
-  getLetraCompletaEditando: () => letraCompletaEditando,
-  setLetraCompletaEditando: (valor) => {
-    letraCompletaEditando = valor;
-  },
-  getModoComparativoCentral: () => modoComparativoCentral,
-  setModoComparativoCentral: (valor) => {
-    modoComparativoCentral = valor;
-  },
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  setModoEdicaoEstrofes: (valor) => {
-    modoEdicaoEstrofes = valor;
-  },
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  setModoLetraCompletaCentral: (valor) => {
-    modoLetraCompletaCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  getSnapshotComparativo: () => snapshotComparativo,
-  setSnapshotComparativo: (valor) => {
-    snapshotComparativo = valor;
-  },
-  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
-  setSnapshotEdicaoEstrofes: (valor) => {
-    snapshotEdicaoEstrofes = valor;
-  },
-  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
-  setSnapshotLetraCompleta: (valor) => {
-    snapshotLetraCompleta = valor;
-  },
 });
 registrarDependenciasComparativoVersoes({
   atualizarBotoesSalvarCancelarBarraPadrao,
@@ -993,31 +860,6 @@ registrarDependenciasComparativoVersoes({
   obterRootIdMusicaAtiva,
   renderSlidesStrip,
   renderEstrofesEditor,
-  getComparativoLados: () => comparativoLados,
-  setComparativoLados: (valor) => {
-    comparativoLados = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getModoComparativoCentral: () => modoComparativoCentral,
-  setModoComparativoCentral: (valor) => {
-    modoComparativoCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  setMusicaAtiva: (valor) => {
-    musicaAtiva = valor;
-  },
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getMusicaRootId: () => musicaRootId,
-  setMusicaRootId: (valor) => {
-    musicaRootId = valor;
-  },
-  getSnapshotComparativo: () => snapshotComparativo,
-  setSnapshotComparativo: (valor) => {
-    snapshotComparativo = valor;
-  },
 });
 registrarDependenciasEditorEstrofes({
   abrirSlideQuickEditModal,
@@ -1043,57 +885,6 @@ registrarDependenciasEditorEstrofes({
   repontarVersaoNaPlaylistDoCulto,
   splitTextoEmEstrofesPorLinhaVaziaStrict,
   versaoAtivaParaCompararPlaylist,
-  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
-  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
-    bloqueioSincronizarEstrofeDoServidor = valor;
-  },
-  getCaixaLetrasEdicaoMaiuscula: () => caixaLetrasEdicaoMaiuscula,
-  setCaixaLetrasEdicaoMaiuscula: (valor) => {
-    caixaLetrasEdicaoMaiuscula = valor;
-  },
-  getCultoId: () => cultoId,
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getHomeLayout: () => homeLayout,
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  setModoEdicaoEstrofes: (valor) => {
-    modoEdicaoEstrofes = valor;
-  },
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  setModoLetraCompletaCentral: (valor) => {
-    modoLetraCompletaCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  setMusicaAtiva: (valor) => {
-    musicaAtiva = valor;
-  },
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  setMusicaBancoFonte: (valor) => {
-    musicaBancoFonte = valor;
-  },
-  getMusicaRootId: () => musicaRootId,
-  setMusicaRootId: (valor) => {
-    musicaRootId = valor;
-  },
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
-  setMusicaVersaoLocalId: (valor) => {
-    musicaVersaoLocalId = valor;
-  },
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  setProjecaoMusicaEmitidaNoServidor: (valor) => {
-    projecaoMusicaEmitidaNoServidor = valor;
-  },
-  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
-  setSnapshotEdicaoEstrofes: (valor) => {
-    snapshotEdicaoEstrofes = valor;
-  },
-  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
-  setSnapshotLetraCompleta: (valor) => {
-    snapshotLetraCompleta = valor;
-  },
 });
 registrarDependenciasPlaylistTemas({
   getControllerApiBase,
@@ -1102,20 +893,9 @@ registrarDependenciasPlaylistTemas({
   marcarBancoCompartilhadoAlterado,
   savePlaylists,
   setTemaSelecionadoAtual,
-  getPlaylists: () => playlists,
-  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
-  getTemasPorCulto: () => temasPorCulto,
 });
 registrarDependenciasCopiasLocaisPainel({
   getControllerApiBase,
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getMusicaRootId: () => musicaRootId,
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
-  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
-  setVersoesMusicaServidorCache: (valor) => {
-    versoesMusicaServidorCache = valor;
-  },
 });
 registrarDependenciasCultoDoDia({
   fecharOutrosSeletoresDropdown,
@@ -1123,18 +903,6 @@ registrarDependenciasCultoDoDia({
   marcarBancoCompartilhadoAlterado,
   onCultoChange,
   savePlaylists,
-  getCultoId: () => cultoId,
-  setCultoId: (valor) => {
-    cultoId = valor;
-  },
-  getCultosDoMesCache: () => cultosDoMesCache,
-  getCultosManuaisCache: () => cultosManuaisCache,
-  setCultosManuaisCache: (valor) => {
-    cultosManuaisCache = valor;
-  },
-  getPlaylists: () => playlists,
-  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
-  getTemasPorCulto: () => temasPorCulto,
 });
 registrarDependenciasPlaylistCompartilhar({
   addMusicaNaPlaylistParaCulto,
@@ -1147,14 +915,6 @@ registrarDependenciasPlaylistCompartilhar({
   renderPlaylist,
   renderSeletorTemasPlaylist,
   savePlaylists,
-  getCultoId: () => cultoId,
-  setCultoId: (valor) => {
-    cultoId = valor;
-  },
-  getCultosManuaisCache: () => cultosManuaisCache,
-  setCultosManuaisCache: (valor) => {
-    cultosManuaisCache = valor;
-  },
 });
 registrarDependenciasSincronizacaoBanco({
   emitirPlaylistsDoControlador,
@@ -1165,18 +925,6 @@ registrarDependenciasSincronizacaoBanco({
   onCultoChange,
   ponteProjecaoLocal,
   renderSeletorTemasPlaylist,
-  getCultosManuaisCache: () => cultosManuaisCache,
-  setCultosManuaisCache: (valor) => {
-    cultosManuaisCache = valor;
-  },
-  getPlaylists: () => playlists,
-  setPlaylists: (valor) => {
-    playlists = valor;
-  },
-  getTemasPorCulto: () => temasPorCulto,
-  setTemasPorCulto: (valor) => {
-    temasPorCulto = valor;
-  },
 });
 registrarDependenciasPlaylistTransmitidas({
   ehModoSlidesOperador,
@@ -1186,15 +934,6 @@ registrarDependenciasPlaylistTransmitidas({
   playlistItemMesmaVersaoQueAtiva,
   playlistItemMesmaVersaoQueSelecaoUi,
   renderPlaylist,
-  getCultoId: () => cultoId,
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
-  setSlidesRailUserRecolhido: (valor) => {
-    slidesRailUserRecolhido = valor;
-  },
 });
 registrarDependenciasMinistrantesTons({
   atualizarPreviewOperador,
@@ -1210,15 +949,6 @@ registrarDependenciasMinistrantesTons({
   savePlaylists,
   setupLyraSelectDropdownWrap,
   renderPlaylist,
-  getCultoId: () => cultoId,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getMusicaAtiva: () => musicaAtiva,
-  getPlaylists: () => playlists,
-  setPlaylists: (valor) => {
-    playlists = valor;
-  },
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
 });
 registrarDependenciasPlaylistLista({
   ehModoSlidesOperador,
@@ -1232,9 +962,6 @@ registrarDependenciasPlaylistLista({
   savePlaylists,
   setTemaSelecionadoAtual,
   sufixoRotuloVersaoPlaylist,
-  getCultoId: () => cultoId,
-  getMusicaAtiva: () => musicaAtiva,
-  getPlaylists: () => playlists,
 });
 registrarDependenciasPlaylistAdicionar({
   formatarRotuloVersaoExibicao,
@@ -1244,11 +971,6 @@ registrarDependenciasPlaylistAdicionar({
   onCultoChange,
   rotuloVersaoMaiusculo,
   savePlaylists,
-  getCultoId: () => cultoId,
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getTemasPorCulto: () => temasPorCulto,
-  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
 });
 registrarDependenciasPlaylistMenus({
   ehModoSlidesOperador,
@@ -1260,7 +982,6 @@ registrarDependenciasPlaylistMenus({
   renderSeletorTemasPlaylist,
   savePlaylists,
   setTemaSelecionadoAtual,
-  getCultoId: () => cultoId,
 });
 registrarDependenciasVideoApresentacao({
   atualizarFeedbackProjecaoApresentacaoUi,
@@ -1282,24 +1003,6 @@ registrarDependenciasVideoApresentacao({
   prepararPlayerVideoAposProjetar,
   renderGridApresentacao,
   tocarAudioServidorApresentacao,
-  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
-  get_playlistProjetando: () => _playlistProjetando,
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  setApresentacaoMidiaProjetadaId: (valor) => {
-    apresentacaoMidiaProjetadaId = valor;
-  },
-  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
-  getAudioStateRemoto: () => audioStateRemoto,
-  getPlaylistVideoAtiva: () => playlistVideoAtiva,
-  setPlaylistVideoAtiva: (valor) => {
-    playlistVideoAtiva = valor;
-  },
 });
 registrarDependenciasPlayerLocalMidia({
   armarGuardaVisualRetomadaAudio,
@@ -1310,28 +1013,6 @@ registrarDependenciasPlayerLocalMidia({
   aoTerminarVideoPlaylist,
   atualizarPlaylistUiAoVivoSeMudou,
   playlistControlaReproducaoAtual,
-  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
-  getAudioLoopAtivo: () => audioLoopAtivo,
-  setAudioLoopAtivo: (valor) => {
-    audioLoopAtivo = valor;
-  },
-  getAudioLoopReinicioPendente: () => audioLoopReinicioPendente,
-  setAudioLoopReinicioPendente: (valor) => {
-    audioLoopReinicioPendente = valor;
-  },
-  getAudioSeekDragging: () => audioSeekDragging,
-  getAudioStateRemoto: () => audioStateRemoto,
-  setAudioStateRemoto: (valor) => {
-    audioStateRemoto = valor;
-  },
-  getProjecao: () => projecao,
 });
 registrarDependenciasBibliotecaMidiasApresentacao({
   atualizarFeedbackProjecaoApresentacaoUi,
@@ -1341,38 +1022,6 @@ registrarDependenciasBibliotecaMidiasApresentacao({
   sincronizarPillProjecaoNav,
   adicionarArquivosAoMenu,
   renderGridApresentacao,
-  getApresentacaoArquivoSelecionadoId: () => apresentacaoArquivoSelecionadoId,
-  setApresentacaoArquivoSelecionadoId: (valor) => {
-    apresentacaoArquivoSelecionadoId = valor;
-  },
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoAudios: () => apresentacaoAudios,
-  setApresentacaoAudios: (valor) => {
-    apresentacaoAudios = valor;
-  },
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  setApresentacaoBiblioteca: (valor) => {
-    apresentacaoBiblioteca = valor;
-  },
-  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
-  setApresentacaoCard4Imagens: (valor) => {
-    apresentacaoCard4Imagens = valor;
-  },
-  getApresentacaoCards: () => apresentacaoCards,
-  setApresentacaoCards: (valor) => {
-    apresentacaoCards = valor;
-  },
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  setApresentacaoMidiaProjetadaId: (valor) => {
-    apresentacaoMidiaProjetadaId = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
-  setAudioStateRemoto: (valor) => {
-    audioStateRemoto = valor;
-  },
 });
 registrarDependenciasPlaylistVideoApresentacao({
   atualizarFeedbackProjecaoApresentacaoUi,
@@ -1380,41 +1029,6 @@ registrarDependenciasPlaylistVideoApresentacao({
   encerrarModoApresentacaoNoTelao,
   salvarEstadoModoApresentacaoNoStorage,
   renderGridApresentacao,
-  get_playlistProjetando: () => _playlistProjetando,
-  set_playlistProjetando: (valor) => {
-    _playlistProjetando = valor;
-  },
-  get_playlistUiTocandoCache: () => _playlistUiTocandoCache,
-  set_playlistUiTocandoCache: (valor) => {
-    _playlistUiTocandoCache = valor;
-  },
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoAudios: () => apresentacaoAudios,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
-  setApresentacaoVideoPlaylist: (valor) => {
-    apresentacaoVideoPlaylist = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
-  getPlaylistVideoAtiva: () => playlistVideoAtiva,
-  setPlaylistVideoAtiva: (valor) => {
-    playlistVideoAtiva = valor;
-  },
-  getPlaylistVideoAtrasoAuto: () => playlistVideoAtrasoAuto,
-  setPlaylistVideoAtrasoAuto: (valor) => {
-    playlistVideoAtrasoAuto = valor;
-  },
-  getPlaylistVideoIndice: () => playlistVideoIndice,
-  setPlaylistVideoIndice: (valor) => {
-    playlistVideoIndice = valor;
-  },
-  getPlaylistVideoModo: () => playlistVideoModo,
-  setPlaylistVideoModo: (valor) => {
-    playlistVideoModo = valor;
-  },
 });
 registrarDependenciasGridApresentacao({
   agendarSalvarEstadoAposDigitarAviso,
@@ -1428,30 +1042,7 @@ registrarDependenciasGridApresentacao({
   flushSalvarEstadoAposDigitarAviso,
   projetarAvisoCard6,
   salvarEstadoModoApresentacaoNoStorage,
-  getAPRESENTACAO_IDX_CARD4: () => APRESENTACAO_IDX_CARD4,
-  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
   getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
-  getApresentacaoCard4InputTarget: () => apresentacaoCard4InputTarget,
-  setApresentacaoCard4InputTarget: (valor) => {
-    apresentacaoCard4InputTarget = valor;
-  },
-  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
-  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
-  setApresentacaoCard6Texto: (valor) => {
-    apresentacaoCard6Texto = valor;
-  },
-  getApresentacaoCardInputTarget: () => apresentacaoCardInputTarget,
-  setApresentacaoCardInputTarget: (valor) => {
-    apresentacaoCardInputTarget = valor;
-  },
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  setApresentacaoMidiaProjetadaId: (valor) => {
-    apresentacaoMidiaProjetadaId = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
 });
 registrarDependenciasEstadoApresentacao({
   algumCampoAvisoCard6EmEdicao,
@@ -1464,58 +1055,6 @@ registrarDependenciasEstadoApresentacao({
   normalizarRota,
   renderRoteamentoTelas,
   salvarAvisoCard6CfgNoStorage,
-  getAPRESENTACAO_IDX_CARD4: () => APRESENTACAO_IDX_CARD4,
-  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
-  get_playlistUiTocandoCache: () => _playlistUiTocandoCache,
-  set_playlistUiTocandoCache: (valor) => {
-    _playlistUiTocandoCache = valor;
-  },
-  getApresentacaoArquivoSelecionadoId: () => apresentacaoArquivoSelecionadoId,
-  setApresentacaoArquivoSelecionadoId: (valor) => {
-    apresentacaoArquivoSelecionadoId = valor;
-  },
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoAudios: () => apresentacaoAudios,
-  setApresentacaoAudios: (valor) => {
-    apresentacaoAudios = valor;
-  },
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  setApresentacaoBiblioteca: (valor) => {
-    apresentacaoBiblioteca = valor;
-  },
-  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
-  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
-  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
-  getApresentacaoCards: () => apresentacaoCards,
-  setApresentacaoCards: (valor) => {
-    apresentacaoCards = valor;
-  },
-  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
-  setApresentacaoVideoPlaylist: (valor) => {
-    apresentacaoVideoPlaylist = valor;
-  },
-  getAudioLoopAtivo: () => audioLoopAtivo,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getPlaylistVideoAtiva: () => playlistVideoAtiva,
-  setPlaylistVideoAtiva: (valor) => {
-    playlistVideoAtiva = valor;
-  },
-  getPlaylistVideoAtrasoAuto: () => playlistVideoAtrasoAuto,
-  setPlaylistVideoAtrasoAuto: (valor) => {
-    playlistVideoAtrasoAuto = valor;
-  },
-  getPlaylistVideoIndice: () => playlistVideoIndice,
-  setPlaylistVideoIndice: (valor) => {
-    playlistVideoIndice = valor;
-  },
-  getPlaylistVideoModo: () => playlistVideoModo,
-  setPlaylistVideoModo: (valor) => {
-    playlistVideoModo = valor;
-  },
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasSlidesStrip({
   ajustarEncaixeGrelhaSlidesModoSlides,
@@ -1534,18 +1073,7 @@ registrarDependenciasSlidesStrip({
   marcacaoEstrofeEditor,
   podeAtualizarSomenteAtivoFaixaSlides,
   projetarPorDuploCliqueCentral,
-  getEstadoServidor: () => estadoServidor,
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
   getSlidesGrelha: () => slidesGrelha,
-  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
 });
 registrarDependenciasProjecaoLocalObs({
   atualizarUiConexao,
@@ -1555,12 +1083,6 @@ registrarDependenciasProjecaoLocalObs({
   getServidorIp,
   recordarIpsDestaMaquina,
   setStatusServidorRemoto,
-  getPapelControladorLocal: () => papelControladorLocal,
-  setPapelControladorLocal: (valor) => {
-    papelControladorLocal = valor;
-  },
-  getProjecao: () => projecao,
-  getSocket: () => socket,
 });
 registrarDependenciasPreviewLetras({
   getControllerApiBase,
@@ -1573,13 +1095,6 @@ registrarDependenciasPreVoo({
   normalizarRota,
   obterRotaSlidesParaUi,
   sanitizarRotaProjecao,
-  getApresentacaoAudios: () => apresentacaoAudios,
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
-  getCultoId: () => cultoId,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasRemoverMusicaBanco({
   ehModoSlidesOperador,
@@ -1587,68 +1102,10 @@ registrarDependenciasRemoverMusicaBanco({
   marcacaoEstrofeEditor,
   removerMusicaDeTodasPlaylists,
   atualizarPreviewOperador,
-  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
-  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
-    bloqueioSincronizarEstrofeDoServidor = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  setModoEdicaoEstrofes: (valor) => {
-    modoEdicaoEstrofes = valor;
-  },
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  setModoLetraCompletaCentral: (valor) => {
-    modoLetraCompletaCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  setMusicaAtiva: (valor) => {
-    musicaAtiva = valor;
-  },
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  setMusicaBancoFonte: (valor) => {
-    musicaBancoFonte = valor;
-  },
-  getMusicaRootId: () => musicaRootId,
-  setMusicaRootId: (valor) => {
-    musicaRootId = valor;
-  },
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
-  setMusicaVersaoLocalId: (valor) => {
-    musicaVersaoLocalId = valor;
-  },
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  setProjecaoMusicaEmitidaNoServidor: (valor) => {
-    projecaoMusicaEmitidaNoServidor = valor;
-  },
-  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
-  setSelecaoUiBiblioteca: (valor) => {
-    selecaoUiBiblioteca = valor;
-  },
-  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
-  setSelecaoUiPlaylist: (valor) => {
-    selecaoUiPlaylist = valor;
-  },
-  getSlidesDockVisivel: () => slidesDockVisivel,
-  setSlidesDockVisivel: (valor) => {
-    slidesDockVisivel = valor;
-  },
-  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
-  setSnapshotEdicaoEstrofes: (valor) => {
-    snapshotEdicaoEstrofes = valor;
-  },
-  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
-  setVersoesMusicaServidorCache: (valor) => {
-    versoesMusicaServidorCache = valor;
-  },
 });
 registrarDependenciasTituloAberturaPreview({
   getPlaylist,
   playlistItemMesmaVersaoQueAtiva,
-  getCultoId: () => cultoId,
-  getMusicaAtiva: () => musicaAtiva,
 });
 registrarDependenciasPreviewProjecao({
   aplicarPreviewPainelOcultoNoDom,
@@ -1663,16 +1120,6 @@ registrarDependenciasPreviewProjecao({
   musicaEstadoCombinaComAtiva,
   obterRotaSlidesParaUi,
   syncRoteamentoTelasModoSlidesNaUi,
-  getCorComentarioMinistrantePainel: () => corComentarioMinistrantePainel,
-  getEstadoServidor: () => estadoServidor,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  getHomeLayout: () => homeLayout,
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  getSlidesDockVisivel: () => slidesDockVisivel,
 });
 registrarDependenciasPreviewOculto({
   classificarSaidaMonitorMinistranteSlides,
@@ -1682,24 +1129,10 @@ registrarDependenciasPreviewOculto({
   ehModoSlidesOperador,
   indicesEfetivosRoteamentoDualCliente,
   normalizarRota,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasToolbarEdicaoHome({
   atualizarRotuloVersaoNasPlaylists,
   getControllerApiBase,
-  getCaixaLetrasEdicaoMaiuscula: () => caixaLetrasEdicaoMaiuscula,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getHomeLayout: () => homeLayout,
-  getLetraCompletaEditando: () => letraCompletaEditando,
-  setLetraCompletaEditando: (valor) => {
-    letraCompletaEditando = valor;
-  },
-  getModoComparativoCentral: () => modoComparativoCentral,
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
 });
 registrarDependenciasRoteamentoTelas({
   aplicarRotaDoModoAtualNaUiEServidor,
@@ -1720,14 +1153,6 @@ registrarDependenciasRoteamentoTelas({
   salvarRotasPorModoNoStorage,
   sanitizarRotaProjecao,
   emitirEstrofeAoServidor,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  setMonitoresServidorCache: (valor) => {
-    monitoresServidorCache = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecao: () => projecao,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasEventosProjecao({
   agendarRepinturaCompositorAposEstadoServidor,
@@ -1749,72 +1174,9 @@ registrarDependenciasEventosProjecao({
   projetarPorDuploCliqueCentral,
   selecionarMusicaDoBanco,
   sincronizarEstrofeAtiva,
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  getApresentacaoAudios: () => apresentacaoAudios,
   getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
   setApresentacaoAvisoCard6Ativo: (valor) => {
     setApresentacaoAvisoCard6Ativo(valor);
-  },
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  setApresentacaoMidiaProjetadaId: (valor) => {
-    apresentacaoMidiaProjetadaId = valor;
-  },
-  getAudioLoopAtivo: () => audioLoopAtivo,
-  getAudioLoopReinicioPendente: () => audioLoopReinicioPendente,
-  setAudioLoopReinicioPendente: (valor) => {
-    audioLoopReinicioPendente = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
-  setAudioStateRemoto: (valor) => {
-    audioStateRemoto = valor;
-  },
-  getAutoConectarAoIniciarEmCurso: () => autoConectarAoIniciarEmCurso,
-  setAutoConectarAoIniciarEmCurso: (valor) => {
-    autoConectarAoIniciarEmCurso = valor;
-  },
-  getCompanionHandoffEmCurso: () => companionHandoffEmCurso,
-  getEstadoServidor: () => estadoServidor,
-  setEstadoServidor: (valor) => {
-    estadoServidor = valor;
-  },
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
-  },
-  getLyraAssinaturaEstadoProjecaoRecebido: () => lyraAssinaturaEstadoProjecaoRecebido,
-  setLyraAssinaturaEstadoProjecaoRecebido: (valor) => {
-    lyraAssinaturaEstadoProjecaoRecebido = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getPapelControladorLocal: () => papelControladorLocal,
-  setPapelControladorLocal: (valor) => {
-    papelControladorLocal = valor;
-  },
-  getProjecao: () => projecao,
-  getReassumirLocalEmCurso: () => reassumirLocalEmCurso,
-  setReassumirLocalEmCurso: (valor) => {
-    reassumirLocalEmCurso = valor;
-  },
-  getSlidesDockVisivel: () => slidesDockVisivel,
-  setSlidesDockVisivel: (valor) => {
-    slidesDockVisivel = valor;
-  },
-  getSocket: () => socket,
-  setSocket: (valor) => {
-    socket = valor;
-  },
-  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
-  setTemaSelecionadoPorCulto: (valor) => {
-    temaSelecionadoPorCulto = valor;
-  },
-  getTemasPorCulto: () => temasPorCulto,
-  setTemasPorCulto: (valor) => {
-    temasPorCulto = valor;
-  },
-  getUltimaDisplayConfigServidor: () => ultimaDisplayConfigServidor,
-  setUltimaDisplayConfigServidor: (valor) => {
-    ultimaDisplayConfigServidor = valor;
   },
   getUltimoPayloadAvisoCard6: () => getUltimoPayloadAvisoCard6(),
   setUltimoPayloadAvisoCard6: (valor) => {
@@ -1845,89 +1207,10 @@ registrarDependenciasProjecaoMusica({
   playlistItemMesmaVersaoQueAtiva,
   recarregarPainelControlador,
   revelarChipEstrofeFocado,
-  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
-  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
-    bloqueioSincronizarEstrofeDoServidor = valor;
-  },
-  getCultoId: () => cultoId,
-  getEstadoServidor: () => estadoServidor,
-  setEstadoServidor: (valor) => {
-    estadoServidor = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
-  },
-  getLyraAssinaturaEstadoProjecaoRecebido: () => lyraAssinaturaEstadoProjecaoRecebido,
-  setLyraAssinaturaEstadoProjecaoRecebido: (valor) => {
-    lyraAssinaturaEstadoProjecaoRecebido = valor;
-  },
-  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
-  setModoEdicaoEstrofes: (valor) => {
-    modoEdicaoEstrofes = valor;
-  },
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  setModoLetraCompletaCentral: (valor) => {
-    modoLetraCompletaCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  setMusicaAtiva: (valor) => {
-    musicaAtiva = valor;
-  },
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  setMusicaBancoFonte: (valor) => {
-    musicaBancoFonte = valor;
-  },
-  getMusicaRootId: () => musicaRootId,
-  setMusicaRootId: (valor) => {
-    musicaRootId = valor;
-  },
-  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
-  setMusicaVersaoLocalId: (valor) => {
-    musicaVersaoLocalId = valor;
-  },
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  setProjecaoMusicaEmitidaNoServidor: (valor) => {
-    projecaoMusicaEmitidaNoServidor = valor;
-  },
-  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
-  setSelecaoUiBiblioteca: (valor) => {
-    selecaoUiBiblioteca = valor;
-  },
-  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
-  setSelecaoUiPlaylist: (valor) => {
-    selecaoUiPlaylist = valor;
-  },
-  getSlidesDockVisivel: () => slidesDockVisivel,
-  setSlidesDockVisivel: (valor) => {
-    slidesDockVisivel = valor;
-  },
   getSlidesGrelha: () => slidesGrelha,
-  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
-  setSlidesRailUserRecolhido: (valor) => {
-    slidesRailUserRecolhido = valor;
-  },
-  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
-  setSnapshotEdicaoEstrofes: (valor) => {
-    snapshotEdicaoEstrofes = valor;
-  },
-  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
-  setSnapshotLetraCompleta: (valor) => {
-    snapshotLetraCompleta = valor;
-  },
-  getTodasMusicas: () => todasMusicas,
   getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
     setUltimoConteudoProjetadoModoUnificado(valor);
-  },
-  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
-  setVersoesMusicaServidorCache: (valor) => {
-    versoesMusicaServidorCache = valor;
   },
 });
 registrarDependenciasConteudoUnificadoAviso({
@@ -1941,31 +1224,6 @@ registrarDependenciasConteudoUnificadoAviso({
   modoRoteamentoAtual,
   normalizarRota,
   sanitizarIndiceMonitorProjecao,
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  getApresentacaoAudios: () => apresentacaoAudios,
-  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
-  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
-  setApresentacaoCard4Imagens: (valor) => {
-    apresentacaoCard4Imagens = valor;
-  },
-  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
-  setApresentacaoCard6AvisoCfg: (valor) => {
-    apresentacaoCard6AvisoCfg = valor;
-  },
-  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
-  setApresentacaoCard6Texto: (valor) => {
-    apresentacaoCard6Texto = valor;
-  },
-  getApresentacaoCards: () => apresentacaoCards,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  getAudioLoopAtivo: () => audioLoopAtivo,
-  setAudioLoopAtivo: (valor) => {
-    audioLoopAtivo = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getProjecao: () => projecao,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasRotasMonitores({
   avisarMonitoresConfiguradosEmFalta,
@@ -1978,24 +1236,11 @@ registrarDependenciasRotasMonitores({
   rotaSelecionadaNaUi,
   estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
   restaurarRotaSlidesAposLibertarMonitores,
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  getEstadoServidor: () => estadoServidor,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasCanaisProjecao({
   atualizarEstiloRotasDesativadas,
   ehModoSlidesOperador,
   renderRoteamentoTelas,
-  getEstadoServidor: () => estadoServidor,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecao: () => projecao,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasMenuApresentacaoModo({
   aplicarRotaDoModoAtualNaUiEServidor,
@@ -2010,24 +1255,6 @@ registrarDependenciasMenuApresentacaoModo({
   renderItensLyraSelectDropdown,
   renderRoteamentoTelas,
   rotaSelecionadaNaUi,
-  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
-  setApresentacaoAudioAtualId: (valor) => {
-    apresentacaoAudioAtualId = valor;
-  },
-  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
-  setApresentacaoMidiaProjetadaId: (valor) => {
-    apresentacaoMidiaProjetadaId = valor;
-  },
-  getAudioStateRemoto: () => audioStateRemoto,
-  setAudioStateRemoto: (valor) => {
-    audioStateRemoto = valor;
-  },
-  getEstadoServidor: () => estadoServidor,
-  setEstadoServidor: (valor) => {
-    estadoServidor = valor;
-  },
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasModoSlidesOperador({
   aplicarRotaDoModoAtualNaUiEServidor,
@@ -2039,87 +1266,25 @@ registrarDependenciasModoSlidesOperador({
   ehModoSlidesOperador,
   executarComTransicaoUi,
   irParaTelaInicial,
-  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
-  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
-    bloqueioSincronizarEstrofeDoServidor = valor;
-  },
-  getEstadoServidor: () => estadoServidor,
-  setEstadoServidor: (valor) => {
-    estadoServidor = valor;
-  },
-  getEstrofeAtiva: () => estrofeAtiva,
-  setEstrofeAtiva: (valor) => {
-    estrofeAtiva = valor;
-  },
-  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
-  },
-  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
-  setModoLetraCompletaCentral: (valor) => {
-    modoLetraCompletaCentral = valor;
-  },
-  getMusicaAtiva: () => musicaAtiva,
-  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
-  setProjecaoMusicaEmitidaNoServidor: (valor) => {
-    projecaoMusicaEmitidaNoServidor = valor;
-  },
-  getRotasPorModo: () => rotasPorModo,
-  getSlidesDockVisivel: () => slidesDockVisivel,
-  setSlidesDockVisivel: (valor) => {
-    slidesDockVisivel = valor;
-  },
-  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
-  setSlidesRailUserRecolhido: (valor) => {
-    slidesRailUserRecolhido = valor;
-  },
 });
 registrarDependenciasRoteamentoTelasUi({
   ehModoSlidesOperador,
   fecharOutrosSeletoresDropdown,
-  getMonitoresServidorCache: () => monitoresServidorCache,
-  getRotasPorModo: () => rotasPorModo,
 });
 registrarDependenciasSlidesRailLayout({
   ehModoSlidesOperador,
-  getSlidesRailDrag: () => slidesRailDrag,
 });
 registrarDependenciasTemasPlaylistUi({
   fecharMenuOverflowPlaylist,
   getPlaylist,
   playlistItemMesmaVersaoQueAtiva,
   savePlaylists,
-  getCultoId: () => cultoId,
-  getMusicaAtiva: () => musicaAtiva,
-  getPlaylists: () => playlists,
-  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
-  getTemasPorCulto: () => temasPorCulto,
 });
 registrarDependenciasPlaylistServidor({
   getControllerApiBase,
   hostProjecao,
-  getMusicaAtiva: () => musicaAtiva,
-  getMusicaBancoFonte: () => musicaBancoFonte,
-  getPlaylists: () => playlists,
-  getProjecao: () => projecao,
-  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
-  setSelecaoUiBiblioteca: (valor) => {
-    selecaoUiBiblioteca = valor;
-  },
-  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
-  setSelecaoUiPlaylist: (valor) => {
-    selecaoUiPlaylist = valor;
-  },
 });
-/**
- * Porta de projeção — ver `modules/projecaoPorta.js`.
- *
- * Todo comando destinado às telas passa por aqui, e todo retorno sobre o que está
- * projetado entra por aqui. Nasce sem transporte: `iniciarSocket()` liga-lhe o socket.
- * Enquanto não houver transporte, `pronta()` é `false` e nada é enviado — o mesmo que
- * acontecia antes com `socket` ainda `null`.
- */
-const projecao = criarPortaProjecao();
+// (extraído) estado compartilhado → painel/estadoPainel.js
 
 // --- SECÇÃO A: modos de UI, localStorage de layout, ícones ---
 /** v2: padrão é modo completo; chave nova ignora preferência legada que deixava sempre «modo slides» ao abrir o .exe. */
@@ -2399,7 +1564,6 @@ function forcarRepinturaCompositorLyra() {
 window.forcarRepinturaCompositorLyra = forcarRepinturaCompositorLyra;
 
 let lyraRepinturaAposEstadoT = 0;
-let lyraAssinaturaEstadoProjecaoRecebido = null;
 
 function assinaturaEstadoProjecaoRecebido(estado) {
   try {
@@ -2599,22 +1763,14 @@ try {
 // --- SECÇÃO C — Culto do dia, playlists, temas, cópias locais de letra, chaves localStorage ---
 // (extraído) culto do dia → painel/cultoDoDia.js
 
-// (extraído) cópias locais de letra → painel/copiasLocaisPainel.js
-// (extraído) estado da biblioteca → painel/bibliotecaMusicas.js
-let letrasSiteFonte = 'lyra-online';
-// (extraído) lista local renderizada → painel/bibliotecaMusicas.js
-/** Lista de músicas SQLite visível (padrão) ou recolhida. */
-let bancoSqliteListaExpandida = true;
-let cultosDoMesCache = [];
-let cultosManuaisCache = [];
 
 // --- SECÇÃO D — Faixa de slides (dock), zoom, chips; geometria em slidesGrelha.js ---
 const slidesGrelha = criarSlidesGrelha({
   ehModoSlidesOperador,
-  getMusicaAtiva: () => musicaAtiva,
-  getEstrofeAtiva: () => estrofeAtiva,
-  getFaixaHabilitada: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  getProjecaoEmitida: () => projecaoMusicaEmitidaNoServidor,
+  getMusicaAtiva: () => estadoPainel.musicaAtiva,
+  getEstrofeAtiva: () => estadoPainel.estrofeAtiva,
+  getFaixaHabilitada: () => estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  getProjecaoEmitida: () => estadoPainel.projecaoMusicaEmitidaNoServidor,
 });
 
 function applySlidesChipZoomLevel(z) { slidesGrelha.applySlidesChipZoomLevel(z); }
@@ -2719,33 +1875,8 @@ async function enviarComandoAudioProjeccao(evento, payload = {}) {
 
 // (extraído) altura da faixa de slides e da prévia → painel/slidesRailLayout.js
 
-let socket = null;
-let companionHandoffEmCurso = false;
-let autoConectarAoIniciarEmCurso = false;
-let reassumirLocalEmCurso = false;
-// Write-lock: papel deste controlador conforme o servidor (null = ainda desconhecido).
-// { primario: boolean, podeEscrever: boolean, donoAtual: string|null }
-let papelControladorLocal = null;
-// Último display_config autoritativo recebido do servidor — base do "pull" quando somente-leitura.
-let ultimaDisplayConfigServidor = null;
-let apresentacaoBiblioteca = [];
-let apresentacaoCards = Array(6).fill(null);
-/** Índice do card 5 na grelha (0-based = 4); único slot que aceita vídeo. */
-const APRESENTACAO_IDX_CARD5 = 4;
 
-/**
- * Índice do card 4 na grelha (0-based = 3).
- *
- * Ao contrário dos outros, este card não guarda uma mídia: é o recipiente de quatro áreas
- * de imagem independentes, numa grelha 2×2. O slot correspondente em `apresentacaoCards`
- * fica sempre vazio — quem guarda o conteúdo é `apresentacaoCard4Imagens`.
- */
-const APRESENTACAO_IDX_CARD4 = 3;
 
-/** As quatro imagens do card 4, por posição na grelha (0 = cima-esquerda … 3 = baixo-direita). */
-let apresentacaoCard4Imagens = Array(4).fill(null);
-/** Área do card 4 à espera do ficheiro escolhido no seletor, ou `null`. */
-let apresentacaoCard4InputTarget = null;
 // (extraído) seleção do card de 4 imagens → painel/gridApresentacao.js
 
 /** As quatro áreas exibem imagens; o mesmo critério que a prévia dos outros cards usa. */
@@ -2755,160 +1886,28 @@ function ehItemImagemApresentacao(it) {
   return kind === 'image' || mime.startsWith('image/') || /^data:image\//i.test(String(it?.src || ''));
 }
 
-/** Texto editável do card 6 (avisos); não usa ficheiro. */
-let apresentacaoCard6Texto = '';
-/** Configuração global do card 6 — aplicada igualmente ao público e ministrante. */
-let apresentacaoCard6AvisoCfg = clonarCfgAvisoCard6Padrao();
-let apresentacaoAudios = [];
-let apresentacaoArquivoSelecionadoId = null;
-/** Id do item de vídeo/imagem/PDF/web projetado no telão público (não áudio) — destaque no card e roda-pé. */
-let apresentacaoMidiaProjetadaId = null;
-let apresentacaoAudioAtualId = null;
-let audioStateRemoto = {
-  playing: false,
-  currentTime: 0,
-  duration: 0,
-  volume: 1,
-  name: '',
-  /** 'audio' | 'video' — qual elemento `<audio>` / `<video>` o player universal controla. */
-  mediaKind: '',
-};
-let audioLoopAtivo = false;
-let audioLoopReinicioPendente = false;
-// (extraído) volume antes de mutar → painel/playerLocalMidia.js
-/** ─── Playlist de vídeos (modo Mídias) — camada sobre o motor de vídeo único ─── */
-let apresentacaoVideoPlaylist = [];
-/** Índice do item atualmente carregado/reproduzido na playlist (-1 = nenhum). */
-let playlistVideoIndice = -1;
-/** 'manual' (padrão) | 'auto' — comportamento ao terminar um vídeo. */
-let playlistVideoModo = 'manual';
-/** Segundos de intervalo antes de iniciar o próximo no modo automático (0,1,2,3,5). */
-let playlistVideoAtrasoAuto = 0;
-/** true quando a playlist é o contexto que controla o player de vídeo. */
-let playlistVideoAtiva = false;
-// (extraído) timer da playlist de vídeos → painel/playlistVideoApresentacao.js
-/** Guarda: reaproveita projetarItemApresentacao sem desativar a playlist. */
-let _playlistProjetando = false;
-// (extraído) arrastar na playlist de vídeos → painel/playlistVideoApresentacao.js
-/** Cache do estado tocando/pausado para atualizar a UI só em transições. */
-let _playlistUiTocandoCache = null;
-// (extraído) guarda visual do áudio → painel/estadoApresentacao.js
-let audioSeekDragging = false;
-let apresentacaoCardInputTarget = null;
-let rotasPorModo = {
-  completo: { publicoIndex: -1, ministranteIndex: -1 },
-  slides: { publicoIndex: -1, ministranteIndex: -1 },
-  apresentacao: { publicoIndex: -1, ministranteIndex: -1 },
-  apresentacaoAviso: { publicoIndex: -1, ministranteIndex: -1 },
-  biblia: { publicoIndex: -1, ministranteIndex: -1 },
-  /* Rota só do DOCS — estado próprio, nunca espelhado em `apresentacao` nem em `biblia`. */
-  docs: { publicoIndex: -1, ministranteIndex: -1 },
-  /* Pin exclusivo do Contador — nunca partilha com o seletor do cabeçalho. */
-  contagem: { publicoIndex: -1, ministranteIndex: -1 },
-};
-let musicaAtiva = null;
-/**
- * Destaque visual da Biblioteca — exclusivo em relação à Playlist.
- * `{ id, fonte }` da linha clicada; `null` se nada estiver marcado à esquerda.
- */
-let selecaoUiBiblioteca = null;
-/**
- * Destaque visual da Playlist — exclusivo em relação à Biblioteca.
- * `{ id, versaoLocalId, fonte }` do item clicado; `null` se nada estiver marcado à direita.
- */
-let selecaoUiPlaylist = null;
-/** `user` — SQLite do servidor · `catalog` — `catalog.db` somente leitura (mesmo `id` pode existir nos dois). */
-let musicaBancoFonte = 'user';
-/** `null` = letra do servidor (original ou cópia com id próprio); id `c_*` = cópia legada em localStorage. */
-let musicaVersaoLocalId = null;
-/** Âncora da família de versões no SQLite (`root_id`). */
-let musicaRootId = null;
-/** Cache de `GET /api/musicas/:id/versoes` para a barra de versões. */
-let versoesMusicaServidorCache = { rootId: null, versoes: [] };
-let estrofeAtiva = -1;
-let todasMusicas = [];
-let estadoServidor = null;
-// (extraído) estado da prévia oculta → painel/previewOculto.js
-/** Composição visual da Home; música, versões e edição continuam neste núcleo. */
-let homeLayout = null;
 // (extraído) sincronização do estado → painel/estadoApresentacao.js
 // (extraído) timer do aviso ao vivo → painel/conteudoUnificadoAviso.js
 
-// (extraído) estado do modo apresentação → painel/estadoApresentacao.js
-let cultoId = '';
-let playlists = {};
-let temaSelecionadoPorCulto = {};
-let temasPorCulto = {};
-/** Só permite editar/apagar estrofes após «Editar letra». */
-let modoEdicaoEstrofes = false;
-/** true = TODAS MAIÚSCULAS na edição; false = 1.ª maiúscula + resto minúsculas (por linha). */
-let caixaLetrasEdicaoMaiuscula = false;
-/** Coluna central: ver letra inteira num só bloco (cópia), em vez dos cartões por slide. */
-let modoLetraCompletaCentral = false;
-/** Letra completa tem dois modos: visualização (somente leitura) e edição (depois de «Editar»). */
-let letraCompletaEditando = false;
-/** Cópia ao entrar no modo letra completa — «Cancelar» restaura isto (não aplica o textarea). */
-let snapshotLetraCompleta = null;
-/**
- * MODO COMPARATIVO — duas versões da mesma música lado a lado.
- *
- * Vive à parte dos outros dois modos da coluna central (cartões por slide e
- * letra completa): tem painel próprio, guarda o seu próprio par de versões e
- * grava directamente por `id` de versão, sem passar por `musicaAtiva`. É por
- * isso que não mexe em nada do fluxo de edição existente.
- */
-let modoComparativoCentral = false;
-/** `{ a: LadoComparativo, b: LadoComparativo }` das versões carregadas. */
-let comparativoLados = null;
-/** Estrofes de cada lado ao abrir — «Cancelar» descarta contra isto. */
-let snapshotComparativo = null;
-/** Cópia ao entrar em edição — «Encerrar edição» restaura isto (não grava). */
-let snapshotEdicaoEstrofes = null;
-// (extraído) estado do editor → painel/editorEstrofes.js
-/**
- * Faixa inferior de slides: no modo controlador só após duplo clique num slide central.
- * No modo slides fica visível ao escolher música na playlist (sem projetar até duplo clique na lista).
- */
-let slidesDockVisivel = false;
-/** Modo slides: após ESC a música é desmarcada; ao escolher outra na playlist a faixa volta a abrir. */
-let slidesRailUserRecolhido = false;
-/**
- * Modo slides: a grelha de chips só aparece após escolher música na playlist (não ao carregar do banco na coluna esquerda).
- * Ao entrar no modo slides fica sempre false até clique/dupro na playlist ou «Próxima música».
- */
-let faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-/**
- * Quando false, mudanças de estrofe só atualizam o painel (sem enviar às telas) até o primeiro duplo clique
- * na faixa de slides ou no cartão central — ou até «Próxima música», sincronização do servidor, etc.
- */
-let projecaoMusicaEmitidaNoServidor = false;
-/**
- * Após escolher música no painel (playlist/banco), não aplicar estado «estado» do socket como se fosse projeção
- * até este cliente emitir `exibir_musica` — senão o servidor continua com a mesma música e os previews voltavam a mostrar letra só com um clique.
- */
-let bloqueioSincronizarEstrofeDoServidor = false;
-// (extraído) temporizador do clique na linha → painel/playlistLinhaUi.js
-let slidesRailDrag = { active: false, alvo: 'faixa', startY: 0, startH: 520 };
-let monitoresServidorCache = [];
 
 document.addEventListener('mousemove', (e) => {
-  if (!slidesRailDrag.active) return;
-  if (slidesRailDrag.alvo === 'previa') {
+  if (!estadoPainel.slidesRailDrag.active) return;
+  if (estadoPainel.slidesRailDrag.alvo === 'previa') {
     /* Para baixo (dy > 0) = prévias maiores, grelha menor. */
-    aplicarAlturaPreviewMod(slidesRailDrag.startH + (e.clientY - slidesRailDrag.startY));
+    aplicarAlturaPreviewMod(estadoPainel.slidesRailDrag.startH + (e.clientY - estadoPainel.slidesRailDrag.startY));
     return;
   }
-  const dy = slidesRailDrag.startY - e.clientY;
-  const nh = clampSlidesRailHeight(slidesRailDrag.startH + dy);
+  const dy = estadoPainel.slidesRailDrag.startY - e.clientY;
+  const nh = clampSlidesRailHeight(estadoPainel.slidesRailDrag.startH + dy);
   document.documentElement.style.setProperty('--slides-rail-height', nh + 'px');
 });
 
 document.addEventListener('mouseup', () => {
-  if (!slidesRailDrag.active) return;
-  slidesRailDrag.active = false;
+  if (!estadoPainel.slidesRailDrag.active) return;
+  estadoPainel.slidesRailDrag.active = false;
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
-  if (slidesRailDrag.alvo === 'previa') {
+  if (estadoPainel.slidesRailDrag.alvo === 'previa') {
     localStorage.setItem(LS_SLIDES_PREVIEW_H_PX, String(alturaPreviewModAtualPx()));
   } else {
     const raw = getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height');
@@ -2959,7 +1958,7 @@ function initCultoSelect() {
   if (!hid || !menu) return;
   menu.innerHTML = '';
   const lista = listarCultosDisponiveis();
-  cultosDoMesCache = [...lista];
+  estadoPainel.cultosDoMesCache = [...lista];
   const mkItem = (value, label, ehManual) => {
     const p = parseLabelCulto(label);
     const li = document.createElement('li');
@@ -2992,25 +1991,25 @@ function initCultoSelect() {
   };
   mkItem('', 'Selecione o dia do culto...');
   if (!lista.length) {
-    cultoId = '';
+    estadoPainel.cultoId = '';
     setCultoSelecionadoNaUi('');
     return;
   }
   lista.forEach((c) => {
     mkItem(c.id, c.label, cultoIdEhManual(c.id));
   });
-  if (!lista.some((c) => c.id === cultoId)) {
-    cultoId = '';
+  if (!lista.some((c) => c.id === estadoPainel.cultoId)) {
+    estadoPainel.cultoId = '';
   }
-  setCultoSelecionadoNaUi(cultoId);
+  setCultoSelecionadoNaUi(estadoPainel.cultoId);
 }
 
 function onCultoChange() {
-  cultoId = document.getElementById('culto-sel')?.value || '';
-  setCultoSelecionadoNaUi(cultoId);
-  if (cultoId) {
-    garantirAberturaNoCatalogoCulto(cultoId);
-    if (garantirMarcadorAberturaNaPlaylist(cultoId)) savePlaylists();
+  estadoPainel.cultoId = document.getElementById('culto-sel')?.value || '';
+  setCultoSelecionadoNaUi(estadoPainel.cultoId);
+  if (estadoPainel.cultoId) {
+    garantirAberturaNoCatalogoCulto(estadoPainel.cultoId);
+    if (garantirMarcadorAberturaNaPlaylist(estadoPainel.cultoId)) savePlaylists();
   }
   renderSeletorTemasPlaylist();
   renderPlaylist();
@@ -3029,15 +2028,6 @@ function onCultoChange() {
 
 // (extraído) título de abertura → painel/tituloAberturaPreview.js
 
-/**
- * Cor efectiva dos comentários na prévia do painel — fonte única para o `style` inline do
- * render E para a var CSS de reforço. Nunca é rebaixada para o padrão: uma config parcial
- * (sem `commentColor`) mantém a cor já aplicada em vez de piscar para o azul de fábrica.
- *
- * Declarada aqui, e não junto de `aplicarCorComentarioMinistranteNoPainel`, porque
- * `carregarSlideCfgInicialDoStorage()` corre no topo do módulo e já aplica a cor.
- */
-let corComentarioMinistrantePainel = COR_COMENTARIO_MINISTRANTE_PADRAO;
 
 // (extraído) helpers da prévia do ministrante → painel/previewProjecao.js
 
@@ -3069,19 +2059,19 @@ function splitTextoEmEstrofesPorLinhaVaziaStrict(texto) {
  * Aplica a regra de linhas vazias num índice (edição rápida ao guardar ou estrofe ao sair do campo).
  */
 function aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, texto, opts = {}) {
-  if (!musicaAtiva || idx < 0 || idx >= musicaAtiva.estrofes.length) return;
+  if (!estadoPainel.musicaAtiva || idx < 0 || idx >= estadoPainel.musicaAtiva.estrofes.length) return;
   const emitSocket = opts.emitSocket !== false;
   const posCaretAposSplit = opts.posCaretAposSplit;
   const parts = splitTextoEmEstrofesPorLinhaVaziaStrict(texto);
-  const eraProjecaoNesteIndice = estrofeAtiva === idx;
+  const eraProjecaoNesteIndice = estadoPainel.estrofeAtiva === idx;
   const delta = parts.length - 1;
 
   if (parts.length === 1) {
-    musicaAtiva.estrofes[idx] = parts[0];
+    estadoPainel.musicaAtiva.estrofes[idx] = parts[0];
   } else {
-    musicaAtiva.estrofes.splice(idx, 1, ...parts);
-    if (estrofeAtiva > idx) estrofeAtiva += delta;
-    else if (estrofeAtiva === idx) estrofeAtiva = idx;
+    estadoPainel.musicaAtiva.estrofes.splice(idx, 1, ...parts);
+    if (estadoPainel.estrofeAtiva > idx) estadoPainel.estrofeAtiva += delta;
+    else if (estadoPainel.estrofeAtiva === idx) estadoPainel.estrofeAtiva = idx;
   }
 
   renderSlidesStrip();
@@ -3089,8 +2079,8 @@ function aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, texto, opts = {}) 
   renderEstrofesEditor();
   marcacaoEstrofeEditor();
 
-  if (emitSocket && projecao.pronta() && eraProjecaoNesteIndice && projecaoMusicaEmitidaNoServidor) {
-    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
+  if (emitSocket && projecao.pronta() && eraProjecaoNesteIndice && estadoPainel.projecaoMusicaEmitidaNoServidor) {
+    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estadoPainel.estrofeAtiva));
   }
 
   if (posCaretAposSplit != null && parts.length > 1) {
@@ -3110,16 +2100,16 @@ function aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, texto, opts = {}) 
 
 /** Antes de gravar no servidor: aplica linhas vazias em cada caixa (sem depender só do blur). */
 function aplicarSplitsEstrofesDosTextareasAntesDePersistir() {
-  if (!musicaAtiva || !modoEdicaoEstrofes) return;
+  if (!estadoPainel.musicaAtiva || !estadoPainel.modoEdicaoEstrofes) return;
   const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
   if (!tas.length) return;
   const novas = [];
   for (const ta of tas) {
     novas.push(...splitTextoEmEstrofesPorLinhaVaziaStrict(ta.value));
   }
-  musicaAtiva.estrofes = novas.length ? novas : [''];
-  if (estrofeAtiva >= musicaAtiva.estrofes.length) {
-    estrofeAtiva = Math.max(0, musicaAtiva.estrofes.length - 1);
+  estadoPainel.musicaAtiva.estrofes = novas.length ? novas : [''];
+  if (estadoPainel.estrofeAtiva >= estadoPainel.musicaAtiva.estrofes.length) {
+    estadoPainel.estrofeAtiva = Math.max(0, estadoPainel.musicaAtiva.estrofes.length - 1);
   }
   renderSlidesStrip();
   atualizarPreviewOperador();
@@ -3174,7 +2164,7 @@ async function conectar() {
 function getLetrasSiteFonteAtual() {
   const sel = document.getElementById('banco-fonte-select');
   if (sel?.value) return normalizarFonteLetrasSite(sel.value);
-  return normalizarFonteLetrasSite(letrasSiteFonte);
+  return normalizarFonteLetrasSite(estadoPainel.letrasSiteFonte);
 }
 
 function aplicarPlaceholderBuscaLetras() {
@@ -3189,29 +2179,29 @@ function atualizarUiToggleListaBancoSqlite() {
   const aviso = document.getElementById('banco-sqlite-lista-recolhida-aviso');
   const legenda = document.getElementById('bib-origem-legenda');
   if (btn) {
-    btn.setAttribute('aria-expanded', bancoSqliteListaExpandida ? 'true' : 'false');
-    btn.title = bancoSqliteListaExpandida ? 'Recolher lista de músicas' : 'Expandir lista de músicas';
+    btn.setAttribute('aria-expanded', estadoPainel.bancoSqliteListaExpandida ? 'true' : 'false');
+    btn.title = estadoPainel.bancoSqliteListaExpandida ? 'Recolher lista de músicas' : 'Expandir lista de músicas';
   }
   if (lista) {
-    lista.classList.toggle('lista-sqlite--recolhida', !bancoSqliteListaExpandida);
-    lista.setAttribute('aria-hidden', bancoSqliteListaExpandida ? 'false' : 'true');
+    lista.classList.toggle('lista-sqlite--recolhida', !estadoPainel.bancoSqliteListaExpandida);
+    lista.setAttribute('aria-hidden', estadoPainel.bancoSqliteListaExpandida ? 'false' : 'true');
   }
   if (legenda) {
     // A legenda agora pertence ao rodapé fixo, não ao conteúdo recolhível da lista.
     legenda.hidden = false;
   }
   if (aviso) {
-    aviso.hidden = bancoSqliteListaExpandida;
+    aviso.hidden = estadoPainel.bancoSqliteListaExpandida;
   }
   /* Lista recolhida: nada para navegar, e a régua ficaria flutuando sobre o aviso. */
   const navAlfabeto = document.getElementById('bib-nav-alfabeto');
-  if (navAlfabeto) navAlfabeto.hidden = !bancoSqliteListaExpandida;
+  if (navAlfabeto) navAlfabeto.hidden = !estadoPainel.bancoSqliteListaExpandida;
 }
 
 function alternarListaBancoSqlite() {
-  bancoSqliteListaExpandida = !bancoSqliteListaExpandida;
+  estadoPainel.bancoSqliteListaExpandida = !estadoPainel.bancoSqliteListaExpandida;
   try {
-    localStorage.setItem(LS_BANCO_SQLITE_LISTA_ABERTA, bancoSqliteListaExpandida ? '1' : '0');
+    localStorage.setItem(LS_BANCO_SQLITE_LISTA_ABERTA, estadoPainel.bancoSqliteListaExpandida ? '1' : '0');
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -3316,7 +2306,7 @@ function acionarEscSairDaHome() {
     btnSairCentral.click();
     return true;
   }
-  if (!modoLetraCompletaCentral || !musicaAtiva || escDaHomeTemCamadaPorCima()) return false;
+  if (!estadoPainel.modoLetraCompletaCentral || !estadoPainel.musicaAtiva || escDaHomeTemCamadaPorCima()) return false;
   encerrarProjecaoDoControlador({ limparMusica: true });
   return true;
 }
@@ -3388,15 +2378,15 @@ document.addEventListener('keydown', (e) => {
         encerrarProjecaoModoBiblia();
         return;
       }
-    } else if (ehModoSlidesOperador() && projecao.pronta() && projecaoMusicaEmitidaNoServidor) {
+    } else if (ehModoSlidesOperador() && projecao.pronta() && estadoPainel.projecaoMusicaEmitidaNoServidor) {
       /* O modo slide já encerrava com o foco fora de campo; isto cobre o caso simétrico,
          que falhava pela mesma razão e que ninguém notava por ali se digitar menos. */
       e.preventDefault();
-      slidesRailUserRecolhido = true;
+      estadoPainel.slidesRailUserRecolhido = true;
       encerrarProjecaoDoControlador({ limparMusica: true });
       return;
     } else if (
-      modoLetraCompletaCentral &&
+      estadoPainel.modoLetraCompletaCentral &&
       (e.target.id === 'centro-letra-completa-ta' ||
         e.target.id === 'edit-titulo' ||
         e.target.id === 'edit-artista')
@@ -3488,12 +2478,12 @@ document.addEventListener('keydown', (e) => {
         bibliaNavPopupFechar();
       } else if (
         bibliaHaParteProjetada() ||
-        (estadoServidor && estadoServidor.projecaoBibliaMinistrante) ||
-        (estadoServidor &&
-          estadoServidor.tipo === 'biblia' &&
-          !estadoServidor.telaLimpa &&
-          Array.isArray(estadoServidor.linhas) &&
-          estadoServidor.linhas.length)
+        (estadoPainel.estadoServidor && estadoPainel.estadoServidor.projecaoBibliaMinistrante) ||
+        (estadoPainel.estadoServidor &&
+          estadoPainel.estadoServidor.tipo === 'biblia' &&
+          !estadoPainel.estadoServidor.telaLimpa &&
+          Array.isArray(estadoPainel.estadoServidor.linhas) &&
+          estadoPainel.estadoServidor.linhas.length)
       ) {
         e.preventDefault();
         encerrarProjecaoModoBiblia();
@@ -3502,7 +2492,7 @@ document.addEventListener('keydown', (e) => {
     }
     if (ehModoSlidesOperador()) {
       e.preventDefault();
-      slidesRailUserRecolhido = true;
+      estadoPainel.slidesRailUserRecolhido = true;
       encerrarProjecaoDoControlador({ limparMusica: true });
       return;
     }
@@ -3536,44 +2526,44 @@ try {
   garantirBuscaLocalEditavel();
   garantirBuscaLetrasEditavel();
   carregarRotasPorModoDoStorage();
-  playlists = loadPlaylists();
-  cultosManuaisCache = loadCultosManuais();
-  temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
-  temasPorCulto = loadTemasPorCulto();
+  estadoPainel.playlists = loadPlaylists();
+  estadoPainel.cultosManuaisCache = loadCultosManuais();
+  estadoPainel.temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
+  estadoPainel.temasPorCulto = loadTemasPorCulto();
   setAberturaRemovidaPorCulto(loadAberturaRemovidaPorCulto());
   setMinistrantePadraoPorCulto(loadMinistrantePadraoPorCulto());
   podarMinistrantePadraoSemMusicasNaPlaylist();
   migrarPlaylistsCultosAntigos();
   carregarEstadoModoApresentacaoDoStorage();
   const avisoCard6CfgSalva = carregarAvisoCard6CfgDoStorage();
-  if (avisoCard6CfgSalva) apresentacaoCard6AvisoCfg = avisoCard6CfgSalva;
+  if (avisoCard6CfgSalva) estadoPainel.apresentacaoCard6AvisoCfg = avisoCard6CfgSalva;
   carregarBibliaCfgDoStorage();
   setupCultoDropdown();
   setupLyraSelectDropdownWrap(document.getElementById('traducao-sel-dd'));
   setupAdicionarCultoManual();
   configurarNotasSlideControlador({
-    obterMusicaId: () => (musicaAtiva && musicaAtiva.id != null ? Number(musicaAtiva.id) : null),
-    obterVersaoLocalId: () => musicaVersaoLocalId,
-    obterEstrofeAtiva: () => estrofeAtiva,
+    obterMusicaId: () => (estadoPainel.musicaAtiva && estadoPainel.musicaAtiva.id != null ? Number(estadoPainel.musicaAtiva.id) : null),
+    obterVersaoLocalId: () => estadoPainel.musicaVersaoLocalId,
+    obterEstrofeAtiva: () => estadoPainel.estrofeAtiva,
     obterNumSlides: () =>
-      musicaAtiva && Array.isArray(musicaAtiva.estrofes) ? musicaAtiva.estrofes.length : 0,
+      estadoPainel.musicaAtiva && Array.isArray(estadoPainel.musicaAtiva.estrofes) ? estadoPainel.musicaAtiva.estrofes.length : 0,
     ehModoSlides: ehModoSlidesOperador,
   });
   configurarBibliotecaMidiasApresentacao();
   carregarDocsBibliotecaDoStorage();
   configurarBuscaDocsImportados();
   renderListaDocsImportados();
-  cultoId = resolverCultoInicialPorAgenda();
+  estadoPainel.cultoId = resolverCultoInicialPorAgenda();
   initCultoSelect();
-  if (cultoId) onCultoChange();
+  if (estadoPainel.cultoId) onCultoChange();
   document.body.classList.remove('app-mod-slides');
   document.body.classList.remove('app-mod-apresentacao');
   document.body.classList.remove('app-mod-biblia');
   document.body.classList.remove('slides-rail-aberto');
   document.title = 'Lyra — Controlador';
   localStorage.setItem(LS_UI_MODO_SLIDES, '0');
-  slidesDockVisivel = false;
-  faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+  estadoPainel.slidesDockVisivel = false;
+  estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
   const lm = document.getElementById('layout-musicas');
   if (lm) lm.removeAttribute('style');
 
@@ -3619,14 +2609,14 @@ window.addEventListener('beforeunload', () => {
   } catch (_) {
     // intencional — sair da janela nunca pode falhar por causa disto
   }
-  rotasPorModo.apresentacao = rotaDesativada();
-  rotasPorModo.biblia = rotaDesativada();
+  estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
+  estadoPainel.rotasPorModo.biblia = rotaDesativada();
   const ip = hostProjecao();
   if (!ip) return;
   try {
     const payload = JSON.stringify({
       version: 2,
-      slides: normalizarRota(rotasPorModo.slides),
+      slides: normalizarRota(estadoPainel.rotasPorModo.slides),
       apresentacao: rotaDesativada(),
     });
     if (navigator.sendBeacon) {
@@ -3641,23 +2631,23 @@ window.addEventListener('beforeunload', () => {
 });
 
 // A Home compõe os controles existentes; callbacks continuam usando o estado do núcleo.
-homeLayout = montarHomeLayout({
+estadoPainel.homeLayout = montarHomeLayout({
   filtrar,
   atualizar: atualizarToolbarModoEdicao,
   renderPreview: atualizarPreviewPlaylistCentral,
   cartoes: async () => {
     if (!(await sairModoComparativoParaTrocarModo())) return;
-    if (modoLetraCompletaCentral) await irParaGradeSlidesDesdeLetraCompleta();
+    if (estadoPainel.modoLetraCompletaCentral) await irParaGradeSlidesDesdeLetraCompleta();
   },
   letraCompleta: async () => {
-    if (!musicaAtiva || modoLetraCompletaCentral) return;
+    if (!estadoPainel.musicaAtiva || estadoPainel.modoLetraCompletaCentral) return;
     if (!(await sairModoComparativoParaTrocarModo())) return;
     entrarModoLetraCompletaCentral();
   },
   renomearVersao: (nome) => renomearVersaoSelecionadaComNome(nome),
   novoSlide: async () => {
-    if (!musicaAtiva) return;
-    if (!modoEdicaoEstrofes) {
+    if (!estadoPainel.musicaAtiva) return;
+    if (!estadoPainel.modoEdicaoEstrofes) {
       if (!(await confirmarProsseguirDescartandoEdicaoPendente())) return;
       entrarModoEdicao();
     }
@@ -3728,12 +2718,12 @@ document.getElementById('apresentacao-add-card-input')?.addEventListener('change
   if (!f) return;
   /* O mesmo seletor serve os cards e as quatro áreas do card 4; quem o abriu deixou dito
      para onde vai o ficheiro. */
-  if (apresentacaoCard4InputTarget !== null) {
-    const sub = apresentacaoCard4InputTarget;
-    apresentacaoCard4InputTarget = null;
+  if (estadoPainel.apresentacaoCard4InputTarget !== null) {
+    const sub = estadoPainel.apresentacaoCard4InputTarget;
+    estadoPainel.apresentacaoCard4InputTarget = null;
     adicionarImagemNaAreaCard4(f, sub);
   } else {
-    adicionarArquivoDiretoNoCard(f, apresentacaoCardInputTarget ?? 0);
+    adicionarArquivoDiretoNoCard(f, estadoPainel.apresentacaoCardInputTarget ?? 0);
   }
   if (e.target) e.target.value = '';
 });
@@ -3813,18 +2803,18 @@ document.getElementById('ap-audio-loop')?.addEventListener('click', () => {
 document.getElementById('ap-audio-stop')?.addEventListener('click', () => pararAudioServidor());
 document.getElementById('ap-audio-mute')?.addEventListener('click', () => alternarMudoAudioApresentacao());
 document.getElementById('ap-audio-vol-up')?.addEventListener('click', () => {
-  const nextVol = Math.min(1, Math.round((Number(audioStateRemoto.volume) + 0.1) * 10) / 10);
+  const nextVol = Math.min(1, Math.round((Number(estadoPainel.audioStateRemoto.volume) + 0.1) * 10) / 10);
   definirVolumeAudioServidor(nextVol);
 });
 document.getElementById('ap-audio-vol-down')?.addEventListener('click', () => {
-  const nextVol = Math.max(0, Math.round((Number(audioStateRemoto.volume) - 0.1) * 10) / 10);
+  const nextVol = Math.max(0, Math.round((Number(estadoPainel.audioStateRemoto.volume) - 0.1) * 10) / 10);
   definirVolumeAudioServidor(nextVol);
 });
-document.getElementById('ap-audio-seek')?.addEventListener('mousedown', () => { audioSeekDragging = true; });
+document.getElementById('ap-audio-seek')?.addEventListener('mousedown', () => { estadoPainel.audioSeekDragging = true; });
 document.getElementById('ap-audio-seek')?.addEventListener('mouseup', (e) => {
-  audioSeekDragging = false;
+  estadoPainel.audioSeekDragging = false;
   const val = Math.max(0, Math.min(1000, Number(e?.target?.value || 0)));
-  const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
+  const dur = Math.max(0, Number(estadoPainel.audioStateRemoto.duration) || 0);
   const t = dur > 0 ? (val / 1000) * dur : 0;
   seekAudioServidor(t);
 });
@@ -3843,7 +2833,7 @@ document.getElementById('hdr-lembrar-monitor-chk')?.addEventListener('change', (
     modo,
     !!ev.target.checked,
     rotaSelecionadaNaUi(),
-    monitoresServidorCache
+    estadoPainel.monitoresServidorCache
   );
   sincronizarCheckboxLembrarMonitor();
 });
@@ -3854,7 +2844,7 @@ document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () =
   } else if (ehModoBibliaOperador()) {
     encerrarProjecaoModoBiblia();
   } else if (ehModoSlidesOperador()) {
-    slidesRailUserRecolhido = true;
+    estadoPainel.slidesRailUserRecolhido = true;
     encerrarProjecaoDoControlador({ limparMusica: true });
   } else if (ehModoDocsOperador()) {
     encerrarRotaModoDocs();
@@ -3881,8 +2871,8 @@ async function tentarReconnectAposCompanionRelaunch() {
   if (!info?.ip) return false;
 
   const ip = String(info.ip).trim();
-  companionHandoffEmCurso = false;
-  autoConectarAoIniciarEmCurso = true;
+  estadoPainel.companionHandoffEmCurso = false;
+  estadoPainel.autoConectarAoIniciarEmCurso = true;
   try {
     persistirIpServidor(ip);
     const ipInput = document.getElementById('ip-input');
@@ -3915,7 +2905,7 @@ async function tentarReconnectAposCompanionRelaunch() {
     await conectar();
     return true;
   } finally {
-    autoConectarAoIniciarEmCurso = false;
+    estadoPainel.autoConectarAoIniciarEmCurso = false;
   }
 }
 
@@ -3944,7 +2934,7 @@ setTimeout(() => {
      * quando o arranque do local falha (porta ocupada) e cria um socket «fantasma»
      * (`connected` mas badge ainda em Este PC). O caminho novo via a seguir e abortava.
      */
-    if (querAuto) autoConectarAoIniciarEmCurso = true;
+    if (querAuto) estadoPainel.autoConectarAoIniciarEmCurso = true;
     if (!ponte) {
       if (!querAuto) {
         tentarAutoConectarSeDesconectado();

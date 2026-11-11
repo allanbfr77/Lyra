@@ -22,6 +22,7 @@ import { renderSlidesStrip } from './slidesStrip.js';
 import { tratarPedidoSincronizacaoBanco } from './sincronizacaoBanco.js';
 import { videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -54,7 +55,7 @@ const sincronizarEstrofeAtiva = (...a) => dep.sincronizarEstrofeAtiva(...a);
 
 export async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;
-  if (!dep.getProjecao().pronta()) return alert('Conecte ao servidor para projetar.');
+  if (!projecao.pronta()) return alert('Conecte ao servidor para projetar.');
   /* `hostProjecao`, não `getServidorIp`: a pergunta é «onde está a projeção», e no modo
      local a resposta é esta máquina mesmo sem IP nenhum configurado. Com `getServidorIp`
      uma instalação que nunca se ligou a um Servidor abortava aqui, com um pedido de IP
@@ -71,9 +72,9 @@ export async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   const va = versaoAtivaParaCompararPlaylist();
   const vb = item.versaoLocalId ? String(item.versaoLocalId) : '';
   const itemBf = fonteBancoItemPlaylist(item);
-  const curBf = fonteBancoNormalizada(dep.getMusicaBancoFonte());
+  const curBf = fonteBancoNormalizada(estadoPainel.musicaBancoFonte);
   const mesmaMusicaEVersao =
-    dep.getMusicaAtiva() &&
+    estadoPainel.musicaAtiva &&
     Number.isFinite(rootAtivo) &&
     Number(item.id) === rootAtivo &&
     va === vb &&
@@ -86,19 +87,19 @@ export async function playlistDuploCliqueIniciarProjecao(itemOuId) {
       origemUi: 'playlist',
     });
   } else {
-    dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(true);
+    estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
     aplicarSelecaoUiPlaylist(idNum, item.versaoLocalId, itemBf);
     refreshListaBanco();
     renderPlaylist();
     renderSlidesStrip();
   }
-  dep.setSlidesDockVisivel(true);
+  estadoPainel.slidesDockVisivel = true;
   projetarPorDuploCliqueCentral(0);
 }
 
 /** true quando o servidor já informou que este controlador está em somente-leitura (write-lock). */
 export function controladorSomenteLeitura() {
-  return !!(dep.getPapelControladorLocal() && dep.getPapelControladorLocal().podeEscrever === false);
+  return !!(estadoPainel.papelControladorLocal && estadoPainel.papelControladorLocal.podeEscrever === false);
 }
 
 /**
@@ -133,17 +134,17 @@ function aplicarDisplayConfigDoServidorNoPainel(cfg) {
  *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
  */
 function aoReceberDisplayConfigDaProjecao(cfg) {
-  dep.setUltimaDisplayConfigServidor(cfg);
+  estadoPainel.ultimaDisplayConfigServidor = cfg;
   if (controladorSomenteLeitura()) aplicarDisplayConfigDoServidorNoPainel(cfg);
 }
 
 /** Estado do que está projetado nas telas. */
 function aoReceberEstadoDaProjecao(estado) {
   const assinatura = assinaturaEstadoProjecaoRecebido(estado);
-  if (assinatura !== null && assinatura === dep.getLyraAssinaturaEstadoProjecaoRecebido()) return;
-  dep.setLyraAssinaturaEstadoProjecaoRecebido(assinatura);
+  if (assinatura !== null && assinatura === estadoPainel.lyraAssinaturaEstadoProjecaoRecebido) return;
+  estadoPainel.lyraAssinaturaEstadoProjecaoRecebido = assinatura;
 
-  dep.setEstadoServidor(estado);
+  estadoPainel.estadoServidor = estado;
   sincronizarEstrofeAtiva(estado);
   /*
    * ESC no telão (ou outro controlador) encerrou a Bíblia: o marcador local tem de
@@ -178,21 +179,21 @@ function aoReceberEstadoDaProjecao(estado) {
   atualizarBtnModoApresentacao();
   agendarRepinturaCompositorAposEstadoServidor();
   try {
-    if (ehModoApresentacaoOperador() && (dep.getApresentacaoMidiaProjetadaId() || dep.getApresentacaoAvisoCard6Ativo())) {
+    if (ehModoApresentacaoOperador() && (estadoPainel.apresentacaoMidiaProjetadaId || dep.getApresentacaoAvisoCard6Ativo())) {
       const tip = estado && estado.tipo;
       const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
       const pubAp =
         tip === 'apresentacao' ||
         (tip === 'aviso' && dep.getApresentacaoAvisoCard6Ativo()) ||
         minAp;
-      if (dep.getApresentacaoMidiaProjetadaId() && !pubAp && tip !== 'apresentacao') {
-        dep.setApresentacaoMidiaProjetadaId(null);
+      if (estadoPainel.apresentacaoMidiaProjetadaId && !pubAp && tip !== 'apresentacao') {
+        estadoPainel.apresentacaoMidiaProjetadaId = null;
       }
       if (dep.getApresentacaoAvisoCard6Ativo() && tip !== 'aviso' && !minAp) {
         dep.setApresentacaoAvisoCard6Ativo(false);
         dep.setUltimoPayloadAvisoCard6(null);
       }
-      if (!dep.getApresentacaoMidiaProjetadaId() && !dep.getApresentacaoAvisoCard6Ativo()) {
+      if (!estadoPainel.apresentacaoMidiaProjetadaId && !dep.getApresentacaoAvisoCard6Ativo()) {
         atualizarFeedbackProjecaoApresentacaoUi();
       } else {
         atualizarFeedbackProjecaoApresentacaoUi();
@@ -209,38 +210,38 @@ function aoReceberAudioStateDaProjecao(st) {
 
   if (!st || typeof st !== 'object') return;
   if (videoProjetadoAtivoNoPlayer()) return;
-  const estadoAnterior = { ...dep.getAudioStateRemoto() };
+  const estadoAnterior = { ...estadoPainel.audioStateRemoto };
   const stAjustado = ajustarEstadoVisualRetomadaAudio(st, estadoAnterior);
-  dep.setAudioStateRemoto({
-    ...dep.getAudioStateRemoto(),
+  estadoPainel.audioStateRemoto = {
+    ...estadoPainel.audioStateRemoto,
     ...stAjustado,
-  });
-  if (stAjustado.mediaKind) dep.getAudioStateRemoto().mediaKind = stAjustado.mediaKind;
-  if (dep.getAudioStateRemoto().playing) {
-    dep.setAudioLoopReinicioPendente(false);
+  };
+  if (stAjustado.mediaKind) estadoPainel.audioStateRemoto.mediaKind = stAjustado.mediaKind;
+  if (estadoPainel.audioStateRemoto.playing) {
+    estadoPainel.audioLoopReinicioPendente = false;
   }
   atualizarUiPlayerAudioRemoto();
-  const dur = Math.max(0, Number(dep.getAudioStateRemoto().duration) || 0);
-  const atual = Math.max(0, Number(dep.getAudioStateRemoto().currentTime) || 0);
+  const dur = Math.max(0, Number(estadoPainel.audioStateRemoto.duration) || 0);
+  const atual = Math.max(0, Number(estadoPainel.audioStateRemoto.currentTime) || 0);
   const terminouFaixa =
-    dep.getAudioLoopAtivo() &&
-    !dep.getAudioLoopReinicioPendente() &&
+    estadoPainel.audioLoopAtivo &&
+    !estadoPainel.audioLoopReinicioPendente &&
     estadoAnterior.mediaKind === 'audio' &&
     estadoAnterior.playing === true &&
-    dep.getAudioStateRemoto().playing === false &&
+    estadoPainel.audioStateRemoto.playing === false &&
     dur > 0 &&
     atual >= Math.max(0, dur - 0.35) &&
-    !!dep.getApresentacaoAudioAtualId();
+    !!estadoPainel.apresentacaoAudioAtualId;
   if (!terminouFaixa) return;
-  const item = dep.getApresentacaoAudios().find((x) => x.id === dep.getApresentacaoAudioAtualId());
+  const item = estadoPainel.apresentacaoAudios.find((x) => x.id === estadoPainel.apresentacaoAudioAtualId);
   if (!item?.src) return;
-  dep.setAudioLoopReinicioPendente(true);
+  estadoPainel.audioLoopReinicioPendente = true;
   void tocarAudioServidorApresentacao(item, { startTime: 0 }).then((ok) => {
     if (ok) {
       atualizarRodapeAudioApresentacao(item);
       return;
     }
-    dep.setAudioLoopReinicioPendente(false);
+    estadoPainel.audioLoopReinicioPendente = false;
   });
 
 }
@@ -281,8 +282,8 @@ function aoReceberAudioStateDaProjecao(st) {
  */
 async function aoLigarSocketRemoto(_ip) {
   migrarTemasParaGlobal();
-  dep.setTemasPorCulto(loadTemasPorCulto());
-  dep.setTemaSelecionadoPorCulto(loadTemaSelecionadoPorCulto());
+  estadoPainel.temasPorCulto = loadTemasPorCulto();
+  estadoPainel.temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
   setAberturaRemovidaPorCulto(loadAberturaRemovidaPorCulto());
   setMinistrantePadraoPorCulto(loadMinistrantePadraoPorCulto());
   podarMinistrantePadraoSemMusicasNaPlaylist();
@@ -304,7 +305,7 @@ async function aoLigarSocketRemoto(_ip) {
 function aoDisconnectSocketPainel({ descarteCliente }) {
   atualizarUiConexao(false);
   if (descarteCliente) {
-    dep.setApresentacaoMidiaProjetadaId(null);
+    estadoPainel.apresentacaoMidiaProjetadaId = null;
   }
   renderSlidesStrip();
   atualizarPreviewOperador();
@@ -325,8 +326,8 @@ function aoDisconnectSocketPainel({ descarteCliente }) {
 }
 
 export const socketPainel = criarSocketPainel({
-  getSocket: () => dep.getSocket(),
-  setSocket: (s) => { dep.setSocket(s); },
+  getSocket: () => estadoPainel.socket,
+  setSocket: (s) => { estadoPainel.socket = s; },
   io: () => (typeof io !== 'undefined' ? io : undefined),
   getProjecaoLocalActiva: () => getProjecaoLocalActiva(),
   getProjecaoLocalEmCurso: () => getProjecaoLocalEmCurso(),
@@ -335,19 +336,19 @@ export const socketPainel = criarSocketPainel({
   emModoProjecaoLocal,
   ponteProjecaoLocal,
   adotarTransporteSocket: (sock) => {
-    dep.getProjecao().usarTransporte(criarTransporteSocket(sock));
+    projecao.usarTransporte(criarTransporteSocket(sock));
   },
-  getPapelControlador: () => dep.getPapelControladorLocal(),
-  setPapelControlador: (p) => { dep.setPapelControladorLocal(p); },
-  getCompanionHandoffEmCurso: () => dep.getCompanionHandoffEmCurso(),
-  getAutoConectarAoIniciarEmCurso: () => dep.getAutoConectarAoIniciarEmCurso(),
-  setAutoConectarAoIniciarEmCurso: (v) => { dep.setAutoConectarAoIniciarEmCurso(!!v); },
-  getReassumirLocalEmCurso: () => dep.getReassumirLocalEmCurso(),
-  setReassumirLocalEmCurso: (v) => { dep.setReassumirLocalEmCurso(!!v); },
+  getPapelControlador: () => estadoPainel.papelControladorLocal,
+  setPapelControlador: (p) => { estadoPainel.papelControladorLocal = p; },
+  getCompanionHandoffEmCurso: () => estadoPainel.companionHandoffEmCurso,
+  getAutoConectarAoIniciarEmCurso: () => estadoPainel.autoConectarAoIniciarEmCurso,
+  setAutoConectarAoIniciarEmCurso: (v) => { estadoPainel.autoConectarAoIniciarEmCurso = !!v; },
+  getReassumirLocalEmCurso: () => estadoPainel.reassumirLocalEmCurso,
+  setReassumirLocalEmCurso: (v) => { estadoPainel.reassumirLocalEmCurso = !!v; },
   getServidorLanIpObs: () => getServidorLanIpObs(),
   setServidorLanIpObs: (v) => { setServidorLanIpObs(v); },
   setServidorObsPort: (v) => { setServidorObsPort(v); },
-  getUltimaDisplayConfig: () => dep.getUltimaDisplayConfigServidor(),
+  getUltimaDisplayConfig: () => estadoPainel.ultimaDisplayConfigServidor,
   controladorSomenteLeitura,
   aplicarDisplayConfigDoServidor: aplicarDisplayConfigDoServidorNoPainel,
   atualizarUiConexao,
@@ -365,11 +366,11 @@ export const socketPainel = criarSocketPainel({
  * Instruções que corriam no carregamento do núcleo. Chamada pelo núcleo no ponto onde o bloco estava.
  */
 export function iniciarEventosProjecao() {
-  dep.getProjecao().aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
-  dep.getProjecao().aoReceber('solicitar_playlists_controlador', emitirPlaylistsDoControlador);
-  dep.getProjecao().aoReceber('estado', aoReceberEstadoDaProjecao);
-  dep.getProjecao().aoReceber('audio_state', aoReceberAudioStateDaProjecao);
-  dep.getProjecao().aoReceber('monitores_alterados', () => {
+  projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
+  projecao.aoReceber('solicitar_playlists_controlador', emitirPlaylistsDoControlador);
+  projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
+  projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
+  projecao.aoReceber('monitores_alterados', () => {
     void carregarRoteamentoTelasDoServidor().then(() => {
       try { renderSeletorMonitorContagem(); } catch (_) {
         // intencional — o seletor da contagem pode ainda não estar montado

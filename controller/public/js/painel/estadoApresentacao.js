@@ -10,6 +10,7 @@ import { popularFormCfgAvisoCard6 } from './configExibicao.js';
 import { renderGridApresentacao } from './gridApresentacao.js';
 import { renderListaAudiosApresentacao, renderMenuApresentacao } from './bibliotecaMidiasApresentacao.js';
 import { restaurarItemVideoApresentacao } from './videoApresentacao.js';
+import { APRESENTACAO_IDX_CARD4, APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -61,7 +62,7 @@ export function ajustarEstadoVisualRetomadaAudio(st, estadoAnterior) {
     limparGuardaVisualRetomadaAudio();
     return st;
   }
-  if (guard.itemId !== String(dep.getApresentacaoAudioAtualId() || '')) {
+  if (guard.itemId !== String(estadoPainel.apresentacaoAudioAtualId || '')) {
     limparGuardaVisualRetomadaAudio();
     return st;
   }
@@ -93,20 +94,20 @@ export async function encerrarModoApresentacaoNoTelao() {
 
 function coletarEstadoModoApresentacaoAtual() {
   return {
-    biblioteca: (dep.getApresentacaoBiblioteca() || []).map((it) => normalizarItemApresentacao(it)).filter(Boolean),
+    biblioteca: (estadoPainel.apresentacaoBiblioteca || []).map((it) => normalizarItemApresentacao(it)).filter(Boolean),
     cards: Array.from({ length: 6 }, (_, i) => {
       if (i === 5) return null;
-      return normalizarItemApresentacao(dep.getApresentacaoCards()?.[i] || null);
+      return normalizarItemApresentacao(estadoPainel.apresentacaoCards?.[i] || null);
     }),
-    audios: (dep.getApresentacaoAudios() || []).map((it) => normalizarItemApresentacao(it)).filter((it) => it && it.kind === 'audio'),
-    arquivoSelecionadoId: dep.getApresentacaoArquivoSelecionadoId() || '',
-    audioSelecionadoId: dep.getApresentacaoAudioAtualId() || '',
+    audios: (estadoPainel.apresentacaoAudios || []).map((it) => normalizarItemApresentacao(it)).filter((it) => it && it.kind === 'audio'),
+    arquivoSelecionadoId: estadoPainel.apresentacaoArquivoSelecionadoId || '',
+    audioSelecionadoId: estadoPainel.apresentacaoAudioAtualId || '',
     videoPlaylist: {
-      modo: dep.getPlaylistVideoModo() === 'auto' ? 'auto' : 'manual',
-      atrasoAuto: PLAYLIST_ATRASOS_PERMITIDOS.includes(Number(dep.getPlaylistVideoAtrasoAuto()))
-        ? Number(dep.getPlaylistVideoAtrasoAuto())
+      modo: estadoPainel.playlistVideoModo === 'auto' ? 'auto' : 'manual',
+      atrasoAuto: PLAYLIST_ATRASOS_PERMITIDOS.includes(Number(estadoPainel.playlistVideoAtrasoAuto))
+        ? Number(estadoPainel.playlistVideoAtrasoAuto)
         : 0,
-      itens: (dep.getApresentacaoVideoPlaylist() || [])
+      itens: (estadoPainel.apresentacaoVideoPlaylist || [])
         .map((it) => {
           const base = normalizarItemApresentacao(it);
           if (!base || base.kind !== 'video') return null;
@@ -116,14 +117,14 @@ function coletarEstadoModoApresentacaoAtual() {
         .filter(Boolean),
     },
     extras: {
-      audioLoop: !!dep.getAudioLoopAtivo(),
+      audioLoop: !!estadoPainel.audioLoopAtivo,
       /* As quatro áreas do card 4 vão nos extras, e não em `cards`: assim o formato de
          `cards` (seis posições, uma mídia cada) continua o mesmo para quem o lê — o
          storage e o estado partilhado com os outros controladores. */
       card4Imagens: Array.from({ length: 4 }, (_, i) =>
-        normalizarItemApresentacao(dep.getApresentacaoCard4Imagens()?.[i] || null)),
-      card6AvisoTexto: dep.getApresentacaoCard6Texto(),
-      card6AvisoConfig: normalizarCfgAvisoCard6(dep.getApresentacaoCard6AvisoCfg()),
+        normalizarItemApresentacao(estadoPainel.apresentacaoCard4Imagens?.[i] || null)),
+      card6AvisoTexto: estadoPainel.apresentacaoCard6Texto,
+      card6AvisoConfig: normalizarCfgAvisoCard6(estadoPainel.apresentacaoCard6AvisoCfg),
     },
   };
 }
@@ -139,15 +140,15 @@ function aplicarEstadoModoApresentacao(payload, opts = {}) {
   const audios = Array.isArray(p.audios)
     ? p.audios.map(normalizarItemApresentacao).filter((it) => it && it.kind === 'audio')
     : [];
-  dep.setApresentacaoBiblioteca(biblioteca);
-  dep.setApresentacaoCards(cards);
-  dep.setApresentacaoAudios(audios);
+  estadoPainel.apresentacaoBiblioteca = biblioteca;
+  estadoPainel.apresentacaoCards = cards;
+  estadoPainel.apresentacaoAudios = audios;
   const vp = p.videoPlaylist && typeof p.videoPlaylist === 'object' ? p.videoPlaylist : {};
-  dep.setPlaylistVideoModo(vp.modo === 'auto' ? 'auto' : 'manual');
-  dep.setPlaylistVideoAtrasoAuto(PLAYLIST_ATRASOS_PERMITIDOS.includes(Math.round(Number(vp.atrasoAuto)))
+  estadoPainel.playlistVideoModo = vp.modo === 'auto' ? 'auto' : 'manual';
+  estadoPainel.playlistVideoAtrasoAuto = PLAYLIST_ATRASOS_PERMITIDOS.includes(Math.round(Number(vp.atrasoAuto)))
     ? Math.round(Number(vp.atrasoAuto))
-    : 0);
-  dep.setApresentacaoVideoPlaylist(Array.isArray(vp.itens)
+    : 0;
+  estadoPainel.apresentacaoVideoPlaylist = Array.isArray(vp.itens)
     ? vp.itens
         .map((raw) => {
           const base = normalizarItemApresentacao(raw);
@@ -156,24 +157,24 @@ function aplicarEstadoModoApresentacao(payload, opts = {}) {
           return base;
         })
         .filter(Boolean)
-    : []);
+    : [];
   cancelarAvancoAutoPlaylist();
-  dep.setPlaylistVideoIndice(-1);
-  dep.setPlaylistVideoAtiva(false);
-  dep.set_playlistUiTocandoCache(null);
-  const v5 = dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()];
+  estadoPainel.playlistVideoIndice = -1;
+  estadoPainel.playlistVideoAtiva = false;
+  estadoPainel._playlistUiTocandoCache = null;
+  const v5 = estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5];
   if (v5?.kind === 'video') {
     void restaurarItemVideoApresentacao(v5).then((it) => {
       if (!it) return;
-      dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()] = it;
+      estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
       salvarEstadoModoApresentacaoNoStorage();
       if (ehModoApresentacaoOperador()) renderGridApresentacao();
     });
   }
   const arqSel = String(p.arquivoSelecionadoId || '');
   const audSel = String(p.audioSelecionadoId || '');
-  dep.setApresentacaoArquivoSelecionadoId(arqSel && biblioteca.some((it) => it.id === arqSel) ? arqSel : null);
-  dep.setApresentacaoAudioAtualId(audSel && audios.some((it) => it.id === audSel) ? audSel : null);
+  estadoPainel.apresentacaoArquivoSelecionadoId = arqSel && biblioteca.some((it) => it.id === arqSel) ? arqSel : null;
+  estadoPainel.apresentacaoAudioAtualId = audSel && audios.some((it) => it.id === audSel) ? audSel : null;
   aplicarExtrasModoApresentacao(p.extras, {
     skipCard6Aviso: !!opts.skipCard6Extras,
     skipCard6AvisoConfig: !!opts.skipCard6Extras,
@@ -181,14 +182,14 @@ function aplicarEstadoModoApresentacao(payload, opts = {}) {
   /* Estado gravado antes de o card 4 se dividir em quatro: o ficheiro que ocupava o card
      inteiro passa para a primeira das áreas, em vez de desaparecer do painel sem aviso.
      Daí em diante o slot 3 de `apresentacaoCards` fica sempre vazio. */
-  const legadoCard4 = dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD4()];
-  if (legadoCard4 && !dep.getApresentacaoCard4Imagens().some(Boolean)) {
-    dep.getApresentacaoCard4Imagens()[0] = legadoCard4;
+  const legadoCard4 = estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD4];
+  if (legadoCard4 && !estadoPainel.apresentacaoCard4Imagens.some(Boolean)) {
+    estadoPainel.apresentacaoCard4Imagens[0] = legadoCard4;
   }
-  dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD4()] = null;
+  estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD4] = null;
   if (ehModoApresentacaoOperador()) {
     const modo = modoRoteamentoAtual();
-    renderRoteamentoTelas(dep.getMonitoresServidorCache(), normalizarRota(dep.getRotasPorModo()[modo]));
+    renderRoteamentoTelas(estadoPainel.monitoresServidorCache, normalizarRota(estadoPainel.rotasPorModo[modo]));
   }
 }
 

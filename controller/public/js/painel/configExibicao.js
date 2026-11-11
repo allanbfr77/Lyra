@@ -17,6 +17,7 @@ import { inicializarSlidersComEdicao, sincronizarSliderComEdicao } from '../modu
 import { normalizarCfgAvisoCard6 } from '../modules/midiaApresentacao.js';
 import { normalizarCorComentarioMinistrante } from '../modules/comentariosSlide.js';
 import { popularFormCfgContagem } from './contagemRegressiva.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -57,7 +58,7 @@ function setPosAvisoCard6CtrlBtn(val) {
 }
 
 function sincronizarEstadoCorFundoAvisoCard6() {
-  const cfg = normalizarCfgAvisoCard6(dep.getApresentacaoCard6AvisoCfg());
+  const cfg = normalizarCfgAvisoCard6(estadoPainel.apresentacaoCard6AvisoCfg);
   const bgColor = document.getElementById('cfg-card6-bg-color-ctrl');
   if (!bgColor) return;
   bgColor.disabled = cfg.transparentBackground;
@@ -65,7 +66,7 @@ function sincronizarEstadoCorFundoAvisoCard6() {
 }
 
 export function popularFormCfgAvisoCard6() {
-  const cfg = normalizarCfgAvisoCard6(dep.getApresentacaoCard6AvisoCfg());
+  const cfg = normalizarCfgAvisoCard6(estadoPainel.apresentacaoCard6AvisoCfg);
   setInputVal('cfg-card6-fontsize-ctrl', cfg.fontSize);
   setSpanText('cfg-card6-fontsize-val-ctrl', String(cfg.fontSize));
   setInputVal('cfg-card6-text-color-ctrl', cfg.textColor);
@@ -85,7 +86,7 @@ function persistirCfgAvisoCard6(opts = {}) {
 
 function lerCfgAvisoCard6DoFormulario() {
   return normalizarCfgAvisoCard6({
-    fontSize: lerNumeroInput('cfg-card6-fontsize-ctrl', dep.getApresentacaoCard6AvisoCfg()?.fontSize ?? 5.5),
+    fontSize: lerNumeroInput('cfg-card6-fontsize-ctrl', estadoPainel.apresentacaoCard6AvisoCfg?.fontSize ?? 5.5),
     textColor: document.getElementById('cfg-card6-text-color-ctrl')?.value,
     backgroundColor: document.getElementById('cfg-card6-bg-color-ctrl')?.value,
     transparentBackground: getChkVal('cfg-card6-bg-transparent-ctrl'),
@@ -96,18 +97,16 @@ function lerCfgAvisoCard6DoFormulario() {
 }
 
 export function onAvisoCard6CfgChange() {
-  dep.setApresentacaoCard6AvisoCfg(lerCfgAvisoCard6DoFormulario());
+  estadoPainel.apresentacaoCard6AvisoCfg = lerCfgAvisoCard6DoFormulario();
   sincronizarEstadoCorFundoAvisoCard6();
   persistirCfgAvisoCard6();
 }
 
 export function setPosAvisoCard6Ctrl(val) {
-  dep.setApresentacaoCard6AvisoCfg(
-    normalizarCfgAvisoCard6({
-      ...dep.getApresentacaoCard6AvisoCfg(),
+  estadoPainel.apresentacaoCard6AvisoCfg = normalizarCfgAvisoCard6({
+      ...estadoPainel.apresentacaoCard6AvisoCfg,
       verticalPosition: val,
-    })
-  );
+    });
   popularFormCfgAvisoCard6();
   persistirCfgAvisoCard6();
 }
@@ -445,9 +444,9 @@ export function sanitizarCfgSlidesLocal(cfg) {
  * em cascata a rota de Mídias acabava a cair em «Não exibir».
  */
 function hayVideoDoCard5EmProjecao() {
-  const id = dep.getApresentacaoMidiaProjetadaId();
+  const id = estadoPainel.apresentacaoMidiaProjetadaId;
   if (!id) return false;
-  const card = dep.getApresentacaoCards()?.[dep.getApresentacaoIdxCard5()];
+  const card = estadoPainel.apresentacaoCards?.[dep.getApresentacaoIdxCard5()];
   return !!(card && card.id === id && String(card.kind || '').toLowerCase() === 'video');
 }
 
@@ -470,7 +469,7 @@ export function enviarPreviewDisplayConfig(cfg, opts = {}) {
     modoConfig: modo,
     forcarModo: opts.forcarModo || modo,
   };
-  if (dep.getProjecao().enviar('preview_display_config', payload)) return;
+  if (projecao.enviar('preview_display_config', payload)) return;
   const ip = hostProjecao();
   if (!ip) return;
   fetch(`http://${ip}:5510/api/display-config/preview`, {
@@ -719,7 +718,7 @@ export function popularFormCfg(cfg) {
   if (opPCor) opPCor.style.color = mb.textColorProximo || '#f3c15a';
   const corComentarioForm = normalizarCorComentarioMinistrante(
     mb.commentColor,
-    dep.getCorComentarioMinistrantePainel()
+    estadoPainel.corComentarioMinistrantePainel
   );
   setInputVal('cfg-ministrante-comment-color-ctrl', corComentarioForm);
   if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
@@ -1085,10 +1084,8 @@ export function onPublicoBgImageCtrlChange() {
  * por `style` inline no render da prévia (ver nota em `css/controller.css`).
  */
 export function aplicarCorComentarioMinistranteNoPainel(cor) {
-  dep.setCorComentarioMinistrantePainel(
-    normalizarCorComentarioMinistrante(cor, dep.getCorComentarioMinistrantePainel())
-  );
-  return dep.getCorComentarioMinistrantePainel();
+  estadoPainel.corComentarioMinistrantePainel = normalizarCorComentarioMinistrante(cor, estadoPainel.corComentarioMinistrantePainel);
+  return estadoPainel.corComentarioMinistrantePainel;
 }
 
 /**
@@ -1124,7 +1121,7 @@ export function onMinistranteSlideCfgChange() {
     document.getElementById('cfg-ministrante-text-color-proximo-ctrl')?.value || '#f3c15a';
   currentCfgCtrl.ministrante.commentColor = normalizarCorComentarioMinistrante(
     document.getElementById('cfg-ministrante-comment-color-ctrl')?.value,
-    dep.getCorComentarioMinistrantePainel()
+    estadoPainel.corComentarioMinistrantePainel
   );
   currentCfgCtrl.ministrante.aberturaTituloColor =
     document.getElementById('cfg-ministrante-abertura-titulo-color-ctrl')?.value || '#f3c15a';
@@ -1268,9 +1265,9 @@ export async function salvarCfgNoServidor() {
       modoConfig: 'biblia',
       forcarModo: 'biblia',
     };
-    if (dep.getProjecao().pronta()) {
-      dep.getProjecao().enviar('set_display_config', { clock: currentCfgCtrl?.clock || {}, modoConfig: 'slides' });
-      dep.getProjecao().enviar('set_display_config', payloadBiblia, (ack) => {
+    if (projecao.pronta()) {
+      projecao.enviar('set_display_config', { clock: currentCfgCtrl?.clock || {}, modoConfig: 'slides' });
+      projecao.enviar('set_display_config', payloadBiblia, (ack) => {
         if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
         if (ack?.ok) {
           cfgDirtyCtrl = false;
@@ -1301,13 +1298,13 @@ export async function salvarCfgNoServidor() {
     return;
   }
 
-  if (dep.getProjecao().pronta()) {
+  if (projecao.pronta()) {
     const payloadSlides = {
       ...(currentCfgCtrl || {}),
       modoConfig: 'slides',
       forcarModo: 'slides',
     };
-    dep.getProjecao().enviar('set_display_config', payloadSlides, (ack) => {
+    projecao.enviar('set_display_config', payloadSlides, (ack) => {
       if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
       if (ack?.ok) {
         cfgSnapshotSalvoCtrl = JSON.stringify(currentCfgCtrl || {});

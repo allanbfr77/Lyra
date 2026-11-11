@@ -9,6 +9,7 @@
  * Dependências do núcleo entram por `registrarDependenciasAppDialog`, chamado no topo do núcleo
  * (antes de qualquer diálogo poder abrir).
  */
+import {  } from './estadoPainel.js';
 
 /** Estado partilhado do diálogo. `fecharNoBackdrop`: se false, Escape não dispensa o diálogo
  *  (alertas só-OK); clique no escuro nunca fecha um aviso do sistema — só OK/Cancelar/Fechar. */

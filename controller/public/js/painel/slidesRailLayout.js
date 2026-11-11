@@ -4,6 +4,7 @@
  * `registrarDependenciasSlidesRailLayout`.
  */
 import { LS_SLIDES_PREVIEW_H_PX, LS_SLIDES_RAIL_PX } from '../modules/chavesArmazenamentoLocal.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -80,10 +81,10 @@ export function setupSlidesRailResize() {
   handle.addEventListener('mousedown', (e) => {
     const emModoSlides = ehModoSlidesOperador();
     if (!emModoSlides && !document.body.classList.contains('slides-rail-aberto')) return;
-    dep.getSlidesRailDrag().active = true;
-    dep.getSlidesRailDrag().alvo = emModoSlides ? 'previa' : 'faixa';
-    dep.getSlidesRailDrag().startY = e.clientY;
-    dep.getSlidesRailDrag().startH = emModoSlides
+    estadoPainel.slidesRailDrag.active = true;
+    estadoPainel.slidesRailDrag.alvo = emModoSlides ? 'previa' : 'faixa';
+    estadoPainel.slidesRailDrag.startY = e.clientY;
+    estadoPainel.slidesRailDrag.startH = emModoSlides
       ? alturaPreviewModAtualPx()
       : parseInt(
           getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height'),

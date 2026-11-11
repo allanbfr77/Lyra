@@ -8,6 +8,7 @@ import { obterThumbVideoApresentacao, rotuloTipoMidiaApresentacao, srcImagemApre
 import { atualizarPreviewVideoAoVivo } from './playerLocalMidia.js';
 import { criarItemApresentacaoDeArquivo, renderMenuApresentacao } from './bibliotecaMidiasApresentacao.js';
 import { garantirThumbnailVideoItem, garantirVideoSrcHttp, projetarItemApresentacao, videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
+import { APRESENTACAO_IDX_CARD4, APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -61,7 +62,7 @@ function definirSelecaoCardApresentacao(idx) {
     apresentacaoCardSelecionadoIdx = Number.isFinite(n) && n >= 0 && n <= 5 ? n : null;
   }
   /* Seleccionar outro card larga a área destacada dentro do card 4. */
-  if (apresentacaoCardSelecionadoIdx !== dep.getAPRESENTACAO_IDX_CARD4()) {
+  if (apresentacaoCardSelecionadoIdx !== APRESENTACAO_IDX_CARD4) {
     apresentacaoCard4SubSelecionadoIdx = null;
   }
   aplicarClasseSelecaoCardsApresentacaoNoDom();
@@ -79,16 +80,16 @@ function definirSelecaoCardApresentacao(idx) {
  */
 function montarCardQuatroImagensApresentacao() {
   const card = document.createElement('div');
-  card.dataset.apCardIdx = String(dep.getAPRESENTACAO_IDX_CARD4());
+  card.dataset.apCardIdx = String(APRESENTACAO_IDX_CARD4);
   card.className = 'ap-card ap-card--quad';
 
   const num = document.createElement('span');
   num.className = 'ap-card-num';
-  num.textContent = `CARD ${dep.getAPRESENTACAO_IDX_CARD4() + 1}`;
+  num.textContent = `CARD ${APRESENTACAO_IDX_CARD4 + 1}`;
 
   const body = document.createElement('div');
   body.className = 'ap-card-body ap-card-body--quad';
-  body.dataset.cardIdx = String(dep.getAPRESENTACAO_IDX_CARD4());
+  body.dataset.cardIdx = String(APRESENTACAO_IDX_CARD4);
   for (let sub = 0; sub < 4; sub++) {
     body.appendChild(montarAreaImagemCard4(sub));
   }
@@ -112,7 +113,7 @@ function montarCardQuatroImagensApresentacao() {
  * @param {number} sub 0 = cima-esquerda, 1 = cima-direita, 2 = baixo-esquerda, 3 = baixo-direita
  */
 function montarAreaImagemCard4(sub) {
-  const item = dep.getApresentacaoCard4Imagens()[sub] || null;
+  const item = estadoPainel.apresentacaoCard4Imagens[sub] || null;
   const slot = document.createElement('div');
   slot.className = 'ap-quad-slot' + (item ? '' : ' ap-quad-slot--vazio');
   slot.dataset.card4Sub = String(sub);
@@ -126,8 +127,8 @@ function montarAreaImagemCard4(sub) {
     mais.setAttribute('aria-hidden', 'true');
     slot.appendChild(mais);
     slot.addEventListener('click', () => {
-      dep.setApresentacaoCard4InputTarget(sub);
-      dep.setApresentacaoCardInputTarget(null);
+      estadoPainel.apresentacaoCard4InputTarget = sub;
+      estadoPainel.apresentacaoCardInputTarget = null;
       const input = document.getElementById('apresentacao-add-card-input');
       if (!input) return;
       input.accept = 'image/*';
@@ -144,7 +145,7 @@ function montarAreaImagemCard4(sub) {
       img.src = src;
       slot.appendChild(img);
     }
-    if (item.id && item.id === dep.getApresentacaoMidiaProjetadaId()) {
+    if (item.id && item.id === estadoPainel.apresentacaoMidiaProjetadaId) {
       slot.classList.add('ap-quad-slot--projetando');
       const live = document.createElement('div');
       live.className = 'ap-quad-live';
@@ -166,7 +167,7 @@ function montarAreaImagemCard4(sub) {
       apresentacaoCardUiClickTimer = setTimeout(() => {
         apresentacaoCardUiClickTimer = null;
         apresentacaoCard4SubSelecionadoIdx = sub;
-        definirSelecaoCardApresentacao(dep.getAPRESENTACAO_IDX_CARD4());
+        definirSelecaoCardApresentacao(APRESENTACAO_IDX_CARD4);
         /* Troca a classe nas quatro áreas em vez de redesenhar a grelha: um clique não
            deve fazer as imagens piscarem enquanto voltam a carregar. */
         slot.parentElement?.querySelectorAll('.ap-quad-slot').forEach((el) => {
@@ -190,12 +191,12 @@ function montarAreaImagemCard4(sub) {
     btnRemove.textContent = 'X';
     btnRemove.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (item.id && dep.getApresentacaoMidiaProjetadaId() === item.id) {
-        dep.setApresentacaoMidiaProjetadaId(null);
+      if (item.id && estadoPainel.apresentacaoMidiaProjetadaId === item.id) {
+        estadoPainel.apresentacaoMidiaProjetadaId = null;
         void emitirEncerrarApresentacaoPublicoAoServidor();
       }
       if (apresentacaoCard4SubSelecionadoIdx === sub) apresentacaoCard4SubSelecionadoIdx = null;
-      dep.getApresentacaoCard4Imagens()[sub] = null;
+      estadoPainel.apresentacaoCard4Imagens[sub] = null;
       salvarEstadoModoApresentacaoNoStorage();
       renderGridApresentacao();
       atualizarFeedbackProjecaoApresentacaoUi({
@@ -223,9 +224,9 @@ function montarAreaImagemCard4(sub) {
     const veioDeCard = !veioDeArea && Number.isInteger(cardDe) && cardDe >= 0 && cardDe < 5;
 
     let it = null;
-    if (id) it = dep.getApresentacaoBiblioteca().find((x) => x.id === id) || null;
-    if (!it && veioDeArea) it = dep.getApresentacaoCard4Imagens()[subDe] || null;
-    if (!it && veioDeCard) it = dep.getApresentacaoCards()[cardDe] || null;
+    if (id) it = estadoPainel.apresentacaoBiblioteca.find((x) => x.id === id) || null;
+    if (!it && veioDeArea) it = estadoPainel.apresentacaoCard4Imagens[subDe] || null;
+    if (!it && veioDeCard) it = estadoPainel.apresentacaoCards[cardDe] || null;
     if (!it) return;
     if (!ehItemImagemApresentacao(it)) {
       alert('As quatro áreas do card 4 exibem apenas imagens.');
@@ -234,11 +235,11 @@ function montarAreaImagemCard4(sub) {
     /* Arrastar é mover, como entre os outros cards: a origem fica livre. */
     if (veioDeArea) {
       if (subDe === sub) return;
-      dep.getApresentacaoCard4Imagens()[subDe] = null;
+      estadoPainel.apresentacaoCard4Imagens[subDe] = null;
     } else if (veioDeCard) {
-      dep.getApresentacaoCards()[cardDe] = null;
+      estadoPainel.apresentacaoCards[cardDe] = null;
     }
-    dep.getApresentacaoCard4Imagens()[sub] = it;
+    estadoPainel.apresentacaoCard4Imagens[sub] = it;
     salvarEstadoModoApresentacaoNoStorage();
     renderGridApresentacao();
   });
@@ -260,9 +261,9 @@ export function adicionarImagemNaAreaCard4(file, sub) {
       alert('As quatro áreas do card 4 aceitam apenas imagens.');
       return;
     }
-    dep.getApresentacaoCard4Imagens()[s] = item;
-    const ja = dep.getApresentacaoBiblioteca().some((x) => x.src === item.src && x.name === item.name);
-    if (!ja) dep.getApresentacaoBiblioteca().push(item);
+    estadoPainel.apresentacaoCard4Imagens[s] = item;
+    const ja = estadoPainel.apresentacaoBiblioteca.some((x) => x.src === item.src && x.name === item.name);
+    if (!ja) estadoPainel.apresentacaoBiblioteca.push(item);
     salvarEstadoModoApresentacaoNoStorage();
     renderMenuApresentacao();
     renderGridApresentacao();
@@ -279,29 +280,29 @@ export function renderGridApresentacao() {
 
   for (let i = 0; i < 5; i++) {
     /* O card 4 não guarda uma mídia: é o recipiente das quatro áreas de imagem. */
-    if (i === dep.getAPRESENTACAO_IDX_CARD4()) {
+    if (i === APRESENTACAO_IDX_CARD4) {
       grid.appendChild(montarCardQuatroImagensApresentacao());
       continue;
     }
     const card = document.createElement('div');
-    const item = dep.getApresentacaoCards()[i];
+    const item = estadoPainel.apresentacaoCards[i];
     card.dataset.apCardIdx = String(i);
     card.className = item ? 'ap-card' : 'ap-card ap-card--vazio';
     const num = document.createElement('span');
     num.className = 'ap-card-num';
-    num.textContent = i === dep.getAPRESENTACAO_IDX_CARD5() ? 'CARD 5 — (APENAS VÍDEO)' : `CARD ${i + 1}`;
+    num.textContent = i === APRESENTACAO_IDX_CARD5 ? 'CARD 5 — (APENAS VÍDEO)' : `CARD ${i + 1}`;
     const body = document.createElement('div');
     body.className = 'ap-card-body';
     body.dataset.cardIdx = String(i);
     if (!item) {
       body.innerHTML = '<div class="ap-card-plus">+</div>';
       body.addEventListener('click', () => {
-        dep.setApresentacaoCardInputTarget(i);
-        dep.setApresentacaoCard4InputTarget(null);
+        estadoPainel.apresentacaoCardInputTarget = i;
+        estadoPainel.apresentacaoCard4InputTarget = null;
         const input = document.getElementById('apresentacao-add-card-input');
         if (!input) return;
         input.accept =
-          i === dep.getAPRESENTACAO_IDX_CARD5()
+          i === APRESENTACAO_IDX_CARD5
             ? 'video/*'
             : 'image/*,application/pdf,.ppt,.pptx,.odp';
         input.value = '';
@@ -311,7 +312,7 @@ export function renderGridApresentacao() {
       const srcRaw = String(item.src || '');
       const kItem = String(item.kind || '').toLowerCase();
       const mimeItem = String(item.mime || '').toLowerCase();
-      const ehCard5Video = i === dep.getAPRESENTACAO_IDX_CARD5() && kItem === 'video';
+      const ehCard5Video = i === APRESENTACAO_IDX_CARD5 && kItem === 'video';
       if (ehCard5Video) {
         card.classList.add('ap-card--video');
         body.className = 'ap-card-body ap-card-body--video';
@@ -326,9 +327,9 @@ export function renderGridApresentacao() {
       wrap.className = ehCard5Video ? 'ap-card5-video-wrap' : 'ap-card-file';
       const card5VideoAoVivo =
         ehCard5Video &&
-        item.id === dep.getApresentacaoMidiaProjetadaId() &&
-        dep.getAudioStateRemoto().mediaKind === 'video' &&
-        !!dep.getAudioStateRemoto().playing;
+        item.id === estadoPainel.apresentacaoMidiaProjetadaId &&
+        estadoPainel.audioStateRemoto.mediaKind === 'video' &&
+        !!estadoPainel.audioStateRemoto.playing;
       if (ehCard5Video && card5VideoAoVivo) {
         /* Slot placeholder com id estável; o overlay de vídeo ao vivo o cobre. */
         const slot = document.createElement('div');
@@ -350,11 +351,11 @@ export function renderGridApresentacao() {
           ph.setAttribute('aria-hidden', 'true');
           wrap.appendChild(ph);
           void garantirThumbnailVideoItem(item).then((it) => {
-            if (videoProjetadoAtivoNoPlayer() && dep.getAudioStateRemoto().playing) return;
+            if (videoProjetadoAtivoNoPlayer() && estadoPainel.audioStateRemoto.playing) return;
             if (!it?.thumb) return;
-            dep.getApresentacaoCards()[dep.getAPRESENTACAO_IDX_CARD5()] = it;
-            const bibIdx = dep.getApresentacaoBiblioteca().findIndex((x) => x && x.id === it.id);
-            if (bibIdx >= 0) dep.getApresentacaoBiblioteca()[bibIdx] = it;
+            estadoPainel.apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
+            const bibIdx = estadoPainel.apresentacaoBiblioteca.findIndex((x) => x && x.id === it.id);
+            if (bibIdx >= 0) estadoPainel.apresentacaoBiblioteca[bibIdx] = it;
             salvarEstadoModoApresentacaoNoStorage();
             if (ehModoApresentacaoOperador()) renderGridApresentacao();
           });
@@ -378,7 +379,7 @@ export function renderGridApresentacao() {
         metaEl.innerHTML = metaLinha;
         wrap.appendChild(metaEl);
       }
-      if (item.id && item.id === dep.getApresentacaoMidiaProjetadaId() && item.kind !== 'audio') {
+      if (item.id && item.id === estadoPainel.apresentacaoMidiaProjetadaId && item.kind !== 'audio') {
         card.classList.add('ap-card--projetando');
         const live = document.createElement('div');
         live.className = 'ap-card-live-pill';
@@ -420,12 +421,12 @@ export function renderGridApresentacao() {
         '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>';
       btnRemove.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        if (item.id && dep.getApresentacaoMidiaProjetadaId() === item.id) {
-          dep.setApresentacaoMidiaProjetadaId(null);
+        if (item.id && estadoPainel.apresentacaoMidiaProjetadaId === item.id) {
+          estadoPainel.apresentacaoMidiaProjetadaId = null;
           void emitirEncerrarApresentacaoPublicoAoServidor();
         }
         if (apresentacaoCardSelecionadoIdx === i) definirSelecaoCardApresentacao(null);
-        dep.getApresentacaoCards()[i] = null;
+        estadoPainel.apresentacaoCards[i] = null;
         salvarEstadoModoApresentacaoNoStorage();
         atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: `Card ${i + 1} limpo.` });
       });
@@ -444,34 +445,34 @@ export function renderGridApresentacao() {
       const fromIdxRaw = ev.dataTransfer.getData('application/x-ap-card-idx');
       const fromIdx = parseInt(String(fromIdxRaw || ''), 10);
       let it = null;
-      if (id) it = dep.getApresentacaoBiblioteca().find((x) => x.id === id) || null;
+      if (id) it = estadoPainel.apresentacaoBiblioteca.find((x) => x.id === id) || null;
       if (!it && Number.isInteger(fromIdx) && fromIdx >= 0 && fromIdx < 5) {
-        it = dep.getApresentacaoCards()[fromIdx] || null;
+        it = estadoPainel.apresentacaoCards[fromIdx] || null;
       }
       if (!it) return;
-      if (it.kind === 'video' && i !== dep.getAPRESENTACAO_IDX_CARD5()) {
+      if (it.kind === 'video' && i !== APRESENTACAO_IDX_CARD5) {
         alert('Use o card 5 para ficheiros de vídeo.');
         return;
       }
-      if (it.kind !== 'video' && i === dep.getAPRESENTACAO_IDX_CARD5()) {
+      if (it.kind !== 'video' && i === APRESENTACAO_IDX_CARD5) {
         alert('O card 5 aceita apenas vídeos.');
         return;
       }
       if (Number.isInteger(fromIdx) && fromIdx >= 0 && fromIdx < 5) {
         if (fromIdx === i) return;
-        dep.getApresentacaoCards()[fromIdx] = null;
+        estadoPainel.apresentacaoCards[fromIdx] = null;
       }
       if (it.kind === 'video') {
         void (async () => {
           const itemHttp = await garantirVideoSrcHttp(it);
           await garantirThumbnailVideoItem(itemHttp);
-          dep.getApresentacaoCards()[i] = itemHttp;
+          estadoPainel.apresentacaoCards[i] = itemHttp;
           salvarEstadoModoApresentacaoNoStorage();
           renderGridApresentacao();
         })();
         return;
       }
-      dep.getApresentacaoCards()[i] = it;
+      estadoPainel.apresentacaoCards[i] = it;
       salvarEstadoModoApresentacaoNoStorage();
       renderGridApresentacao();
     });
@@ -498,12 +499,12 @@ export function renderGridApresentacao() {
   ta.dataset.apCard6CfgField = '1';
   ta.setAttribute('aria-label', 'Texto de avisos para projetar no card 6');
   ta.placeholder = 'Digite o aviso… (duplo clique projeta)';
-  ta.value = dep.getApresentacaoCard6Texto();
-  aplicarEstiloTextareaAvisoCard6(ta, dep.getApresentacaoCard6AvisoCfg());
+  ta.value = estadoPainel.apresentacaoCard6Texto;
+  aplicarEstiloTextareaAvisoCard6(ta, estadoPainel.apresentacaoCard6AvisoCfg);
   ta.addEventListener('click', (ev) => ev.stopPropagation());
   ta.addEventListener('input', () => {
     // Atualização em memória é instantânea; a gravação pesada é adiada (debounce) para não travar a digitação.
-    dep.setApresentacaoCard6Texto(ta.value);
+    estadoPainel.apresentacaoCard6Texto = ta.value;
     agendarSalvarEstadoAposDigitarAviso();
   });
   ta.addEventListener('blur', flushSalvarEstadoAposDigitarAviso);
@@ -578,7 +579,7 @@ export function renderGridApresentacao() {
   btnLimparTxt.setAttribute('aria-label', 'Limpar texto');
   btnLimparTxt.addEventListener('click', (ev) => {
     ev.stopPropagation();
-    dep.setApresentacaoCard6Texto('');
+    estadoPainel.apresentacaoCard6Texto = '';
     salvarEstadoModoApresentacaoNoStorage();
     renderGridApresentacao();
   });
@@ -598,7 +599,7 @@ export function renderGridApresentacao() {
 export function adicionarArquivosAoMenu(files) {
   Array.from(files || []).forEach((file) => {
     criarItemApresentacaoDeArquivo(file, (item) => {
-      dep.getApresentacaoBiblioteca().push(item);
+      estadoPainel.apresentacaoBiblioteca.push(item);
       salvarEstadoModoApresentacaoNoStorage();
       renderMenuApresentacao();
     });
@@ -610,11 +611,11 @@ export function adicionarArquivoDiretoNoCard(file, cardIdx) {
   if (!Number.isInteger(idx) || idx < 0 || idx > 5) return;
   if (idx === 5) return;
   criarItemApresentacaoDeArquivo(file, async (item) => {
-    if (item.kind === 'video' && idx !== dep.getAPRESENTACAO_IDX_CARD5()) {
+    if (item.kind === 'video' && idx !== APRESENTACAO_IDX_CARD5) {
       alert('Vídeos devem ser adicionados no card 5.');
       return;
     }
-    if (item.kind !== 'video' && idx === dep.getAPRESENTACAO_IDX_CARD5()) {
+    if (item.kind !== 'video' && idx === APRESENTACAO_IDX_CARD5) {
       alert('O card 5 aceita apenas vídeos.');
       return;
     }
@@ -622,12 +623,12 @@ export function adicionarArquivoDiretoNoCard(file, cardIdx) {
       await garantirVideoSrcHttp(item);
       await garantirThumbnailVideoItem(item);
     }
-    dep.getApresentacaoCards()[idx] = item;
-    const ja = dep.getApresentacaoBiblioteca().some((x) => x.src === item.src && x.name === item.name);
-    if (!ja) dep.getApresentacaoBiblioteca().push(item);
+    estadoPainel.apresentacaoCards[idx] = item;
+    const ja = estadoPainel.apresentacaoBiblioteca.some((x) => x.src === item.src && x.name === item.name);
+    if (!ja) estadoPainel.apresentacaoBiblioteca.push(item);
     salvarEstadoModoApresentacaoNoStorage();
     renderMenuApresentacao();
-    if (dep.getApresentacaoMidiaProjetadaId()) {
+    if (estadoPainel.apresentacaoMidiaProjetadaId) {
       renderGridApresentacao();
     } else {
       atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: `Arquivo no card ${idx + 1}: ${item.name}` });

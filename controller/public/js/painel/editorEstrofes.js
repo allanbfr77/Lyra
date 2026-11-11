@@ -9,6 +9,7 @@ import { carregarMusicas, refreshListaBanco } from './bibliotecaMusicas.js';
 import { digestEstrofesParaStripFaixa } from '../modules/slidesGrelha.js';
 import { ehVersaoLocalLegada } from '../modules/copiasLocaisLetra.js';
 import { aplicarLayoutModoLetraCompleta, atualizarToolbarModoLetraCompleta, confirmarProsseguirDescartandoEdicaoPendente, edicaoEstrofesSujaVsSnapshot, entrarModoLetraCompletaCentral, guiasEstrofesLetraCompleta, limparFlagsModoEdicaoMusica, sincronizarEstrofesDesdeTextareaLetraCompleta, splitTextoLetraCompletaEmEstrofes } from './letraCompleta.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -68,7 +69,7 @@ function textoEstrofeCaixaMaiuscula(texto) {
 }
 
 function aplicarCaixaLetrasAoTexto(texto) {
-  return dep.getCaixaLetrasEdicaoMaiuscula()
+  return estadoPainel.caixaLetrasEdicaoMaiuscula
     ? textoEstrofeCaixaMaiuscula(texto)
     : textoEstrofeCaixaSentenca(texto);
 }
@@ -82,16 +83,16 @@ function textoEstaTodoEmMaiusculas(texto) {
 }
 
 function obterTextosEstrofesEmEdicao() {
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     const ta = document.getElementById('centro-letra-completa-ta');
     if (ta) return [ta.value];
   }
-  if (dep.getModoEdicaoEstrofes()) {
+  if (estadoPainel.modoEdicaoEstrofes) {
     const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
     if (tas.length) return tas.map((ta) => ta.value);
   }
-  return Array.isArray(dep.getMusicaAtiva()?.estrofes)
-    ? dep.getMusicaAtiva().estrofes.map((s) => String(s ?? ''))
+  return Array.isArray(estadoPainel.musicaAtiva?.estrofes)
+    ? estadoPainel.musicaAtiva.estrofes.map((s) => String(s ?? ''))
     : [];
 }
 
@@ -101,7 +102,7 @@ function estrofesEmEdicaoEstaoEmMaiusculas() {
 
 /** Alinha o botão aA ao que a letra já tem (evita 1.º clique no-op em letras MAIÚSCULAS). */
 export function sincronizarFlagCaixaLetrasComTextoAtual() {
-  dep.setCaixaLetrasEdicaoMaiuscula(estrofesEmEdicaoEstaoEmMaiusculas());
+  estadoPainel.caixaLetrasEdicaoMaiuscula = estrofesEmEdicaoEstaoEmMaiusculas();
 }
 
 function aplicarValorTextareaPreservandoSelecao(ta, novo) {
@@ -119,7 +120,7 @@ function aplicarValorTextareaPreservandoSelecao(ta, novo) {
 
 /** Força MAIÚSCULAS no textarea preservando o cursor (só no modo aA activo). */
 function forcarMaiusculasNoTextareaSeAtivo(ta) {
-  if (!dep.getCaixaLetrasEdicaoMaiuscula() || !ta) return;
+  if (!estadoPainel.caixaLetrasEdicaoMaiuscula || !ta) return;
   aplicarValorTextareaPreservandoSelecao(ta, textoEstrofeCaixaMaiuscula(ta.value));
 }
 
@@ -128,33 +129,33 @@ function forcarMaiusculasNoTextareaSeAtivo(ta) {
  * Faixa e prévias já mostram maiúsculas; um rebuild só fazia os slides tremerem.
  */
 function aplicarCaixaLetrasNasEstrofesEmEdicao() {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes)) return;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes)) return;
   let alterou = false;
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     const ta = document.getElementById('centro-letra-completa-ta');
     if (ta) {
       const novo = aplicarCaixaLetrasAoTexto(ta.value);
       if (aplicarValorTextareaPreservandoSelecao(ta, novo)) alterou = true;
       const novas = splitTextoLetraCompletaEmEstrofes(ta.value);
       if (
-        novas.length !== dep.getMusicaAtiva().estrofes.length ||
-        novas.some((s, i) => s !== dep.getMusicaAtiva().estrofes[i])
+        novas.length !== estadoPainel.musicaAtiva.estrofes.length ||
+        novas.some((s, i) => s !== estadoPainel.musicaAtiva.estrofes[i])
       ) {
-        dep.getMusicaAtiva().estrofes = novas;
+        estadoPainel.musicaAtiva.estrofes = novas;
         alterou = true;
       }
       if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
         guiasEstrofesLetraCompleta.agendar();
       }
     }
-  } else if (dep.getModoEdicaoEstrofes()) {
+  } else if (estadoPainel.modoEdicaoEstrofes) {
     const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
-    if (tas.length === dep.getMusicaAtiva().estrofes.length) {
+    if (tas.length === estadoPainel.musicaAtiva.estrofes.length) {
       tas.forEach((ta) => {
         const idx = parseInt(ta.dataset.i, 10);
         const novo = aplicarCaixaLetrasAoTexto(ta.value);
-        if (Number.isFinite(idx) && dep.getMusicaAtiva().estrofes[idx] != null && dep.getMusicaAtiva().estrofes[idx] !== novo) {
-          dep.getMusicaAtiva().estrofes[idx] = novo;
+        if (Number.isFinite(idx) && estadoPainel.musicaAtiva.estrofes[idx] != null && estadoPainel.musicaAtiva.estrofes[idx] !== novo) {
+          estadoPainel.musicaAtiva.estrofes[idx] = novo;
           alterou = true;
         }
         if (aplicarValorTextareaPreservandoSelecao(ta, novo)) {
@@ -163,36 +164,36 @@ function aplicarCaixaLetrasNasEstrofesEmEdicao() {
         }
       });
     } else {
-      const novas = dep.getMusicaAtiva().estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
-      alterou = novas.some((s, i) => s !== dep.getMusicaAtiva().estrofes[i]);
-      dep.getMusicaAtiva().estrofes = novas;
+      const novas = estadoPainel.musicaAtiva.estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
+      alterou = novas.some((s, i) => s !== estadoPainel.musicaAtiva.estrofes[i]);
+      estadoPainel.musicaAtiva.estrofes = novas;
       renderEstrofesEditor();
     }
   }
   if (!alterou) return;
   const grid = document.getElementById('slides-grid');
-  if (grid && dep.getMusicaAtiva().estrofes) {
-    grid.dataset.stripDigest = digestEstrofesParaStripFaixa(dep.getMusicaAtiva().estrofes);
+  if (grid && estadoPainel.musicaAtiva.estrofes) {
+    grid.dataset.stripDigest = digestEstrofesParaStripFaixa(estadoPainel.musicaAtiva.estrofes);
   }
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getProjecao().pronta() && dep.getEstrofeAtiva() >= 0) {
-    emitirEstrofeAoServidor(dep.getEstrofeAtiva());
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && projecao.pronta() && estadoPainel.estrofeAtiva >= 0) {
+    emitirEstrofeAoServidor(estadoPainel.estrofeAtiva);
   }
 }
 
 export function alternarCaixaLetrasEdicao() {
-  if (!dep.getMusicaAtiva() || (!dep.getModoEdicaoEstrofes() && !dep.getModoLetraCompletaCentral())) return;
-  if (dep.getModoEdicaoEstrofes() && !dep.getModoLetraCompletaCentral()) {
+  if (!estadoPainel.musicaAtiva || (!estadoPainel.modoEdicaoEstrofes && !estadoPainel.modoLetraCompletaCentral)) return;
+  if (estadoPainel.modoEdicaoEstrofes && !estadoPainel.modoLetraCompletaCentral) {
     /* Sincroniza textareas abertos antes de transformar. */
     document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta').forEach((ta) => {
       const idx = parseInt(ta.dataset.i, 10);
-      if (Number.isFinite(idx) && dep.getMusicaAtiva().estrofes[idx] != null) {
-        dep.getMusicaAtiva().estrofes[idx] = ta.value;
+      if (Number.isFinite(idx) && estadoPainel.musicaAtiva.estrofes[idx] != null) {
+        estadoPainel.musicaAtiva.estrofes[idx] = ta.value;
       }
     });
   }
   /* Converte para o oposto do que o texto já é — o flag arrancava em false,
      então o 1.º clique só re-renderizava letras que já estavam em MAIÚSCULAS. */
-  dep.setCaixaLetrasEdicaoMaiuscula(!estrofesEmEdicaoEstaoEmMaiusculas());
+  estadoPainel.caixaLetrasEdicaoMaiuscula = !estrofesEmEdicaoEstaoEmMaiusculas();
   aplicarCaixaLetrasNasEstrofesEmEdicao();
   atualizarToolbarCaixaLetrasEdicao();
 }
@@ -205,7 +206,7 @@ export function configurarCamposMetadadosMusicaHome() {
   if (taFull && taFull.dataset.caixaLetrasLigada !== '1') {
     taFull.dataset.caixaLetrasLigada = '1';
     taFull.addEventListener('input', () => {
-      if (!dep.getModoLetraCompletaCentral()) return;
+      if (!estadoPainel.modoLetraCompletaCentral) return;
       forcarMaiusculasNoTextareaSeAtivo(taFull);
       if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
         guiasEstrofesLetraCompleta.agendar();
@@ -225,24 +226,24 @@ export function configurarCamposMetadadosMusicaHome() {
 }
 
 export function entrarModoEdicao() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getModoLetraCompletaCentral()) {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.modoLetraCompletaCentral) {
     sincronizarEstrofesDesdeTextareaLetraCompleta();
-    dep.setSnapshotLetraCompleta(null);
-    dep.setModoLetraCompletaCentral(false);
+    estadoPainel.snapshotLetraCompleta = null;
+    estadoPainel.modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
   }
   const et = document.getElementById('edit-titulo');
   const ea = document.getElementById('edit-artista');
-  if (et) dep.getMusicaAtiva().titulo = et.value;
-  if (ea) dep.getMusicaAtiva().artista = ea.value;
-  dep.setSnapshotEdicaoEstrofes({
-    titulo: dep.getMusicaAtiva().titulo,
-    artista: dep.getMusicaAtiva().artista || '',
-    estrofes: dep.getMusicaAtiva().estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva: dep.getEstrofeAtiva(),
-  });
-  dep.setModoEdicaoEstrofes(true);
+  if (et) estadoPainel.musicaAtiva.titulo = et.value;
+  if (ea) estadoPainel.musicaAtiva.artista = ea.value;
+  estadoPainel.snapshotEdicaoEstrofes = {
+    titulo: estadoPainel.musicaAtiva.titulo,
+    artista: estadoPainel.musicaAtiva.artista || '',
+    estrofes: estadoPainel.musicaAtiva.estrofes.map((s) => String(s ?? '')),
+    estrofeAtiva: estadoPainel.estrofeAtiva,
+  };
+  estadoPainel.modoEdicaoEstrofes = true;
   sincronizarFlagCaixaLetrasComTextoAtual();
   renderEstrofesEditor();
 }
@@ -255,18 +256,18 @@ export async function sairModoEdicao() {
     );
     if (!ok) return;
   }
-  if (dep.getSnapshotEdicaoEstrofes() && dep.getMusicaAtiva() && dep.getModoEdicaoEstrofes()) {
-    dep.getMusicaAtiva().titulo = dep.getSnapshotEdicaoEstrofes().titulo;
-    dep.getMusicaAtiva().artista = dep.getSnapshotEdicaoEstrofes().artista;
-    dep.getMusicaAtiva().estrofes = dep.getSnapshotEdicaoEstrofes().estrofes.map((s) => String(s));
-    dep.setEstrofeAtiva(dep.getSnapshotEdicaoEstrofes().estrofeAtiva);
-    const n = dep.getMusicaAtiva().estrofes.length;
+  if (estadoPainel.snapshotEdicaoEstrofes && estadoPainel.musicaAtiva && estadoPainel.modoEdicaoEstrofes) {
+    estadoPainel.musicaAtiva.titulo = estadoPainel.snapshotEdicaoEstrofes.titulo;
+    estadoPainel.musicaAtiva.artista = estadoPainel.snapshotEdicaoEstrofes.artista;
+    estadoPainel.musicaAtiva.estrofes = estadoPainel.snapshotEdicaoEstrofes.estrofes.map((s) => String(s));
+    estadoPainel.estrofeAtiva = estadoPainel.snapshotEdicaoEstrofes.estrofeAtiva;
+    const n = estadoPainel.musicaAtiva.estrofes.length;
     const idxPreto = n;
-    if (dep.getEstrofeAtiva() > idxPreto) dep.setEstrofeAtiva(idxPreto);
-    if (dep.getEstrofeAtiva() < -1) dep.setEstrofeAtiva(-1);
+    if (estadoPainel.estrofeAtiva > idxPreto) estadoPainel.estrofeAtiva = idxPreto;
+    if (estadoPainel.estrofeAtiva < -1) estadoPainel.estrofeAtiva = -1;
   }
-  dep.setSnapshotEdicaoEstrofes(null);
-  dep.setModoEdicaoEstrofes(false);
+  estadoPainel.snapshotEdicaoEstrofes = null;
+  estadoPainel.modoEdicaoEstrofes = false;
   renderEstrofesEditor();
   renderSlidesStrip();
   atualizarPreviewOperador();
@@ -380,7 +381,7 @@ function definirTextoCorpoSlide(body, txt) {
 
 export function reaplicarAlturasEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
-  if (!wrap || !dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes) return;
+  if (!wrap || !estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes) return;
   aplicarAlturasTextareasEstrofes([...wrap.querySelectorAll('textarea.estrofe-slide-ta')]);
 }
 
@@ -393,48 +394,48 @@ export function reaplicarAlturasEstrofesEditor() {
  */
 export function atualizarEstrofesEditorInPlace() {
   const wrap = document.getElementById('estrofes-slide-editor');
-  if (!wrap || !dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes)) return false;
+  if (!wrap || !estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes)) return false;
   const cards = [...wrap.querySelectorAll('.estrofe-slide-edit')];
-  const n = dep.getMusicaAtiva().estrofes.length;
+  const n = estadoPainel.musicaAtiva.estrofes.length;
   if (cards.length !== n) return false;
-  if (dep.getModoEdicaoEstrofes()) {
+  if (estadoPainel.modoEdicaoEstrofes) {
     for (let i = 0; i < n; i++) {
       const ta = cards[i].querySelector('.estrofe-slide-ta');
       if (!ta) return false;
-      const txt = String(dep.getMusicaAtiva().estrofes[i] ?? '');
+      const txt = String(estadoPainel.musicaAtiva.estrofes[i] ?? '');
       if (ta.value !== txt) {
         ta.value = txt;
         aplicarAlturaCardEstrofe(cards[i]);
       }
-      cards[i].classList.toggle('ativa', dep.getEstrofeAtiva() === i);
+      cards[i].classList.toggle('ativa', estadoPainel.estrofeAtiva === i);
     }
     return true;
   }
   for (let i = 0; i < n; i++) {
     const body = cards[i].querySelector('.estrofe-slide-view-body');
     if (!body) return false;
-    const txt = String(dep.getMusicaAtiva().estrofes[i] ?? '');
+    const txt = String(estadoPainel.musicaAtiva.estrofes[i] ?? '');
     if (body.textContent !== txt) definirTextoCorpoSlide(body, txt);
-    cards[i].classList.toggle('ativa', dep.getEstrofeAtiva() === i);
+    cards[i].classList.toggle('ativa', estadoPainel.estrofeAtiva === i);
   }
   return true;
 }
 
 function reorderEstrofesIndices(from, to) {
-  if (!dep.getMusicaAtiva() || !dep.getModoEdicaoEstrofes()) return;
-  const arr = dep.getMusicaAtiva().estrofes;
+  if (!estadoPainel.musicaAtiva || !estadoPainel.modoEdicaoEstrofes) return;
+  const arr = estadoPainel.musicaAtiva.estrofes;
   const n = arr.length;
   if (from === to || from < 0 || to < 0 || from >= n || to >= n) return;
 
   const snapAtiva =
-    dep.getEstrofeAtiva() >= 0 && dep.getEstrofeAtiva() < n ? arr[dep.getEstrofeAtiva()] : null;
+    estadoPainel.estrofeAtiva >= 0 && estadoPainel.estrofeAtiva < n ? arr[estadoPainel.estrofeAtiva] : null;
 
   const [moved] = arr.splice(from, 1);
   arr.splice(to, 0, moved);
 
   if (snapAtiva !== null) {
     const idx = arr.indexOf(snapAtiva);
-    dep.setEstrofeAtiva(idx >= 0 ? idx : Math.max(0, Math.min(dep.getEstrofeAtiva(), arr.length - 1)));
+    estadoPainel.estrofeAtiva = idx >= 0 ? idx : Math.max(0, Math.min(estadoPainel.estrofeAtiva, arr.length - 1));
   }
 
   renderEstrofesEditor();
@@ -446,10 +447,10 @@ function reorderEstrofesIndices(from, to) {
 export function renderEstrofesEditor() {
   const wrap = document.getElementById('estrofes-slide-editor');
 
-  if (!dep.getMusicaAtiva()) {
-    dep.setModoEdicaoEstrofes(false);
-    dep.setSnapshotEdicaoEstrofes(null);
-    dep.setModoLetraCompletaCentral(false);
+  if (!estadoPainel.musicaAtiva) {
+    estadoPainel.modoEdicaoEstrofes = false;
+    estadoPainel.snapshotEdicaoEstrofes = null;
+    estadoPainel.modoLetraCompletaCentral = false;
     wrap.classList.remove('estrofes-modo-edicao');
     wrap.classList.add('estrofes-slide-editor--vazio');
     atualizarToolbarModoEdicao();
@@ -462,20 +463,20 @@ export function renderEstrofesEditor() {
     return;
   }
 
-  document.getElementById('edit-titulo').value = dep.getMusicaAtiva().titulo;
-  document.getElementById('edit-artista').value = dep.getMusicaAtiva().artista || '';
+  document.getElementById('edit-titulo').value = estadoPainel.musicaAtiva.titulo;
+  document.getElementById('edit-artista').value = estadoPainel.musicaAtiva.artista || '';
 
   wrap.classList.remove('estrofes-slide-editor--vazio');
-  wrap.classList.toggle('estrofes-modo-edicao', dep.getModoEdicaoEstrofes());
+  wrap.classList.toggle('estrofes-modo-edicao', estadoPainel.modoEdicaoEstrofes);
 
   atualizarToolbarModoEdicao();
 
   wrap.innerHTML = '';
-  dep.getMusicaAtiva().estrofes.forEach((txt, i) => {
+  estadoPainel.musicaAtiva.estrofes.forEach((txt, i) => {
     let centralSlideTapTimer = null;
     const div = document.createElement('div');
-    div.className = 'estrofe-slide-edit' + (dep.getEstrofeAtiva() === i ? ' ativa' : '');
-    if (dep.getModoEdicaoEstrofes()) {
+    div.className = 'estrofe-slide-edit' + (estadoPainel.estrofeAtiva === i ? ' ativa' : '');
+    if (estadoPainel.modoEdicaoEstrofes) {
       div.title = ehModoSlidesOperador()
         ? 'Edição · arrastar ⋮⋮ para reordenar · duplo clique fora do texto para projetar'
         : 'Edição · arrastar ⋮⋮ para reordenar';
@@ -485,7 +486,7 @@ export function renderEstrofesEditor() {
       div.title = 'Clique para selecionar · Botão ✎ ou clique direito: edição rápida';
     }
 
-    if (dep.getModoEdicaoEstrofes()) {
+    if (estadoPainel.modoEdicaoEstrofes) {
       div.innerHTML = `
         <div class="estrofe-slide-toolbar">
           <div class="estrofe-slide-toolbar-left">
@@ -518,7 +519,7 @@ export function renderEstrofesEditor() {
           }, 0);
           return;
         }
-        dep.getMusicaAtiva().estrofes[idx] = val;
+        estadoPainel.musicaAtiva.estrofes[idx] = val;
         aplicarAlturaCardEstrofe(div);
         renderSlidesStrip();
         atualizarPreviewOperador();
@@ -600,7 +601,7 @@ export function renderEstrofesEditor() {
         clearTimeout(centralSlideTapTimer);
         centralSlideTapTimer = setTimeout(() => {
           centralSlideTapTimer = null;
-          if (dep.getProjecaoMusicaEmitidaNoServidor()) {
+          if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
             projetarPorDuploCliqueCentral(i);
             return;
           }
@@ -614,7 +615,7 @@ export function renderEstrofesEditor() {
     }
 
     div.addEventListener('dblclick', (e) => {
-      if (dep.getModoEdicaoEstrofes() && e.target.closest('textarea')) return;
+      if (estadoPainel.modoEdicaoEstrofes && e.target.closest('textarea')) return;
       if (e.target.closest('.btn-del-estrofe')) return;
       if (e.target.closest('.btn-estrofe-quick')) return;
       e.preventDefault();
@@ -628,7 +629,7 @@ export function renderEstrofesEditor() {
     wrap.appendChild(div);
   });
 
-  dep.getHomeLayout()?.decorateCards();
+  estadoPainel.homeLayout?.decorateCards();
   queueMicrotask(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => reaplicarAlturasEstrofesEditor()));
   });
@@ -638,13 +639,13 @@ export function renderEstrofesEditor() {
 }
 
 export function novaEstrofe() {
-  if (!dep.getMusicaAtiva() || !dep.getModoEdicaoEstrofes() || dep.getModoLetraCompletaCentral()) return;
-  const n = dep.getMusicaAtiva().estrofes.length;
+  if (!estadoPainel.musicaAtiva || !estadoPainel.modoEdicaoEstrofes || estadoPainel.modoLetraCompletaCentral) return;
+  const n = estadoPainel.musicaAtiva.estrofes.length;
   let insertAt;
-  if (dep.getEstrofeAtiva() < 0) insertAt = 0;
-  else if (dep.getEstrofeAtiva() >= n) insertAt = n;
-  else insertAt = dep.getEstrofeAtiva() + 1;
-  dep.getMusicaAtiva().estrofes.splice(insertAt, 0, '');
+  if (estadoPainel.estrofeAtiva < 0) insertAt = 0;
+  else if (estadoPainel.estrofeAtiva >= n) insertAt = n;
+  else insertAt = estadoPainel.estrofeAtiva + 1;
+  estadoPainel.musicaAtiva.estrofes.splice(insertAt, 0, '');
   exibirEstrofe(insertAt);
   renderEstrofesEditor();
   renderSlidesStrip();
@@ -652,17 +653,17 @@ export function novaEstrofe() {
 }
 
 function removerEstrofeEditor(index) {
-  if (!dep.getModoEdicaoEstrofes()) return;
-  if (!dep.getMusicaAtiva() || dep.getMusicaAtiva().estrofes.length <= 1) {
+  if (!estadoPainel.modoEdicaoEstrofes) return;
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaAtiva.estrofes.length <= 1) {
     alert('É necessário pelo menos uma estrofe.');
     return;
   }
-  dep.getMusicaAtiva().estrofes.splice(index, 1);
-  if (dep.getEstrofeAtiva() === index) dep.setEstrofeAtiva(Math.max(0, index - 1));
-  else if (dep.getEstrofeAtiva() > index) dep.setEstrofeAtiva(dep.getEstrofeAtiva() - 1);
+  estadoPainel.musicaAtiva.estrofes.splice(index, 1);
+  if (estadoPainel.estrofeAtiva === index) estadoPainel.estrofeAtiva = Math.max(0, index - 1);
+  else if (estadoPainel.estrofeAtiva > index) estadoPainel.estrofeAtiva = estadoPainel.estrofeAtiva - 1;
 
-  if (dep.getEstrofeAtiva() >= dep.getMusicaAtiva().estrofes.length) {
-    dep.setEstrofeAtiva(dep.getMusicaAtiva().estrofes.length - 1);
+  if (estadoPainel.estrofeAtiva >= estadoPainel.musicaAtiva.estrofes.length) {
+    estadoPainel.estrofeAtiva = estadoPainel.musicaAtiva.estrofes.length - 1;
   }
 
   renderEstrofesEditor();
@@ -671,17 +672,17 @@ function removerEstrofeEditor(index) {
 }
 
 export async function persistirMusicaAtivaNoServidor() {
-  if (!dep.getMusicaAtiva()) {
+  if (!estadoPainel.musicaAtiva) {
     alert('Nenhuma música selecionada.');
     return false;
   }
 
-  if (dep.getMusicaBancoFonte() === 'catalog') {
+  if (estadoPainel.musicaBancoFonte === 'catalog') {
     alert('Música do catálogo: não é possível gravar no banco local.');
     return false;
   }
 
-  const idNum = Number(dep.getMusicaAtiva().id);
+  const idNum = Number(estadoPainel.musicaAtiva.id);
   if (!Number.isFinite(idNum)) {
     alert('ID da música inválido.');
     return false;
@@ -695,19 +696,19 @@ export async function persistirMusicaAtivaNoServidor() {
 
   aplicarSplitsEstrofesDosTextareasAntesDePersistir();
 
-  dep.getMusicaAtiva().titulo = titulo;
-  dep.getMusicaAtiva().artista = document.getElementById('edit-artista').value.trim();
+  estadoPainel.musicaAtiva.titulo = titulo;
+  estadoPainel.musicaAtiva.artista = document.getElementById('edit-artista').value.trim();
 
-  const estrofesPayload = (dep.getMusicaAtiva().estrofes || []).map((s) =>
+  const estrofesPayload = (estadoPainel.musicaAtiva.estrofes || []).map((s) =>
     typeof s === 'string' ? s : String(s ?? '')
   );
   const versaoLocalIdAtiva =
-    dep.getMusicaVersaoLocalId() && String(dep.getMusicaVersaoLocalId()).trim() ? String(dep.getMusicaVersaoLocalId()) : null;
-  const idPersistencia = Number(dep.getMusicaAtiva().id);
+    estadoPainel.musicaVersaoLocalId && String(estadoPainel.musicaVersaoLocalId).trim() ? String(estadoPainel.musicaVersaoLocalId) : null;
+  const idPersistencia = Number(estadoPainel.musicaAtiva.id);
   /* Capturado antes de gravar: se o servidor bifurcar, é por aqui que se acha a entrada da playlist a repontar. */
   const rootAntesDeGravar = obterRootIdMusicaAtiva();
   const versaoPlaylistAntesDeGravar = versaoAtivaParaCompararPlaylist();
-  const cultoDaEdicao = dep.getCultoId();
+  const cultoDaEdicao = estadoPainel.cultoId;
 
   const api = getControllerApiBase();
 
@@ -715,20 +716,20 @@ export async function persistirMusicaAtivaNoServidor() {
     await carregarMusicas();
     const res2 = await fetch(`${api}/api/musicas/${idAlvo}`);
     if (!res2.ok) throw new Error('Não foi possível recarregar a música.');
-    dep.setMusicaAtiva(await res2.json());
-    dep.setMusicaBancoFonte('user');
-    dep.setMusicaVersaoLocalId(null);
-    dep.setMusicaRootId(Number(dep.getMusicaAtiva().root_id ?? dep.getMusicaAtiva().id));
-    document.getElementById('edit-titulo').value = dep.getMusicaAtiva().titulo;
-    document.getElementById('edit-artista').value = dep.getMusicaAtiva().artista || '';
-    dep.setSnapshotEdicaoEstrofes(null);
-    dep.setModoEdicaoEstrofes(false);
-    dep.setSnapshotLetraCompleta(null);
-    dep.setModoLetraCompletaCentral(false);
+    estadoPainel.musicaAtiva = await res2.json();
+    estadoPainel.musicaBancoFonte = 'user';
+    estadoPainel.musicaVersaoLocalId = null;
+    estadoPainel.musicaRootId = Number(estadoPainel.musicaAtiva.root_id ?? estadoPainel.musicaAtiva.id);
+    document.getElementById('edit-titulo').value = estadoPainel.musicaAtiva.titulo;
+    document.getElementById('edit-artista').value = estadoPainel.musicaAtiva.artista || '';
+    estadoPainel.snapshotEdicaoEstrofes = null;
+    estadoPainel.modoEdicaoEstrofes = false;
+    estadoPainel.snapshotLetraCompleta = null;
+    estadoPainel.modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
     refreshListaBanco();
     renderPlaylist();
-    await carregarVersoesMusicaServidor(dep.getMusicaRootId());
+    await carregarVersoesMusicaServidor(estadoPainel.musicaRootId);
     renderMusicaVersoesBar();
     renderEstrofesEditor();
     renderSlidesStrip();
@@ -746,7 +747,7 @@ export async function persistirMusicaAtivaNoServidor() {
     const rootLegado = obterRootIdMusicaAtiva() ?? idNum;
     const up = atualizarCopiaLocal(rootLegado, versaoLocalIdAtiva, {
       titulo,
-      artista: dep.getMusicaAtiva().artista,
+      artista: estadoPainel.musicaAtiva.artista,
       estrofes: estrofesPayload,
     });
     if (!up.ok) {
@@ -761,7 +762,7 @@ export async function persistirMusicaAtivaNoServidor() {
   try {
     const bodyJson = JSON.stringify({
       titulo,
-      artista: dep.getMusicaAtiva().artista,
+      artista: estadoPainel.musicaAtiva.artista,
       estrofes: estrofesPayload,
     });
     let res = await fetch(`${api}/api/musicas/${idPersistencia}`, {
@@ -796,20 +797,20 @@ export async function persistirMusicaAtivaNoServidor() {
     const data = await res.json().catch(() => ({}));
     const forked = !!data.forked;
     const idAlvo = forked && data.id != null ? Number(data.id) : idPersistencia;
-    dep.setMusicaVersaoLocalId(null);
+    estadoPainel.musicaVersaoLocalId = null;
     await aplicarMusicaRecarregada(idAlvo, forked);
     /**
      * Fork = a edição virou uma versão nova; a playlist do dia continuaria a apontar
      * para o original imutável e recarregaria a letra antiga ao reentrar no modo slides.
      */
     if (forked) {
-      const rootFork = Number(data.rootId ?? dep.getMusicaRootId() ?? rootAntesDeGravar);
+      const rootFork = Number(data.rootId ?? estadoPainel.musicaRootId ?? rootAntesDeGravar);
       const repontou = repontarVersaoNaPlaylistDoCulto(
         cultoDaEdicao,
         rootFork,
         versaoPlaylistAntesDeGravar,
         idAlvo,
-        dep.getMusicaAtiva()?.rotulo || ''
+        estadoPainel.musicaAtiva?.rotulo || ''
       );
       if (repontou) renderPlaylist();
     }
@@ -821,15 +822,15 @@ export async function persistirMusicaAtivaNoServidor() {
 }
 
 export async function iniciarCriarNovaVersao() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getMusicaBancoFonte() === 'catalog') {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.musicaBancoFonte === 'catalog') {
     await appAlert(
       'Música do catálogo somente leitura. Importe para o seu banco antes de criar uma versão editável.',
       'Catálogo'
     );
     return;
   }
-  const idNum = Number(dep.getMusicaAtiva().id);
+  const idNum = Number(estadoPainel.musicaAtiva.id);
   if (!Number.isFinite(idNum)) return;
 
   if (
@@ -885,25 +886,25 @@ export async function iniciarCriarNovaVersao() {
     const nova = payload.musica;
     if (!nova || !Array.isArray(nova.estrofes)) throw new Error('Resposta inválida do servidor.');
 
-    dep.setMusicaAtiva(nova);
-    dep.setMusicaBancoFonte('user');
-    dep.setMusicaVersaoLocalId(null);
-    dep.setMusicaRootId(Number(nova.root_id ?? payload.rootId ?? idNum));
+    estadoPainel.musicaAtiva = nova;
+    estadoPainel.musicaBancoFonte = 'user';
+    estadoPainel.musicaVersaoLocalId = null;
+    estadoPainel.musicaRootId = Number(nova.root_id ?? payload.rootId ?? idNum);
     const et = document.getElementById('edit-titulo');
     const ea = document.getElementById('edit-artista');
-    if (et) et.value = dep.getMusicaAtiva().titulo || '';
-    if (ea) ea.value = dep.getMusicaAtiva().artista || '';
+    if (et) et.value = estadoPainel.musicaAtiva.titulo || '';
+    if (ea) ea.value = estadoPainel.musicaAtiva.artista || '';
 
-    dep.setEstrofeAtiva(Math.min(
-      Math.max(dep.getEstrofeAtiva() < 0 ? 0 : dep.getEstrofeAtiva(), 0),
-      Math.max(0, dep.getMusicaAtiva().estrofes.length - 1)
-    ));
-    dep.setProjecaoMusicaEmitidaNoServidor(false);
-    dep.setBloqueioSincronizarEstrofeDoServidor(true);
+    estadoPainel.estrofeAtiva = Math.min(
+      Math.max(estadoPainel.estrofeAtiva < 0 ? 0 : estadoPainel.estrofeAtiva, 0),
+      Math.max(0, estadoPainel.musicaAtiva.estrofes.length - 1)
+    );
+    estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+    estadoPainel.bloqueioSincronizarEstrofeDoServidor = true;
     await carregarMusicas();
     refreshListaBanco();
     renderPlaylist();
-    await carregarVersoesMusicaServidor(dep.getMusicaRootId());
+    await carregarVersoesMusicaServidor(estadoPainel.musicaRootId);
     renderEstrofesEditor();
     renderSlidesStrip();
     atualizarPreviewOperador();
@@ -919,28 +920,28 @@ export async function iniciarCriarNovaVersao() {
 }
 
 export async function salvarMusicaServidor() {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   const metadadosSujos = metadadosMusicaSujosNaHome();
-  if (!dep.getModoEdicaoEstrofes() && !dep.getModoLetraCompletaCentral() && !metadadosSujos) return;
-  if (dep.getMusicaBancoFonte() === 'catalog') {
+  if (!estadoPainel.modoEdicaoEstrofes && !estadoPainel.modoLetraCompletaCentral && !metadadosSujos) return;
+  if (estadoPainel.musicaBancoFonte === 'catalog') {
     await appAlert(
       'Música do catálogo somente leitura: não é possível usar Salvar alterações. Importe a letra para o seu banco ou escolha uma música gravada neste servidor.'
     );
     return;
   }
-  if (dep.getModoLetraCompletaCentral()) sincronizarEstrofesDesdeTextareaLetraCompleta();
-  if (dep.getModoEdicaoEstrofes()) aplicarSplitsEstrofesDosTextareasAntesDePersistir();
+  if (estadoPainel.modoLetraCompletaCentral) sincronizarEstrofesDesdeTextareaLetraCompleta();
+  if (estadoPainel.modoEdicaoEstrofes) aplicarSplitsEstrofesDosTextareasAntesDePersistir();
 
   const vid =
-    dep.getMusicaVersaoLocalId() && ehVersaoLocalLegada(dep.getMusicaVersaoLocalId())
-      ? String(dep.getMusicaVersaoLocalId()).trim()
+    estadoPainel.musicaVersaoLocalId && ehVersaoLocalLegada(estadoPainel.musicaVersaoLocalId)
+      ? String(estadoPainel.musicaVersaoLocalId).trim()
       : null;
-  const idNum = Number(dep.getMusicaAtiva().id);
+  const idNum = Number(estadoPainel.musicaAtiva.id);
 
   if (vid) {
     const titulo = document.getElementById('edit-titulo').value.trim();
     const artista = document.getElementById('edit-artista').value.trim();
-    const estrofesPayload = (dep.getMusicaAtiva().estrofes || []).map((s) => String(s ?? ''));
+    const estrofesPayload = (estadoPainel.musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
     const rootLegado = obterRootIdMusicaAtiva() ?? idNum;
     const up = atualizarCopiaLocal(rootLegado, vid, { titulo, artista, estrofes: estrofesPayload });
     if (!up.ok) {

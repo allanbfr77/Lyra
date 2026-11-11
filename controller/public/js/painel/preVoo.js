@@ -6,6 +6,7 @@
 import { GRAVIDADE_IMPEDE, consolidar, resumoPreVoo, verificarLetras, verificarMidias, verificarPlaylistVazia, verificarTelas, verificarTonsEMinistrantes } from '../modules/preVooPlaylist.js';
 import { ehMarcadorTemaPlaylist, idMusicaParaPreVoo } from '../modules/playlistVersaoMusica.js';
 import { nomeMinistrantePorId } from './ministrantesTons.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -31,8 +32,8 @@ let preVooACorrer = false;
 
 /** Músicas reais do culto, sem os marcadores de tema. */
 function musicasDoCultoParaPreVoo() {
-  if (!dep.getCultoId()) return [];
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.cultoId) return [];
+  const pl = getPlaylist(estadoPainel.cultoId);
   if (!Array.isArray(pl)) return [];
   return pl.filter((it) => it && !ehMarcadorTemaPlaylist(it));
 }
@@ -73,10 +74,10 @@ async function carregarLetrasParaPreVoo(itens) {
  */
 async function verificarMidiasNoDiscoParaPreVoo() {
   const todos = [
-    ...(dep.getApresentacaoBiblioteca() || []),
-    ...(dep.getApresentacaoCards() || []),
-    ...(dep.getApresentacaoVideoPlaylist() || []),
-    ...(dep.getApresentacaoAudios() || []),
+    ...(estadoPainel.apresentacaoBiblioteca || []),
+    ...(estadoPainel.apresentacaoCards || []),
+    ...(estadoPainel.apresentacaoVideoPlaylist || []),
+    ...(estadoPainel.apresentacaoAudios || []),
   ].filter((it) => it && String(it.filePath || '').trim());
 
   if (!todos.length) return [];
@@ -126,8 +127,8 @@ export async function correrPreVooDoCulto() {
     try {
       const slides = obterRotaSlidesParaUi();
       const completo = sanitizarRotaProjecao(
-        normalizarRota(dep.getRotasPorModo().completo),
-        dep.getMonitoresServidorCache()
+        normalizarRota(estadoPainel.rotasPorModo.completo),
+        estadoPainel.monitoresServidorCache
       );
       rota =
         slides.live || slides.publicoIndex >= 0
@@ -140,7 +141,7 @@ export async function correrPreVooDoCulto() {
     }
 
     const resultado = consolidar([
-      verificarTelas(rota, dep.getMonitoresServidorCache(), preVooMonitoresEmFalta),
+      verificarTelas(rota, estadoPainel.monitoresServidorCache, preVooMonitoresEmFalta),
       verificarPlaylistVazia(itens),
       verificarTonsEMinistrantes(
         itens.map((it) => ({

@@ -32,6 +32,7 @@ import { renderPlaylist } from './playlistLista.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { acionarCancelarBarraPadrao, acionarEditarLetraBarraPadrao, acionarSalvarAlteracoesBarraPadrao, cancelarModoComparativoCentral, marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
 import { alternarOcultacaoPreviewPainel } from './previewOculto.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -104,9 +105,9 @@ export async function selecionarMusicaDoBanco(id, opts) {
         return false;
       }
     }
-    if (ehModoSlidesOperador()) dep.setSlidesRailUserRecolhido(false);
+    if (ehModoSlidesOperador()) estadoPainel.slidesRailUserRecolhido = false;
     /* Modo controlador: se já existe projeção ativa, manter a faixa visível ao engatilhar próxima música. */
-    dep.setSlidesDockVisivel(ehModoSlidesOperador() || dep.getSlidesDockVisivel() || hayProjecaoAtivaNoServidor());
+    estadoPainel.slidesDockVisivel = ehModoSlidesOperador() || estadoPainel.slidesDockVisivel || hayProjecaoAtivaNoServidor();
     const res = await fetch(`${getControllerApiBase()}/api/musicas/${id}${qsMusica}`);
     if (!res.ok) throw new Error(`Falha ao carregar música (HTTP ${res.status}).`);
     const base = await res.json();
@@ -132,34 +133,34 @@ export async function selecionarMusicaDoBanco(id, opts) {
       if (copiaId != null) versaoReq = String(copiaId);
     }
 
-    dep.setMusicaBancoFonte(fonteBanco);
+    estadoPainel.musicaBancoFonte = fonteBanco;
     if (versaoReq && ehVersaoServidorId(versaoReq)) {
       const resV = await fetch(`${getControllerApiBase()}/api/musicas/${encodeURIComponent(versaoReq)}`);
       if (!resV.ok) throw new Error(`Falha ao carregar versão (HTTP ${resV.status}).`);
       const ver = await resV.json();
-      dep.setMusicaAtiva(ver);
-      dep.setMusicaVersaoLocalId(null);
-      dep.setMusicaRootId(Number(ver.root_id ?? id));
+      estadoPainel.musicaAtiva = ver;
+      estadoPainel.musicaVersaoLocalId = null;
+      estadoPainel.musicaRootId = Number(ver.root_id ?? id);
       const et = document.getElementById('edit-titulo');
       const ea = document.getElementById('edit-artista');
-      if (et) et.value = dep.getMusicaAtiva().titulo || '';
-      if (ea) ea.value = dep.getMusicaAtiva().artista || '';
+      if (et) et.value = estadoPainel.musicaAtiva.titulo || '';
+      if (ea) ea.value = estadoPainel.musicaAtiva.artista || '';
       /* Sem `await`: a barra de versões é informativa e mais um ida-e-volta aqui
          atrasava a projeção. Igual ao que `aplicarBaseMusicaSelecionada` já faz. */
-      void carregarVersoesMusicaServidor(dep.getMusicaRootId());
+      void carregarVersoesMusicaServidor(estadoPainel.musicaRootId);
     } else {
       aplicarBaseMusicaSelecionada(base, id, versaoReq);
     }
     if (ehModoSlidesOperador()) {
-      dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(!!(opts && opts.habilitarFaixaModoSlides));
+      estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = !!(opts && opts.habilitarFaixaModoSlides);
     } else {
-      dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(false);
+      estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
     }
-    dep.setEstrofeAtiva(-1);
+    estadoPainel.estrofeAtiva = -1;
 
     /* Antes de construir chips da faixa: sem isto, `projecaoMusicaEmitidaNoServidor` ainda vinha true da música anterior e um único clique no chip projetava. */
-    dep.setProjecaoMusicaEmitidaNoServidor(false);
-    dep.setBloqueioSincronizarEstrofeDoServidor(true);
+    estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+    estadoPainel.bloqueioSincronizarEstrofeDoServidor = true;
 
     const origemUi =
       opts && opts.origemUi === 'playlist'
@@ -208,12 +209,12 @@ export async function selecionarMusicaDoBanco(id, opts) {
     }
     return true;
   } catch (e) {
-    dep.setMusicaAtiva(null);
-    dep.setMusicaVersaoLocalId(null);
-    dep.setMusicaRootId(null);
-    dep.setVersoesMusicaServidorCache({ rootId: null, versoes: [] });
-    dep.setMusicaBancoFonte('user');
-    dep.setEstrofeAtiva(-1);
+    estadoPainel.musicaAtiva = null;
+    estadoPainel.musicaVersaoLocalId = null;
+    estadoPainel.musicaRootId = null;
+    estadoPainel.versoesMusicaServidorCache = { rootId: null, versoes: [] };
+    estadoPainel.musicaBancoFonte = 'user';
+    estadoPainel.estrofeAtiva = -1;
     renderMusicaVersoesBar();
     renderPlaylist();
     renderEstrofesEditor();
@@ -225,14 +226,14 @@ export async function selecionarMusicaDoBanco(id, opts) {
 }
 
 async function projecaoProximaMusicaPlaylist() {
-  if (!dep.getProjecao().pronta()) return alert('Conecte ao servidor.');
+  if (!projecao.pronta()) return alert('Conecte ao servidor.');
   /* Mesma razão de `playlistDuploCliqueIniciarProjecao`: o guard é sobre alcançar a
      projeção, e no modo local ela está nesta máquina — pedir um IP aqui bloqueava quem
      nunca configurou nenhum. */
   const hostAtual = hostProjecao();
   if (!hostAtual) return alert('Informe o IP ou use «Conectar».');
-  if (!dep.getMusicaAtiva()) return alert('Selecione uma música primeiro.');
-  const pl = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.musicaAtiva) return alert('Selecione uma música primeiro.');
+  const pl = getPlaylist(estadoPainel.cultoId);
   const idx = pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it));
   if (idx < 0) return alert('A música atual não está nesta playlist.');
   const j = indiceProximaMusicaNaPlaylist(pl, idx);
@@ -260,22 +261,22 @@ async function projecaoProximaMusicaPlaylist() {
     origemUi: 'playlist',
     aoCarregarAntesDeRenderizar: () => {
       /* Destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
-      dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(true);
-      dep.setEstrofeAtiva(0);
-      dep.setSlidesDockVisivel(ehModoSlidesOperador());
+      estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
+      estadoPainel.estrofeAtiva = 0;
+      estadoPainel.slidesDockVisivel = ehModoSlidesOperador();
       emitirEstrofeAoServidor(0);
     },
   });
-  if (!ok || !dep.getMusicaAtiva()) return;
+  if (!ok || !estadoPainel.musicaAtiva) return;
   marcacaoEstrofeEditor();
   atualizarEstadoBtnProximaMusicaPlaylist();
 }
 
 export function montarPayloadExibirMusica(estrofeIndex) {
-  if (!dep.getMusicaAtiva()) return { musicaId: null, estrofeIndex };
-  const payload = { musicaId: dep.getMusicaAtiva().id, estrofeIndex };
-  payload.estrofes = (dep.getMusicaAtiva().estrofes || []).map((s) => String(s ?? ''));
-  payload.titulo = String(dep.getMusicaAtiva().titulo || '').trim();
+  if (!estadoPainel.musicaAtiva) return { musicaId: null, estrofeIndex };
+  const payload = { musicaId: estadoPainel.musicaAtiva.id, estrofeIndex };
+  payload.estrofes = (estadoPainel.musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
+  payload.titulo = String(estadoPainel.musicaAtiva.titulo || '').trim();
   /* Tom só para o M3 (abertura); o título público permanece sem tom. */
   payload.tom = obterTomPlaylistMusicaAtiva();
   const idx = Number(estrofeIndex);
@@ -292,24 +293,24 @@ export function montarPayloadExibirMusica(estrofeIndex) {
  * reescrever o que já aconteceu.
  */
 export function nomeCultoAtivoParaHistorico() {
-  if (!dep.getCultoId()) return '';
+  if (!estadoPainel.cultoId) return '';
   try {
-    const item = listarCultosDisponiveis(dataRefDoCultoImportado(dep.getCultoId())).find(
-      (c) => c.id === dep.getCultoId()
+    const item = listarCultosDisponiveis(dataRefDoCultoImportado(estadoPainel.cultoId)).find(
+      (c) => c.id === estadoPainel.cultoId
     );
-    if (!item) return dep.getCultoId();
+    if (!item) return estadoPainel.cultoId;
     const p = parseLabelCulto(item.label);
-    return [p.data, p.desc].filter(Boolean).join(' — ') || dep.getCultoId();
+    return [p.data, p.desc].filter(Boolean).join(' — ') || estadoPainel.cultoId;
   } catch (_) {
-    return dep.getCultoId();
+    return estadoPainel.cultoId;
   }
 }
 
 /** Ministrante da música activa na playlist do culto (o do dia, não o cadastro todo). */
 function ministrantePlaylistMusicaAtiva() {
-  if (!dep.getMusicaAtiva() || !dep.getCultoId()) return { id: null, nome: '' };
+  if (!estadoPainel.musicaAtiva || !estadoPainel.cultoId) return { id: null, nome: '' };
   try {
-    const pl = getPlaylist(dep.getCultoId());
+    const pl = getPlaylist(estadoPainel.cultoId);
     const it = Array.isArray(pl) ? pl.find((x) => playlistItemMesmaVersaoQueAtiva(x)) : null;
     const id = it ? normalizarMinistranteIdPlaylist(it.ministranteId) : null;
     return { id: id ?? null, nome: id != null ? nomeMinistrantePorId(id) : '' };
@@ -338,19 +339,19 @@ function ministrantePlaylistMusicaAtiva() {
  * o ministrante do dia e o culto — o payload que vai para o telão não leva nada disso.
  */
 function registarProjecaoNoHistorico() {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   const min = ministrantePlaylistMusicaAtiva();
   const corpo = {
-    musicaId: Number(dep.getMusicaAtiva().id) || null,
+    musicaId: Number(estadoPainel.musicaAtiva.id) || null,
     rootId: obterRootIdMusicaAtiva(),
-    bancoFonte: fonteBancoNormalizada(dep.getMusicaBancoFonte()),
-    titulo: String(dep.getMusicaAtiva().titulo || '').trim(),
-    artista: String(dep.getMusicaAtiva().artista || '').trim(),
-    rotulo: String(dep.getMusicaAtiva().rotulo || '').trim(),
+    bancoFonte: fonteBancoNormalizada(estadoPainel.musicaBancoFonte),
+    titulo: String(estadoPainel.musicaAtiva.titulo || '').trim(),
+    artista: String(estadoPainel.musicaAtiva.artista || '').trim(),
+    rotulo: String(estadoPainel.musicaAtiva.rotulo || '').trim(),
     tom: obterTomPlaylistMusicaAtiva(),
     ministranteId: min.id,
     ministranteNome: min.nome,
-    cultoId: String(dep.getCultoId() || ''),
+    cultoId: String(estadoPainel.cultoId || ''),
     cultoNome: nomeCultoAtivoParaHistorico(),
   };
   try {
@@ -365,11 +366,11 @@ function registarProjecaoNoHistorico() {
 }
 
 export function emitirEstrofeAoServidor(index) {
-  if (!dep.getProjecao().pronta() || !dep.getMusicaAtiva()) return;
-  dep.setBloqueioSincronizarEstrofeDoServidor(false);
-  dep.setProjecaoMusicaEmitidaNoServidor(true);
-  if (ehModoSlidesOperador()) dep.setSlidesRailUserRecolhido(false);
-  dep.getProjecao().enviar('exibir_musica', montarPayloadExibirMusica(index));
+  if (!projecao.pronta() || !estadoPainel.musicaAtiva) return;
+  estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
+  estadoPainel.projecaoMusicaEmitidaNoServidor = true;
+  if (ehModoSlidesOperador()) estadoPainel.slidesRailUserRecolhido = false;
+  projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
   if (ehModoSlidesOperador()) {
     /* Espelho + refresh da prévia (e `exibir_ministrante`) — evita M3 com DOM antigo. */
     espelharEstadoMusicaLocalAposEmitSlides(index);
@@ -390,7 +391,7 @@ export function emitirEstrofeAoServidor(index) {
  * Só para as prévias refletirem o que acabou de ir às telas (seleção ≠ projeção).
  */
 function espelharEstadoMusicaLocalAposEmitSlides(index) {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes)) return;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes)) return;
   /*
    * Mídias a ocupar o canal público (imagem/vídeo/PDF/web ou aviso do card 6): não há
    * nada a espelhar nesse canal, porque nada lá mudou.
@@ -411,24 +412,24 @@ function espelharEstadoMusicaLocalAposEmitSlides(index) {
    * é exactamente o caminho que já corria depois do eco.
    */
   if (apresentacaoProjecaoAtivaNoCanalPublico()) return;
-  const nEst = dep.getMusicaAtiva().estrofes.length;
+  const nEst = estadoPainel.musicaAtiva.estrofes.length;
   const idx = Number(index);
   const slidePreto = Number.isFinite(idx) && idx === nEst;
   const cur =
     !slidePreto && Number.isFinite(idx) && idx >= 0 && idx < nEst
-      ? String(dep.getMusicaAtiva().estrofes[idx] ?? '')
+      ? String(estadoPainel.musicaAtiva.estrofes[idx] ?? '')
       : '';
   const nxtIdx = idx + 1;
   const proximoSlidePreto = !slidePreto && nxtIdx === nEst;
   let linhasProximo = [];
   if (!slidePreto && !proximoSlidePreto && nxtIdx >= 0 && nxtIdx < nEst) {
-    linhasProximo = String(dep.getMusicaAtiva().estrofes[nxtIdx] ?? '').split('\n');
+    linhasProximo = String(estadoPainel.musicaAtiva.estrofes[nxtIdx] ?? '').split('\n');
   }
-  const prev = dep.getEstadoServidor() && typeof dep.getEstadoServidor() === 'object' ? dep.getEstadoServidor() : {};
-  dep.setEstadoServidor({
+  const prev = estadoPainel.estadoServidor && typeof estadoPainel.estadoServidor === 'object' ? estadoPainel.estadoServidor : {};
+  estadoPainel.estadoServidor = {
     ...prev,
     tipo: 'musica',
-    titulo: String(dep.getMusicaAtiva().titulo || '').trim(),
+    titulo: String(estadoPainel.musicaAtiva.titulo || '').trim(),
     linhas: slidePreto ? [] : cur.split('\n'),
     estrofeIndex: Number.isFinite(idx) ? idx : 0,
     totalEstrofes: nEst,
@@ -436,22 +437,22 @@ function espelharEstadoMusicaLocalAposEmitSlides(index) {
     slidePretoFinal: slidePreto,
     proximoSlidePreto,
     linhasProximo,
-    musicaId: dep.getMusicaAtiva().id,
-  });
+    musicaId: estadoPainel.musicaAtiva.id,
+  };
   /* Permite o eco real do servidor atualizar de novo. */
-  dep.setLyraAssinaturaEstadoProjecaoRecebido(null);
+  estadoPainel.lyraAssinaturaEstadoProjecaoRecebido = null;
 }
 
 /** Atualiza só o painel (estrofe «selecionada»). Não envia às telas nem altera a prévia de projeção real — use duplo clique ou setas após projeção iniciada. */
 export function exibirEstrofe(index, opts) {
-  if (!dep.getMusicaAtiva()) return;
-  if (ehModoSlidesOperador()) dep.setSlidesRailUserRecolhido(false);
-  dep.setEstrofeAtiva(index);
+  if (!estadoPainel.musicaAtiva) return;
+  if (ehModoSlidesOperador()) estadoPainel.slidesRailUserRecolhido = false;
+  estadoPainel.estrofeAtiva = index;
   renderSlidesStrip();
   const semScroll = !!(opts && opts.semScroll);
   if (!semScroll) {
     const suave = !(opts && opts.suave === false);
-    requestAnimationFrame(() => revelarChipEstrofeFocado(dep.getEstrofeAtiva(), { suave }));
+    requestAnimationFrame(() => revelarChipEstrofeFocado(estadoPainel.estrofeAtiva, { suave }));
   }
   atualizarPreviewOperador();
   renderPlaylist();
@@ -459,12 +460,12 @@ export function exibirEstrofe(index, opts) {
 }
 
 export function navegarEstrofe(dir) {
-  if (!dep.getMusicaAtiva() || !dep.getMusicaAtiva().estrofes.length) return;
-  const idxMaxPreto = dep.getMusicaAtiva().estrofes.length;
-  const prox = dep.getEstrofeAtiva() + dir;
+  if (!estadoPainel.musicaAtiva || !estadoPainel.musicaAtiva.estrofes.length) return;
+  const idxMaxPreto = estadoPainel.musicaAtiva.estrofes.length;
+  const prox = estadoPainel.estrofeAtiva + dir;
   if (prox >= 0 && prox <= idxMaxPreto) {
     exibirEstrofe(prox);
-    if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getProjecao().pronta()) {
+    if (estadoPainel.projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
       emitirEstrofeAoServidor(prox);
     }
   }
@@ -507,27 +508,27 @@ export function direcaoTeclaPassadorSlides(tecla, code) {
  * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só seleção no painel.
  */
 export function navegarEstrofePassadorSlides(direcao, opts) {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) return;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) return;
   if (!ehModoSlidesOperador()) {
     navegarEstrofe(direcao);
     return;
   }
-  const idxMaxPreto = dep.getMusicaAtiva().estrofes.length;
-  let base = Number.isFinite(dep.getEstrofeAtiva()) ? dep.getEstrofeAtiva() : -1;
+  const idxMaxPreto = estadoPainel.musicaAtiva.estrofes.length;
+  let base = Number.isFinite(estadoPainel.estrofeAtiva) ? estadoPainel.estrofeAtiva : -1;
   let prox = base + direcao;
   if (base < 0 && direcao > 0) prox = 0;
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
-  if (prox === dep.getEstrofeAtiva() && dep.getProjecaoMusicaEmitidaNoServidor()) return;
+  if (prox === estadoPainel.estrofeAtiva && estadoPainel.projecaoMusicaEmitidaNoServidor) return;
   exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getProjecao().pronta()) {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
   }
 }
 
 /** Botão «Tela preta» do modo slides: vai direto ao último slide (o preto, índice N). */
 function irParaSlidePretoModoSlides() {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) return;
-  projecionarEstrofeModoSlides(dep.getMusicaAtiva().estrofes.length);
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) return;
+  projecionarEstrofeModoSlides(estadoPainel.musicaAtiva.estrofes.length);
 }
 
 /**
@@ -538,7 +539,7 @@ function irParaSlidePretoModoSlides() {
 const irParaSlideNumero = criarIrParaSlideNumero({
   ehModoSlides: ehModoSlidesOperador,
   totalEstrofes: () =>
-    dep.getMusicaAtiva() && Array.isArray(dep.getMusicaAtiva().estrofes) ? dep.getMusicaAtiva().estrofes.length : 0,
+    estadoPainel.musicaAtiva && Array.isArray(estadoPainel.musicaAtiva.estrofes) ? estadoPainel.musicaAtiva.estrofes.length : 0,
   projetar: (indice) => projecionarEstrofeModoSlides(indice),
   interfaceBloqueada: () => {
     if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return true;
@@ -559,10 +560,10 @@ const irParaSlideNumero = criarIrParaSlideNumero({
 
 /** Comando de voz / atalho: projeta estrofe no índice dado (0 … N, N = tela preta). */
 function projecionarEstrofeModoSlides(index) {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) return;
-  const idxMaxPreto = dep.getMusicaAtiva().estrofes.length;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) return;
+  const idxMaxPreto = estadoPainel.musicaAtiva.estrofes.length;
   const idx = Math.max(0, Math.min(idxMaxPreto, Number(index)));
-  if (dep.getProjecao().pronta()) {
+  if (projecao.pronta()) {
     emitirEstrofeAoServidor(idx);
     exibirEstrofe(idx);
     return;
@@ -575,7 +576,7 @@ export const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
   ehModoApresentacao: ehModoApresentacaoOperador,
   // Microfone desativado no modo mídias (mesmo comportamento da Home): só disponível no modo slides.
   painelVozVisivel: () => ehModoSlidesOperador(),
-  obterMusicaAtiva: () => dep.getMusicaAtiva(),
+  obterMusicaAtiva: () => estadoPainel.musicaAtiva,
   projecionarEstrofe: projecionarEstrofeModoSlides,
   navegarDirecao: navegarEstrofePassadorSlides,
   encerrarComoEsc: () => {
@@ -617,9 +618,9 @@ export const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
 
 
 export function navegarEstrofePorSeta(tecla, opts) {
-  if (!dep.getMusicaAtiva() || !Array.isArray(dep.getMusicaAtiva().estrofes) || !dep.getMusicaAtiva().estrofes.length) return;
-  const idxMaxPreto = dep.getMusicaAtiva().estrofes.length;
-  let base = Number.isFinite(dep.getEstrofeAtiva()) ? dep.getEstrofeAtiva() : -1;
+  if (!estadoPainel.musicaAtiva || !Array.isArray(estadoPainel.musicaAtiva.estrofes) || !estadoPainel.musicaAtiva.estrofes.length) return;
+  const idxMaxPreto = estadoPainel.musicaAtiva.estrofes.length;
+  let base = Number.isFinite(estadoPainel.estrofeAtiva) ? estadoPainel.estrofeAtiva : -1;
   if (base < 0) base = 0;
   let prox = base;
   const cols = ehModoSlidesOperador() ? dep.getSlidesGrelha().getSlidesPorLinha() : 3;
@@ -630,27 +631,27 @@ export function navegarEstrofePorSeta(tecla, opts) {
   else if (tecla === 'ArrowUp') prox = base - cols;
 
   prox = Math.max(0, Math.min(idxMaxPreto, prox));
-  if (prox === dep.getEstrofeAtiva()) return;
+  if (prox === estadoPainel.estrofeAtiva) return;
   exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
-  if (dep.getProjecaoMusicaEmitidaNoServidor() && dep.getProjecao().pronta()) {
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
     emitirEstrofeAoServidor(prox);
   }
 }
 
 export function musicaEstadoCombinaComAtiva(estado) {
-  if (!dep.getMusicaAtiva() || estado.tipo !== 'musica') return false;
-  if (estado.musicaId != null && dep.getMusicaAtiva().id != null) {
-    return Number(estado.musicaId) === Number(dep.getMusicaAtiva().id);
+  if (!estadoPainel.musicaAtiva || estado.tipo !== 'musica') return false;
+  if (estado.musicaId != null && estadoPainel.musicaAtiva.id != null) {
+    return Number(estado.musicaId) === Number(estadoPainel.musicaAtiva.id);
   }
-  return estado.titulo === dep.getMusicaAtiva().titulo;
+  return estado.titulo === estadoPainel.musicaAtiva.titulo;
 }
 
 export function sincronizarEstrofeAtiva(estado) {
   if (!estado || estado.telaLimpa || estado.tipo === null) {
-    dep.setEstrofeAtiva(-1);
-    dep.setSlidesDockVisivel(ehModoSlidesOperador());
-    dep.setProjecaoMusicaEmitidaNoServidor(false);
-    dep.setBloqueioSincronizarEstrofeDoServidor(false);
+    estadoPainel.estrofeAtiva = -1;
+    estadoPainel.slidesDockVisivel = ehModoSlidesOperador();
+    estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+    estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
     renderSlidesStrip();
     renderPlaylist();
     marcacaoEstrofeEditor();
@@ -658,20 +659,20 @@ export function sincronizarEstrofeAtiva(estado) {
   }
 
   if (estado.tipo === 'musica' && musicaEstadoCombinaComAtiva(estado)) {
-    if (dep.getBloqueioSincronizarEstrofeDoServidor()) return;
-    dep.setEstrofeAtiva(estado.estrofeIndex);
-    if (ehModoSlidesOperador()) dep.setSlidesDockVisivel(true);
-    dep.setProjecaoMusicaEmitidaNoServidor(true);
+    if (estadoPainel.bloqueioSincronizarEstrofeDoServidor) return;
+    estadoPainel.estrofeAtiva = estado.estrofeIndex;
+    if (ehModoSlidesOperador()) estadoPainel.slidesDockVisivel = true;
+    estadoPainel.projecaoMusicaEmitidaNoServidor = true;
     renderSlidesStrip();
     renderPlaylist();
     marcacaoEstrofeEditor();
-  } else if (estado.tipo === 'musica' && dep.getTodasMusicas().length && estado.musicaId != null) {
-    const m = dep.getTodasMusicas().find((x) => Number(x.id) === Number(estado.musicaId));
-    if (m && dep.getMusicaAtiva()?.id === m.id) {
-      if (dep.getBloqueioSincronizarEstrofeDoServidor()) return;
-      dep.setEstrofeAtiva(estado.estrofeIndex);
-      if (ehModoSlidesOperador()) dep.setSlidesDockVisivel(true);
-      dep.setProjecaoMusicaEmitidaNoServidor(true);
+  } else if (estado.tipo === 'musica' && estadoPainel.todasMusicas.length && estado.musicaId != null) {
+    const m = estadoPainel.todasMusicas.find((x) => Number(x.id) === Number(estado.musicaId));
+    if (m && estadoPainel.musicaAtiva?.id === m.id) {
+      if (estadoPainel.bloqueioSincronizarEstrofeDoServidor) return;
+      estadoPainel.estrofeAtiva = estado.estrofeIndex;
+      if (ehModoSlidesOperador()) estadoPainel.slidesDockVisivel = true;
+      estadoPainel.projecaoMusicaEmitidaNoServidor = true;
       renderSlidesStrip();
       renderPlaylist();
       marcacaoEstrofeEditor();
@@ -680,16 +681,16 @@ export function sincronizarEstrofeAtiva(estado) {
 }
 
 function limparTela() {
-  if (!dep.getProjecao().ligada()) return;
+  if (!projecao.ligada()) return;
   marcarUltimaMusicaAoEncerrar();
-  dep.setEstrofeAtiva(-1);
-  dep.setSlidesDockVisivel(ehModoSlidesOperador());
-  dep.setProjecaoMusicaEmitidaNoServidor(false);
-  dep.setBloqueioSincronizarEstrofeDoServidor(false);
-  dep.getProjecao().enfileirar('limpar_tela');
+  estadoPainel.estrofeAtiva = -1;
+  estadoPainel.slidesDockVisivel = ehModoSlidesOperador();
+  estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+  estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
+  projecao.enfileirar('limpar_tela');
   renderSlidesStrip();
   atualizarPreviewOperador();
-  if (dep.getMusicaAtiva()) renderPlaylist();
+  if (estadoPainel.musicaAtiva) renderPlaylist();
   marcacaoEstrofeEditor();
 }
 
@@ -698,29 +699,29 @@ export function encerrarProjecaoDoControlador(opts = {}) {
   marcarUltimaMusicaAoEncerrar();
   const limparMusica = !!opts.limparMusica;
   if (limparMusica) {
-    dep.setMusicaAtiva(null);
-    dep.setMusicaVersaoLocalId(null);
-    dep.setMusicaRootId(null);
-    dep.setVersoesMusicaServidorCache({ rootId: null, versoes: [] });
+    estadoPainel.musicaAtiva = null;
+    estadoPainel.musicaVersaoLocalId = null;
+    estadoPainel.musicaRootId = null;
+    estadoPainel.versoesMusicaServidorCache = { rootId: null, versoes: [] };
     renderMusicaVersoesBar();
-    dep.setModoEdicaoEstrofes(false);
-    dep.setSnapshotEdicaoEstrofes(null);
-    dep.setSnapshotLetraCompleta(null);
-    dep.setModoLetraCompletaCentral(false);
+    estadoPainel.modoEdicaoEstrofes = false;
+    estadoPainel.snapshotEdicaoEstrofes = null;
+    estadoPainel.snapshotLetraCompleta = null;
+    estadoPainel.modoLetraCompletaCentral = false;
     aplicarLayoutModoLetraCompleta();
-    dep.setFaixaSlidesHabilitadaPorPlaylistNoModoSlides(false);
-    dep.setSelecaoUiPlaylist(null);
-    dep.setSelecaoUiBiblioteca(null);
+    estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+    estadoPainel.selecaoUiPlaylist = null;
+    estadoPainel.selecaoUiBiblioteca = null;
   }
-  dep.setEstrofeAtiva(-1);
-  dep.setSlidesDockVisivel(ehModoSlidesOperador());
-  dep.setProjecaoMusicaEmitidaNoServidor(false);
-  dep.setBloqueioSincronizarEstrofeDoServidor(false);
+  estadoPainel.estrofeAtiva = -1;
+  estadoPainel.slidesDockVisivel = ehModoSlidesOperador();
+  estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+  estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
   /* Sem isto, `estadoServidor` segue com música até o broadcast — no modo slides o cartão TV voltava pela ramo servidor ≠ painel alinhado.
      Só a camada Slides: Mídias noutro monitor (badge «Imagem no Telão») tem de sobreviver. */
   limparEspelhoLocalSoCamadaSlides();
   /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
-  dep.getProjecao().enviar('limpar_tela');
+  projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
     bibliaZerarParteProjetada();
     if (dep.getUltimoConteudoProjetadoModoUnificado()?.tipo === 'biblia') {
@@ -737,15 +738,15 @@ export function encerrarProjecaoDoControlador(opts = {}) {
     renderPlaylist();
     renderEstrofesEditor();
     refreshListaBanco();
-  } else if (dep.getMusicaAtiva()) {
+  } else if (estadoPainel.musicaAtiva) {
     renderPlaylist();
   }
   marcacaoEstrofeEditor();
 }
 
 export function toggleBlackoutTelas() {
-  if (!dep.getProjecao().ligada()) return;
-  dep.getProjecao().enfileirar('toggle_blackout');
+  if (!projecao.ligada()) return;
+  projecao.enfileirar('toggle_blackout');
 }
 
 /**
@@ -753,9 +754,9 @@ export function toggleBlackoutTelas() {
  * @param {{ rolarComoNasSetas?: boolean }} [opts] Ver a nota sobre a rolagem abaixo.
  */
 export function projetarPorDuploCliqueCentral(index, opts = {}) {
-  if (!dep.getMusicaAtiva() || !dep.getProjecao().pronta()) return;
-  dep.setSlidesRailUserRecolhido(false);
-  dep.setSlidesDockVisivel(true);
+  if (!estadoPainel.musicaAtiva || !projecao.pronta()) return;
+  estadoPainel.slidesRailUserRecolhido = false;
+  estadoPainel.slidesDockVisivel = true;
   /** Emitir antes de `exibirEstrofe`: senão `atualizarPreviewOperador` roda com `projecaoMusicaEmitidaNoServidor` ainda false e o painel espelha só o estado antigo do socket (telão físico atualiza, preview não). */
   emitirEstrofeAoServidor(index);
   /*

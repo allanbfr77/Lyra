@@ -8,6 +8,7 @@ import { appAlert, appDialogEstado, appEscolherOpcao, appPrompt, fecharAppDialog
 import { carregarMinistrantesDoServidor, normalizarMinistrantePadraoPorCulto } from '../modules/playlistMinistranteTom.js';
 import { carregarMusicas, refreshListaBanco } from './bibliotecaMusicas.js';
 import { getAberturaRemovidaPorCulto, mapaMinistrantePadraoPersistivel, podarMinistrantePadraoSemMusicasNaPlaylist, setAberturaRemovidaPorCulto, setMinistrantePadraoPorCulto } from './playlistTemas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -38,13 +39,13 @@ let pedidoSyncBancoEmAberto = false;
 
 export function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpdatedAt = false } = {}) {
   const payload = {
-    cultosManuais: Array.isArray(dep.getCultosManuaisCache()) ? dep.getCultosManuaisCache() : [],
-    temasPorCulto: dep.getTemasPorCulto() && typeof dep.getTemasPorCulto() === 'object' ? dep.getTemasPorCulto() : {},
+    cultosManuais: Array.isArray(estadoPainel.cultosManuaisCache) ? estadoPainel.cultosManuaisCache : [],
+    temasPorCulto: estadoPainel.temasPorCulto && typeof estadoPainel.temasPorCulto === 'object' ? estadoPainel.temasPorCulto : {},
     aberturaRemovidaPorCulto:
       getAberturaRemovidaPorCulto() && typeof getAberturaRemovidaPorCulto() === 'object' ? getAberturaRemovidaPorCulto() : {},
     ministrantePadraoPorCulto: mapaMinistrantePadraoPersistivel(),
   };
-  if (incluirPlaylists) payload.playlists = dep.getPlaylists() && typeof dep.getPlaylists() === 'object' ? dep.getPlaylists() : {};
+  if (incluirPlaylists) payload.playlists = estadoPainel.playlists && typeof estadoPainel.playlists === 'object' ? estadoPainel.playlists : {};
   if (!preservarUpdatedAt && sharedBancoLocalUpdatedAt) payload.updatedAt = sharedBancoLocalUpdatedAt;
   return payload;
 }
@@ -107,11 +108,11 @@ export async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}
   if (!src) return;
 
   sharedBancoLocalUpdatedAt = String(src.updatedAt || '').trim();
-  dep.setPlaylists(src.playlists && typeof src.playlists === 'object' && !Array.isArray(src.playlists) ? src.playlists : {});
-  dep.setCultosManuaisCache(Array.isArray(src.cultosManuais) ? src.cultosManuais : []);
-  dep.setTemasPorCulto(src.temasPorCulto && typeof src.temasPorCulto === 'object' && !Array.isArray(src.temasPorCulto)
+  estadoPainel.playlists = src.playlists && typeof src.playlists === 'object' && !Array.isArray(src.playlists) ? src.playlists : {};
+  estadoPainel.cultosManuaisCache = Array.isArray(src.cultosManuais) ? src.cultosManuais : [];
+  estadoPainel.temasPorCulto = src.temasPorCulto && typeof src.temasPorCulto === 'object' && !Array.isArray(src.temasPorCulto)
       ? src.temasPorCulto
-      : {});
+      : {};
   setAberturaRemovidaPorCulto(src.aberturaRemovidaPorCulto &&
     typeof src.aberturaRemovidaPorCulto === 'object' &&
     !Array.isArray(src.aberturaRemovidaPorCulto)
@@ -120,13 +121,13 @@ export async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}
   setMinistrantePadraoPorCulto(normalizarMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto));
   podarMinistrantePadraoSemMusicasNaPlaylist();
 
-  try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(dep.getPlaylists())); } catch (_) {
+  try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(estadoPainel.playlists)); } catch (_) {
     // intencional — erro ignorado
   }
-  try { localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(dep.getCultosManuaisCache() || [])); } catch (_) {
+  try { localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(estadoPainel.cultosManuaisCache || [])); } catch (_) {
     // intencional — erro ignorado
   }
-  try { localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(dep.getTemasPorCulto() || {})); } catch (_) {
+  try { localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(estadoPainel.temasPorCulto || {})); } catch (_) {
     // intencional — erro ignorado
   }
   try {

@@ -9,6 +9,7 @@ import { getEnviarPlaylistsServidorTimer, marcarBancoCompartilhadoAlterado, setE
 import { normalizarMinistranteIdPlaylist, normalizarTomPlaylist } from '../modules/playlistMinistranteTom.js';
 import { normalizarTemaPlaylist, persistirMinistrantePadraoNoLocalStorage } from './playlistTemas.js';
 import { obterRootIdMusicaAtiva, versaoAtivaParaCompararPlaylist } from './copiasLocaisPainel.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -33,7 +34,7 @@ export async function enviarPlaylistsParaServidor() {
     await fetch(`${getControllerApiBase()}/api/playlists`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dep.getPlaylists()),
+      body: JSON.stringify(estadoPainel.playlists),
     });
   } catch (_) {
   // intencional — erro ignorado
@@ -57,7 +58,7 @@ let emitirPlaylistsRedeTimer = null;
  */
 export function emitirPlaylistsDoControlador() {
   try {
-    dep.getProjecao().enviar('controlador_playlists', dep.getPlaylists());
+    projecao.enviar('controlador_playlists', estadoPainel.playlists);
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -69,7 +70,7 @@ function emitirPlaylistsDoControladorDebounced() {
 }
 
 export function savePlaylists() {
-  localStorage.setItem(LS_PLAYLISTS, JSON.stringify(dep.getPlaylists()));
+  localStorage.setItem(LS_PLAYLISTS, JSON.stringify(estadoPainel.playlists));
   /* Se o culto ganhou a 1.ª música com ministrante só em sessão, passa a
      persistir; se ficou sem músicas, some do disco para o próximo reload. */
   persistirMinistrantePadraoNoLocalStorage();
@@ -83,12 +84,12 @@ export function removerMusicaDeTodasPlaylists(idMusica) {
   const idNum = Number(idMusica);
   if (!Number.isFinite(idNum)) return;
   let mudou = false;
-  Object.keys(dep.getPlaylists()).forEach((cid) => {
-    const pl = dep.getPlaylists()[cid];
+  Object.keys(estadoPainel.playlists).forEach((cid) => {
+    const pl = estadoPainel.playlists[cid];
     if (!Array.isArray(pl)) return;
     const novo = pl.filter((it) => Number(it.id) !== idNum);
     if (novo.length !== pl.length) {
-      dep.getPlaylists()[cid] = novo;
+      estadoPainel.playlists[cid] = novo;
       mudou = true;
     }
   });
@@ -100,8 +101,8 @@ export function removerVersaoLocalDasPlaylists(idMusica, copiaId) {
   const idStr = String(Number(idMusica));
   const vid = String(copiaId);
   let mudou = false;
-  Object.keys(dep.getPlaylists()).forEach((cid) => {
-    const pl = dep.getPlaylists()[cid];
+  Object.keys(estadoPainel.playlists).forEach((cid) => {
+    const pl = estadoPainel.playlists[cid];
     if (!Array.isArray(pl)) return;
     pl.forEach((it) => {
       if (!it || ehMarcadorTemaPlaylist(it)) return;
@@ -136,7 +137,7 @@ export function repontarVersaoNaPlaylistDoCulto(cid, rootId, versaoAntes, novaVe
   const root = Number(rootId);
   const novoVid = novaVersaoId != null && String(novaVersaoId).trim() ? String(novaVersaoId).trim() : '';
   if (!cid || !Number.isFinite(root) || !novoVid) return false;
-  const pl = dep.getPlaylists()[cid];
+  const pl = estadoPainel.playlists[cid];
   if (!Array.isArray(pl)) return false;
 
   const antes = versaoAntes ? String(versaoAntes).trim() : '';
@@ -166,8 +167,8 @@ export function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo
   const vid = String(versaoId);
   const rotulo = String(novoRotulo || '').trim();
   let mudou = false;
-  Object.keys(dep.getPlaylists()).forEach((cid) => {
-    const pl = dep.getPlaylists()[cid];
+  Object.keys(estadoPainel.playlists).forEach((cid) => {
+    const pl = estadoPainel.playlists[cid];
     if (!Array.isArray(pl)) return;
     pl.forEach((it) => {
       if (!it || ehMarcadorTemaPlaylist(it)) return;
@@ -184,8 +185,8 @@ export function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo
 // (extraído) excluir música do banco → painel/removerMusicaBanco.js
 
 export function getPlaylist(cid) {
-  if (!Array.isArray(dep.getPlaylists()[cid])) dep.getPlaylists()[cid] = [];
-  dep.getPlaylists()[cid] = dep.getPlaylists()[cid].map((it) => {
+  if (!Array.isArray(estadoPainel.playlists[cid])) estadoPainel.playlists[cid] = [];
+  estadoPainel.playlists[cid] = estadoPainel.playlists[cid].map((it) => {
     if (it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA) {
       return { tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: normalizarTemaPlaylist(it.tema) };
     }
@@ -199,53 +200,53 @@ export function getPlaylist(cid) {
       tom: normalizarTomPlaylist(it.tom),
     };
   });
-  return dep.getPlaylists()[cid];
+  return estadoPainel.playlists[cid];
 }
 
 export function playlistItemMesmaVersaoQueAtiva(it) {
-  if (!dep.getMusicaAtiva()) return false;
+  if (!estadoPainel.musicaAtiva) return false;
   return playlistItemMesmaVersaoQueRaiz(
     it,
     obterRootIdMusicaAtiva(),
     versaoAtivaParaCompararPlaylist(),
-    dep.getMusicaBancoFonte()
+    estadoPainel.musicaBancoFonte
   );
 }
 
 export function aplicarSelecaoUiBiblioteca(id, fonte) {
   const n = Number(id);
   if (!Number.isFinite(n)) {
-    dep.setSelecaoUiBiblioteca(null);
+    estadoPainel.selecaoUiBiblioteca = null;
     return;
   }
-  dep.setSelecaoUiBiblioteca({
+  estadoPainel.selecaoUiBiblioteca = {
     id: n,
     fonte: fonteBancoNormalizada(fonte),
-  });
-  dep.setSelecaoUiPlaylist(null);
+  };
+  estadoPainel.selecaoUiPlaylist = null;
 }
 
 export function aplicarSelecaoUiPlaylist(id, versaoLocalId, fonte) {
   const n = Number(id);
   if (!Number.isFinite(n)) {
-    dep.setSelecaoUiPlaylist(null);
+    estadoPainel.selecaoUiPlaylist = null;
     return;
   }
-  dep.setSelecaoUiPlaylist({
+  estadoPainel.selecaoUiPlaylist = {
     id: n,
     versaoLocalId: versaoLocalId ? String(versaoLocalId) : '',
     fonte: fonteBancoNormalizada(fonte),
-  });
-  dep.setSelecaoUiBiblioteca(null);
+  };
+  estadoPainel.selecaoUiBiblioteca = null;
 }
 
 export function playlistItemMesmaVersaoQueSelecaoUi(it) {
-  if (!dep.getSelecaoUiPlaylist()) return false;
+  if (!estadoPainel.selecaoUiPlaylist) return false;
   return playlistItemMesmaVersaoQueRaiz(
     it,
-    Number(dep.getSelecaoUiPlaylist().id),
-    dep.getSelecaoUiPlaylist().versaoLocalId,
-    dep.getSelecaoUiPlaylist().fonte
+    Number(estadoPainel.selecaoUiPlaylist.id),
+    estadoPainel.selecaoUiPlaylist.versaoLocalId,
+    estadoPainel.selecaoUiPlaylist.fonte
   );
 }
 

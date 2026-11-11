@@ -12,6 +12,7 @@ import { encontrarCopiaLocal, getCopiasParaMusica, obterRootIdMusicaAtiva, versa
 import { listarCultosDisponiveis } from './cultoDoDia.js';
 import { rotuloExibicaoVersaoServidor } from './versoesMusica.js';
 import { renderPlaylist } from './playlistLista.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -31,7 +32,7 @@ const rotuloVersaoMaiusculo = (...a) => dep.rotuloVersaoMaiusculo(...a);
 const savePlaylists = (...a) => dep.savePlaylists(...a);
 
 export async function addMusicaNaPlaylist(meta) {
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.cultoId) {
     alert('Selecione primeiro o dia do culto.');
     return;
   }
@@ -105,7 +106,7 @@ export async function addMusicaNaPlaylist(meta) {
       }
     }
   }
-  const pl = getPlaylist(dep.getCultoId());
+  const pl = getPlaylist(estadoPainel.cultoId);
   if (playlistJaContemMesmaMusicaEVersao(pl, idNum, versaoLocalId, bancoFonte)) {
     appAlert('Esta música (mesma versão e mesma origem catálogo/servidor) já está na playlist deste culto.', 'Playlist');
     return;
@@ -144,7 +145,7 @@ export async function addMusicaNaPlaylist(meta) {
     }
   }
   garantirTemaNoCatalogoAtual(tema);
-  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(dep.getCultoId(), {
+  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(estadoPainel.cultoId, {
     id: idNum,
     titulo: tituloPl,
     bancoFonte,
@@ -186,8 +187,8 @@ function rotuloVersaoParaPopupPlaylist(rootId, versaoLocalId) {
     return rotuloVersaoMaiusculo('Cópia');
   }
   const versoesSrv =
-    Number(dep.getVersoesMusicaServidorCache().rootId) === Number(rootId)
-      ? dep.getVersoesMusicaServidorCache().versoes || []
+    Number(estadoPainel.versoesMusicaServidorCache.rootId) === Number(rootId)
+      ? estadoPainel.versoesMusicaServidorCache.versoes || []
       : [];
   const v = versoesSrv.find((x) => String(x.id) === vid);
   if (v) return rotuloVersaoMaiusculo(rotuloExibicaoVersaoServidor(v));
@@ -211,14 +212,14 @@ function rotuloVersaoParaPopupPlaylist(rootId, versaoLocalId) {
  *   a música e sem tocar em tema/ministrante/tom já gravados.
  */
 export async function adicionarVersaoAtivaNaPlaylistHome() {
-  if (!dep.getMusicaAtiva() || dep.getMusicaAtiva().id == null) return;
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaAtiva.id == null) return;
+  if (!estadoPainel.cultoId) {
     alert('Selecione primeiro o dia do culto.');
     return;
   }
   const idNum = obterRootIdMusicaAtiva();
   if (!Number.isFinite(idNum)) return;
-  const bancoFonte = fonteBancoNormalizada(dep.getMusicaBancoFonte());
+  const bancoFonte = fonteBancoNormalizada(estadoPainel.musicaBancoFonte);
   /* Fonte da verdade da versão ativa no HOME — a MESMA já usada para comparar
      a música ativa com a playlist (`playlistItemMesmaVersaoQueAtiva`). NUNCA
      usar `musicaVersaoLocalId` sozinho aqui: ele só cobre cópias locais
@@ -226,10 +227,10 @@ export async function adicionarVersaoAtivaNaPlaylistHome() {
      carregada (a identidade dela mora em `musicaAtiva.id`), então lê-lo puro
      confundiria «versão do servidor selecionada» com ORIGINAL. */
   const versaoLocalId = versaoAtivaParaCompararPlaylist() || null;
-  const tituloPl = dep.getMusicaAtiva().titulo;
-  const artistaPl = dep.getMusicaAtiva().artista || '';
+  const tituloPl = estadoPainel.musicaAtiva.titulo;
+  const artistaPl = estadoPainel.musicaAtiva.artista || '';
 
-  const pl = getPlaylist(dep.getCultoId());
+  const pl = getPlaylist(estadoPainel.cultoId);
   const decisao = decidirAcaoAdicionarVersaoAtivaNaPlaylist(pl, idNum, versaoLocalId, bancoFonte);
 
   if (decisao.acao === ACAO_JA_PRESENTE_PLAYLIST) {
@@ -290,7 +291,7 @@ export async function adicionarVersaoAtivaNaPlaylistHome() {
     }
   }
   garantirTemaNoCatalogoAtual(tema);
-  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(dep.getCultoId(), {
+  const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(estadoPainel.cultoId, {
     id: idNum,
     titulo: tituloPl,
     bancoFonte,
@@ -329,8 +330,8 @@ export async function addMusicaNaPlaylistParaCulto(cid, meta) {
     if (ult) tema = ult;
   }
   if (tema) {
-    if (!Array.isArray(dep.getTemasPorCulto()[cid])) dep.getTemasPorCulto()[cid] = [];
-    dep.getTemasPorCulto()[cid] = normalizarListaTemas([...(dep.getTemasPorCulto()[cid] || []), tema]);
+    if (!Array.isArray(estadoPainel.temasPorCulto[cid])) estadoPainel.temasPorCulto[cid] = [];
+    estadoPainel.temasPorCulto[cid] = normalizarListaTemas([...(estadoPainel.temasPorCulto[cid] || []), tema]);
     saveTemasPorCulto();
   }
   const mt = await camposMinistranteTomParaNovaMusicaNaPlaylist(cid, {
@@ -412,7 +413,7 @@ function preencherSyncPlaylistCultoSel() {
     sel.appendChild(o);
   });
   sel.value =
-    dep.getCultoId() && lista.some((c) => c.id === dep.getCultoId()) ? dep.getCultoId() : '';
+    estadoPainel.cultoId && lista.some((c) => c.id === estadoPainel.cultoId) ? estadoPainel.cultoId : '';
 }
 
 function abrirModalNovasMusicasSync(payload) {

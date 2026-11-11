@@ -9,6 +9,7 @@ import { bibliaProjecaoAtivaNoCanalMinistrante, bibliaProjecaoAtivaNoCanalPublic
 import { opcoesRoteamentoUnificadoModoApresentacao, opcoesSeletorCabecalhoDoModoAtual, reemitirConteudoAposMudancaDeRotaUnificada } from './conteudoUnificadoAviso.js';
 import { registrarEscolhaSeletorUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -55,7 +56,7 @@ export function montarTitleMonitor(m) {
 export function avisarMonitoresConfiguradosEmFalta() {
   const el = document.getElementById('hdr-monitores-aviso');
   if (!el) return;
-  if (!Array.isArray(dep.getMonitoresServidorCache()) || !dep.getMonitoresServidorCache().length) return;
+  if (!Array.isArray(estadoPainel.monitoresServidorCache) || !estadoPainel.monitoresServidorCache.length) return;
   if (contarMonitoresDeProjecao() > 0) {
     el.classList.add('oculto');
     el.textContent = '';
@@ -466,7 +467,7 @@ function rotuloBloqueioMonitorOcupado() {
 
 /** Quantos monitores restam para projeção depois de reservar o principal ao operador. */
 function contarMonitoresDeProjecao() {
-  return listaMonitoresParaProjecao(dep.getMonitoresServidorCache()).length;
+  return listaMonitoresParaProjecao(estadoPainel.monitoresServidorCache).length;
 }
 
 export function rotaSelecionadaNaUi() {
@@ -487,9 +488,9 @@ export async function aplicarRotaDoModoAtualNaUiEServidor(opts = {}) {
   const rotaAjustada =
     modo === 'slides'
       ? obterRotaSlidesParaUi()
-      : sanitizarRotaProjecao(normalizarRota(dep.getRotasPorModo()[modo]), dep.getMonitoresServidorCache());
+      : sanitizarRotaProjecao(normalizarRota(estadoPainel.rotasPorModo[modo]), estadoPainel.monitoresServidorCache);
   salvarRotasPorModoNoStorage();
-  renderRoteamentoTelas(dep.getMonitoresServidorCache(), rotaAjustada);
+  renderRoteamentoTelas(estadoPainel.monitoresServidorCache, rotaAjustada);
   if (sincronizarServidor) {
     await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
   }

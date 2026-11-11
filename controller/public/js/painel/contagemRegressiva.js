@@ -11,6 +11,7 @@
  */
 import { AJUSTE_CONTAGEM_MS, LS_CONTAGEM_ALVO, LS_CONTAGEM_CFG, LS_CONTAGEM_MONITOR, LS_CONTAGEM_ULTIMO_TEMPO, PRESETS_CONTAGEM_MIN, acabouDeZerar, acaoBotaoPrincipal, ancorarContagem, camposParaMs, clonarCfgContagemPadrao, comandoAjustarContagem, comandoAparenciaContagem, comandoControloContagem, comandoIniciarContagem, estadoContagemVazio, formatarContagem, msParaCampos, normalizarCfgContagem, restanteLocalMs, situacaoContagem } from '../modules/contagemPainel.js';
 import { appConfirm } from './appDialog.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -569,7 +570,7 @@ function lerCampoContagem(qual) {
  * @returns {{ estado: 'ok'|'sem-monitor', rotulo?: string }}
  */
 function situacaoRotaContagem() {
-  const r = normalizarRota(dep.getRotasPorModo().contagem);
+  const r = normalizarRota(estadoPainel.rotasPorModo.contagem);
   return { estado: r.publicoIndex >= 0 ? 'ok' : 'sem-monitor' };
 }
 
@@ -622,15 +623,15 @@ function carregarRotaContagemDoStorage() {
     if (!raw) return;
     const p = JSON.parse(raw);
     if (!p || typeof p !== 'object') return;
-    dep.getRotasPorModo().contagem = normalizarRota(p);
+    estadoPainel.rotasPorModo.contagem = normalizarRota(p);
   } catch (_) {
-    dep.getRotasPorModo().contagem = rotaDesativada();
+    estadoPainel.rotasPorModo.contagem = rotaDesativada();
   }
 }
 
 function salvarRotaContagemNoStorage() {
   try {
-    localStorage.setItem(LS_CONTAGEM_MONITOR, JSON.stringify(normalizarRota(dep.getRotasPorModo().contagem)));
+    localStorage.setItem(LS_CONTAGEM_MONITOR, JSON.stringify(normalizarRota(estadoPainel.rotasPorModo.contagem)));
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -646,9 +647,9 @@ export function rotaContagemParaServidor() {
   if (!contagemEstadoPainel || !contagemEstadoPainel.noAr) {
     return { publicoIndex: -1, ministranteIndex: -1 };
   }
-  const c = sanitizarRotaProjecao(normalizarRota(dep.getRotasPorModo().contagem), dep.getMonitoresServidorCache());
+  const c = sanitizarRotaProjecao(normalizarRota(estadoPainel.rotasPorModo.contagem), estadoPainel.monitoresServidorCache);
   if (contagemAlvoPainel === 'ambos') {
-    const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(dep.getMonitoresServidorCache());
+    const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(estadoPainel.monitoresServidorCache);
     return {
       publicoIndex: c.publicoIndex >= 0 ? c.publicoIndex : iPub,
       ministranteIndex: c.ministranteIndex >= 0 ? c.ministranteIndex : iMin,
@@ -671,7 +672,7 @@ export function rotaContagemParaServidor() {
 async function definirMonitorDoTelaoDaContagem(opcao) {
   const o = opcao && typeof opcao === 'object' ? opcao : {};
 
-  dep.getRotasPorModo().contagem = normalizarRota({
+  estadoPainel.rotasPorModo.contagem = normalizarRota({
     publicoIndex: o.publicoIndex ?? -1,
     ministranteIndex: Number.isFinite(o.ministranteIndex) ? o.ministranteIndex : -1,
     live: false,
@@ -694,7 +695,7 @@ async function definirMonitorDoTelaoDaContagem(opcao) {
 
 /** Índice do monitor escolhido no painel do Contador, ou `-1`. */
 function indiceMonitorPublicoAtual() {
-  const r = normalizarRota(dep.getRotasPorModo().contagem);
+  const r = normalizarRota(estadoPainel.rotasPorModo.contagem);
   return Number.isFinite(r.publicoIndex) ? r.publicoIndex : -1;
 }
 
@@ -718,7 +719,7 @@ function chaveMonitorSelecionadoContagem() {
  * Lyra), para a contagem não inventar um arranjo de ecrãs próprio.
  */
 function opcoesMonitorContagem() {
-  const lista = listaMonitoresParaProjecao(dep.getMonitoresServidorCache());
+  const lista = listaMonitoresParaProjecao(estadoPainel.monitoresServidorCache);
   const out = [
     {
       chave: '-1',
@@ -739,7 +740,7 @@ function opcoesMonitorContagem() {
     });
   });
 
-  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(dep.getMonitoresServidorCache());
+  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(estadoPainel.monitoresServidorCache);
   if (iPub >= 0 && iMin >= 0 && iPub !== iMin) {
     out.push({
       chave: 'ambos',
@@ -846,7 +847,7 @@ export function abrirPainelContagem() {
   renderSeletorMonitorContagem();
   /* Painel aberto antes de o cabeçalho ter falado com o servidor: sem isto, a lista de
      monitores ficaria vazia até o operador ir a outro modo e voltar. */
-  if (!listaMonitoresParaProjecao(dep.getMonitoresServidorCache()).length) {
+  if (!listaMonitoresParaProjecao(estadoPainel.monitoresServidorCache).length) {
     void carregarRoteamentoTelasDoServidor().then(() => renderSeletorMonitorContagem());
   }
 
@@ -1110,7 +1111,7 @@ export function iniciarContagemRegressivaPainel() {
    * encerrar a contagem, o painel tem de saber. `estado` é o mesmo evento que já alimenta
    * a prévia do telão — a contagem só se pendura nele.
    */
-  dep.getProjecao().aoReceber('estado', (st) => {
+  projecao.aoReceber('estado', (st) => {
     if (st && st.tipo === 'contagem' && st.contagem) {
       registarContagemNoAr(st.contagem);
       return;

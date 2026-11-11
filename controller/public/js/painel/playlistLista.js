@@ -11,6 +11,7 @@ import { atualizarUiExpandSecaoTema, definirSecaoTemaPlaylistRecolhida, filtrarP
 import { ehMarcadorTemaPlaylist } from '../modules/playlistVersaoMusica.js';
 import { htmlLinhaPlaylistModoAtual, renderSeletorMinistranteCulto, temaDoBlocoNaPlaylist } from './ministrantesTons.js';
 import { playlistItemDestacadoNaUi, playlistItemFoiTransmitido, podarTransmitidasDoCultoAtual } from './playlistTransmitidas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -100,8 +101,8 @@ function renderPlaylistItensComMarcadores(el, pl) {
 
 /** Gera a lista numerada só com o NOME das músicas da playlist atual (sem autor/tags). */
 function gerarTextoNomesMusicasPlaylist() {
-  if (!dep.getCultoId()) return '';
-  const pl = getPlaylist(dep.getCultoId()) || [];
+  if (!estadoPainel.cultoId) return '';
+  const pl = getPlaylist(estadoPainel.cultoId) || [];
   const linhas = [];
   for (const it of pl) {
     if (ehMarcadorTemaPlaylist(it)) continue;
@@ -214,7 +215,7 @@ function atualizarContagensPlaylist() {
     }
   });
   if (!total) return;
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.cultoId) {
     total.textContent = '';
     return;
   }
@@ -232,11 +233,11 @@ function renderPlaylistPainelCorpo() {
   /* Os dois seletores acabaram de receber texto novo (um nome de ministrante, um tema):
      o corpo que servia ao anterior pode não servir a este. */
   ajustarCorpoSeletoresDoCulto();
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.cultoId) {
     el.innerHTML = '<div class="placeholder-msg" style="margin:16px">🗓️ Selecione primeiro o <strong>dia do culto</strong> para ver ou montar a playlist.</div>';
     return;
   }
-  const pl = getPlaylist(dep.getCultoId());
+  const pl = getPlaylist(estadoPainel.cultoId);
   podarTransmitidasDoCultoAtual(pl);
   if (!pl.length) {
     el.innerHTML = ehModoSlidesOperador()
@@ -639,8 +640,8 @@ export function configurarDragReordenarLinhaPlaylist(row, idxPl) {
     limparIndicadoresDropMusicaPlaylist();
     const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
     arrastandoMusicaPlaylistIdx = null;
-    if (!Number.isFinite(fromIdx) || !dep.getCultoId()) return;
-    const destino = reordenarMusicaNaPlaylist(dep.getCultoId(), fromIdx, idxPl, pos);
+    if (!Number.isFinite(fromIdx) || !estadoPainel.cultoId) return;
+    const destino = reordenarMusicaNaPlaylist(estadoPainel.cultoId, fromIdx, idxPl, pos);
     if (destino == null) return;
     savePlaylists();
     renderPlaylist();
@@ -693,8 +694,8 @@ function configurarDropMusicaEmTemaVazioPlaylist(secao, markerPlIdx) {
     limparIndicadoresDropMusicaPlaylist();
     const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
     arrastandoMusicaPlaylistIdx = null;
-    if (!Number.isFinite(fromIdx) || !dep.getCultoId()) return;
-    const destino = moverMusicaParaTemaVazioNaPlaylist(dep.getCultoId(), fromIdx, markerPlIdx);
+    if (!Number.isFinite(fromIdx) || !estadoPainel.cultoId) return;
+    const destino = moverMusicaParaTemaVazioNaPlaylist(estadoPainel.cultoId, fromIdx, markerPlIdx);
     if (destino == null) return;
     savePlaylists();
     renderPlaylist();
@@ -740,10 +741,10 @@ function configurarDropMusicaEmSecaoRecolhidaPlaylist(secao, markerPlIdx, rotulo
     limparIndicadoresDropMusicaPlaylist();
     const fromIdx = Number(ev.dataTransfer.getData(MIME_MUSICA_PLAYLIST));
     arrastandoMusicaPlaylistIdx = null;
-    if (!Number.isFinite(fromIdx) || !dep.getCultoId()) return;
-    const destino = moverMusicaParaFimDoBlocoTemaNaPlaylist(dep.getCultoId(), fromIdx, markerPlIdx);
+    if (!Number.isFinite(fromIdx) || !estadoPainel.cultoId) return;
+    const destino = moverMusicaParaFimDoBlocoTemaNaPlaylist(estadoPainel.cultoId, fromIdx, markerPlIdx);
     if (destino === null) return;
-    definirSecaoTemaPlaylistRecolhida(String(dep.getCultoId()), rotuloTema, false);
+    definirSecaoTemaPlaylistRecolhida(String(estadoPainel.cultoId), rotuloTema, false);
     savePlaylists();
     renderPlaylist();
     realcarLinhaPlaylist(
@@ -754,7 +755,7 @@ function configurarDropMusicaEmSecaoRecolhidaPlaylist(secao, markerPlIdx, rotulo
 }
 
 export function removePlItem(idx) {
-  getPlaylist(dep.getCultoId()).splice(idx, 1);
+  getPlaylist(estadoPainel.cultoId).splice(idx, 1);
   savePlaylists();
   renderPlaylist();
 }
@@ -762,7 +763,7 @@ export function removePlItem(idx) {
 /** Cabeçalho de tema com seta expandir/recolher e corpo onde entram as linhas da playlist. Devolve o elemento onde anexar as músicas. */
 function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
   const texto = rotulo || 'Sem tema';
-  const cid = String(dep.getCultoId() || '');
+  const cid = String(estadoPainel.cultoId || '');
 
   const wrap = document.createElement('div');
   wrap.className = 'playlist-tema-section';
@@ -829,11 +830,11 @@ function anexarCabecalhoTemaPlaylist(elRoot, rotulo, idxMarcador) {
     atualizarUiExpandSecaoTema(btnExpand, rec);
   };
 
-  if (idxMarcador != null && idxMarcador !== undefined && dep.getCultoId() && playlistPossuiMarcadoresTema(getPlaylist(dep.getCultoId()))) {
+  if (idxMarcador != null && idxMarcador !== undefined && estadoPainel.cultoId && playlistPossuiMarcadoresTema(getPlaylist(estadoPainel.cultoId))) {
     configurarDragReordenarCabecalhoTemaPlaylist(row, wrap, idxMarcador);
     /* Sem músicas, o cartão não tem nenhuma linha que sirva de destino: passa ele
        próprio a receber o arrasto (ver a função). */
-    if (blocoTemaPlaylistVazio(getPlaylist(dep.getCultoId()), idxMarcador)) {
+    if (blocoTemaPlaylistVazio(getPlaylist(estadoPainel.cultoId), idxMarcador)) {
       configurarDropMusicaEmTemaVazioPlaylist(wrap, idxMarcador);
     } else {
       configurarDropMusicaEmSecaoRecolhidaPlaylist(wrap, idxMarcador, texto);
@@ -950,15 +951,15 @@ function configurarDragReordenarCabecalhoTemaPlaylist(row, secao, markerPlIdx) {
     const toIdx = Number(secao.dataset.plMarcadorIdx);
     arrastandoMarcadorTemaPlaylistIdx = null;
     if (!Number.isFinite(fromIdx) || !Number.isFinite(toIdx)) return;
-    if (!reordenarMarcadoresTemaNaPlaylist(dep.getCultoId(), fromIdx, toIdx, pos)) return;
+    if (!reordenarMarcadoresTemaNaPlaylist(estadoPainel.cultoId, fromIdx, toIdx, pos)) return;
     renderSeletorTemasPlaylist();
     renderPlaylist();
   });
 }
 
 async function solicitarRemoverMarcadorTemaPlaylist(idx) {
-  if (!dep.getCultoId()) return;
-  const plAntes = getPlaylist(dep.getCultoId());
+  if (!estadoPainel.cultoId) return;
+  const plAntes = getPlaylist(estadoPainel.cultoId);
   if (!ehMarcadorTemaPlaylist(plAntes[idx])) return;
   const nome = normalizarTemaPlaylist(plAntes[idx].tema) || '';
   if (!nome) {
@@ -967,7 +968,7 @@ async function solicitarRemoverMarcadorTemaPlaylist(idx) {
       'Remover separador'
     );
     if (!ok) return;
-    const pl = getPlaylist(dep.getCultoId());
+    const pl = getPlaylist(estadoPainel.cultoId);
     if (!ehMarcadorTemaPlaylist(pl[idx])) return;
     pl.splice(idx, 1);
     savePlaylists();
@@ -980,19 +981,19 @@ async function solicitarRemoverMarcadorTemaPlaylist(idx) {
     'Remover tema da playlist'
   );
   if (!ok) return;
-  const pl = getPlaylist(dep.getCultoId());
+  const pl = getPlaylist(estadoPainel.cultoId);
   const filtrado = playlistPossuiMarcadoresTema(pl)
     ? filtrarPlaylistRemovendoTemaComMarcadores(pl, nome)
     : pl.filter((it) => normalizarTemaPlaylist(it.tema) !== nome);
-  dep.getPlaylists()[dep.getCultoId()] = filtrado;
-  if (nome === TEMA_PADRAO_ABERTURA) marcarAberturaRemovidaPeloUsuario(dep.getCultoId());
+  estadoPainel.playlists[estadoPainel.cultoId] = filtrado;
+  if (nome === TEMA_PADRAO_ABERTURA) marcarAberturaRemovidaPeloUsuario(estadoPainel.cultoId);
   if (getTemaSelecionadoAtual() === nome) setTemaSelecionadoAtual('');
   savePlaylists();
-  const plDepois = getPlaylist(dep.getCultoId());
+  const plDepois = getPlaylist(estadoPainel.cultoId);
   const aindaNaLista =
-    !!dep.getMusicaAtiva() &&
+    !!estadoPainel.musicaAtiva &&
     plDepois.some((it) => !ehMarcadorTemaPlaylist(it) && playlistItemMesmaVersaoQueAtiva(it));
-  if (dep.getMusicaAtiva() && !aindaNaLista) encerrarProjecaoDoControlador({ limparMusica: true });
+  if (estadoPainel.musicaAtiva && !aindaNaLista) encerrarProjecaoDoControlador({ limparMusica: true });
   renderSeletorTemasPlaylist();
   renderPlaylist();
 }

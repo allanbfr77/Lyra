@@ -20,6 +20,7 @@ import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { aplicarMonitorLembradoAoEntrarNoModo, atualizarIndicadorProjecaoLiveUi, desativarRotasModosTransitorios, hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, hostChaveMonitores, marcarRotaLiveNoDom, normalizarRota, rotaDesativada, salvarRotasPorModoNoStorage, sanitizarRotaProjecao, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
 import { atualizarFeedbackProjecaoApresentacaoUi, canaisParaEncerrarConteudoApresentacao, encerrarCanaisApresentacaoNoServidor, getApresentacaoAvisoCard6Ativo, getUltimoConteudoProjetadoModoUnificado, getUltimoPayloadAvisoCard6, obterAlvoProjecaoAvisoCard6, obterAlvoProjecaoModoApresentacao, setApresentacaoAvisoCard6Ativo, setUltimoConteudoProjetadoModoUnificado, setUltimoPayloadAvisoCard6 } from './conteudoUnificadoAviso.js';
 import { restaurarRotaSlidesAposLibertarMonitores } from './canaisProjecao.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -62,11 +63,11 @@ export function abrirMenuModoApresentacao() {
     atualizarBtnModoApresentacao();
     renderSlidesStrip();
     if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-      dep.getRotasPorModo().apresentacao = rotaDesativada();
-      dep.getRotasPorModo().apresentacaoAviso = rotaDesativada();
+      estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
+      estadoPainel.rotasPorModo.apresentacaoAviso = rotaDesativada();
       marcarRotaLiveNoDom(false);
     } else if (!getApresentacaoAvisoCard6Ativo()) {
-      dep.getRotasPorModo().apresentacaoAviso = rotaDesativada();
+      estadoPainel.rotasPorModo.apresentacaoAviso = rotaDesativada();
     }
     /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
        troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
@@ -138,7 +139,7 @@ export function fecharMenuModoApresentacao() {
     document.body.classList.remove('app-mod-apresentacao');
     document.title = 'Lyra — Controlador';
     if (!preservarProjecao) {
-      dep.setApresentacaoMidiaProjetadaId(null);
+      estadoPainel.apresentacaoMidiaProjetadaId = null;
     }
     clearTimeout(getApresentacaoCardUiClickTimer());
     setApresentacaoCardUiClickTimer(null);
@@ -164,7 +165,7 @@ export function escolherArquivoModoApresentacao() {
  * Para a mídia no servidor e limpa estado local da mídia (não encerra avisos do card 6).
  */
 async function encerrarProjecaoMidiaApresentacaoNoControlador() {
-  const eraVideo = dep.getAudioStateRemoto().mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
+  const eraVideo = estadoPainel.audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
   if (eraVideo) {
     pararAudioLocalApresentacao();
   } else {
@@ -173,16 +174,16 @@ async function encerrarProjecaoMidiaApresentacaoNoControlador() {
 
   const alvoMidia =
     getUltimoConteudoProjetadoModoUnificado()?.payload?.alvoProjecao ||
-    (dep.getApresentacaoMidiaProjetadaId() ? obterAlvoProjecaoModoApresentacao() : null);
+    (estadoPainel.apresentacaoMidiaProjetadaId ? obterAlvoProjecaoModoApresentacao() : null);
   const alvoAviso =
     getApresentacaoAvisoCard6Ativo()
       ? getUltimoPayloadAvisoCard6()?.alvoProjecao || obterAlvoProjecaoAvisoCard6()
       : null;
 
-  dep.setApresentacaoMidiaProjetadaId(null);
+  estadoPainel.apresentacaoMidiaProjetadaId = null;
   setUltimoConteudoProjetadoModoUnificado(null);
-  dep.setApresentacaoAudioAtualId(null);
-  dep.setAudioStateRemoto({ ...dep.getAudioStateRemoto(), playing: false, currentTime: 0, duration: 0, name: '' });
+  estadoPainel.apresentacaoAudioAtualId = null;
+  estadoPainel.audioStateRemoto = { ...estadoPainel.audioStateRemoto, playing: false, currentTime: 0, duration: 0, name: '' };
 
   const canais = canaisParaEncerrarConteudoApresentacao(alvoMidia, alvoAviso);
   if (canais.length) {
@@ -195,7 +196,7 @@ async function encerrarProjecaoMidiaApresentacaoNoControlador() {
     } catch (_) {
   // intencional — erro ignorado
 }
-    dep.setEstadoServidor({
+    estadoPainel.estadoServidor = {
       tipo: null,
       titulo: '',
       linhas: [],
@@ -204,7 +205,7 @@ async function encerrarProjecaoMidiaApresentacaoNoControlador() {
       telaLimpa: true,
       blackout: false,
       slidePretoFinal: false,
-    });
+    };
   }
 
   try {
@@ -226,7 +227,7 @@ export async function encerrarAvisoCard6NoControlador() {
 
   const alvoAviso = getUltimoPayloadAvisoCard6()?.alvoProjecao || obterAlvoProjecaoAvisoCard6();
   const alvoMidia =
-    dep.getApresentacaoMidiaProjetadaId()
+    estadoPainel.apresentacaoMidiaProjetadaId
       ? getUltimoConteudoProjetadoModoUnificado()?.payload?.alvoProjecao ||
         obterAlvoProjecaoModoApresentacao()
       : null;
@@ -239,7 +240,7 @@ export async function encerrarAvisoCard6NoControlador() {
     await encerrarCanaisApresentacaoNoServidor(canais);
   }
 
-  if (!dep.getApresentacaoMidiaProjetadaId()) {
+  if (!estadoPainel.apresentacaoMidiaProjetadaId) {
     try {
       localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
     } catch (_) {
@@ -256,7 +257,7 @@ export async function encerrarAvisoCard6NoControlador() {
 export async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
   if (!ehModoApresentacaoOperador()) return;
   await encerrarProjecaoMidiaApresentacaoNoControlador();
-  dep.getRotasPorModo().apresentacao = rotaDesativada();
+  estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
   marcarRotaLiveNoDom(false);
   /* Libertar o canal partilhado: canais do Slides desligados só por conflito voltam;
      «Não exibir» manual do Slides nesta sessão fica intocado. */
@@ -288,14 +289,14 @@ export async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
  * @param {'biblia'|'apresentacao'} modo
  */
 function reexibirMonitorLembradoNoSeletorAposEncerrar(modo) {
-  if (!Array.isArray(dep.getMonitoresServidorCache()) || !dep.getMonitoresServidorCache().length) return;
+  if (!Array.isArray(estadoPainel.monitoresServidorCache) || !estadoPainel.monitoresServidorCache.length) return;
   const { aplicar, rota } = rotaLembradaParaEntrada(
     hostChaveMonitores(),
     modo,
-    dep.getMonitoresServidorCache()
+    estadoPainel.monitoresServidorCache
   );
   if (!aplicar) return;
-  renderRoteamentoTelas(dep.getMonitoresServidorCache(), sanitizarRotaProjecao(rota, dep.getMonitoresServidorCache()));
+  renderRoteamentoTelas(estadoPainel.monitoresServidorCache, sanitizarRotaProjecao(rota, estadoPainel.monitoresServidorCache));
   atualizarIndicadorProjecaoLiveUi();
 }
 
@@ -312,13 +313,13 @@ function reexibirMonitorLembradoNoSeletorAposEncerrar(modo) {
  */
 export async function reidratarRotaApresentacaoDoSeletor() {
   if (!ehModoApresentacaoOperador()) return;
-  const atual = normalizarRota(dep.getRotasPorModo().apresentacao);
+  const atual = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
   if (atual.live || atual.publicoIndex >= 0 || atual.ministranteIndex >= 0) return;
   const daUi = rotaSelecionadaNaUi();
   if (!daUi) return;
   const r = normalizarRota(daUi);
   if (!r.live && r.publicoIndex < 0 && r.ministranteIndex < 0) return;
-  dep.getRotasPorModo().apresentacao = sanitizarRotaProjecao(r, dep.getMonitoresServidorCache());
+  estadoPainel.rotasPorModo.apresentacao = sanitizarRotaProjecao(r, estadoPainel.monitoresServidorCache);
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
 }
 
@@ -331,8 +332,8 @@ export async function encerrarProjecaoModoApresentacao() {
     await encerrarAvisoCard6NoControlador();
   }
   await encerrarProjecaoMidiaApresentacaoNoControlador();
-  dep.getRotasPorModo().apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
-  dep.getRotasPorModo().apresentacaoAviso = rotaDesativada();
+  estadoPainel.rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
+  estadoPainel.rotasPorModo.apresentacaoAviso = rotaDesativada();
   restaurarRotaSlidesAposLibertarMonitores();
   salvarRotasPorModoNoStorage();
   atualizarFeedbackProjecaoApresentacaoUi({

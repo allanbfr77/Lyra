@@ -10,6 +10,7 @@ import { atualizarCopiaLocal } from './copiasLocaisPainel.js';
 import { comparativoSujoVsSnapshot, fecharModoComparativo, sairModoComparativoParaTrocarModo, salvarComparativoNoServidor } from './comparativoVersoes.js';
 import { entrarModoEdicao, sairModoEdicao, salvarMusicaServidor } from './editorEstrofes.js';
 import { renderPlaylist } from './playlistLista.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -25,12 +26,12 @@ const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
 
 export function marcacaoEstrofeEditor() {
   document.querySelectorAll('.estrofe-slide-edit').forEach((el, i) => {
-    el.classList.toggle('ativa', dep.getEstrofeAtiva() === i);
+    el.classList.toggle('ativa', estadoPainel.estrofeAtiva === i);
   });
 }
 
 function metadadosMusicaEditaveisNaHome() {
-  return !!dep.getMusicaAtiva() && dep.getMusicaBancoFonte() !== 'catalog';
+  return !!estadoPainel.musicaAtiva && estadoPainel.musicaBancoFonte !== 'catalog';
 }
 
 function tituloMusicaEditavelNaHome() {
@@ -42,7 +43,7 @@ export function metadadosMusicaSujosNaHome() {
   const et = document.getElementById('edit-titulo');
   const ea = document.getElementById('edit-artista');
   if (!et || !ea) return false;
-  return et.value !== String(dep.getMusicaAtiva()?.titulo || '') || ea.value !== String(dep.getMusicaAtiva()?.artista || '');
+  return et.value !== String(estadoPainel.musicaAtiva?.titulo || '') || ea.value !== String(estadoPainel.musicaAtiva?.artista || '');
 }
 
 /**
@@ -58,10 +59,10 @@ export function metadadosMusicaSujosNaHome() {
  * questão de qual versão está ativa, não de qual modo a barra está.
  */
 export function atualizarToolbarModoEdicao() {
-  const m = !!dep.getMusicaAtiva();
-  const ed = dep.getModoEdicaoEstrofes();
-  const full = dep.getModoLetraCompletaCentral();
-  const comp = dep.getModoComparativoCentral();
+  const m = !!estadoPainel.musicaAtiva;
+  const ed = estadoPainel.modoEdicaoEstrofes;
+  const full = estadoPainel.modoLetraCompletaCentral;
+  const comp = estadoPainel.modoComparativoCentral;
   /* Setas de navegação e Sair continuam disponíveis também no modo Letra Completa —
      o utilizador quer poder controlar a projeção enquanto edita a letra inteira.
      Só a edição por estrofes e o modo comparativo (telas de edição exclusivas,
@@ -132,11 +133,11 @@ export function atualizarToolbarModoEdicao() {
   /* Por último: «Salvar alterações» e «Cancelar» dependem do resultado de todos
      os outros — cada um decide, pelo sub-modo activo, o que salvar/descartar. */
   atualizarBotoesSalvarCancelarBarraPadrao();
-  dep.getHomeLayout()?.update({
+  estadoPainel.homeLayout?.update({
     ...estadoFaixaEdicaoHome(),
-    key: dep.getMusicaAtiva() ? `${dep.getMusicaBancoFonte()}:${dep.getMusicaAtiva().id}:${dep.getMusicaVersaoLocalId() || ''}` : '',
-    title: dep.getMusicaAtiva()?.titulo, artist: dep.getMusicaAtiva()?.artista,
-    slides: dep.getMusicaAtiva()?.estrofes?.length || 0,
+    key: estadoPainel.musicaAtiva ? `${estadoPainel.musicaBancoFonte}:${estadoPainel.musicaAtiva.id}:${estadoPainel.musicaVersaoLocalId || ''}` : '',
+    title: estadoPainel.musicaAtiva?.titulo, artist: estadoPainel.musicaAtiva?.artista,
+    slides: estadoPainel.musicaAtiva?.estrofes?.length || 0,
     metadataEditable: metadadosEditaveis, full, comparison: comp,
     editing: ed || full || comp,
   });
@@ -145,12 +146,12 @@ export function atualizarToolbarModoEdicao() {
 /** Estado que decide a faixa de edição da Home (recalculado também a cada tecla). */
 function estadoFaixaEdicaoHome() {
   return {
-    full: dep.getModoLetraCompletaCentral(),
-    comparison: dep.getModoComparativoCentral(),
+    full: estadoPainel.modoLetraCompletaCentral,
+    comparison: estadoPainel.modoComparativoCentral,
     dirty: temEdicaoMusicaNaoGravada(),
     // Na letra completa/comparativo a faixa só vale com texto alterado (dirty).
-    editingSlides: dep.getModoEdicaoEstrofes() && !dep.getModoLetraCompletaCentral() && !dep.getModoComparativoCentral(),
-    editingFull: dep.getModoLetraCompletaCentral() && dep.getLetraCompletaEditando() && !dep.getModoComparativoCentral(),
+    editingSlides: estadoPainel.modoEdicaoEstrofes && !estadoPainel.modoLetraCompletaCentral && !estadoPainel.modoComparativoCentral,
+    editingFull: estadoPainel.modoLetraCompletaCentral && estadoPainel.letraCompletaEditando && !estadoPainel.modoComparativoCentral,
     // Nome da cópia/versão selecionada (null no Original, que não é renomeável).
     versionName: versaoCopiaSelecionadaAtual()?.rotulo ?? null,
   };
@@ -207,20 +208,20 @@ export async function renomearVersaoSelecionadaComNome(nomeBruto) {
 
 /** Botão «Editar letra»: no comparativo, sai dele primeiro. */
 export async function acionarEditarLetraBarraPadrao() {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   if (!(await sairModoComparativoParaTrocarModo())) return;
-  if (dep.getHomeLayout()?.isHome() && dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.homeLayout?.isHome() && estadoPainel.modoLetraCompletaCentral) {
     // Na letra completa, «Editar» só libera o texto para edição (continua na letra completa).
-    if (!dep.getLetraCompletaEditando()) {
-      dep.setLetraCompletaEditando(true);
+    if (!estadoPainel.letraCompletaEditando) {
+      estadoPainel.letraCompletaEditando = true;
       atualizarToolbarModoEdicao();
       document.getElementById('centro-letra-completa-ta')?.focus();
     }
     return;
   }
-  if (dep.getHomeLayout()?.isHome()) {
+  if (estadoPainel.homeLayout?.isHome()) {
     // Na Home «Editar letra» abre a edição por slides (antigo botão do lápis).
-    if (dep.getModoEdicaoEstrofes()) return;
+    if (estadoPainel.modoEdicaoEstrofes) return;
     if (!(await confirmarProsseguirDescartandoEdicaoPendente())) return;
   }
   entrarModoEdicao();
@@ -228,7 +229,7 @@ export async function acionarEditarLetraBarraPadrao() {
 
 /** Sai do modo sem gravar nada — o que foi digitado nas colunas é descartado. */
 export async function cancelarModoComparativoCentral() {
-  if (!dep.getModoComparativoCentral()) return;
+  if (!estadoPainel.modoComparativoCentral) return;
   if (comparativoSujoVsSnapshot()) {
     const ok = await appConfirm(
       'Descartar as alterações feitas nesta comparação?',
@@ -253,9 +254,9 @@ export async function cancelarModoComparativoCentral() {
  */
 function atualizarToolbarModoComparativo() {
   const btn = document.getElementById('btn-modo-comparativo');
-  const on = dep.getModoComparativoCentral();
-  const m = !!dep.getMusicaAtiva();
-  const podeAbrir = m && dep.getMusicaBancoFonte() !== 'catalog';
+  const on = estadoPainel.modoComparativoCentral;
+  const m = !!estadoPainel.musicaAtiva;
+  const podeAbrir = m && estadoPainel.musicaBancoFonte !== 'catalog';
 
   if (!btn) return;
   btn.style.display = m ? '' : 'none';
@@ -292,8 +293,8 @@ function atualizarToolbarModoComparativo() {
  * sair do modo edição.
  */
 export function atualizarBotoesSalvarCancelarBarraPadrao() {
-  const m = !!dep.getMusicaAtiva();
-  const emSubModoEdicao = dep.getModoEdicaoEstrofes() || dep.getModoLetraCompletaCentral() || dep.getModoComparativoCentral();
+  const m = !!estadoPainel.musicaAtiva;
+  const emSubModoEdicao = estadoPainel.modoEdicaoEstrofes || estadoPainel.modoLetraCompletaCentral || estadoPainel.modoComparativoCentral;
   const temAlteracaoPendente = temEdicaoMusicaNaoGravada();
   const btnSalvar = document.getElementById('btn-salvar-musica');
   if (btnSalvar) {
@@ -304,11 +305,11 @@ export function atualizarBotoesSalvarCancelarBarraPadrao() {
   if (btnCancelar) {
     btnCancelar.style.display = m ? '' : 'none';
     btnCancelar.disabled =
-      !m || (!emSubModoEdicao && !dep.getHomeLayout()?.metadataOpen()) ||
-      (!dep.getModoEdicaoEstrofes() && !temAlteracaoPendente && !dep.getHomeLayout()?.isHome());
+      !m || (!emSubModoEdicao && !estadoPainel.homeLayout?.metadataOpen()) ||
+      (!estadoPainel.modoEdicaoEstrofes && !temAlteracaoPendente && !estadoPainel.homeLayout?.isHome());
   }
   // Cada edição passa por aqui: mantém a faixa da Home em dia sem recalcular o resto.
-  dep.getHomeLayout()?.updateStrip?.(estadoFaixaEdicaoHome());
+  estadoPainel.homeLayout?.updateStrip?.(estadoFaixaEdicaoHome());
 }
 
 /**
@@ -319,14 +320,14 @@ export function atualizarBotoesSalvarCancelarBarraPadrao() {
  * bifurca o ORIGINAL quando necessário).
  */
 export async function acionarSalvarAlteracoesBarraPadrao() {
-  if (!dep.getMusicaAtiva()) return;
-  if (dep.getModoComparativoCentral()) {
+  if (!estadoPainel.musicaAtiva) return;
+  if (estadoPainel.modoComparativoCentral) {
     if (!comparativoSujoVsSnapshot()) return;
     const ok = await salvarComparativoNoServidor();
     if (ok) fecharModoComparativo();
     return;
   }
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     if (!letraCompletaSujaVsSnapshot() && !metadadosMusicaSujosNaHome()) return;
     // Mesmo caminho do antigo botão «Modo letra completa» quando clicado já activo.
     await alternarModoLetraCompletaCentral();
@@ -344,31 +345,31 @@ export async function acionarSalvarAlteracoesBarraPadrao() {
  * permanece na Letra Completa — trocar de tela é só o botão «Grade/Slide».
  */
 export async function acionarCancelarBarraPadrao() {
-  if (dep.getModoComparativoCentral()) {
+  if (estadoPainel.modoComparativoCentral) {
     await cancelarModoComparativoCentral();
     return;
   }
-  if (dep.getModoLetraCompletaCentral()) {
+  if (estadoPainel.modoLetraCompletaCentral) {
     descartarEdicaoLetraCompletaSemSair();
-    if (dep.getHomeLayout()?.isHome()) {
+    if (estadoPainel.homeLayout?.isHome()) {
       // Cancelar volta à visualização da letra completa (não à grade) e restaura título/artista.
-      dep.setLetraCompletaEditando(false);
+      estadoPainel.letraCompletaEditando = false;
       const et = document.getElementById('edit-titulo');
       const ea = document.getElementById('edit-artista');
-      if (et) et.value = dep.getMusicaAtiva()?.titulo || '';
-      if (ea) ea.value = dep.getMusicaAtiva()?.artista || '';
+      if (et) et.value = estadoPainel.musicaAtiva?.titulo || '';
+      if (ea) ea.value = estadoPainel.musicaAtiva?.artista || '';
       atualizarToolbarModoEdicao();
     }
     return;
   }
-  if (dep.getModoEdicaoEstrofes()) {
+  if (estadoPainel.modoEdicaoEstrofes) {
     await sairModoEdicao();
     return;
   }
-  if (dep.getHomeLayout()?.isHome() && dep.getHomeLayout().metadataOpen()) {
-    document.getElementById('edit-titulo').value = dep.getMusicaAtiva()?.titulo || '';
-    document.getElementById('edit-artista').value = dep.getMusicaAtiva()?.artista || '';
-    dep.getHomeLayout().closeMetadata();
+  if (estadoPainel.homeLayout?.isHome() && estadoPainel.homeLayout.metadataOpen()) {
+    document.getElementById('edit-titulo').value = estadoPainel.musicaAtiva?.titulo || '';
+    document.getElementById('edit-artista').value = estadoPainel.musicaAtiva?.artista || '';
+    estadoPainel.homeLayout.closeMetadata();
     atualizarToolbarModoEdicao();
   }
 }
@@ -379,19 +380,19 @@ export async function acionarCancelarBarraPadrao() {
 export function atualizarToolbarCaixaLetrasEdicao() {
   const btn = document.getElementById('btn-caixa-letras-edicao');
   const sep = document.getElementById('toolbar-sep-caixa-letras');
-  const m = !!dep.getMusicaAtiva();
-  const habilitado = m && (dep.getModoEdicaoEstrofes() || dep.getModoLetraCompletaCentral());
+  const m = !!estadoPainel.musicaAtiva;
+  const habilitado = m && (estadoPainel.modoEdicaoEstrofes || estadoPainel.modoLetraCompletaCentral);
   /* aA fica sempre no fim da fila de ações; o «|» separa das ações à esquerda. */
   if (sep) sep.style.display = m ? '' : 'none';
   if (!btn) return;
   btn.style.display = m ? '' : 'none';
   btn.disabled = !habilitado;
-  btn.classList.toggle('ativo', !!dep.getCaixaLetrasEdicaoMaiuscula());
-  btn.setAttribute('aria-pressed', dep.getCaixaLetrasEdicaoMaiuscula() ? 'true' : 'false');
+  btn.classList.toggle('ativo', !!estadoPainel.caixaLetrasEdicaoMaiuscula);
+  btn.setAttribute('aria-pressed', estadoPainel.caixaLetrasEdicaoMaiuscula ? 'true' : 'false');
   // Habilitado só ao editar a letra (por slides ou letra completa): explica o motivo quando apagado.
   const tituloCaixa = !habilitado
     ? 'Caixa das letras: disponível ao editar a letra (clique em «Editar letra» ou use a visualização em lista)'
-    : dep.getCaixaLetrasEdicaoMaiuscula()
+    : estadoPainel.caixaLetrasEdicaoMaiuscula
       ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
       : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
   btn.title = tituloCaixa;
@@ -406,7 +407,7 @@ export function atualizarToolbarCaixaLetrasEdicao() {
 function atualizarToolbarAdicionarPlaylistHome() {
   const btn = document.getElementById('btn-adicionar-playlist-home');
   const sep = document.getElementById('toolbar-sep-playlist');
-  const m = !!dep.getMusicaAtiva();
+  const m = !!estadoPainel.musicaAtiva;
   if (sep) sep.style.display = m ? '' : 'none';
   if (!btn) return;
   btn.style.display = m ? '' : 'none';

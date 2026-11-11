@@ -7,6 +7,7 @@
  * local, pré-voo, Ajustes…) entram por `registrarDependenciasMenuLyra`, no topo do núcleo.
  */
 import { appAlert, appConfirm } from './appDialog.js';
+import { estadoPainel } from './estadoPainel.js';
 import {
   montarHtmlManualLyra,
   montarHtmlAtalhosLyra,
@@ -276,7 +277,7 @@ async function reiniciarServidorLocalViaMenu() {
  * Corta reconnect já no emit; o disconnect existente reassume o modo local.
  */
 export async function encerrarServidorRemotoViaMenu() {
-  if (dep.emModoProjecaoLocal() || !dep.getSocket() || !dep.getSocket().connected) {
+  if (dep.emModoProjecaoLocal() || !estadoPainel.socket || !estadoPainel.socket.connected) {
     await appAlert(
       'Conecte ao Servidor remoto (Ajustes › Conexão) para poder encerrá-lo.',
       'Encerrar Server'
@@ -301,7 +302,7 @@ export async function encerrarServidorRemotoViaMenu() {
       };
       const t = setTimeout(acabar, 2000);
       try {
-        dep.getSocket().emit('encerrar_servidor', {}, (ack) => {
+        estadoPainel.socket.emit('encerrar_servidor', {}, (ack) => {
           clearTimeout(t);
           if (ack && ack.ok === false) {
             void appAlert(

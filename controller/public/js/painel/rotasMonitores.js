@@ -13,6 +13,7 @@ import { hayProjecaoAtivaNoServidor } from './previewProjecao.js';
 import { limparNaoExibirManualSlides } from '../modules/reposicaoRotaSlides.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { getApresentacaoAvisoCard6Ativo } from './conteudoUnificadoAviso.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -52,8 +53,8 @@ export function salvarRotasPorModoNoStorage() {
     localStorage.setItem(
       LS_ROTAS_POR_MODO,
       JSON.stringify({
-        completo: normalizarRota(dep.getRotasPorModo().completo),
-        slides: normalizarRota(dep.getRotasPorModo().slides),
+        completo: normalizarRota(estadoPainel.rotasPorModo.completo),
+        slides: normalizarRota(estadoPainel.rotasPorModo.slides),
       })
     );
   } catch (_) {
@@ -87,7 +88,7 @@ export function carregarRotasPorModoDoStorage() {
            no estado inicial (−1/−1) até os monitores serem detectados e o padrão M2/M3
            aplicado em `carregarRoteamentoTelasDoServidor`. */
         if (p.completo && typeof p.completo === 'object') {
-          dep.getRotasPorModo().completo = normalizarRota(p.completo);
+          estadoPainel.rotasPorModo.completo = normalizarRota(p.completo);
         }
       }
     }
@@ -95,11 +96,11 @@ export function carregarRotasPorModoDoStorage() {
   // intencional — erro ignorado
 }
   limparNaoExibirManualSlides();
-  dep.getRotasPorModo().slides = rotaDesativada();
-  dep.getRotasPorModo().apresentacao = rotaDesativada();
-  dep.getRotasPorModo().apresentacaoAviso = rotaDesativada();
-  dep.getRotasPorModo().biblia = rotaDesativada();
-  dep.getRotasPorModo().docs = rotaDesativada();
+  estadoPainel.rotasPorModo.slides = rotaDesativada();
+  estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
+  estadoPainel.rotasPorModo.apresentacaoAviso = rotaDesativada();
+  estadoPainel.rotasPorModo.biblia = rotaDesativada();
+  estadoPainel.rotasPorModo.docs = rotaDesativada();
 }
 
 /**
@@ -122,13 +123,13 @@ export function hostChaveMonitores() {
  */
 export function persistirIdentidadesDosModos() {
   const host = hostChaveMonitores();
-  const lista = dep.getMonitoresServidorCache();
+  const lista = estadoPainel.monitoresServidorCache;
   if (!Array.isArray(lista) || !lista.length) return;
   /* Só `completo` e `slides`: são as escolhas duradouras de infraestrutura («o telão é a
      LG TV»). `apresentacao` e `biblia` são rotas de sessão, deliberadamente repostas a
      «Não exibir» em cada arranque — persistir a sua identidade fá-las-ia ressuscitar. */
   ['completo', 'slides'].forEach((modo) => {
-    const r = normalizarRota(dep.getRotasPorModo()[modo]);
+    const r = normalizarRota(estadoPainel.rotasPorModo[modo]);
     /* Rota «Live — OBS» não usa monitor nenhum; gravar identidades aqui apagaria a
        escolha física do utilizador só por ele ter ido para o OBS por um momento. */
     if (r.live) return;
@@ -159,7 +160,7 @@ export function persistirIdentidadesDosModos() {
  * @returns {{rota: object, faltou: string[]}}
  */
 export function rotaRestauradaPorIdentidade(modo, rotaServidor) {
-  const lista = dep.getMonitoresServidorCache();
+  const lista = estadoPainel.monitoresServidorCache;
   const base = normalizarRota(rotaServidor);
   if (base.live) return { rota: base, faltou: [] };
   if (!Array.isArray(lista) || !lista.length) return { rota: base, faltou: [] };
@@ -200,7 +201,7 @@ export function registrarEscolhaMonitorDoOperador() {
   if (!modo) return;
   const rota = rotaSelecionadaNaUi();
   if (!rota) return;
-  registrarEscolhaMonitor(hostChaveMonitores(), modo, rota, dep.getMonitoresServidorCache());
+  registrarEscolhaMonitor(hostChaveMonitores(), modo, rota, estadoPainel.monitoresServidorCache);
   avisarMonitoresConfiguradosEmFalta();
 }
 
@@ -220,18 +221,18 @@ export function aplicarMonitorLembradoAoEntrarNoModo(modo) {
   if (hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
   /* Slides no ar: repor o monitor lembrado da Bíblia/Mídias reivindica o canal
      partilhado e o merge do servidor apaga a letra — trocar de aba não pode fazer isso. */
-  if (dep.getProjecaoMusicaEmitidaNoServidor()) return false;
+  if (estadoPainel.projecaoMusicaEmitidaNoServidor) return false;
   /* Sem lista de monitores não se conclui nada: entrar no modo antes de o servidor
      responder daria «monitor não encontrado» para um monitor que está ligado e bem. A
      entrada seguinte, já com a lista, repõe. */
-  if (!Array.isArray(dep.getMonitoresServidorCache()) || !dep.getMonitoresServidorCache().length) return false;
+  if (!Array.isArray(estadoPainel.monitoresServidorCache) || !estadoPainel.monitoresServidorCache.length) return false;
   const { aplicar, rota, faltou } = rotaLembradaParaEntrada(
     hostChaveMonitores(),
     modo,
-    dep.getMonitoresServidorCache()
+    estadoPainel.monitoresServidorCache
   );
   if (!aplicar) return false;
-  dep.getRotasPorModo()[modo] = sanitizarRotaProjecao(rota, dep.getMonitoresServidorCache());
+  estadoPainel.rotasPorModo[modo] = sanitizarRotaProjecao(rota, estadoPainel.monitoresServidorCache);
 
   /*
    * A Bíblia não tem canal próprio no servidor: viaja no `apresentacao`, e é dali que
@@ -248,7 +249,7 @@ export function aplicarMonitorLembradoAoEntrarNoModo(modo) {
    * mexer no canal partilhado.
    */
   if (modo === 'biblia') {
-    dep.getRotasPorModo().apresentacao = { ...normalizarRota(dep.getRotasPorModo().biblia) };
+    estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.biblia) };
   }
 
   /* Aviso do cabeçalho: só depende de haver (ou não) monitor de projeção. */
@@ -346,10 +347,10 @@ export function rotaLiveSelecionadaNaUi() {
  * Trocar de modo NÃO pode encerrar esta projeção nem desativar a rota partilhada.
  */
 export function hayProjecaoMidiaApresentacaoAtiva() {
-  if (dep.getApresentacaoMidiaProjetadaId()) return true;
+  if (estadoPainel.apresentacaoMidiaProjetadaId) return true;
   if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   /*
    * `projecaoMinistranteApresentacao` diz apenas «há override no canal ministrante», e
    * não «há mídia no ar». A Bíblia projetada só no público também levanta essa marca: o
@@ -376,8 +377,8 @@ export function hayProjecaoApresentacaoModoAtiva() {
 export function hayProjecaoAtivaModoBibliaOuApresentacao() {
   if (hayProjecaoApresentacaoModoAtiva()) return true;
   if (bibliaHaParteProjetada()) return true;
-  const e = dep.getEstadoServidor();
-  if (!e || !dep.getProjecao().pronta()) return false;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
   if (e.projecaoBibliaMinistrante) return true;
   if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
@@ -391,14 +392,14 @@ export async function desativarRotasModosTransitorios(opts = {}) {
   /* Mídia no ar: Bíblia e Mídias partilham o canal `apresentacao` no dual-routing —
      desativar essa rota fecharia as janelas e encerraria a projeção. */
   if (!projecaoApAtiva) {
-    dep.getRotasPorModo().apresentacao = rotaDesativada();
+    estadoPainel.rotasPorModo.apresentacao = rotaDesativada();
     restaurarRotaSlidesAposLibertarMonitores();
   }
-  dep.getRotasPorModo().biblia = rotaDesativada();
-  marcarRotaLiveNoDom(projecaoApAtiva ? !!normalizarRota(dep.getRotasPorModo().apresentacao).live : false);
+  estadoPainel.rotasPorModo.biblia = rotaDesativada();
+  marcarRotaLiveNoDom(projecaoApAtiva ? !!normalizarRota(estadoPainel.rotasPorModo.apresentacao).live : false);
   const modo = modoRoteamentoAtual();
   if (modo === 'apresentacao' || modo === 'biblia') {
-    renderRoteamentoTelas(dep.getMonitoresServidorCache(), dep.getRotasPorModo()[modo]);
+    renderRoteamentoTelas(estadoPainel.monitoresServidorCache, estadoPainel.rotasPorModo[modo]);
   }
   if (sync) {
     try {
@@ -419,7 +420,7 @@ export function atualizarIndicadorProjecaoLiveUi() {
     emModoLive &&
     liveSel &&
     hayProjecaoAtivaNoServidor() &&
-    !!(dep.getEstadoServidor() && dep.getEstadoServidor().projecaoLive);
+    !!(estadoPainel.estadoServidor && estadoPainel.estadoServidor.projecaoLive);
   /*
      O selo «● LIVE → OBS» não aparece no modo Bíblia.
 
@@ -451,8 +452,8 @@ export function atualizarIndicadorProjecaoLiveUi() {
 
 /** Índice efetivo por canal: apresentação substitui o slide no mesmo monitor. */
 export function indicesEfetivosRoteamentoDualCliente() {
-  const s = normalizarRota(dep.getRotasPorModo().slides);
-  const a = normalizarRota(dep.getRotasPorModo().apresentacao);
+  const s = normalizarRota(estadoPainel.rotasPorModo.slides);
+  const a = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
   if (a.live) {
     return { publicoIndex: -1, ministranteIndex: -1, live: true };
   }

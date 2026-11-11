@@ -5,6 +5,7 @@
  */
 import { criarMapaCopiasLocais, ehVersaoLocalLegada } from '../modules/copiasLocaisLetra.js';
 import { renderMusicaVersoesBar } from './versoesMusica.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -28,27 +29,27 @@ export function encontrarCopiaLocal(idMusica, copiaId) {
 }
 
 export function obterRootIdMusicaAtiva() {
-  if (!dep.getMusicaAtiva()) return null;
-  const r = Number(dep.getMusicaRootId() ?? dep.getMusicaAtiva().root_id ?? dep.getMusicaAtiva().id);
+  if (!estadoPainel.musicaAtiva) return null;
+  const r = Number(estadoPainel.musicaRootId ?? estadoPainel.musicaAtiva.root_id ?? estadoPainel.musicaAtiva.id);
   return Number.isFinite(r) ? r : null;
 }
 
 export function musicaAtivaEhOriginalServidor() {
-  if (!dep.getMusicaAtiva() || dep.getMusicaBancoFonte() === 'catalog') return false;
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaBancoFonte === 'catalog') return false;
   const root = obterRootIdMusicaAtiva();
-  const id = Number(dep.getMusicaAtiva().id);
+  const id = Number(estadoPainel.musicaAtiva.id);
   if (!Number.isFinite(root) || !Number.isFinite(id)) return false;
-  if (dep.getMusicaVersaoLocalId() && ehVersaoLocalLegada(dep.getMusicaVersaoLocalId())) return false;
-  return id === root && (dep.getMusicaAtiva().parent_id == null || dep.getMusicaAtiva().parent_id === '');
+  if (estadoPainel.musicaVersaoLocalId && ehVersaoLocalLegada(estadoPainel.musicaVersaoLocalId)) return false;
+  return id === root && (estadoPainel.musicaAtiva.parent_id == null || estadoPainel.musicaAtiva.parent_id === '');
 }
 
 /** Original protegido no SQLite (`is_immutable === 1`); cópias/versões filhas são editáveis. */
 export function versaoAtivaParaCompararPlaylist() {
-  if (dep.getMusicaVersaoLocalId() && String(dep.getMusicaVersaoLocalId()).trim()) {
-    return String(dep.getMusicaVersaoLocalId()).trim();
+  if (estadoPainel.musicaVersaoLocalId && String(estadoPainel.musicaVersaoLocalId).trim()) {
+    return String(estadoPainel.musicaVersaoLocalId).trim();
   }
   if (musicaAtivaEhOriginalServidor()) return '';
-  if (dep.getMusicaAtiva() && dep.getMusicaBancoFonte() !== 'catalog') return String(dep.getMusicaAtiva().id);
+  if (estadoPainel.musicaAtiva && estadoPainel.musicaBancoFonte !== 'catalog') return String(estadoPainel.musicaAtiva.id);
   return '';
 }
 
@@ -86,7 +87,7 @@ export async function garantirCopiaPadraoServidor(id) {
 export async function carregarVersoesMusicaServidor(rootId) {
   const root = Number(rootId);
   if (!Number.isFinite(root)) {
-    dep.setVersoesMusicaServidorCache({ rootId: null, versoes: [] });
+    estadoPainel.versoesMusicaServidorCache = { rootId: null, versoes: [] };
     renderMusicaVersoesBar();
     return;
   }
@@ -94,12 +95,12 @@ export async function carregarVersoesMusicaServidor(rootId) {
     const res = await fetch(`${getControllerApiBase()}/api/musicas/${root}/versoes`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    dep.setVersoesMusicaServidorCache({
+    estadoPainel.versoesMusicaServidorCache = {
       rootId: Number(data.rootId) || root,
       versoes: Array.isArray(data.versoes) ? data.versoes : [],
-    });
+    };
   } catch (_) {
-    dep.setVersoesMusicaServidorCache({ rootId: root, versoes: [] });
+    estadoPainel.versoesMusicaServidorCache = { rootId: root, versoes: [] };
   }
   renderMusicaVersoesBar();
 }
@@ -111,19 +112,19 @@ export function atualizarCopiaLocal(idMusica, copiaId, data) {
   const idN = Number(idMusica);
   const vid = String(copiaId);
   if (
-    dep.getMusicaAtiva() &&
-    Number(dep.getMusicaAtiva().id) === idN &&
-    dep.getMusicaVersaoLocalId() &&
-    String(dep.getMusicaVersaoLocalId()) === vid
+    estadoPainel.musicaAtiva &&
+    Number(estadoPainel.musicaAtiva.id) === idN &&
+    estadoPainel.musicaVersaoLocalId &&
+    String(estadoPainel.musicaVersaoLocalId) === vid
   ) {
-    if (data.titulo != null) dep.getMusicaAtiva().titulo = c.titulo;
-    if (data.artista != null) dep.getMusicaAtiva().artista = c.artista;
-    if (data.estrofes != null) dep.getMusicaAtiva().estrofes = c.estrofes.map((s) => String(s));
-    if (data.rotulo != null) dep.getMusicaAtiva().rotulo = c.rotulo;
+    if (data.titulo != null) estadoPainel.musicaAtiva.titulo = c.titulo;
+    if (data.artista != null) estadoPainel.musicaAtiva.artista = c.artista;
+    if (data.estrofes != null) estadoPainel.musicaAtiva.estrofes = c.estrofes.map((s) => String(s));
+    if (data.rotulo != null) estadoPainel.musicaAtiva.rotulo = c.rotulo;
     const et = document.getElementById('edit-titulo');
     const ea = document.getElementById('edit-artista');
-    if (et && data.titulo != null) et.value = dep.getMusicaAtiva().titulo || '';
-    if (ea && data.artista != null) ea.value = dep.getMusicaAtiva().artista || '';
+    if (et && data.titulo != null) et.value = estadoPainel.musicaAtiva.titulo || '';
+    if (ea && data.artista != null) ea.value = estadoPainel.musicaAtiva.artista || '';
   }
   return { ok: true };
 }

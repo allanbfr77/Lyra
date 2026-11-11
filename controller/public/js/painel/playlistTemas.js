@@ -7,6 +7,7 @@ import { LS_PLAYLISTS, LS_PLAYLISTS_LEGACY, LS_PLAYLIST_ABERTURA_REMOVIDA, LS_PL
 import { appAlert } from './appDialog.js';
 import { buscarTomMemoria, normalizarMinistranteIdPlaylist, normalizarMinistrantePadraoPorCulto, normalizarTomPlaylist } from '../modules/playlistMinistranteTom.js';
 import { ehMarcadorTemaPlaylist, fonteBancoItemPlaylist } from '../modules/playlistVersaoMusica.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -220,7 +221,7 @@ export function loadTemaSelecionadoPorCulto() {
 
 export function saveTemaSelecionadoPorCulto() {
   try {
-    localStorage.setItem(LS_PLAYLIST_TEMA_SEL, JSON.stringify(dep.getTemaSelecionadoPorCulto() || {}));
+    localStorage.setItem(LS_PLAYLIST_TEMA_SEL, JSON.stringify(estadoPainel.temaSelecionadoPorCulto || {}));
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -270,7 +271,7 @@ export function loadTemasPorCulto() {
 
 export function saveTemasPorCulto() {
   try {
-    localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(dep.getTemasPorCulto() || {}));
+    localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(estadoPainel.temasPorCulto || {}));
   } catch (_) {
   // intencional — erro ignorado
 }
@@ -278,9 +279,9 @@ export function saveTemasPorCulto() {
 }
 
 export function getTemasDoCultoAtual() {
-  if (!Array.isArray(dep.getTemasPorCulto()['__global__'])) dep.getTemasPorCulto()['__global__'] = [];
-  dep.getTemasPorCulto()['__global__'] = normalizarListaTemas(dep.getTemasPorCulto()['__global__']);
-  return dep.getTemasPorCulto()['__global__'];
+  if (!Array.isArray(estadoPainel.temasPorCulto['__global__'])) estadoPainel.temasPorCulto['__global__'] = [];
+  estadoPainel.temasPorCulto['__global__'] = normalizarListaTemas(estadoPainel.temasPorCulto['__global__']);
+  return estadoPainel.temasPorCulto['__global__'];
 }
 
 export function garantirTemaNoCatalogoAtual(tema) {
@@ -289,7 +290,7 @@ export function garantirTemaNoCatalogoAtual(tema) {
   const lista = getTemasDoCultoAtual();
   if (lista.includes(t)) return;
   lista.push(t);
-  dep.getTemasPorCulto()['__global__'] = normalizarListaTemas(lista);
+  estadoPainel.temasPorCulto['__global__'] = normalizarListaTemas(lista);
   saveTemasPorCulto();
 }
 
@@ -310,7 +311,7 @@ let ministrantePadraoPorCulto = {};
 function cultoTemMusicaNaPlaylist(cid) {
   const id = String(cid || '').trim();
   if (!id) return false;
-  const pl = dep.getPlaylists()[id];
+  const pl = estadoPainel.playlists[id];
   if (!Array.isArray(pl)) return false;
   return pl.some((it) => it && !ehMarcadorTemaPlaylist(it));
 }
@@ -386,7 +387,7 @@ export function getMinistrantePadraoCulto(cid) {
   if (!id) return null;
   const stored = normalizarMinistranteIdPlaylist(ministrantePadraoPorCulto[id]);
   if (stored) return stored;
-  const pl = dep.getPlaylists()[id];
+  const pl = estadoPainel.playlists[id];
   if (!Array.isArray(pl)) return null;
   let unico = null;
   for (const it of pl) {
@@ -509,15 +510,15 @@ function blocosComMarcadoresParaPlaylist(blocos) {
 export function garantirAberturaNoCatalogoCulto(cid) {
   garantirTemaNoCatalogoAtual(TEMA_PADRAO_ABERTURA);
   if (!cid) return;
-  if (!Array.isArray(dep.getTemasPorCulto()[cid])) dep.getTemasPorCulto()[cid] = [];
-  const lista = normalizarListaTemas(dep.getTemasPorCulto()[cid]);
+  if (!Array.isArray(estadoPainel.temasPorCulto[cid])) estadoPainel.temasPorCulto[cid] = [];
+  const lista = normalizarListaTemas(estadoPainel.temasPorCulto[cid]);
   if (!lista.includes(TEMA_PADRAO_ABERTURA)) {
-    dep.getTemasPorCulto()[cid] = [TEMA_PADRAO_ABERTURA, ...lista];
+    estadoPainel.temasPorCulto[cid] = [TEMA_PADRAO_ABERTURA, ...lista];
     saveTemasPorCulto();
   } else {
     const ordenada = ordenarTemasLista(lista);
     if (ordenada.join('\u0001') !== lista.join('\u0001')) {
-      dep.getTemasPorCulto()[cid] = ordenada;
+      estadoPainel.temasPorCulto[cid] = ordenada;
       saveTemasPorCulto();
     }
   }
@@ -529,7 +530,7 @@ export function garantirMarcadorAberturaNaPlaylist(cid) {
   if (playlistTemMarcadorAbertura(pl)) return false;
   garantirAberturaNoCatalogoCulto(cid);
   pl.unshift({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: TEMA_PADRAO_ABERTURA });
-  dep.getPlaylists()[cid] = pl;
+  estadoPainel.playlists[cid] = pl;
   return true;
 }
 
@@ -553,8 +554,8 @@ function sincronizarOrdemTemasCatalogoComPlaylist(cid) {
       ordem.push(t);
     }
   });
-  const extras = (dep.getTemasPorCulto()[cid] || []).filter((t) => t && !seen.has(t));
-  dep.getTemasPorCulto()[cid] = ordenarTemasLista(normalizarListaTemas([...ordem, ...extras]));
+  const extras = (estadoPainel.temasPorCulto[cid] || []).filter((t) => t && !seen.has(t));
+  estadoPainel.temasPorCulto[cid] = ordenarTemasLista(normalizarListaTemas([...ordem, ...extras]));
   saveTemasPorCulto();
 }
 
@@ -589,7 +590,7 @@ export function reordenarMarcadoresTemaNaPlaylist(cid, fromMarkerIdx, toMarkerId
   const reord = [...blocos];
   const [bloco] = reord.splice(fromB, 1);
   reord.splice(alvo, 0, bloco);
-  dep.getPlaylists()[cid] = blocosComMarcadoresParaPlaylist(reord);
+  estadoPainel.playlists[cid] = blocosComMarcadoresParaPlaylist(reord);
   sincronizarOrdemTemasCatalogoComPlaylist(cid);
   savePlaylists();
   return true;
@@ -606,10 +607,10 @@ export function renomearTemaNoCulto(velho, novo) {
     appAlert('Já existe um tema com esse nome.');
     return false;
   }
-  dep.getTemasPorCulto()['__global__'] = normalizarListaTemas(lista.map((t) => (t === v ? n : t)));
+  estadoPainel.temasPorCulto['__global__'] = normalizarListaTemas(lista.map((t) => (t === v ? n : t)));
   saveTemasPorCulto();
   // Atualiza todas as playlists
-  Object.keys(dep.getPlaylists()).forEach((cid) => {
+  Object.keys(estadoPainel.playlists).forEach((cid) => {
     const pl = getPlaylist(cid);
     pl.forEach((it) => {
       if (normalizarTemaPlaylist(it.tema) === v) it.tema = n;

@@ -8,6 +8,7 @@ import { atualizarVersoesHome, organizarVersoesHome } from './homeLayout.js';
 import { carregarMusicas } from './bibliotecaMusicas.js';
 import { ehVersaoLocalLegada, ehVersaoServidorId } from '../modules/copiasLocaisLetra.js';
 import { versoesConteudoRigorosamenteIdentico } from '../modules/playlistVersaoMusica.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -46,31 +47,31 @@ const temEdicaoMusicaNaoGravada = (...a) => dep.temEdicaoMusicaNaoGravada(...a);
 
 export function aplicarBaseMusicaSelecionada(base, id, versaoLocalId) {
   const idNum = Number(id);
-  dep.setMusicaRootId(Number(base?.root_id ?? idNum));
-  dep.setMusicaVersaoLocalId(versaoLocalId && String(versaoLocalId).trim() ? String(versaoLocalId) : null);
-  if (dep.getMusicaVersaoLocalId() && ehVersaoLocalLegada(dep.getMusicaVersaoLocalId())) {
-    const c = encontrarCopiaLocal(idNum, dep.getMusicaVersaoLocalId());
+  estadoPainel.musicaRootId = Number(base?.root_id ?? idNum);
+  estadoPainel.musicaVersaoLocalId = versaoLocalId && String(versaoLocalId).trim() ? String(versaoLocalId) : null;
+  if (estadoPainel.musicaVersaoLocalId && ehVersaoLocalLegada(estadoPainel.musicaVersaoLocalId)) {
+    const c = encontrarCopiaLocal(idNum, estadoPainel.musicaVersaoLocalId);
     if (c) {
-      dep.setMusicaAtiva({
+      estadoPainel.musicaAtiva = {
         ...base,
         titulo: c.titulo,
         artista: c.artista || '',
         estrofes: (c.estrofes || []).map((s) => String(s)),
-      });
+      };
     } else {
-      dep.setMusicaAtiva(base);
-      dep.setMusicaVersaoLocalId(null);
+      estadoPainel.musicaAtiva = base;
+      estadoPainel.musicaVersaoLocalId = null;
     }
   } else {
-    dep.setMusicaAtiva(base);
-    if (dep.getMusicaVersaoLocalId() && ehVersaoServidorId(dep.getMusicaVersaoLocalId())) {
-      dep.setMusicaVersaoLocalId(null);
+    estadoPainel.musicaAtiva = base;
+    if (estadoPainel.musicaVersaoLocalId && ehVersaoServidorId(estadoPainel.musicaVersaoLocalId)) {
+      estadoPainel.musicaVersaoLocalId = null;
     }
   }
   const et = document.getElementById('edit-titulo');
   const ea = document.getElementById('edit-artista');
-  if (et) et.value = dep.getMusicaAtiva().titulo || '';
-  if (ea) ea.value = dep.getMusicaAtiva().artista || '';
+  if (et) et.value = estadoPainel.musicaAtiva.titulo || '';
+  if (ea) ea.value = estadoPainel.musicaAtiva.artista || '';
   void sincronizarBarraVersoesAposTroca();
   atualizarToolbarModoEdicao();
 }
@@ -84,7 +85,7 @@ async function confirmarRemoverVersaoLocal(idMusica, copiaId) {
   removerCopiaLocal(idMusica, copiaId);
   removerVersaoLocalDasPlaylists(idMusica, copiaId);
   const idNum = Number(idMusica);
-  if (dep.getMusicaAtiva() && Number(dep.getMusicaAtiva().id) === idNum && dep.getMusicaVersaoLocalId() === copiaId) {
+  if (estadoPainel.musicaAtiva && Number(estadoPainel.musicaAtiva.id) === idNum && estadoPainel.musicaVersaoLocalId === copiaId) {
     await trocarVersaoMusicaCentral(null);
   }
   renderMusicaVersoesBar();
@@ -104,16 +105,16 @@ export function rotuloExibicaoVersaoServidor(v) {
  * @returns {{ tipo: 'local'|'servidor', rootId: number, id: string, rotulo: string } | null}
  */
 export function versaoCopiaSelecionadaAtual() {
-  if (!dep.getMusicaAtiva() || dep.getMusicaAtiva().id == null || dep.getMusicaBancoFonte() === 'catalog') return null;
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaAtiva.id == null || estadoPainel.musicaBancoFonte === 'catalog') return null;
   const rootId = obterRootIdMusicaAtiva();
   if (!Number.isFinite(rootId)) return null;
-  if (dep.getMusicaVersaoLocalId()) {
-    const copia = encontrarCopiaLocal(rootId, dep.getMusicaVersaoLocalId());
+  if (estadoPainel.musicaVersaoLocalId) {
+    const copia = encontrarCopiaLocal(rootId, estadoPainel.musicaVersaoLocalId);
     if (!copia) return null;
     return { tipo: 'local', rootId, id: copia.id, rotulo: copia.rotulo || '' };
   }
   if (!musicaAtivaEhOriginalServidor()) {
-    return { tipo: 'servidor', rootId, id: String(dep.getMusicaAtiva().id), rotulo: dep.getMusicaAtiva().rotulo || '' };
+    return { tipo: 'servidor', rootId, id: String(estadoPainel.musicaAtiva.id), rotulo: estadoPainel.musicaAtiva.rotulo || '' };
   }
   return null;
 }
@@ -181,9 +182,9 @@ function iconeVersaoServidorPorRotulo(labelUpper) {
 }
 
 function idChipVersaoAtiva() {
-  if (dep.getMusicaVersaoLocalId()) return String(dep.getMusicaVersaoLocalId());
+  if (estadoPainel.musicaVersaoLocalId) return String(estadoPainel.musicaVersaoLocalId);
   if (musicaAtivaEhOriginalServidor()) return '__original__';
-  if (dep.getMusicaAtiva()?.id != null) return String(dep.getMusicaAtiva().id);
+  if (estadoPainel.musicaAtiva?.id != null) return String(estadoPainel.musicaAtiva.id);
   return '';
 }
 
@@ -206,7 +207,7 @@ function atualizarChipAtivoBarraVersoes() {
 
 function sincronizarBarraVersoesAposTroca() {
   const root = obterRootIdMusicaAtiva();
-  if (Number(dep.getVersoesMusicaServidorCache().rootId) === Number(root)) {
+  if (Number(estadoPainel.versoesMusicaServidorCache.rootId) === Number(root)) {
     if (!atualizarChipAtivoBarraVersoes()) renderMusicaVersoesBar();
     return Promise.resolve();
   }
@@ -216,7 +217,7 @@ function sincronizarBarraVersoesAposTroca() {
 export function renderMusicaVersoesBar() {
   const bar = document.getElementById('musica-versoes-bar');
   if (!bar) return;
-  if (!dep.getMusicaAtiva() || dep.getMusicaAtiva().id == null) {
+  if (!estadoPainel.musicaAtiva || estadoPainel.musicaAtiva.id == null) {
     bar.hidden = true;
     bar.innerHTML = '';
     return;
@@ -227,15 +228,15 @@ export function renderMusicaVersoesBar() {
     return;
   }
   /* Catálogo é só-leitura: não há versões nem criação. */
-  if (dep.getMusicaBancoFonte() === 'catalog') {
+  if (estadoPainel.musicaBancoFonte === 'catalog') {
     bar.hidden = true;
     bar.innerHTML = '';
     return;
   }
 
   const versoesSrv =
-    Number(dep.getVersoesMusicaServidorCache().rootId) === rootId
-      ? dep.getVersoesMusicaServidorCache().versoes || []
+    Number(estadoPainel.versoesMusicaServidorCache.rootId) === rootId
+      ? estadoPainel.versoesMusicaServidorCache.versoes || []
       : [];
   const copiasLocais = getCopiasParaMusica(rootId);
 
@@ -261,7 +262,7 @@ export function renderMusicaVersoesBar() {
   lbl.innerHTML = SVG_VERSAO.ramo + '<span>Versões</span>';
   bar.appendChild(lbl);
 
-  const originalAtivo = musicaAtivaEhOriginalServidor() && !dep.getMusicaVersaoLocalId();
+  const originalAtivo = musicaAtivaEhOriginalServidor() && !estadoPainel.musicaVersaoLocalId;
   /* Enquanto a Cópia padrão tiver exactamente o conteúdo do Original, o chip do
      ORIGINAL é redundante e some do cabeçalho — o registo continua no banco,
      intacto. Editada a cópia, os conteúdos deixam de bater e o ORIGINAL
@@ -278,7 +279,7 @@ export function renderMusicaVersoesBar() {
     if (v.parent_id == null && Number(v.id) === rootId) continue;
     if (v.parent_id == null) continue;
     const vid = String(v.id);
-    const ativo = !dep.getMusicaVersaoLocalId() && Number(dep.getMusicaAtiva().id) === Number(v.id);
+    const ativo = !estadoPainel.musicaVersaoLocalId && Number(estadoPainel.musicaAtiva.id) === Number(v.id);
     const rotulo = rotuloExibicaoVersaoServidor(v);
     /* Só o nome/badge — editar e apagar ficam no menu inferior contextual. */
     bar.appendChild(
@@ -288,7 +289,7 @@ export function renderMusicaVersoesBar() {
 
   copiasLocais.forEach((c) => {
     const rotuloVis = `${rotuloVersaoMaiusculo(formatarRotuloVersaoExibicao(c.rotulo))} (LOCAL)`;
-    bar.appendChild(mkChip(rotuloVis, c.id, dep.getMusicaVersaoLocalId() === c.id, SVG_VERSAO.local, `${formatarRotuloVersaoExibicao(c.rotulo)} (local)`));
+    bar.appendChild(mkChip(rotuloVis, c.id, estadoPainel.musicaVersaoLocalId === c.id, SVG_VERSAO.local, `${formatarRotuloVersaoExibicao(c.rotulo)} (local)`));
   });
 
   /* Chip de criação: mesmo destino do antigo botão «Criar nova versão». */
@@ -354,8 +355,8 @@ export const ERRO_ROTULO_DUPLICADO_API = 'rotulo-duplicado';
 /** Depois de gravado o novo nome: playlists, música activa e barra de versões. */
 export async function concluirRenomearVersaoServidor(rootId, versaoId, idNum, rotuloFinal) {
   atualizarRotuloVersaoNasPlaylists(rootId, versaoId, rotuloFinal);
-  if (dep.getMusicaAtiva() && Number(dep.getMusicaAtiva().id) === idNum) {
-    dep.getMusicaAtiva().rotulo = rotuloFinal;
+  if (estadoPainel.musicaAtiva && Number(estadoPainel.musicaAtiva.id) === idNum) {
+    estadoPainel.musicaAtiva.rotulo = rotuloFinal;
   }
   await carregarVersoesMusicaServidor(rootId);
   renderPlaylist();
@@ -372,8 +373,8 @@ export function nomeVersaoJaUsadoNaMusica(rootId, nome, idIgnorar) {
   const mesmo = (r) => String(r || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR') === chave;
   if (mesmo('Original')) return true;
   const versoesSrv =
-    Number(dep.getVersoesMusicaServidorCache().rootId) === Number(rootId)
-      ? dep.getVersoesMusicaServidorCache().versoes || []
+    Number(estadoPainel.versoesMusicaServidorCache.rootId) === Number(rootId)
+      ? estadoPainel.versoesMusicaServidorCache.versoes || []
       : [];
   const naoEhAPropria = (id) => String(id) !== String(idIgnorar);
   return (
@@ -443,7 +444,7 @@ async function confirmarRemoverVersaoServidor(rootId, versaoId) {
       return;
     }
     removerVersaoLocalDasPlaylists(rootId, String(versaoId));
-    if (dep.getMusicaAtiva() && Number(dep.getMusicaAtiva().id) === idNum) {
+    if (estadoPainel.musicaAtiva && Number(estadoPainel.musicaAtiva.id) === idNum) {
       await trocarVersaoMusicaCentral(null);
     }
     /* Sempre recarregar do servidor: o cache da barra mantinha a versão apagada
@@ -458,7 +459,7 @@ async function confirmarRemoverVersaoServidor(rootId, versaoId) {
 }
 
 async function trocarVersaoMusicaCentral(copiaId) {
-  if (!dep.getMusicaAtiva()) return;
+  if (!estadoPainel.musicaAtiva) return;
   const rootId = obterRootIdMusicaAtiva();
   if (!Number.isFinite(rootId)) return;
   if (temEdicaoMusicaNaoGravada()) {
@@ -470,8 +471,8 @@ async function trocarVersaoMusicaCentral(copiaId) {
     if (!ok) return;
   }
 
-  const manterLetraCompleta = dep.getModoLetraCompletaCentral();
-  const estrofesAntes = (dep.getMusicaAtiva().estrofes || []).map((s) => String(s ?? ''));
+  const manterLetraCompleta = estadoPainel.modoLetraCompletaCentral;
+  const estrofesAntes = (estadoPainel.musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
 
   try {
     const vid = copiaId && String(copiaId).trim() ? String(copiaId) : null;
@@ -487,58 +488,58 @@ async function trocarVersaoMusicaCentral(copiaId) {
     if (!res.ok) throw new Error(`Falha ao carregar música (HTTP ${res.status}).`);
     const base = await res.json();
     if (!base || !Array.isArray(base.estrofes)) throw new Error('Resposta inválida do controlador.');
-    dep.setMusicaBancoFonte('user');
+    estadoPainel.musicaBancoFonte = 'user';
     if (!vid || ehVersaoServidorId(vid)) {
-      dep.setMusicaAtiva(base);
-      dep.setMusicaVersaoLocalId(vid && ehVersaoLocalLegada(vid) ? vid : null);
-      dep.setMusicaRootId(Number(base.root_id ?? rootId));
+      estadoPainel.musicaAtiva = base;
+      estadoPainel.musicaVersaoLocalId = vid && ehVersaoLocalLegada(vid) ? vid : null;
+      estadoPainel.musicaRootId = Number(base.root_id ?? rootId);
       const et = document.getElementById('edit-titulo');
       const ea = document.getElementById('edit-artista');
-      if (et) et.value = dep.getMusicaAtiva().titulo || '';
-      if (ea) ea.value = dep.getMusicaAtiva().artista || '';
+      if (et) et.value = estadoPainel.musicaAtiva.titulo || '';
+      if (ea) ea.value = estadoPainel.musicaAtiva.artista || '';
       await sincronizarBarraVersoesAposTroca();
     } else {
       aplicarBaseMusicaSelecionada(base, rootId, vid);
     }
-    dep.setEstrofeAtiva(Math.min(
-      Math.max(dep.getEstrofeAtiva() < 0 ? 0 : dep.getEstrofeAtiva(), 0),
-      Math.max(0, dep.getMusicaAtiva().estrofes.length - 1)
-    ));
-    dep.setProjecaoMusicaEmitidaNoServidor(false);
-    dep.setBloqueioSincronizarEstrofeDoServidor(true);
+    estadoPainel.estrofeAtiva = Math.min(
+      Math.max(estadoPainel.estrofeAtiva < 0 ? 0 : estadoPainel.estrofeAtiva, 0),
+      Math.max(0, estadoPainel.musicaAtiva.estrofes.length - 1)
+    );
+    estadoPainel.projecaoMusicaEmitidaNoServidor = false;
+    estadoPainel.bloqueioSincronizarEstrofeDoServidor = true;
 
-    const mesmaLetra = estrofesArraysIguaisParaEdicao(estrofesAntes, dep.getMusicaAtiva().estrofes);
+    const mesmaLetra = estrofesArraysIguaisParaEdicao(estrofesAntes, estadoPainel.musicaAtiva.estrofes);
 
     if (manterLetraCompleta) {
       atualizarTextoPainelLetraCompleta();
       const ta = document.getElementById('centro-letra-completa-ta');
-      dep.setSnapshotLetraCompleta({
+      estadoPainel.snapshotLetraCompleta = {
         estrofes: ta
           ? splitTextoLetraCompletaEmEstrofes(ta.value)
-          : dep.getMusicaAtiva().estrofes.map((s) => String(s ?? '')),
-        estrofeAtiva: dep.getEstrofeAtiva(),
-      });
+          : estadoPainel.musicaAtiva.estrofes.map((s) => String(s ?? '')),
+        estrofeAtiva: estadoPainel.estrofeAtiva,
+      };
     } else if (!mesmaLetra) {
       if (!atualizarEstrofesEditorInPlace()) renderEstrofesEditor();
     } else {
       marcacaoEstrofeEditor();
     }
 
-    if (dep.getModoEdicaoEstrofes()) {
-      dep.setSnapshotEdicaoEstrofes({
-        titulo: String(dep.getMusicaAtiva().titulo || ''),
-        artista: String(dep.getMusicaAtiva().artista || ''),
-        estrofes: dep.getMusicaAtiva().estrofes.map((s) => String(s ?? '')),
-        estrofeAtiva: dep.getEstrofeAtiva(),
-      });
+    if (estadoPainel.modoEdicaoEstrofes) {
+      estadoPainel.snapshotEdicaoEstrofes = {
+        titulo: String(estadoPainel.musicaAtiva.titulo || ''),
+        artista: String(estadoPainel.musicaAtiva.artista || ''),
+        estrofes: estadoPainel.musicaAtiva.estrofes.map((s) => String(s ?? '')),
+        estrofeAtiva: estadoPainel.estrofeAtiva,
+      };
     }
 
     if (ehModoSlidesOperador()) {
       if (mesmaLetra) {
         const grid = document.getElementById('slides-grid');
-        if (grid && dep.getMusicaAtiva()) {
-          grid.dataset.stripMusicaId = String(dep.getMusicaAtiva().id ?? '');
-          grid.dataset.stripProjecao = dep.getProjecaoMusicaEmitidaNoServidor() ? '1' : '0';
+        if (grid && estadoPainel.musicaAtiva) {
+          grid.dataset.stripMusicaId = String(estadoPainel.musicaAtiva.id ?? '');
+          grid.dataset.stripProjecao = estadoPainel.projecaoMusicaEmitidaNoServidor ? '1' : '0';
         }
         atualizarSomenteAtivoFaixaSlides();
       } else {

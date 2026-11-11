@@ -9,6 +9,7 @@ import { fmtTempoAudio } from '../modules/midiaApresentacao.js';
 import { aguardarMetadadosVideo, obterItemVideoProjetadoNoPlayer, projetarItemApresentacao, restaurarItemVideoApresentacao, videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { atualizarPreviewVideoAoVivo, atualizarUiPlayerAudioRemoto, emitirEstadoVideoParaServidor, iniciarRelogioUiVideo, obterElementoVideoLocal, pararAudioServidorPlayback, pausarAudioLocalApresentacao, pausarAudioServidorPlayback, prepararElementoVideoLocalControle, reproduzirElementoPreviewLocal, set_videoUiClockBase, set_videoUiClockT0, tocarAudioServidorApresentacao } from './playerLocalMidia.js';
 import { criarItemApresentacaoDeArquivo, renderListaAudiosApresentacao } from './bibliotecaMidiasApresentacao.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -35,8 +36,8 @@ const renderGridApresentacao = (...a) => dep.renderGridApresentacao(...a);
 export const PLAYLIST_ATRASOS_PERMITIDOS = [0, 1, 2, 3, 5];
 
 function playlistItemAtual() {
-  if (dep.getPlaylistVideoIndice() < 0) return null;
-  return dep.getApresentacaoVideoPlaylist()[dep.getPlaylistVideoIndice()] || null;
+  if (estadoPainel.playlistVideoIndice < 0) return null;
+  return estadoPainel.apresentacaoVideoPlaylist[estadoPainel.playlistVideoIndice] || null;
 }
 
 function playlistItemAtualId() {
@@ -47,10 +48,10 @@ function playlistItemAtualId() {
 /** true somente quando a playlist está ativa E o vídeo projetado é o item atual dela. */
 export function playlistControlaReproducaoAtual() {
   return (
-    dep.getPlaylistVideoAtiva() &&
-    dep.getPlaylistVideoIndice() >= 0 &&
-    !!dep.getApresentacaoMidiaProjetadaId() &&
-    dep.getApresentacaoMidiaProjetadaId() === playlistItemAtualId()
+    estadoPainel.playlistVideoAtiva &&
+    estadoPainel.playlistVideoIndice >= 0 &&
+    !!estadoPainel.apresentacaoMidiaProjetadaId &&
+    estadoPainel.apresentacaoMidiaProjetadaId === playlistItemAtualId()
   );
 }
 
@@ -63,12 +64,12 @@ export function cancelarAvancoAutoPlaylist() {
 
 /** Inicia a reprodução do vídeo já projetado no telão, a partir de fromTime. */
 function iniciarPlaybackVideoProjetado(fromTime = 0) {
-  const dur = Math.max(0, Number(dep.getAudioStateRemoto().duration) || 0);
+  const dur = Math.max(0, Number(estadoPainel.audioStateRemoto.duration) || 0);
   let t = Math.max(0, Number(fromTime) || 0);
   if (dur > 0 && t >= dur - 0.05) t = 0;
-  dep.getAudioStateRemoto().mediaKind = 'video';
-  dep.getAudioStateRemoto().playing = true;
-  dep.getAudioStateRemoto().currentTime = t;
+  estadoPainel.audioStateRemoto.mediaKind = 'video';
+  estadoPainel.audioStateRemoto.playing = true;
+  estadoPainel.audioStateRemoto.currentTime = t;
   set_videoUiClockBase(t);
   set_videoUiClockT0(performance.now());
   emitirEstadoVideoParaServidor({ playing: true, syncTime: true, currentTime: t });
@@ -80,31 +81,31 @@ function iniciarPlaybackVideoProjetado(fromTime = 0) {
 
 /** Projeta e reproduz o item i da playlist, reutilizando o motor de vídeo único. */
 async function reproduzirItemPlaylist(i) {
-  if (!dep.getApresentacaoVideoPlaylist().length) return;
-  const idx = Math.max(0, Math.min(dep.getApresentacaoVideoPlaylist().length - 1, Math.round(Number(i) || 0)));
-  const item = dep.getApresentacaoVideoPlaylist()[idx];
+  if (!estadoPainel.apresentacaoVideoPlaylist.length) return;
+  const idx = Math.max(0, Math.min(estadoPainel.apresentacaoVideoPlaylist.length - 1, Math.round(Number(i) || 0)));
+  const item = estadoPainel.apresentacaoVideoPlaylist[idx];
   if (!item) return;
   cancelarAvancoAutoPlaylist();
-  dep.setPlaylistVideoIndice(idx);
-  dep.setPlaylistVideoAtiva(true);
+  estadoPainel.playlistVideoIndice = idx;
+  estadoPainel.playlistVideoAtiva = true;
   renderListaPlaylistApresentacao();
   const it = await restaurarItemVideoApresentacao(item);
   if (!it?.src) {
-    dep.setPlaylistVideoAtiva(false);
+    estadoPainel.playlistVideoAtiva = false;
     renderListaPlaylistApresentacao();
     alert('Não foi possível carregar o vídeo da playlist. Adicione o arquivo novamente.');
     return;
   }
-  dep.getApresentacaoVideoPlaylist()[idx] = { ...item, ...it };
-  if (Number(item.duracao) > 0) dep.getApresentacaoVideoPlaylist()[idx].duracao = Number(item.duracao);
-  dep.set_playlistProjetando(true);
+  estadoPainel.apresentacaoVideoPlaylist[idx] = { ...item, ...it };
+  if (Number(item.duracao) > 0) estadoPainel.apresentacaoVideoPlaylist[idx].duracao = Number(item.duracao);
+  estadoPainel._playlistProjetando = true;
   try {
-    await projetarItemApresentacao(dep.getApresentacaoVideoPlaylist()[idx]);
+    await projetarItemApresentacao(estadoPainel.apresentacaoVideoPlaylist[idx]);
   } finally {
-    dep.set_playlistProjetando(false);
+    estadoPainel._playlistProjetando = false;
   }
-  if (dep.getApresentacaoMidiaProjetadaId() !== dep.getApresentacaoVideoPlaylist()[idx].id) {
-    dep.setPlaylistVideoAtiva(false);
+  if (estadoPainel.apresentacaoMidiaProjetadaId !== estadoPainel.apresentacaoVideoPlaylist[idx].id) {
+    estadoPainel.playlistVideoAtiva = false;
     renderListaPlaylistApresentacao();
     return;
   }
@@ -113,11 +114,11 @@ async function reproduzirItemPlaylist(i) {
   /* Reforço: o telão pode montar o <video> logo após receber a projeção;
      reenvia o play para evitar que o primeiro comando chegue antes do elemento. */
   setTimeout(() => {
-    if (playlistControlaReproducaoAtual() && dep.getAudioStateRemoto().playing) {
+    if (playlistControlaReproducaoAtual() && estadoPainel.audioStateRemoto.playing) {
       emitirEstadoVideoParaServidor({
         playing: true,
         syncTime: true,
-        currentTime: Number(dep.getAudioStateRemoto().currentTime) || 0,
+        currentTime: Number(estadoPainel.audioStateRemoto.currentTime) || 0,
       });
     }
   }, 350);
@@ -125,22 +126,22 @@ async function reproduzirItemPlaylist(i) {
 
 /** Chamado quando um vídeo da playlist termina (a partir do relógio da UI). */
 export function aoTerminarVideoPlaylist() {
-  const total = dep.getApresentacaoVideoPlaylist().length;
-  const proximo = dep.getPlaylistVideoIndice() + 1;
+  const total = estadoPainel.apresentacaoVideoPlaylist.length;
+  const proximo = estadoPainel.playlistVideoIndice + 1;
   if (proximo >= total) {
-    dep.setPlaylistVideoAtiva(false);
+    estadoPainel.playlistVideoAtiva = false;
     cancelarAvancoAutoPlaylist();
     renderListaPlaylistApresentacao();
     return;
   }
-  dep.setPlaylistVideoIndice(proximo);
+  estadoPainel.playlistVideoIndice = proximo;
   renderListaPlaylistApresentacao();
-  if (dep.getPlaylistVideoModo() === 'auto') {
-    const atrasoMs = Math.max(0, Number(dep.getPlaylistVideoAtrasoAuto()) || 0) * 1000;
+  if (estadoPainel.playlistVideoModo === 'auto') {
+    const atrasoMs = Math.max(0, Number(estadoPainel.playlistVideoAtrasoAuto) || 0) * 1000;
     cancelarAvancoAutoPlaylist();
     _playlistAutoTimer = setTimeout(() => {
       _playlistAutoTimer = null;
-      void reproduzirItemPlaylist(dep.getPlaylistVideoIndice());
+      void reproduzirItemPlaylist(estadoPainel.playlistVideoIndice);
     }, atrasoMs);
   }
 }
@@ -148,13 +149,13 @@ export function aoTerminarVideoPlaylist() {
 export function playlistAlternarModo(force) {
   const semArgumento = force === undefined || force === null;
   const prox = semArgumento
-    ? dep.getPlaylistVideoModo() === 'auto'
+    ? estadoPainel.playlistVideoModo === 'auto'
       ? 'manual'
       : 'auto'
     : force === 'auto'
       ? 'auto'
       : 'manual';
-  dep.setPlaylistVideoModo(prox);
+  estadoPainel.playlistVideoModo = prox;
   if (prox === 'manual') cancelarAvancoAutoPlaylist();
   salvarEstadoModoApresentacaoNoStorage();
   atualizarControlesPlaylistUi();
@@ -163,7 +164,7 @@ export function playlistAlternarModo(force) {
 export function playlistDefinirAtraso(seg) {
   let v = Math.round(Number(seg) || 0);
   if (!PLAYLIST_ATRASOS_PERMITIDOS.includes(v)) v = 0;
-  dep.setPlaylistVideoAtrasoAuto(v);
+  estadoPainel.playlistVideoAtrasoAuto = v;
   salvarEstadoModoApresentacaoNoStorage();
   atualizarControlesPlaylistUi();
 }
@@ -206,12 +207,12 @@ export function playlistAdicionarVideos(files) {
     if (!/^video\//i.test(mime) && !/\.(mp4|webm|mov|mkv|avi|m4v|ogv)$/i.test(nome)) return;
     criarItemApresentacaoDeArquivo(file, (item) => {
       if (item.kind !== 'video') return;
-      dep.getApresentacaoVideoPlaylist().push(item);
+      estadoPainel.apresentacaoVideoPlaylist.push(item);
       renderListaPlaylistApresentacao();
       salvarEstadoModoApresentacaoNoStorage();
       void probeDuracaoArquivoVideo(file).then((d) => {
         if (d > 0) {
-          const alvo = dep.getApresentacaoVideoPlaylist().find((x) => x && x.id === item.id);
+          const alvo = estadoPainel.apresentacaoVideoPlaylist.find((x) => x && x.id === item.id);
           if (alvo) {
             alvo.duracao = d;
             renderListaPlaylistApresentacao();
@@ -224,52 +225,52 @@ export function playlistAdicionarVideos(files) {
 }
 
 function playlistRemover(id) {
-  const idx = dep.getApresentacaoVideoPlaylist().findIndex((x) => x && x.id === id);
+  const idx = estadoPainel.apresentacaoVideoPlaylist.findIndex((x) => x && x.id === id);
   if (idx < 0) return;
-  const eraItemProjetado = dep.getAudioStateRemoto().mediaKind === 'video' && dep.getApresentacaoMidiaProjetadaId() === id;
-  dep.getApresentacaoVideoPlaylist().splice(idx, 1);
+  const eraItemProjetado = estadoPainel.audioStateRemoto.mediaKind === 'video' && estadoPainel.apresentacaoMidiaProjetadaId === id;
+  estadoPainel.apresentacaoVideoPlaylist.splice(idx, 1);
   if (eraItemProjetado) {
     cancelarAvancoAutoPlaylist();
-    dep.setPlaylistVideoAtiva(false);
+    estadoPainel.playlistVideoAtiva = false;
     void encerrarModoApresentacaoNoTelao();
   }
-  if (idx < dep.getPlaylistVideoIndice()) {
-    dep.setPlaylistVideoIndice(dep.getPlaylistVideoIndice() - (1));
-  } else if (idx === dep.getPlaylistVideoIndice()) {
-    if (dep.getPlaylistVideoIndice() >= dep.getApresentacaoVideoPlaylist().length) {
-      dep.setPlaylistVideoIndice(dep.getApresentacaoVideoPlaylist().length - 1);
+  if (idx < estadoPainel.playlistVideoIndice) {
+    estadoPainel.playlistVideoIndice = estadoPainel.playlistVideoIndice - (1);
+  } else if (idx === estadoPainel.playlistVideoIndice) {
+    if (estadoPainel.playlistVideoIndice >= estadoPainel.apresentacaoVideoPlaylist.length) {
+      estadoPainel.playlistVideoIndice = estadoPainel.apresentacaoVideoPlaylist.length - 1;
     }
   }
-  if (!dep.getApresentacaoVideoPlaylist().length) dep.setPlaylistVideoIndice(-1);
+  if (!estadoPainel.apresentacaoVideoPlaylist.length) estadoPainel.playlistVideoIndice = -1;
   salvarEstadoModoApresentacaoNoStorage();
   renderListaPlaylistApresentacao();
 }
 
 export async function playlistLimpar() {
-  if (!dep.getApresentacaoVideoPlaylist().length) return;
+  if (!estadoPainel.apresentacaoVideoPlaylist.length) return;
   const ok = await appConfirm('Limpar toda a playlist de vídeos?', 'Modo mídias');
   if (!ok) return;
   cancelarAvancoAutoPlaylist();
-  const eraVideo = dep.getPlaylistVideoAtiva() && dep.getAudioStateRemoto().mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
-  dep.setApresentacaoVideoPlaylist([]);
-  dep.setPlaylistVideoIndice(-1);
-  dep.setPlaylistVideoAtiva(false);
+  const eraVideo = estadoPainel.playlistVideoAtiva && estadoPainel.audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
+  estadoPainel.apresentacaoVideoPlaylist = [];
+  estadoPainel.playlistVideoIndice = -1;
+  estadoPainel.playlistVideoAtiva = false;
   if (eraVideo) void encerrarModoApresentacaoNoTelao();
   salvarEstadoModoApresentacaoNoStorage();
   renderListaPlaylistApresentacao();
 }
 
 function playlistMover(id, dir) {
-  const idx = dep.getApresentacaoVideoPlaylist().findIndex((x) => x && x.id === id);
+  const idx = estadoPainel.apresentacaoVideoPlaylist.findIndex((x) => x && x.id === id);
   if (idx < 0) return;
   const alvo = idx + (dir === 'up' ? -1 : 1);
-  if (alvo < 0 || alvo >= dep.getApresentacaoVideoPlaylist().length) return;
-  const arr = dep.getApresentacaoVideoPlaylist();
+  if (alvo < 0 || alvo >= estadoPainel.apresentacaoVideoPlaylist.length) return;
+  const arr = estadoPainel.apresentacaoVideoPlaylist;
   const tmp = arr[idx];
   arr[idx] = arr[alvo];
   arr[alvo] = tmp;
-  if (dep.getPlaylistVideoIndice() === idx) dep.setPlaylistVideoIndice(alvo);
-  else if (dep.getPlaylistVideoIndice() === alvo) dep.setPlaylistVideoIndice(idx);
+  if (estadoPainel.playlistVideoIndice === idx) estadoPainel.playlistVideoIndice = alvo;
+  else if (estadoPainel.playlistVideoIndice === alvo) estadoPainel.playlistVideoIndice = idx;
   salvarEstadoModoApresentacaoNoStorage();
   renderListaPlaylistApresentacao();
 }
@@ -278,15 +279,15 @@ function playlistMover(id, dir) {
 function playlistReordenarArrastando(fromId, toId) {
   if (!fromId || fromId === toId) return;
   const atualId = playlistItemAtualId();
-  const from = dep.getApresentacaoVideoPlaylist().findIndex((x) => x && x.id === fromId);
+  const from = estadoPainel.apresentacaoVideoPlaylist.findIndex((x) => x && x.id === fromId);
   if (from < 0) return;
-  const [movido] = dep.getApresentacaoVideoPlaylist().splice(from, 1);
-  let to = dep.getApresentacaoVideoPlaylist().findIndex((x) => x && x.id === toId);
-  if (to < 0) to = dep.getApresentacaoVideoPlaylist().length;
-  dep.getApresentacaoVideoPlaylist().splice(to, 0, movido);
+  const [movido] = estadoPainel.apresentacaoVideoPlaylist.splice(from, 1);
+  let to = estadoPainel.apresentacaoVideoPlaylist.findIndex((x) => x && x.id === toId);
+  if (to < 0) to = estadoPainel.apresentacaoVideoPlaylist.length;
+  estadoPainel.apresentacaoVideoPlaylist.splice(to, 0, movido);
   if (atualId) {
-    const ni = dep.getApresentacaoVideoPlaylist().findIndex((x) => x && x.id === atualId);
-    if (ni >= 0) dep.setPlaylistVideoIndice(ni);
+    const ni = estadoPainel.apresentacaoVideoPlaylist.findIndex((x) => x && x.id === atualId);
+    if (ni >= 0) estadoPainel.playlistVideoIndice = ni;
   }
   salvarEstadoModoApresentacaoNoStorage();
   renderListaPlaylistApresentacao();
@@ -294,7 +295,7 @@ function playlistReordenarArrastando(fromId, toId) {
 
 /** Atualiza botões de transporte, modo e intervalo (estado, não a lista inteira). */
 function atualizarControlesPlaylistUi() {
-  const auto = dep.getPlaylistVideoModo() === 'auto';
+  const auto = estadoPainel.playlistVideoModo === 'auto';
   const modoBtn = document.getElementById('ap-playlist-modo');
   if (modoBtn) {
     modoBtn.classList.toggle('ap-switch--on', auto);
@@ -305,31 +306,31 @@ function atualizarControlesPlaylistUi() {
   }
   const atrasoSel = document.getElementById('ap-playlist-atraso');
   if (atrasoSel) {
-    atrasoSel.value = String(dep.getPlaylistVideoAtrasoAuto());
+    atrasoSel.value = String(estadoPainel.playlistVideoAtrasoAuto);
     atrasoSel.disabled = !auto;
   }
   const clearBtn = document.getElementById('ap-playlist-clear');
-  if (clearBtn) clearBtn.disabled = !dep.getApresentacaoVideoPlaylist().length;
-  dep.set_playlistUiTocandoCache(playlistControlaReproducaoAtual() && !!dep.getAudioStateRemoto().playing);
+  if (clearBtn) clearBtn.disabled = !estadoPainel.apresentacaoVideoPlaylist.length;
+  estadoPainel._playlistUiTocandoCache = playlistControlaReproducaoAtual() && !!estadoPainel.audioStateRemoto.playing;
 }
 
 /** Sincroniza só o destaque da linha ativa da playlist em transições (chamado a cada tick). */
 export function atualizarPlaylistUiAoVivoSeMudou() {
   const list = document.getElementById('apresentacao-playlist-list');
   if (!list) return;
-  const tocando = playlistControlaReproducaoAtual() && !!dep.getAudioStateRemoto().playing;
-  if (dep.get_playlistUiTocandoCache() === tocando) return;
-  dep.set_playlistUiTocandoCache(tocando);
-  if (list && dep.getPlaylistVideoIndice() >= 0) {
-    const row = list.querySelectorAll('.ap-playlist-item')[dep.getPlaylistVideoIndice()];
+  const tocando = playlistControlaReproducaoAtual() && !!estadoPainel.audioStateRemoto.playing;
+  if (estadoPainel._playlistUiTocandoCache === tocando) return;
+  estadoPainel._playlistUiTocandoCache = tocando;
+  if (list && estadoPainel.playlistVideoIndice >= 0) {
+    const row = list.querySelectorAll('.ap-playlist-item')[estadoPainel.playlistVideoIndice];
     if (row) {
       row.classList.toggle('is-playing', tocando);
       row.classList.toggle('is-current', !tocando);
       const badge = row.querySelector('.ap-playlist-badge');
       const meta = row.querySelector('.ap-menu-item-meta');
-      if (badge) badge.textContent = tocando ? '▶' : String(dep.getPlaylistVideoIndice() + 1).padStart(2, '0');
+      if (badge) badge.textContent = tocando ? '▶' : String(estadoPainel.playlistVideoIndice + 1).padStart(2, '0');
       if (meta) {
-        const it = dep.getApresentacaoVideoPlaylist()[dep.getPlaylistVideoIndice()];
+        const it = estadoPainel.apresentacaoVideoPlaylist[estadoPainel.playlistVideoIndice];
         const durTxt = it && Number(it.duracao) > 0 ? ` · ${fmtTempoAudio(it.duracao)}` : '';
         meta.textContent = (tocando ? 'Tocando agora' : 'Pausado') + durTxt;
       }
@@ -341,14 +342,14 @@ export function renderListaPlaylistApresentacao() {
   const list = document.getElementById('apresentacao-playlist-list');
   if (!list) return;
   list.innerHTML = '';
-  if (!dep.getApresentacaoVideoPlaylist().length) {
+  if (!estadoPainel.apresentacaoVideoPlaylist.length) {
     list.innerHTML =
       '<div class="placeholder-msg" style="margin:4px 0 0;">Nenhum vídeo na playlist. Use “Adicionar”.</div>';
     atualizarControlesPlaylistUi();
     return;
   }
-  const projetadoEhAtual = !!dep.getApresentacaoMidiaProjetadaId() && dep.getApresentacaoMidiaProjetadaId() === playlistItemAtualId();
-  dep.getApresentacaoVideoPlaylist().forEach((item, i) => {
+  const projetadoEhAtual = !!estadoPainel.apresentacaoMidiaProjetadaId && estadoPainel.apresentacaoMidiaProjetadaId === playlistItemAtualId();
+  estadoPainel.apresentacaoVideoPlaylist.forEach((item, i) => {
     const row = document.createElement('div');
     row.className = 'ap-menu-item ap-playlist-item';
     row.setAttribute('draggable', 'true');
@@ -356,8 +357,8 @@ export function renderListaPlaylistApresentacao() {
 
     let statusTxt = 'Na fila';
     let statusCls = '';
-    if (i === dep.getPlaylistVideoIndice()) {
-      if (projetadoEhAtual && dep.getAudioStateRemoto().playing) {
+    if (i === estadoPainel.playlistVideoIndice) {
+      if (projetadoEhAtual && estadoPainel.audioStateRemoto.playing) {
         statusTxt = 'Tocando agora';
         statusCls = 'is-playing';
       } else if (projetadoEhAtual) {
@@ -367,7 +368,7 @@ export function renderListaPlaylistApresentacao() {
         statusTxt = 'Selecionado';
         statusCls = 'is-current';
       }
-    } else if (i === dep.getPlaylistVideoIndice() + 1) {
+    } else if (i === estadoPainel.playlistVideoIndice + 1) {
       statusTxt = 'Próximo';
       statusCls = 'is-next';
     }
@@ -450,11 +451,11 @@ export async function tocarAudioAtualSelecionado() {
   if (itemVideo) {
     if (_playerVideoToggleLock) return;
     _playerVideoToggleLock = true;
-    const querPausar = !!dep.getAudioStateRemoto().playing;
+    const querPausar = !!estadoPainel.audioStateRemoto.playing;
     let liberarLockNoFinally = true;
     try {
-      dep.getAudioStateRemoto().mediaKind = 'video';
-      dep.getAudioStateRemoto().name = itemVideo.name || 'Vídeo';
+      estadoPainel.audioStateRemoto.mediaKind = 'video';
+      estadoPainel.audioStateRemoto.name = itemVideo.name || 'Vídeo';
 
       if (querPausar) {
         pausarAudioLocalApresentacao();
@@ -472,7 +473,7 @@ export async function tocarAudioAtualSelecionado() {
         return;
       }
       const el = obterElementoVideoLocal();
-      if (el && (!Number.isFinite(dep.getAudioStateRemoto().duration) || dep.getAudioStateRemoto().duration <= 0)) {
+      if (el && (!Number.isFinite(estadoPainel.audioStateRemoto.duration) || estadoPainel.audioStateRemoto.duration <= 0)) {
         if (!el.src || el.src !== item.src) {
           prepararElementoVideoLocalControle(el);
           el.preload = 'metadata';
@@ -480,11 +481,11 @@ export async function tocarAudioAtualSelecionado() {
           await aguardarMetadadosVideo(el, 6000);
         }
         if (Number.isFinite(el.duration) && el.duration > 0) {
-          dep.getAudioStateRemoto().duration = Number(el.duration);
+          estadoPainel.audioStateRemoto.duration = Number(el.duration);
         }
       }
-      const t = Number(dep.getAudioStateRemoto().currentTime) || 0;
-      dep.getAudioStateRemoto().playing = true;
+      const t = Number(estadoPainel.audioStateRemoto.currentTime) || 0;
+      estadoPainel.audioStateRemoto.playing = true;
       set_videoUiClockBase(t);
       set_videoUiClockT0(performance.now());
       emitirEstadoVideoParaServidor({ playing: true, syncTime: true, currentTime: t });
@@ -497,16 +498,16 @@ export async function tocarAudioAtualSelecionado() {
     }
     return;
   }
-  if (!dep.getApresentacaoAudioAtualId()) return;
-  const item = dep.getApresentacaoAudios().find((x) => x.id === dep.getApresentacaoAudioAtualId());
+  if (!estadoPainel.apresentacaoAudioAtualId) return;
+  const item = estadoPainel.apresentacaoAudios.find((x) => x.id === estadoPainel.apresentacaoAudioAtualId);
   if (!item) return;
-  if (dep.getAudioStateRemoto().playing && dep.getAudioStateRemoto().mediaKind === 'audio' && dep.getApresentacaoAudioAtualId() === item.id) {
+  if (estadoPainel.audioStateRemoto.playing && estadoPainel.audioStateRemoto.mediaKind === 'audio' && estadoPainel.apresentacaoAudioAtualId === item.id) {
     pausarAudioServidor();
   } else {
-    const deveRetomarMesmoAudio = dep.getAudioStateRemoto().mediaKind === 'audio' && dep.getApresentacaoAudioAtualId() === item.id;
+    const deveRetomarMesmoAudio = estadoPainel.audioStateRemoto.mediaKind === 'audio' && estadoPainel.apresentacaoAudioAtualId === item.id;
     if (deveRetomarMesmoAudio) {
-      const dur = Math.max(0, Number(dep.getAudioStateRemoto().duration) || 0);
-      const atual = Math.max(0, Number(dep.getAudioStateRemoto().currentTime) || 0);
+      const dur = Math.max(0, Number(estadoPainel.audioStateRemoto.duration) || 0);
+      const atual = Math.max(0, Number(estadoPainel.audioStateRemoto.currentTime) || 0);
       const startTime = dur > 0 && atual >= Math.max(0, dur - 0.35) ? 0 : atual;
       const ok = await tocarAudioServidorApresentacao(item, { startTime });
       if (ok) atualizarRodapeAudioApresentacao(item);
@@ -522,9 +523,9 @@ function pausarAudioServidor() {
 }
 
 export function pararAudioServidor() {
-  const eraVideo = dep.getAudioStateRemoto().mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
+  const eraVideo = estadoPainel.audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
   pararAudioServidorPlayback();
-  dep.setApresentacaoAudioAtualId(null);
+  estadoPainel.apresentacaoAudioAtualId = null;
   salvarEstadoModoApresentacaoNoStorage();
   renderListaAudiosApresentacao();
   if (eraVideo) {
@@ -532,7 +533,7 @@ export function pararAudioServidor() {
     renderGridApresentacao();
     return;
   }
-  if (!dep.getApresentacaoMidiaProjetadaId()) {
+  if (!estadoPainel.apresentacaoMidiaProjetadaId) {
     atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Reprodução parada.' });
   } else {
     renderGridApresentacao();

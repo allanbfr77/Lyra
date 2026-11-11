@@ -11,6 +11,7 @@ import { normalizarCfgAvisoCard6 } from '../modules/midiaApresentacao.js';
 import { normalizarItemApresentacao } from './estadoApresentacao.js';
 import { renderGridApresentacao } from './gridApresentacao.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
+import { estadoPainel, projecao } from './estadoPainel.js';
 
 let dep = {};
 
@@ -99,7 +100,7 @@ export async function emitirEncerrarApresentacaoPublicoAoServidor(alvoProjecao) 
     alvoProjecao != null && String(alvoProjecao).trim()
       ? JSON.stringify({ alvoProjecao: String(alvoProjecao).trim() })
       : '{}';
-  if (dep.getProjecao().enviar('encerrar_apresentacao_publico', alvoProjecao != null ? { alvoProjecao } : undefined)) {
+  if (projecao.enviar('encerrar_apresentacao_publico', alvoProjecao != null ? { alvoProjecao } : undefined)) {
     return true;
   }
   const ip = hostProjecao();
@@ -127,11 +128,11 @@ export function obterAlvoProjecaoDeRota(rota) {
 }
 
 export function obterAlvoProjecaoModoApresentacao() {
-  return obterAlvoProjecaoDeRota(dep.getRotasPorModo().apresentacao);
+  return obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.apresentacao);
 }
 
 function obterAlvoProjecaoModoBiblia() {
-  return obterAlvoProjecaoDeRota(dep.getRotasPorModo().biblia);
+  return obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.biblia);
 }
 
 /** Aviso do card 6 ainda no telão (pode coexistir com mídia noutro monitor). */
@@ -140,7 +141,7 @@ let apresentacaoAvisoCard6Ativo = false;
 let ultimoPayloadAvisoCard6 = null;
 
 function obterRotaAvisoCard6() {
-  return normalizarRota(dep.getRotasPorModo().apresentacaoAviso);
+  return normalizarRota(estadoPainel.rotasPorModo.apresentacaoAviso);
 }
 
 function rotaApresentacaoEstaDesativada(rota) {
@@ -180,8 +181,8 @@ function mesclarRotasApresentacaoMidiaEAviso(rotaMidia, rotaAviso) {
 }
 
 export function obterRotaApresentacaoParaServidor() {
-  const midia = normalizarRota(dep.getRotasPorModo().apresentacao);
-  const aviso = normalizarRota(dep.getRotasPorModo().apresentacaoAviso);
+  const midia = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
+  const aviso = normalizarRota(estadoPainel.rotasPorModo.apresentacaoAviso);
   if (rotaApresentacaoEstaDesativada(aviso)) return midia;
   return mesclarRotasApresentacaoMidiaEAviso(midia, aviso);
 }
@@ -221,7 +222,7 @@ export async function encerrarCanaisApresentacaoNoServidor(canais) {
 
 function aplicarSelecaoMonitorAvisoCard6(opcao) {
   const o = opcao && typeof opcao === 'object' ? opcao : {};
-  dep.getRotasPorModo().apresentacaoAviso = normalizarRota({
+  estadoPainel.rotasPorModo.apresentacaoAviso = normalizarRota({
     publicoIndex: o.pub ?? -1,
     ministranteIndex: o.min ?? -1,
     live: !!o.live,
@@ -243,7 +244,7 @@ async function reemitirAvisoCard6AposMudancaDeRota() {
 
 function rotuloSeletorMonitorAvisoCard6() {
   const rota = obterRotaAvisoCard6();
-  const lista = dep.getMonitoresServidorCache();
+  const lista = estadoPainel.monitoresServidorCache;
   const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista, { incluirLive: false });
   const rLive = !!rota.live;
   let pub = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.publicoIndex);
@@ -292,7 +293,7 @@ export function criarSeletorMonitorAvisoCard6() {
   menu.setAttribute('role', 'listbox');
   menu.hidden = true;
 
-  const lista = dep.getMonitoresServidorCache();
+  const lista = estadoPainel.monitoresServidorCache;
   const rotaAtual = obterRotaAvisoCard6();
   const rLive = !!rotaAtual.live;
   let pubA = rLive ? -1 : indiceRoteamentoMonitorNaUi(rotaAtual.publicoIndex);
@@ -367,7 +368,7 @@ export async function reemitirConteudoAposMudancaDeRotaUnificada() {
   const modo = modoRoteamentoAtual();
   if (modo !== 'apresentacao' && modo !== 'biblia') return;
 
-  const alvo = obterAlvoProjecaoDeRota(dep.getRotasPorModo()[modo]);
+  const alvo = obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo[modo]);
   if (alvo === 'desativado') return;
   /*
    * «Live — OBS» não tem janelas de monitor a alimentar — mas tem overlay. Em modo Mídias
@@ -385,7 +386,7 @@ export async function reemitirConteudoAposMudancaDeRotaUnificada() {
   await new Promise((r) => setTimeout(r, ATRASO_REENVIO_APOS_ROTA_MS));
 
   if (guardado.tipo === 'apresentacao') {
-    if (!dep.getApresentacaoMidiaProjetadaId()) return;
+    if (!estadoPainel.apresentacaoMidiaProjetadaId) return;
     await emitirApresentacao({ ...guardado.payload, alvoProjecao: alvo });
     return;
   }
@@ -396,7 +397,7 @@ export async function reemitirConteudoAposMudancaDeRotaUnificada() {
        referência nem a configuração de exibição, e um reenvio abreviado deixá-lo-ia com
        o versículo sem cabeçalho. */
     const payload = { ...guardado.payload, alvoProjecao: alvo, somenteTexto: false };
-    dep.getProjecao().enfileirar('exibir_versiculo', payload);
+    projecao.enfileirar('exibir_versiculo', payload);
     ultimoConteudoProjetadoModoUnificado = { tipo: 'biblia', payload };
   }
 }
@@ -406,7 +407,7 @@ function monitoresRotaCobremAlvo(rota, alvo) {
 }
 
 export function monitoresApresentacaoCobremAlvo(alvo) {
-  return monitoresRotaCobremAlvo(dep.getRotasPorModo().apresentacao, alvo);
+  return monitoresRotaCobremAlvo(estadoPainel.rotasPorModo.apresentacao, alvo);
 }
 
 /*
@@ -451,7 +452,7 @@ export function salvarAvisoCard6CfgNoStorage() {
   try {
     localStorage.setItem(
       LS_CARD6_AVISO_CFG,
-      JSON.stringify(normalizarCfgAvisoCard6(dep.getApresentacaoCard6AvisoCfg()))
+      JSON.stringify(normalizarCfgAvisoCard6(estadoPainel.apresentacaoCard6AvisoCfg))
     );
   } catch (_) {
   // intencional — erro ignorado
@@ -541,7 +542,7 @@ function rotaSlidesPadraoPublico2Ministrante3(lista) {
  * escrevia a ocupação na configuração do operador, que é o que esta separação evita.
  */
 export function rotaSlidesAoEntrarNoModo() {
-  return rotaSlidesPadraoPublico2Ministrante3(dep.getMonitoresServidorCache());
+  return rotaSlidesPadraoPublico2Ministrante3(estadoPainel.monitoresServidorCache);
 }
 
 /**
@@ -616,17 +617,17 @@ export function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
 export function aplicarExtrasModoApresentacao(ex, opts = {}) {
   const extras = ex && typeof ex === 'object' ? ex : {};
   if (Array.isArray(extras.card4Imagens)) {
-    dep.setApresentacaoCard4Imagens(Array.from({ length: 4 }, (_, i) =>
-      normalizarItemApresentacao(extras.card4Imagens[i] || null)));
+    estadoPainel.apresentacaoCard4Imagens = Array.from({ length: 4 }, (_, i) =>
+      normalizarItemApresentacao(extras.card4Imagens[i] || null));
   }
   if (!opts.skipCard6Aviso && typeof extras.card6AvisoTexto === 'string') {
-    dep.setApresentacaoCard6Texto(extras.card6AvisoTexto);
+    estadoPainel.apresentacaoCard6Texto = extras.card6AvisoTexto;
   }
   if (!opts.skipCard6AvisoConfig && extras.card6AvisoConfig !== undefined) {
-    dep.setApresentacaoCard6AvisoCfg(normalizarCfgAvisoCard6(extras.card6AvisoConfig));
+    estadoPainel.apresentacaoCard6AvisoCfg = normalizarCfgAvisoCard6(extras.card6AvisoConfig);
     salvarAvisoCard6CfgNoStorage();
   }
-  dep.setAudioLoopAtivo(extras.audioLoop === true);
+  estadoPainel.audioLoopAtivo = extras.audioLoop === true;
   migrarAlvoExtrasLegadoParaRotaApresentacao(extras);
   atualizarUiPlayerAudioRemoto();
 }
@@ -689,14 +690,14 @@ function atualizarPillProjecaoNav(info = {}) {
  * continua no telão — e nesses dois casos a projeção continua a existir.
  */
 function projecaoAudioApresentacaoAtiva() {
-  return dep.getAudioStateRemoto().mediaKind === 'audio' && !!dep.getApresentacaoAudioAtualId();
+  return estadoPainel.audioStateRemoto.mediaKind === 'audio' && !!estadoPainel.apresentacaoAudioAtualId;
 }
 
 /** Nome da faixa em projeção, para o rótulo da pill. */
 function nomeAudioProjecaoApresentacao() {
   const item =
-    (dep.getApresentacaoAudios() || []).find((x) => x && x.id === dep.getApresentacaoAudioAtualId()) || null;
-  return String(item?.name || dep.getAudioStateRemoto().name || 'faixa');
+    (estadoPainel.apresentacaoAudios || []).find((x) => x && x.id === estadoPainel.apresentacaoAudioAtualId) || null;
+  return String(item?.name || estadoPainel.audioStateRemoto.name || 'faixa');
 }
 
 /**
@@ -704,7 +705,7 @@ function nomeAudioProjecaoApresentacao() {
  * card 6 e áudio no player — sem tocar na grelha. Fonte única do «Projetando».
  */
 export function sincronizarPillProjecaoNav() {
-  const id = dep.getApresentacaoMidiaProjetadaId();
+  const id = estadoPainel.apresentacaoMidiaProjetadaId;
   const avisoAtivo = apresentacaoAvisoCard6Ativo;
   if (!id && !avisoAtivo) {
     if (projecaoAudioApresentacaoAtiva()) {
@@ -717,12 +718,12 @@ export function sincronizarPillProjecaoNav() {
   let rawNome;
   if (avisoAtivo && !id) {
     const linha =
-      String(dep.getApresentacaoCard6Texto() || '').split(/\r\n|\r|\n/).find((l) => String(l).trim()) || 'Aviso';
+      String(estadoPainel.apresentacaoCard6Texto || '').split(/\r\n|\r|\n/).find((l) => String(l).trim()) || 'Aviso';
     rawNome = linha.slice(0, 56);
   } else {
     const item =
-      (dep.getApresentacaoBiblioteca() || []).find((x) => x && x.id === id) ||
-      (dep.getApresentacaoCards() || []).find((x) => x && x.id === id) ||
+      (estadoPainel.apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
+      (estadoPainel.apresentacaoCards || []).find((x) => x && x.id === id) ||
       null;
     rawNome = String(item?.name || 'arquivo');
     if (avisoAtivo) rawNome = `${rawNome} + aviso`;
@@ -743,9 +744,9 @@ export function atualizarFeedbackProjecaoApresentacaoUi() {
 function montarPayloadAvisoCard6Atual(alvo) {
   return {
     kind: 'aviso',
-    texto: String(dep.getApresentacaoCard6Texto() || '').trim(),
+    texto: String(estadoPainel.apresentacaoCard6Texto || '').trim(),
     alvoProjecao: alvo,
-    avisoConfig: normalizarCfgAvisoCard6(dep.getApresentacaoCard6AvisoCfg()),
+    avisoConfig: normalizarCfgAvisoCard6(estadoPainel.apresentacaoCard6AvisoCfg),
   };
 }
 
@@ -772,7 +773,7 @@ export function agendarAtualizacaoAvisoCard6AoVivo() {
 }
 
 export async function projetarAvisoCard6() {
-  const texto = String(dep.getApresentacaoCard6Texto() || '').trim();
+  const texto = String(estadoPainel.apresentacaoCard6Texto || '').trim();
   if (!texto) {
     alert('Digite um aviso no card 6 antes de projetar.');
     return;
@@ -785,7 +786,7 @@ export async function projetarAvisoCard6() {
   await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
   const payload = montarPayloadAvisoCard6Atual(alvo);
   const ok = await emitirApresentacao(payload, {
-    naoSubstituirUltimoUnificado: !!dep.getApresentacaoMidiaProjetadaId(),
+    naoSubstituirUltimoUnificado: !!estadoPainel.apresentacaoMidiaProjetadaId,
   });
   if (!ok) return;
   apresentacaoAvisoCard6Ativo = true;

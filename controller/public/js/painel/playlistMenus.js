@@ -13,6 +13,7 @@ import { configurarSeletorMinistranteCulto, limparMinistranteTomDeTodaPlaylist }
 import { confirmarSyncPlaylistModal, fecharModalNovasMusicasSync } from './playlistAdicionar.js';
 import { copiarNomesMusicasPlaylist, removePlItem, renderPlaylist } from './playlistLista.js';
 import { limparChecksTransmitidosDoCulto } from './playlistTransmitidas.js';
+import { estadoPainel } from './estadoPainel.js';
 
 let dep = {};
 
@@ -101,7 +102,7 @@ function marcarLinhaPlaylistComMenuAberto(row, btn) {
  * esquerda da linha.
  */
 export function abrirMenuAcoesLinhaPlaylist(btn, row, idxPl) {
-  if (!dep.getCultoId()) return;
+  if (!estadoPainel.cultoId) return;
   marcarLinhaPlaylistComMenuAberto(row, btn);
   menuAcoesLinhaPlaylist.abrirNaAncora(btn, {
     itens: [
@@ -240,7 +241,7 @@ export function configurarMenuMomentoPlaylist() {
 
 /** Insere o tema no fim da playlist do culto; novas músicas passam a entrar nesse bloco. */
 function inserirTemaNaPlaylistAtual(tema) {
-  if (!dep.getCultoId()) {
+  if (!estadoPainel.cultoId) {
     appAlert('Selecione primeiro o dia do culto para inserir o tema na playlist.', 'Inserir tema');
     return;
   }
@@ -253,8 +254,8 @@ function inserirTemaNaPlaylistAtual(tema) {
     appAlert(`O tema «${t}» já está na playlist deste culto.`, 'Inserir tema');
     return;
   }
-  if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(dep.getCultoId());
-  const pl = getPlaylist(dep.getCultoId());
+  if (t === TEMA_PADRAO_ABERTURA) desmarcarAberturaRemovidaPeloUsuario(estadoPainel.cultoId);
+  const pl = getPlaylist(estadoPainel.cultoId);
   pl.push({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: t });
   garantirTemaNoCatalogoAtual(t);
   setTemaSelecionadoAtual(t);
@@ -283,7 +284,7 @@ async function excluirTemaPeloMenuContexto(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
   const ok = await appConfirm(
-    dep.getCultoId()
+    estadoPainel.cultoId
       ? `Excluir o tema «${t}»? Todas as músicas inseridas nesse tema serão removidas da playlist deste culto.`
       : `Excluir o tema «${t}»? Ele sai da lista de temas disponíveis.`,
     'Excluir tema'
