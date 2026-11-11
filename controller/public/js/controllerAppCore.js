@@ -85,6 +85,11 @@
  *   roteamentoTelas.js — roteamento de telas no servidor: carregar e salvar rotas por modo
  *   eventosProjecao.js — eventos recebidos da projeção (estado, áudio, display, monitores), ligação do socket e duplo clique na playlist
  *   projecaoMusica.js — música ativa: seleção no banco, projeção/navegação de estrofes, voz, ir-para-slide, limpar/encerrar e blackout
+ *   conteudoUnificadoAviso.js — conteúdo dos modos de seletor unificado: emitir/encerrar apresentação, alvos, aviso do card 6 e extras
+ *   rotasMonitores.js — rotas por modo e monitores: persistência, identidade, «lembrar monitor», sanitização e indicador ao vivo
+ *   canaisProjecao.js — canais de projeção: ocupação por Mídias/Bíblia, classificação da saída por monitor e prévias dos monitores virtuais (Slides)
+ *   menuApresentacaoModo.js — menu do modo Mídias e encerramento da projeção de mídia/aviso
+ *   modoSlidesOperador.js — alternância do modo Slides do operador (limpeza de espelho/UI) e callbacks expostos ao HTML
  * =============================================================================
  */
 
@@ -92,8 +97,6 @@ import { montarHomeLayout } from './painel/homeLayout.js';
 
 import {
   LS_UI_MODO_SLIDES,
-  LS_MODO_APRESENTACAO_ATIVO,
-  LS_ROTAS_POR_MODO,
   LS_PLAYLISTS,
   TEMA_PADRAO_ABERTURA,
   PLAYLIST_TIPO_MARCADOR_TEMA,
@@ -126,27 +129,13 @@ import {
   criarSlidesGrelha,
 } from './modules/slidesGrelha.js';
 import {
-  rotuloTipoMidiaApresentacao,
-  svgIconeTipoMidiaApresentacao,
   clonarCfgAvisoCard6Padrao,
-  normalizarCfgAvisoCard6,
 } from './modules/midiaApresentacao.js';
-import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
-import {
-  precisaReporRotaSlides,
-  rotaSlidesReposta,
-  limparNaoExibirManualSlides,
-} from './modules/reposicaoRotaSlides.js';
 import {
   registrarEscolhaSeletorUnificado,
-  limparOrdemNaoExibirUnificado,
 } from './modules/ordemNaoExibirUnificado.js';
 import {
-  MODOS_COM_MEMORIA,
   definirLembrarMonitor,
-  lembrarMonitorLigado,
-  registrarEscolhaMonitor,
-  rotaLembradaParaEntrada,
 } from './modules/monitorLembrado.js';
 import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
@@ -165,7 +154,6 @@ import {
 migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
 import {
-  limparEstiloPreviewSlide,
   reaplicarFontesPreviewPainel,
 } from './painel/tipografiaPainelPreview.js';
 import {
@@ -174,15 +162,6 @@ import {
 import {
   resumirComparacao,
 } from './modules/diffLetrasComparativo.js';
-import {
-  identidadesDaRota,
-  guardarIdentidadesRota,
-  restaurarRotaPorIdentidade,
-} from './modules/identidadeMonitores.js';
-import {
-  alvoDeRota,
-  rotaCobreAlvo,
-} from './modules/rotaEnvioBiblia.js';
 import {
   appDialogEstado,
   fecharAppDialog,
@@ -206,8 +185,6 @@ import {
   registrarDependenciasBannerAtualizacao,
 } from './painel/bannerAtualizacao.js';
 import {
-  atualizarBtnModoDocs,
-  abrirModoDocs,
   fecharModoDocs,
   encerrarRotaModoDocs,
   navegarPaginaDocs,
@@ -234,7 +211,6 @@ import {
 } from './painel/contagemRegressiva.js';
 import {
   alternarModoBiblia,
-  aplicarTraducaoBibliaNoSelect,
   atualizarBtnModoBiblia,
   bibliaHaParteProjetada,
   bibliaNavPopupAberto,
@@ -242,18 +218,13 @@ import {
   bibliaNavegarVersiculosComSeta,
   bibliaPayloadCfgExibicao,
   bibliaPopularFormularioCfg,
-  bibliaSairModo,
   bibliaTratarKeydownModo,
   carregarBibliaCfgDoStorage,
   encerrarProjecaoModoBiblia,
-  fetchListaTraducoesBiblia,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
   lerBibliaCfgDoFormularioMinistrante,
   lerBibliaCfgDoFormularioPublico,
-  obterBibliaTraducaoSessao,
-  onTraducaoBibliaChange,
-  popularGradeLivros,
   reconhecimentoVozBiblia,
   registrarDependenciasBiblia,
   salvarBibliaCfgNoStorage,
@@ -270,7 +241,6 @@ import {
   setInputVal,
   setSelVal,
   setSpanText,
-  slidesAplicarCfgArmazenada,
 } from './painel/configExibicao.js';
 import {
   BIB_ORIGEM_META,
@@ -289,7 +259,6 @@ import {
   registrarDependenciasVersoesMusica,
 } from './painel/versoesMusica.js';
 import {
-  aplicarLayoutModoLetraCompleta,
   atualizarTextoPainelLetraCompleta,
   confirmarProsseguirDescartandoEdicaoPendente,
   entrarModoLetraCompletaCentral,
@@ -423,9 +392,7 @@ import {
 } from './painel/playlistMenus.js';
 import {
   registrarDependenciasVideoApresentacao,
-  restaurarVideosModoApresentacao,
   urlMidiaApresentacaoHttpPorId,
-  videoProjetadoAtivoNoPlayer,
 } from './painel/videoApresentacao.js';
 import {
   alternarLoopPlayerApresentacao,
@@ -434,8 +401,6 @@ import {
   definirVolumeAudioServidor,
   get_previewAlvoAtual,
   obterElementoVideoLocal,
-  pararAudioLocalApresentacao,
-  pararAudioServidorPlayback,
   posicionarOverlayPreview,
   prepararPlayerVideoAposProjetar,
   registrarDependenciasPlayerLocalMidia,
@@ -468,11 +433,8 @@ import {
   adicionarArquivoDiretoNoCard,
   adicionarArquivosAoMenu,
   adicionarImagemNaAreaCard4,
-  getApresentacaoCardUiClickTimer,
   registrarDependenciasGridApresentacao,
   renderGridApresentacao,
-  setApresentacaoCardSelecionadoIdx,
-  setApresentacaoCardUiClickTimer,
 } from './painel/gridApresentacao.js';
 import {
   agendarSalvarEstadoAposDigitarAviso,
@@ -525,28 +487,18 @@ import {
 } from './painel/removerMusicaBanco.js';
 import {
   aplicarEstiloPreviewTituloAbertura,
-  limparPreviewTituloMusicaAbertura,
   registrarDependenciasTituloAberturaPreview,
 } from './painel/tituloAberturaPreview.js';
 import {
-  aplicarPreviewTelaoNoDom,
   atualizarPreviewOperador,
   atualizarPreviewPlaylistCentral,
   atualizarSlidesInstrucoes,
   configurarObserverPreviewMinistrante,
   definirControlosZoomFaixaSlidesInertes,
   definirNomeMusicaBarraSlides,
-  definirPreviewRelogioOciosoMinistrante,
   definirVazioDaFaixaSlidesVisivel,
-  deveRevelarRelogioPreviewMinistrante,
   emitirEstadoMinistranteAoServidor,
-  hayProjecaoAtivaNoServidor,
-  limparConteudoPreviewOperadorSlides,
-  podeEspelharLetraNosPreviewsModoSlide,
-  preencherPreviewOperadorSomenteEstadoServidorMusica,
-  preencherPreviewOperadorSomenteMusicaLocal,
   registrarDependenciasPreviewProjecao,
-  selecaoLocalAlinhadaComProjecaoMusicaServidor,
   sincronizarPreviewOciosoMinistranteSlides,
 } from './painel/previewProjecao.js';
 import {
@@ -595,6 +547,106 @@ import {
   sincronizarEstrofeAtiva,
   toggleBlackoutTelas,
 } from './painel/projecaoMusica.js';
+import {
+  agendarAtualizacaoAvisoCard6AoVivo,
+  algumCampoAvisoCard6EmEdicao,
+  aplicarEstiloTextareaAvisoCard6,
+  aplicarExtrasModoApresentacao,
+  atualizarFeedbackProjecaoApresentacaoUi,
+  atualizarRodapeAudioApresentacao,
+  canaisParaEncerrarConteudoApresentacao,
+  carregarAvisoCard6CfgDoStorage,
+  criarSeletorMonitorAvisoCard6,
+  emitirApresentacao,
+  emitirEncerrarApresentacaoPublicoAoServidor,
+  encerrarCanaisApresentacaoNoServidor,
+  getApresentacaoAvisoCard6Ativo,
+  getUltimoConteudoProjetadoModoUnificado,
+  getUltimoPayloadAvisoCard6,
+  indicesPadraoPublicoMinistranteApresentacao,
+  mensagemAlvoInvalidoApresentacao,
+  mensagemAlvoInvalidoBiblia,
+  monitoresApresentacaoCobremAlvo,
+  obterAlvoProjecaoDeRota,
+  obterAlvoProjecaoModoApresentacao,
+  obterRotaApresentacaoParaServidor,
+  opcoesRoteamentoUnificadoModoApresentacao,
+  opcoesSeletorCabecalhoDoModoAtual,
+  projetarAvisoCard6,
+  reemitirConteudoAposMudancaDeRotaUnificada,
+  registrarDependenciasConteudoUnificadoAviso,
+  rotaSlidesAoEntrarNoModo,
+  salvarAvisoCard6CfgNoStorage,
+  setApresentacaoAvisoCard6Ativo,
+  setUltimoConteudoProjetadoModoUnificado,
+  setUltimoPayloadAvisoCard6,
+  sincronizarPillProjecaoNav,
+} from './painel/conteudoUnificadoAviso.js';
+import {
+  aplicarMonitorLembradoAoEntrarNoModo,
+  atualizarIndicadorProjecaoLiveUi,
+  carregarRotasPorModoDoStorage,
+  desativarRotasModosTransitorios,
+  hayProjecaoApresentacaoModoAtiva,
+  hayProjecaoAtivaModoBibliaOuApresentacao,
+  hayProjecaoMidiaApresentacaoAtiva,
+  hostChaveMonitores,
+  indicesEfetivosRoteamentoDualCliente,
+  listaMonitoresParaProjecao,
+  marcarRotaLiveNoDom,
+  modoComMemoriaMonitorAtual,
+  modoRoteamentoAtual,
+  modoUsaSeletorMonitorUnificado,
+  normalizarRota,
+  persistirIdentidadesDosModos,
+  registrarDependenciasRotasMonitores,
+  registrarEscolhaMonitorDoOperador,
+  rotaDesativada,
+  rotaLiveSelecionadaNaUi,
+  rotaRestauradaPorIdentidade,
+  rotaSemMonitorRepetido,
+  salvarRotasPorModoNoStorage,
+  sanitizarIndiceMonitorProjecao,
+  sanitizarRotaProjecao,
+  sincronizarCheckboxLembrarMonitor,
+} from './painel/rotasMonitores.js';
+import {
+  apresentacaoOcupandoCanalMinistrante,
+  apresentacaoProjecaoAtivaNoCanalPublico,
+  atualizarPreviewMonitorMinistranteSlides,
+  atualizarPreviewMonitorPublicoSlides,
+  atualizarPreviewsMonitoresVirtuaisModoSlides,
+  bibliaProjecaoAtivaNoCanalMinistrante,
+  bibliaProjecaoAtivaNoCanalPublico,
+  canalMinistranteOcupadoPorOutroModoNoSlides,
+  canalPublicoOcupadoPorOutroModoNoSlides,
+  classificarSaidaMonitorMinistranteSlides,
+  classificarSaidaMonitorPublicoSlides,
+  estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
+  obterRotaSlidesParaUi,
+  registrarDependenciasCanaisProjecao,
+  restaurarRotaSlidesAposLibertarMonitores,
+  syncRoteamentoTelasModoSlidesNaUi,
+} from './painel/canaisProjecao.js';
+import {
+  abrirMenuModoApresentacao,
+  atualizarBtnTelaInicial,
+  carregarTraducoes,
+  encerrarAvisoCard6NoControlador,
+  encerrarProjecaoMidiaCabecalhoModoApresentacao,
+  encerrarProjecaoModoApresentacao,
+  escolherArquivoModoApresentacao,
+  fecharMenuModoApresentacao,
+  registrarDependenciasMenuApresentacaoModo,
+  reidratarRotaApresentacaoDoSeletor,
+} from './painel/menuApresentacaoModo.js';
+import {
+  alternarModoSlidesOperador,
+  iniciarModoSlidesOperador,
+  limparEspelhoLocalSoCamadaSlides,
+  limparUiAoSairDoModoSlides,
+  registrarDependenciasModoSlidesOperador,
+} from './painel/modoSlidesOperador.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -707,12 +759,12 @@ registrarDependenciasBiblia({
   getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
   getReconhecimentoVozSlides: () => reconhecimentoVozSlides,
   getRotasPorModo: () => rotasPorModo,
-  getUltimoConteudoProjetadoModoUnificado: () => ultimoConteudoProjetadoModoUnificado,
+  getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
   setEstadoServidor: (valor) => {
     estadoServidor = valor;
   },
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
-    ultimoConteudoProjetadoModoUnificado = valor;
+    setUltimoConteudoProjetadoModoUnificado(valor);
   },
 });
 registrarDependenciasConfigExibicao({
@@ -1359,7 +1411,7 @@ registrarDependenciasGridApresentacao({
   salvarEstadoModoApresentacaoNoStorage,
   getAPRESENTACAO_IDX_CARD4: () => APRESENTACAO_IDX_CARD4,
   getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
-  getApresentacaoAvisoCard6Ativo: () => apresentacaoAvisoCard6Ativo,
+  getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
   getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
   getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
   getApresentacaoCard4InputTarget: () => apresentacaoCard4InputTarget,
@@ -1680,9 +1732,9 @@ registrarDependenciasEventosProjecao({
   sincronizarEstrofeAtiva,
   getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
   getApresentacaoAudios: () => apresentacaoAudios,
-  getApresentacaoAvisoCard6Ativo: () => apresentacaoAvisoCard6Ativo,
+  getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
   setApresentacaoAvisoCard6Ativo: (valor) => {
-    apresentacaoAvisoCard6Ativo = valor;
+    setApresentacaoAvisoCard6Ativo(valor);
   },
   getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
   setApresentacaoMidiaProjetadaId: (valor) => {
@@ -1745,9 +1797,9 @@ registrarDependenciasEventosProjecao({
   setUltimaDisplayConfigServidor: (valor) => {
     ultimaDisplayConfigServidor = valor;
   },
-  getUltimoPayloadAvisoCard6: () => ultimoPayloadAvisoCard6,
+  getUltimoPayloadAvisoCard6: () => getUltimoPayloadAvisoCard6(),
   setUltimoPayloadAvisoCard6: (valor) => {
-    ultimoPayloadAvisoCard6 = valor;
+    setUltimoPayloadAvisoCard6(valor);
   },
 });
 registrarDependenciasProjecaoMusica({
@@ -1850,13 +1902,157 @@ registrarDependenciasProjecaoMusica({
     snapshotLetraCompleta = valor;
   },
   getTodasMusicas: () => todasMusicas,
-  getUltimoConteudoProjetadoModoUnificado: () => ultimoConteudoProjetadoModoUnificado,
+  getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
-    ultimoConteudoProjetadoModoUnificado = valor;
+    setUltimoConteudoProjetadoModoUnificado(valor);
   },
   getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
   setVersoesMusicaServidorCache: (valor) => {
     versoesMusicaServidorCache = valor;
+  },
+});
+registrarDependenciasConteudoUnificadoAviso({
+  fecharOutrosSeletoresDropdown,
+  getServidorProjeccaoIp,
+  hostProjecao,
+  indiceRoteamentoMonitorNaUi,
+  rotuloRotaApresentacaoForaDoPreset,
+  encerrarAvisoCard6NoControlador,
+  listaMonitoresParaProjecao,
+  modoRoteamentoAtual,
+  normalizarRota,
+  sanitizarIndiceMonitorProjecao,
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  getApresentacaoAudios: () => apresentacaoAudios,
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
+  setApresentacaoCard4Imagens: (valor) => {
+    apresentacaoCard4Imagens = valor;
+  },
+  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
+  setApresentacaoCard6AvisoCfg: (valor) => {
+    apresentacaoCard6AvisoCfg = valor;
+  },
+  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
+  setApresentacaoCard6Texto: (valor) => {
+    apresentacaoCard6Texto = valor;
+  },
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  getAudioLoopAtivo: () => audioLoopAtivo,
+  setAudioLoopAtivo: (valor) => {
+    audioLoopAtivo = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getProjecao: () => projecao,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasRotasMonitores({
+  avisarMonitoresConfiguradosEmFalta,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoDocsOperador,
+  ehModoSlidesOperador,
+  getServidorIp,
+  renderRoteamentoTelas,
+  rotaSelecionadaNaUi,
+  estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
+  restaurarRotaSlidesAposLibertarMonitores,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  getEstadoServidor: () => estadoServidor,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasCanaisProjecao({
+  atualizarEstiloRotasDesativadas,
+  ehModoSlidesOperador,
+  renderRoteamentoTelas,
+  getEstadoServidor: () => estadoServidor,
+  getEstrofeAtiva: () => estrofeAtiva,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getMusicaAtiva: () => musicaAtiva,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasMenuApresentacaoModo({
+  aplicarRotaDoModoAtualNaUiEServidor,
+  aplicarRotulosEPlaylistModoSlides,
+  atualizarBtnModoApresentacao,
+  atualizarBtnToggleModoSlides,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoDocsOperador,
+  ehModoSlidesOperador,
+  executarComTransicaoUi,
+  renderItensLyraSelectDropdown,
+  renderRoteamentoTelas,
+  rotaSelecionadaNaUi,
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  setApresentacaoMidiaProjetadaId: (valor) => {
+    apresentacaoMidiaProjetadaId = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
+  setAudioStateRemoto: (valor) => {
+    audioStateRemoto = valor;
+  },
+  getEstadoServidor: () => estadoServidor,
+  setEstadoServidor: (valor) => {
+    estadoServidor = valor;
+  },
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasModoSlidesOperador({
+  aplicarRotaDoModoAtualNaUiEServidor,
+  aplicarRotulosEPlaylistModoSlides,
+  atualizarBtnModoApresentacao,
+  atualizarBtnToggleModoSlides,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  executarComTransicaoUi,
+  irParaTelaInicial,
+  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
+  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
+    bloqueioSincronizarEstrofeDoServidor = valor;
+  },
+  getEstadoServidor: () => estadoServidor,
+  setEstadoServidor: (valor) => {
+    estadoServidor = valor;
+  },
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
+    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
+  },
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  setModoLetraCompletaCentral: (valor) => {
+    modoLetraCompletaCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  setProjecaoMusicaEmitidaNoServidor: (valor) => {
+    projecaoMusicaEmitidaNoServidor = valor;
+  },
+  getRotasPorModo: () => rotasPorModo,
+  getSlidesDockVisivel: () => slidesDockVisivel,
+  setSlidesDockVisivel: (valor) => {
+    slidesDockVisivel = valor;
+  },
+  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
+  setSlidesRailUserRecolhido: (valor) => {
+    slidesRailUserRecolhido = valor;
   },
 });
 
@@ -2071,1644 +2267,11 @@ function irParaTelaInicial() {
 }
 
 // --- SECÇÃO B — Modo apresentação (grelha, áudio, sync :3001); tipo/URL/item em midiaApresentacao.js ---
-function modoRoteamentoAtual() {
-  if (ehModoDocsOperador()) return 'docs';
-  if (ehModoApresentacaoOperador()) return 'apresentacao';
-  if (ehModoBibliaOperador()) return 'biblia';
-  if (ehModoSlidesOperador()) return 'slides';
-  return 'completo';
-}
+// (extraído) rotas por modo e monitores → painel/rotasMonitores.js
 
-function modoUsaSeletorMonitorUnificado() {
-  const m = modoRoteamentoAtual();
-  return m === 'apresentacao' || m === 'biblia' || m === 'docs';
-}
+// (extraído) canais de projeção → painel/canaisProjecao.js
 
-function salvarRotasPorModoNoStorage() {
-  try {
-    localStorage.setItem(
-      LS_ROTAS_POR_MODO,
-      JSON.stringify({
-        completo: normalizarRota(rotasPorModo.completo),
-        slides: normalizarRota(rotasPorModo.slides),
-      })
-    );
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-/*
- * `LS_ROTAS_DEFINIDAS_PELO_OPERADOR` era lido aqui.
- *
- * A marca existia para um fim só: calar o preenchimento automático do modo Slides assim
- * que o operador mexesse no seletor, porque o automatismo não distinguia «ainda não
- * configurado» de «configurado como Não exibir». Com a regra nova — o preenchimento olha
- * apenas para o vazio TOTAL, e «Não exibir» nas duas saídas vale só dentro da sessão do
- * modo (ver `alternarModoSlidesOperador`) — essa distinção deixou de ser precisa, e a
- * marca ficou sem um único leitor.
- *
- * Removida em vez de mantida «por via das dúvidas»: uma chave de localStorage que só se
- * escreve é uma armadilha para quem vier a seguir — parece estado com significado e não
- * governa nada. A chave antiga fica nas instalações existentes, inofensiva, e nada a lê.
- */
-
-function carregarRotasPorModoDoStorage() {
-  try {
-    const raw = localStorage.getItem(LS_ROTAS_POR_MODO);
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p && typeof p === 'object') {
-        /* `completo` pode herdar a sessão anterior. O seletor do modo Slides é só de sessão:
-           «Não exibir» e qualquer escolha manual morrem no reload — a rota de slides fica
-           no estado inicial (−1/−1) até os monitores serem detectados e o padrão M2/M3
-           aplicado em `carregarRoteamentoTelasDoServidor`. */
-        if (p.completo && typeof p.completo === 'object') {
-          rotasPorModo.completo = normalizarRota(p.completo);
-        }
-      }
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  limparNaoExibirManualSlides();
-  rotasPorModo.slides = rotaDesativada();
-  rotasPorModo.apresentacao = rotaDesativada();
-  rotasPorModo.apresentacaoAviso = rotaDesativada();
-  rotasPorModo.biblia = rotaDesativada();
-  rotasPorModo.docs = rotaDesativada();
-}
-
-/**
- * Chave de agrupamento da configuração de monitores.
- * Projetar nesta máquina e comandar um PC servidor são setups de hardware distintos:
- * partilhar configuração entre eles restauraria monitores que não existem do outro lado.
- * @returns {string}
- */
-function hostChaveMonitores() {
-  if (emModoProjecaoLocal()) return 'local';
-  return getServidorIp() || 'local';
-}
-
-/**
- * Grava quais monitores (por identidade) estão em uso, para o próximo arranque.
- *
- * Complementa — não substitui — `salvarRotasPorModoNoStorage`: os índices continuam a
- * ser a moeda de runtime, mas é daqui que sai a verdade quando o Windows renumera os
- * ecrãs entre sessões.
- */
-function persistirIdentidadesDosModos() {
-  const host = hostChaveMonitores();
-  const lista = monitoresServidorCache;
-  if (!Array.isArray(lista) || !lista.length) return;
-  /* Só `completo` e `slides`: são as escolhas duradouras de infraestrutura («o telão é a
-     LG TV»). `apresentacao` e `biblia` são rotas de sessão, deliberadamente repostas a
-     «Não exibir» em cada arranque — persistir a sua identidade fá-las-ia ressuscitar. */
-  ['completo', 'slides'].forEach((modo) => {
-    const r = normalizarRota(rotasPorModo[modo]);
-    /* Rota «Live — OBS» não usa monitor nenhum; gravar identidades aqui apagaria a
-       escolha física do utilizador só por ele ter ido para o OBS por um momento. */
-    if (r.live) return;
-    const novas = identidadesDaRota(r, lista);
-    /* Rota a −1 porque o monitor sumiu (sanitização), não porque o operador desligou.
-       Gravar null apagaria a identidade e o aviso «Monitor não encontrado» desaparecia
-       no recarregamento seguinte. */
-    if (!novas.publico && !novas.ministrante) {
-      const { faltou } = rotaRestauradaPorIdentidade(modo, r);
-      if (faltou.length) return;
-    }
-    guardarIdentidadesRota(host, modo, novas);
-  });
-}
-
-/**
- * Reescreve uma rota vinda do servidor com os monitores que o utilizador escolheu de facto.
- *
- * Regras:
- * - sem configuração guardada → devolve a rota do servidor intacta (primeira execução);
- * - configuração guardada e monitores presentes → aplica-a, mesmo que os índices do
- *   servidor apontem para outro lado (é exactamente o caso da renumeração do Windows);
- * - configuração guardada mas monitor ausente → devolve o canal desativado, para a UI
- *   pedir nova seleção em vez de projetar no ecrã errado.
- *
- * @param {string} modo
- * @param {object} rotaServidor
- * @returns {{rota: object, faltou: string[]}}
- */
-function rotaRestauradaPorIdentidade(modo, rotaServidor) {
-  const lista = monitoresServidorCache;
-  const base = normalizarRota(rotaServidor);
-  if (base.live) return { rota: base, faltou: [] };
-  if (!Array.isArray(lista) || !lista.length) return { rota: base, faltou: [] };
-
-  const { rota, houveSalvo, faltou } = restaurarRotaPorIdentidade(hostChaveMonitores(), modo, lista);
-  if (!houveSalvo) return { rota: base, faltou: [] };
-  return { rota: sanitizarRotaProjecao(rota, lista), faltou };
-}
-
-function rotaDesativada() {
-  return { publicoIndex: -1, ministranteIndex: -1, live: false };
-}
-
-/* ─── «Lembrar monitor» (Bíblia e Mídias) — ver `modules/monitorLembrado.js` ─── */
-
-/** Modo com memória de monitor aberto agora, ou `null`. */
-function modoComMemoriaMonitorAtual() {
-  const m = modoRoteamentoAtual();
-  return MODOS_COM_MEMORIA.includes(m) ? m : null;
-}
-
-/** Põe o checkbox a dizer a verdade sobre o modo que está aberto. */
-function sincronizarCheckboxLembrarMonitor() {
-  const chk = document.getElementById('hdr-lembrar-monitor-chk');
-  if (!chk) return;
-  const modo = modoComMemoriaMonitorAtual();
-  chk.checked = !!modo && lembrarMonitorLigado(hostChaveMonitores(), modo);
-}
-
-/**
- * Grava a escolha que o operador acabou de fazer no seletor unificado.
- *
- * Só daqui — do clique. Os caminhos automáticos escrevem «Não exibir» ao sair do modo, e
- * ouvi-los faria a memória apagar-se a si própria.
- */
-function registrarEscolhaMonitorDoOperador() {
-  const modo = modoComMemoriaMonitorAtual();
-  if (!modo) return;
-  const rota = rotaSelecionadaNaUi();
-  if (!rota) return;
-  registrarEscolhaMonitor(hostChaveMonitores(), modo, rota, monitoresServidorCache);
-  avisarMonitoresConfiguradosEmFalta();
-}
-
-/**
- * Repõe o monitor lembrado — só à ENTRADA no modo.
- *
- * Aplicar isto a meio de uma projeção moveria a janela do que está no ar, e é por isso que
- * a projeção activa manda: com mídia ou versículo no telão, a rota em vigor fica como está
- * e a memória espera pela próxima entrada. «Monitor lembrado ≠ projeção ativa» corta nos
- * dois sentidos.
- *
- * @param {'biblia'|'apresentacao'} modo
- * @returns {boolean} houve reposição
- */
-function aplicarMonitorLembradoAoEntrarNoModo(modo) {
-  if (!MODOS_COM_MEMORIA.includes(modo)) return false;
-  if (hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
-  /* Slides no ar: repor o monitor lembrado da Bíblia/Mídias reivindica o canal
-     partilhado e o merge do servidor apaga a letra — trocar de aba não pode fazer isso. */
-  if (projecaoMusicaEmitidaNoServidor) return false;
-  /* Sem lista de monitores não se conclui nada: entrar no modo antes de o servidor
-     responder daria «monitor não encontrado» para um monitor que está ligado e bem. A
-     entrada seguinte, já com a lista, repõe. */
-  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return false;
-  const { aplicar, rota, faltou } = rotaLembradaParaEntrada(
-    hostChaveMonitores(),
-    modo,
-    monitoresServidorCache
-  );
-  if (!aplicar) return false;
-  rotasPorModo[modo] = sanitizarRotaProjecao(rota, monitoresServidorCache);
-
-  /*
-   * A Bíblia não tem canal próprio no servidor: viaja no `apresentacao`, e é dali que
-   * `obterRotaApresentacaoParaServidor()` monta o pacote. Sem este espelho, repor o monitor
-   * lembrado enchia `rotasPorModo.biblia` e o servidor continuava a receber -1 — o painel
-   * dava a projeção por feita e o M2 ficava vazio.
-   *
-   * O espelhamento já existia, mas só no ramo `usarValoresDaUi === true` de
-   * `salvarRoteamentoTelasNoServidor` — o clique do operador. A reposição entra pelo
-   * caminho automático e não passava por lá.
-   *
-   * Sem guarda de mídia no ar aqui de propósito: esta função já desistiu acima se houvesse
-   * qualquer projeção activa, que é a mesma condição sob a qual aquele ramo se abstém de
-   * mexer no canal partilhado.
-   */
-  if (modo === 'biblia') {
-    rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.biblia) };
-  }
-
-  /* Aviso do cabeçalho: só depende de haver (ou não) monitor de projeção. */
-  avisarMonitoresConfiguradosEmFalta();
-  return true;
-}
-
-function normalizarRota(obj) {
-  const live = !!(obj && obj.live);
-  const pub = parseInt(obj?.publicoIndex, 10);
-  const min = parseInt(obj?.ministranteIndex, 10);
-  return {
-    publicoIndex: live ? -1 : Number.isFinite(pub) ? pub : -1,
-    ministranteIndex: live ? -1 : Number.isFinite(min) ? min : -1,
-    live,
-  };
-}
-
-/**
- * Um monitor serve **uma** saída de cada vez — a regra vive em
- * `modules/saidasMonitorExclusivas.js`, para se poder ler e testar sem DOM.
- * Aqui só se garante que ela recebe uma rota já normalizada.
- *
- * @param {{publicoIndex:number, ministranteIndex:number, live?:boolean}} rota
- * @param {'publico'|'ministrante'} [canalQuePrevalece] a saída que o operador acabou de mexer
- */
-function rotaSemMonitorRepetido(rota, canalQuePrevalece = 'publico') {
-  return aplicarSaidaExclusiva(normalizarRota(rota), canalQuePrevalece);
-}
-
-function indiceMonitorPrincipalNaLista(monitores) {
-  const lista = Array.isArray(monitores) ? monitores : [];
-  const m = lista.find((x) => x && x.primary);
-  return m != null ? m.index : 0;
-}
-
-/** Monitores onde a projeção pode abrir (nunca o principal / tela do utilizador). */
-function listaMonitoresParaProjecao(lista) {
-  const principal = indiceMonitorPrincipalNaLista(lista);
-  return (Array.isArray(lista) ? lista : []).filter((m) => m && m.index !== principal);
-}
-
-function sanitizarIndiceMonitorProjecao(idx, lista) {
-  if (!Number.isFinite(idx) || idx < 0) return -1;
-  if (idx === indiceMonitorPrincipalNaLista(lista)) return -1;
-  if (!(Array.isArray(lista) ? lista : []).some((m) => m && m.index === idx)) return -1;
-  return idx;
-}
-
-/** Corrige rota salva com público/ministrante trocados (índices 2↔1 = Monitor 3↔2). */
-function corrigirRotaMonitoresInvertida(rota, lista) {
-  const r = normalizarRota(rota);
-  if (r.live) return r;
-  const sec = listaMonitoresParaProjecao(lista);
-  const temM2 = sec.some((m) => m && m.index === 1);
-  const temM3 = sec.some((m) => m && m.index === 2);
-  if (!temM2 || !temM3) return r;
-  if (r.publicoIndex === 2 && r.ministranteIndex === 1) {
-    return { ...r, publicoIndex: 1, ministranteIndex: 2 };
-  }
-  return r;
-}
-
-function sanitizarRotaProjecao(rota, lista) {
-  const r = normalizarRota(rota);
-  if (r.live) return r;
-  const base = {
-    live: false,
-    publicoIndex: sanitizarIndiceMonitorProjecao(r.publicoIndex, lista),
-    ministranteIndex: sanitizarIndiceMonitorProjecao(r.ministranteIndex, lista),
-  };
-  return corrigirRotaMonitoresInvertida(base, lista);
-}
-
-function marcarRotaLiveNoDom(ligado) {
-  const hidPub = document.getElementById('route-publico');
-  const hidMin = document.getElementById('route-ministrante');
-  if (!hidPub || !hidMin) return;
-  if (ligado) {
-    hidPub.dataset.live = '1';
-    hidMin.dataset.live = '1';
-  } else {
-    delete hidPub.dataset.live;
-    delete hidMin.dataset.live;
-  }
-}
-
-function rotaLiveSelecionadaNaUi() {
-  const hidPub = document.getElementById('route-publico');
-  return !!(hidPub && hidPub.dataset && hidPub.dataset.live === '1');
-}
-
-/**
- * Imagem/vídeo/PDF/aviso do modo Mídias ainda no telão.
- * Trocar de modo NÃO pode encerrar esta projeção nem desativar a rota partilhada.
- */
-function hayProjecaoMidiaApresentacaoAtiva() {
-  if (apresentacaoMidiaProjetadaId) return true;
-  if (estadoServidorEhProjecaoApresentacaoAtivaNoTelao()) return true;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  /*
-   * `projecaoMinistranteApresentacao` diz apenas «há override no canal ministrante», e
-   * não «há mídia no ar». A Bíblia projetada só no público também levanta essa marca: o
-   * aplicador põe um override de tela limpa no ministrante para ele não continuar a
-   * mostrar o que lá estava. Sem esta exclusão, o modo Bíblia dava-se a si próprio como
-   * «mídia activa» e adoptava a rota antiga da Apresentação, descartando a escolha que o
-   * operador acabara de fazer no seletor.
-   *
-   * Só `biblia` é excluída, e não `musica`: com slides no público é legítimo haver mídia
-   * no canal do ministrante, e essa combinação tem de continuar a contar como activa. Com
-   * a Bíblia não há ambiguidade — `exibir_versiculo` escreve sempre o override do
-   * ministrante, portanto nenhuma mídia pode estar viva lá nesse momento.
-   */
-  if (e.tipo === 'biblia') return false;
-  if (e.projecaoMinistranteApresentacao) return true;
-  return false;
-}
-
-function hayProjecaoApresentacaoModoAtiva() {
-  return hayProjecaoMidiaApresentacaoAtiva() || apresentacaoAvisoCard6Ativo;
-}
-
-/** Projeção de Bíblia ou apresentação ainda no ar — ao mudar de tela, manter rota de monitores. */
-function hayProjecaoAtivaModoBibliaOuApresentacao() {
-  if (hayProjecaoApresentacaoModoAtiva()) return true;
-  if (bibliaHaParteProjetada()) return true;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
-  if (e.projecaoBibliaMinistrante) return true;
-  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
-  return false;
-}
-
-async function desativarRotasModosTransitorios(opts = {}) {
-  if (opts.forcar !== true && hayProjecaoAtivaModoBibliaOuApresentacao()) return;
-  const sync = opts.sincronizarServidor !== false;
-  const projecaoApAtiva = hayProjecaoApresentacaoModoAtiva();
-  /* Mídia no ar: Bíblia e Mídias partilham o canal `apresentacao` no dual-routing —
-     desativar essa rota fecharia as janelas e encerraria a projeção. */
-  if (!projecaoApAtiva) {
-    rotasPorModo.apresentacao = rotaDesativada();
-    restaurarRotaSlidesAposLibertarMonitores();
-  }
-  rotasPorModo.biblia = rotaDesativada();
-  marcarRotaLiveNoDom(projecaoApAtiva ? !!normalizarRota(rotasPorModo.apresentacao).live : false);
-  const modo = modoRoteamentoAtual();
-  if (modo === 'apresentacao' || modo === 'biblia') {
-    renderRoteamentoTelas(monitoresServidorCache, rotasPorModo[modo]);
-  }
-  if (sync) {
-    try {
-      await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-  atualizarIndicadorProjecaoLiveUi();
-}
-
-function atualizarIndicadorProjecaoLiveUi() {
-  const el = document.getElementById('indicador-live-obs');
-  const wrap = document.getElementById('route-publico-dd');
-  const liveSel = rotaLiveSelecionadaNaUi();
-  const emModoLive = ehModoBibliaOperador() || ehModoApresentacaoOperador();
-  const projetando =
-    emModoLive &&
-    liveSel &&
-    hayProjecaoAtivaNoServidor() &&
-    !!(estadoServidor && estadoServidor.projecaoLive);
-  /*
-     O selo «● LIVE → OBS» não aparece no modo Bíblia.
-
-     Ali ele não acrescenta nada: o seletor ao lado já diz «Live — OBS», e o próprio
-     versículo no ar é a confirmação de que está a sair. Dois avisos da mesma coisa, um
-     deles a pulsar, num canto do cabeçalho que o operador tem debaixo dos olhos durante
-     o culto inteiro.
-
-     No modo Apresentação continua: lá o que está no ar é mídia, que pode estar a tocar sem
-     o operador a ver, e o selo é o único sinal de que a saída Live está mesmo ativa. */
-  const mostrarSelo = projetando && !ehModoBibliaOperador();
-  if (el) {
-    el.classList.toggle('oculto', !mostrarSelo);
-    el.classList.toggle('indicador-live-obs--ativo', mostrarSelo);
-  }
-  if (wrap) {
-    wrap.classList.toggle('route-dd--live-projetando', projetando);
-    /* O seletor escolhe o destino; quem diz que há projeção no ar são os outros
-       indicadores (pill, versículo na grelha, selo Live). */
-    wrap.classList.remove('route-dd--projetando');
-  }
-  const btn = document.getElementById('route-publico-btn');
-  if (btn && emModoLive && liveSel) {
-    btn.title = projetando
-      ? 'Live ativa — versículo no OBS (http://127.0.0.1:5001/obs)'
-      : 'Live — OBS (sem monitores físicos; use Browser Source no OBS)';
-  }
-}
-
-/** Índice efetivo por canal: apresentação substitui o slide no mesmo monitor. */
-function indicesEfetivosRoteamentoDualCliente() {
-  const s = normalizarRota(rotasPorModo.slides);
-  const a = normalizarRota(rotasPorModo.apresentacao);
-  if (a.live) {
-    return { publicoIndex: -1, ministranteIndex: -1, live: true };
-  }
-  return {
-    publicoIndex: a.publicoIndex >= 0 ? a.publicoIndex : s.publicoIndex,
-    ministranteIndex: a.ministranteIndex >= 0 ? a.ministranteIndex : s.ministranteIndex,
-    live: false,
-  };
-}
-
-function apresentacaoOcupandoCanalPublico() {
-  return normalizarRota(rotasPorModo.apresentacao).publicoIndex >= 0;
-}
-
-function apresentacaoOcupandoCanalMinistrante() {
-  return normalizarRota(rotasPorModo.apresentacao).ministranteIndex >= 0;
-}
-
-/** Projeção activa do modo Apresentação no canal público (rota apresentação + estado no telão). */
-function apresentacaoProjecaoAtivaNoCanalPublico() {
-  const ap = normalizarRota(rotasPorModo.apresentacao);
-  if (ap.live || ap.publicoIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout || e.slidePretoFinal) return false;
-  if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) {
-    return true;
-  }
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) return true;
-  return false;
-}
-
-/** Projeção activa do modo Apresentação no canal ministrante. */
-function apresentacaoProjecaoAtivaNoCanalMinistrante() {
-  const ap = normalizarRota(rotasPorModo.apresentacao);
-  if (ap.live || ap.ministranteIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout || e.slidePretoFinal) return false;
-  /* Apenas M3: telão no socket pode ficar «limpo» com projecaoMinistranteApresentacao. */
-  if (e.projecaoMinistranteApresentacao) return true;
-  if (e.tipo === 'biblia' || e.tipo === 'musica') return false;
-  if (
-    ap.publicoIndex < 0 &&
-    e.tipo === 'apresentacao' &&
-    e.apresentacao &&
-    String(e.apresentacao.src || '').trim()
-  ) {
-    return true;
-  }
-  return false;
-}
-
-/**
- * Versículo no ar no canal público.
- *
- * Gémeo de `apresentacaoProjecaoAtivaNoCanalPublico` para o outro inquilino do canal
- * partilhado. A rota diz QUAL canal a Bíblia pediu (o seletor dela), o estado do servidor
- * diz se há mesmo versículo no ar — as duas coisas, como no lado das Mídias.
- *
- * Não se funde com aquele: o classificador das prévias usa-o para escolher o rótulo da
- * badge, e «Imagem no Telão» não é «Versículo no Telão».
- */
-function bibliaProjecaoAtivaNoCanalPublico() {
-  const b = normalizarRota(rotasPorModo.biblia);
-  if (b.live || b.publicoIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout || e.slidePretoFinal) return false;
-  return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
-}
-
-/**
- * Versículo no ar no canal do ministrante.
- *
- * Dois caminhos porque o servidor tem dois: com alvo «ministrante» o canal público leva
- * override de tela limpa e o que sobra é a bandeira `projecaoBibliaMinistrante`; com alvo
- * «ambos» não há override nenhum e o versículo viaja no próprio payload público.
- */
-function bibliaProjecaoAtivaNoCanalMinistrante() {
-  const b = normalizarRota(rotasPorModo.biblia);
-  if (b.live || b.ministranteIndex < 0) return false;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout || e.slidePretoFinal) return false;
-  if (e.projecaoBibliaMinistrante) return true;
-  return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
-}
-
-/**
- * O canal público está ocupado por outro modo do canal partilhado — Mídias ou Bíblia?
- *
- * Uma noção só, para o seletor do Slides e para as prévias: o monitor está emprestado,
- * seja a uma imagem ou a um versículo. Quem precisa de saber QUAL dos dois (o rótulo da
- * badge) continua a perguntar aos predicados de cada modo.
- */
-function canalPublicoOcupadoPorOutroModoNoSlides() {
-  return apresentacaoProjecaoAtivaNoCanalPublico() || bibliaProjecaoAtivaNoCanalPublico();
-}
-
-/** Igual, para o canal do ministrante. */
-function canalMinistranteOcupadoPorOutroModoNoSlides() {
-  return apresentacaoProjecaoAtivaNoCanalMinistrante() || bibliaProjecaoAtivaNoCanalMinistrante();
-}
-
-/**
- * Telão com mídia do modo Apresentação activa (ignora Bíblia, Slides e fundo estático).
- * Usado pelo preview do modo Slide — não confundir bgImage da Bíblia com projeção.
- */
-function estadoServidorEhProjecaoApresentacaoAtivaNoTelao() {
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.tipo === 'biblia' || e.tipo === 'musica') return false;
-  if (e.telaLimpa || e.blackout || e.slidePretoFinal) return false;
-  if (e.tipo === 'apresentacao') {
-    return !!(e.apresentacao && String(e.apresentacao.src || '').trim());
-  }
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) return true;
-  return false;
-}
-
-/** Preview Slide (público): informe de mídia da Apresentação activa no telão público. */
-function slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico() {
-  if (!ehModoSlidesOperador()) return false;
-  return apresentacaoProjecaoAtivaNoCanalPublico();
-}
-
-/**
- * Mídia/aviso activos no canal ministrante (M3), para a prévia do modo Slides.
- * Usa o flag do socket (`projecaoMinistranteApresentacao`) e não só a rota local —
- * a rota pode ficar desactualizada ao projetar pelo Mídias noutro momento.
- * Exclui override de tela limpa da Bíblia e contagem (não são badge de mídia).
- */
-function midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides() {
-  if (!ehModoSlidesOperador()) return false;
-  if (apresentacaoProjecaoAtivaNoCanalMinistrante()) return true;
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout || e.slidePretoFinal) return false;
-  if (e.tipo === 'biblia' || e.tipo === 'contagem') return false;
-  return !!e.projecaoMinistranteApresentacao;
-}
-
-/** Preview Slide (ministrante): informe de mídia da Apresentação activa na TV ministrante. */
-function slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante() {
-  if (!ehModoSlidesOperador()) return false;
-  return midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides();
-}
-
-/**
- * Há projeção real no canal ministrante (M3) para a prévia do modo Slides.
- * Independente do M2: mídia só no telão não conta; slides no M3 contam mesmo com
- * Mídias no M2 (o `estado` do socket pode continuar `tipo: 'apresentacao'`).
- */
-function hayProjecaoAtivaNoCanalMinistranteParaPreviewSlides() {
-  if (!ehModoSlidesOperador()) return false;
-  if (midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides()) return true;
-  if (obterRotaSlidesParaUi().ministranteIndex < 0) return false;
-
-  /* Letra já emitida neste painel: M3 tem conteúdo mesmo com override de Mídias no público. */
-  if (projecaoMusicaEmitidaNoServidor && musicaAtiva && Number(estrofeAtiva) >= 0) {
-    return true;
-  }
-
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout) return true;
-  if (e.tipo === 'musica') {
-    if (e.slidePretoFinal) return true;
-    return !!(!e.telaLimpa && e.linhas && e.linhas.length);
-  }
-  if (
-    e.tipo === 'biblia' &&
-    (!e.telaLimpa || e.projecaoSomenteMinistrante || e.projecaoBibliaMinistrante)
-  ) {
-    return !!(e.linhas && e.linhas.length) || !!e.projecaoBibliaMinistrante;
-  }
-  return false;
-}
-
-function preencherPreviewInformeMidiaApresentacaoSlide(el) {
-  if (!el) return;
-  const e = estadoServidor;
-  const ap = e && e.apresentacao ? e.apresentacao : {};
-  const kind = String(ap.kind || 'image').toLowerCase();
-  const tipoRotulo = rotuloTipoMidiaApresentacao(kind);
-  preencherPreviewBadgeInformativoSlides(el, {
-    kind,
-    label: `${tipoRotulo} no Telão`,
-  });
-}
-
-/**
- * Badge informativo na prévia do modo Slides (conteúdo de outro modo no monitor).
- * @param {HTMLElement|null} el
- * @param {{ kind?: string, label: string }} badge
- */
-function preencherPreviewBadgeInformativoSlides(el, badge) {
-  if (!el) return;
-  const kind = String(badge?.kind || 'image').toLowerCase();
-  const label = String(badge?.label || 'Projeção no telão').trim();
-  const iconKinds = new Set(['image', 'video', 'audio', 'pdf', 'iframe', 'aviso']);
-  const icon = svgIconeTipoMidiaApresentacao(iconKinds.has(kind) ? kind : 'iframe');
-  el.innerHTML = `<span class="pv-live-ap-meta">${icon}<span class="pv-live-ap-meta-txt">${escapeHtml(label)}</span></span>`;
-  const clsBase = el.classList.contains('op-slide-text') ? 'op-slide-text' : 'pv-live-letras';
-  el.className = clsBase;
-  el.classList.remove('vazio');
-  limparEstiloPreviewSlide(el);
-}
-
-/**
- * Classifica a saída real do M2 (público) para a prévia virtual do modo Slides.
- * Independente do M3 e da aba aberta — só o estado de saída deste monitor.
- * @returns {{ mode: 'idle'|'blackout'|'slides'|'badge', badge?: {kind:string,label:string}, estadoSlides?: object }}
- */
-function classificarSaidaMonitorPublicoSlides() {
-  const r = obterRotaSlidesParaUi();
-  /*
-   * «Não exibir» neste canal NÃO significa monitor apagado quando é o Mídias que o
-   * ocupa. A ocupação já não se escreve na rota do Slides, mas o operador pode ter
-   * apagado o canal à mão com a mídia no ar — e aí a badge, que existe precisamente para
-   * dizer «outro modo está neste monitor», continua a ser a leitura certa.
-   * `apresentacaoProjecaoAtivaNoCanalPublico` já exige rota do Mídias neste canal e mídia
-   * mesmo no ar, por isso o caso «canal desligado à mão, sem nada a projetar» continua
-   * ocioso como antes.
-   */
-  if (r.publicoIndex < 0 && !canalPublicoOcupadoPorOutroModoNoSlides()) return { mode: 'idle' };
-
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return { mode: 'idle' };
-  if (e.blackout) return { mode: 'blackout' };
-
-  /* Outros modos no M2 → só badge (não reproduzir o conteúdo visual). */
-  if (apresentacaoProjecaoAtivaNoCanalPublico()) {
-    if (e.tipo === 'aviso') {
-      return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
-    }
-    const kind = String((e.apresentacao && e.apresentacao.kind) || 'image').toLowerCase();
-    return {
-      mode: 'badge',
-      badge: { kind, label: `${rotuloTipoMidiaApresentacao(kind)} no Telão` },
-    };
-  }
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) {
-    return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
-  }
-  if (e.tipo === 'contagem' && e.contagem) {
-    return { mode: 'badge', badge: { kind: 'contagem', label: 'Cronômetro no Telão' } };
-  }
-  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) {
-    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
-  }
-
-  /* Modo Slides (música) no M2 → cópia visual da projeção. */
-  if (e.tipo === 'musica') {
-    if (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length)) {
-      return { mode: 'slides', estadoSlides: e };
-    }
-  }
-
-  return { mode: 'idle' };
-}
-
-/**
- * Classifica a saída real do M3 (ministrante) para a prévia virtual do modo Slides.
- * Independente do M2 — flags/rota/emissão local só para inferir este canal.
- * @returns {{ mode: 'idle'|'blackout'|'slides'|'badge', clock?: boolean, badge?: {kind:string,label:string} }}
- */
-function classificarSaidaMonitorMinistranteSlides() {
-  const r = obterRotaSlidesParaUi();
-  /* Mesma razão do canal público: com o Mídias a ocupar o monitor do ministrante, o −1
-     da rota do Slides é a cedência do canal, não um monitor apagado. Ver
-     `classificarSaidaMonitorPublicoSlides`. */
-  if (r.ministranteIndex < 0 && !canalMinistranteOcupadoPorOutroModoNoSlides()) {
-    return { mode: 'idle', clock: false };
-  }
-
-  const e = estadoServidor;
-  if (!projecao.pronta()) return { mode: 'idle', clock: true };
-  if (e && e.blackout) return { mode: 'blackout' };
-
-  /* Mídia/aviso do Mídias no M3. */
-  if (midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides()) {
-    if (e && e.tipo === 'aviso') {
-      return { mode: 'badge', badge: { kind: 'aviso', label: 'Aviso no Telão' } };
-    }
-    const kind = String((e && e.apresentacao && e.apresentacao.kind) || 'image').toLowerCase();
-    return {
-      mode: 'badge',
-      badge: { kind, label: `${rotuloTipoMidiaApresentacao(kind)} no Telão` },
-    };
-  }
-
-  /* Contagem no M3 (override). */
-  if (e && e.projecaoMinistranteApresentacao && e.tipo === 'contagem' && e.contagem) {
-    return { mode: 'badge', badge: { kind: 'contagem', label: 'Cronômetro no Telão' } };
-  }
-
-  /* Bíblia no M3. */
-  if (e && e.projecaoBibliaMinistrante) {
-    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
-  }
-  if (e && e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) {
-    /* Bíblia só no público: override limpa o M3 → ocioso, não badge. */
-    if (e.projecaoMinistranteApresentacao && !e.projecaoBibliaMinistrante) {
-      return { mode: 'idle', clock: true };
-    }
-    return { mode: 'badge', badge: { kind: 'biblia', label: 'Versículo no Telão' } };
-  }
-
-  /* Slides (música) no M3 — mesmo com Mídias ainda no M2 (tipo do socket pode ser apresentação). */
-  if (projecaoMusicaEmitidaNoServidor && musicaAtiva && Number(estrofeAtiva) >= 0) {
-    return { mode: 'slides' };
-  }
-  if (e && e.tipo === 'musica' && (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length))) {
-    return { mode: 'slides' };
-  }
-
-  return { mode: 'idle', clock: true };
-}
-
-/** Prévia virtual do M2 no modo Slides — só este monitor. */
-function atualizarPreviewMonitorPublicoSlides() {
-  const cls = classificarSaidaMonitorPublicoSlides();
-  if (cls.mode === 'badge' && cls.badge) {
-    const prevTitulo = document.getElementById('pv-live-titulo');
-    const prevLetras = document.getElementById('pv-live-letras');
-    if (prevTitulo) prevTitulo.textContent = '';
-    preencherPreviewBadgeInformativoSlides(prevLetras, cls.badge);
-    return;
-  }
-  if (cls.mode === 'blackout') {
-    aplicarPreviewTelaoNoDom({ blackout: true });
-    return;
-  }
-  if (cls.mode === 'slides' && cls.estadoSlides) {
-    aplicarPreviewTelaoNoDom(cls.estadoSlides);
-    return;
-  }
-  aplicarPreviewTelaoNoDom({ semProjecao: true });
-}
-
-/** Prévia virtual do M3 no modo Slides — só este monitor. */
-function atualizarPreviewMonitorMinistranteSlides() {
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  const cls = classificarSaidaMonitorMinistranteSlides();
-
-  if (cls.mode === 'badge' && cls.badge) {
-    definirPreviewRelogioOciosoMinistrante(false);
-    limparPreviewTituloMusicaAbertura();
-    preencherPreviewBadgeInformativoSlides(opA, cls.badge);
-    if (opP) {
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-    }
-    return;
-  }
-
-  if (cls.mode === 'blackout') {
-    definirPreviewRelogioOciosoMinistrante(false);
-    limparConteudoPreviewOperadorSlides();
-    if (opA) {
-      opA.textContent = 'Tela preta (F10)';
-      opA.className = 'op-slide-text vazio';
-    }
-    return;
-  }
-
-  if (cls.mode === 'slides') {
-    definirPreviewRelogioOciosoMinistrante(false);
-    const e = estadoServidor;
-    const servidorMostraMusica =
-      e &&
-      e.tipo === 'musica' &&
-      !e.blackout &&
-      (e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length));
-    const alinhado =
-      servidorMostraMusica &&
-      musicaAtiva &&
-      musicaEstadoCombinaComAtiva(e) &&
-      projecaoMusicaEmitidaNoServidor;
-    if (servidorMostraMusica && !alinhado) {
-      preencherPreviewOperadorSomenteEstadoServidorMusica();
-    } else if (
-      alinhado &&
-      !selecaoLocalAlinhadaComProjecaoMusicaServidor()
-    ) {
-      preencherPreviewOperadorSomenteEstadoServidorMusica();
-    } else if (projecaoMusicaEmitidaNoServidor || podeEspelharLetraNosPreviewsModoSlide()) {
-      preencherPreviewOperadorSomenteMusicaLocal();
-    } else if (servidorMostraMusica) {
-      preencherPreviewOperadorSomenteEstadoServidorMusica();
-    } else {
-      limparConteudoPreviewOperadorSlides();
-    }
-    return;
-  }
-
-  /* Idle: estado padrão do M3 (relógio conforme Ajustes). */
-  limparConteudoPreviewOperadorSlides();
-  definirPreviewRelogioOciosoMinistrante(!!cls.clock && deveRevelarRelogioPreviewMinistrante());
-}
-
-/**
- * Orquestra as duas prévias-virtuais do modo Slides de forma independente.
- * MONITOR REAL → estado da saída → prévia correspondente (não a aba actual).
- */
-function atualizarPreviewsMonitoresVirtuaisModoSlides() {
-  atualizarPreviewMonitorMinistranteSlides();
-  atualizarPreviewMonitorPublicoSlides();
-}
-
-/** Apresentação no público e slides no público em monitores diferentes (convivência). */
-function slidesCanalPublicoSeparadoDaApresentacao() {
-  if (!ehModoSlidesOperador()) return false;
-  const ap = normalizarRota(rotasPorModo.apresentacao);
-  const sl = normalizarRota(rotasPorModo.slides);
-  if (ap.live || sl.publicoIndex < 0) return false;
-  if (ap.publicoIndex >= 0 && sl.publicoIndex !== ap.publicoIndex) return true;
-  if (ap.ministranteIndex >= 0 && sl.publicoIndex !== ap.ministranteIndex) return true;
-  return false;
-}
-
-/**
- * Rota do modo Slide para os seletores: estado real gravado em `rotasPorModo.slides`
- * (sem mascarar nem reatribuir monitores por conflito com Apresentação).
- */
-function obterRotaSlidesParaUi() {
-  return sanitizarRotaProjecao(normalizarRota(rotasPorModo.slides), monitoresServidorCache);
-}
-
-/** Atualiza só a UI dos seletores Público/Ministrante no modo Slide. */
-function syncRoteamentoTelasModoSlidesNaUi() {
-  if (!ehModoSlidesOperador()) return;
-  renderRoteamentoTelas(monitoresServidorCache, obterRotaSlidesParaUi());
-  atualizarEstiloRotasDesativadas();
-}
-
-/**
- * Quando o Mídias (ou outro modo no canal partilhado) liberta monitores, repõe canais do
- * Slides que tinham sido desligados automaticamente — sem tocar em «Não exibir» manual.
- */
-function restaurarRotaSlidesAposLibertarMonitores() {
-  if (!precisaReporRotaSlides(rotasPorModo.slides)) return false;
-  rotasPorModo.slides = rotaSlidesReposta(rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
-  salvarRotasPorModoNoStorage();
-  if (ehModoSlidesOperador()) {
-    syncRoteamentoTelasModoSlidesNaUi();
-  }
-  return true;
-}
-
-/**
- * Último conteúdo enviado a projetar nos modos de seletor unificado.
- *
- * O `alvoProjecao` (público / ministrante / ambos) viaja DENTRO do payload e é lido pelo
- * servidor no momento em que a projeção é feita. Mudar o seletor depois disso só altera a
- * rota de janelas — o conteúdo já enviado continua a apontar ao canal antigo, e o monitor
- * que acabou de entrar fica com o ecrã ocioso. Guardar o payload é o que permite reenviá-lo
- * com o alvo novo em vez de obrigar o operador a encerrar e projetar outra vez.
- *
- * @type {{tipo: 'apresentacao'|'biblia', payload: object}|null}
- */
-let ultimoConteudoProjetadoModoUnificado = null;
-
-function emitirApresentacao(payload, opts = {}) {
-  const pl = payload && typeof payload === 'object' ? payload : {};
-  const ip = getServidorProjeccaoIp();
-
-  /**
-   * Nunca usar `socket.emit('exibir_apresentacao')` para ficheiros (data:, vídeo/Base64 grandes):
-   * o Socket.IO corta pacotes grandes (~1 MB por defeito) e **derruba a ligação** — aparecia
-   * «DESCONECTADO» e sumia «AO VIVO». O servidor aceita POST JSON até 200 MB.
-   */
-  const url = `http://${ip}:5510/api/comando/exibir_apresentacao`;
-
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(pl),
-  })
-    .then(async (r) => {
-      const txt = await r.text();
-      let data = {};
-      try {
-        data = txt ? JSON.parse(txt) : {};
-      } catch (_) {
-  // intencional — erro ignorado
-}
-
-      if (!r.ok || data.ok === false) {
-        const msg = data.erro || txt || r.statusText;
-        throw new Error(msg || `HTTP ${r.status}`);
-      }
-
-      try {
-        localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '1');
-      } catch (_) {
-  // intencional — erro ignorado
-}
-      if (!opts.naoSubstituirUltimoUnificado) {
-        ultimoConteudoProjetadoModoUnificado = { tipo: 'apresentacao', payload: pl };
-      }
-      return true;
-    })
-    .catch((e) => {
-      alert(
-        'Não foi possível projetar no servidor (porta 5510). Confira se o app SERVIDOR está a correr, o IP e a rede/firewall.\n\n' +
-          String(e && e.message ? e.message : e)
-      );
-      return false;
-    });
-}
-
-async function emitirEncerrarApresentacaoPublicoAoServidor(alvoProjecao) {
-  const body =
-    alvoProjecao != null && String(alvoProjecao).trim()
-      ? JSON.stringify({ alvoProjecao: String(alvoProjecao).trim() })
-      : '{}';
-  if (projecao.enviar('encerrar_apresentacao_publico', alvoProjecao != null ? { alvoProjecao } : undefined)) {
-    return true;
-  }
-  const ip = hostProjecao();
-  if (!ip) return false;
-  try {
-    const r = await fetch(`http://${ip}:5510/api/comando/encerrar_apresentacao_publico`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    });
-    return r.ok;
-  } catch (_) {
-    return false;
-  }
-}
-
-/**
- * Destino da projeção (cabeçalho «Monitor»): desativado | publico | ministrante | ambos | live.
- *
- * Delega em `modules/rotaEnvioBiblia.js`: alvo e cobertura têm de sair da mesma regra, ou
- * voltam a divergir como divergiam antes (ver o cabeçalho desse módulo).
- */
-function obterAlvoProjecaoDeRota(rota) {
-  return alvoDeRota(rota);
-}
-
-function obterAlvoProjecaoModoApresentacao() {
-  return obterAlvoProjecaoDeRota(rotasPorModo.apresentacao);
-}
-
-function obterAlvoProjecaoModoBiblia() {
-  return obterAlvoProjecaoDeRota(rotasPorModo.biblia);
-}
-
-/** Aviso do card 6 ainda no telão (pode coexistir com mídia noutro monitor). */
-let apresentacaoAvisoCard6Ativo = false;
-/** Último payload de aviso — reenvio ao mudar o seletor do card 6. */
-let ultimoPayloadAvisoCard6 = null;
-
-function obterRotaAvisoCard6() {
-  return normalizarRota(rotasPorModo.apresentacaoAviso);
-}
-
-function rotaApresentacaoEstaDesativada(rota) {
-  const r = normalizarRota(rota);
-  return !r.live && r.publicoIndex < 0 && r.ministranteIndex < 0;
-}
-
-function obterAlvoProjecaoAvisoCard6() {
-  return obterAlvoProjecaoDeRota(obterRotaAvisoCard6());
-}
-
-function monitoresAvisoCard6CobremAlvo(alvo) {
-  return monitoresRotaCobremAlvo(obterRotaAvisoCard6(), alvo);
-}
-
-function mensagemAlvoInvalidoAvisoCard6(alvo) {
-  if (alvo === 'desativado') {
-    return 'Escolha um monitor no seletor de Avisos (card 6) antes de projetar.';
-  }
-  return mensagemAlvoInvalidoMonitor(alvo, 'avisos (card 6)');
-}
-
-/**
- * Rota `apresentacao` enviada ao servidor quando mídia e avisos usam monitores distintos.
- * Cada índice vem da rota que activa esse canal; a mídia tem prioridade no público.
- */
-function mesclarRotasApresentacaoMidiaEAviso(rotaMidia, rotaAviso) {
-  const m = normalizarRota(rotaMidia);
-  const a = normalizarRota(rotaAviso);
-  if (m.live) return { ...m };
-  if (a.live) return { ...a };
-  return normalizarRota({
-    publicoIndex: m.publicoIndex >= 0 ? m.publicoIndex : a.publicoIndex,
-    ministranteIndex: m.ministranteIndex >= 0 ? m.ministranteIndex : a.ministranteIndex,
-    live: false,
-  });
-}
-
-function obterRotaApresentacaoParaServidor() {
-  const midia = normalizarRota(rotasPorModo.apresentacao);
-  const aviso = normalizarRota(rotasPorModo.apresentacaoAviso);
-  if (rotaApresentacaoEstaDesativada(aviso)) return midia;
-  return mesclarRotasApresentacaoMidiaEAviso(midia, aviso);
-}
-
-function canaisOcupadosPorAlvoProjecao(alvo) {
-  const a = String(alvo || '').toLowerCase();
-  if (a === 'publico' || a === 'live') return ['publico'];
-  if (a === 'ministrante') return ['ministrante'];
-  if (a === 'ambos') return ['publico', 'ministrante'];
-  return [];
-}
-
-/** Canais a limpar ao encerrar um conteúdo sem apagar o outro que partilha o mesmo telão. */
-function canaisParaEncerrarConteudoApresentacao(alvoConteudo, alvoOutroConteudo) {
-  const meus = canaisOcupadosPorAlvoProjecao(alvoConteudo);
-  if (!meus.length) return [];
-  const outroAlvo = String(alvoOutroConteudo || '').toLowerCase();
-  if (!outroAlvo || outroAlvo === 'desativado') {
-    return meus.length === 2 ? ['ambos'] : meus;
-  }
-  const outros = new Set(canaisOcupadosPorAlvoProjecao(outroAlvo));
-  const limpar = meus.filter((c) => !outros.has(c));
-  return limpar.length ? limpar : [];
-}
-
-async function encerrarCanaisApresentacaoNoServidor(canais) {
-  const lista = Array.isArray(canais) ? canais : [];
-  if (!lista.length) return;
-  if (lista.includes('ambos') || (lista.includes('publico') && lista.includes('ministrante'))) {
-    await emitirEncerrarApresentacaoPublicoAoServidor('ambos');
-    return;
-  }
-  for (const canal of lista) {
-    await emitirEncerrarApresentacaoPublicoAoServidor(canal);
-  }
-}
-
-function aplicarSelecaoMonitorAvisoCard6(opcao) {
-  const o = opcao && typeof opcao === 'object' ? opcao : {};
-  rotasPorModo.apresentacaoAviso = normalizarRota({
-    publicoIndex: o.pub ?? -1,
-    ministranteIndex: o.min ?? -1,
-    live: !!o.live,
-  });
-}
-
-async function reemitirAvisoCard6AposMudancaDeRota() {
-  if (!apresentacaoAvisoCard6Ativo || !ultimoPayloadAvisoCard6) return;
-  const alvo = obterAlvoProjecaoAvisoCard6();
-  if (!monitoresAvisoCard6CobremAlvo(alvo)) return;
-  await new Promise((r) => setTimeout(r, ATRASO_REENVIO_APOS_ROTA_MS));
-  const payload = { ...ultimoPayloadAvisoCard6, alvoProjecao: alvo };
-  const ok = await emitirApresentacao(payload, { naoSubstituirUltimoUnificado: true });
-  if (ok) {
-    ultimoPayloadAvisoCard6 = payload;
-    atualizarFeedbackProjecaoApresentacaoUi();
-  }
-}
-
-function rotuloSeletorMonitorAvisoCard6() {
-  const rota = obterRotaAvisoCard6();
-  const lista = monitoresServidorCache;
-  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista, { incluirLive: false });
-  const rLive = !!rota.live;
-  let pub = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.publicoIndex);
-  let min = rLive ? -1 : indiceRoteamentoMonitorNaUi(rota.ministranteIndex);
-  pub = sanitizarIndiceMonitorProjecao(pub, lista);
-  min = sanitizarIndiceMonitorProjecao(min, lista);
-  const combina = (o) => !!o.live === rLive && (o.live || (o.pub === pub && o.min === min));
-  const preset = opcoes.find(combina);
-  if (preset) return preset.label;
-  return rotuloRotaApresentacaoForaDoPreset({ publicoIndex: pub, ministranteIndex: min, live: rLive }, lista);
-}
-
-function criarSeletorMonitorAvisoCard6() {
-  const dd = document.createElement('div');
-  dd.className = 'route-dd route-dd--card6-aviso';
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'route-dd-btn';
-  btn.setAttribute('aria-haspopup', 'listbox');
-  btn.setAttribute('aria-expanded', 'false');
-  btn.setAttribute('aria-label', 'Monitor para avisos');
-  const rotulo = rotuloSeletorMonitorAvisoCard6();
-  btn.title =
-    'Monitor exclusivo para avisos — independente do «Monitor» do cabeçalho (mídias)';
-  const spanLbl = document.createElement('span');
-  spanLbl.className = 'route-dd-label';
-  spanLbl.textContent = rotulo;
-  /* Ícone de monitor à esquerda e seta (chevron) à direita — só visual. */
-  const icoMonitor = document.createElement('span');
-  icoMonitor.className = 'route-dd-ico-monitor';
-  icoMonitor.setAttribute('aria-hidden', 'true');
-  icoMonitor.innerHTML =
-    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.3"/><path d="M5.5 14h5M8 11v3"/></svg>';
-  const caret = document.createElement('span');
-  caret.className = 'route-dd-caret';
-  caret.setAttribute('aria-hidden', 'true');
-  caret.innerHTML =
-    '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>';
-  btn.appendChild(icoMonitor);
-  btn.appendChild(spanLbl);
-  btn.appendChild(caret);
-
-  const menu = document.createElement('ul');
-  menu.className = 'route-dd-menu';
-  menu.setAttribute('role', 'listbox');
-  menu.hidden = true;
-
-  const lista = monitoresServidorCache;
-  const rotaAtual = obterRotaAvisoCard6();
-  const rLive = !!rotaAtual.live;
-  let pubA = rLive ? -1 : indiceRoteamentoMonitorNaUi(rotaAtual.publicoIndex);
-  let minA = rLive ? -1 : indiceRoteamentoMonitorNaUi(rotaAtual.ministranteIndex);
-  pubA = sanitizarIndiceMonitorProjecao(pubA, lista);
-  minA = sanitizarIndiceMonitorProjecao(minA, lista);
-  const combinaAtual = (o) => !!o.live === rLive && (o.live || (o.pub === pubA && o.min === minA));
-
-  const opcoes = opcoesRoteamentoUnificadoModoApresentacao(lista, { incluirLive: false });
-  opcoes.forEach((o) => {
-    const li = document.createElement('li');
-    li.setAttribute('role', 'presentation');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'route-dd-item';
-    b.dataset.apOp = o.key;
-    b.textContent = o.label;
-    b.setAttribute('aria-selected', combinaAtual(o) ? 'true' : 'false');
-    b.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      menu.hidden = true;
-      btn.setAttribute('aria-expanded', 'false');
-      dd.classList.remove('route-dd-open');
-      aplicarSelecaoMonitorAvisoCard6({ pub: o.pub, min: o.min, live: o.live });
-      spanLbl.textContent = o.label;
-      menu.querySelectorAll('.route-dd-item').forEach((ib) => {
-        ib.setAttribute('aria-selected', ib.dataset.apOp === o.key ? 'true' : 'false');
-      });
-      if (o.key === 'des' && apresentacaoAvisoCard6Ativo) {
-        void encerrarAvisoCard6NoControlador();
-      }
-      salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false })
-        .then(() => reemitirAvisoCard6AposMudancaDeRota())
-        .catch(() => {});
-    });
-    li.appendChild(b);
-    menu.appendChild(li);
-  });
-
-  btn.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    const aberto = !menu.hidden;
-    fecharOutrosSeletoresDropdown(dd);
-    menu.hidden = aberto;
-    dd.classList.toggle('route-dd-open', !aberto);
-    btn.setAttribute('aria-expanded', aberto ? 'false' : 'true');
-  });
-
-  dd.appendChild(btn);
-  dd.appendChild(menu);
-  return dd;
-}
-
-/**
- * Reenvia o conteúdo que já está no ar depois de o operador mudar o seletor de monitores.
- *
- * Nos modos de seletor unificado (Bíblia e Mídias) o alvo é decidido no acto de projetar e
- * fica gravado no payload. Trocar de «Telão» para «Ambos» com a projeção a correr mudava
- * as janelas mas não o conteúdo: o monitor novo abria em ocioso e o operador tinha de
- * encerrar e projetar outra vez. Aqui o payload é reenviado tal e qual, só com o alvo
- * actualizado.
- *
- * Silencioso por natureza: nada a projetar, rota desativada ou modo errado não é erro —
- * é o caso normal de quem só está a preparar a próxima peça.
- */
-const ATRASO_REENVIO_APOS_ROTA_MS = 320;
-
-async function reemitirConteudoAposMudancaDeRotaUnificada() {
-  const guardado = ultimoConteudoProjetadoModoUnificado;
-  if (!guardado || !guardado.payload) return;
-
-  const modo = modoRoteamentoAtual();
-  if (modo !== 'apresentacao' && modo !== 'biblia') return;
-
-  const alvo = obterAlvoProjecaoDeRota(rotasPorModo[modo]);
-  if (alvo === 'desativado') return;
-  /*
-   * «Live — OBS» não tem janelas de monitor a alimentar — mas tem overlay. Em modo Mídias
-   * continua a não haver nada a reenviar (a mídia é servida por outro caminho); em modo
-   * Bíblia o reenvio é o que garante que o OBS recebe uma actualização válida no instante
-   * em que o destino passa a ser o OBS, em vez de depender do estado que por acaso tenha
-   * ficado da projeção física anterior.
-   */
-  if (alvo === 'live' && modo !== 'biblia') return;
-  if (alvo === guardado.payload.alvoProjecao) return;
-
-  /* O PUT já respondeu, mas a janela do monitor novo ainda está a carregar a página: o
-     motor só lhe entrega conteúdo depois de a ter visível. Conteúdo enviado antes disso
-     perde-se em silêncio — é a mesma razão do `reforcarMinistrante` no motor. */
-  await new Promise((r) => setTimeout(r, ATRASO_REENVIO_APOS_ROTA_MS));
-
-  if (guardado.tipo === 'apresentacao') {
-    if (!apresentacaoMidiaProjetadaId) return;
-    await emitirApresentacao({ ...guardado.payload, alvoProjecao: alvo });
-    return;
-  }
-
-  if (guardado.tipo === 'biblia') {
-    if (!bibliaHaParteProjetada()) return;
-    /* `somenteTexto: false` de propósito: o monitor que acabou de entrar não recebeu a
-       referência nem a configuração de exibição, e um reenvio abreviado deixá-lo-ia com
-       o versículo sem cabeçalho. */
-    const payload = { ...guardado.payload, alvoProjecao: alvo, somenteTexto: false };
-    projecao.enfileirar('exibir_versiculo', payload);
-    ultimoConteudoProjetadoModoUnificado = { tipo: 'biblia', payload };
-  }
-}
-
-function monitoresRotaCobremAlvo(rota, alvo) {
-  return rotaCobreAlvo(rota, alvo);
-}
-
-function monitoresApresentacaoCobremAlvo(alvo) {
-  return monitoresRotaCobremAlvo(rotasPorModo.apresentacao, alvo);
-}
-
-/*
- * Não há `monitoresBibliaCobremAlvo()`.
- *
- * Existia, e era metade do defeito: perguntar «os monitores cobrem o alvo?» antes de
- * enviar fazia a ausência de monitor físico calar o OBS. No Modo Bíblia a decisão passou
- * inteira para `resolverEnvioBiblia()` (`modules/rotaEnvioBiblia.js`), que lê alvo e
- * cobertura da mesma rota já sincronizada e nunca devolve «não enviar» por falta de tela.
- * O modo Mídias continua a usar `monitoresApresentacaoCobremAlvo()`: ali o conteúdo é uma
- * mídia servida às janelas, e sem janela não há o que enviar.
- */
-
-const LS_CARD6_AVISO_CFG = 'lyra_card6_aviso_cfg_v1';
-
-function aplicarEstiloTextareaAvisoCard6(el, rawCfg) {
-  if (!el) return;
-  const cfg = normalizarCfgAvisoCard6(rawCfg);
-  el.style.color = cfg.textColor;
-  el.style.background = cfg.transparentBackground ? 'transparent' : cfg.backgroundColor;
-  el.style.fontStyle = cfg.italic ? 'italic' : 'normal';
-  el.style.width = '100%';
-  el.style.maxWidth = '100%';
-  el.style.fontSize = '15px';
-  el.style.whiteSpace = cfg.wrapLongLines ? 'pre-wrap' : 'pre';
-  el.style.overflowWrap = cfg.wrapLongLines ? 'anywhere' : 'normal';
-  el.style.wordBreak = 'break-word';
-  el.style.overflow = 'hidden';
-  el.wrap = cfg.wrapLongLines ? 'soft' : 'off';
-}
-
-function algumCampoAvisoCard6EmEdicao() {
-  const ativo = document.activeElement;
-  if (!ativo) return false;
-  return (
-    ativo.classList?.contains('ap-card6-aviso-textarea') ||
-    ativo.dataset?.apCard6CfgField === '1'
-  );
-}
-
-function salvarAvisoCard6CfgNoStorage() {
-  try {
-    localStorage.setItem(
-      LS_CARD6_AVISO_CFG,
-      JSON.stringify(normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg))
-    );
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function carregarAvisoCard6CfgDoStorage() {
-  try {
-    const raw = localStorage.getItem(LS_CARD6_AVISO_CFG);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? normalizarCfgAvisoCard6(parsed) : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-function mensagemAlvoInvalidoMonitor(alvo, modoLabel) {
-  const modo = modoLabel || 'apresentação';
-  if (alvo === 'desativado') {
-    return `No modo ${modo}, abra «Monitor» no cabeçalho e escolha um destino (público, ministrante ou ambos) antes de projetar.`;
-  }
-  if (alvo === 'publico') {
-    return `Escolha «Público — Monitor …» em «Monitor» no cabeçalho antes de projetar para o telão.`;
-  }
-  if (alvo === 'ministrante') {
-    return 'Escolha «Ministrante — Monitor …» em «Monitor» no cabeçalho antes de projetar só no retorno.';
-  }
-  if (alvo === 'live') {
-    return 'Escolha «Live — OBS» em «Monitor» no cabeçalho. No OBS, use Browser Source em http://127.0.0.1:5001/obs';
-  }
-  return 'Escolha «Ambos» em «Monitor» no cabeçalho para enviar ao público e ao ministrante.';
-}
-
-function mensagemAlvoInvalidoApresentacao(alvo) {
-  return mensagemAlvoInvalidoMonitor(alvo, 'apresentação');
-}
-
-function mensagemAlvoInvalidoBiblia(alvo) {
-  if (alvo === 'desativado') {
-    return 'A projeção está em «Não exibir». Selecione um destino em «Monitor» (no cabeçalho), antes de projetar o versículo.';
-  }
-  return mensagemAlvoInvalidoMonitor(alvo, 'Bíblia');
-}
-
-/**
- * Índices de monitor (0-based) nas opções do modo apresentação: 2.º e 3.º ecrã na lista do servidor;
- * com menos ecrãs, recua para o último disponível.
- */
-function indicesPadraoPublicoMinistranteApresentacao(lista) {
-  const sec = listaMonitoresParaProjecao(lista);
-  const n = sec.length;
-  if (!n) return { iPub: -1, iMin: -1 };
-  const temIdx = (idx) => sec.some((m) => m && m.index === idx);
-  /* Convenção Lyra: Monitor 2 (índice 1) = público/telão; Monitor 3 (índice 2) = ministrante. */
-  if (temIdx(1) && temIdx(2)) {
-    return { iPub: 1, iMin: 2 };
-  }
-  const iPub = sec[0].index;
-  /* Um único monitor de projeção: só o telão público abre nele. Partilhar o mesmo ecrã
-     com o ministrante faria a janela do operador (atual + próximo) cobrir o público —
-     era exactamente o sintoma reportado (público seleccionado, mas projeta atual+próximo). */
-  let iMin = n >= 2 ? sec[1].index : -1;
-  if (iMin === iPub && n >= 2) {
-    const outro = sec.find((m) => m.index !== iPub);
-    if (outro) iMin = outro.index;
-  }
-  return { iPub, iMin };
-}
-
-/**
- * Rota do modo slide padrão: 2.º ecrã = público (telão), 3.º = ministrante (retorno);
- * com menos monitores, aplica o mesmo fallback de `indicesPadraoPublicoMinistranteApresentacao`.
- */
-function rotaSlidesPadraoPublico2Ministrante3(lista) {
-  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(Array.isArray(lista) ? lista : []);
-  return normalizarRota({ publicoIndex: iPub, ministranteIndex: iMin });
-}
-
-/**
- * Rota do modo Slide ao entrar: Público M2 + Ministrante M3.
- *
- * Já se desviou do que as Mídias ocupavam, e era desviar a mais: o monitor emprestado
- * continua a ser o do Slides, apenas indisponível enquanto a mídia lá está — o seletor
- * mostra-o apagado (`route-dd--bloqueado-apresentacao`) e o pacote para o servidor
- * silencia o canal (`rotaSlidesParaEnvioComApresentacao`). Reatribuir o índice aqui
- * escrevia a ocupação na configuração do operador, que é o que esta separação evita.
- */
-function rotaSlidesAoEntrarNoModo() {
-  return rotaSlidesPadraoPublico2Ministrante3(monitoresServidorCache);
-}
-
-/**
- * Opções do seletor «Monitor» dos modos de seletor unificado.
- *
- * `incluirLive` existe porque o destino «Live — OBS» não serve os três seletores da
- * mesma maneira. Na Bíblia o OBS é um destino legítimo: o versículo é texto, e o
- * `display-routing` sabe entregá-lo ao overlay sem monitor físico nenhum. Nas Mídias e
- * nos Avisos do card 6 não é: a mídia é servida às janelas de projeção, e escolher Live
- * ali só produzia uma saída sem tela — nada a projetar e nada a ver.
- *
- * @param {Array} lista Monitores conhecidos do servidor.
- * @param {{ incluirLive?: boolean }} [opts] `incluirLive: false` omite «Live — OBS».
- */
-/**
- * O seletor do cabeçalho é partilhado pela Bíblia e pelas Mídias; só a Bíblia tem OBS.
- * @returns {{ incluirLive: boolean }}
- */
-function opcoesSeletorCabecalhoDoModoAtual() {
-  const m = modoRoteamentoAtual();
-  return { incluirLive: m !== 'apresentacao' && m !== 'docs' };
-}
-
-function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
-  const incluirLive = opts.incluirLive !== false;
-  const out = [];
-  out.push({ key: 'des', label: 'Não exibir', pub: -1, min: -1, live: false });
-  if (incluirLive) {
-    out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
-  }
-  const sec = listaMonitoresParaProjecao(lista);
-  if (!sec.length) return out;
-  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(lista);
-  if (iPub >= 0) {
-    out.push({
-      key: 'pub',
-      label: `Público — Monitor ${iPub + 1}`,
-      pub: iPub,
-      min: -1,
-      live: false,
-    });
-  }
-  if (iMin >= 0) {
-    out.push({
-      key: 'min',
-      label: `Ministrante — Monitor ${iMin + 1}`,
-      pub: -1,
-      min: iMin,
-      live: false,
-    });
-  }
-  let ambPub = iPub;
-  let ambMin = iMin;
-  if (ambPub === ambMin && sec.length >= 2) {
-    ambPub = sec[0].index;
-    ambMin = sec[1].index;
-  } else if (ambPub === ambMin) {
-    ambMin = -1;
-  }
-  if (ambPub >= 0 && ambMin >= 0) {
-    out.push({
-      key: 'ambos',
-      label: 'Ambos',
-      pub: ambPub,
-      min: ambMin,
-      live: false,
-    });
-  }
-  return out;
-}
-
-function aplicarExtrasModoApresentacao(ex, opts = {}) {
-  const extras = ex && typeof ex === 'object' ? ex : {};
-  if (Array.isArray(extras.card4Imagens)) {
-    apresentacaoCard4Imagens = Array.from({ length: 4 }, (_, i) =>
-      normalizarItemApresentacao(extras.card4Imagens[i] || null));
-  }
-  if (!opts.skipCard6Aviso && typeof extras.card6AvisoTexto === 'string') {
-    apresentacaoCard6Texto = extras.card6AvisoTexto;
-  }
-  if (!opts.skipCard6AvisoConfig && extras.card6AvisoConfig !== undefined) {
-    apresentacaoCard6AvisoCfg = normalizarCfgAvisoCard6(extras.card6AvisoConfig);
-    salvarAvisoCard6CfgNoStorage();
-  }
-  audioLoopAtivo = extras.audioLoop === true;
-  migrarAlvoExtrasLegadoParaRotaApresentacao(extras);
-  atualizarUiPlayerAudioRemoto();
-}
-
-/** Legado: rotas de apresentação/Bíblia são só de sessão — não restaurar alvo antigo do storage. */
-function migrarAlvoExtrasLegadoParaRotaApresentacao(_ex) {}
-
-function atualizarRodapeAudioApresentacao(item) {
-  if (!item) return;
-  atualizarPillProjecaoNav({ ativo: true, nome: String(item.name || 'faixa') });
-  renderGridApresentacao();
-}
-
-/**
- * Espelha o estado de projeção no indicador global da barra de navegação
- * (#hdr-projecao-pill). Só desenha — é chamado por sincronizarPillProjecaoNav
- * (fonte única: mídia no telão, aviso do card 6 e áudio no player) e por
- * atualizarRodapeAudioApresentacao; não mantém estado próprio.
- * @param {{ativo?: boolean, nome?: string}} info
- */
-function atualizarPillProjecaoNav(info = {}) {
-  let pill = document.getElementById('hdr-projecao-pill');
-  /* Sem projeção: a pill não existe no DOM (sem espaço reservado, sem placeholder). */
-  if (!info.ativo) {
-    if (pill) pill.remove();
-    return;
-  }
-  const txt = String(info.nome == null ? '' : info.nome).trim() || 'arquivo';
-  if (!pill) {
-    /* Filha direta do header (não de .app-header-right, que é escondido nos
-       modos de projeção). Posicionada em absoluto à direita da barra. */
-    const host = document.querySelector('.app-header');
-    if (!host) return;
-    pill = document.createElement('div');
-    pill.id = 'hdr-projecao-pill';
-    pill.className = 'hdr-projecao-pill';
-    pill.setAttribute('role', 'status');
-    pill.setAttribute('aria-live', 'polite');
-    pill.innerHTML =
-      '<span class="hdr-projecao-dot" aria-hidden="true"></span>' +
-      '<span class="hdr-projecao-label">Projetando</span>' +
-      '<span class="hdr-projecao-nome" id="hdr-projecao-nome"></span>';
-    host.appendChild(pill);
-  }
-  pill.title = 'Projetando no telão: ' + txt;
-  const nomeEl = pill.querySelector('.hdr-projecao-nome');
-  if (nomeEl) nomeEl.textContent = txt;
-}
-
-/**
- * Áudio do modo Mídias ainda carregado no player do servidor — a tocar ou em pausa.
- *
- * O áudio não ocupa `apresentacaoMidiaProjetadaId`: esse id é de quem ocupa o telão
- * (imagem/vídeo/PDF/web) e `projetarItemApresentacao` limpa-o de propósito ao projetar
- * uma faixa. Por isso a projeção de áudio tem de ser lida à parte, senão qualquer
- * redesenho do feedback apagava a pill com o áudio ainda no ar.
- *
- * `mediaKind` só volta a '' quando o playback é mesmo parado (Parar / Encerrar
- * projeção); uma faixa em pausa continua carregada, tal como uma imagem pausada
- * continua no telão — e nesses dois casos a projeção continua a existir.
- */
-function projecaoAudioApresentacaoAtiva() {
-  return audioStateRemoto.mediaKind === 'audio' && !!apresentacaoAudioAtualId;
-}
-
-/** Nome da faixa em projeção, para o rótulo da pill. */
-function nomeAudioProjecaoApresentacao() {
-  const item =
-    (apresentacaoAudios || []).find((x) => x && x.id === apresentacaoAudioAtualId) || null;
-  return String(item?.name || audioStateRemoto.name || 'faixa');
-}
-
-/**
- * Decide o estado da pill a partir do que está mesmo no ar — mídia no telão, aviso do
- * card 6 e áudio no player — sem tocar na grelha. Fonte única do «Projetando».
- */
-function sincronizarPillProjecaoNav() {
-  const id = apresentacaoMidiaProjetadaId;
-  const avisoAtivo = apresentacaoAvisoCard6Ativo;
-  if (!id && !avisoAtivo) {
-    if (projecaoAudioApresentacaoAtiva()) {
-      atualizarPillProjecaoNav({ ativo: true, nome: nomeAudioProjecaoApresentacao() });
-    } else {
-      atualizarPillProjecaoNav({ ativo: false });
-    }
-    return;
-  }
-  let rawNome;
-  if (avisoAtivo && !id) {
-    const linha =
-      String(apresentacaoCard6Texto || '').split(/\r\n|\r|\n/).find((l) => String(l).trim()) || 'Aviso';
-    rawNome = linha.slice(0, 56);
-  } else {
-    const item =
-      (apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
-      (apresentacaoCards || []).find((x) => x && x.id === id) ||
-      null;
-    rawNome = String(item?.name || 'arquivo');
-    if (avisoAtivo) rawNome = `${rawNome} + aviso`;
-  }
-  atualizarPillProjecaoNav({ ativo: true, nome: rawNome });
-}
-
-/**
- * Sincroniza o indicador de projeção (pill na barra de navegação —
- * sincronizarPillProjecaoNav) e redesenha a grelha de cards. Aceita e ignora
- * opções antigas (ex.: mensagemIdle) para compatibilidade com chamadas existentes.
- */
-function atualizarFeedbackProjecaoApresentacaoUi() {
-  sincronizarPillProjecaoNav();
-  renderGridApresentacao();
-}
-
-function montarPayloadAvisoCard6Atual(alvo) {
-  return {
-    kind: 'aviso',
-    texto: String(apresentacaoCard6Texto || '').trim(),
-    alvoProjecao: alvo,
-    avisoConfig: normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg),
-  };
-}
-
-async function atualizarAvisoCard6AoVivo() {
-  if (!apresentacaoAvisoCard6Ativo) return;
-  const alvo = obterAlvoProjecaoAvisoCard6();
-  if (!monitoresAvisoCard6CobremAlvo(alvo)) return;
-  const payload = montarPayloadAvisoCard6Atual(alvo);
-  if (!payload.texto) return;
-  const ok = await emitirApresentacao(payload, { naoSubstituirUltimoUnificado: true });
-  if (ok) {
-    ultimoPayloadAvisoCard6 = payload;
-    atualizarFeedbackProjecaoApresentacaoUi();
-  }
-}
-
-function agendarAtualizacaoAvisoCard6AoVivo() {
-  if (syncApresentacaoAvisoLiveTimer) clearTimeout(syncApresentacaoAvisoLiveTimer);
-  if (!apresentacaoAvisoCard6Ativo) return;
-  syncApresentacaoAvisoLiveTimer = setTimeout(() => {
-    syncApresentacaoAvisoLiveTimer = null;
-    void atualizarAvisoCard6AoVivo();
-  }, 120);
-}
-
-async function projetarAvisoCard6() {
-  const texto = String(apresentacaoCard6Texto || '').trim();
-  if (!texto) {
-    alert('Digite um aviso no card 6 antes de projetar.');
-    return;
-  }
-  const alvo = obterAlvoProjecaoAvisoCard6();
-  if (alvo === 'desativado' || !monitoresAvisoCard6CobremAlvo(alvo)) {
-    alert(mensagemAlvoInvalidoAvisoCard6(alvo));
-    return;
-  }
-  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-  const payload = montarPayloadAvisoCard6Atual(alvo);
-  const ok = await emitirApresentacao(payload, {
-    naoSubstituirUltimoUnificado: !!apresentacaoMidiaProjetadaId,
-  });
-  if (!ok) return;
-  apresentacaoAvisoCard6Ativo = true;
-  ultimoPayloadAvisoCard6 = payload;
-  try {
-    localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '1');
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  atualizarFeedbackProjecaoApresentacaoUi();
-}
+// (extraído) conteúdo unificado e aviso do card 6 → painel/conteudoUnificadoAviso.js
 
 // (extraído) vídeo da apresentação → painel/videoApresentacao.js
 
@@ -3721,499 +2284,10 @@ async function projetarAvisoCard6() {
 
 // (extraído) grelha de cards → painel/gridApresentacao.js
 
-function abrirMenuModoApresentacao() {
-  const ativo = ehModoApresentacaoOperador();
-  if (ativo) return;
-  executarComTransicaoUi(() => {
-    if (document.body.classList.contains('app-mod-biblia')) {
-      reconhecimentoVozBiblia.aoSairModoBiblia();
-      bibliaSairModo();
-    }
-    document.body.classList.remove('app-mod-slides', 'app-mod-biblia', 'app-mod-docs');
-    document.body.classList.add('app-mod-apresentacao');
-    document.title = 'Lyra — Modo apresentação';
-    try { localStorage.setItem(LS_UI_MODO_SLIDES, '0'); } catch (_) {
-  // intencional — erro ignorado
-}
-    aplicarRotulosEPlaylistModoSlides();
-    atualizarBtnToggleModoSlides();
-    atualizarBtnModoApresentacao();
-    renderSlidesStrip();
-    if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-      rotasPorModo.apresentacao = rotaDesativada();
-      rotasPorModo.apresentacaoAviso = rotaDesativada();
-      marcarRotaLiveNoDom(false);
-    } else if (!apresentacaoAvisoCard6Ativo) {
-      rotasPorModo.apresentacaoAviso = rotaDesativada();
-    }
-    /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
-       troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
-    limparOrdemNaoExibirUnificado();
-    aplicarMonitorLembradoAoEntrarNoModo('apresentacao');
-    sincronizarCheckboxLembrarMonitor();
-    aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
-    setApresentacaoCardSelecionadoIdx(null);
-    renderGridApresentacao();
-    void restaurarVideosModoApresentacao().then(() => {
-      if (ehModoApresentacaoOperador()) {
-        renderGridApresentacao();
-        renderListaPlaylistApresentacao();
-      }
-    });
-    renderListaPlaylistApresentacao();
-    reconhecimentoVozSlides.aoEntrarModoApresentacao();
-    atualizarBtnModoBiblia();
-  });
-}
+// (extraído) menu do modo Mídias → painel/menuApresentacaoModo.js
 
-// (extraído) Modo Bíblia (tradução e entrada/saída do modo) → painel/biblia.js
-
-/**
- * A Home está ativa quando nenhum modo está ativo. O realce visual é resolvido
- * em CSS; aqui só se expõe o estado a leitores de ecrã com aria-current.
- */
-function atualizarBtnTelaInicial() {
-  const btn = document.getElementById('btn-tela-inicial');
-  if (!btn) return;
-  const naHome = !ehModoSlidesOperador()
-    && !ehModoBibliaOperador()
-    && !ehModoApresentacaoOperador()
-    && !ehModoDocsOperador();
-  atualizarBtnModoDocs();
-  if (naHome) btn.setAttribute('aria-current', 'page');
-  else btn.removeAttribute('aria-current');
-  btn.title = naHome ? 'TELA INICIAL (HOME) — ecrã atual' : 'VOLTAR PARA A TELA INICIAL (HOME)';
-}
-
-async function carregarTraducoes() {
-  const wrap = document.getElementById('traducao-sel-dd');
-  const hid = document.getElementById('traducao-sel');
-  if (!wrap || !hid) return;
-  try {
-    const lista = await fetchListaTraducoesBiblia();
-    const items = lista.map((t) => ({
-      value: t.traducao,
-      label: `${t.traducao} — ${t.nome}`,
-    }));
-    const traducaoSessao = obterBibliaTraducaoSessao();
-    const valorAtual = traducaoSessao || hid.value || (items[0] ? items[0].value : '');
-    renderItensLyraSelectDropdown(wrap, items, {
-      valorAtual,
-      placeholder: '—',
-      aoSelecionar: () => onTraducaoBibliaChange(),
-    });
-    if (traducaoSessao) aplicarTraducaoBibliaNoSelect(traducaoSessao);
-    popularGradeLivros();
-  } catch (e) {
-    console.error('Erro ao carregar traduções', e);
-  }
-}
-
-function fecharMenuModoApresentacao() {
-  if (!ehModoApresentacaoOperador()) return;
-  const preservarProjecao = hayProjecaoApresentacaoModoAtiva();
-  executarComTransicaoUi(() => {
-    document.body.classList.remove('app-mod-apresentacao');
-    document.title = 'Lyra — Controlador';
-    if (!preservarProjecao) {
-      apresentacaoMidiaProjetadaId = null;
-    }
-    clearTimeout(getApresentacaoCardUiClickTimer());
-    setApresentacaoCardUiClickTimer(null);
-    setApresentacaoCardSelecionadoIdx(null);
-    atualizarBtnModoApresentacao();
-    renderSlidesStrip();
-    if (!preservarProjecao) {
-      void desativarRotasModosTransitorios({ sincronizarServidor: true });
-    }
-    aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: preservarProjecao });
-    reconhecimentoVozSlides.atualizarUi();
-  });
-}
-
-function escolherArquivoModoApresentacao() {
-  const input = document.getElementById('apresentacao-add-menu-input');
-  if (!input) return;
-  input.value = '';
-  input.click();
-}
-
-/**
- * Para a mídia no servidor e limpa estado local da mídia (não encerra avisos do card 6).
- */
-async function encerrarProjecaoMidiaApresentacaoNoControlador() {
-  const eraVideo = audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
-  if (eraVideo) {
-    pararAudioLocalApresentacao();
-  } else {
-    pararAudioServidorPlayback();
-  }
-
-  const alvoMidia =
-    ultimoConteudoProjetadoModoUnificado?.payload?.alvoProjecao ||
-    (apresentacaoMidiaProjetadaId ? obterAlvoProjecaoModoApresentacao() : null);
-  const alvoAviso =
-    apresentacaoAvisoCard6Ativo
-      ? ultimoPayloadAvisoCard6?.alvoProjecao || obterAlvoProjecaoAvisoCard6()
-      : null;
-
-  apresentacaoMidiaProjetadaId = null;
-  ultimoConteudoProjetadoModoUnificado = null;
-  apresentacaoAudioAtualId = null;
-  audioStateRemoto = { ...audioStateRemoto, playing: false, currentTime: 0, duration: 0, name: '' };
-
-  const canais = canaisParaEncerrarConteudoApresentacao(alvoMidia, alvoAviso);
-  if (canais.length) {
-    await encerrarCanaisApresentacaoNoServidor(canais);
-  }
-
-  if (!apresentacaoAvisoCard6Ativo) {
-    try {
-      localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    estadoServidor = {
-      tipo: null,
-      titulo: '',
-      linhas: [],
-      estrofeIndex: 0,
-      totalEstrofes: 0,
-      telaLimpa: true,
-      blackout: false,
-      slidePretoFinal: false,
-    };
-  }
-
-  try {
-    atualizarUiPlayerAudioRemoto();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  try {
-    renderListaAudiosApresentacao();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  atualizarFeedbackProjecaoApresentacaoUi();
-}
-
-/** Encerra só o aviso do card 6; a mídia do cabeçalho continua no ar. */
-async function encerrarAvisoCard6NoControlador() {
-  if (!apresentacaoAvisoCard6Ativo) return;
-
-  const alvoAviso = ultimoPayloadAvisoCard6?.alvoProjecao || obterAlvoProjecaoAvisoCard6();
-  const alvoMidia =
-    apresentacaoMidiaProjetadaId
-      ? ultimoConteudoProjetadoModoUnificado?.payload?.alvoProjecao ||
-        obterAlvoProjecaoModoApresentacao()
-      : null;
-
-  apresentacaoAvisoCard6Ativo = false;
-  ultimoPayloadAvisoCard6 = null;
-
-  const canais = canaisParaEncerrarConteudoApresentacao(alvoAviso, alvoMidia);
-  if (canais.length) {
-    await encerrarCanaisApresentacaoNoServidor(canais);
-  }
-
-  if (!apresentacaoMidiaProjetadaId) {
-    try {
-      localStorage.setItem(LS_MODO_APRESENTACAO_ATIVO, '0');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-
-  atualizarFeedbackProjecaoApresentacaoUi();
-}
-
-/**
- * Cabeçalho «Encerrar projeção» no Modo Mídias: só mídia + rota do cabeçalho → Não exibir.
- */
-async function encerrarProjecaoMidiaCabecalhoModoApresentacao() {
-  if (!ehModoApresentacaoOperador()) return;
-  await encerrarProjecaoMidiaApresentacaoNoControlador();
-  rotasPorModo.apresentacao = rotaDesativada();
-  marcarRotaLiveNoDom(false);
-  /* Libertar o canal partilhado: canais do Slides desligados só por conflito voltam;
-     «Não exibir» manual do Slides nesta sessão fica intocado. */
-  restaurarRotaSlidesAposLibertarMonitores();
-  atualizarFeedbackProjecaoApresentacaoUi({
-    mensagemIdle: apresentacaoAvisoCard6Ativo
-      ? 'Mídia encerrada. Aviso continua no ar.'
-      : 'Projeção de mídia encerrada. «Monitor» em «Não exibir».',
-  });
-  aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-  reexibirMonitorLembradoNoSeletorAposEncerrar('apresentacao');
-  atualizarPreviewOperador();
-}
-
-/**
- * Depois de encerrar: a projeção fica encerrada e as janelas libertadas — e o seletor volta
- * a mostrar o monitor lembrado, pronto para a próxima projeção.
- *
- * É aqui que «monitor lembrado ≠ projeção ativa» deixa de ser uma frase e passa a ser duas
- * camadas com valores diferentes de propósito: a rota em vigor está em «Não exibir» (o
- * servidor recebeu -1, as janelas foram libertadas, nada continua no telão) e o seletor
- * mostra o M2. `reidratarRotaApresentacaoDoSeletor()` é quem volta a juntá-las, no momento
- * de projetar outra vez.
- *
- * A alternativa era deixar a rota no monitor lembrado e o motor manteria lá uma janela
- * preta em cima do ecrã — encerrado para o público, mas com o monitor por devolver.
- *
- * @param {'biblia'|'apresentacao'} modo
- */
-function reexibirMonitorLembradoNoSeletorAposEncerrar(modo) {
-  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return;
-  const { aplicar, rota } = rotaLembradaParaEntrada(
-    hostChaveMonitores(),
-    modo,
-    monitoresServidorCache
-  );
-  if (!aplicar) return;
-  renderRoteamentoTelas(monitoresServidorCache, sanitizarRotaProjecao(rota, monitoresServidorCache));
-  atualizarIndicadorProjecaoLiveUi();
-}
-
-/**
- * Alinha `rotasPorModo.apresentacao` com o seletor antes de projetar.
- *
- * Depois de «Encerrar» com «Lembrar monitor» ligado os dois divergem de propósito (ver
- * acima). Projetar outra vez tem de reconstituir a rota — e ANTES de ler o alvo, pela mesma
- * razão que está escrita em `modules/rotaEnvioBiblia.js`: ler o alvo da rota velha e
- * entregá-lo à rota nova era como o versículo ia parar ao monitor errado.
- *
- * Não faz nada quando a rota já tem destino: o caminho normal de quem não usa a memória
- * continua exactamente como estava.
- */
-async function reidratarRotaApresentacaoDoSeletor() {
-  if (!ehModoApresentacaoOperador()) return;
-  const atual = normalizarRota(rotasPorModo.apresentacao);
-  if (atual.live || atual.publicoIndex >= 0 || atual.ministranteIndex >= 0) return;
-  const daUi = rotaSelecionadaNaUi();
-  if (!daUi) return;
-  const r = normalizarRota(daUi);
-  if (!r.live && r.publicoIndex < 0 && r.ministranteIndex < 0) return;
-  rotasPorModo.apresentacao = sanitizarRotaProjecao(r, monitoresServidorCache);
-  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-}
-
-/**
- * Encerra mídia e aviso, repõe rotas (ex.: sair do modo ou encerrar tudo).
- */
-async function encerrarProjecaoModoApresentacao() {
-  if (!ehModoApresentacaoOperador()) return;
-  if (apresentacaoAvisoCard6Ativo) {
-    await encerrarAvisoCard6NoControlador();
-  }
-  await encerrarProjecaoMidiaApresentacaoNoControlador();
-  rotasPorModo.apresentacao = { publicoIndex: -1, ministranteIndex: -1 };
-  rotasPorModo.apresentacaoAviso = rotaDesativada();
-  restaurarRotaSlidesAposLibertarMonitores();
-  salvarRotasPorModoNoStorage();
-  atualizarFeedbackProjecaoApresentacaoUi({
-    mensagemIdle: 'Projeção encerrada. «Monitor» em «Não exibir»; o modo Slides mantém a configuração dele.',
-  });
-  aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-  atualizarPreviewOperador();
-}
-
-function agendarTrabalhoPesadoAposModoSlides(ativo) {
-  const rodar = () => {
-    aplicarRotulosEPlaylistModoSlides();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    renderPlaylist();
-    atualizarToolbarModoEdicao();
-    marcacaoEstrofeEditor();
-    aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-    if (ativo) {
-      reconhecimentoVozSlides.aoEntrarModoSlides();
-      void salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-    } else {
-      reconhecimentoVozSlides.aoSairModoSlides();
-    }
-  };
-  if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(rodar);
-  } else {
-    setTimeout(rodar, 0);
-  }
-}
-
-/**
- * Espelho local ao encerrar só a camada Slides (`limpar_tela` no servidor).
- *
- * O servidor preserva Mídias/aviso noutro monitor; o espelho tem de fazer o mesmo.
- * Apagar `estadoServidor` por completo fazia a badge «Imagem no Telão» sumir da prévia
- * ao encerrar música no M3 com imagem ainda no M2.
- */
-function limparEspelhoLocalSoCamadaSlides() {
-  const e = estadoServidor;
-  if (
-    e &&
-    !e.blackout &&
-    !e.slidePretoFinal &&
-    ((e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) ||
-      (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length > 0) ||
-      (e.tipo === 'contagem' && e.contagem) ||
-      (e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length > 0))
-  ) {
-    return;
-  }
-  const minAp = !!(e && e.projecaoMinistranteApresentacao);
-  estadoServidor = {
-    tipo: null,
-    titulo: '',
-    linhas: [],
-    estrofeIndex: 0,
-    totalEstrofes: 0,
-    telaLimpa: true,
-    blackout: false,
-    slidePretoFinal: false,
-    projecaoMinistranteApresentacao: minAp,
-  };
-}
-
-/**
- * Ao sair do modo slides.
- * Sem projeção: limpa faixa/seleção de slides (comportamento clássico).
- * Com projeção activa: preserva música, estrofe e faixa para retomar ao voltar.
- * Nunca encerra a projeção real — isso fica para ESC / Encerrar.
- */
-function limparUiAoSairDoModoSlides() {
-  slidesDockVisivel = false;
-  if (projecaoMusicaEmitidaNoServidor) {
-    /* Projeção no ar: mantém musicaAtiva, estrofeAtiva e a faixa armada. */
-    return;
-  }
-  estrofeAtiva = -1;
-  projecaoMusicaEmitidaNoServidor = false;
-  bloqueioSincronizarEstrofeDoServidor = false;
-  /**
-   * Limpa a seleção da playlist do modo slides já na saída (e não só ao reentrar):
-   * a faixa é sempre rearmada por clique na playlist, então deixá-la «ligada» aqui
-   * fazia a linha voltar destacada sobre uma grade vazia.
-   * `musicaAtiva` fica intacta de propósito — a Home continua com a música no editor.
-   */
-  faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-  limparEspelhoLocalSoCamadaSlides();
-}
-
-async function alternarModoSlidesOperador(opts = {}) {
-  const permitirDesativar = opts.permitirDesativar === true;
-  if (ehModoSlidesOperador() && !permitirDesativar) return;
-  if (ehModoBibliaOperador()) {
-    /*
-     * Só desliga rotas transitórias se nada de Bíblia/mídia estiver no ar.
-     * Com projeção activa, os monitores continuam — trocar para Slides é só navegação.
-     */
-    if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-      rotasPorModo.biblia = rotaDesativada();
-      /*
-       * Devolver o canal partilhado, e não só largar a rota da Bíblia.
-       *
-       * Bíblia e Mídias escrevem ambas em `rotasPorModo.apresentacao`, e o motor dá-lhe
-       * precedência sobre o canal do Slides (`a.publicoIndex >= 0 ? a : s`). Este caminho —
-       * Bíblia direto para Slides, sem passar pela Home — limpava a rota da Bíblia e deixava
-       * o monitor dela reservado no canal partilhado. O Slides ficava com o seletor a dizer
-       * M3 e a projeção a sair no M2 da Bíblia: a interface a afirmar uma coisa e o projetor
-       * a fazer outra, sem nada apagado que denunciasse o problema.
-       *
-       * A guarda é a mesma de `desativarRotasModosTransitorios`: com mídia no ar o canal não
-       * se toca, senão fechavam-se as janelas do que está a projetar.
-       */
-      if (!hayProjecaoApresentacaoModoAtiva()) {
-        rotasPorModo.apresentacao = rotaDesativada();
-      }
-      marcarRotaLiveNoDom(false);
-    }
-  }
-  executarComTransicaoUi(() => {
-    document.body.classList.remove('app-mod-docs');
-    if (ehModoApresentacaoOperador()) {
-      /* Sair de Mídias para Slides: nunca encerrar imagem/vídeo no telão. */
-      document.body.classList.remove('app-mod-apresentacao');
-      clearTimeout(getApresentacaoCardUiClickTimer());
-      setApresentacaoCardUiClickTimer(null);
-      setApresentacaoCardSelecionadoIdx(null);
-    }
-    if (ehModoBibliaOperador()) {
-      reconhecimentoVozBiblia.aoSairModoBiblia();
-      document.body.classList.remove('app-mod-biblia');
-      bibliaSairModo();
-    }
-    if (!ehModoSlidesOperador()) {
-      document.body.classList.add('app-mod-slides');
-    } else {
-      document.body.classList.remove('app-mod-slides');
-    }
-    const ativo = ehModoSlidesOperador();
-    slidesDockVisivel = ativo;
-    document.title = ativo ? 'Lyra — Modo slides' : 'Lyra — Controlador';
-    try {
-      localStorage.setItem(LS_UI_MODO_SLIDES, ativo ? '1' : '0');
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    if (ativo) {
-      slidesRailUserRecolhido = false;
-      if (projecaoMusicaEmitidaNoServidor && musicaAtiva) {
-        /* Retoma a faixa no ponto da projeção que ficou no ar. */
-        faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-        slidesDockVisivel = true;
-      } else {
-        faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-      }
-      const lm = document.getElementById('layout-musicas');
-      if (lm) lm.removeAttribute('style');
-      /*
-       * O modo Slides abre sempre utilizável — é o modo rápido.
-       *
-       * Regra (sessão do programa): a escolha MANUAL do operador no seletor do Slides
-       * mantém-se ao navegar entre ecrãs, inclusive «Não exibir». Só o clique no seletor
-       * conta como manual (`sincronizarNaoExibirManualSlidesDaEscolha`).
-       *
-       * Se outro modo desligou um canal automaticamente (ex.: Mídias no mesmo monitor),
-       * esse −1 NÃO é manual — à entrada repomos M2/M3 (ou o que ainda estiver livre).
-       * Recarregar / reabrir limpa a marca manual e o seletor volta ao padrão.
-       *
-       * É por canal, e não só no vazio total, porque uma saída sozinha em «Não exibir»
-       * automático é quase sempre rasto de outro modo: quando o Mídias toma o M2, a regra
-       * de exclusão tira o M2 daqui — e a reposição (aqui ou ao libertar o Mídias) fecha
-       * o ciclo. Roubar o monitor de volta ao Mídias não acontece:
-       * `rotaSlidesAoEntrarNoModo()` consulta a rota dele e desvia-se do que estiver
-       * mesmo a projetar.
-       */
-      if (precisaReporRotaSlides(rotasPorModo.slides)) {
-        rotasPorModo.slides = rotaSlidesReposta(rotasPorModo.slides, rotaSlidesAoEntrarNoModo());
-        salvarRotasPorModoNoStorage();
-      }
-      slidesAplicarCfgArmazenada();
-      syncRoteamentoTelasModoSlidesNaUi();
-    } else {
-      limparUiAoSairDoModoSlides();
-    }
-    atualizarBtnToggleModoSlides();
-    atualizarBtnModoApresentacao();
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
-    agendarTrabalhoPesadoAposModoSlides(ativo);
-  });
-}
-
-/** Botões de modo no HTML — registo cedo para sobreviver a falhas mais abaixo no ficheiro. */
-exporCallbacksParaAtributosHtml({
-  irParaTelaInicial,
-  alternarModoSlidesOperador,
-  alternarModoBiblia,
-  onTraducaoBibliaChange,
-  abrirMenuModoApresentacao,
-  abrirModoDocs,
-});
+// (extraído) modo Slides do operador → painel/modoSlidesOperador.js
+iniciarModoSlidesOperador();
 
 let _debounceRecarregarPainelT = null;
 function recarregarPainelControlador() {
@@ -5251,7 +3325,7 @@ let estadoServidor = null;
 /** Composição visual da Home; música, versões e edição continuam neste núcleo. */
 let homeLayout = null;
 // (extraído) sincronização do estado → painel/estadoApresentacao.js
-let syncApresentacaoAvisoLiveTimer = null;
+// (extraído) timer do aviso ao vivo → painel/conteudoUnificadoAviso.js
 
 // (extraído) estado do modo apresentação → painel/estadoApresentacao.js
 let cultoId = '';
