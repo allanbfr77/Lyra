@@ -60,36 +60,36 @@ window.__homeTest = {
  async seed() {
   const lc=await import('./painel/letraCompleta.js'), ee=await import('./painel/editorEstrofes.js');
   lc.limparFlagsModoEdicaoMusica();
-  musicaBancoFonte='user'; musicaRootId=1; musicaVersaoLocalId=null;
-  musicaAtiva=structuredClone(window.__songs[1]); estrofeAtiva=0;
-  versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
+  estadoPainel.musicaBancoFonte='user'; estadoPainel.musicaRootId=1; estadoPainel.musicaVersaoLocalId=null;
+  estadoPainel.musicaAtiva=structuredClone(window.__songs[1]); estadoPainel.estrofeAtiva=0;
+  estadoPainel.versoesMusicaServidorCache={rootId:1,versoes:structuredClone(window.__songs)};
   ee.renderEstrofesEditor();__vm.renderMusicaVersoesBar();atualizarPreviewPlaylistCentral();
  },
- state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
+ state:()=>({id:estadoPainel.musicaAtiva?.id, title:estadoPainel.musicaAtiva?.titulo, slides:estadoPainel.musicaAtiva?.estrofes, index:estadoPainel.estrofeAtiva, full:estadoPainel.modoLetraCompletaCentral, editing:estadoPainel.modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
- versaoBase:{aplicar:(b,i,v)=>__vm.aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
- comparativo:()=>modoComparativoCentral,
- midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
+ versaoBase:{aplicar:(b,i,v)=>__vm.aplicarBaseMusicaSelecionada(b,i,v),local:()=>estadoPainel.musicaVersaoLocalId,raiz:()=>estadoPainel.musicaRootId},
+ comparativo:()=>estadoPainel.modoComparativoCentral,
+ midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>estadoPainel.apresentacaoBiblioteca,cards:()=>estadoPainel.apresentacaoCards,card4:()=>estadoPainel.apresentacaoCard4Imagens},
  preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
  modoMidias:{fechar:__mm.fecharMenuModoApresentacao},
  remover:{pedir:__rm.solicitarRemoverMusicaDoBancoServidor},
  eventosPorta:{ligar:()=>{window.__hand=new Map();window.__tpOrig=null;projecao.usarTransporte({pronto:()=>true,enviar:()=>true,enfileirar(){},inscrever(e,h){(window.__hand.get(e)||window.__hand.set(e,new Set()).get(e)).add(h)},desinscrever(e,h){window.__hand.get(e)?.delete(h)}})},emitir:(e,d)=>{(window.__hand.get(e)||[]).forEach(h=>h(d))},inscritos:()=>[...window.__hand.keys()].join(','),desligar:()=>projecao.usarTransporte(null)},
  previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:projecao.pronta,l:projecao.ligada};projecao.pronta=()=>true;projecao.ligada=()=>true}else if(window.__projOrig){projecao.pronta=window.__projOrig.p;projecao.ligada=window.__projOrig.l}}},
- culto:{id:()=>cultoId,playlists:()=>playlists,temas:()=>temasPorCulto},
+ culto:{id:()=>estadoPainel.cultoId,playlists:()=>estadoPainel.playlists,temas:()=>estadoPainel.temasPorCulto},
  sincBanco:{snapshot:__sb.snapshotMetaCompartilhadaAtual},
- pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
+ pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>estadoPainel.playlists[estadoPainel.cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
- setMonitores:(m)=>{monitoresServidorCache=m},
- rotas:()=>rotasPorModo,
+ setMonitores:(m)=>{estadoPainel.monitoresServidorCache=m},
+ rotas:()=>estadoPainel.rotasPorModo,
  renderRotas:(m,r)=>renderRoteamentoTelas(m,r),
  espiarBiblia:()=>{const o={p:projecao.pronta,l:projecao.ligada,e:projecao.enfileirar,s:projecao.enviar};window.__enfileirados=[];window.__enviados=[];projecao.ligada=()=>true;projecao.pronta=()=>true;projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{projecao.pronta=o.p;projecao.ligada=o.l;projecao.enfileirar=o.e;projecao.enviar=o.s}},
  biblia:{haParte:bibliaHaParteProjetada},
  ultimo:()=>getUltimoConteudoProjetadoModoUnificado(),
- estado:()=>estadoServidor,
- setEstado:(e)=>{estadoServidor=e},
+ estado:()=>estadoPainel.estadoServidor,
+ setEstado:(e)=>{estadoPainel.estadoServidor=e},
  cor:(c)=>__ce.aplicarCorComentarioMinistranteNoPainel(c),
  espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
  contagem:{renderSeletor:__cr.renderSeletorMonitorContagem,setPos:__cr.setPosContagemCtrl,cfgChange:__cr.onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:__cr.rotaContagemParaServidor},
@@ -99,8 +99,8 @@ window.__homeTest = {
  dialogo:{confirm:__dlg.appConfirm,prompt:__dlg.appPrompt,fechar:__dlg.fecharAppDialog,estado:__dlg.appDialogEstado},
  normTema:normalizarTemaPlaylist,
  fluxos:{confirmarImport:__pc.abrirJanelaConfirmarImport,conflitoImport:__pc.abrirJanelaConflitoImport,compartilhar:__pc.abrirModalCompartilharPlaylist,codigo:__pc.modalCompartilharMostrarCodigo,importar:__pc.importarPlaylist,impLoading:__pc.modalImportarPlaylistLoading,impErro:__pc.modalImportarPlaylistErro,impSucesso:__pc.modalImportarPlaylistSucesso,sincronizar:__sb.abrirModalSincronizarBanco,sincSucesso:__sb.modalSincronizarSucesso,sincAviso:__sb.modalSincronizarAviso,sincErro:__sb.modalSincronizarErro},
- handoff:()=>companionHandoffEmCurso,
- handoffReset:()=>{companionHandoffEmCurso=false},
+ handoff:()=>estadoPainel.companionHandoffEmCurso,
+ handoffReset:()=>{estadoPainel.companionHandoffEmCurso=false},
 };`;
 const server = http.createServer((req, res) => {
   const name = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
