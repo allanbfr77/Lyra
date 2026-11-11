@@ -23,7 +23,7 @@ window.__fixtureFetch = async (url, opts = {}) => {
  if(window.__saveFail && opts.method==='PUT') return new Response(JSON.stringify({erro:'Falha simulada'}),{status:500});
  let data={};
  if(p==='/api/musicas') data=window.__bibFix||[window.__songs[0]];
- else if(/\\/api\\/musicas\\/\\d+\\/versoes/.test(p)) data={root_id:1,versoes:window.__songs};
+ else if(/\\/api\\/musicas\\/\\d+\\/versoes/.test(p)) data=window.__semVersoes?{versoes:[]}:{root_id:1,versoes:window.__songs};
  else if(/\\/api\\/musicas\\/\\d+/.test(p)) {
   const id=Number(p.split('/')[3]);
   if(opts.method==='PUT') Object.assign(window.__songs.find(s=>s.id===id),JSON.parse(opts.body));
@@ -42,6 +42,9 @@ window.addEventListener('error',e=>{(window.__errors ||= []).push(e.message)});
 window.addEventListener('unhandledrejection',e=>{(window.__errors ||= []).push(String(e.reason))});
 `;
 const bridge = `
+const __dlg = await import('./painel/appDialog.js');
+const __pa = await import('./painel/playlistAdicionar.js');
+const __pl = await import('./painel/playlistLista.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -59,6 +62,7 @@ window.__homeTest = {
  versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  comparativo:()=>modoComparativoCentral,
  culto:{id:()=>cultoId,playlists:()=>playlists},
+ pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
@@ -76,7 +80,7 @@ window.__homeTest = {
  docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
  lyra:{comando:tratarComandoMenuLyra,fechar:fecharLyraMenuModal,status:atualizarModalStatusReinicioServidor},
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
- dialogo:{confirm:appConfirm,prompt:appPrompt,fechar:fecharAppDialog,estado:appDialogEstado},
+ dialogo:{confirm:__dlg.appConfirm,prompt:__dlg.appPrompt,fechar:__dlg.fecharAppDialog,estado:__dlg.appDialogEstado},
  normTema:normalizarTemaPlaylist,
  fluxos:{confirmarImport:__pc.abrirJanelaConfirmarImport,conflitoImport:__pc.abrirJanelaConflitoImport,compartilhar:__pc.abrirModalCompartilharPlaylist,codigo:__pc.modalCompartilharMostrarCodigo,importar:__pc.importarPlaylist,impLoading:__pc.modalImportarPlaylistLoading,impErro:__pc.modalImportarPlaylistErro,impSucesso:__pc.modalImportarPlaylistSucesso,sincronizar:__sb.abrirModalSincronizarBanco,sincSucesso:__sb.modalSincronizarSucesso,sincAviso:__sb.modalSincronizarAviso,sincErro:__sb.modalSincronizarErro},
  handoff:()=>companionHandoffEmCurso,
@@ -203,6 +207,15 @@ async function run() {
   await check('Culto do dia: o seletor lista os cultos do mês (ids e rótulos do módulo)',`document.querySelectorAll('#culto-dd-menu .culto-dd-item').length>=1`);
   await js("(()=>{const it=[...document.querySelectorAll('#culto-dd-menu .culto-dd-item')].find(b=>b.dataset.value);window.__cultoEsc=it.dataset.value;it.click()})()");await pause(250);
   await check('Culto do dia: escolher um culto grava o id no estado do núcleo e na interface',`__homeTest.culto.id()===window.__cultoEsc && document.getElementById('culto-sel').value===window.__cultoEsc && document.getElementById('culto-dd-data').textContent!=='--/--'`);
+  // Playlist (painel/playlistAdicionar.js, playlistLista.js): adicionar, renderizar, persistir e reordenar
+  await js("window.__semVersoes=true;(async()=>{await __homeTest.pl.add({id:11,titulo:'Alegria',artista:'Maria',bancoFonte:'user'});await __homeTest.pl.add({id:12,titulo:'Bondade',artista:'João',bancoFonte:'user'})})();void 0");
+  for(let i=0;i<50&&!await js("__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').length===2");i++)await pause(100);await pause(300);
+  const tituloPl = "[...document.querySelectorAll('#playlist-list .playlist-row')].map(r=>r.textContent)";
+  await check('Playlist: adicionar música grava no culto atual, persiste e desenha as linhas',`__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').map(x=>x.titulo).join(',')==='Alegria,Bondade' && JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/playlists/i.test(k))))[__homeTest.culto.id()].length>=2 && ${tituloPl}.length===2 && ${tituloPl}[0].includes('Alegria') && ${tituloPl}[1].includes('Bondade')`);
+  await check('Playlist: a contagem mostra duas músicas',`document.getElementById('playlist-lista-contagem').textContent.includes('2')`);
+  await js("(()=>{const l=__homeTest.pl.lista();const a=l.findIndex(x=>x.titulo==='Bondade'),b=l.findIndex(x=>x.titulo==='Alegria');__homeTest.pl.reordenar(__homeTest.culto.id(),a,b,'antes');__homeTest.pl.render()})()");await pause(500);
+  await check('Playlist: reordenar põe a música no novo lugar e redesenha a lista',`__homeTest.pl.lista().filter(x=>x.tipo!=='marcador_tema').map(x=>x.titulo).join(',')==='Bondade,Alegria' && ${tituloPl}[0].includes('Bondade')`);
+  await js("window.__semVersoes=false;void 0");
 
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
