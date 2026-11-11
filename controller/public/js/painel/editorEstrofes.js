@@ -576,18 +576,16 @@ export function renderEstrofesEditor() {
         if (e.target.closest('.btn-del-estrofe')) return;
         if (e.target.closest('.btn-estrofe-quick')) return;
         clearTimeout(centralSlideTapTimer);
-        centralSlideTapTimer = setTimeout(() => {
-          centralSlideTapTimer = null;
-          if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
-            projetarPorDuploCliqueCentral(i);
-            return;
-          }
-          exibirEstrofe(i);
-          renderSlidesStrip();
-          atualizarPreviewOperador();
-          renderEstrofesEditor();
-          marcacaoEstrofeEditor();
-        }, 280);
+        centralSlideTapTimer = null;
+        /* Resposta imediata. Esperar 280 ms por um duplo clique já não faz sentido aqui: fora do
+           Slides o duplo clique não projeta (a Home só tem prévia), portanto o clique simples
+           seleciona logo. `exibirEstrofe` já redesenha faixa, prévia, playlist e marcação. */
+        if (estadoPainel.projecaoMusicaEmitidaNoServidor) {
+          projetarPorDuploCliqueCentral(i);
+          return;
+        }
+        exibirEstrofe(i);
+        renderEstrofesEditor();
       });
     }
 

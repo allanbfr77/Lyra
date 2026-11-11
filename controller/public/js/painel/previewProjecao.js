@@ -13,7 +13,7 @@ import { aplicarPreviewTituloMusicaAbertura, limparPreviewTituloMusicaAbertura, 
 import { estadoPainel, projecao } from './estadoPainel.js';
 import { aplicarPreviewPainelOcultoNoDom } from './previewOculto.js';
 import { apresentacaoOcupandoCanalMinistrante, atualizarPreviewMonitorMinistranteSlides, atualizarPreviewMonitorPublicoSlides, atualizarPreviewsMonitoresVirtuaisModoSlides, classificarSaidaMonitorMinistranteSlides, obterRotaSlidesParaUi, syncRoteamentoTelasModoSlidesNaUi } from './canaisProjecao.js';
-import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoHomeOperador, ehModoSlidesOperador } from './modosUi.js';
 import { musicaEstadoCombinaComAtiva } from './projecaoMusica.js';
 
 const previewMinistranteHelpers = {
@@ -847,6 +847,7 @@ export function reiniciarAssinaturaEmitMinistrante() {
 }
 
 export function emitirEstadoMinistranteAoServidor() {
+  if (ehModoHomeOperador()) return;
   if (apresentacaoOcupandoCanalMinistrante()) return;
   if (!projecao.pronta()) return;
   if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) return;

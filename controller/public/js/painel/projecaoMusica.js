@@ -37,7 +37,7 @@ import { abrirMenuModoApresentacao, fecharMenuModoApresentacao } from './menuApr
 import { alternarModoSlidesOperador, limparEspelhoLocalSoCamadaSlides } from './modoSlidesOperador.js';
 import { aplicarSelecaoUiBiblioteca, aplicarSelecaoUiPlaylist, getPlaylist, indiceProximaMusicaNaPlaylist, playlistItemMesmaVersaoQueAtiva } from './playlistServidor.js';
 import { apresentacaoProjecaoAtivaNoCanalPublico } from './canaisProjecao.js';
-import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador, irParaTelaInicial } from './modosUi.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoHomeOperador, ehModoSlidesOperador, irParaTelaInicial } from './modosUi.js';
 import { getControllerApiBase, hostProjecao } from './servidorAlvo.js';
 import { modoRoteamentoAtual } from './rotasMonitores.js';
 import { onCfgAutoConectarChange, onCfgLembrarIpChange } from './socketPainelApi.js';
@@ -345,6 +345,9 @@ function registarProjecaoNoHistorico() {
 }
 
 export function emitirEstrofeAoServidor(index) {
+  /* Home nunca projeta nos monitores reais: a única saída é a prévia da própria Home, que lê
+     `estrofeAtiva` e não depende de nada enviado ao servidor. */
+  if (ehModoHomeOperador()) return;
   if (!projecao.pronta() || !estadoPainel.musicaAtiva) return;
   estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
   estadoPainel.projecaoMusicaEmitidaNoServidor = true;

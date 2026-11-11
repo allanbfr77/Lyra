@@ -17,6 +17,7 @@ import { renderPlaylist } from './playlistLista.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { slidesAplicarCfgArmazenada } from './configExibicao.js';
+import { trocarContextoSelecao } from './contextoSelecaoModos.js';
 import { abrirMenuModoApresentacao } from './menuApresentacaoModo.js';
 import { hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, marcarRotaLiveNoDom, rotaDesativada, salvarRotasPorModoNoStorage } from './rotasMonitores.js';
 import { rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
@@ -94,22 +95,17 @@ export function limparUiAoSairDoModoSlides() {
     /* Projeção no ar: mantém musicaAtiva, estrofeAtiva e a faixa armada. */
     return;
   }
-  estadoPainel.estrofeAtiva = -1;
-  estadoPainel.projecaoMusicaEmitidaNoServidor = false;
-  estadoPainel.bloqueioSincronizarEstrofeDoServidor = false;
-  /**
-   * Limpa a seleção da playlist do modo slides já na saída (e não só ao reentrar):
-   * a faixa é sempre rearmada por clique na playlist, então deixá-la «ligada» aqui
-   * fazia a linha voltar destacada sobre uma grade vazia.
-   * `musicaAtiva` fica intacta de propósito — a Home continua com a música no editor.
-   */
-  estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
+  /* A SELEÇÃO do Slides (música, slide, faixa) já não se apaga aqui: pertence ao contexto do
+     modo (`contextoSelecaoModos.js`) e volta como ficou ao reentrar. Sai só o espelho local. */
   limparEspelhoLocalSoCamadaSlides();
 }
 
 export async function alternarModoSlidesOperador(opts = {}) {
   const permitirDesativar = opts.permitirDesativar === true;
   if (ehModoSlidesOperador() && !permitirDesativar) return;
+  /* Home e Slides têm seleção própria (música, slide, destaques): troca-se o contexto ANTES
+     de qualquer lógica de entrada/saída, que passa a ler a seleção do modo certo. */
+  trocarContextoSelecao(ehModoSlidesOperador() ? 'home' : 'slides');
   if (ehModoBibliaOperador()) {
     /*
      * Só desliga rotas transitórias se nada de Bíblia/mídia estiver no ar.
@@ -169,9 +165,8 @@ export async function alternarModoSlidesOperador(opts = {}) {
         /* Retoma a faixa no ponto da projeção que ficou no ar. */
         estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
         estadoPainel.slidesDockVisivel = true;
-      } else {
-        estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
       }
+      /* Sem projeção a retomar, a faixa fica como o contexto do Slides a deixou (seleção própria). */
       const lm = document.getElementById('layout-musicas');
       if (lm) lm.removeAttribute('style');
       /*

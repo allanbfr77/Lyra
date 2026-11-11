@@ -18,6 +18,7 @@ import { deltaScrollListaVersiculos } from '../modules/scrollListaVersiculos.js'
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { limparOrdemNaoExibirUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { resolverEnvioBiblia } from '../modules/rotaEnvioBiblia.js';
+import { trocarContextoSelecao } from './contextoSelecaoModos.js';
 import { enviarPreviewDisplayConfig, getChkVal, salvarSlideCfgNoStorage, setChkVal, setInputVal, setSelVal, setSpanText, slidesAplicarCfgArmazenada } from './configExibicao.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
 import { aplicarMonitorLembradoAoEntrarNoModo, desativarRotasModosTransitorios, hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, hayProjecaoMidiaApresentacaoAtiva, marcarRotaLiveNoDom, normalizarRota, rotaDesativada, salvarRotasPorModoNoStorage, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
@@ -228,6 +229,8 @@ export async function alternarModoBiblia() {
   const ativo = document.body.classList.contains('app-mod-biblia');
   /* Slide → Bíblia: só troca de aba. A projeção de slides, se existir, permanece. */
   const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
+  /* Bíblia → Home: a seleção que volta é a da Home (a Bíblia não tem seleção de música). */
+  if (ativo) trocarContextoSelecao('home');
   if (!ativo) {
     /* Estado da sessão (livro/cap/versículo) sobrevive à saída do modo — inclusive sem projeção. */
     const preservarNav = !!bibliaSelecionadoLivro;

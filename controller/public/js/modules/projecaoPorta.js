@@ -51,6 +51,23 @@ export function criarPortaProjecao(transporteInicial = null) {
   let transporte = transporteInicial;
 
   /**
+   * Filtro de saída: devolve `true` para um comando que NÃO deve chegar ao motor.
+   * Usado para o Home, que nunca projeta nos monitores reais (só prévia local).
+   * @type {((evento: string) => boolean)|null}
+   */
+  let filtroEnvio = null;
+  function definirFiltroEnvio(fn) {
+    filtroEnvio = typeof fn === 'function' ? fn : null;
+  }
+  function bloqueado(evento) {
+    try {
+      return !!(filtroEnvio && filtroEnvio(evento));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
    * Handlers do canal de retorno, guardados na porta e não no transporte.
    *
    * O socket do Controlador é recriado a cada `iniciarSocket(ip)` — e o código antigo
@@ -127,6 +144,7 @@ export function criarPortaProjecao(transporteInicial = null) {
    */
   function enviar(evento, dados, ack) {
     if (!pronta()) return false;
+    if (bloqueado(evento)) return false;
     try {
       return !!transporte.enviar(evento, dados, ack);
     } catch (_) {
@@ -154,6 +172,7 @@ export function criarPortaProjecao(transporteInicial = null) {
    */
   function enfileirar(evento, dados) {
     if (!transporte) return;
+    if (bloqueado(evento)) return;
     try {
       transporte.enfileirar(evento, dados);
     } catch (_) {
@@ -197,7 +216,7 @@ export function criarPortaProjecao(transporteInicial = null) {
     };
   }
 
-  return { enviar, enfileirar, aoReceber, ligada, pronta, usarTransporte };
+  return { enviar, enfileirar, aoReceber, ligada, pronta, usarTransporte, definirFiltroEnvio };
 }
 
 /**

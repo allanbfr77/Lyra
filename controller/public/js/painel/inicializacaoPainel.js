@@ -30,6 +30,7 @@ import { configurarModalPreviewLetras } from './previewLetras.js';
 import { configurarNotasSlideControlador } from '../modules/notasSlideControlador.js';
 import { confirmarProsseguirDescartandoEdicaoPendente, entrarModoLetraCompletaCentral, irParaGradeSlidesDesdeLetraCompleta } from './letraCompleta.js';
 import { definirLembrarMonitor } from '../modules/monitorLembrado.js';
+import { iniciarContextoSelecaoModos } from './contextoSelecaoModos.js';
 import { iniciarBotaoEncerrarProjecaoCabecalho, modoAbertoTemProjecaoParaEncerrar } from './botaoEncerrarCabecalho.js';
 import { encerrarProjecaoDoControlador, reconhecimentoVozSlides } from './projecaoMusica.js';
 import { encerrarProjecaoMidiaCabecalhoModoApresentacao, escolherArquivoModoApresentacao, fecharMenuModoApresentacao } from './menuApresentacaoModo.js';
@@ -609,6 +610,7 @@ export function iniciarPainel() {
     sincronizarCheckboxLembrarMonitor();
   });
   iniciarBotaoEncerrarProjecaoCabecalho();
+  iniciarContextoSelecaoModos();
   document.getElementById('hdr-encerrar-projecao')?.addEventListener('click', () => {
     /* Bloqueio funcional: sem projeção DESTE modo, o clique não encerra a de outro. */
     if (!modoAbertoTemProjecaoParaEncerrar()) return;

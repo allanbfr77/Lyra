@@ -24,6 +24,16 @@ export function ehModoBibliaOperador() {
 export function ehModoDocsOperador() {
   return document.body.classList.contains('app-mod-docs');
 }
+/** Home: nenhum modo aberto. Só tem prévia local — nunca projeta nos monitores reais. */
+export function ehModoHomeOperador() {
+  const cl = document.body.classList;
+  return !(
+    cl.contains('app-mod-slides') ||
+    cl.contains('app-mod-biblia') ||
+    cl.contains('app-mod-apresentacao') ||
+    cl.contains('app-mod-docs')
+  );
+}
 
 export function liberarBloqueioUiModos() {
   try {
