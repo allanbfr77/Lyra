@@ -57,6 +57,9 @@
  *   letraCompleta.js — modo «letra completa» da coluna central (texto corrido, guias de estrofe, edição pendente)
  *   comparativoVersoes.js — modo comparativo: duas versões lado a lado, realces e gravação
  *   editorEstrofes.js — editor de estrofes: cartões, caixa de letras, alturas, persistência da música e nova versão
+ *   playlistTemas.js — playlists por culto: persistência, temas, marcadores, ministrante padrão e «abertura»
+ *   copiasLocaisPainel.js — cópias locais de letra e versões do servidor da música ativa (mapa, leitura e gravação)
+ *   cultoDoDia.js — culto do dia: cultos manuais, calendário, seletor (dropdown) e migração de playlists antigas
  * =============================================================================
  */
 
@@ -71,11 +74,8 @@ import {
   SVG_OLHO_ABERTO,
   SVG_OLHO_CORTADO,
   LS_PLAYLISTS,
-  LS_PLAYLISTS_LEGACY,
   LS_CULTOS_MANUAIS,
-  LS_PLAYLIST_TEMA_SEL,
   LS_PLAYLIST_TEMAS,
-  LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS,
   LS_PLAYLIST_ABERTURA_REMOVIDA,
   LS_PLAYLIST_MINISTRANTE_PADRAO,
   TEMA_PADRAO_ABERTURA,
@@ -92,27 +92,19 @@ import {
   CLOUD_INVB_TONS_SYNC_URL,
   LS_INVB_TONS_SYNC_AT,
   LS_BANCO_SQLITE_LISTA_ABERTA,
-  SVG_PLAYLIST_SECAO_EXPANDIR,
-  SVG_PLAYLIST_SECAO_RECOLHER,
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
 import {
-  resolverProximoCultoPorHorarioBrasilia,
   isoFromCultoId,
   ordenarCultosPorData,
 } from './modules/proximoCulto.js';
 import {
-  gerarCultosDoMes,
-  dataReferenciaCalendarioCultos,
-  cultoIdPertenceAoMes,
-  gerarCultosParaDataManual,
   parseLabelCulto,
   labelFallbackDeCultoIdImport,
 } from './modules/cultosCalendario.js';
 import {
   ehVersaoLocalLegada,
   ehVersaoServidorId,
-  criarMapaCopiasLocais,
 } from './modules/copiasLocaisLetra.js';
 import {
   versaoLocalIdTrimado,
@@ -484,6 +476,76 @@ import {
   salvarMusicaServidor,
   sincronizarFlagCaixaLetrasComTextoAtual,
 } from './painel/editorEstrofes.js';
+import {
+  atualizarUiExpandSecaoTema,
+  camposMinistranteTomParaNovaMusicaNaPlaylist,
+  definirSecaoTemaPlaylistRecolhida,
+  desmarcarAberturaRemovidaPeloUsuario,
+  filtrarPlaylistRemovendoTemaComMarcadores,
+  garantirAberturaNoCatalogoCulto,
+  garantirMarcadorAberturaNaPlaylist,
+  garantirTemaNoCatalogoAtual,
+  getAberturaRemovidaPorCulto,
+  getMinistrantePadraoCulto,
+  getMinistrantePadraoPorCulto,
+  getTemasDoCultoAtual,
+  inserirMusicaNoBlocoTema,
+  listarMarcadoresTemaPlaylist,
+  loadAberturaRemovidaPorCulto,
+  loadMinistrantePadraoPorCulto,
+  loadPlaylists,
+  loadTemaSelecionadoPorCulto,
+  loadTemasPorCulto,
+  mapaMinistrantePadraoPersistivel,
+  marcarAberturaRemovidaPeloUsuario,
+  migrarTemasParaGlobal,
+  normalizarListaTemas,
+  normalizarTemaPlaylist,
+  obterUltimoMarcadorTema,
+  ordenarTemasLista,
+  persistirMinistrantePadraoNoLocalStorage,
+  playlistPossuiMarcadoresTema,
+  podarMinistrantePadraoSemMusicasNaPlaylist,
+  registrarDependenciasPlaylistTemas,
+  renomearTemaNoCulto,
+  reordenarMarcadoresTemaNaPlaylist,
+  saveMinistrantePadraoPorCulto,
+  saveTemaSelecionadoPorCulto,
+  saveTemasPorCulto,
+  secaoTemaPlaylistRecolhida,
+  setAberturaRemovidaPorCulto,
+  setMinistrantePadraoCulto,
+  setMinistrantePadraoPorCulto,
+} from './painel/playlistTemas.js';
+import {
+  atualizarCopiaLocal,
+  carregarVersoesMusicaServidor,
+  encontrarCopiaLocal,
+  garantirCopiaPadraoServidor,
+  getCopiasParaMusica,
+  musicaAtivaEhOriginalServidor,
+  obterRootIdMusicaAtiva,
+  registrarDependenciasCopiasLocaisPainel,
+  removerCopiaLocal,
+  removerCopiasLocaisDaMusica,
+  versaoAtivaParaCompararPlaylist,
+} from './painel/copiasLocaisPainel.js';
+import {
+  ajustarCorpoSeletoresDoCulto,
+  cultoIdEhManual,
+  fecharCultoDropdown,
+  idsCultosJaNaLista,
+  listarCultosDisponiveis,
+  loadCultosManuais,
+  migrarPlaylistsCultosAntigos,
+  registrarDependenciasCultoDoDia,
+  resolverCultoInicialPorAgenda,
+  saveCultosManuais,
+  setCultoSelecionadoNaUi,
+  setupAdicionarCultoManual,
+  setupCultoDropdown,
+  solicitarExcluirCultoManual,
+} from './painel/cultoDoDia.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -912,6 +974,47 @@ registrarDependenciasEditorEstrofes({
   setSnapshotLetraCompleta: (valor) => {
     snapshotLetraCompleta = valor;
   },
+});
+registrarDependenciasPlaylistTemas({
+  getControllerApiBase,
+  getPlaylist,
+  getTemaSelecionadoAtual,
+  marcarBancoCompartilhadoAlterado,
+  savePlaylists,
+  setTemaSelecionadoAtual,
+  getPlaylists: () => playlists,
+  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
+  getTemasPorCulto: () => temasPorCulto,
+});
+registrarDependenciasCopiasLocaisPainel({
+  getControllerApiBase,
+  getMusicaAtiva: () => musicaAtiva,
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getMusicaRootId: () => musicaRootId,
+  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
+  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
+  setVersoesMusicaServidorCache: (valor) => {
+    versoesMusicaServidorCache = valor;
+  },
+});
+registrarDependenciasCultoDoDia({
+  fecharOutrosSeletoresDropdown,
+  initCultoSelect,
+  marcarBancoCompartilhadoAlterado,
+  onCultoChange,
+  savePlaylists,
+  getCultoId: () => cultoId,
+  setCultoId: (valor) => {
+    cultoId = valor;
+  },
+  getCultosDoMesCache: () => cultosDoMesCache,
+  getCultosManuaisCache: () => cultosManuaisCache,
+  setCultosManuaisCache: (valor) => {
+    cultosManuaisCache = valor;
+  },
+  getPlaylists: () => playlists,
+  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
+  getTemasPorCulto: () => temasPorCulto,
 });
 
 /**
@@ -6045,495 +6148,9 @@ try {
  * Ids e rótulos: `modules/cultosCalendario.js`.
  */
 // --- SECÇÃO C — Culto do dia, playlists, temas, cópias locais de letra, chaves localStorage ---
-function loadCultosManuais() {
-  try {
-    const raw = localStorage.getItem(LS_CULTOS_MANUAIS);
-    if (!raw) return [];
-    const p = JSON.parse(raw);
-    if (!Array.isArray(p)) return [];
-    return ordenarCultosPorData(
-      p
-        .filter((c) => c && c.id && c.label)
-        .map((c) => ({ id: String(c.id), label: String(c.label) }))
-    );
-  } catch (_) {
-    return [];
-  }
-}
+// (extraído) culto do dia → painel/cultoDoDia.js
 
-function saveCultosManuais() {
-  try {
-    localStorage.setItem(LS_CULTOS_MANUAIS, JSON.stringify(cultosManuaisCache || []));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  marcarBancoCompartilhadoAlterado();
-}
-
-function idsCultosJaNaLista() {
-  const s = new Set();
-  gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date())).forEach((c) => s.add(c.id));
-  (cultosManuaisCache || []).forEach((c) => s.add(c.id));
-  return s;
-}
-
-/**
- * Cultos automáticos do mês + manuais desse mesmo mês/ano (sem duplicar id).
- * Cultos extras de outros meses permanecem persistidos, mas não entram na lista.
- */
-function listarCultosDisponiveis(dataRef = dataReferenciaCalendarioCultos(new Date())) {
-  const ref = dataRef instanceof Date ? dataRef : new Date();
-  const auto = gerarCultosDoMes(ref);
-  const idsAuto = new Set(auto.map((c) => c.id));
-  const manual = (cultosManuaisCache || []).filter(
-    (c) => !idsAuto.has(c.id) && cultoIdPertenceAoMes(c.id, ref)
-  );
-  return ordenarCultosPorData([...auto, ...manual]);
-}
-
-function cultoIdEhManual(cid) {
-  return (cultosManuaisCache || []).some((c) => c.id === cid);
-}
-
-function limparSecoesTemaRecolhidasDoCulto(cid) {
-  const m = carregarMapaSecoesTemaPlaylistRecolhidas();
-  const pref = `${String(cid)}|||`;
-  let mudou = false;
-  Object.keys(m).forEach((k) => {
-    if (k.startsWith(pref)) {
-      delete m[k];
-      mudou = true;
-    }
-  });
-  if (mudou) {
-    try {
-      localStorage.setItem(LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS, JSON.stringify(m));
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-}
-
-function excluirCultoManualPorId(cid) {
-  if (!cid || !cultoIdEhManual(cid)) return;
-  cultosManuaisCache = (cultosManuaisCache || []).filter((c) => c.id !== cid);
-  saveCultosManuais();
-  delete playlists[cid];
-  delete temasPorCulto[cid];
-  delete temaSelecionadoPorCulto[cid];
-  delete aberturaRemovidaPorCulto[cid];
-  delete ministrantePadraoPorCulto[cid];
-  limparSecoesTemaRecolhidasDoCulto(cid);
-  savePlaylists();
-  saveTemasPorCulto();
-  saveTemaSelecionadoPorCulto();
-  saveAberturaRemovidaPorCulto();
-  saveMinistrantePadraoPorCulto();
-  if (cultoId === cid) {
-    cultoId = '';
-  }
-  initCultoSelect();
-  onCultoChange();
-}
-
-async function solicitarExcluirCultoManual(ev, cid) {
-  ev.preventDefault();
-  ev.stopPropagation();
-  const item = (cultosManuaisCache || []).find((c) => c.id === cid);
-  const ok = await appConfirm(
-    `Excluir o culto «${item?.label || cid}» e toda a playlist (temas e músicas)?`,
-    'Excluir culto'
-  );
-  if (!ok) return;
-  excluirCultoManualPorId(cid);
-}
-
-function adicionarCultosManuaisNaData(dt) {
-  const novos = gerarCultosParaDataManual(dt);
-  const existentes = idsCultosJaNaLista();
-  const aInserir = novos.filter((c) => !existentes.has(c.id));
-  if (!aInserir.length) {
-    appAlert('Já existe culto para esta data na lista.', 'Adicionar culto');
-    return;
-  }
-  cultosManuaisCache = ordenarCultosPorData([...(cultosManuaisCache || []), ...aInserir]);
-  saveCultosManuais();
-  let playlistMudou = false;
-  aInserir.forEach((c) => {
-    garantirAberturaNoCatalogoCulto(c.id);
-    if (garantirMarcadorAberturaNaPlaylist(c.id)) playlistMudou = true;
-  });
-  if (playlistMudou) savePlaylists();
-  cultoId = aInserir[0].id;
-  initCultoSelect();
-  setCultoSelecionadoNaUi(cultoId);
-  onCultoChange();
-  fecharModalCalendarioCulto();
-}
-
-let cultoCalMesRef = new Date();
-let cultoCalDiaSelecionado = null;
-
-const CULTO_CAL_MESES_PT = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-];
-
-function renderGradeCalendarioCulto() {
-  const tit = document.getElementById('culto-cal-mes-ano');
-  const grid = document.getElementById('culto-cal-grid');
-  const btnOk = document.getElementById('culto-cal-confirmar');
-  if (!tit || !grid) return;
-  const y = cultoCalMesRef.getFullYear();
-  const m0 = cultoCalMesRef.getMonth();
-  tit.textContent = `${CULTO_CAL_MESES_PT[m0]} ${y}`;
-  grid.innerHTML = '';
-  const first = new Date(y, m0, 1);
-  const startPad = first.getDay();
-  const lastD = new Date(y, m0 + 1, 0).getDate();
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  for (let i = 0; i < startPad; i++) {
-    const cell = document.createElement('span');
-    cell.className = 'culto-cal-cell culto-cal-cell--vazio';
-    grid.appendChild(cell);
-  }
-  for (let d = 1; d <= lastD; d++) {
-    const dt = new Date(y, m0, d);
-    const cell = document.createElement('button');
-    cell.type = 'button';
-    cell.className = 'culto-cal-cell';
-    cell.textContent = String(d);
-    const isoSel =
-      cultoCalDiaSelecionado &&
-      cultoCalDiaSelecionado.getFullYear() === y &&
-      cultoCalDiaSelecionado.getMonth() === m0 &&
-      cultoCalDiaSelecionado.getDate() === d;
-    if (isoSel) cell.classList.add('culto-cal-cell--sel');
-    if (dt.getTime() === hoje.getTime()) cell.classList.add('culto-cal-cell--hoje');
-    cell.addEventListener('click', () => {
-      cultoCalDiaSelecionado = new Date(y, m0, d);
-      renderGradeCalendarioCulto();
-    });
-    grid.appendChild(cell);
-  }
-  if (btnOk) btnOk.disabled = !cultoCalDiaSelecionado;
-}
-
-function abrirModalCalendarioCulto() {
-  const bd = document.getElementById('culto-calendario-backdrop');
-  if (!bd) return;
-  cultoCalMesRef = new Date();
-  cultoCalMesRef.setDate(1);
-  cultoCalDiaSelecionado = null;
-  renderGradeCalendarioCulto();
-  bd.hidden = false;
-  bd.setAttribute('aria-hidden', 'false');
-}
-
-function fecharModalCalendarioCulto() {
-  const bd = document.getElementById('culto-calendario-backdrop');
-  if (!bd) return;
-  bd.hidden = true;
-  bd.setAttribute('aria-hidden', 'true');
-}
-
-function setupAdicionarCultoManual() {
-  document.getElementById('btn-adicionar-culto')?.addEventListener('click', () => abrirModalCalendarioCulto());
-  document.getElementById('culto-cal-cancel')?.addEventListener('click', () => fecharModalCalendarioCulto());
-  document.getElementById('culto-cal-confirmar')?.addEventListener('click', () => {
-    if (!cultoCalDiaSelecionado) return;
-    adicionarCultosManuaisNaData(cultoCalDiaSelecionado);
-  });
-  document.getElementById('culto-cal-prev')?.addEventListener('click', () => {
-    cultoCalMesRef = new Date(cultoCalMesRef.getFullYear(), cultoCalMesRef.getMonth() - 1, 1);
-    renderGradeCalendarioCulto();
-  });
-  document.getElementById('culto-cal-next')?.addEventListener('click', () => {
-    cultoCalMesRef = new Date(cultoCalMesRef.getFullYear(), cultoCalMesRef.getMonth() + 1, 1);
-    renderGradeCalendarioCulto();
-  });
-  const bd = document.getElementById('culto-calendario-backdrop');
-  bd?.addEventListener('click', (e) => {
-    if (e.target === bd) fecharModalCalendarioCulto();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && bd && !bd.hidden) fecharModalCalendarioCulto();
-  });
-}
-
-function fecharCultoDropdown() {
-  const wrap = document.getElementById('culto-dd');
-  const btn = document.getElementById('culto-dd-btn');
-  const menu = document.getElementById('culto-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  wrap.classList.remove('open');
-  menu.hidden = true;
-  btn.setAttribute('aria-expanded', 'false');
-}
-
-/** Seleciona automaticamente o próximo culto com base na data/hora de Brasília. */
-function resolverCultoInicialPorAgenda() {
-  return resolverProximoCultoPorHorarioBrasilia({ listarCultosDisponiveis });
-}
-
-/**
- * Encolhe o texto dos três seletores do topo da playlist até caberem todos inteiros.
- *
- * São o dia do culto, o ministrante e o tema. Partilham uma medida por duas razões: estão
- * empilhados no mesmo cabeçalho e leem-se como uma coisa só — três corpos diferentes ali
- * seriam lidos como três níveis de importância que não existem — e porque o que cada um
- * mostra muda de comprimento a toda a hora, e um corpo por seletor faria a coluna trocar
- * de tipografia a cada escolha.
- *
- * Por isso o laço desce enquanto QUALQUER um deles transbordar e aplica o resultado aos
- * três: quem manda é o mais apertado, que é quase sempre o ministrante — a caixa mais
- * estreita das três e a que tem o texto mais longo («Selecione o ministrante...»).
- *
- * O ponto de partida é o corpo que o CSS lhes dá, e não um número escrito aqui: o valor
- * vive na folha, ao pé do resto do desenho do seletor.
- *
- * `scrollWidth > clientWidth` é o mesmo critério com que o browser decide pôr as
- * reticências — o laço pára exactamente quando elas deixariam de aparecer. Caixa de
- * largura zero é seletor ainda por desenhar ou escondido (o ministrante no modo slides):
- * fica de fora da conta, senão um elemento invisível encolhia os outros dois.
- */
-const SELETORES_CULTO_TEXTO_IDS = Object.freeze([
-  'culto-dd-desc',
-  'culto-ministrante-dd-label',
-]);
-const SELETOR_CULTO_CORPO_MIN_PX = 11;
-
-function ajustarCorpoSeletoresDoCulto() {
-  const els = SELETORES_CULTO_TEXTO_IDS
-    .map((id) => document.getElementById(id))
-    .filter(Boolean);
-  if (!els.length) return;
-
-  els.forEach((el) => { el.style.fontSize = ''; });
-  const base = parseFloat(getComputedStyle(els[0]).fontSize);
-  if (!Number.isFinite(base)) return;
-
-  const medidos = els.filter((el) => el.clientWidth > 0);
-  if (!medidos.length) return;
-
-  const transborda = () => medidos.some((el) => el.scrollWidth > el.clientWidth);
-  let px = base;
-  while (px > SELETOR_CULTO_CORPO_MIN_PX && transborda()) {
-    px -= 0.5;
-    els.forEach((el) => { el.style.fontSize = px + 'px'; });
-  }
-}
-
-function setCultoSelecionadoNaUi(value) {
-  const hid = document.getElementById('culto-sel');
-  const dataEl = document.getElementById('culto-dd-data');
-  const descEl = document.getElementById('culto-dd-desc');
-  const menu = document.getElementById('culto-dd-menu');
-  if (!hid || !dataEl || !descEl) return;
-  const v = String(value || '');
-  hid.value = v;
-  const item = cultosDoMesCache.find((c) => c.id === v);
-  if (!item) {
-    dataEl.textContent = '--/--';
-    descEl.textContent = 'Selecione o dia do culto...';
-  } else {
-    const p = parseLabelCulto(item.label);
-    dataEl.textContent = p.data;
-    descEl.textContent = p.desc;
-  }
-  ajustarCorpoSeletoresDoCulto();
-  if (menu) {
-    menu.querySelectorAll('.culto-dd-item').forEach((b) => {
-      b.setAttribute('aria-selected', b.dataset.value === v ? 'true' : 'false');
-    });
-  }
-}
-
-function setupCultoDropdown() {
-  const wrap = document.getElementById('culto-dd');
-  const btn = document.getElementById('culto-dd-btn');
-  const menu = document.getElementById('culto-dd-menu');
-  if (!wrap || !btn || !menu) return;
-  /* A coluna da direita estica e encolhe com a janela: o corpo que cabia numa largura
-     pode não caber noutra, e vice-versa — por isso a medida repete-se a cada redimensão. */
-  window.addEventListener('resize', ajustarCorpoSeletoresDoCulto);
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharCultoDropdown();
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!wrap.contains(e.target)) fecharCultoDropdown();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharCultoDropdown();
-  });
-}
-
-/** Migra playlists dos ids fixos antigos para o 1.º culto equivalente do mês atual. */
-function migrarPlaylistsCultosAntigos() {
-  const cultos = gerarCultosDoMes(dataReferenciaCalendarioCultos(new Date()));
-  if (!cultos.length) return;
-  const primeiro = (pred) => cultos.find(pred);
-  const mapLegado = [
-    ['quarta', () => primeiro((c) => c.id.endsWith('_quarta'))],
-    ['domingo_manha', () => primeiro((c) => c.id.endsWith('_manha'))],
-    ['domingo_noite', () => primeiro((c) => c.id.endsWith('_noite'))],
-  ];
-  let mudou = false;
-  mapLegado.forEach(([oldKey, finder]) => {
-    const arr = playlists[oldKey];
-    if (!Array.isArray(arr) || arr.length === 0) return;
-    const target = finder();
-    if (!target) return;
-    if (!Array.isArray(playlists[target.id])) playlists[target.id] = [];
-    const mesclado = [...arr];
-    mesclado.forEach((item) => {
-      const dup = playlists[target.id].some((x) => Number(x.id) === Number(item.id));
-      if (!dup) playlists[target.id].push(item);
-    });
-    delete playlists[oldKey];
-    mudou = true;
-  });
-  if (mudou) savePlaylists();
-}
-
-const mapaCopiasLocais = criarMapaCopiasLocais();
-
-function getCopiasParaMusica(idMusica) {
-  return mapaCopiasLocais.getCopiasParaMusica(idMusica);
-}
-
-function encontrarCopiaLocal(idMusica, copiaId) {
-  return mapaCopiasLocais.encontrar(idMusica, copiaId);
-}
-
-function obterRootIdMusicaAtiva() {
-  if (!musicaAtiva) return null;
-  const r = Number(musicaRootId ?? musicaAtiva.root_id ?? musicaAtiva.id);
-  return Number.isFinite(r) ? r : null;
-}
-
-function musicaAtivaEhOriginalServidor() {
-  if (!musicaAtiva || musicaBancoFonte === 'catalog') return false;
-  const root = obterRootIdMusicaAtiva();
-  const id = Number(musicaAtiva.id);
-  if (!Number.isFinite(root) || !Number.isFinite(id)) return false;
-  if (musicaVersaoLocalId && ehVersaoLocalLegada(musicaVersaoLocalId)) return false;
-  return id === root && (musicaAtiva.parent_id == null || musicaAtiva.parent_id === '');
-}
-
-/** Original protegido no SQLite (`is_immutable === 1`); cópias/versões filhas são editáveis. */
-function versaoAtivaParaCompararPlaylist() {
-  if (musicaVersaoLocalId && String(musicaVersaoLocalId).trim()) {
-    return String(musicaVersaoLocalId).trim();
-  }
-  if (musicaAtivaEhOriginalServidor()) return '';
-  if (musicaAtiva && musicaBancoFonte !== 'catalog') return String(musicaAtiva.id);
-  return '';
-}
-
-/**
- * Id da cópia editável padrão de uma música do banco do usuário.
- *
- * O ORIGINAL nunca é alterado pela edição: ao abrir uma música o controlador
- * trabalha sobre a cópia que nasceu junto com ela. Músicas cadastradas antes
- * desse comportamento não têm cópia — o servidor materializa uma aqui, na
- * primeira abertura, sem tocar no original.
- *
- * Devolve `null` em qualquer falha: nesse caso a música abre no original, como
- * antes, em vez de o clique não fazer nada.
- *
- * @returns {Promise<number|null>}
- */
-async function garantirCopiaPadraoServidor(id) {
-  const idNum = Number(id);
-  if (!Number.isFinite(idNum)) return null;
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/copia-padrao`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const copiaId = Number(data && data.id);
-    return Number.isFinite(copiaId) && copiaId !== idNum ? copiaId : null;
-  } catch (_) {
-    // intencional — sem cópia o fluxo segue no original
-    return null;
-  }
-}
-
-async function carregarVersoesMusicaServidor(rootId) {
-  const root = Number(rootId);
-  if (!Number.isFinite(root)) {
-    versoesMusicaServidorCache = { rootId: null, versoes: [] };
-    renderMusicaVersoesBar();
-    return;
-  }
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${root}/versoes`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    versoesMusicaServidorCache = {
-      rootId: Number(data.rootId) || root,
-      versoes: Array.isArray(data.versoes) ? data.versoes : [],
-    };
-  } catch (_) {
-    versoesMusicaServidorCache = { rootId: root, versoes: [] };
-  }
-  renderMusicaVersoesBar();
-}
-
-function atualizarCopiaLocal(idMusica, copiaId, data) {
-  const up = mapaCopiasLocais.atualizarCampos(idMusica, copiaId, data);
-  if (!up.ok) return up;
-  const c = up.copia;
-  const idN = Number(idMusica);
-  const vid = String(copiaId);
-  if (
-    musicaAtiva &&
-    Number(musicaAtiva.id) === idN &&
-    musicaVersaoLocalId &&
-    String(musicaVersaoLocalId) === vid
-  ) {
-    if (data.titulo != null) musicaAtiva.titulo = c.titulo;
-    if (data.artista != null) musicaAtiva.artista = c.artista;
-    if (data.estrofes != null) musicaAtiva.estrofes = c.estrofes.map((s) => String(s));
-    if (data.rotulo != null) musicaAtiva.rotulo = c.rotulo;
-    const et = document.getElementById('edit-titulo');
-    const ea = document.getElementById('edit-artista');
-    if (et && data.titulo != null) et.value = musicaAtiva.titulo || '';
-    if (ea && data.artista != null) ea.value = musicaAtiva.artista || '';
-  }
-  return { ok: true };
-}
-
-function removerCopiaLocal(idMusica, copiaId) {
-  return mapaCopiasLocais.remover(idMusica, copiaId);
-}
-
-function removerCopiasLocaisDaMusica(idMusica) {
-  mapaCopiasLocais.removerTodas(idMusica);
-}
+// (extraído) cópias locais de letra → painel/copiasLocaisPainel.js
 // (extraído) estado da biblioteca → painel/bibliotecaMusicas.js
 let letrasSiteFonte = 'lyra-online';
 // (extraído) lista local renderizada → painel/bibliotecaMusicas.js
@@ -7742,601 +7359,7 @@ window.addEventListener('resize', () => {
   });
 });
 
-function loadPlaylists() {
-  try {
-    let raw = localStorage.getItem(LS_PLAYLISTS);
-    if (!raw && localStorage.getItem(LS_PLAYLISTS_LEGACY)) {
-      raw = localStorage.getItem(LS_PLAYLISTS_LEGACY);
-      localStorage.setItem(LS_PLAYLISTS, raw);
-      localStorage.removeItem(LS_PLAYLISTS_LEGACY);
-    }
-    if (!raw) return {};
-    const p = JSON.parse(raw);
-    return typeof p === 'object' && p ? p : {};
-  } catch (_) { return {}; }
-}
-
-function normalizarTemaPlaylist(v) {
-  return String(v || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .slice(0, 40)
-    .toLocaleUpperCase('pt-BR');
-}
-
-function normalizarListaTemas(arr) {
-  if (!Array.isArray(arr)) return [];
-  const seen = new Set();
-  const out = [];
-  arr.forEach((t) => {
-    const n = normalizarTemaPlaylist(t);
-    if (!n || seen.has(n)) return;
-    seen.add(n);
-    out.push(n);
-  });
-  return out;
-}
-
-/**
- * Remove marcadores do tema e todas as músicas desse bloco (ordem dos marcadores na playlist).
- * O cabeçalho visual segue o marcador anterior; muitas linhas podem ter `tema` vazio ou desactualizado.
- */
-function filtrarPlaylistRemovendoTemaComMarcadores(pl, tNorm) {
-  const t = normalizarTemaPlaylist(tNorm);
-  if (!t || !Array.isArray(pl)) return pl ? pl.slice() : [];
-  const out = [];
-  const len = pl.length;
-  let i = 0;
-
-  if (len && !ehMarcadorTemaPlaylist(pl[0])) {
-    let j = 0;
-    while (j < len && !ehMarcadorTemaPlaylist(pl[j])) j++;
-    const temaPrefixo = normalizarTemaPlaylist(pl[0]?.tema);
-    for (let k = 0; k < j; k++) {
-      const it = pl[k];
-      const ti = normalizarTemaPlaylist(it?.tema);
-      if (temaPrefixo === t || ti === t) continue;
-      out.push(it);
-    }
-    i = j;
-  }
-
-  let ignorarAteProximoMarcador = false;
-  while (i < len) {
-    const it = pl[i];
-    if (ehMarcadorTemaPlaylist(it)) {
-      const mt = normalizarTemaPlaylist(it.tema);
-      if (mt === t) {
-        ignorarAteProximoMarcador = true;
-        i++;
-        continue;
-      }
-      ignorarAteProximoMarcador = false;
-      out.push(it);
-      i++;
-      continue;
-    }
-    if (ignorarAteProximoMarcador) {
-      i++;
-      continue;
-    }
-    if (normalizarTemaPlaylist(it?.tema) === t) {
-      i++;
-      continue;
-    }
-    out.push(it);
-    i++;
-  }
-  return out;
-}
-
-function chaveArmazenamentoSecaoTemaPlaylist(cid, rotuloCabecalho) {
-  const n = normalizarTemaPlaylist(rotuloCabecalho);
-  const tag = n ? n : '__SEM_TEMA__';
-  return `${String(cid || '')}|||${tag}`;
-}
-
-function carregarMapaSecoesTemaPlaylistRecolhidas() {
-  try {
-    const o = JSON.parse(localStorage.getItem(LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS) || '{}');
-    return o && typeof o === 'object' ? o : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-function secaoTemaPlaylistRecolhida(cid, rotuloCabecalho) {
-  const k = chaveArmazenamentoSecaoTemaPlaylist(cid, rotuloCabecalho);
-  return !!carregarMapaSecoesTemaPlaylistRecolhidas()[k];
-}
-
-function definirSecaoTemaPlaylistRecolhida(cid, rotuloCabecalho, recolhido) {
-  const m = { ...carregarMapaSecoesTemaPlaylistRecolhidas() };
-  const k = chaveArmazenamentoSecaoTemaPlaylist(cid, rotuloCabecalho);
-  if (recolhido) m[k] = true;
-  else delete m[k];
-  try {
-    localStorage.setItem(LS_PLAYLIST_SECOES_TEMA_RECOLHIDAS, JSON.stringify(m));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function atualizarUiExpandSecaoTema(btn, recolhido) {
-  if (recolhido) {
-    btn.innerHTML = SVG_PLAYLIST_SECAO_EXPANDIR;
-    btn.title = 'Expandir músicas deste tema';
-    btn.setAttribute('aria-expanded', 'false');
-  } else {
-    btn.innerHTML = SVG_PLAYLIST_SECAO_RECOLHER;
-    btn.title = 'Recolher músicas deste tema';
-    btn.setAttribute('aria-expanded', 'true');
-  }
-}
-
-function playlistPossuiMarcadoresTema(pl) {
-  return Array.isArray(pl) && pl.some(ehMarcadorTemaPlaylist);
-}
-
-function obterUltimoMarcadorTema(pl) {
-  if (!Array.isArray(pl)) return '';
-  for (let i = pl.length - 1; i >= 0; i--) {
-    if (ehMarcadorTemaPlaylist(pl[i])) return normalizarTemaPlaylist(pl[i].tema);
-  }
-  return '';
-}
-
-/** Lista os temas distintos (por marcador) presentes na playlist, na ordem em que aparecem. */
-function listarMarcadoresTemaPlaylist(pl) {
-  if (!Array.isArray(pl)) return [];
-  const seen = new Set();
-  const out = [];
-  for (const it of pl) {
-    if (!ehMarcadorTemaPlaylist(it)) continue;
-    const t = normalizarTemaPlaylist(it.tema);
-    if (t && !seen.has(t)) {
-      seen.add(t);
-      out.push(t);
-    }
-  }
-  return out;
-}
-
-/**
- * Insere `item` no fim do bloco do tema escolhido (posição correta na playlist plana),
- * já que os blocos são delimitados por marcadores. Se o tema não for encontrado, faz push.
- * Usa a última ocorrência do marcador, caso haja marcadores repetidos com o mesmo nome.
- */
-function inserirMusicaNoBlocoTema(pl, tema, item) {
-  if (!Array.isArray(pl)) return;
-  const alvo = normalizarTemaPlaylist(tema);
-  let markerIdx = -1;
-  for (let i = 0; i < pl.length; i++) {
-    if (ehMarcadorTemaPlaylist(pl[i]) && normalizarTemaPlaylist(pl[i].tema) === alvo) {
-      markerIdx = i;
-    }
-  }
-  if (markerIdx < 0) {
-    pl.push(item);
-    return;
-  }
-  let fimBloco = markerIdx + 1;
-  while (fimBloco < pl.length && !ehMarcadorTemaPlaylist(pl[fimBloco])) fimBloco++;
-  pl.splice(fimBloco, 0, item);
-}
-
-function loadTemaSelecionadoPorCulto() {
-  try {
-    const raw = localStorage.getItem(LS_PLAYLIST_TEMA_SEL);
-    if (!raw) return {};
-    const p = JSON.parse(raw);
-    return p && typeof p === 'object' ? p : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-function saveTemaSelecionadoPorCulto() {
-  try {
-    localStorage.setItem(LS_PLAYLIST_TEMA_SEL, JSON.stringify(temaSelecionadoPorCulto || {}));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function migrarTemasParaGlobal() {
-  try {
-    const raw = localStorage.getItem(LS_PLAYLIST_TEMAS);
-    if (!raw) return;
-    const p = JSON.parse(raw);
-    if (!p || typeof p !== 'object') return;
-    // Se já tem __global__, não faz nada
-    if (Array.isArray(p['__global__']) && p['__global__'].length) return;
-    // Junta todos os temas de todos os cultos em __global__
-    const todos = [];
-    const seen = new Set();
-    Object.values(p).forEach((arr) => {
-      if (!Array.isArray(arr)) return;
-      arr.forEach((t) => {
-        const n = normalizarTemaPlaylist(t);
-        if (n && !seen.has(n)) { seen.add(n); todos.push(n); }
-      });
-    });
-    if (!todos.length) return;
-    p['__global__'] = ordenarTemasLista(todos);
-    localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(p));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function loadTemasPorCulto() {
-  try {
-    const raw = localStorage.getItem(LS_PLAYLIST_TEMAS);
-    if (!raw) return {};
-    const p = JSON.parse(raw);
-    if (!p || typeof p !== 'object') return {};
-    const out = {};
-    Object.keys(p).forEach((cid) => {
-      out[cid] = normalizarListaTemas(p[cid]);
-    });
-    return out;
-  } catch (_) {
-    return {};
-  }
-}
-
-function saveTemasPorCulto() {
-  try {
-    localStorage.setItem(LS_PLAYLIST_TEMAS, JSON.stringify(temasPorCulto || {}));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  marcarBancoCompartilhadoAlterado();
-}
-
-function getTemasDoCultoAtual() {
-  if (!Array.isArray(temasPorCulto['__global__'])) temasPorCulto['__global__'] = [];
-  temasPorCulto['__global__'] = normalizarListaTemas(temasPorCulto['__global__']);
-  return temasPorCulto['__global__'];
-}
-
-function garantirTemaNoCatalogoAtual(tema) {
-  const t = normalizarTemaPlaylist(tema);
-  if (!t) return;
-  const lista = getTemasDoCultoAtual();
-  if (lista.includes(t)) return;
-  lista.push(t);
-  temasPorCulto['__global__'] = normalizarListaTemas(lista);
-  saveTemasPorCulto();
-}
-
-/** Mantém a ordem do array e coloca ABERTURA sempre em primeiro. */
-function ordenarTemasLista(arr) {
-  const lista = normalizarListaTemas(arr || []);
-  const resto = lista.filter((t) => t !== TEMA_PADRAO_ABERTURA);
-  if (lista.includes(TEMA_PADRAO_ABERTURA)) return [TEMA_PADRAO_ABERTURA, ...resto];
-  return resto;
-}
-
-let aberturaRemovidaPorCulto = {};
-
-/** Ministrante padrão por culto — herdado por músicas novas na playlist. */
-let ministrantePadraoPorCulto = {};
-
-/** Há pelo menos uma música (não marcador de tema) na playlist do culto. */
-function cultoTemMusicaNaPlaylist(cid) {
-  const id = String(cid || '').trim();
-  if (!id) return false;
-  const pl = playlists[id];
-  if (!Array.isArray(pl)) return false;
-  return pl.some((it) => it && !ehMarcadorTemaPlaylist(it));
-}
-
-/**
- * Mapa só com cultos que têm música — é o que pode sobreviver a reload/sair.
- * Sem música na playlist, a seleção do ministrante é só da sessão actual.
- */
-function mapaMinistrantePadraoPersistivel() {
-  const src = normalizarMinistrantePadraoPorCulto(ministrantePadraoPorCulto);
-  const out = {};
-  for (const [cid, mid] of Object.entries(src)) {
-    if (cultoTemMusicaNaPlaylist(cid)) out[cid] = mid;
-  }
-  return out;
-}
-
-function loadMinistrantePadraoPorCulto() {
-  try {
-    const raw = localStorage.getItem(LS_PLAYLIST_MINISTRANTE_PADRAO);
-    if (!raw) return {};
-    return normalizarMinistrantePadraoPorCulto(JSON.parse(raw));
-  } catch (_) {
-    return {};
-  }
-}
-
-function persistirMinistrantePadraoNoLocalStorage() {
-  try {
-    localStorage.setItem(LS_PLAYLIST_MINISTRANTE_PADRAO, JSON.stringify(mapaMinistrantePadraoPersistivel()));
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-function saveMinistrantePadraoPorCulto() {
-  persistirMinistrantePadraoNoLocalStorage();
-  marcarBancoCompartilhadoAlterado();
-}
-
-function setMinistrantePadraoCulto(cid, ministranteId) {
-  const id = String(cid || '').trim();
-  if (!id) return;
-  const mid = normalizarMinistranteIdPlaylist(ministranteId);
-  if (mid) ministrantePadraoPorCulto[id] = mid;
-  else delete ministrantePadraoPorCulto[id];
-  saveMinistrantePadraoPorCulto();
-}
-
-/**
- * No arranque/reload: descarta selecções gravadas de cultos sem músicas.
- * A UI fica limpa; só permanece o que ainda tem playlist com música.
- */
-function podarMinistrantePadraoSemMusicasNaPlaylist() {
-  let mudou = false;
-  for (const cid of Object.keys(ministrantePadraoPorCulto || {})) {
-    if (!cultoTemMusicaNaPlaylist(cid)) {
-      delete ministrantePadraoPorCulto[cid];
-      mudou = true;
-    }
-  }
-  if (mudou) saveMinistrantePadraoPorCulto();
-  return mudou;
-}
-
-/**
- * Ministrante padrão do culto. Se ainda não estiver gravado, infere quando todas as
- * músicas existentes partilham o mesmo ministrante (playlists já configuradas antes
- * desta funcionalidade).
- */
-function getMinistrantePadraoCulto(cid) {
-  const id = String(cid || '').trim();
-  if (!id) return null;
-  const stored = normalizarMinistranteIdPlaylist(ministrantePadraoPorCulto[id]);
-  if (stored) return stored;
-  const pl = playlists[id];
-  if (!Array.isArray(pl)) return null;
-  let unico = null;
-  for (const it of pl) {
-    if (!it || ehMarcadorTemaPlaylist(it)) continue;
-    const mid = normalizarMinistranteIdPlaylist(it.ministranteId);
-    if (!mid) return null;
-    if (unico == null) unico = mid;
-    else if (unico !== mid) return null;
-  }
-  if (unico) {
-    ministrantePadraoPorCulto[id] = unico;
-    saveMinistrantePadraoPorCulto();
-  }
-  return unico;
-}
-
-/** Ministrante + tom para uma música recém-adicionada à playlist. */
-async function camposMinistranteTomParaNovaMusicaNaPlaylist(cid, meta) {
-  const fromMeta = normalizarMinistranteIdPlaylist(meta?.ministranteId);
-  if (fromMeta) {
-    return {
-      ministranteId: fromMeta,
-      tom: normalizarTomPlaylist(meta?.tom),
-    };
-  }
-  const padrao = getMinistrantePadraoCulto(cid);
-  if (!padrao) return { ministranteId: null, tom: '' };
-  let tom = '';
-  try {
-    tom =
-      (await buscarTomMemoria(
-        getControllerApiBase(),
-        padrao,
-        Number(meta?.id),
-        fonteBancoItemPlaylist(meta),
-        meta?.titulo
-      )) || '';
-  } catch (_) {
-    // intencional — memória indisponível; ministrante sem tom
-  }
-  return { ministranteId: padrao, tom: normalizarTomPlaylist(tom) };
-}
-
-function loadAberturaRemovidaPorCulto() {
-  try {
-    const raw = localStorage.getItem(LS_PLAYLIST_ABERTURA_REMOVIDA);
-    if (!raw) return {};
-    const p = JSON.parse(raw);
-    return p && typeof p === 'object' ? p : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-function saveAberturaRemovidaPorCulto() {
-  try {
-    localStorage.setItem(LS_PLAYLIST_ABERTURA_REMOVIDA, JSON.stringify(aberturaRemovidaPorCulto || {}));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  marcarBancoCompartilhadoAlterado();
-}
-
-function cultoUsuarioRemoveuAbertura(cid) {
-  return !!aberturaRemovidaPorCulto[String(cid || '')];
-}
-
-function marcarAberturaRemovidaPeloUsuario(cid) {
-  const id = String(cid || '');
-  if (!id) return;
-  aberturaRemovidaPorCulto[id] = true;
-  saveAberturaRemovidaPorCulto();
-}
-
-function desmarcarAberturaRemovidaPeloUsuario(cid) {
-  const id = String(cid || '');
-  if (!id) return;
-  delete aberturaRemovidaPorCulto[id];
-  saveAberturaRemovidaPorCulto();
-}
-
-function playlistTemMarcadorAbertura(pl) {
-  return (pl || []).some(
-    (it) => ehMarcadorTemaPlaylist(it) && normalizarTemaPlaylist(it.tema) === TEMA_PADRAO_ABERTURA
-  );
-}
-
-function playlistParaBlocosComMarcadores(pl) {
-  const blocos = [];
-  let i = 0;
-  if (pl.length && !ehMarcadorTemaPlaylist(pl[0])) {
-    let j = 0;
-    while (j < pl.length && !ehMarcadorTemaPlaylist(pl[j])) j++;
-    blocos.push({
-      tema: normalizarTemaPlaylist(pl[0]?.tema) || '',
-      itens: pl.slice(0, j),
-      markerPlIdx: null,
-    });
-    i = j;
-  }
-  while (i < pl.length) {
-    if (ehMarcadorTemaPlaylist(pl[i])) {
-      const markerPlIdx = i;
-      const tema = normalizarTemaPlaylist(pl[i].tema);
-      let j = i + 1;
-      while (j < pl.length && !ehMarcadorTemaPlaylist(pl[j])) j++;
-      blocos.push({ tema, itens: pl.slice(i, j), markerPlIdx });
-      i = j;
-    } else {
-      i++;
-    }
-  }
-  return blocos;
-}
-
-function blocosComMarcadoresParaPlaylist(blocos) {
-  return blocos.flatMap((b) => b.itens);
-}
-
-function garantirAberturaNoCatalogoCulto(cid) {
-  garantirTemaNoCatalogoAtual(TEMA_PADRAO_ABERTURA);
-  if (!cid) return;
-  if (!Array.isArray(temasPorCulto[cid])) temasPorCulto[cid] = [];
-  const lista = normalizarListaTemas(temasPorCulto[cid]);
-  if (!lista.includes(TEMA_PADRAO_ABERTURA)) {
-    temasPorCulto[cid] = [TEMA_PADRAO_ABERTURA, ...lista];
-    saveTemasPorCulto();
-  } else {
-    const ordenada = ordenarTemasLista(lista);
-    if (ordenada.join('\u0001') !== lista.join('\u0001')) {
-      temasPorCulto[cid] = ordenada;
-      saveTemasPorCulto();
-    }
-  }
-}
-
-function garantirMarcadorAberturaNaPlaylist(cid) {
-  if (!cid || cultoUsuarioRemoveuAbertura(cid)) return false;
-  const pl = getPlaylist(cid);
-  if (playlistTemMarcadorAbertura(pl)) return false;
-  garantirAberturaNoCatalogoCulto(cid);
-  pl.unshift({ tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: TEMA_PADRAO_ABERTURA });
-  playlists[cid] = pl;
-  return true;
-}
-
-function sincronizarOrdemTemasCatalogoComPlaylist(cid) {
-  if (!cid) return;
-  const pl = getPlaylist(cid);
-  const ordem = [];
-  const seen = new Set();
-  playlistParaBlocosComMarcadores(pl).forEach((b) => {
-    const t = b.tema;
-    if (t && !seen.has(t)) {
-      seen.add(t);
-      ordem.push(t);
-    }
-  });
-  (pl || []).forEach((it) => {
-    if (ehMarcadorTemaPlaylist(it)) return;
-    const t = normalizarTemaPlaylist(it?.tema);
-    if (t && !seen.has(t)) {
-      seen.add(t);
-      ordem.push(t);
-    }
-  });
-  const extras = (temasPorCulto[cid] || []).filter((t) => t && !seen.has(t));
-  temasPorCulto[cid] = ordenarTemasLista(normalizarListaTemas([...ordem, ...extras]));
-  saveTemasPorCulto();
-}
-
-/**
- * Move o bloco do tema `fromMarkerIdx` para antes ou depois do bloco `toMarkerIdx`.
- *
- * `posicao` é obrigatória para o resultado ser previsível: com um único índice de
- * destino, arrastar para baixo e para cima davam semânticas diferentes (o `splice`
- * de inserção acontece já com os índices deslocados pela remoção). Aqui o destino é
- * calculado na lista original e só depois compensado em -1 quando o bloco removido
- * estava antes dele.
- *
- * @returns {boolean} `true` se a ordem mudou de facto.
- */
-function reordenarMarcadoresTemaNaPlaylist(cid, fromMarkerIdx, toMarkerIdx, posicao = 'antes') {
-  const from = Number(fromMarkerIdx);
-  const to = Number(toMarkerIdx);
-  if (!cid || !Number.isFinite(from) || !Number.isFinite(to) || from === to) return false;
-  const pl = getPlaylist(cid);
-  const blocos = playlistParaBlocosComMarcadores(pl);
-  const fromB = blocos.findIndex((b) => b.markerPlIdx === from);
-  const toB = blocos.findIndex((b) => b.markerPlIdx === to);
-  if (fromB < 0 || toB < 0 || blocos[fromB].markerPlIdx == null) return false;
-
-  let alvo = posicao === 'depois' ? toB + 1 : toB;
-  /* O bloco inicial sem marcador (músicas antes do 1.º tema) tem de continuar em
-     primeiro: sem marcador próprio, as suas músicas seriam absorvidas pelo tema acima. */
-  if (blocos[0] && blocos[0].markerPlIdx == null && alvo === 0) alvo = 1;
-  if (fromB < alvo) alvo -= 1;
-  if (alvo === fromB) return false;
-
-  const reord = [...blocos];
-  const [bloco] = reord.splice(fromB, 1);
-  reord.splice(alvo, 0, bloco);
-  playlists[cid] = blocosComMarcadoresParaPlaylist(reord);
-  sincronizarOrdemTemasCatalogoComPlaylist(cid);
-  savePlaylists();
-  return true;
-}
-
-function renomearTemaNoCulto(velho, novo) {
-  const v = normalizarTemaPlaylist(velho);
-  const n = normalizarTemaPlaylist(novo);
-  if (!v || !n) return false;
-  if (v === n) return true;
-  const lista = ordenarTemasLista(getTemasDoCultoAtual());
-  if (!lista.includes(v)) return false;
-  if (lista.includes(n)) {
-    appAlert('Já existe um tema com esse nome.');
-    return false;
-  }
-  temasPorCulto['__global__'] = normalizarListaTemas(lista.map((t) => (t === v ? n : t)));
-  saveTemasPorCulto();
-  // Atualiza todas as playlists
-  Object.keys(playlists).forEach((cid) => {
-    const pl = getPlaylist(cid);
-    pl.forEach((it) => {
-      if (normalizarTemaPlaylist(it.tema) === v) it.tema = n;
-    });
-  });
-  if (getTemaSelecionadoAtual() === v) setTemaSelecionadoAtual(n);
-  savePlaylists();
-  return true;
-}
+// (extraído) playlists, temas e ministrante → painel/playlistTemas.js
 
 let compartilharPlaylistEmAndamento = false;
 
@@ -9569,7 +8592,7 @@ function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpda
     cultosManuais: Array.isArray(cultosManuaisCache) ? cultosManuaisCache : [],
     temasPorCulto: temasPorCulto && typeof temasPorCulto === 'object' ? temasPorCulto : {},
     aberturaRemovidaPorCulto:
-      aberturaRemovidaPorCulto && typeof aberturaRemovidaPorCulto === 'object' ? aberturaRemovidaPorCulto : {},
+      getAberturaRemovidaPorCulto() && typeof aberturaRemovidaPorCulto === 'object' ? getAberturaRemovidaPorCulto() : {},
     ministrantePadraoPorCulto: mapaMinistrantePadraoPersistivel(),
   };
   if (incluirPlaylists) payload.playlists = playlists && typeof playlists === 'object' ? playlists : {};
@@ -9641,13 +8664,12 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
     src.temasPorCulto && typeof src.temasPorCulto === 'object' && !Array.isArray(src.temasPorCulto)
       ? src.temasPorCulto
       : {};
-  aberturaRemovidaPorCulto =
-    src.aberturaRemovidaPorCulto &&
+  setAberturaRemovidaPorCulto(src.aberturaRemovidaPorCulto &&
     typeof src.aberturaRemovidaPorCulto === 'object' &&
     !Array.isArray(src.aberturaRemovidaPorCulto)
       ? src.aberturaRemovidaPorCulto
-      : {};
-  ministrantePadraoPorCulto = normalizarMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto);
+      : {});
+  setMinistrantePadraoPorCulto(normalizarMinistrantePadraoPorCulto(src.ministrantePadraoPorCulto));
   podarMinistrantePadraoSemMusicasNaPlaylist();
 
   try { localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists)); } catch (_) {
@@ -9660,7 +8682,7 @@ async function aplicarSnapshotCompartilhadoNoRenderer(snapshot, opts = {}) {
     // intencional — erro ignorado
   }
   try {
-    localStorage.setItem(LS_PLAYLIST_ABERTURA_REMOVIDA, JSON.stringify(aberturaRemovidaPorCulto || {}));
+    localStorage.setItem(LS_PLAYLIST_ABERTURA_REMOVIDA, JSON.stringify(getAberturaRemovidaPorCulto() || {}));
   } catch (_) {
     // intencional — erro ignorado
   }
@@ -11231,7 +10253,7 @@ async function onCfgMinistranteExcluir(id, nome) {
   try {
     await excluirMinistranteNoServidor(getControllerApiBase(), id);
     if (limparMinistranteDasPlaylists(playlists, id)) savePlaylists();
-    if (limparMinistrantePadraoPorCulto(ministrantePadraoPorCulto, id)) saveMinistrantePadraoPorCulto();
+    if (limparMinistrantePadraoPorCulto(getMinistrantePadraoPorCulto(), id)) saveMinistrantePadraoPorCulto();
     await renderListaCfgMinistrantes();
     renderPlaylist();
   } catch (e) {
@@ -16767,8 +15789,8 @@ async function aoLigarSocketRemoto(_ip) {
   migrarTemasParaGlobal();
   temasPorCulto = loadTemasPorCulto();
   temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
-  aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
-  ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
+  setAberturaRemovidaPorCulto(loadAberturaRemovidaPorCulto());
+  setMinistrantePadraoPorCulto(loadMinistrantePadraoPorCulto());
   podarMinistrantePadraoSemMusicasNaPlaylist();
   forcarRepinturaCompositorLyra();
   await carregarMusicas(_ip);
@@ -17980,8 +17002,8 @@ try {
   cultosManuaisCache = loadCultosManuais();
   temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
   temasPorCulto = loadTemasPorCulto();
-  aberturaRemovidaPorCulto = loadAberturaRemovidaPorCulto();
-  ministrantePadraoPorCulto = loadMinistrantePadraoPorCulto();
+  setAberturaRemovidaPorCulto(loadAberturaRemovidaPorCulto());
+  setMinistrantePadraoPorCulto(loadMinistrantePadraoPorCulto());
   podarMinistrantePadraoSemMusicasNaPlaylist();
   migrarPlaylistsCultosAntigos();
   carregarEstadoModoApresentacaoDoStorage();
