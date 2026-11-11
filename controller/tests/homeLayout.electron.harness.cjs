@@ -53,6 +53,7 @@ window.__homeTest = {
  state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
  filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
+ versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
@@ -172,6 +173,10 @@ async function run() {
   await check('salvar grava pelo handler existente e volta à visualização da letra completa',`__homeTest.state().full && document.getElementById('centro-letra-completa-ta').readOnly===true && __homeTest.state().slides[0]==='Letra alterada'`);
   await js(`document.querySelector('[data-versao-id="3"]').click()`);await pause();
   await check('dropdown identifica versão ativa e atualiza prévia',`__homeTest.state().id===3 && document.querySelector('.home-other-versions summary').textContent.toUpperCase().includes('ACÚSTICA') && document.getElementById('pl-pv-slide').textContent.includes('VERSÃO ACÚSTICA')`);
+  await js(`__homeTest.versaoBase.aplicar({root_id:7},7,'copia-teste')`);
+  await check('Versões: aplicar a base da música grava raiz e versão local no estado do núcleo (setters)',`__homeTest.versaoBase.raiz()===7 && __homeTest.versaoBase.local()==='copia-teste'`);
+  await js(`__homeTest.versaoBase.aplicar({root_id:1},3,null)`);
+  await check('Versões: sem versão local o estado volta a nulo',`__homeTest.versaoBase.raiz()===1 && __homeTest.versaoBase.local()===null`);
   await js(`document.getElementById('btn-apagar-copia-versao').click()`);await pause();
   await check('apagar versão mantém confirmação',`!document.getElementById('app-dialog-overlay').hidden && !__requests.some(r=>r.method==='DELETE')`);
   await js(`document.getElementById('app-dialog-cancel').click();__songs[1].estrofes=structuredClone(__songs[0].estrofes);__homeTest.seed()`);await pause();
