@@ -10,20 +10,9 @@ import { criarItemApresentacaoDeArquivo, renderMenuApresentacao } from './biblio
 import { garantirThumbnailVideoItem, garantirVideoSrcHttp, projetarItemApresentacao, videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { APRESENTACAO_IDX_CARD4, APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
 import { agendarSalvarEstadoAposDigitarAviso, flushSalvarEstadoAposDigitarAviso, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
-import { aplicarEstiloTextareaAvisoCard6, atualizarFeedbackProjecaoApresentacaoUi, criarSeletorMonitorAvisoCard6, emitirEncerrarApresentacaoPublicoAoServidor, projetarAvisoCard6 } from './conteudoUnificadoAviso.js';
+import { aplicarEstiloTextareaAvisoCard6, atualizarFeedbackProjecaoApresentacaoUi, criarSeletorMonitorAvisoCard6, emitirEncerrarApresentacaoPublicoAoServidor, getApresentacaoAvisoCard6Ativo, projetarAvisoCard6 } from './conteudoUnificadoAviso.js';
 import { ehModoApresentacaoOperador } from './modosUi.js';
 import { encerrarAvisoCard6NoControlador } from './menuApresentacaoModo.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasGridApresentacao(d) {
-  dep = d || {};
-}
-const ehItemImagemApresentacao = (...a) => dep.ehItemImagemApresentacao(...a);
 
 /**
  * URL segura para `<img>` nos cards: só conteúdo **imagem** (`data:image/…`, `blob:` ou
@@ -481,7 +470,7 @@ export function renderGridApresentacao() {
   card6.dataset.apCardIdx = '5';
   card6.className = 'ap-card ap-card--aviso';
   card6.title = 'Clique para selecionar o card · duplo clique fora do texto para projetar';
-  if (dep.getApresentacaoAvisoCard6Ativo()) card6.classList.add('ap-card--projetando');
+  if (getApresentacaoAvisoCard6Ativo()) card6.classList.add('ap-card--projetando');
   const num6 = document.createElement('span');
   num6.className = 'ap-card-num';
   num6.textContent = 'CARD 6 — AVISOS';
@@ -529,7 +518,7 @@ export function renderGridApresentacao() {
     apresentacaoCardUiClickTimer = null;
     projetarAvisoCard6();
   });
-  if (dep.getApresentacaoAvisoCard6Ativo()) {
+  if (getApresentacaoAvisoCard6Ativo()) {
     const live = document.createElement('div');
     live.className = 'ap-card-live-pill';
     live.textContent = 'AO VIVO';
@@ -543,7 +532,7 @@ export function renderGridApresentacao() {
   btnProjCard6.type = 'button';
   btnProjCard6.className = 'btn sm primary ap-card6-btn-projetar';
   /* Visual: ▶ + «Projetar»; com o aviso no ar, pontinho verde + «Projetando». */
-  btnProjCard6.innerHTML = dep.getApresentacaoAvisoCard6Ativo()
+  btnProjCard6.innerHTML = getApresentacaoAvisoCard6Ativo()
     ? '<span class="ap-card6-dot" aria-hidden="true"></span><span>Projetando</span>'
     : '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg><span>Projetar</span>';
   btnProjCard6.title = 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)';
@@ -558,7 +547,7 @@ export function renderGridApresentacao() {
     '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg>';
   btnEncerrarAviso.title = 'Encerrar';
   btnEncerrarAviso.setAttribute('aria-label', 'Encerrar');
-  btnEncerrarAviso.disabled = !dep.getApresentacaoAvisoCard6Ativo();
+  btnEncerrarAviso.disabled = !getApresentacaoAvisoCard6Ativo();
   btnEncerrarAviso.addEventListener('click', (ev) => {
     ev.stopPropagation();
     void encerrarAvisoCard6NoControlador();
@@ -645,4 +634,11 @@ export function getApresentacaoCardUiClickTimer() {
 
 export function setApresentacaoCardUiClickTimer(valor) {
   apresentacaoCardUiClickTimer = valor;
+}
+
+/** As quatro áreas exibem imagens; o mesmo critério que a prévia dos outros cards usa. */
+export function ehItemImagemApresentacao(it) {
+  const kind = String(it?.kind || '').toLowerCase();
+  const mime = String(it?.mime || '').toLowerCase();
+  return kind === 'image' || mime.startsWith('image/') || /^data:image\//i.test(String(it?.src || ''));
 }

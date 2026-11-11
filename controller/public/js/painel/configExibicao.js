@@ -17,7 +17,7 @@ import { inicializarSlidersComEdicao, sincronizarSliderComEdicao } from '../modu
 import { normalizarCfgAvisoCard6 } from '../modules/midiaApresentacao.js';
 import { normalizarCorComentarioMinistrante } from '../modules/comentariosSlide.js';
 import { popularFormCfgContagem } from './contagemRegressiva.js';
-import { estadoPainel, projecao } from './estadoPainel.js';
+import { APRESENTACAO_IDX_CARD5, estadoPainel, projecao } from './estadoPainel.js';
 import { agendarAtualizacaoAvisoCard6AoVivo, algumCampoAvisoCard6EmEdicao } from './conteudoUnificadoAviso.js';
 import { aplicarEstiloPreviewTituloAbertura } from './tituloAberturaPreview.js';
 import { atualizarUrlsObs } from './projecaoLocalObs.js';
@@ -28,18 +28,8 @@ import { hostProjecao } from './servidorAlvo.js';
 import { renderGridApresentacao } from './gridApresentacao.js';
 import { renderListaCfgMinistrantes } from './ministrantesTons.js';
 import { sincronizarPreviewOciosoMinistranteSlides } from './previewProjecao.js';
-import { bibliaPayloadCfgExibicao, bibliaPopularFormularioCfg, carregarBibliaCfgDoStorage, lerBibliaCfgDoFormularioMinistrante, lerBibliaCfgDoFormularioPublico, salvarBibliaCfgNoStorage } from './biblia.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado) e da Bíblia. O corpo abaixo é o original; estas ligações
- * são lidas a cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado depois.
- */
-export function registrarDependenciasConfigExibicao(d) {
-  dep = d || {};
-}
-const sincronizarTicksSliderVh = (...a) => dep.sincronizarTicksSliderVh(...a);
+import { bibliaPayloadCfgExibicao, bibliaPopularFormularioCfg, carregarBibliaCfgDoStorage, getBibliaCfgExibicao, getBibliaCfgMinistrante, lerBibliaCfgDoFormularioMinistrante, lerBibliaCfgDoFormularioPublico, salvarBibliaCfgNoStorage } from './biblia.js';
+import { sincronizarTicksSliderVh } from './inicializacaoPainel.js';
 
 function setPosAvisoCard6CtrlBtn(val) {
   const group = document.getElementById('cfg-card6-posy-ctrl-group');
@@ -438,7 +428,7 @@ export function sanitizarCfgSlidesLocal(cfg) {
 function hayVideoDoCard5EmProjecao() {
   const id = estadoPainel.apresentacaoMidiaProjetadaId;
   if (!id) return false;
-  const card = estadoPainel.apresentacaoCards?.[dep.getApresentacaoIdxCard5()];
+  const card = estadoPainel.apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
   return !!(card && card.id === id && String(card.kind || '').toLowerCase() === 'video');
 }
 
@@ -1441,6 +1431,6 @@ export function iniciarConfigExibicao() {
     // intencional — erro ignorado
   }
   loadDarkCtrl();
-  window.bibliaCfgExibicao = dep.getBibliaCfgExibicao();
-  window.bibliaCfgMinistrante = dep.getBibliaCfgMinistrante();
+  window.bibliaCfgExibicao = getBibliaCfgExibicao();
+  window.bibliaCfgMinistrante = getBibliaCfgMinistrante();
 }

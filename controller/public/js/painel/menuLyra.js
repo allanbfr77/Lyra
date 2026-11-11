@@ -8,28 +8,17 @@
  */
 import { appAlert, appConfirm } from './appDialog.js';
 import { estadoPainel } from './estadoPainel.js';
+import { alternarProjecaoNestaMaquina, emModoProjecaoLocal } from './projecaoLocalObs.js';
+import { interromperReconexaoSocket } from './socketPainelApi.js';
+import { correrPreVooDoCulto } from './preVoo.js';
+import { recarregarPainelControlador } from './recargaRepintura.js';
+import { abrirCfgModal } from './configExibicao.js';
 import {
   montarHtmlManualLyra,
   montarHtmlAtalhosLyra,
   montarHtmlSobreLyra,
   montarHtmlStatusReinicioServidor,
 } from './lyraMenuConteudo.js';
-
-let dep = {};
-
-/**
- * @param {object} d
- * @param {() => *} d.getSocket  socket atual (o núcleo reatribui-o; por isso é lido a cada uso)
- * @param {() => boolean} d.emModoProjecaoLocal
- * @param {() => void} d.interromperReconexaoSocket
- * @param {() => Promise<*>} d.correrPreVooDoCulto
- * @param {() => void} d.recarregarPainelControlador
- * @param {() => Promise<{ ok?: boolean, erro?: string }|undefined>} d.alternarProjecaoNestaMaquina
- * @param {(aba?: string) => void} d.abrirCfgModal
- */
-export function registrarDependenciasMenuLyra(d) {
-  dep = d || {};
-}
 
 const lyraMenuModalState = {
   canClose: true,
@@ -277,7 +266,7 @@ async function reiniciarServidorLocalViaMenu() {
  * Corta reconnect já no emit; o disconnect existente reassume o modo local.
  */
 export async function encerrarServidorRemotoViaMenu() {
-  if (dep.emModoProjecaoLocal() || !estadoPainel.socket || !estadoPainel.socket.connected) {
+  if (emModoProjecaoLocal() || !estadoPainel.socket || !estadoPainel.socket.connected) {
     await appAlert(
       'Conecte ao Servidor remoto (Ajustes › Conexão) para poder encerrá-lo.',
       'Encerrar Server'
@@ -291,7 +280,7 @@ export async function encerrarServidorRemotoViaMenu() {
   );
   if (!ok) return;
   /* Antes do emit: se o Servidor cair a seguir, o cliente não tenta ligar outra vez. */
-  dep.interromperReconexaoSocket();
+  interromperReconexaoSocket();
   try {
     await new Promise((resolve) => {
       let feito = false;
@@ -332,7 +321,7 @@ export async function tratarComandoMenuLyra(payload) {
   if (!command) return;
 
   if (command === 'culto-prevoo') {
-    await dep.correrPreVooDoCulto();
+    await correrPreVooDoCulto();
     return;
   }
   if (command === 'tools-clear-cache') {
@@ -340,7 +329,7 @@ export async function tratarComandoMenuLyra(payload) {
     return;
   }
   if (command === 'tools-recarregar-painel') {
-    dep.recarregarPainelControlador();
+    recarregarPainelControlador();
     return;
   }
   if (command === 'tools-restart-local-server') {
@@ -352,14 +341,14 @@ export async function tratarComandoMenuLyra(payload) {
     return;
   }
   if (command === 'tools-projetar-nesta-maquina') {
-    const r = await dep.alternarProjecaoNestaMaquina();
+    const r = await alternarProjecaoNestaMaquina();
     if (r && r.ok === false && r.erro) alert(r.erro);
     return;
   }
   /* Leva ao sítio onde o IP se escreve; quem liga é o botão «Conectar» de lá. O menu é só
      o atalho descobrível — e a ligação vale para a sessão, nada se grava. */
   if (command === 'tools-conectar-servidor-remoto') {
-    dep.abrirCfgModal('conexao');
+    abrirCfgModal('conexao');
     document.getElementById('ip-input')?.focus();
     return;
   }

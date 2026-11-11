@@ -21,18 +21,7 @@ import { getControllerApiBase } from './servidorAlvo.js';
 import { getPlaylist, savePlaylists } from './playlistServidor.js';
 import { renderPlaylist } from './playlistLista.js';
 import { renderSeletorTemasPlaylist } from './temasPlaylistUi.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistCompartilhar(d) {
-  dep = d || {};
-}
-const initCultoSelect = (...a) => dep.initCultoSelect(...a);
-const onCultoChange = (...a) => dep.onCultoChange(...a);
+import { initCultoSelect, onCultoChange } from './cultoSeletor.js';
 
 let compartilharPlaylistEmAndamento = false;
 

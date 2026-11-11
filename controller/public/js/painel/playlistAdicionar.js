@@ -17,17 +17,7 @@ import { formatarRotuloVersaoExibicao, rotuloVersaoMaiusculo } from './playlistL
 import { getControllerApiBase } from './servidorAlvo.js';
 import { getPlaylist, savePlaylists } from './playlistServidor.js';
 import { getTemaSelecionadoAtual } from './temasPlaylistUi.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistAdicionar(d) {
-  dep = d || {};
-}
-const onCultoChange = (...a) => dep.onCultoChange(...a);
+import { onCultoChange } from './cultoSeletor.js';
 
 export async function addMusicaNaPlaylist(meta) {
   if (!estadoPainel.cultoId) {

@@ -27,20 +27,11 @@ import { atualizarBtnTelaInicial, carregarTraducoes } from './menuApresentacaoMo
 import { atualizarPreviewOperador } from './previewProjecao.js';
 import { getControllerApiBase } from './servidorAlvo.js';
 import { limparUiAoSairDoModoSlides } from './modoSlidesOperador.js';
-import { mensagemAlvoInvalidoBiblia } from './conteudoUnificadoAviso.js';
+import { getUltimoConteudoProjetadoModoUnificado, mensagemAlvoInvalidoBiblia, setUltimoConteudoProjetadoModoUnificado } from './conteudoUnificadoAviso.js';
 import { preferenciaMovimentoReduzido } from './playlistLista.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasBiblia(d) {
-  dep = d || {};
-}
+import { reconhecimentoVozSlides } from './projecaoMusica.js';
 
 /** Tradução escolhida ao entrar no modo Bíblia; só vale nesta janela do controlador (não persiste ao fechar o app). */
 let bibliaTraducaoSessao = null;
@@ -304,11 +295,11 @@ export async function alternarModoBiblia() {
     atualizarBtnToggleModoSlides();
     atualizarBtnModoApresentacao();
     if (!ativo) {
-      dep.getReconhecimentoVozSlides().aoSairModoSlides();
+      reconhecimentoVozSlides.aoSairModoSlides();
       reconhecimentoVozBiblia.aoEntrarModoBiblia();
     } else {
       reconhecimentoVozBiblia.aoSairModoBiblia();
-      dep.getReconhecimentoVozSlides().atualizarUi();
+      reconhecimentoVozSlides.atualizarUi();
     }
   });
 }
@@ -947,8 +938,8 @@ function bibliaPrefetchCapitulosVizinhos() {
  */
 export function bibliaLimparProjecaoOperador() {
   bibliaParteProjetadaChave = null;
-  if (dep.getUltimoConteudoProjetadoModoUnificado()?.tipo === 'biblia') {
-    dep.setUltimoConteudoProjetadoModoUnificado(null);
+  if (getUltimoConteudoProjetadoModoUnificado()?.tipo === 'biblia') {
+    setUltimoConteudoProjetadoModoUnificado(null);
   }
   bibliaVersiculoSelecionadoIdx = null;
   document.querySelectorAll('.biblia-v-card').forEach((c) => {
@@ -1357,7 +1348,7 @@ async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
     somenteTexto: navegacaoRapida,
   };
   projecao.enfileirar('exibir_versiculo', payloadVersiculo);
-  dep.setUltimoConteudoProjetadoModoUnificado({ tipo: 'biblia', payload: payloadVersiculo });
+  setUltimoConteudoProjetadoModoUnificado({ tipo: 'biblia', payload: payloadVersiculo });
   bibliaPrefetchCapitulosVizinhos();
 }
 

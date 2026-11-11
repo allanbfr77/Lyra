@@ -24,20 +24,9 @@ import { getPlaylist } from './playlistServidor.js';
 import { renderItensLyraSelectDropdown, setupLyraSelectDropdownWrap } from './temasPlaylistUi.js';
 import { selecionarMusicaDoBanco } from './projecaoMusica.js';
 import { solicitarRemoverMusicaDoBancoServidor, solicitarRemoverMusicasDoBancoServidorEmLote } from './removerMusicaBanco.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasBibliotecaMusicas(d) {
-  dep = d || {};
-}
-const aplicarPlaceholderBuscaLetras = (...a) => dep.aplicarPlaceholderBuscaLetras(...a);
-const atualizarUiToggleListaBancoSqlite = (...a) => dep.atualizarUiToggleListaBancoSqlite(...a);
-const getLetrasSiteFonteAtual = (...a) => dep.getLetrasSiteFonteAtual(...a);
-const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
+import { aplicarPlaceholderBuscaLetras, atualizarUiToggleListaBancoSqlite, getLetrasSiteFonteAtual } from './conexaoLetrasUi.js';
+import { splitTextoEmEstrofesPorLinhaVaziaStrict } from './splitEstrofes.js';
+import { SVG_MENU_EDITAR, SVG_MENU_EXCLUIR, SVG_MENU_INSERIR } from './playlistMenus.js';
 
 let filtrarLocalTimer = null;
 /** Gerações da busca da Biblioteca: descartar resultado/trabalho de uma tecla já ultrapassada. */
@@ -444,7 +433,7 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
     itens: [
       {
         rotulo: 'Editar música',
-        svg: dep.getSVG_MENU_EDITAR(),
+        svg: SVG_MENU_EDITAR,
         /* Carregar primeiro: o modo de edição opera sobre `musicaAtiva`, e entrar nele
            sem a música carregada não faria nada. */
         aoEscolher: async () => {
@@ -458,7 +447,7 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
       },
       {
         rotulo: 'Adicionar à playlist',
-        svg: dep.getSVG_MENU_INSERIR(),
+        svg: SVG_MENU_INSERIR,
         aoEscolher: () =>
           addMusicaNaPlaylist({
             id: musica.id,
@@ -482,7 +471,7 @@ function abrirMenuContextoMusicaBanco(clientX, clientY, musica, linhaEl) {
       },
       {
         rotulo: 'Excluir música',
-        svg: dep.getSVG_MENU_EXCLUIR(),
+        svg: SVG_MENU_EXCLUIR,
         variante: 'perigo',
         separadorAntes: true,
         aoEscolher: () => {

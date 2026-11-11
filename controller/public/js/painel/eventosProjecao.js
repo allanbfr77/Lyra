@@ -25,24 +25,12 @@ import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
 import { aplicarSelecaoUiPlaylist, emitirPlaylistsDoControlador, enviarPlaylistsParaServidor } from './playlistServidor.js';
 import { atualizarBtnModoApresentacao, ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
-import { atualizarFeedbackProjecaoApresentacaoUi, atualizarRodapeAudioApresentacao } from './conteudoUnificadoAviso.js';
+import { atualizarFeedbackProjecaoApresentacaoUi, atualizarRodapeAudioApresentacao, getApresentacaoAvisoCard6Ativo, setApresentacaoAvisoCard6Ativo, setUltimoPayloadAvisoCard6 } from './conteudoUnificadoAviso.js';
 import { atualizarIndicadorProjecaoLiveUi } from './rotasMonitores.js';
 import { hostProjecao, readLsMigrate } from './servidorAlvo.js';
 import { projetarPorDuploCliqueCentral, selecionarMusicaDoBanco, sincronizarEstrofeAtiva } from './projecaoMusica.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasEventosProjecao(d) {
-  dep = d || {};
-}
-const agendarRepinturaCompositorAposEstadoServidor = (...a) => dep.agendarRepinturaCompositorAposEstadoServidor(...a);
-const assinaturaEstadoProjecaoRecebido = (...a) => dep.assinaturaEstadoProjecaoRecebido(...a);
-const atualizarUiConexao = (...a) => dep.atualizarUiConexao(...a);
-const forcarRepinturaCompositorLyra = (...a) => dep.forcarRepinturaCompositorLyra(...a);
+import { agendarRepinturaCompositorAposEstadoServidor, assinaturaEstadoProjecaoRecebido, forcarRepinturaCompositorLyra } from './recargaRepintura.js';
+import { atualizarUiConexao } from './conexaoLetrasUi.js';
 
 export async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;
@@ -170,21 +158,21 @@ function aoReceberEstadoDaProjecao(estado) {
   atualizarBtnModoApresentacao();
   agendarRepinturaCompositorAposEstadoServidor();
   try {
-    if (ehModoApresentacaoOperador() && (estadoPainel.apresentacaoMidiaProjetadaId || dep.getApresentacaoAvisoCard6Ativo())) {
+    if (ehModoApresentacaoOperador() && (estadoPainel.apresentacaoMidiaProjetadaId || getApresentacaoAvisoCard6Ativo())) {
       const tip = estado && estado.tipo;
       const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
       const pubAp =
         tip === 'apresentacao' ||
-        (tip === 'aviso' && dep.getApresentacaoAvisoCard6Ativo()) ||
+        (tip === 'aviso' && getApresentacaoAvisoCard6Ativo()) ||
         minAp;
       if (estadoPainel.apresentacaoMidiaProjetadaId && !pubAp && tip !== 'apresentacao') {
         estadoPainel.apresentacaoMidiaProjetadaId = null;
       }
-      if (dep.getApresentacaoAvisoCard6Ativo() && tip !== 'aviso' && !minAp) {
-        dep.setApresentacaoAvisoCard6Ativo(false);
-        dep.setUltimoPayloadAvisoCard6(null);
+      if (getApresentacaoAvisoCard6Ativo() && tip !== 'aviso' && !minAp) {
+        setApresentacaoAvisoCard6Ativo(false);
+        setUltimoPayloadAvisoCard6(null);
       }
-      if (!estadoPainel.apresentacaoMidiaProjetadaId && !dep.getApresentacaoAvisoCard6Ativo()) {
+      if (!estadoPainel.apresentacaoMidiaProjetadaId && !getApresentacaoAvisoCard6Ativo()) {
         atualizarFeedbackProjecaoApresentacaoUi();
       } else {
         atualizarFeedbackProjecaoApresentacaoUi();

@@ -14,17 +14,7 @@ import { ehModoBibliaOperador } from './modosUi.js';
 import { emitirEstadoMinistranteAoServidor } from './previewProjecao.js';
 import { getServidorIp } from './servidorAlvo.js';
 import { recordarIpsDestaMaquina, setStatusServidorRemoto } from './socketPainelApi.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasProjecaoLocalObs(d) {
-  dep = d || {};
-}
-const atualizarUiConexao = (...a) => dep.atualizarUiConexao(...a);
+import { atualizarUiConexao } from './conexaoLetrasUi.js';
 
 /* ─── Modo «projetar nesta máquina» ─────────────────────────────────────────────
  *

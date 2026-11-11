@@ -13,19 +13,8 @@ import { emitirPlaylistsDoControlador } from './playlistServidor.js';
 import { getControllerApiBase, getServidorProjeccaoIp } from './servidorAlvo.js';
 import { ponteProjecaoLocal } from './projecaoLocalObs.js';
 import { renderSeletorTemasPlaylist } from './temasPlaylistUi.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasSincronizacaoBanco(d) {
-  dep = d || {};
-}
-const forcarRepinturaCompositorLyra = (...a) => dep.forcarRepinturaCompositorLyra(...a);
-const initCultoSelect = (...a) => dep.initCultoSelect(...a);
-const onCultoChange = (...a) => dep.onCultoChange(...a);
+import { forcarRepinturaCompositorLyra } from './recargaRepintura.js';
+import { initCultoSelect, onCultoChange } from './cultoSeletor.js';
 
 let enviarPlaylistsServidorTimer = null;
 let persistirMetaSyncLocalTimer = null;
@@ -557,4 +546,8 @@ export function setSharedBancoLocalUpdatedAt(valor) {
 
 export function getModalSincronizarTimerAutoFechar() {
   return modalSincronizarTimerAutoFechar;
+}
+
+export function setModalSincronizarTimerAutoFechar(valor) {
+  modalSincronizarTimerAutoFechar = valor;
 }

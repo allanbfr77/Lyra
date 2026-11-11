@@ -19,19 +19,7 @@ import { emitirEstrofeAoServidor, exibirEstrofe, projetarPorDuploCliqueCentral }
 import { getControllerApiBase } from './servidorAlvo.js';
 import { renderPlaylist } from './playlistLista.js';
 import { repontarVersaoNaPlaylistDoCulto } from './playlistServidor.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasEditorEstrofes(d) {
-  dep = d || {};
-}
-const aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice = (...a) => dep.aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(...a);
-const aplicarSplitsEstrofesDosTextareasAntesDePersistir = (...a) => dep.aplicarSplitsEstrofesDosTextareasAntesDePersistir(...a);
-const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
+import { aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice, aplicarSplitsEstrofesDosTextareasAntesDePersistir, splitTextoEmEstrofesPorLinhaVaziaStrict } from './splitEstrofes.js';
 
 /**
  * Após separar estrofes no evento `input`, o `blur` do textarea antigo ainda tinha o texto com `\n\n`

@@ -12,18 +12,7 @@ import { estadoPainel } from './estadoPainel.js';
 import { fecharOutrosSeletoresDropdown } from './temasPlaylistUi.js';
 import { marcarBancoCompartilhadoAlterado } from './sincronizacaoBanco.js';
 import { savePlaylists } from './playlistServidor.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasCultoDoDia(d) {
-  dep = d || {};
-}
-const initCultoSelect = (...a) => dep.initCultoSelect(...a);
-const onCultoChange = (...a) => dep.onCultoChange(...a);
+import { initCultoSelect, onCultoChange } from './cultoSeletor.js';
 
 export function loadCultosManuais() {
   try {

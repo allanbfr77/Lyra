@@ -41,20 +41,10 @@ import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador,
 import { getControllerApiBase, hostProjecao } from './servidorAlvo.js';
 import { modoRoteamentoAtual } from './rotasMonitores.js';
 import { onCfgAutoConectarChange, onCfgLembrarIpChange } from './socketPainelApi.js';
-import { revelarChipEstrofeFocado } from './slidesGrelhaPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasProjecaoMusica(d) {
-  dep = d || {};
-}
-const alternarListaBancoSqlite = (...a) => dep.alternarListaBancoSqlite(...a);
-const conectar = (...a) => dep.conectar(...a);
-const recarregarPainelControlador = (...a) => dep.recarregarPainelControlador(...a);
+import { revelarChipEstrofeFocado, slidesGrelha } from './slidesGrelhaPainel.js';
+import { alternarListaBancoSqlite, conectar } from './conexaoLetrasUi.js';
+import { recarregarPainelControlador } from './recargaRepintura.js';
+import { getUltimoConteudoProjetadoModoUnificado, setUltimoConteudoProjetadoModoUnificado } from './conteudoUnificadoAviso.js';
 
 /**
  * Carrega uma música do banco no editor/projeção.
@@ -612,7 +602,7 @@ export function navegarEstrofePorSeta(tecla, opts) {
   let base = Number.isFinite(estadoPainel.estrofeAtiva) ? estadoPainel.estrofeAtiva : -1;
   if (base < 0) base = 0;
   let prox = base;
-  const cols = ehModoSlidesOperador() ? dep.getSlidesGrelha().getSlidesPorLinha() : 3;
+  const cols = ehModoSlidesOperador() ? slidesGrelha.getSlidesPorLinha() : 3;
 
   if (tecla === 'ArrowRight') prox = base + 1;
   else if (tecla === 'ArrowLeft') prox = base - 1;
@@ -713,8 +703,8 @@ export function encerrarProjecaoDoControlador(opts = {}) {
   projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
     bibliaZerarParteProjetada();
-    if (dep.getUltimoConteudoProjetadoModoUnificado()?.tipo === 'biblia') {
-      dep.setUltimoConteudoProjetadoModoUnificado(null);
+    if (getUltimoConteudoProjetadoModoUnificado()?.tipo === 'biblia') {
+      setUltimoConteudoProjetadoModoUnificado(null);
     }
     bibliaZerarVersiculoSelecionado();
     document.querySelectorAll('.biblia-v-card').forEach((c) => {

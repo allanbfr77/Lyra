@@ -12,17 +12,7 @@ import { montarPayloadExibirMusica } from './projecaoMusica.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { aplicarLayoutModoComparativo, comparativoSujoVsSnapshot, sairModoComparativoParaTrocarModo } from './comparativoVersoes.js';
 import { persistirMusicaAtivaNoServidor, renderEstrofesEditor, sincronizarFlagCaixaLetrasComTextoAtual } from './editorEstrofes.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasLetraCompleta(d) {
-  dep = d || {};
-}
-const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
+import { splitTextoEmEstrofesPorLinhaVaziaStrict } from './splitEstrofes.js';
 
 function juntarEstrofesParaLetraCompleta() {
   if (!estadoPainel.musicaAtiva?.estrofes) return '';

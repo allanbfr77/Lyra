@@ -10,17 +10,7 @@ import { fecharCultoDropdown } from './cultoDoDia.js';
 import { filtrarPlaylistRemovendoTemaComMarcadores, getTemasDoCultoAtual, marcarAberturaRemovidaPeloUsuario, normalizarListaTemas, normalizarTemaPlaylist, ordenarTemasLista, playlistPossuiMarcadoresTema, saveTemaSelecionadoPorCulto, saveTemasPorCulto } from './playlistTemas.js';
 import { estadoPainel } from './estadoPainel.js';
 import { getPlaylist, playlistItemMesmaVersaoQueAtiva, savePlaylists } from './playlistServidor.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasTemasPlaylistUi(d) {
-  dep = d || {};
-}
-const fecharMenuOverflowPlaylist = (...a) => dep.fecharMenuOverflowPlaylist(...a);
+import { fecharMenuOverflowPlaylist } from './inicializacaoPainel.js';
 
 export function excluirTemaDoCulto(tema) {
   const t = normalizarTemaPlaylist(tema);

@@ -10,28 +10,18 @@ import { criarMenuFlutuante } from '../modules/menuFlutuante.js';
 import { digestEstrofesParaStripFaixa, textoSlideSnippetHtmlParaChip } from '../modules/slidesGrelha.js';
 import { persistirMusicaAtivaNoServidor, renderEstrofesEditor } from './editorEstrofes.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-import { ajustarEncaixeGrelhaSlidesModoSlides, atualizarSomenteAtivoFaixaSlides, podeAtualizarSomenteAtivoFaixaSlides } from './slidesGrelhaPainel.js';
+import { ajustarEncaixeGrelhaSlidesModoSlides, atualizarSomenteAtivoFaixaSlides, podeAtualizarSomenteAtivoFaixaSlides, slidesGrelha } from './slidesGrelhaPainel.js';
 import { atualizarPreviewOperador, atualizarSlidesInstrucoes, definirControlosZoomFaixaSlidesInertes, definirNomeMusicaBarraSlides, definirVazioDaFaixaSlidesVisivel } from './previewProjecao.js';
 import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
 import { emitirEstrofeAoServidor, exibirEstrofe, projetarPorDuploCliqueCentral } from './projecaoMusica.js';
 import { marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasSlidesStrip(d) {
-  dep = d || {};
-}
-const aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice = (...a) => dep.aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(...a);
+import { aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice } from './splitEstrofes.js';
 
 export function renderSlidesStrip() {
   const dock = document.getElementById('slides-dock');
   const grid = document.getElementById('slides-grid');
   const nomeEl = document.getElementById('slides-musica-nome');
-  if (grid) grid.dataset.slidesCols = String(dep.getSlidesGrelha().getSlidesPorLinha());
+  if (grid) grid.dataset.slidesCols = String(slidesGrelha.getSlidesPorLinha());
 
   try {
   if (ehModoApresentacaoOperador()) {

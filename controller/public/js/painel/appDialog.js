@@ -9,7 +9,9 @@
  * Dependências do núcleo entram por `registrarDependenciasAppDialog`, chamado no topo do núcleo
  * (antes de qualquer diálogo poder abrir).
  */
-import {  } from './estadoPainel.js';
+import { normalizarTemaPlaylist } from './playlistTemas.js';
+import { getModalSincronizarTimerAutoFechar } from './sincronizacaoBanco.js';
+import { getModalImportarTimerAutoFechar, liberarBloqueioFecharImportPlaylist } from './playlistCompartilhar.js';
 
 /** Estado partilhado do diálogo. `fecharNoBackdrop`: se false, Escape não dispensa o diálogo
  *  (alertas só-OK); clique no escuro nunca fecha um aviso do sistema — só OK/Cancelar/Fechar. */
@@ -23,19 +25,6 @@ export const appDialogEstado = {
   sincronizarResolver: null,
 };
 
-let dep = {};
-
-/**
- * @param {object} d
- * @param {() => *} d.getModalSincronizarTimer  timer de auto-fechar do modal de sincronizar
- * @param {() => *} d.getModalImportarTimer     timer de auto-fechar do modal de importar
- * @param {() => void} d.liberarBloqueioFecharImportPlaylist
- * @param {(texto: string) => string} d.normalizarTemaPlaylist  normalizador padrão de `appPrompt`
- */
-export function registrarDependenciasAppDialog(d) {
-  dep = d || {};
-}
-
 export function fecharAppDialog(resultado) {
   appDialogEstado.fecharNoBackdrop = false;
   const ov = document.getElementById('app-dialog-overlay');
@@ -44,7 +33,7 @@ export function fecharAppDialog(resultado) {
   if (appDialogEstado.sincronizarResolver) {
     const r = appDialogEstado.sincronizarResolver;
     appDialogEstado.sincronizarResolver = null;
-    clearTimeout(dep.getModalSincronizarTimer());
+    clearTimeout(getModalSincronizarTimerAutoFechar());
     if (body) {
       body.innerHTML = '';
       body.style.whiteSpace = '';
@@ -68,8 +57,8 @@ export function fecharAppDialog(resultado) {
   if (appDialogEstado.importarResolver) {
     const r = appDialogEstado.importarResolver;
     appDialogEstado.importarResolver = null;
-    dep.liberarBloqueioFecharImportPlaylist();
-    clearTimeout(dep.getModalImportarTimer());
+    liberarBloqueioFecharImportPlaylist();
+    clearTimeout(getModalImportarTimerAutoFechar());
     if (body) {
       body.innerHTML = '';
       body.style.whiteSpace = '';
@@ -242,7 +231,7 @@ export function appPrompt(msg, opts = {}) {
   return new Promise((resolve) => {
     appDialogEstado.promptResolver = resolve;
     const normalizar =
-      typeof opts.normalizar === 'function' ? opts.normalizar : dep.normalizarTemaPlaylist;
+      typeof opts.normalizar === 'function' ? opts.normalizar : normalizarTemaPlaylist;
     const fecharOk = () => {
       const v = normalizar(input.value);
       if (!v) {
