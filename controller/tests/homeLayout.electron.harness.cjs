@@ -48,6 +48,9 @@ const __pl = await import('./painel/playlistLista.js');
 const __ga = await import('./painel/gridApresentacao.js');
 const __pv = await import('./painel/preVoo.js');
 const __pr = await import('./painel/previewLetras.js');
+const __ce = await import('./painel/configExibicao.js');
+const __rm = await import('./painel/removerMusicaBanco.js');
+const __pp = await import('./painel/previewProjecao.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -66,6 +69,8 @@ window.__homeTest = {
  comparativo:()=>modoComparativoCentral,
  midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
  preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
+ remover:{pedir:__rm.solicitarRemoverMusicaDoBancoServidor},
+ previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:projecao.pronta,l:projecao.ligada};projecao.pronta=()=>true;projecao.ligada=()=>true}else if(window.__projOrig){projecao.pronta=window.__projOrig.p;projecao.ligada=window.__projOrig.l}}},
  culto:{id:()=>cultoId,playlists:()=>playlists},
  pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
@@ -79,7 +84,7 @@ window.__homeTest = {
  ultimo:()=>ultimoConteudoProjetadoModoUnificado,
  estado:()=>estadoServidor,
  setEstado:(e)=>{estadoServidor=e},
- cor:(c)=>aplicarCorComentarioMinistranteNoPainel(c),
+ cor:(c)=>__ce.aplicarCorComentarioMinistranteNoPainel(c),
  espiarProjecao:()=>{const orig=projecao.enviar;window.__enviados=[];projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarEnviar=()=>{projecao.enviar=orig}},
  contagem:{renderSeletor:renderSeletorMonitorContagem,setPos:setPosContagemCtrl,cfgChange:onContagemCfgChange,popularForm:()=>import('./painel/contagemRegressiva.js').then(m=>m.popularFormCfgContagem()),rota:rotaContagemParaServidor},
  docs:{carregar:carregarDocsBibliotecaDoStorage,render:renderListaDocsImportados,paginaProjetada:docsHaPaginaProjetada,paginaSel:docsPaginaSelecionadaAtual,adicionar:adicionarArquivosAosDocs},
@@ -244,6 +249,18 @@ async function run() {
   await check('Letras: o modal de pré-visualização abre e isola a seleção',`!document.getElementById('letras-preview-backdrop').hidden`);
   await js("__homeTest.previewLetras.fechar()");await pause(200);
   await check('Letras: fechar o modal de pré-visualização o esconde',`document.getElementById('letras-preview-backdrop').hidden`);
+  // Excluir música do banco (painel/removerMusicaBanco.js)
+  await js("window.__requests.length=0;__homeTest.remover.pedir(12,'Bondade');void 0");await pause(100);
+  await check('Excluir música: o modal abre com o nome da música',`!document.getElementById('musica-excluir-backdrop').hidden && document.getElementById('musica-excluir-nome').textContent==='Bondade'`);
+  await js("document.getElementById('musica-excluir-cancel').click()");await pause(100);
+  await check('Excluir música: cancelar fecha o modal sem chamar o servidor',`document.getElementById('musica-excluir-backdrop').hidden && !window.__requests.some(r=>/excluir/.test(r.path))`);
+  await js("__homeTest.remover.pedir(12,'Bondade');document.getElementById('musica-excluir-confirm').click();void 0");await pause(500);
+  await check('Excluir música: confirmar pede a exclusão ao servidor, recarrega a lista e fecha o modal',`window.__requests.some(r=>r.method==='POST'&&r.path==='/api/musicas/12/excluir') && window.__requests.some(r=>r.method==='GET'&&r.path==='/api/musicas') && document.getElementById('musica-excluir-backdrop').hidden`);
+  // Prévia do telão (painel/previewProjecao.js): espelha o estado do servidor guardado no núcleo
+  await js("__homeTest.previewTelao.forcar(true);__homeTest.setEstado({tipo:'aviso',linhas:['Aviso do teste'],telaLimpa:false});__homeTest.previewTelao.atualizar();void 0");await pause(150);
+  await check('Prévia do telão: mostra o aviso que o estado do servidor (no núcleo) diz estar no ar',`document.getElementById('pv-live-letras').textContent==='Aviso do teste'`);
+  await js("__homeTest.setEstado(null);__homeTest.previewTelao.atualizar();__homeTest.previewTelao.forcar(false);void 0");await pause(150);
+  await check('Prévia do telão: sem estado do servidor a prévia fica vazia',`document.getElementById('pv-live-letras').textContent===''`);
 
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
