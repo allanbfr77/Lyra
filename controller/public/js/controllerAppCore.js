@@ -77,6 +77,9 @@
  *   projecaoLocalObs.js — projeção nesta máquina (IPC) e URLs de OBS
  *   previewLetras.js — modal de pré-visualização de letras (catálogo online/offline, linhas por slide, cópia)
  *   preVoo.js — pré-voo do culto: verificação de telas, músicas e mídias antes de começar
+ *   removerMusicaBanco.js — excluir música do banco (modal de confirmação, exclusão em lote e limpeza da interface)
+ *   tituloAberturaPreview.js — prévia do slide de título de abertura (M3) e primeiras linhas da estrofe para o ministrante
+ *   previewProjecao.js — pré-visualização «ao vivo» do telão e do ministrante (relógio ocioso, instruções, espelho do estado)
  * =============================================================================
  */
 
@@ -122,7 +125,6 @@ import {
 } from './modules/fonteLetrasSite.js';
 import {
   criarSlidesGrelha,
-  textoSlideMaiusculo,
 } from './modules/slidesGrelha.js';
 import { criarIrParaSlideNumero } from './modules/slidesIrParaNumero.js';
 import {
@@ -156,19 +158,12 @@ import {
   rotaLembradaParaEntrada,
 } from './modules/monitorLembrado.js';
 import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
-import {
-  estaSelecionada,
-  rotuloConfirmacaoExclusaoLote,
-} from './modules/selecaoMultiplaBiblioteca.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import {
   configurarNotasSlideControlador,
 } from './modules/notasSlideControlador.js';
 import {
-  filtrarLinhasParaPublico,
-  aplicarPreviewMinistranteNoElemento,
-  textoMinistranteDeElementoPreview,
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
@@ -181,7 +176,6 @@ migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
 import {
   limparEstiloPreviewSlide,
-  aplicarClasseLinhas,
   reaplicarFontesPreviewPainel,
 } from './painel/tipografiaPainelPreview.js';
 import {
@@ -303,7 +297,6 @@ import {
 import {
   abrirCfgModal,
   aplicarCfgRelogio,
-  aplicarCorComentarioMinistranteNoPainel,
   aplicarWrapImediato,
   aprimorarControlesVisuaisCfg,
   debounceSalvarCfg,
@@ -353,11 +346,6 @@ import {
   BIB_ORIGEM_META,
   abrirModalNovaMusicaManual,
   agendarRenderizacoesOcultasDoModoSlides,
-  bibGuardarAncoraScrollParaProximoRender,
-  bibSelCancelarModo,
-  bibSelChaveDaLinha,
-  bibSelLinhas,
-  bibSelecao,
   buscarLetrasExterno,
   carregarMusicas,
   configurarBarraSelecaoBiblioteca,
@@ -462,7 +450,6 @@ import {
   obterRootIdMusicaAtiva,
   registrarDependenciasCopiasLocaisPainel,
   removerCopiaLocal,
-  removerCopiasLocaisDaMusica,
   versaoAtivaParaCompararPlaylist,
 } from './painel/copiasLocaisPainel.js';
 import {
@@ -647,6 +634,41 @@ import {
   registrarDependenciasPreVoo,
   setPreVooMonitoresEmFalta,
 } from './painel/preVoo.js';
+import {
+  configurarModalExcluirMusica,
+  fecharModalExcluirMusica,
+  registrarDependenciasRemoverMusicaBanco,
+  solicitarRemoverMusicaDoBancoServidor,
+  solicitarRemoverMusicasDoBancoServidorEmLote,
+} from './painel/removerMusicaBanco.js';
+import {
+  aplicarEstiloPreviewTituloAbertura,
+  limparPreviewTituloMusicaAbertura,
+  obterTomPlaylistMusicaAtiva,
+  registrarDependenciasTituloAberturaPreview,
+  tituloAberturaM3MusicaAtiva,
+} from './painel/tituloAberturaPreview.js';
+import {
+  aplicarPreviewTelaoNoDom,
+  atualizarPreviewOperador,
+  atualizarPreviewPlaylistCentral,
+  atualizarSlidesInstrucoes,
+  configurarObserverPreviewMinistrante,
+  definirControlosZoomFaixaSlidesInertes,
+  definirNomeMusicaBarraSlides,
+  definirPreviewRelogioOciosoMinistrante,
+  definirVazioDaFaixaSlidesVisivel,
+  deveRevelarRelogioPreviewMinistrante,
+  emitirEstadoMinistranteAoServidor,
+  hayProjecaoAtivaNoServidor,
+  limparConteudoPreviewOperadorSlides,
+  podeEspelharLetraNosPreviewsModoSlide,
+  preencherPreviewOperadorSomenteEstadoServidorMusica,
+  preencherPreviewOperadorSomenteMusicaLocal,
+  registrarDependenciasPreviewProjecao,
+  selecaoLocalAlinhadaComProjecaoMusicaServidor,
+  sincronizarPreviewOciosoMinistranteSlides,
+} from './painel/previewProjecao.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -1561,6 +1583,99 @@ registrarDependenciasPreVoo({
   getCultoId: () => cultoId,
   getMonitoresServidorCache: () => monitoresServidorCache,
   getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasRemoverMusicaBanco({
+  ehModoSlidesOperador,
+  getControllerApiBase,
+  marcacaoEstrofeEditor,
+  removerMusicaDeTodasPlaylists,
+  atualizarPreviewOperador,
+  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
+  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
+    bloqueioSincronizarEstrofeDoServidor = valor;
+  },
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  setModoEdicaoEstrofes: (valor) => {
+    modoEdicaoEstrofes = valor;
+  },
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  setModoLetraCompletaCentral: (valor) => {
+    modoLetraCompletaCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  setMusicaAtiva: (valor) => {
+    musicaAtiva = valor;
+  },
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  setMusicaBancoFonte: (valor) => {
+    musicaBancoFonte = valor;
+  },
+  getMusicaRootId: () => musicaRootId,
+  setMusicaRootId: (valor) => {
+    musicaRootId = valor;
+  },
+  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
+  setMusicaVersaoLocalId: (valor) => {
+    musicaVersaoLocalId = valor;
+  },
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  setProjecaoMusicaEmitidaNoServidor: (valor) => {
+    projecaoMusicaEmitidaNoServidor = valor;
+  },
+  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
+  setSelecaoUiBiblioteca: (valor) => {
+    selecaoUiBiblioteca = valor;
+  },
+  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
+  setSelecaoUiPlaylist: (valor) => {
+    selecaoUiPlaylist = valor;
+  },
+  getSlidesDockVisivel: () => slidesDockVisivel,
+  setSlidesDockVisivel: (valor) => {
+    slidesDockVisivel = valor;
+  },
+  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
+  setSnapshotEdicaoEstrofes: (valor) => {
+    snapshotEdicaoEstrofes = valor;
+  },
+  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
+  setVersoesMusicaServidorCache: (valor) => {
+    versoesMusicaServidorCache = valor;
+  },
+});
+registrarDependenciasTituloAberturaPreview({
+  getPlaylist,
+  playlistItemMesmaVersaoQueAtiva,
+  getCultoId: () => cultoId,
+  getMusicaAtiva: () => musicaAtiva,
+});
+registrarDependenciasPreviewProjecao({
+  aplicarPreviewPainelOcultoNoDom,
+  apresentacaoOcupandoCanalMinistrante,
+  atualizarPreviewMonitorMinistranteSlides,
+  atualizarPreviewMonitorPublicoSlides,
+  atualizarPreviewsMonitoresVirtuaisModoSlides,
+  classificarSaidaMonitorMinistranteSlides,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  musicaEstadoCombinaComAtiva,
+  obterRotaSlidesParaUi,
+  syncRoteamentoTelasModoSlidesNaUi,
+  getCorComentarioMinistrantePainel: () => corComentarioMinistrantePainel,
+  getEstadoServidor: () => estadoServidor,
+  getEstrofeAtiva: () => estrofeAtiva,
+  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  getHomeLayout: () => homeLayout,
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  getMusicaAtiva: () => musicaAtiva,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getSlidesDockVisivel: () => slidesDockVisivel,
 });
 
 /**
@@ -5425,219 +5540,7 @@ function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo) {
   if (mudou) savePlaylists();
 }
 
-let musicaExcluirPendente = null;
-/** Lote pendente de exclusão, vindo do modo de seleção múltipla da Biblioteca. */
-let musicasExcluirLotePendente = null;
-
-/** Texto de repouso do aviso do modal, para o repor depois de uma exclusão em lote. */
-function avisoModalExcluirMusicaPadrao(el) {
-  if (el && !el.dataset.textoPadrao) el.dataset.textoPadrao = el.textContent || '';
-  return el?.dataset?.textoPadrao || '';
-}
-
-function fecharModalExcluirMusica() {
-  musicaExcluirPendente = null;
-  musicasExcluirLotePendente = null;
-  const aviso = document.querySelector('#musica-excluir-backdrop .musica-excluir-aviso');
-  if (aviso && aviso.dataset.textoPadrao) aviso.textContent = aviso.dataset.textoPadrao;
-  document
-    .querySelectorAll('.item.confirmando-exclusao')
-    .forEach((el) => el.classList.remove('confirmando-exclusao'));
-  const bd = document.getElementById('musica-excluir-backdrop');
-  if (bd) {
-    bd.hidden = true;
-    bd.setAttribute('aria-hidden', 'true');
-  }
-}
-
-function solicitarRemoverMusicaDoBancoServidor(idMusica, tituloDisplay) {
-  const idNum = Number(idMusica);
-  if (!Number.isFinite(idNum)) return alert('ID da música inválido.');
-  musicaExcluirPendente = { id: idNum, titulo: tituloDisplay || '' };
-  const bd = document.getElementById('musica-excluir-backdrop');
-  const nomeEl = document.getElementById('musica-excluir-nome');
-  if (nomeEl) nomeEl.textContent = musicaExcluirPendente.titulo || `ID ${idNum}`;
-  bd.hidden = false;
-  bd.setAttribute('aria-hidden', 'false');
-}
-
-/**
- * Mesma confirmação de sempre, com o nome da música trocado pela contagem: com doze
- * títulos não há espaço para os listar, e o que o operador precisa de saber antes de
- * uma ação sem volta é quantas músicas vão embora.
- *
- * @param {{ id: number, titulo: string }[]} lote
- */
-function solicitarRemoverMusicasDoBancoServidorEmLote(lote) {
-  const itens = (Array.isArray(lote) ? lote : []).filter((m) => Number.isFinite(Number(m?.id)));
-  if (!itens.length) return;
-  musicaExcluirPendente = null;
-  musicasExcluirLotePendente = itens.map((m) => ({ id: Number(m.id), titulo: String(m.titulo || '') }));
-  const bd = document.getElementById('musica-excluir-backdrop');
-  const nomeEl = document.getElementById('musica-excluir-nome');
-  if (nomeEl) nomeEl.textContent = rotuloConfirmacaoExclusaoLote(musicasExcluirLotePendente.length);
-  const aviso = document.querySelector('#musica-excluir-backdrop .musica-excluir-aviso');
-  if (aviso) {
-    avisoModalExcluirMusicaPadrao(aviso);
-    aviso.textContent =
-      'Esta ação não pode ser desfeita. Todas as músicas selecionadas deixam de existir na base deste PC e são retiradas das playlists neste navegador.';
-  }
-  /* O mesmo realce do caso de uma música só, agora em todas as linhas do lote: é ele
-     que diz sobre o que o modal está a perguntar. */
-  for (const linha of bibSelLinhas()) {
-    const chave = bibSelChaveDaLinha(linha);
-    if (chave && estaSelecionada(bibSelecao, chave)) linha.classList.add('confirmando-exclusao');
-  }
-  if (bd) {
-    bd.hidden = false;
-    bd.setAttribute('aria-hidden', 'false');
-  }
-}
-
-function configurarModalExcluirMusica() {
-  document.getElementById('musica-excluir-cancel')?.addEventListener('click', () => fecharModalExcluirMusica());
-  document.getElementById('musica-excluir-confirm')?.addEventListener('click', () => executarRemoverMusicaDoBancoConfirmado());
-}
-
-/**
- * Só a chamada de rede — extraída para a exclusão em lote poder repeti-la sem duplicar
- * a compatibilidade com o servidor antigo. Devolve o `rootId` removido, ou lança com a
- * mensagem que o operador veria.
- *
- * @param {number} idNum
- * @returns {Promise<number>}
- */
-async function removerMusicaDoBancoNoServidor(idNum) {
-  let res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/excluir`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  const tentouFallbackDelete = res.status === 404;
-  if (tentouFallbackDelete) {
-    /* Compatibilidade com servidor que expõe apenas DELETE /api/musicas/:id. */
-    res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}`, {
-      method: 'DELETE',
-    });
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (res.status === 404 && tentouFallbackDelete) {
-      throw new Error(
-        'Não foi possível excluir a música (HTTP 404). Verifique se o Controlador está em execução (API local na porta 3001).'
-      );
-    }
-    throw new Error(data.erro || `Erro HTTP ${res.status}`);
-  }
-  return Number(data.rootId) || idNum;
-}
-
-/**
- * Limpeza da UI depois de o servidor confirmar a remoção e de `carregarMusicas()`.
- * Não toca na rede — extraída pela mesma razão que a função acima.
- *
- * @param {number} idNum
- * @param {number} rootRemovido
- */
-function aplicarLimpezaUiAposRemocaoMusica(idNum, rootRemovido) {
-    if (
-      selecaoUiBiblioteca &&
-      (Number(selecaoUiBiblioteca.id) === idNum || Number(selecaoUiBiblioteca.id) === rootRemovido)
-    ) {
-      selecaoUiBiblioteca = null;
-    }
-    if (
-      selecaoUiPlaylist &&
-      (Number(selecaoUiPlaylist.id) === idNum || Number(selecaoUiPlaylist.id) === rootRemovido)
-    ) {
-      selecaoUiPlaylist = null;
-    }
-    const eraAtiva =
-      musicaAtiva &&
-      (Number(musicaAtiva.id) === idNum ||
-        Number(musicaAtiva.id) === rootRemovido ||
-        obterRootIdMusicaAtiva() === rootRemovido);
-    if (eraAtiva) {
-      musicaAtiva = null;
-      musicaVersaoLocalId = null;
-      musicaRootId = null;
-      versoesMusicaServidorCache = { rootId: null, versoes: [] };
-      musicaBancoFonte = 'user';
-      renderMusicaVersoesBar();
-      estrofeAtiva = -1;
-      modoEdicaoEstrofes = false;
-      snapshotEdicaoEstrofes = null;
-      modoLetraCompletaCentral = false;
-      aplicarLayoutModoLetraCompleta();
-      projecaoMusicaEmitidaNoServidor = false;
-      bloqueioSincronizarEstrofeDoServidor = false;
-      slidesDockVisivel = ehModoSlidesOperador();
-      renderEstrofesEditor();
-      renderSlidesStrip();
-      atualizarPreviewOperador();
-      marcacaoEstrofeEditor();
-    }
-}
-
-async function executarRemoverMusicaDoBancoConfirmado() {
-  /* O lote tem caminho próprio: `carregarMusicas()` e os renders correm uma vez no
-     fim, e não uma vez por música. */
-  if (musicasExcluirLotePendente) return executarRemoverMusicasDoBancoEmLoteConfirmado();
-  if (!musicaExcluirPendente) return fecharModalExcluirMusica();
-  const idNum = musicaExcluirPendente.id;
-  /* Medido antes de a lista se desfazer: é este ponto que o render a seguir devolve. */
-  bibGuardarAncoraScrollParaProximoRender();
-  fecharModalExcluirMusica();
-  try {
-    const rootRemovido = await removerMusicaDoBancoNoServidor(idNum);
-    removerMusicaDeTodasPlaylists(rootRemovido);
-    removerCopiasLocaisDaMusica(rootRemovido);
-    await carregarMusicas();
-    aplicarLimpezaUiAposRemocaoMusica(idNum, rootRemovido);
-    renderPlaylist();
-    refreshListaBanco();
-  } catch (e) {
-    alert(e.message || 'Falha ao remover.');
-  }
-}
-
-/**
- * Exclusão em lote.
- *
- * Uma música que falhe não derruba as outras: cada remoção é tentada por si, e no fim o
- * operador recebe uma lista do que não saiu. O contrário — parar na primeira falha —
- * deixava o lote meio feito sem dizer onde tinha parado.
- */
-async function executarRemoverMusicasDoBancoEmLoteConfirmado() {
-  const lote = Array.isArray(musicasExcluirLotePendente) ? musicasExcluirLotePendente.slice() : [];
-  fecharModalExcluirMusica();
-  if (!lote.length) return;
-  /* Mesma razão do caminho de uma só música. */
-  bibGuardarAncoraScrollParaProximoRender();
-  const removidos = [];
-  const falhas = [];
-  for (const m of lote) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      const rootRemovido = await removerMusicaDoBancoNoServidor(m.id);
-      removerMusicaDeTodasPlaylists(rootRemovido);
-      removerCopiasLocaisDaMusica(rootRemovido);
-      removidos.push({ id: m.id, rootRemovido });
-    } catch (e) {
-      falhas.push(`· ${m.titulo || `ID ${m.id}`}: ${e.message || 'falha ao remover'}`);
-    }
-  }
-  if (removidos.length) {
-    await carregarMusicas();
-    for (const r of removidos) aplicarLimpezaUiAposRemocaoMusica(r.id, r.rootRemovido);
-    renderPlaylist();
-    refreshListaBanco();
-  }
-  bibSelCancelarModo();
-  if (falhas.length) {
-    alert(`Não foi possível remover ${falhas.length} de ${lote.length} músicas:\n${falhas.join('\n')}`);
-  }
-}
+// (extraído) excluir música do banco → painel/removerMusicaBanco.js
 
 function getPlaylist(cid) {
   if (!Array.isArray(playlists[cid])) playlists[cid] = [];
@@ -5958,124 +5861,7 @@ function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
 
 // (extraído) playlist: menus → painel/playlistMenus.js
 
-/** Primeiras N linhas de uma estrofe — prévia do próximo no slide 1 do M3. */
-function primeirasLinhasEstrofeMinistrante(texto, n = 2) {
-  const max = Math.max(0, Number(n) || 0);
-  const lines = String(texto ?? '').split(/\r\n|\r|\n/);
-  if (lines.length <= max) return String(texto ?? '');
-  return lines.slice(0, max).join('\n');
-}
-
-/** Tom da música ativa na playlist do culto (vazio se não houver). */
-function obterTomPlaylistMusicaAtiva() {
-  if (!musicaAtiva || !cultoId) return '';
-  const pl = getPlaylist(cultoId);
-  if (!Array.isArray(pl)) return '';
-  const it = pl.find((x) => playlistItemMesmaVersaoQueAtiva(x));
-  return normalizarTomPlaylist(it?.tom);
-}
-
-/** Título do 1.º slide M3: «♪ Título | Tom» quando o tom estiver cadastrado. */
-function tituloAberturaM3MusicaAtiva(tituloBase) {
-  const tit = String(tituloBase || musicaAtiva?.titulo || '').trim();
-  const tom = obterTomPlaylistMusicaAtiva();
-  if (!tit) return tom || '';
-  const corpo = tom ? `${tit} | ${tom}` : tit;
-  return `♪ ${corpo}`;
-}
-
-function limparPreviewTituloMusicaAbertura() {
-  const opTit = document.getElementById('op-titulo');
-  if (!opTit) return;
-  opTit.textContent = '';
-  opTit.classList.add('vazio');
-}
-
-/** O `gap` que o flex já põe entre os filhos da prévia, em px — acompanha o CSS. */
-const GAP_PREVIEW_SLIDES_PX = 14;
-
-/** `line-height` da letra na prévia — acompanha `.op-slide-text` no CSS. */
-const LINE_HEIGHT_PREVIEW_SLIDE = 1.35;
-
-/**
- * Separa o título da letra por uma linha, como no M3 real.
- *
- * Mesma regra de lá (ver `aplicarRespiroTituloAberturaOp`): a linha mede-se na LETRA, e o
- * `gap` do flex já conta para a distância — a margem só acrescenta o que falta.
- *
- * Assim a prévia encolhe junto com a letra: como aqui a fonte é ~12 px e lá são ~4 vh, um
- * valor fixo em qualquer um dos lados faria os dois deixarem de se parecer.
- */
-function aplicarRespiroPreviewTituloAbertura() {
-  const opTit = document.getElementById('op-titulo');
-  if (!opTit || opTit.classList.contains('vazio')) return;
-  const opAtual = document.getElementById('op-atual');
-  const fontePx = opAtual ? parseFloat(getComputedStyle(opAtual).fontSize) : 0;
-  const linhaPx = (Number.isFinite(fontePx) && fontePx > 0 ? fontePx : 12) *
-    LINE_HEIGHT_PREVIEW_SLIDE;
-  opTit.style.marginBottom = `${Math.max(0, Math.round(linhaPx - GAP_PREVIEW_SLIDES_PX))}px`;
-}
-
-/** Estilo do título do 1.º slide na prévia M3 (cor + tamanho relativos à config). */
-function aplicarEstiloPreviewTituloAbertura() {
-  const opTit = document.getElementById('op-titulo');
-  if (!opTit) return;
-  const mb = lerCurrentCfgCtrl()?.ministrante || {};
-  const cor = String(mb.aberturaTituloColor || '').trim() || '#f3c15a';
-  const vh = Number(mb.aberturaTituloFontSize);
-  const fontVh = Number.isFinite(vh) && vh >= 0 ? vh : 7;
-  opTit.style.color = cor;
-  /* Prévia é pequena: ~1.6 px por vh (7 vh ≈ 11 px, o tamanho anterior). */
-  opTit.style.fontSize = `${Math.max(8, Math.round(fontVh * 1.6))}px`;
-}
-
-/**
- * Tom de cifra: `C`, `C#`, `Bb`, `Cm`, `F#m`, `ORIG.` — o conjunto de `TONS_MUSICAIS`.
- * Gémeo de `RX_TOM_TITULO_ABERTURA` em `display-operator.html`; alterar os dois juntos.
- */
-const RX_TOM_TITULO_ABERTURA = /^(?:[A-G](?:#|b)?m?|ORIG\.?)$/;
-
-/**
- * Separa «♪ Título | Tom» em nome e tom, para o tom escapar à caixa alta do título.
- *
- * O tom é o que vem depois do ÚLTIMO ` | `, e só se se parecer mesmo com um tom: uma
- * música chamada «Aleluia | Ao Vivo» continua a ser nome inteiro, toda em maiúsculas.
- */
-function partesTituloAberturaM3(titulo) {
-  const t = String(titulo || '').trim();
-  const i = t.lastIndexOf(' | ');
-  if (i < 0) return { nome: t, tom: '' };
-  const tom = t.slice(i + 3).trim();
-  if (!RX_TOM_TITULO_ABERTURA.test(tom)) return { nome: t, tom: '' };
-  return { nome: t.slice(0, i), tom };
-}
-
-/** Título no topo do preview M3 — só no 1.º slide da música. */
-function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
-  const opTit = document.getElementById('op-titulo');
-  if (!opTit) return;
-  const t = String(titulo || '').trim();
-  if (!mostrar || !t) {
-    limparPreviewTituloMusicaAbertura();
-    return;
-  }
-  const { nome, tom } = partesTituloAberturaM3(t);
-  opTit.textContent = '';
-  const spanNome = document.createElement('span');
-  spanNome.textContent = textoSlideMaiusculo(nome);
-  opTit.appendChild(spanNome);
-  if (tom) {
-    /* Cifra não é texto: `Cm` é dó menor e `CM` seria outra coisa. O `text-transform` do
-       título não pode chegar aqui — ver `.op-titulo-musica-tom` no CSS. */
-    const spanTom = document.createElement('span');
-    spanTom.className = 'op-titulo-musica-tom';
-    spanTom.textContent = ` | ${tom}`;
-    opTit.appendChild(spanTom);
-  }
-  opTit.classList.remove('vazio');
-  aplicarEstiloPreviewTituloAbertura();
-  aplicarRespiroPreviewTituloAbertura();
-}
+// (extraído) título de abertura → painel/tituloAberturaPreview.js
 
 /**
  * Cor efectiva dos comentários na prévia do painel — fonte única para o `style` inline do
@@ -6087,21 +5873,7 @@ function aplicarPreviewTituloMusicaAbertura(titulo, mostrar) {
  */
 let corComentarioMinistrantePainel = COR_COMENTARIO_MINISTRANTE_PADRAO;
 
-const previewMinistranteHelpers = {
-  escapeHtml,
-  maiusculo: textoSlideMaiusculo,
-  aplicarClasseLinhas,
-  limparEstiloPreviewSlide,
-  /* Lida a cada render da prévia. Cai na última cor aplicada (não no padrão) para que uma
-     config ainda por chegar nunca produza um frame com a cor errada. */
-  get commentColor() {
-    try {
-      return aplicarCorComentarioMinistranteNoPainel(lerCurrentCfgCtrl()?.ministrante?.commentColor);
-    } catch (_) {
-      return corComentarioMinistrantePainel;
-    }
-  },
-};
+// (extraído) helpers da prévia do ministrante → painel/previewProjecao.js
 
 /**
  * Divide em slides onde há linha 100 % vazia (`\n\n` — sem espaço nem tab na linha).
@@ -6190,1015 +5962,7 @@ function aplicarSplitsEstrofesDosTextareasAntesDePersistir() {
 }
 
 // --- SECÇÃO E — Pré-visualização «ao vivo» (telão / ministrante) e regras de espelho do estado remoto ---
-/** Há algo efetivamente enviado às telas de projeção (servidor ligado). */
-function hayProjecaoAtivaNoServidor() {
-  const e = estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
-  if (e.blackout) return true;
-  if (e.tipo === 'apresentacao' && e.apresentacao && String(e.apresentacao.src || '').trim()) return true;
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) return true;
-  if (e.projecaoMinistranteApresentacao) return true;
-  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
-  if (e.tipo === 'musica' && e.slidePretoFinal) return true;
-  if (e.tipo === 'musica' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
-  return false;
-}
-
-/**
- * Para os cartões quando não há uma «saída nas telas» em curso de música/bíblia que deva espelhar sempre o servidor:
- * exige música selecionada alinhada + flag local de emissão (evita mostrar letra só ao navegar na playlist sem projetar).
- */
-function hayProjecaoAtivaNoServidorParaPreviews() {
-  if (!hayProjecaoAtivaNoServidor()) return false;
-  const e = estadoServidor;
-  if (!e) return false;
-  if (e.blackout) return true;
-  if (e.projecaoMinistranteApresentacao && e.tipo !== 'apresentacao' && e.tipo !== 'aviso') return true;
-  if (e.tipo === 'biblia') return true;
-  if (e.tipo === 'musica') {
-    if (!musicaAtiva) return true;
-    if (!musicaEstadoCombinaComAtiva(e)) return false;
-    /* Só espelhar letra de música nos cartões quando este painel já «armou» projeção (duplo clique, setas, próxima música…). */
-    if (!projecaoMusicaEmitidaNoServidor) return false;
-    return true;
-  }
-  return false;
-}
-
-/**
- * Não espelhar letras de música nos cartões de preview até este painel estar no fluxo de projeção
- * (faixa de slides visível). Evita mostrar letra quando o servidor ainda guarda o estado anterior.
- */
-function previewMusicaEsperandoDockParaEspelharLetra() {
-  const e = estadoServidor;
-  if (!e || e.tipo !== 'musica') return false;
-  if (musicaAtiva && !musicaEstadoCombinaComAtiva(e)) return false;
-  if (e.blackout || e.slidePretoFinal || e.telaLimpa) return false;
-  if (!e.linhas || !e.linhas.length) return false;
-  return !slidesDockVisivel && !ehModoSlidesOperador();
-}
-
-/**
- * Clique na playlist/banco só prepara musicaAtiva na faixa — até um novo emit deste painel,
- * os cartões Telão/TV não espelham o servidor (nem a música anterior nas telas físicas).
- */
-function suprimirEspelhoPreviewsPorNavegacaoPlaylist() {
-  /* Em qualquer modo, ao "engatilhar" música na playlist sem emitir ao servidor,
-     manter nos previews o que já está projetado até um novo emit (duplo clique/setas). */
-  return false;
-}
-
-/** Aplica no DOM o estado da saída “telão” (público). */
-function aplicarPreviewTelaoNoDom(estado) {
-  const prevTitulo = document.getElementById('pv-live-titulo');
-  const prevLetras = document.getElementById('pv-live-letras');
-
-  if (estado && estado.previewImagemNoTelao) {
-    prevTitulo.textContent = '';
-    const linhaTxt = 'IMAGEM NO TELÃO';
-    prevLetras.innerHTML = `<span class="pv-live-ap-meta">${svgIconeTipoMidiaApresentacao('image')}<span class="pv-live-ap-meta-txt">${escapeHtml(linhaTxt)}</span></span>`;
-    prevLetras.classList.remove('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (!estado || estado.semProjecao) {
-    prevTitulo.textContent = '';
-    prevLetras.textContent = '';
-    prevLetras.classList.add('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (estado.blackout) {
-    prevTitulo.textContent = '';
-    prevLetras.textContent = 'Tela preta (F10)';
-    prevLetras.classList.add('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (estado.tipo === 'aviso' && Array.isArray(estado.linhas) && estado.linhas.length) {
-    prevTitulo.textContent = '';
-    prevLetras.textContent = estado.linhas.join('\n');
-    prevLetras.classList.remove('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (estado.tipo === 'apresentacao' && estado.apresentacao && String(estado.apresentacao.src || '').trim()) {
-    const ap = estado.apresentacao;
-    const label =
-      [ap.title, ap.name].map((x) => String(x || '').trim()).find(Boolean) ||
-      String(estado.titulo || '').trim() ||
-      'Apresentação';
-    prevTitulo.textContent = ehModoSlidesOperador() ? '' : label.toUpperCase();
-    const kind = String(ap.kind || '').toLowerCase();
-    const tipoRotulo = rotuloTipoMidiaApresentacao(kind);
-    const linhaTxt = `${tipoRotulo} no telão`;
-    prevLetras.innerHTML = `<span class="pv-live-ap-meta">${svgIconeTipoMidiaApresentacao(kind)}<span class="pv-live-ap-meta-txt">${escapeHtml(linhaTxt)}</span></span>`;
-    prevLetras.classList.remove('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (estado.slidePretoFinal) {
-    prevTitulo.textContent = '';
-    prevLetras.textContent = '';
-    prevLetras.classList.add('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  if (estado.telaLimpa || !estado.linhas || !estado.linhas.length) {
-    prevTitulo.textContent = '';
-    if (ehModoSlidesOperador()) {
-      prevLetras.textContent = '';
-      prevLetras.classList.add('vazio');
-      limparEstiloPreviewSlide(prevLetras);
-      return;
-    }
-    prevLetras.textContent = 'Tela limpa';
-    prevLetras.classList.add('vazio');
-    limparEstiloPreviewSlide(prevLetras);
-    return;
-  }
-
-  const tituloTelaoDesejado = ehModoSlidesOperador() ? '' : (estado.titulo || '').toUpperCase();
-  const linhasPub = filtrarLinhasParaPublico(estado.linhas);
-  const textoPub = linhasPub.join('\n');
-  const textoDom = textoSlideMaiusculo(textoPub);
-  const previewTelaoJaAlinhado =
-    prevTitulo.textContent === tituloTelaoDesejado &&
-    prevLetras.textContent === textoDom &&
-    !prevLetras.classList.contains('vazio') &&
-    prevLetras.dataset.previewFonteTexto === textoPub;
-  if (previewTelaoJaAlinhado) return;
-  prevTitulo.textContent = tituloTelaoDesejado;
-  prevLetras.textContent = textoDom;
-  prevLetras.classList.remove('vazio');
-  aplicarClasseLinhas(prevLetras, textoPub);
-}
-
-/**
- * Letra nos cartões TELÃO/TV do modo slide: só com projeção real já emitida.
- * Seleção na faixa/playlist (1 clique) não preenche as prévias dos monitores.
- * Home (modo completo) usa só `#playlist-preview-card`. Badges de mídia ficam
- * de fora — tratados nos early-returns de `atualizarPreviewOperador` / telão.
- */
-function podeEspelharLetraNosPreviewsModoSlide() {
-  if (!ehModoSlidesOperador()) return false;
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) {
-    return false;
-  }
-  if (estrofeAtiva < 0) return false;
-  return !!projecaoMusicaEmitidaNoServidor;
-}
-
-/**
- * Estado local do slide selecionado no painel (modo slide).
- * Não deve alimentar as prévias TELÃO/TV — essas espelham só a projeção real.
- * Mantido para usos pontuais que precisem do conteúdo da seleção local.
- */
-function estadoPreviewTelaoLocalModoSlides() {
-  if (!podeEspelharLetraNosPreviewsModoSlide()) {
-    return { semProjecao: true };
-  }
-  const idxPreto = musicaAtiva.estrofes.length;
-  if (estrofeAtiva === idxPreto) return { tipo: 'musica', slidePretoFinal: true };
-  const cur = String(musicaAtiva.estrofes[estrofeAtiva] ?? '');
-  return { tipo: 'musica', titulo: musicaAtiva.titulo || '', telaLimpa: false, linhas: cur.split('\n') };
-}
-
-/** Telão no painel: espelha o servidor com as regras de `suprimirEspelhoPreviewsPorNavegacaoPlaylist`. */
-function atualizarPreviewTelaoPublico() {
-  /* Modo Slides: M2 é monitor virtual independente (não misturar com a TV). */
-  if (ehModoSlidesOperador()) {
-    atualizarPreviewMonitorPublicoSlides();
-    return;
-  }
-  const e = estadoServidor;
-  if (!hayProjecaoAtivaNoServidor() || !e) {
-    aplicarPreviewTelaoNoDom({ semProjecao: true });
-    return;
-  }
-  if (suprimirEspelhoPreviewsPorNavegacaoPlaylist()) {
-    aplicarPreviewTelaoNoDom({ semProjecao: true });
-    return;
-  }
-  if (e.blackout) {
-    aplicarPreviewTelaoNoDom(e);
-    return;
-  }
-  if (e.tipo === 'apresentacao') {
-    aplicarPreviewTelaoNoDom(e);
-    return;
-  }
-  if (e.tipo === 'aviso' && Array.isArray(e.linhas) && e.linhas.length) {
-    aplicarPreviewTelaoNoDom(e);
-    return;
-  }
-  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) {
-    aplicarPreviewTelaoNoDom(e);
-    return;
-  }
-  if (e.tipo === 'musica') {
-    const telasMostramMusica =
-      e.slidePretoFinal || (!e.telaLimpa && e.linhas && e.linhas.length);
-    if (telasMostramMusica) {
-      aplicarPreviewTelaoNoDom(e);
-      return;
-    }
-  }
-  if (!hayProjecaoAtivaNoServidorParaPreviews()) {
-    aplicarPreviewTelaoNoDom({ semProjecao: true });
-    return;
-  }
-  if (previewMusicaEsperandoDockParaEspelharLetra()) {
-    aplicarPreviewTelaoNoDom({ semProjecao: true });
-    return;
-  }
-  aplicarPreviewTelaoNoDom(estadoServidor);
-}
-
-/**
- * Cartão TV quando o painel não está alinhado com a projeção (ex.: letra comandada só pelo mobile).
- * Usa o mesmo estado que o servidor manda no socket (`linhas` + `linhasProximo` + `proximoSlidePreto`),
- * para o cartão «próximo» coincidir com a TV física e com o fluxo do controlador.
- */
-function preencherPreviewOperadorSomenteEstadoServidorMusica() {
-  const e = estadoServidor;
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (!e || e.tipo !== 'musica') return;
-  if (e.slidePretoFinal) {
-    limparPreviewTituloMusicaAbertura();
-    opA.innerHTML = '';
-    opA.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opA);
-    opP.innerHTML = '';
-    opP.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opP);
-    return;
-  }
-  const idx = Number.isFinite(Number(e.estrofeIndex)) ? Number(e.estrofeIndex) : -1;
-  const tituloMusica =
-    (musicaAtiva && musicaEstadoCombinaComAtiva(e) && musicaAtiva.titulo) || e.titulo || '';
-  const abertura = idx === 0;
-  aplicarPreviewTituloMusicaAbertura(
-    musicaAtiva && musicaEstadoCombinaComAtiva(e)
-      ? tituloAberturaM3MusicaAtiva(tituloMusica)
-      : tituloMusica,
-    abertura
-  );
-
-  let curRaw = '';
-  let proxRaw = '';
-  if (musicaAtiva && musicaEstadoCombinaComAtiva(e) && Array.isArray(musicaAtiva.estrofes)) {
-    if (idx >= 0 && idx < musicaAtiva.estrofes.length) curRaw = String(musicaAtiva.estrofes[idx] ?? '');
-    if (e.proximoSlidePreto) proxRaw = '';
-    else if (idx >= 0 && idx < musicaAtiva.estrofes.length - 1) {
-      const nxt = String(musicaAtiva.estrofes[idx + 1] ?? '');
-      proxRaw = abertura ? primeirasLinhasEstrofeMinistrante(nxt, 2) : nxt;
-    }
-  } else {
-    curRaw = (e.linhas || []).join('\n');
-    if (e.proximoSlidePreto) proxRaw = '';
-    else if (Array.isArray(e.linhasProximo) && e.linhasProximo.length) {
-      const nxt = e.linhasProximo.join('\n');
-      proxRaw = abertura ? primeirasLinhasEstrofeMinistrante(nxt, 2) : nxt;
-    }
-  }
-
-  opA.className = 'op-slide-text';
-  aplicarPreviewMinistranteNoElemento(opA, curRaw, previewMinistranteHelpers);
-
-  opP.className = 'op-slide-text';
-  if (proxRaw.trim()) {
-    aplicarPreviewMinistranteNoElemento(opP, proxRaw, previewMinistranteHelpers);
-  } else {
-    opP.innerHTML = '';
-    opP.classList.add('vazio');
-    limparEstiloPreviewSlide(opP);
-  }
-}
-
-/** Pré-visualização TV/ministrante só a partir da música e estrofe escolhidas no painel (sem depender do socket). */
-function preencherPreviewOperadorSomenteMusicaLocal() {
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-
-  if (!musicaAtiva || !musicaAtiva.estrofes || musicaAtiva.estrofes.length === 0) {
-    limparPreviewTituloMusicaAbertura();
-    opA.textContent = '';
-    opA.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opA);
-    opP.textContent = '';
-    opP.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opP);
-    return;
-  }
-
-  const nEst = musicaAtiva.estrofes.length;
-  const idxPreto = nEst;
-
-  if (estrofeAtiva < 0) {
-    limparPreviewTituloMusicaAbertura();
-    opA.innerHTML = '';
-    opA.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opA);
-    const p0 = musicaAtiva.estrofes[0];
-    opP.className = 'op-slide-text';
-    if (p0) {
-      aplicarPreviewMinistranteNoElemento(opP, p0, previewMinistranteHelpers);
-    } else {
-      opP.innerHTML = '';
-      opP.classList.add('vazio');
-      limparEstiloPreviewSlide(opP);
-    }
-    return;
-  }
-
-  if (estrofeAtiva === idxPreto) {
-    limparPreviewTituloMusicaAbertura();
-    opA.innerHTML = '';
-    opA.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opA);
-    opP.innerHTML = '';
-    opP.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opP);
-    return;
-  }
-
-  const abertura = estrofeAtiva === 0;
-  aplicarPreviewTituloMusicaAbertura(tituloAberturaM3MusicaAtiva(musicaAtiva.titulo || ''), abertura);
-
-  const cur = musicaAtiva.estrofes[estrofeAtiva];
-  const proximoEhPreto = estrofeAtiva === nEst - 1;
-  const nxtFull = proximoEhPreto ? null : musicaAtiva.estrofes[estrofeAtiva + 1];
-  const nxt = nxtFull
-    ? abertura
-      ? primeirasLinhasEstrofeMinistrante(nxtFull, 2)
-      : nxtFull
-    : null;
-
-  opA.className = 'op-slide-text';
-  if (cur) {
-    aplicarPreviewMinistranteNoElemento(opA, cur, previewMinistranteHelpers);
-  } else {
-    opA.innerHTML = '';
-    opA.classList.add('vazio');
-    limparEstiloPreviewSlide(opA);
-  }
-
-  opP.className = 'op-slide-text';
-  if (proximoEhPreto) {
-    opP.innerHTML = '';
-    opP.classList.add('vazio');
-    limparEstiloPreviewSlide(opP);
-  } else if (nxt) {
-    aplicarPreviewMinistranteNoElemento(opP, nxt, previewMinistranteHelpers);
-  } else {
-    opP.innerHTML = '';
-    opP.classList.add('vazio');
-    limparEstiloPreviewSlide(opP);
-  }
-}
-
-/** Limpa título/letra da prévia TV (modo Slides ocioso). */
-function limparConteudoPreviewOperadorSlides() {
-  limparPreviewTituloMusicaAbertura();
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (opA) {
-    opA.textContent = '';
-    opA.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opA);
-  }
-  if (opP) {
-    opP.textContent = '';
-    opP.className = 'op-slide-text vazio';
-    limparEstiloPreviewSlide(opP);
-  }
-}
-
-/**
- * Seleção local alinhada com o índice projetado no servidor (modo Slides).
- * Se o operador clicou noutro chip sem projetar, a prévia deve continuar no servidor.
- */
-function selecaoLocalAlinhadaComProjecaoMusicaServidor() {
-  const e = estadoServidor;
-  if (!e || e.tipo !== 'musica' || !musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return false;
-  if (!musicaEstadoCombinaComAtiva(e)) return false;
-  const idxPreto = musicaAtiva.estrofes.length;
-  if (e.slidePretoFinal) return estrofeAtiva === idxPreto;
-  const idxSrv = Number(e.estrofeIndex);
-  return Number.isFinite(idxSrv) && estrofeAtiva === idxSrv;
-}
-
-let previewRelogioOciosoTimer = null;
-
-/** Config de relógio usada pelo M3 real (`currentCfgCtrl.clock`). */
-function obterCfgClockPreviewSlides() {
-  const cfg =
-    typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : lerCurrentCfgCtrl();
-  return (cfg && cfg.clock) || {};
-}
-
-/** Igual a `deveRevelarRelogioMinistrante` em `display-operator.html`. */
-function deveRevelarRelogioPreviewMinistrante() {
-  return obterCfgClockPreviewSlides().showClock !== false;
-}
-
-/** `vh` do M3 escalado à altura da capa da prévia (mesma proporção visual). */
-function pxVhPreviewRelogio(vh, capa) {
-  const h = (capa && capa.clientHeight) || 80;
-  return Math.max(6, (Number(vh) || 0) * (h / 100));
-}
-
-function corRelogioPreviewOp(clk) {
-  return clk.textColor || '#ffffff';
-}
-
-function aplicarFundoRelogioPreviewOp(capa, clk) {
-  if (!capa) return;
-  if (clk.bgType === 'gradient') {
-    capa.style.background = clk.bgGradient || '#000000';
-  } else if (clk.bgType === 'image' && clk.bgImage) {
-    capa.style.background = `url('${clk.bgImage}') center/cover no-repeat`;
-  } else {
-    capa.style.background = clk.bgColor || '#000000';
-  }
-}
-
-function desenharRelogioAnalogicoPreviewOp(canvas, now, cor) {
-  if (!canvas) return;
-  const ctxCv = canvas.getContext('2d');
-  if (!ctxCv) return;
-  const W = canvas.width;
-  const H = canvas.height;
-  const cx = W / 2;
-  const cy = H / 2;
-  const r = W / 2 - 14;
-  ctxCv.clearRect(0, 0, W, H);
-  ctxCv.beginPath();
-  ctxCv.arc(cx, cy, r, 0, 2 * Math.PI);
-  ctxCv.strokeStyle = cor;
-  ctxCv.globalAlpha = 0.28;
-  ctxCv.lineWidth = 2;
-  ctxCv.stroke();
-  ctxCv.globalAlpha = 1;
-  for (let i = 0; i < 12; i++) {
-    const ang = (i / 12) * 2 * Math.PI - Math.PI / 2;
-    const maior = i % 3 === 0;
-    const inner = maior ? r - 22 : r - 10;
-    ctxCv.beginPath();
-    ctxCv.moveTo(cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner);
-    ctxCv.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
-    ctxCv.strokeStyle = cor;
-    ctxCv.globalAlpha = maior ? 0.85 : 0.38;
-    ctxCv.lineWidth = maior ? 3 : 1.5;
-    ctxCv.stroke();
-    ctxCv.globalAlpha = 1;
-  }
-  const sec = now.getSeconds();
-  const min = now.getMinutes() + sec / 60;
-  const hr = (now.getHours() % 12) + min / 60;
-  const desenharMao = (frac, len, largura, alpha) => {
-    const ang = frac * 2 * Math.PI - Math.PI / 2;
-    ctxCv.beginPath();
-    ctxCv.moveTo(cx, cy);
-    ctxCv.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
-    ctxCv.strokeStyle = cor;
-    ctxCv.globalAlpha = alpha;
-    ctxCv.lineWidth = largura;
-    ctxCv.lineCap = 'round';
-    ctxCv.stroke();
-    ctxCv.globalAlpha = 1;
-  };
-  desenharMao(hr / 12, r * 0.52, 9, 0.95);
-  desenharMao(min / 60, r * 0.73, 5.5, 0.88);
-  desenharMao(sec / 60, r * 0.82, 2, 0.65);
-  ctxCv.beginPath();
-  ctxCv.arc(cx, cy, 7, 0, 2 * Math.PI);
-  ctxCv.fillStyle = cor;
-  ctxCv.globalAlpha = 0.9;
-  ctxCv.fill();
-  ctxCv.globalAlpha = 1;
-}
-
-/**
- * Tick da prévia ociosa — espelho de `tickRelogioOp` (display-operator).
- * Usa a mesma `clock` de Ajustes que o M3 real.
- */
-function tickPreviewRelogioOciosoMinistrante() {
-  const capa = document.getElementById('op-preview-relogio');
-  const elHora = document.getElementById('op-preview-relogio-hora');
-  const elData = document.getElementById('op-preview-relogio-data');
-  const elVerso = document.getElementById('op-preview-relogio-verso');
-  const elAnalogWrap = document.getElementById('op-preview-relogio-analog-wrap');
-  const elAnalog = document.getElementById('op-preview-relogio-analog');
-  if (!capa || !elHora || capa.hidden) return;
-
-  const clk = obterCfgClockPreviewSlides();
-  const now = new Date();
-  const fmt = String(clk.format || 'HH:MM');
-  const lowerFmt = fmt.toLowerCase();
-  const color = corRelogioPreviewOp(clk);
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  const analogico = lowerFmt === 'analog';
-
-  elHora.style.display = analogico || lowerFmt === 'none' ? 'none' : '';
-  if (elAnalogWrap) elAnalogWrap.hidden = !analogico;
-  if (lowerFmt === 'hh:mm:ss') elHora.textContent = `${h}:${m}:${s}`;
-  else if (lowerFmt !== 'none' && !analogico) elHora.textContent = `${h}:${m}`;
-  else elHora.textContent = '';
-  elHora.style.color = color;
-  elHora.style.fontSize = `${pxVhPreviewRelogio(Math.max(7, Number(clk.fontSize || 13)), capa)}px`;
-
-  if (analogico) desenharRelogioAnalogicoPreviewOp(elAnalog, now, color);
-
-  if (elData) {
-    if (clk.showDate !== false) {
-      elData.textContent = now.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-      });
-      elData.style.display = '';
-      elData.style.color = clk.dateColor || color;
-      elData.style.fontSize = `${pxVhPreviewRelogio(Math.max(0.8, Number(clk.dateFontSize || 2.4)), capa)}px`;
-    } else {
-      elData.textContent = '';
-      elData.style.display = 'none';
-    }
-  }
-
-  if (elVerso) {
-    const verseTxt = clk.showVerse && clk.verse ? String(clk.verse) : '';
-    if (verseTxt) {
-      elVerso.textContent = verseTxt;
-      elVerso.style.display = '';
-      elVerso.style.color = clk.verseColor || color;
-      elVerso.style.fontSize = `${pxVhPreviewRelogio(Math.max(0.8, Number(clk.verseFontSize || 2.4)), capa)}px`;
-    } else {
-      elVerso.textContent = '';
-      elVerso.style.display = 'none';
-    }
-  }
-
-  aplicarFundoRelogioPreviewOp(capa, clk);
-}
-
-/**
- * Liga/desliga a capa do relógio na prévia TV.
- * Com `showClock === false` a capa fica oculta → fundo preto do cartão (= M3 real).
- */
-function definirPreviewRelogioOciosoMinistrante(visivel) {
-  const capa = document.getElementById('op-preview-relogio');
-  if (!capa) return;
-  if (visivel) {
-    capa.hidden = false;
-    capa.setAttribute('aria-hidden', 'false');
-    tickPreviewRelogioOciosoMinistrante();
-    if (!previewRelogioOciosoTimer) {
-      previewRelogioOciosoTimer = setInterval(tickPreviewRelogioOciosoMinistrante, 1000);
-    }
-  } else {
-    capa.hidden = true;
-    capa.setAttribute('aria-hidden', 'true');
-    capa.style.background = '';
-    if (previewRelogioOciosoTimer) {
-      clearInterval(previewRelogioOciosoTimer);
-      previewRelogioOciosoTimer = null;
-    }
-  }
-}
-
-/**
- * Estado ocioso / saída do M3 na prévia — delega ao classificador do monitor virtual.
- */
-function sincronizarPreviewOciosoMinistranteSlides() {
-  if (!ehModoSlidesOperador()) {
-    definirPreviewRelogioOciosoMinistrante(false);
-    return;
-  }
-  atualizarPreviewMonitorMinistranteSlides();
-}
-
-/**
- * Prévia flutuante da Home: só o estado da música/slides da coluna central (estrofeAtiva).
- * Tamanho da fonte por texto (linha mais longa + linhas) · sem quebra automática (`white-space: pre`).
- * Independente do socket · não altera projeção.
- */
-function atualizarPreviewPlaylistCentral() {
-  homeLayout?.updatePreview(estrofeAtiva, musicaAtiva?.estrofes?.length || 0);
-  if (document.body.classList.contains('app-mod-slides')) return;
-  const tit = document.getElementById('pl-pv-titulo');
-  const slideEl = document.getElementById('pl-pv-slide');
-  if (!tit || !slideEl) return;
-
-  const limpar = () => {
-    tit.textContent = '';
-    tit.classList.add('vazio');
-    slideEl.textContent = '';
-    slideEl.className = 'pl-slide-text vazio';
-    limparEstiloPreviewSlide(slideEl);
-  };
-
-  if (ehModoBibliaOperador() || !musicaAtiva || !musicaAtiva.estrofes || musicaAtiva.estrofes.length === 0) {
-    limpar();
-    return;
-  }
-
-  tit.classList.remove('vazio');
-  tit.textContent = (musicaAtiva.titulo || '').toUpperCase();
-
-  const nEst = musicaAtiva.estrofes.length;
-  const idxPreto = nEst;
-
-  if (estrofeAtiva < 0 || estrofeAtiva === idxPreto) {
-    slideEl.textContent = '';
-    slideEl.className = 'pl-slide-text vazio';
-    limparEstiloPreviewSlide(slideEl);
-    return;
-  }
-
-  const cur = musicaAtiva.estrofes[estrofeAtiva];
-  slideEl.textContent = cur ? textoSlideMaiusculo(cur) : '';
-  slideEl.className = 'pl-slide-text';
-  if (cur) {
-    slideEl.classList.remove('vazio');
-    aplicarClasseLinhas(slideEl, cur);
-  } else {
-    slideEl.classList.add('vazio');
-    limparEstiloPreviewSlide(slideEl);
-  }
-}
-
-function atualizarPreviewOperador() {
-  try {
-    /* Modo Slides: duas prévias = monitores virtuais independentes (M2 e M3). */
-    if (ehModoSlidesOperador()) {
-      atualizarPreviewsMonitoresVirtuaisModoSlides();
-      const clsMin = classificarSaidaMonitorMinistranteSlides();
-      /* Só reemitir ministrante quando a prévia espelha slides (não badge/outro modo). */
-      if (clsMin.mode === 'slides' || clsMin.mode === 'idle') {
-        emitirEstadoMinistranteAoServidor();
-      }
-      return;
-    }
-
-    const opA = document.getElementById('op-atual');
-    const opP = document.getElementById('op-proximo');
-
-    if (!hayProjecaoAtivaNoServidor()) {
-      definirPreviewRelogioOciosoMinistrante(false);
-      limparPreviewTituloMusicaAbertura();
-      opA.textContent = '';
-      opA.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opA);
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
-    definirPreviewRelogioOciosoMinistrante(false);
-
-    if (suprimirEspelhoPreviewsPorNavegacaoPlaylist()) {
-      limparPreviewTituloMusicaAbertura();
-      opA.textContent = '';
-      opA.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opA);
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
-    if (
-      estadoServidor &&
-      estadoServidor.tipo === 'biblia' &&
-      (!estadoServidor.telaLimpa || estadoServidor.projecaoSomenteMinistrante)
-    ) {
-      limparPreviewTituloMusicaAbertura();
-      const linhasBib = Array.isArray(estadoServidor.linhas) ? estadoServidor.linhas : [];
-      const txtBib = linhasBib.map((s) => String(s ?? '')).join('\n').trim();
-      opA.textContent = txtBib;
-      opA.className = 'op-slide-text';
-      if (txtBib) {
-        opA.classList.remove('vazio');
-        aplicarClasseLinhas(opA, txtBib);
-      } else {
-        opA.classList.add('vazio');
-        limparEstiloPreviewSlide(opA);
-      }
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      /* Ministrante já foi atualizado no servidor por exibir_versiculo — não reemitir vazio. */
-      return;
-    }
-
-    const eMus = estadoServidor;
-    const servidorMostraMusicaProj =
-      eMus &&
-      eMus.tipo === 'musica' &&
-      !eMus.blackout &&
-      (eMus.slidePretoFinal || (!eMus.telaLimpa && eMus.linhas && eMus.linhas.length));
-
-    const painelAlinhadoComProjecaoServidor =
-      servidorMostraMusicaProj &&
-      musicaAtiva &&
-      musicaEstadoCombinaComAtiva(eMus) &&
-      projecaoMusicaEmitidaNoServidor;
-
-    if (servidorMostraMusicaProj && !painelAlinhadoComProjecaoServidor) {
-      preencherPreviewOperadorSomenteEstadoServidorMusica();
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
-    const servidorMusicaAlinhado =
-      estadoServidor &&
-      estadoServidor.tipo === 'musica' &&
-      hayProjecaoAtivaNoServidorParaPreviews();
-
-    if (!servidorMusicaAlinhado) {
-      /* Home: nunca preencher TELÃO/TV com letra — só a prévia da playlist (`pl-pv-*`). */
-      const mostrarPreviewOpLocal = projecaoMusicaEmitidaNoServidor;
-      if (mostrarPreviewOpLocal) {
-        preencherPreviewOperadorSomenteMusicaLocal();
-      } else {
-        limparPreviewTituloMusicaAbertura();
-        opA.textContent = '';
-        opA.className = 'op-slide-text vazio';
-        limparEstiloPreviewSlide(opA);
-        opP.textContent = '';
-        opP.className = 'op-slide-text vazio';
-        limparEstiloPreviewSlide(opP);
-      }
-      atualizarPreviewTelaoPublico();
-      return;
-    }
-
-    if (previewMusicaEsperandoDockParaEspelharLetra()) {
-      limparPreviewTituloMusicaAbertura();
-      opA.textContent = '';
-      opA.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opA);
-      opP.textContent = '';
-      opP.className = 'op-slide-text vazio';
-      limparEstiloPreviewSlide(opP);
-      atualizarPreviewTelaoPublico();
-      emitirEstadoMinistranteAoServidor();
-      return;
-    }
-
-    preencherPreviewOperadorSomenteMusicaLocal();
-    atualizarPreviewTelaoPublico();
-    emitirEstadoMinistranteAoServidor();
-  } finally {
-    atualizarPreviewPlaylistCentral();
-    if (ehModoSlidesOperador() || ehModoApresentacaoOperador()) {
-      try {
-        aplicarPreviewPainelOcultoNoDom();
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    }
-    if (ehModoSlidesOperador()) {
-      try {
-        syncRoteamentoTelasModoSlidesNaUi();
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    } else {
-      definirPreviewRelogioOciosoMinistrante(false);
-    }
-  }
-}
-
-let lyraAssinaturaEmitMinistrante = null;
-
-function emitirEstadoMinistranteAoServidor() {
-  if (apresentacaoOcupandoCanalMinistrante()) return;
-  if (!projecao.pronta()) return;
-  if (ehModoSlidesOperador() && obterRotaSlidesParaUi().ministranteIndex < 0) return;
-  if (
-    ehModoBibliaOperador() &&
-    estadoServidor &&
-    estadoServidor.tipo === 'biblia' &&
-    !estadoServidor.telaLimpa
-  ) {
-    return;
-  }
-  /*
-   * Folhear a playlist ou clicar num chip só selecciona no painel. Se já há
-   * conteúdo no ar e este painel NÃO o emitiu, o título/letra do M3 têm de
-   * continuar os da projeção — senão Galileu fica no slide e o nome vira Deixa.
-   * Quem arma `projecaoMusicaEmitidaNoServidor` (duplo clique, setas, próxima
-   * música) é que pode voltar a mandar `exibir_ministrante`.
-   */
-  if (hayProjecaoAtivaNoServidor() && !projecaoMusicaEmitidaNoServidor) return;
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (!opA || !opP) return;
-  const atual = textoMinistranteDeElementoPreview(opA);
-  const proximo = textoMinistranteDeElementoPreview(opP);
-  /** Se ainda há saída ativa (inclui blackout/slide preto), não abrir relógio no ministrante. */
-  const projecaoAtiva = hayProjecaoAtivaNoServidor();
-  const slidePretoFinal = !!(estadoServidor && estadoServidor.slidePretoFinal);
-  const telaLimpa = !atual && !proximo && !projecaoAtiva;
-  const tituloMusica = tituloAberturaM3MusicaAtiva(musicaAtiva?.titulo || '');
-  const aberturaMusica =
-    !slidePretoFinal &&
-    !!musicaAtiva &&
-    estrofeAtiva === 0 &&
-    !!(tituloMusica || atual || proximo);
-  const payload = {
-    titulo: tituloMusica,
-    atual: slidePretoFinal ? '' : atual,
-    proximo: slidePretoFinal ? '' : proximo,
-    aberturaMusica,
-    projecaoAtiva,
-    telaLimpa,
-    slidePretoFinal,
-  };
-  let assinatura = null;
-  try {
-    assinatura = JSON.stringify(payload);
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  if (assinatura !== null && assinatura === lyraAssinaturaEmitMinistrante) return;
-  lyraAssinaturaEmitMinistrante = assinatura;
-  projecao.enviar('exibir_ministrante', payload);
-}
-
-function configurarObserverPreviewMinistrante() {
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (!opA || !opP) return;
-  let timer = null;
-  const agenda = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => emitirEstadoMinistranteAoServidor(), 40);
-  };
-  const obs = new MutationObserver(() => agenda());
-  /* Só estrutura/texto — `attributes` disparava ao ajustar `font-size` nas prévias e
-     reemitia `exibir_ministrante` sem mudança real de letra (ciclo de repintura). */
-  obs.observe(opA, { childList: true, subtree: true, characterData: true });
-  obs.observe(opP, { childList: true, subtree: true, characterData: true });
-}
-
-/**
- * As instruções vêm sempre como título + lista de ideias (uma por item), a partir de
- * uma única fonte de texto. No modo slides — onde vivem num balão que só abre ao pedido
- * — saem como lista, uma ideia por linha. Nos outros modos continuam em linha corrida
- * separada por «·», como sempre estiveram na faixa inferior.
- */
-function renderInstrucoesProjecao(titulo, itens) {
-  const dock = document.getElementById('slides-projecao-instrucoes');
-  if (!dock) return;
-  if (!itens || !itens.length) {
-    dock.innerHTML = titulo || '';
-    return;
-  }
-  if (ehModoSlidesOperador()) {
-    const lis = itens.map((t) => `<li>${t}</li>`).join('');
-    dock.innerHTML =
-      (titulo ? `<div class="slides-instr-tit">${titulo}</div>` : '') +
-      `<ul class="slides-instr-lista">${lis}</ul>`;
-    return;
-  }
-  dock.innerHTML = [titulo, ...itens].filter(Boolean).join(' · ');
-}
-
-/** Texto da faixa central — também quando só a grelha de slides atualiza (ex.: edição em tempo real). */
-function atualizarSlidesInstrucoes() {
-  const kb = (t) => `<kbd class="slides-dock-kbd">${t}</kbd>`;
-  const atalhosProjecao = [
-    `${kb('←')} ${kb('→')} navegam entre os slides`,
-    `${kb('ESC')} limpa as telas e desmarca a música (fecha a faixa)`,
-    `${kb('F10')} alterna o blackout`,
-  ];
-  if (ehModoBibliaOperador() && !ehModoSlidesOperador()) {
-    renderInstrucoesProjecao('');
-    return;
-  }
-  if (!musicaAtiva || !musicaAtiva.estrofes) {
-    if (ehModoSlidesOperador()) {
-      renderInstrucoesProjecao('<strong>Modo slides</strong>', [
-        'Escolher uma música na playlist só a carrega — não projeta',
-        '<strong>Duplo clique na música</strong> começa a projetar na 1.ª estrofe',
-        'Na faixa, duplo clique no chip muda o slide',
-      ]);
-    } else {
-      renderInstrucoesProjecao('<strong>Modo controlador</strong>', [
-        'A playlist só prepara a música, sem enviar às telas',
-        'Na coluna central, <strong>clique</strong> seleciona o slide',
-        'Botão ✎ ou clique direito: edição rápida',
-      ]);
-    }
-    return;
-  }
-  if (ehModoSlidesOperador() && !faixaSlidesHabilitadaPorPlaylistNoModoSlides) {
-    renderInstrucoesProjecao('<strong>Modo slides</strong>', [
-      'Toque numa música <strong>na playlist à esquerda</strong> para mostrar os slides aqui',
-      'Clique carrega; duplo clique projeta',
-      'Música aberta só pelo banco (modo completo) não preenche esta faixa',
-    ]);
-    return;
-  }
-  const n = musicaAtiva.estrofes.length;
-  if (modoEdicaoEstrofes) {
-    renderInstrucoesProjecao(`<strong>Edição</strong> — ${n} slide(s)`, [
-      '<strong>Linha vazia</strong> (Enter duplo, sem carácter no meio) cria outro slide na hora',
-      'Linha com <strong>um espaço</strong> mantém tudo no mesmo slide',
-      '<strong>Encerrar edição</strong> descarta as alterações',
-      '<strong>Salvar</strong> grava e sai do modo edição',
-      'Arrastar <strong>⋮⋮</strong> reordena os slides',
-      'Último cartão = preto',
-    ]);
-  } else if (ehModoSlidesOperador()) {
-    renderInstrucoesProjecao(
-      `<strong>${n} slide(s)</strong>`,
-      projecaoMusicaEmitidaNoServidor
-        ? [
-            'Com projeção ativa, <strong>um clique</strong> num chip envia esse slide às telas',
-            'Último chip = preto',
-            ...atalhosProjecao,
-          ]
-        : [
-            '<strong>Duplo clique na música na playlist</strong> inicia na 1.ª estrofe',
-            'Na faixa, <strong>clique</strong> apenas seleciona',
-            '<strong>Duplo clique</strong> no chip projeta',
-            'Último chip = preto',
-            ...atalhosProjecao,
-          ]
-    );
-  } else {
-    renderInstrucoesProjecao(`<strong>${n} estrofe(s)</strong>`, [
-      'Coluna central: <strong>clique</strong> seleciona o slide',
-      'Botão direito no chip abre a edição rápida',
-      'Último chip = preto',
-      '<strong>Próxima música</strong> carrega a seguinte da playlist',
-      ...atalhosProjecao,
-    ]);
-  }
-}
-
-/**
- * Zoom da faixa: à vista, mas inerte enquanto não há slides para dimensionar.
- *
- * Esconder os botões seria mais limpo e pior: o operador deixaria de saber que o controlo
- * existe. Não exibir diz «existe, ainda não serve para nada» — que é a verdade do estado
- * ocioso. Fica no mesmo grupo que «Próxima música», que já seguia esta regra.
- *
- * @param {boolean} inertes
- */
-function definirControlosZoomFaixaSlidesInertes(inertes) {
-  ['slides-zoom-menos', 'slides-zoom-mais'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = !!inertes;
-  });
-  const grupo = document.querySelector('.slides-dock-zoom-group');
-  if (grupo) grupo.classList.toggle('slides-dock-zoom-group--inerte', !!inertes);
-}
-
-/**
- * Mensagem no vão da faixa quando ainda não há slides.
- *
- * Sem ela, o modo slides abre com uma área grande e vazia que parece falha de
- * carregamento. Diz só «playlist» de propósito: no modo slides, carregar do banco à
- * esquerda não arma a faixa — mandá-lo lá seria mandá-lo a lado nenhum.
- *
- * @param {boolean} mostrar
- */
-function definirVazioDaFaixaSlidesVisivel(mostrar) {
-  const el = document.getElementById('slides-grid-vazio');
-  if (el) el.hidden = !mostrar;
-}
-
-/** Nome na barra da faixa de slides — texto e dica saem sempre juntos daqui. */
-function definirNomeMusicaBarraSlides(el, titulo) {
-  el.textContent = titulo;
-  const artistaEl = document.getElementById('slides-musica-artista');
-  if (artistaEl) artistaEl.textContent = titulo ? (musicaAtiva?.artista || 'Sem artista') : '';
-  if (titulo) el.dataset.dica = titulo;
-  else delete el.dataset.dica;
-}
+// (extraído) pré-visualização ao vivo → painel/previewProjecao.js
 
 // (extraído) faixa de slides → painel/slidesStrip.js
 
