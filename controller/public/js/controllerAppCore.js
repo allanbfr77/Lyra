@@ -67,6 +67,11 @@
  *   playlistLista.js — playlist: renderização, contagens, copiar nomes, animação de reordenação e arrastar/soltar
  *   playlistAdicionar.js — playlist: adicionar música/versão e modal de novas músicas sincronizadas
  *   playlistMenus.js — playlist: menus flutuantes (linha, tema, momento) e ações da barra
+ *   videoApresentacao.js — mídias: vídeo da apresentação (HTTP, miniaturas, restauração) e projeção de itens
+ *   playerLocalMidia.js — mídias: motor de áudio/vídeo local e no servidor (play, pausa, volume, seek, relógio da interface)
+ *   bibliotecaMidiasApresentacao.js — mídias: criação de itens a partir de arquivos e biblioteca de mídias (abas, busca, renomear, excluir)
+ *   playlistVideoApresentacao.js — mídias: playlist de vídeos (avanço automático, ordem, atraso, interface) e controles de áudio do servidor
+ *   gridApresentacao.js — mídias: grelha de cards da apresentação (seleção, card de 4 imagens, adicionar arquivos)
  * =============================================================================
  */
 
@@ -120,15 +125,8 @@ import {
 } from './modules/slidesGrelha.js';
 import { criarIrParaSlideNumero } from './modules/slidesIrParaNumero.js';
 import {
-  detectarKindApresentacaoPorMimeOuNome,
-  ehArquivoPowerPointLocal,
   rotuloTipoMidiaApresentacao,
   svgIconeTipoMidiaApresentacao,
-  srcImagemApresentacaoSeguro,
-  fmtTempoAudio,
-  obterThumbVideoApresentacao,
-  reescreverUrlVideoParaTelas as reescreverUrlVideoParaTelasPuro,
-  urlMidiaApresentacaoHttpPorId as urlMidiaApresentacaoHttpPorIdPuro,
   normalizarItemApresentacao as normalizarItemApresentacaoPuro,
   clonarCfgAvisoCard6Padrao,
   normalizarCfgAvisoCard6,
@@ -562,6 +560,61 @@ import {
   configurarSeletorTemaPlaylist,
   registrarDependenciasPlaylistMenus,
 } from './painel/playlistMenus.js';
+import {
+  registrarDependenciasVideoApresentacao,
+  restaurarItemVideoApresentacao,
+  restaurarVideosModoApresentacao,
+  urlMidiaApresentacaoHttpPorId,
+  videoProjetadoAtivoNoPlayer,
+} from './painel/videoApresentacao.js';
+import {
+  alternarLoopPlayerApresentacao,
+  alternarMudoAudioApresentacao,
+  atualizarUiPlayerAudioRemoto,
+  definirVolumeAudioServidor,
+  get_previewAlvoAtual,
+  obterElementoVideoLocal,
+  pararAudioLocalApresentacao,
+  pararAudioServidorPlayback,
+  posicionarOverlayPreview,
+  prepararPlayerVideoAposProjetar,
+  registrarDependenciasPlayerLocalMidia,
+  seekAudioServidor,
+  tocarAudioServidorApresentacao,
+} from './painel/playerLocalMidia.js';
+import {
+  apLibFecharMenus,
+  configurarBibliotecaMidiasApresentacao,
+  importarArquivosBibliotecaMidias,
+  registrarDependenciasBibliotecaMidiasApresentacao,
+  renderListaAudiosApresentacao,
+  renderMenuApresentacao,
+} from './painel/bibliotecaMidiasApresentacao.js';
+import {
+  PLAYLIST_ATRASOS_PERMITIDOS,
+  aoTerminarVideoPlaylist,
+  atualizarPlaylistUiAoVivoSeMudou,
+  cancelarAvancoAutoPlaylist,
+  pararAudioServidor,
+  playlistAdicionarVideos,
+  playlistAlternarModo,
+  playlistControlaReproducaoAtual,
+  playlistDefinirAtraso,
+  playlistLimpar,
+  registrarDependenciasPlaylistVideoApresentacao,
+  renderListaPlaylistApresentacao,
+  tocarAudioAtualSelecionado,
+} from './painel/playlistVideoApresentacao.js';
+import {
+  adicionarArquivoDiretoNoCard,
+  adicionarArquivosAoMenu,
+  adicionarImagemNaAreaCard4,
+  getApresentacaoCardUiClickTimer,
+  registrarDependenciasGridApresentacao,
+  renderGridApresentacao,
+  setApresentacaoCardSelecionadoIdx,
+  setApresentacaoCardUiClickTimer,
+} from './painel/gridApresentacao.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -1157,6 +1210,197 @@ registrarDependenciasPlaylistMenus({
   savePlaylists,
   setTemaSelecionadoAtual,
   getCultoId: () => cultoId,
+});
+registrarDependenciasVideoApresentacao({
+  atualizarFeedbackProjecaoApresentacaoUi,
+  atualizarRodapeAudioApresentacao,
+  emModoProjecaoLocal,
+  emitirApresentacao,
+  getControllerApiBase,
+  getServidorIp,
+  getServidorProjeccaoIp,
+  mensagemAlvoInvalidoApresentacao,
+  monitoresApresentacaoCobremAlvo,
+  normalizarItemApresentacao,
+  obterAlvoProjecaoModoApresentacao,
+  reidratarRotaApresentacaoDoSeletor,
+  salvarEstadoModoApresentacaoNoStorage,
+  atualizarUiPlayerAudioRemoto,
+  cancelarAvancoAutoPlaylist,
+  obterElementoVideoLocal,
+  prepararPlayerVideoAposProjetar,
+  renderGridApresentacao,
+  tocarAudioServidorApresentacao,
+  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
+  get_playlistProjetando: () => _playlistProjetando,
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  setApresentacaoMidiaProjetadaId: (valor) => {
+    apresentacaoMidiaProjetadaId = valor;
+  },
+  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
+  getAudioStateRemoto: () => audioStateRemoto,
+  getPlaylistVideoAtiva: () => playlistVideoAtiva,
+  setPlaylistVideoAtiva: (valor) => {
+    playlistVideoAtiva = valor;
+  },
+});
+registrarDependenciasPlayerLocalMidia({
+  armarGuardaVisualRetomadaAudio,
+  enviarComandoAudioProjeccao,
+  hostProjecao,
+  limparGuardaVisualRetomadaAudio,
+  salvarEstadoModoApresentacaoNoStorage,
+  aoTerminarVideoPlaylist,
+  atualizarPlaylistUiAoVivoSeMudou,
+  playlistControlaReproducaoAtual,
+  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
+  getAudioLoopAtivo: () => audioLoopAtivo,
+  setAudioLoopAtivo: (valor) => {
+    audioLoopAtivo = valor;
+  },
+  getAudioLoopReinicioPendente: () => audioLoopReinicioPendente,
+  setAudioLoopReinicioPendente: (valor) => {
+    audioLoopReinicioPendente = valor;
+  },
+  getAudioSeekDragging: () => audioSeekDragging,
+  getAudioStateRemoto: () => audioStateRemoto,
+  setAudioStateRemoto: (valor) => {
+    audioStateRemoto = valor;
+  },
+  getProjecao: () => projecao,
+});
+registrarDependenciasBibliotecaMidiasApresentacao({
+  atualizarFeedbackProjecaoApresentacaoUi,
+  emitirEncerrarApresentacaoPublicoAoServidor,
+  escolherArquivoModoApresentacao,
+  salvarEstadoModoApresentacaoNoStorage,
+  sincronizarPillProjecaoNav,
+  adicionarArquivosAoMenu,
+  renderGridApresentacao,
+  getApresentacaoArquivoSelecionadoId: () => apresentacaoArquivoSelecionadoId,
+  setApresentacaoArquivoSelecionadoId: (valor) => {
+    apresentacaoArquivoSelecionadoId = valor;
+  },
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoAudios: () => apresentacaoAudios,
+  setApresentacaoAudios: (valor) => {
+    apresentacaoAudios = valor;
+  },
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  setApresentacaoBiblioteca: (valor) => {
+    apresentacaoBiblioteca = valor;
+  },
+  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
+  setApresentacaoCard4Imagens: (valor) => {
+    apresentacaoCard4Imagens = valor;
+  },
+  getApresentacaoCards: () => apresentacaoCards,
+  setApresentacaoCards: (valor) => {
+    apresentacaoCards = valor;
+  },
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  setApresentacaoMidiaProjetadaId: (valor) => {
+    apresentacaoMidiaProjetadaId = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
+  setAudioStateRemoto: (valor) => {
+    audioStateRemoto = valor;
+  },
+});
+registrarDependenciasPlaylistVideoApresentacao({
+  atualizarFeedbackProjecaoApresentacaoUi,
+  atualizarRodapeAudioApresentacao,
+  encerrarModoApresentacaoNoTelao,
+  salvarEstadoModoApresentacaoNoStorage,
+  renderGridApresentacao,
+  get_playlistProjetando: () => _playlistProjetando,
+  set_playlistProjetando: (valor) => {
+    _playlistProjetando = valor;
+  },
+  get_playlistUiTocandoCache: () => _playlistUiTocandoCache,
+  set_playlistUiTocandoCache: (valor) => {
+    _playlistUiTocandoCache = valor;
+  },
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoAudios: () => apresentacaoAudios,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
+  setApresentacaoVideoPlaylist: (valor) => {
+    apresentacaoVideoPlaylist = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
+  getPlaylistVideoAtiva: () => playlistVideoAtiva,
+  setPlaylistVideoAtiva: (valor) => {
+    playlistVideoAtiva = valor;
+  },
+  getPlaylistVideoAtrasoAuto: () => playlistVideoAtrasoAuto,
+  setPlaylistVideoAtrasoAuto: (valor) => {
+    playlistVideoAtrasoAuto = valor;
+  },
+  getPlaylistVideoIndice: () => playlistVideoIndice,
+  setPlaylistVideoIndice: (valor) => {
+    playlistVideoIndice = valor;
+  },
+  getPlaylistVideoModo: () => playlistVideoModo,
+  setPlaylistVideoModo: (valor) => {
+    playlistVideoModo = valor;
+  },
+});
+registrarDependenciasGridApresentacao({
+  agendarSalvarEstadoAposDigitarAviso,
+  aplicarEstiloTextareaAvisoCard6,
+  atualizarFeedbackProjecaoApresentacaoUi,
+  criarSeletorMonitorAvisoCard6,
+  ehItemImagemApresentacao,
+  ehModoApresentacaoOperador,
+  emitirEncerrarApresentacaoPublicoAoServidor,
+  encerrarAvisoCard6NoControlador,
+  flushSalvarEstadoAposDigitarAviso,
+  projetarAvisoCard6,
+  salvarEstadoModoApresentacaoNoStorage,
+  getAPRESENTACAO_IDX_CARD4: () => APRESENTACAO_IDX_CARD4,
+  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
+  getApresentacaoAvisoCard6Ativo: () => apresentacaoAvisoCard6Ativo,
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
+  getApresentacaoCard4InputTarget: () => apresentacaoCard4InputTarget,
+  setApresentacaoCard4InputTarget: (valor) => {
+    apresentacaoCard4InputTarget = valor;
+  },
+  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
+  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
+  setApresentacaoCard6Texto: (valor) => {
+    apresentacaoCard6Texto = valor;
+  },
+  getApresentacaoCardInputTarget: () => apresentacaoCardInputTarget,
+  setApresentacaoCardInputTarget: (valor) => {
+    apresentacaoCardInputTarget = valor;
+  },
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  setApresentacaoMidiaProjetadaId: (valor) => {
+    apresentacaoMidiaProjetadaId = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
 });
 
 /**
@@ -3009,2539 +3253,16 @@ async function projetarAvisoCard6() {
   atualizarFeedbackProjecaoApresentacaoUi();
 }
 
-/** Publica vídeo local no HTTP :3001 e devolve URL (evita Base64 enorme no POST ao servidor). */
-async function publicarVideoApresentacaoHttp(item) {
-  if (!item?.id) return String(item?.src || '').trim();
-  const src = String(item.src || '').trim();
-  if (!src) return '';
-  if (/^https?:\/\//i.test(src)) return src;
-  if (!/^data:/i.test(src)) return src;
-  try {
-    const r = await fetch(
-      `${getControllerApiBase()}/api/apresentacao/video/${encodeURIComponent(item.id)}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: src, mime: item.mime || 'video/mp4' }),
-      }
-    );
-    const j = await r.json().catch(() => ({}));
-    if (r.ok && j.url) return String(j.url);
-  } catch (e) {
-    console.warn('[Lyra] publicar vídeo HTTP', e);
-  }
-  return src;
-}
+// (extraído) vídeo da apresentação → painel/videoApresentacao.js
 
-async function garantirVideoSrcHttp(item) {
-  if (!item || item.kind !== 'video') return item;
-  const url = await publicarVideoApresentacaoHttp(item);
-  if (url && url !== item.src) {
-    item.src = url;
-  }
-  return item;
-}
+// (extraído) player local de mídias → painel/playerLocalMidia.js
 
-/** URL da mídia importada (áudio ou vídeo). O servidor acha o ficheiro pelo id. */
-function urlMidiaApresentacaoHttpPorId(id) {
-  return urlMidiaApresentacaoHttpPorIdPuro(id, getControllerApiBase());
-}
+// (extraído) biblioteca de mídias → painel/bibliotecaMidiasApresentacao.js
 
-/**
- * Manda o controlador copiar o ficheiro para a pasta do aplicativo — sem Base64.
- *
- * O caminho antigo lia o ficheiro inteiro no painel, transformava-o numa string Base64,
- * embrulhava-a em JSON e mandava-a por HTTP. Um MP3 de 7 MB custava ~92 ms e ~47 MB de
- * heap; um vídeo de 100 MB, 1,4 s e 667 MB. Aqui só viaja o caminho, e quem copia é o
- * processo principal, com uma cópia de sistema operativo.
- *
- * Devolve `true` e preenche `item.src` quando correu bem. O chamador decide o que fazer
- * com o `false` — hoje, voltar ao caminho antigo, que continua a funcionar.
- */
-async function importarMidiaApresentacaoPorCaminho(item) {
-  const id = String(item?.id || '').trim();
-  const filePath = String(item?.filePath || '').trim();
-  if (!id || !filePath) return false;
-  try {
-    const r = await fetch(`${getControllerApiBase()}/api/apresentacao/midia/importar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, filePath, mime: item.mime || '' }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok || !j.url) {
-      console.warn('[Lyra] importar mídia por caminho falhou:', j.erro || `HTTP ${r.status}`);
-      return false;
-    }
-    item.src = String(j.url);
-    if (j.mime) item.mime = String(j.mime);
-    return true;
-  } catch (e) {
-    console.warn('[Lyra] importar mídia por caminho falhou:', e);
-    return false;
-  }
-}
+// (extraído) playlist de vídeos → painel/playlistVideoApresentacao.js
 
-function urlVideoApresentacaoHttpPorId(id) {
-  const vid = String(id || '').trim();
-  if (!vid) return '';
-  return `${getControllerApiBase()}/api/apresentacao/video/${encodeURIComponent(vid)}`;
-}
 
-/**
- * Telões no PC do servidor remoto não alcançam `127.0.0.1:3001` do controlador —
- * reescreve para o proxy `:5510` do servidor (que encaminha ao controlador).
- * No modo local os telões são desta máquina: `:3001` já serve o vídeo e `:5510`
- * não tem proxy — manter a URL original.
- */
-function reescreverUrlVideoParaTelas(url) {
-  const ip =
-    (typeof getServidorProjeccaoIp === 'function'
-      ? String(getServidorProjeccaoIp() || '').trim()
-      : '') ||
-    (typeof getServidorIp === 'function' ? String(getServidorIp() || '').trim() : '');
-  return reescreverUrlVideoParaTelasPuro(url, {
-    local: typeof emModoProjecaoLocal === 'function' && emModoProjecaoLocal(),
-    ip,
-  });
-}
-
-async function videoHttpDisponivel(url) {
-  const u = String(url || '').trim();
-  if (!u || !/^https?:\/\//i.test(u)) return false;
-  try {
-    const r = await fetch(u, { method: 'HEAD' });
-    return r.ok;
-  } catch (_) {
-    return false;
-  }
-}
-
-async function lerVideoComoDataUrlDoCaminho(filePath) {
-  const fp = String(filePath || '').trim();
-  if (!fp) return '';
-  try {
-    const url = /^file:/i.test(fp) ? fp : `file:///${fp.replace(/\\/g, '/')}`;
-    const r = await fetch(url);
-    if (!r.ok) return '';
-    const blob = await r.blob();
-    return await new Promise((resolve) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(String(fr.result || ''));
-      fr.onerror = () => resolve('');
-      fr.readAsDataURL(blob);
-    });
-  } catch (_) {
-    return '';
-  }
-}
-
-async function republicarVideoDoCaminhoArquivo(item) {
-  if (!item?.id || !item.filePath) return item;
-  /* A cópia por caminho primeiro: é o caminho novo, e não carrega o ficheiro em memória. */
-  const copia = { ...item };
-  if (await importarMidiaApresentacaoPorCaminho(copia)) return copia;
-  /* Falhou (ficheiro movido, disco cheio): o caminho antigo ainda serve de rede. */
-  const data = await lerVideoComoDataUrlDoCaminho(item.filePath);
-  if (!data) return item;
-  return garantirVideoSrcHttp({ ...item, src: data });
-}
-
-function aguardarMetadadosVideo(el, timeoutMs = 12000) {
-  return new Promise((resolve) => {
-    if (!el) return resolve();
-    if (Number.isFinite(el.duration) && el.duration > 0) return resolve();
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      el.removeEventListener('loadedmetadata', finish);
-      el.removeEventListener('error', finish);
-      resolve();
-    };
-    el.addEventListener('loadedmetadata', finish, { once: true });
-    el.addEventListener('error', finish, { once: true });
-    setTimeout(finish, timeoutMs);
-    try {
-      el.load();
-    } catch (_) {
-      finish();
-    }
-  });
-}
-
-async function gerarThumbnailVideoApresentacao(src) {
-  const url = String(src || '').trim();
-  if (!url) return '';
-  return new Promise((resolve) => {
-    const v = document.createElement('video');
-    v.muted = true;
-    v.playsInline = true;
-    v.preload = 'auto';
-    let settled = false;
-    const finish = (dataUrl) => {
-      if (settled) return;
-      settled = true;
-      try {
-        v.pause();
-        v.removeAttribute('src');
-        v.load();
-      } catch (_) {
-  // intencional — erro ignorado
-}
-      resolve(dataUrl || '');
-    };
-    const LARGURA_THUMB_PX = 320;
-    const capturar = () => {
-      try {
-        const w = v.videoWidth || 0;
-        const h = v.videoHeight || 0;
-        if (w < 2 || h < 2) return finish('');
-        /* A miniatura é pintada num cartão de poucos centímetros. Guardá-la na resolução
-           nativa do vídeo dava 200 a 500 KB de Base64 por item — no estado, no
-           localStorage e em cada sincronização — para desenhar 160 pixels. */
-        const escala = Math.min(1, LARGURA_THUMB_PX / w);
-        const cw = Math.max(2, Math.round(w * escala));
-        const ch = Math.max(2, Math.round(h * escala));
-        const c = document.createElement('canvas');
-        c.width = cw;
-        c.height = ch;
-        c.getContext('2d').drawImage(v, 0, 0, cw, ch);
-        finish(c.toDataURL('image/jpeg', 0.82));
-      } catch (_) {
-        finish('');
-      }
-    };
-    v.addEventListener('loadeddata', () => {
-      try {
-        const dur = Number(v.duration);
-        const alvo = Number.isFinite(dur) && dur > 0.2 ? Math.min(dur * 0.1, Math.max(0.05, dur - 0.05)) : 0.5;
-        v.currentTime = alvo;
-      } catch (_) {
-        capturar();
-      }
-    }, { once: true });
-    v.addEventListener('seeked', capturar, { once: true });
-    v.addEventListener('error', () => finish(''), { once: true });
-    setTimeout(() => finish(''), 15000);
-    v.src = url;
-  });
-}
-
-async function garantirThumbnailVideoItem(item) {
-  if (!item || item.kind !== 'video') return item;
-  if (videoProjetadoAtivoNoPlayer() && audioStateRemoto.playing) return item;
-  if (obterThumbVideoApresentacao(item)) return item;
-  const srcThumb = /^https?:\/\//i.test(item.src) ? item.src : await resolverSrcProjecaoApresentacao(item);
-  if (!srcThumb) return item;
-  const thumb = await gerarThumbnailVideoApresentacao(srcThumb);
-  if (thumb) item.thumb = thumb;
-  return item;
-}
-
-async function restaurarItemVideoApresentacao(item) {
-  if (!item || item.kind !== 'video') return null;
-  const id = String(item.id || '').trim();
-  let src = String(item.src || '').trim();
-  const filePath = String(item.filePath || '').trim();
-
-  if (!src && id) src = urlVideoApresentacaoHttpPorId(id);
-
-  if (/^https?:\/\//i.test(src)) {
-    item.src = src;
-    if (await videoHttpDisponivel(src)) {
-      return garantirThumbnailVideoItem(item);
-    }
-  }
-
-  if (/^data:/i.test(src)) {
-    const it = await garantirVideoSrcHttp(item);
-    return garantirThumbnailVideoItem(it);
-  }
-
-  if (filePath) {
-    const it = await republicarVideoDoCaminhoArquivo({ ...item, src: '' });
-    if (it?.src && /^https?:\/\//i.test(it.src)) {
-      return garantirThumbnailVideoItem(it);
-    }
-  }
-
-  return null;
-}
-
-async function restaurarVideosModoApresentacao() {
-  const v5 = apresentacaoCards[APRESENTACAO_IDX_CARD5];
-  if (v5?.kind === 'video') {
-    const it = await restaurarItemVideoApresentacao(v5);
-    if (it) {
-      apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
-      const bibIdx = apresentacaoBiblioteca.findIndex((x) => x && x.id === it.id);
-      if (bibIdx >= 0) apresentacaoBiblioteca[bibIdx] = it;
-      salvarEstadoModoApresentacaoNoStorage();
-    }
-  }
-  for (let i = 0; i < apresentacaoVideoPlaylist.length; i += 1) {
-    const it0 = apresentacaoVideoPlaylist[i];
-    if (it0?.kind !== 'video') continue;
-    const it = await restaurarItemVideoApresentacao(it0);
-    if (it) apresentacaoVideoPlaylist[i] = { ...it0, ...it };
-  }
-  if (videoProjetadoAtivoNoPlayer()) {
-    const proj = obterItemVideoProjetadoNoPlayer();
-    if (proj) {
-      const it = await restaurarItemVideoApresentacao(proj);
-      if (it) {
-        /*
-         * Só armar o player quando ele ainda não está armado com este vídeo.
-         *
-         * `prepararPlayerVideoAposProjetar` existe para o instante logo a seguir a
-         * projetar: põe o vídeo no primeiro quadro, em pausa, pronto a arrancar. Correr
-         * outra vez sobre um vídeo que já está no ar fazia exactamente isso — e como ela
-         * emite o estado para o servidor, o telão voltava ao início junto com o painel.
-         *
-         * Bastava o operador ir à Bíblia, aos Slides ou aos Ajustes e voltar a Mídias
-         * para o vídeo recomeçar. E um vídeo pausado de propósito a meio saltava para o
-         * zero pelo mesmo caminho. Entrar no modo para ver o que está a passar não pode
-         * interromper o que está a passar.
-         *
-         * Continua a armar quando é preciso: painel recarregado (elemento sem `src`) ou
-         * outro vídeo no card.
-         */
-        const el = obterElementoVideoLocal();
-        const armadoComEste =
-          !!(el && it.src && (el.getAttribute('src') || el.src || '') === it.src);
-        if (armadoComEste) atualizarUiPlayerAudioRemoto();
-        else await prepararPlayerVideoAposProjetar(it);
-      }
-    }
-  }
-}
-
-async function resolverSrcProjecaoApresentacao(item) {
-  if (!item?.src) return '';
-  if (item.kind === 'video') {
-    return publicarVideoApresentacaoHttp(item);
-  }
-  return String(item.src).trim();
-}
-
-async function projetarItemApresentacao(item) {
-  if (!item || !item.src) return;
-  /** Qualquer projeção fora da orquestração da playlist a desativa (vídeo único, áudio, cards). */
-  if (!_playlistProjetando) {
-    playlistVideoAtiva = false;
-    cancelarAvancoAutoPlaylist();
-  }
-  if (item.kind === 'audio') {
-    apresentacaoMidiaProjetadaId = null;
-    const ok = await tocarAudioServidorApresentacao(item);
-    if (!ok) {
-      alert('Não foi possível reproduzir o áudio no servidor. Verifique a ligação.');
-      atualizarFeedbackProjecaoApresentacaoUi();
-      return;
-    }
-    apresentacaoAudioAtualId = item.id || null;
-    atualizarRodapeAudioApresentacao(item);
-    return;
-  }
-  await reidratarRotaApresentacaoDoSeletor();
-  const alvoProjecao = obterAlvoProjecaoModoApresentacao();
-  if (!monitoresApresentacaoCobremAlvo(alvoProjecao)) {
-    alert(mensagemAlvoInvalidoApresentacao(alvoProjecao));
-    return;
-  }
-  const srcLocal = await resolverSrcProjecaoApresentacao(item);
-  if (!srcLocal) {
-    alert('Não foi possível preparar o ficheiro para projeção.');
-    return;
-  }
-  if (item.kind === 'video' && /^https?:\/\//i.test(srcLocal)) {
-    item.src = srcLocal;
-    const noCard = apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
-    if (noCard?.id === item.id) apresentacaoCards[APRESENTACAO_IDX_CARD5] = item;
-    const noBib = apresentacaoBiblioteca.findIndex((x) => x && x.id === item.id);
-    if (noBib >= 0) apresentacaoBiblioteca[noBib] = item;
-    salvarEstadoModoApresentacaoNoStorage();
-  }
-  const srcProj = item.kind === 'video' ? reescreverUrlVideoParaTelas(srcLocal) : srcLocal;
-  const payloadAp = {
-    kind: item.kind,
-    src: srcProj,
-    mime: item.mime || '',
-    name: item.name || '',
-    title: item.name || 'Apresentação',
-    alvoProjecao,
-  };
-  const ok = await emitirApresentacao(payloadAp);
-  if (!ok) {
-    atualizarFeedbackProjecaoApresentacaoUi();
-    return;
-  }
-  apresentacaoMidiaProjetadaId = item.id || null;
-  if (item.kind === 'video') {
-    await prepararPlayerVideoAposProjetar(item);
-  }
-  renderGridApresentacao();
-  atualizarFeedbackProjecaoApresentacaoUi();
-}
-
-function obterItemVideoProjetadoNoPlayer() {
-  if (!apresentacaoMidiaProjetadaId) return null;
-  const id = apresentacaoMidiaProjetadaId;
-  const raw =
-    (apresentacaoCards || []).find((x) => x && x.id === id) ||
-    (apresentacaoBiblioteca || []).find((x) => x && x.id === id) ||
-    (apresentacaoVideoPlaylist || []).find((x) => x && x.id === id) ||
-    null;
-  const it = normalizarItemApresentacao(raw);
-  return it && it.kind === 'video' ? it : null;
-}
-
-function videoProjetadoAtivoNoPlayer() {
-  return !!obterItemVideoProjetadoNoPlayer();
-}
-
-let audioLocalMotorPronto = false;
-
-function obterElementoAudioLocal() {
-  return document.getElementById('lyra-audio-local');
-}
-
-function obterElementoVideoLocal() {
-  return document.getElementById('lyra-video-local');
-}
-
-/** Vídeo local só para barra de progresso — áudio exclusivo no telão de projeção. */
-function prepararElementoVideoLocalControle(el) {
-  if (!el) return;
-  el.muted = true;
-  el.playsInline = true;
-}
-
-/** Reproduz o elemento de preview local (sempre mudo) em sincronia com o telão. */
-function reproduzirElementoPreviewLocal(t) {
-  const el = obterElementoVideoLocal();
-  if (!el || !el.src) return;
-  el.muted = true;
-  if (Number.isFinite(t)) {
-    try {
-      el.currentTime = Math.max(0, Number(t));
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-  const p = el.play();
-  if (p && typeof p.catch === 'function') p.catch(() => {});
-}
-
-function pausarElementoPreviewLocal() {
-  const el = obterElementoVideoLocal();
-  if (el && !el.paused) {
-    try {
-      el.pause();
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-}
-
-/** Elemento-slot atualmente rastreado pelo overlay de preview (ou null). */
-let _previewAlvoAtual = null;
-
-/** Retorna o slot alvo do preview ao vivo (card 5 ou playlist) — só quando reproduzindo. */
-function alvoPreviewVideoAtual() {
-  const id = apresentacaoMidiaProjetadaId;
-  if (!id || audioStateRemoto.mediaKind !== 'video' || !audioStateRemoto.playing) return null;
-  const card5 = apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
-  if (card5 && card5.id === id) return document.getElementById('ap-card5-video-live-slot');
-  if ((apresentacaoVideoPlaylist || []).some((x) => x && x.id === id)) {
-    return document.getElementById('ap-playlist-preview');
-  }
-  return null;
-}
-
-/** Ajusta as coordenadas do overlay para cobrir exatamente o slot alvo atual. */
-function posicionarOverlayPreview() {
-  const overlay = document.getElementById('lyra-video-overlay');
-  if (!overlay) return;
-  const alvo = _previewAlvoAtual;
-  if (!alvo || !alvo.isConnected) {
-    overlay.classList.remove('ativo');
-    overlay.style.left = '-99999px';
-    overlay.style.top = '-99999px';
-    return;
-  }
-  const r = alvo.getBoundingClientRect();
-  if (r.width < 2 || r.height < 2) {
-    overlay.classList.remove('ativo');
-    overlay.style.left = '-99999px';
-    overlay.style.top = '-99999px';
-    return;
-  }
-  overlay.style.left = `${Math.round(r.left)}px`;
-  overlay.style.top = `${Math.round(r.top)}px`;
-  overlay.style.width = `${Math.round(r.width)}px`;
-  overlay.style.height = `${Math.round(r.height)}px`;
-  overlay.classList.add('ativo');
-}
-
-/**
- * Atualiza o preview de vídeo ao vivo (mudo) via OVERLAY fixo — o elemento de vídeo
- * nunca é movido no DOM (evita o quadro preto do Chromium ao reposicionar mídia).
- * Apenas o overlay acompanha as coordenadas do slot alvo (card 5 ou playlist).
- */
-function atualizarPreviewVideoAoVivo() {
-  const overlay = document.getElementById('lyra-video-overlay');
-  const el = obterElementoVideoLocal();
-  const slotPlaylist = document.getElementById('ap-playlist-preview');
-  if (!overlay || !el) return;
-  const alvo = alvoPreviewVideoAtual();
-  _previewAlvoAtual = alvo;
-  /* Reserva o espaço do slot da playlist só quando ele é o alvo. */
-  if (slotPlaylist) {
-    if (alvo === slotPlaylist) {
-      slotPlaylist.classList.add('reservado');
-      slotPlaylist.hidden = false;
-    } else {
-      slotPlaylist.classList.remove('reservado');
-      slotPlaylist.hidden = true;
-    }
-  }
-  if (alvo) {
-    el.muted = true;
-    if (el.src && el.paused && audioStateRemoto.playing) {
-      const p = el.play();
-      if (p && typeof p.catch === 'function') p.catch(() => {});
-    }
-    posicionarOverlayPreview();
-  } else {
-    overlay.classList.remove('ativo');
-    overlay.style.left = '-99999px';
-    overlay.style.top = '-99999px';
-  }
-}
-
-function obterElementoPlayerAtivo() {
-  return audioStateRemoto.mediaKind === 'video' ? obterElementoVideoLocal() : obterElementoAudioLocal();
-}
-
-function pararElementoMidia(el) {
-  if (!el) return;
-  el.pause();
-  el.removeAttribute('src');
-  try {
-    el.load();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-/** Telão é a única instância em reprodução — evita dupla decodificação e sync contínuo. */
-function videoPlaybackUsaTelaoComoFonte() {
-  return videoProjetadoAtivoNoPlayer();
-}
-
-let _videoUiClockRaf = null;
-let _videoUiClockBase = 0;
-let _videoUiClockT0 = 0;
-
-function pararRelogioUiVideo() {
-  if (_videoUiClockRaf) {
-    cancelAnimationFrame(_videoUiClockRaf);
-    _videoUiClockRaf = null;
-  }
-}
-
-function iniciarRelogioUiVideo() {
-  pararRelogioUiVideo();
-  const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
-  /* O relógio mostra segundos. Refazer textos, ícones e barra a cada quadro era pagar 60
-     atualizações de DOM — com um `getBoundingClientRect` dentro, ou seja, um cálculo de
-     layout forçado — para mudar um dígito uma vez por segundo. */
-  let ultimoSegundoUi = -1;
-  const tick = () => {
-    if (!videoProjetadoAtivoNoPlayer() || !audioStateRemoto.playing) {
-      pararRelogioUiVideo();
-      return;
-    }
-    const elapsed = (performance.now() - _videoUiClockT0) / 1000;
-    let t = _videoUiClockBase + elapsed;
-    if (dur > 0 && t >= dur) {
-      if (playlistControlaReproducaoAtual()) {
-        audioStateRemoto.playing = false;
-        audioStateRemoto.currentTime = dur;
-        atualizarUiPlayerAudioRemoto();
-        emitirEstadoVideoParaServidor({ playing: false, syncTime: true, currentTime: dur });
-        pararRelogioUiVideo();
-        aoTerminarVideoPlaylist();
-        return;
-      }
-      if (audioLoopAtivo) {
-        _videoUiClockBase = 0;
-        _videoUiClockT0 = performance.now();
-        audioStateRemoto.playing = true;
-        audioStateRemoto.currentTime = 0;
-        atualizarUiPlayerAudioRemoto();
-        emitirEstadoVideoParaServidor({ playing: true, syncTime: true, currentTime: 0 });
-        reproduzirElementoPreviewLocal(0);
-        _videoUiClockRaf = requestAnimationFrame(tick);
-        return;
-      }
-      t = dur;
-      audioStateRemoto.playing = false;
-      audioStateRemoto.currentTime = t;
-      atualizarUiPlayerAudioRemoto();
-      emitirEstadoVideoParaServidor({ playing: false, syncTime: true, currentTime: t });
-      pararRelogioUiVideo();
-      return;
-    }
-    audioStateRemoto.currentTime = t;
-    const segundo = Math.floor(t);
-    if (segundo !== ultimoSegundoUi) {
-      ultimoSegundoUi = segundo;
-      atualizarUiPlayerAudioRemoto();
-    } else if (_previewAlvoAtual) {
-      /* O overlay do preview continua a acompanhar o layout a cada quadro — é para isso
-         que este laço existe. O resto da UI não precisa. */
-      posicionarOverlayPreview();
-    }
-    _videoUiClockRaf = requestAnimationFrame(tick);
-  };
-  _videoUiClockRaf = requestAnimationFrame(tick);
-}
-
-function emitirEstadoVideoParaServidor(opts = {}) {
-  if (!videoProjetadoAtivoNoPlayer()) {
-    return;
-  }
-  const syncTime = opts.syncTime === true;
-  const el = obterElementoVideoLocal();
-  const payload = {
-    playing:
-      opts.playing != null
-        ? !!opts.playing
-        : el && !videoPlaybackUsaTelaoComoFonte()
-          ? !el.paused && !el.ended
-          : !!audioStateRemoto.playing,
-    volume: Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1)),
-  };
-  if (syncTime) {
-    payload.syncTime = true;
-    payload.currentTime =
-      Number(opts.currentTime ?? (el && !videoPlaybackUsaTelaoComoFonte() ? el.currentTime : audioStateRemoto.currentTime)) || 0;
-  }
-  if (projecao.enviar('apresentacao_video_state', payload)) return;
-  const ip = hostProjecao();
-  if (!ip) {
-    return;
-  }
-  fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-}
-
-function sincronizarEstadoPlayerLocalDesdeElemento() {
-  if (audioStateRemoto.mediaKind === 'video' && videoPlaybackUsaTelaoComoFonte()) {
-    atualizarUiPlayerAudioRemoto();
-    return;
-  }
-  const el = obterElementoPlayerAtivo();
-  if (!el) return;
-  audioStateRemoto = {
-    ...audioStateRemoto,
-    playing: !el.paused && !el.ended,
-    currentTime: Number(el.currentTime) || 0,
-    duration: Number.isFinite(el.duration) ? Number(el.duration) : 0,
-    volume:
-      audioStateRemoto.mediaKind === 'video'
-        ? audioStateRemoto.volume
-        : Number.isFinite(el.volume)
-          ? el.volume
-          : audioStateRemoto.volume,
-  };
-  atualizarUiPlayerAudioRemoto();
-}
-
-function ligarEventosElementoPlayer(el) {
-  if (!el || el.dataset.lyraPlayerBound === '1') return;
-  el.dataset.lyraPlayerBound = '1';
-  el.addEventListener('timeupdate', sincronizarEstadoPlayerLocalDesdeElemento);
-  el.addEventListener('loadedmetadata', sincronizarEstadoPlayerLocalDesdeElemento);
-}
-
-function configurarMotorAudioLocalApresentacao() {
-  if (audioLocalMotorPronto) return;
-  const audioEl = obterElementoAudioLocal();
-  const videoEl = obterElementoVideoLocal();
-  if (!audioEl && !videoEl) return;
-  audioLocalMotorPronto = true;
-  const vol = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1));
-  if (audioEl) audioEl.volume = vol;
-  if (videoEl) prepararElementoVideoLocalControle(videoEl);
-  ligarEventosElementoPlayer(audioEl);
-  ligarEventosElementoPlayer(videoEl);
-}
-
-async function prepararPlayerVideoAposProjetar(item) {
-  const it = await restaurarItemVideoApresentacao(item);
-  if (!it?.src) return;
-  configurarMotorAudioLocalApresentacao();
-  pararElementoMidia(obterElementoAudioLocal());
-  apresentacaoAudioAtualId = null;
-  const el = obterElementoVideoLocal();
-  if (!el) return;
-  audioStateRemoto.mediaKind = 'video';
-  audioStateRemoto.name = it.name || 'Vídeo';
-  audioStateRemoto.playing = false;
-  audioStateRemoto.currentTime = 0;
-  try {
-    prepararElementoVideoLocalControle(el);
-    el.preload = 'metadata';
-    el.src = it.src;
-    el.pause();
-    await aguardarMetadadosVideo(el, 6000);
-    if (Number.isFinite(el.duration) && el.duration > 0) {
-      audioStateRemoto.duration = Number(el.duration);
-    }
-    try {
-      el.currentTime = 0;
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    atualizarUiPlayerAudioRemoto();
-    emitirEstadoVideoParaServidor({ playing: false, syncTime: true, currentTime: 0 });
-  } catch (e) {
-    console.warn('[Lyra] player vídeo', e);
-  }
-}
-
-function pausarAudioLocalApresentacao() {
-  if (videoProjetadoAtivoNoPlayer()) {
-    pararRelogioUiVideo();
-    pausarElementoPreviewLocal();
-    audioStateRemoto = {
-      ...audioStateRemoto,
-      mediaKind: 'video',
-      playing: false,
-    };
-    atualizarUiPlayerAudioRemoto();
-    emitirEstadoVideoParaServidor({
-      playing: false,
-      syncTime: true,
-      currentTime: Number(audioStateRemoto.currentTime) || 0,
-    });
-    return;
-  }
-  const el = obterElementoPlayerAtivo();
-  if (el) el.pause();
-  audioStateRemoto = { ...audioStateRemoto, playing: false };
-  atualizarUiPlayerAudioRemoto();
-}
-
-function pararAudioLocalApresentacao() {
-  const eraVideo = videoProjetadoAtivoNoPlayer();
-  pararRelogioUiVideo();
-  audioLoopReinicioPendente = false;
-  pararElementoMidia(obterElementoAudioLocal());
-  pararElementoMidia(obterElementoVideoLocal());
-  audioStateRemoto = {
-    ...audioStateRemoto,
-    playing: false,
-    currentTime: 0,
-    duration: 0,
-    name: '',
-    mediaKind: '',
-  };
-  atualizarUiPlayerAudioRemoto();
-  if (eraVideo) {
-    const payload = {
-      playing: false,
-      syncTime: true,
-      currentTime: 0,
-      volume: Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1)),
-    };
-    if (!projecao.enviar('apresentacao_video_state', payload)) {
-      const ip = hostProjecao();
-      if (ip) {
-        fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).catch(() => {});
-      }
-    }
-  }
-}
-
-function definirVolumeAudioLocalApresentacao(volume) {
-  const v = Math.max(0, Math.min(1, Number(volume) || 0));
-  const audioEl = obterElementoAudioLocal();
-  const videoEl = obterElementoVideoLocal();
-  if (audioEl) audioEl.volume = v;
-  if (videoEl) prepararElementoVideoLocalControle(videoEl);
-  audioStateRemoto = { ...audioStateRemoto, volume: v };
-  atualizarUiPlayerAudioRemoto();
-  if (audioStateRemoto.mediaKind === 'video') {
-    const payloadVol = { playing: !!audioStateRemoto.playing, volume: v };
-    if (!projecao.enviar('apresentacao_video_state', payloadVol)) {
-      const ip = hostProjecao();
-      if (ip) {
-        fetch(`http://${ip}:5510/api/comando/apresentacao_video_state`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payloadVol),
-        }).catch(() => {});
-      }
-    }
-  }
-}
-
-function seekAudioLocalApresentacao(time) {
-  const t = Math.max(0, Number(time) || 0);
-  if (audioStateRemoto.mediaKind === 'video' && videoPlaybackUsaTelaoComoFonte()) {
-    audioStateRemoto.currentTime = t;
-    if (audioStateRemoto.playing) {
-      _videoUiClockBase = t;
-      _videoUiClockT0 = performance.now();
-    }
-    const el = obterElementoVideoLocal();
-    if (el?.src) {
-      try {
-        el.currentTime = t;
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    }
-    atualizarUiPlayerAudioRemoto();
-    emitirEstadoVideoParaServidor({
-      playing: !!audioStateRemoto.playing,
-      syncTime: true,
-      currentTime: t,
-    });
-    return;
-  }
-  const el = obterElementoPlayerAtivo();
-  if (el) el.currentTime = t;
-  sincronizarEstadoPlayerLocalDesdeElemento();
-}
-
-/** Reprodução de áudio no processo Servidor (saída padrão do Windows da máquina do servidor). */
-async function tocarAudioServidorApresentacao(item, opts = {}) {
-  if (!item?.src) return false;
-  const vol = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 1));
-  const startTime = Math.max(0, Number(opts.startTime) || 0);
-  if (startTime > 0 && item.id) {
-    armarGuardaVisualRetomadaAudio(item.id, startTime);
-  } else {
-    limparGuardaVisualRetomadaAudio();
-  }
-  /* No modo dois PCs quem toca é a janela de controle do Servidor, na outra máquina:
-     lá, `127.0.0.1:3001` é o próprio Servidor e não o controlador. A mesma reescrita que
-     o vídeo já usava leva a URL para o proxy da 5510. */
-  const ok = await enviarComandoAudioProjeccao('audio_play', {
-    src: reescreverUrlVideoParaTelas(item.src),
-    name: item.name || 'audio',
-    mediaKind: 'audio',
-    autoplay: opts.autoplay !== false,
-    volume: vol,
-  });
-  if (!ok) {
-    limparGuardaVisualRetomadaAudio();
-  }
-  if (ok) {
-    if (startTime > 0) {
-      await enviarComandoAudioProjeccao('audio_seek', { time: startTime });
-    }
-    audioStateRemoto.mediaKind = 'audio';
-    audioStateRemoto.name = item.name || '';
-    audioStateRemoto.volume = vol;
-    audioStateRemoto.currentTime = startTime;
-    if (opts.autoplay === false) {
-      audioStateRemoto.playing = false;
-    }
-    atualizarUiPlayerAudioRemoto();
-  }
-  return ok;
-}
-
-function pausarAudioServidorPlayback() {
-  if (audioStateRemoto.mediaKind === 'video') {
-    pausarAudioLocalApresentacao();
-    return;
-  }
-  void enviarComandoAudioProjeccao('audio_pause', {});
-  audioLoopReinicioPendente = false;
-  limparGuardaVisualRetomadaAudio();
-  audioStateRemoto = { ...audioStateRemoto, playing: false };
-  atualizarUiPlayerAudioRemoto();
-}
-
-function pararAudioServidorPlayback() {
-  if (audioStateRemoto.mediaKind === 'video') {
-    pararAudioLocalApresentacao();
-    return;
-  }
-  void enviarComandoAudioProjeccao('audio_stop', {});
-  audioLoopReinicioPendente = false;
-  limparGuardaVisualRetomadaAudio();
-  audioStateRemoto = {
-    ...audioStateRemoto,
-    playing: false,
-    currentTime: 0,
-    duration: 0,
-    name: '',
-    mediaKind: '',
-  };
-  atualizarUiPlayerAudioRemoto();
-}
-
-function definirVolumeAudioServidor(volume) {
-  if (audioStateRemoto.mediaKind === 'video') {
-    definirVolumeAudioLocalApresentacao(volume);
-    return;
-  }
-  const v = Math.max(0, Math.min(1, Number(volume) || 0));
-  void enviarComandoAudioProjeccao('audio_volume', { volume: v });
-  audioStateRemoto = { ...audioStateRemoto, volume: v };
-  atualizarUiPlayerAudioRemoto();
-}
-
-/**
- * Botão único de mudo/desmudo do player.
- *
- * «Mudo» é volume 0 — mesmo canal que os botões −/+, então funciona para áudio e vídeo
- * sem caminho novo. Ao mutar, guarda o volume actual para o restaurar; se o volume já
- * estava a 0 (arrastado pelos −), desmutar volta a um nível audível.
- */
-function alternarMudoAudioApresentacao() {
-  const volAtual = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 0));
-  if (volAtual > 0) {
-    audioVolAntesDeMutar = volAtual;
-    definirVolumeAudioServidor(0);
-  } else {
-    const restaurar = audioVolAntesDeMutar > 0 ? audioVolAntesDeMutar : 1;
-    definirVolumeAudioServidor(restaurar);
-  }
-}
-
-function atualizarBotaoMudoPlayerAudio() {
-  const btn = document.getElementById('ap-audio-mute');
-  if (!btn) return;
-  const mudo = Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 0)) === 0;
-  btn.classList.toggle('ap-ctrl-mute--on', mudo);
-  btn.setAttribute('aria-pressed', mudo ? 'true' : 'false');
-  btn.title = mudo ? 'Reativar som' : 'Mudo';
-  btn.setAttribute('aria-label', mudo ? 'Reativar som' : 'Silenciar');
-  /* Os atributos acima são idempotentes e baratos; o SVG é que não. */
-  const iconeMudo = mudo ? 'mudo' : 'som';
-  if (btn.dataset.lyraIcone === iconeMudo) return;
-  btn.dataset.lyraIcone = iconeMudo;
-  btn.innerHTML = mudo
-    ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="m16 9 5 6M21 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
-    : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a4 4 0 0 1 0 7M18 6a7 7 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-}
-
-function seekAudioServidor(time) {
-  if (audioStateRemoto.mediaKind === 'video') {
-    seekAudioLocalApresentacao(time);
-    return;
-  }
-  const t = Math.max(0, Number(time) || 0);
-  limparGuardaVisualRetomadaAudio();
-  void enviarComandoAudioProjeccao('audio_seek', { time: t });
-  audioStateRemoto = { ...audioStateRemoto, currentTime: t };
-  atualizarUiPlayerAudioRemoto();
-}
-
-function renderPlayPauseIcon() {
-  const btn = document.getElementById('ap-audio-play-pause');
-  if (!btn) return;
-  /* Dois estados, só. Reconstruir o SVG a cada `timeupdate` refazia o mesmo desenho ~4x
-     por segundo — e 60x por segundo enquanto um vídeo corria, porque o relógio do vídeo
-     passava por aqui a cada quadro. */
-  const iconeAlvo = audioStateRemoto.playing ? 'pause' : 'play';
-  if (btn.dataset.lyraIcone === iconeAlvo) return;
-  btn.dataset.lyraIcone = iconeAlvo;
-  if (audioStateRemoto.playing) {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>';
-  } else {
-    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-  }
-}
-
-function atualizarBotaoLoopPlayerAudio() {
-  const btn = document.getElementById('ap-audio-loop');
-  if (!btn) return;
-  btn.classList.toggle('ap-ctrl--ativo', !!audioLoopAtivo);
-  btn.setAttribute('aria-pressed', audioLoopAtivo ? 'true' : 'false');
-  btn.title = audioLoopAtivo ? 'Desativar repetir' : 'Ativar repetir';
-  btn.setAttribute('aria-label', audioLoopAtivo ? 'Desativar repetir' : 'Ativar repetir');
-}
-
-function alternarLoopPlayerApresentacao(force) {
-  const proximoEstado = force == null ? !audioLoopAtivo : !!force;
-  if (audioLoopAtivo === proximoEstado) {
-    atualizarBotaoLoopPlayerAudio();
-    return;
-  }
-  audioLoopAtivo = proximoEstado;
-  audioLoopReinicioPendente = false;
-  atualizarUiPlayerAudioRemoto();
-  salvarEstadoModoApresentacaoNoStorage();
-}
-
-function atualizarUiPlayerAudioRemoto() {
-  const now = document.getElementById('ap-audio-now');
-  const cur = document.getElementById('ap-audio-current');
-  const dur = document.getElementById('ap-audio-duration');
-  const seek = document.getElementById('ap-audio-seek');
-  const volVal = document.getElementById('ap-audio-vol-val');
-  const volFill = document.getElementById('ap-audio-vol-fill');
-  if (now) {
-    const tipo =
-      audioStateRemoto.mediaKind === 'video'
-        ? 'Vídeo'
-        : audioStateRemoto.mediaKind === 'audio'
-          ? 'Áudio'
-          : '';
-    now.textContent = audioStateRemoto.name
-      ? `${audioStateRemoto.playing ? 'Tocando' : 'Pausado'}${tipo ? ` (${tipo})` : ''}: ${audioStateRemoto.name}`
-      : 'Nenhuma mídia no player';
-    now.title = audioStateRemoto.name ? String(audioStateRemoto.name) : '';
-  }
-  if (cur) cur.textContent = fmtTempoAudio(audioStateRemoto.currentTime);
-  if (dur) dur.textContent = fmtTempoAudio(audioStateRemoto.duration);
-  let seekPct = 0;
-  if (seek && !audioSeekDragging) {
-    const d = Math.max(0, Number(audioStateRemoto.duration) || 0);
-    const c = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
-    const val = d > 0 ? Math.round((c / d) * 1000) : 0;
-    seek.value = String(Math.max(0, Math.min(1000, val)));
-    seekPct = d > 0 ? Math.round((c / d) * 1000) / 10 : 0;
-  } else if (seek) {
-    const d = Math.max(0, Number(audioStateRemoto.duration) || 0);
-    const c = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
-    seekPct = d > 0 ? Math.round((c / d) * 1000) / 10 : Number(seek.value) / 10;
-  }
-  if (seek) seek.style.setProperty('--seek-pct', `${seekPct}%`);
-  const vPct = Math.round(Math.max(0, Math.min(1, Number(audioStateRemoto.volume) || 0)) * 100);
-  if (volVal) volVal.textContent = `${vPct}%`;
-  if (volFill) volFill.style.width = `${vPct}%`;
-  renderPlayPauseIcon();
-  atualizarBotaoLoopPlayerAudio();
-  atualizarBotaoMudoPlayerAudio();
-  atualizarPlaylistUiAoVivoSeMudou();
-  if (_previewAlvoAtual) posicionarOverlayPreview();
-}
-
-function criarItemApresentacaoDeArquivo(file, onDone) {
-  if (!file) return;
-  const mime = String(file.type || '');
-  const nome = String(file.name || 'arquivo');
-  const isPowerPoint = ehArquivoPowerPointLocal(mime, nome);
-  if (isPowerPoint) {
-    alert('PowerPoint local ainda não abre direto no telão. Exporte para PDF ou use URL de apresentação online (Google Slides / Office Online).');
-    return;
-  }
-  const kind = detectarKindApresentacaoPorMimeOuNome(mime, nome);
-  const id = `ap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const fp = String(file.path || '').trim();
-
-  /** O caminho antigo: o ficheiro inteiro em Base64, dentro do item. */
-  const entregarPorDataUrl = () => {
-    const reader = new FileReader();
-    reader.onerror = () => alert('Não foi possível ler o arquivo selecionado.');
-    reader.onload = () => {
-      const src = String(reader.result || '');
-      if (!src) return;
-      const itemNovo = { id, kind, src, mime, name: nome, title: nome };
-      if (fp) itemNovo.filePath = fp;
-      onDone(itemNovo);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  /*
-   * Áudio e vídeo entram por caminho de ficheiro; o controlador copia-os para a pasta do
-   * aplicativo e devolve uma URL.
-   *
-   * Antes vinham em Base64 e ficavam assim: no item, no estado gravado e em cada comando
-   * que os mandava tocar. Um MP3 de 7 MB ocupava ~47 MB de heap e o estado do modo Mídias
-   * passava dos 5 MB de quota do localStorage logo no primeiro áudio — não gravava, em
-   * silêncio, e pagava o custo à mesma. Com a URL, o que viaja são duzentos bytes.
-   *
-   * Sem caminho de ficheiro (arrastado do navegador, por exemplo) ou se a cópia falhar,
-   * o caminho antigo continua a servir — pior, mas funciona.
-   */
-  if ((kind === 'audio' || kind === 'video') && fp) {
-    const itemNovo = { id, kind, src: '', mime, name: nome, title: nome, filePath: fp };
-    void importarMidiaApresentacaoPorCaminho(itemNovo).then((ok) => {
-      if (ok) return onDone(itemNovo);
-      entregarPorDataUrl();
-    });
-    return;
-  }
-
-  entregarPorDataUrl();
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Biblioteca de arquivos (modo Mídias)
-   Substitui os dois seletores antigos ("Arquivos no menu" e "Player"). Os dados são os
-   mesmos: `apresentacaoBiblioteca` (imagem, vídeo, PDF…) e `apresentacaoAudios`. Clique
-   seleciona (id próprio de cada lista), duplo clique projeta — exatamente como antes.
-   ═══════════════════════════════════════════════════════════════════════════ */
-const SS_AP_LIB_ABA = 'lyra.apLibAba';
-let apLibBusca = '';
-let apLibAba = (() => {
-  try {
-    const v = sessionStorage.getItem(SS_AP_LIB_ABA);
-    return v === 'video' || v === 'audio' ? v : 'image';
-  } catch (_) {
-    return 'image';
-  }
-})();
-
-function apLibDefinirAba(aba, { render = true } = {}) {
-  apLibAba = aba === 'video' || aba === 'audio' ? aba : 'image';
-  try {
-    sessionStorage.setItem(SS_AP_LIB_ABA, apLibAba);
-  } catch (_) {
-    /* sem sessionStorage: a aba só não é lembrada */
-  }
-  if (render) renderBibliotecaMidiasApresentacao();
-}
-
-function apLibAbaDoItem(item, origem) {
-  if (origem === 'audio') return 'audio';
-  const k = String(item?.kind || '').toLowerCase();
-  if (k === 'video' || k === 'audio') return k;
-  return 'image';
-}
-
-function apLibFecharMenus() {
-  document.querySelectorAll('.ap-lib-menu').forEach((m) => {
-    m.hidden = true;
-  });
-  document.querySelectorAll('#ap-lib-list .ap-lib-more[aria-expanded="true"]').forEach((b) => {
-    b.setAttribute('aria-expanded', 'false');
-  });
-}
-
-function apLibRenomear(entry, nameEl) {
-  const { item, origem } = entry;
-  const main = nameEl?.parentElement;
-  if (!nameEl || !main || main.querySelector('input.ap-menu-edit-input')) return;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'ap-menu-edit-input';
-  input.value = String(item.name || '').trim();
-  input.maxLength = 140;
-  input.setAttribute('aria-label', 'Novo nome do arquivo');
-  nameEl.replaceWith(input);
-  ['click', 'mousedown', 'dblclick', 'dragstart'].forEach((t) => input.addEventListener(t, (e) => e.stopPropagation()));
-  input.focus();
-  input.select();
-  let feito = false;
-  const salvar = () => {
-    if (feito) return;
-    feito = true;
-    const novo = String(input.value || '').trim();
-    if (!novo) {
-      renderBibliotecaMidiasApresentacao();
-      return;
-    }
-    if (origem === 'audio') {
-      const alvo = apresentacaoAudios.find((x) => x && x.id === item.id);
-      if (alvo) {
-        alvo.name = novo;
-        alvo.title = novo;
-      }
-      if (apresentacaoAudioAtualId === item.id && audioStateRemoto.name) {
-        audioStateRemoto = { ...audioStateRemoto, name: novo };
-        atualizarUiPlayerAudioRemoto();
-      }
-    } else {
-      const atualizar = (obj) => {
-        if (!obj || obj.id !== item.id) return;
-        obj.name = novo;
-        obj.title = novo;
-      };
-      apresentacaoBiblioteca.forEach(atualizar);
-      apresentacaoCards.forEach(atualizar);
-    }
-    salvarEstadoModoApresentacaoNoStorage();
-    renderBibliotecaMidiasApresentacao();
-    if (origem !== 'audio') renderGridApresentacao();
-  };
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      salvar();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      feito = true;
-      renderBibliotecaMidiasApresentacao();
-    }
-  });
-  input.addEventListener('blur', salvar);
-}
-
-async function apLibExcluir(entry) {
-  const { item, origem } = entry;
-  if (origem === 'audio') {
-    const ok = await appConfirm(`Excluir "${item.name}" da lista de áudios?`, 'Modo apresentação');
-    if (!ok) return;
-    const eraAtual = apresentacaoAudioAtualId === item.id;
-    apresentacaoAudios = (apresentacaoAudios || []).filter((x) => x && x.id !== item.id);
-    if (eraAtual) {
-      apresentacaoAudioAtualId = null;
-      pararAudioServidorPlayback();
-      atualizarUiPlayerAudioRemoto();
-      sincronizarPillProjecaoNav();
-    }
-    salvarEstadoModoApresentacaoNoStorage();
-    renderBibliotecaMidiasApresentacao();
-    return;
-  }
-  const ok = await appConfirm(`Excluir "${item.name}" do menu de arquivos?`, 'Modo apresentação');
-  if (!ok) return;
-  apresentacaoBiblioteca = (apresentacaoBiblioteca || []).filter((x) => x && x.id !== item.id);
-  apresentacaoCards = (apresentacaoCards || []).map((x) => (x && x.id === item.id ? null : x));
-  apresentacaoCard4Imagens = (apresentacaoCard4Imagens || []).map((x) => (x && x.id === item.id ? null : x));
-  if (apresentacaoArquivoSelecionadoId === item.id) apresentacaoArquivoSelecionadoId = null;
-  if (apresentacaoMidiaProjetadaId === item.id) {
-    apresentacaoMidiaProjetadaId = null;
-    void emitirEncerrarApresentacaoPublicoAoServidor();
-  }
-  salvarEstadoModoApresentacaoNoStorage();
-  renderBibliotecaMidiasApresentacao();
-  atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Arquivo removido do menu.' });
-}
-
-function renderBibliotecaMidiasApresentacao() {
-  const list = document.getElementById('ap-lib-list');
-  if (!list) return;
-  document.querySelectorAll('#painel-modo-apresentacao .ap-lib-tab').forEach((t) => {
-    t.setAttribute('aria-selected', t.dataset.tab === apLibAba ? 'true' : 'false');
-  });
-  const entradas = [
-    ...apresentacaoBiblioteca.map((item) => ({ item, origem: 'bib' })),
-    ...apresentacaoAudios.map((item) => ({ item, origem: 'audio' })),
-  ].filter((e) => e.item && apLibAbaDoItem(e.item, e.origem) === apLibAba);
-  const q = apLibBusca.trim().toLowerCase();
-  const filtradas = q ? entradas.filter((e) => String(e.item.name || '').toLowerCase().includes(q)) : entradas;
-
-  document.querySelectorAll('body > .ap-lib-menu').forEach((m) => m.remove());
-  list.innerHTML = '';
-  if (!filtradas.length) {
-    const vazio = document.createElement('div');
-    vazio.className = 'placeholder-msg ap-lib-empty';
-    const nomes = { image: 'imagem', video: 'vídeo', audio: 'áudio' };
-    vazio.textContent = q
-      ? 'Nenhum arquivo encontrado.'
-      : `Nenhum${apLibAba === 'image' ? 'a' : ''} ${nomes[apLibAba]}. Use + Importar.`;
-    list.appendChild(vazio);
-    return;
-  }
-  filtradas.forEach((entry) => {
-    const { item, origem } = entry;
-    const selecionado = origem === 'audio' ? apresentacaoAudioAtualId === item.id : apresentacaoArquivoSelecionadoId === item.id;
-    const row = document.createElement('div');
-    row.className = 'ap-lib-item';
-    row.setAttribute('role', 'option');
-    row.setAttribute('aria-selected', selecionado ? 'true' : 'false');
-    row.tabIndex = 0;
-    if (origem === 'bib') {
-      row.draggable = true;
-      row.dataset.itemId = item.id;
-      row.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', item.id);
-        ev.dataTransfer.effectAllowed = 'copyMove';
-      });
-    }
-    const thumb = document.createElement('div');
-    thumb.className = 'ap-lib-thumb';
-    const kind = String(item.kind || (origem === 'audio' ? 'audio' : '')).toLowerCase();
-    const imgSrc =
-      kind === 'image' ? srcImagemApresentacaoSeguro(item.src, item) : kind === 'video' ? obterThumbVideoApresentacao(item) : '';
-    if (imgSrc) {
-      const img = document.createElement('img');
-      img.src = imgSrc;
-      img.alt = '';
-      img.loading = 'lazy';
-      img.draggable = false;
-      thumb.appendChild(img);
-    } else {
-      thumb.innerHTML = svgIconeTipoMidiaApresentacao(kind);
-    }
-    const main = document.createElement('div');
-    main.className = 'ap-lib-main';
-    const nome = document.createElement('div');
-    nome.className = 'ap-lib-name';
-    nome.textContent = String(item.name || 'arquivo');
-    nome.title = String(item.name || '');
-    const meta = document.createElement('div');
-    meta.className = 'ap-lib-meta';
-    const dur = Number(item.duration) > 0 ? ` · ${fmtTempoAudio(item.duration)}` : '';
-    meta.textContent = rotuloTipoMidiaApresentacao(kind) + dur;
-    main.append(nome, meta);
-
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'ap-lib-more';
-    more.setAttribute('aria-label', `Mais ações para ${item.name || 'arquivo'}`);
-    more.setAttribute('aria-haspopup', 'menu');
-    more.setAttribute('aria-expanded', 'false');
-    more.textContent = '⋯';
-    const menu = document.createElement('div');
-    menu.className = 'ap-lib-menu';
-    menu.setAttribute('role', 'menu');
-    menu.hidden = true;
-    const bRen = document.createElement('button');
-    bRen.type = 'button';
-    bRen.setAttribute('role', 'menuitem');
-    bRen.textContent = 'Renomear';
-    const bDel = document.createElement('button');
-    bDel.type = 'button';
-    bDel.setAttribute('role', 'menuitem');
-    bDel.className = 'is-danger';
-    bDel.textContent = 'Excluir';
-    menu.append(bRen, bDel);
-    more.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const abrir = menu.hidden;
-      apLibFecharMenus();
-      menu.hidden = !abrir;
-      more.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-      if (abrir) {
-        /* No <body> e position: fixed — a lista rola e o container do painel contém o layout, e ambos cortariam o menu. */
-        if (menu.parentElement !== document.body) document.body.appendChild(menu);
-        menu.hidden = false;
-        const r = more.getBoundingClientRect();
-        const h = menu.offsetHeight || 96;
-        const w = menu.offsetWidth || 140;
-        const abaixo = r.bottom + 4 + h <= window.innerHeight - 8;
-        menu.style.top = `${Math.max(8, abaixo ? r.bottom + 4 : r.top - h - 4)}px`;
-        menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
-      }
-    });
-    bRen.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      apLibFecharMenus();
-      apLibRenomear(entry, nome);
-    });
-    bDel.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      apLibFecharMenus();
-      void apLibExcluir(entry);
-    });
-
-    const escolher = () => {
-      if (origem === 'audio') apresentacaoAudioAtualId = item.id;
-      else apresentacaoArquivoSelecionadoId = item.id || null;
-      salvarEstadoModoApresentacaoNoStorage();
-      renderBibliotecaMidiasApresentacao();
-    };
-    const ehControle = (ev) =>
-      ev.target instanceof HTMLElement && ev.target.closest('.ap-lib-more, .ap-lib-menu, .ap-menu-edit-input');
-    row.addEventListener('click', (ev) => {
-      if (ehControle(ev)) return;
-      escolher();
-    });
-    row.addEventListener('dblclick', (ev) => {
-      if (ehControle(ev)) return;
-      projetarItemApresentacao(item);
-      if (origem === 'audio') renderBibliotecaMidiasApresentacao();
-    });
-    row.addEventListener('keydown', (ev) => {
-      if (ev.target !== row) return;
-      if (ev.key === 'Enter' || ev.key === ' ') {
-        ev.preventDefault();
-        escolher();
-      }
-    });
-    row.append(thumb, main, more, menu);
-    list.appendChild(row);
-  });
-}
-
-function configurarBibliotecaMidiasApresentacao() {
-  document.querySelectorAll('#painel-modo-apresentacao .ap-lib-tab').forEach((t) => {
-    t.addEventListener('click', () => apLibDefinirAba(t.dataset.tab));
-  });
-  document.getElementById('ap-lib-search')?.addEventListener('input', (e) => {
-    apLibBusca = String(e.target.value || '');
-    renderBibliotecaMidiasApresentacao();
-  });
-  document.getElementById('ap-lib-list')?.addEventListener('scroll', apLibFecharMenus, { passive: true });
-  document.getElementById('ap-lib-import')?.addEventListener('click', () => escolherArquivoModoApresentacao());
-  document.addEventListener('click', (e) => {
-    if (!(e.target instanceof Element) || !e.target.closest('.ap-lib-more, .ap-lib-menu')) apLibFecharMenus();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') apLibFecharMenus();
-  });
-}
-
-/** Mantidos como pontos de entrada: muitos fluxos chamam estes nomes ao mudar os dados. */
-function renderMenuApresentacao() {
-  renderBibliotecaMidiasApresentacao();
-}
-
-function renderListaAudiosApresentacao() {
-  renderBibliotecaMidiasApresentacao();
-}
-
-/** Importação única: áudio segue o fluxo do Player; o resto, o de "Arquivos no menu". */
-function importarArquivosBibliotecaMidias(files) {
-  const lista = Array.from(files || []);
-  if (!lista.length) return;
-  const kindDe = (f) => detectarKindApresentacaoPorMimeOuNome(String(f.type || ''), String(f.name || ''));
-  const audios = lista.filter((f) => kindDe(f) === 'audio');
-  const demais = lista.filter((f) => kindDe(f) !== 'audio');
-  const primeiro = kindDe(lista[0]);
-  apLibDefinirAba(primeiro === 'video' || primeiro === 'audio' ? primeiro : 'image', { render: false });
-  apLibBusca = '';
-  const campo = document.getElementById('ap-lib-search');
-  if (campo) campo.value = '';
-  if (audios.length) adicionarAudiosAoMenu(audios);
-  if (demais.length) adicionarArquivosAoMenu(demais);
-  renderBibliotecaMidiasApresentacao();
-}
-
-function adicionarAudiosAoMenu(files) {
-  Array.from(files || []).forEach((file) => {
-    criarItemApresentacaoDeArquivo(file, (item) => {
-      if (item.kind !== 'audio') return;
-      apresentacaoAudios.push(item);
-      salvarEstadoModoApresentacaoNoStorage();
-      renderListaAudiosApresentacao();
-    });
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Playlist de vídeos (modo Mídias)
-   Camada de orquestração por cima do motor de vídeo único já existente.
-   Reutiliza: projetarItemApresentacao, prepararPlayerVideoAposProjetar,
-   iniciarRelogioUiVideo, pausarAudioLocalApresentacao, encerrarModoApresentacaoNoTelao.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-const PLAYLIST_ATRASOS_PERMITIDOS = [0, 1, 2, 3, 5];
-
-function playlistItemAtual() {
-  if (playlistVideoIndice < 0) return null;
-  return apresentacaoVideoPlaylist[playlistVideoIndice] || null;
-}
-
-function playlistItemAtualId() {
-  const it = playlistItemAtual();
-  return it ? it.id : null;
-}
-
-/** true somente quando a playlist está ativa E o vídeo projetado é o item atual dela. */
-function playlistControlaReproducaoAtual() {
-  return (
-    playlistVideoAtiva &&
-    playlistVideoIndice >= 0 &&
-    !!apresentacaoMidiaProjetadaId &&
-    apresentacaoMidiaProjetadaId === playlistItemAtualId()
-  );
-}
-
-function cancelarAvancoAutoPlaylist() {
-  if (_playlistAutoTimer) {
-    clearTimeout(_playlistAutoTimer);
-    _playlistAutoTimer = null;
-  }
-}
-
-/** Inicia a reprodução do vídeo já projetado no telão, a partir de fromTime. */
-function iniciarPlaybackVideoProjetado(fromTime = 0) {
-  const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
-  let t = Math.max(0, Number(fromTime) || 0);
-  if (dur > 0 && t >= dur - 0.05) t = 0;
-  audioStateRemoto.mediaKind = 'video';
-  audioStateRemoto.playing = true;
-  audioStateRemoto.currentTime = t;
-  _videoUiClockBase = t;
-  _videoUiClockT0 = performance.now();
-  emitirEstadoVideoParaServidor({ playing: true, syncTime: true, currentTime: t });
-  iniciarRelogioUiVideo();
-  reproduzirElementoPreviewLocal(t);
-  atualizarUiPlayerAudioRemoto();
-  renderGridApresentacao();
-}
-
-/** Projeta e reproduz o item i da playlist, reutilizando o motor de vídeo único. */
-async function reproduzirItemPlaylist(i) {
-  if (!apresentacaoVideoPlaylist.length) return;
-  const idx = Math.max(0, Math.min(apresentacaoVideoPlaylist.length - 1, Math.round(Number(i) || 0)));
-  const item = apresentacaoVideoPlaylist[idx];
-  if (!item) return;
-  cancelarAvancoAutoPlaylist();
-  playlistVideoIndice = idx;
-  playlistVideoAtiva = true;
-  renderListaPlaylistApresentacao();
-  const it = await restaurarItemVideoApresentacao(item);
-  if (!it?.src) {
-    playlistVideoAtiva = false;
-    renderListaPlaylistApresentacao();
-    alert('Não foi possível carregar o vídeo da playlist. Adicione o arquivo novamente.');
-    return;
-  }
-  apresentacaoVideoPlaylist[idx] = { ...item, ...it };
-  if (Number(item.duracao) > 0) apresentacaoVideoPlaylist[idx].duracao = Number(item.duracao);
-  _playlistProjetando = true;
-  try {
-    await projetarItemApresentacao(apresentacaoVideoPlaylist[idx]);
-  } finally {
-    _playlistProjetando = false;
-  }
-  if (apresentacaoMidiaProjetadaId !== apresentacaoVideoPlaylist[idx].id) {
-    playlistVideoAtiva = false;
-    renderListaPlaylistApresentacao();
-    return;
-  }
-  iniciarPlaybackVideoProjetado(0);
-  renderListaPlaylistApresentacao();
-  /* Reforço: o telão pode montar o <video> logo após receber a projeção;
-     reenvia o play para evitar que o primeiro comando chegue antes do elemento. */
-  setTimeout(() => {
-    if (playlistControlaReproducaoAtual() && audioStateRemoto.playing) {
-      emitirEstadoVideoParaServidor({
-        playing: true,
-        syncTime: true,
-        currentTime: Number(audioStateRemoto.currentTime) || 0,
-      });
-    }
-  }, 350);
-}
-
-/** Chamado quando um vídeo da playlist termina (a partir do relógio da UI). */
-function aoTerminarVideoPlaylist() {
-  const total = apresentacaoVideoPlaylist.length;
-  const proximo = playlistVideoIndice + 1;
-  if (proximo >= total) {
-    playlistVideoAtiva = false;
-    cancelarAvancoAutoPlaylist();
-    renderListaPlaylistApresentacao();
-    return;
-  }
-  playlistVideoIndice = proximo;
-  renderListaPlaylistApresentacao();
-  if (playlistVideoModo === 'auto') {
-    const atrasoMs = Math.max(0, Number(playlistVideoAtrasoAuto) || 0) * 1000;
-    cancelarAvancoAutoPlaylist();
-    _playlistAutoTimer = setTimeout(() => {
-      _playlistAutoTimer = null;
-      void reproduzirItemPlaylist(playlistVideoIndice);
-    }, atrasoMs);
-  }
-}
-
-function playlistAlternarModo(force) {
-  const semArgumento = force === undefined || force === null;
-  const prox = semArgumento
-    ? playlistVideoModo === 'auto'
-      ? 'manual'
-      : 'auto'
-    : force === 'auto'
-      ? 'auto'
-      : 'manual';
-  playlistVideoModo = prox;
-  if (prox === 'manual') cancelarAvancoAutoPlaylist();
-  salvarEstadoModoApresentacaoNoStorage();
-  atualizarControlesPlaylistUi();
-}
-
-function playlistDefinirAtraso(seg) {
-  let v = Math.round(Number(seg) || 0);
-  if (!PLAYLIST_ATRASOS_PERMITIDOS.includes(v)) v = 0;
-  playlistVideoAtrasoAuto = v;
-  salvarEstadoModoApresentacaoNoStorage();
-  atualizarControlesPlaylistUi();
-}
-
-/** Lê a duração de um arquivo de vídeo sem carregar tudo (metadata via objectURL). */
-function probeDuracaoArquivoVideo(file) {
-  return new Promise((resolve) => {
-    try {
-      const url = URL.createObjectURL(file);
-      const v = document.createElement('video');
-      v.preload = 'metadata';
-      const limpar = () => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch (_) {
-  // intencional — erro ignorado
-}
-      };
-      v.onloadedmetadata = () => {
-        const d = Number(v.duration);
-        limpar();
-        resolve(Number.isFinite(d) ? d : 0);
-      };
-      v.onerror = () => {
-        limpar();
-        resolve(0);
-      };
-      setTimeout(() => resolve(0), 12000);
-      v.src = url;
-    } catch (_) {
-      resolve(0);
-    }
-  });
-}
-
-function playlistAdicionarVideos(files) {
-  Array.from(files || []).forEach((file) => {
-    const mime = String(file.type || '');
-    const nome = String(file.name || 'vídeo');
-    if (!/^video\//i.test(mime) && !/\.(mp4|webm|mov|mkv|avi|m4v|ogv)$/i.test(nome)) return;
-    criarItemApresentacaoDeArquivo(file, (item) => {
-      if (item.kind !== 'video') return;
-      apresentacaoVideoPlaylist.push(item);
-      renderListaPlaylistApresentacao();
-      salvarEstadoModoApresentacaoNoStorage();
-      void probeDuracaoArquivoVideo(file).then((d) => {
-        if (d > 0) {
-          const alvo = apresentacaoVideoPlaylist.find((x) => x && x.id === item.id);
-          if (alvo) {
-            alvo.duracao = d;
-            renderListaPlaylistApresentacao();
-            salvarEstadoModoApresentacaoNoStorage();
-          }
-        }
-      });
-    });
-  });
-}
-
-function playlistRemover(id) {
-  const idx = apresentacaoVideoPlaylist.findIndex((x) => x && x.id === id);
-  if (idx < 0) return;
-  const eraItemProjetado = audioStateRemoto.mediaKind === 'video' && apresentacaoMidiaProjetadaId === id;
-  apresentacaoVideoPlaylist.splice(idx, 1);
-  if (eraItemProjetado) {
-    cancelarAvancoAutoPlaylist();
-    playlistVideoAtiva = false;
-    void encerrarModoApresentacaoNoTelao();
-  }
-  if (idx < playlistVideoIndice) {
-    playlistVideoIndice -= 1;
-  } else if (idx === playlistVideoIndice) {
-    if (playlistVideoIndice >= apresentacaoVideoPlaylist.length) {
-      playlistVideoIndice = apresentacaoVideoPlaylist.length - 1;
-    }
-  }
-  if (!apresentacaoVideoPlaylist.length) playlistVideoIndice = -1;
-  salvarEstadoModoApresentacaoNoStorage();
-  renderListaPlaylistApresentacao();
-}
-
-async function playlistLimpar() {
-  if (!apresentacaoVideoPlaylist.length) return;
-  const ok = await appConfirm('Limpar toda a playlist de vídeos?', 'Modo mídias');
-  if (!ok) return;
-  cancelarAvancoAutoPlaylist();
-  const eraVideo = playlistVideoAtiva && audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
-  apresentacaoVideoPlaylist = [];
-  playlistVideoIndice = -1;
-  playlistVideoAtiva = false;
-  if (eraVideo) void encerrarModoApresentacaoNoTelao();
-  salvarEstadoModoApresentacaoNoStorage();
-  renderListaPlaylistApresentacao();
-}
-
-function playlistMover(id, dir) {
-  const idx = apresentacaoVideoPlaylist.findIndex((x) => x && x.id === id);
-  if (idx < 0) return;
-  const alvo = idx + (dir === 'up' ? -1 : 1);
-  if (alvo < 0 || alvo >= apresentacaoVideoPlaylist.length) return;
-  const arr = apresentacaoVideoPlaylist;
-  const tmp = arr[idx];
-  arr[idx] = arr[alvo];
-  arr[alvo] = tmp;
-  if (playlistVideoIndice === idx) playlistVideoIndice = alvo;
-  else if (playlistVideoIndice === alvo) playlistVideoIndice = idx;
-  salvarEstadoModoApresentacaoNoStorage();
-  renderListaPlaylistApresentacao();
-}
-
-/** Reordena por arrastar-e-soltar: move fromId para a posição de toId. */
-function playlistReordenarArrastando(fromId, toId) {
-  if (!fromId || fromId === toId) return;
-  const atualId = playlistItemAtualId();
-  const from = apresentacaoVideoPlaylist.findIndex((x) => x && x.id === fromId);
-  if (from < 0) return;
-  const [movido] = apresentacaoVideoPlaylist.splice(from, 1);
-  let to = apresentacaoVideoPlaylist.findIndex((x) => x && x.id === toId);
-  if (to < 0) to = apresentacaoVideoPlaylist.length;
-  apresentacaoVideoPlaylist.splice(to, 0, movido);
-  if (atualId) {
-    const ni = apresentacaoVideoPlaylist.findIndex((x) => x && x.id === atualId);
-    if (ni >= 0) playlistVideoIndice = ni;
-  }
-  salvarEstadoModoApresentacaoNoStorage();
-  renderListaPlaylistApresentacao();
-}
-
-/** Atualiza botões de transporte, modo e intervalo (estado, não a lista inteira). */
-function atualizarControlesPlaylistUi() {
-  const auto = playlistVideoModo === 'auto';
-  const modoBtn = document.getElementById('ap-playlist-modo');
-  if (modoBtn) {
-    modoBtn.classList.toggle('ap-switch--on', auto);
-    modoBtn.setAttribute('aria-checked', auto ? 'true' : 'false');
-    modoBtn.title = auto
-      ? 'Avanço automático ativado — clique para Manual'
-      : 'Avanço manual — clique para Automático';
-  }
-  const atrasoSel = document.getElementById('ap-playlist-atraso');
-  if (atrasoSel) {
-    atrasoSel.value = String(playlistVideoAtrasoAuto);
-    atrasoSel.disabled = !auto;
-  }
-  const clearBtn = document.getElementById('ap-playlist-clear');
-  if (clearBtn) clearBtn.disabled = !apresentacaoVideoPlaylist.length;
-  _playlistUiTocandoCache = playlistControlaReproducaoAtual() && !!audioStateRemoto.playing;
-}
-
-/** Sincroniza só o destaque da linha ativa da playlist em transições (chamado a cada tick). */
-function atualizarPlaylistUiAoVivoSeMudou() {
-  const list = document.getElementById('apresentacao-playlist-list');
-  if (!list) return;
-  const tocando = playlistControlaReproducaoAtual() && !!audioStateRemoto.playing;
-  if (_playlistUiTocandoCache === tocando) return;
-  _playlistUiTocandoCache = tocando;
-  if (list && playlistVideoIndice >= 0) {
-    const row = list.querySelectorAll('.ap-playlist-item')[playlistVideoIndice];
-    if (row) {
-      row.classList.toggle('is-playing', tocando);
-      row.classList.toggle('is-current', !tocando);
-      const badge = row.querySelector('.ap-playlist-badge');
-      const meta = row.querySelector('.ap-menu-item-meta');
-      if (badge) badge.textContent = tocando ? '▶' : String(playlistVideoIndice + 1).padStart(2, '0');
-      if (meta) {
-        const it = apresentacaoVideoPlaylist[playlistVideoIndice];
-        const durTxt = it && Number(it.duracao) > 0 ? ` · ${fmtTempoAudio(it.duracao)}` : '';
-        meta.textContent = (tocando ? 'Tocando agora' : 'Pausado') + durTxt;
-      }
-    }
-  }
-}
-
-function renderListaPlaylistApresentacao() {
-  const list = document.getElementById('apresentacao-playlist-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (!apresentacaoVideoPlaylist.length) {
-    list.innerHTML =
-      '<div class="placeholder-msg" style="margin:4px 0 0;">Nenhum vídeo na playlist. Use “Adicionar”.</div>';
-    atualizarControlesPlaylistUi();
-    return;
-  }
-  const projetadoEhAtual = !!apresentacaoMidiaProjetadaId && apresentacaoMidiaProjetadaId === playlistItemAtualId();
-  apresentacaoVideoPlaylist.forEach((item, i) => {
-    const row = document.createElement('div');
-    row.className = 'ap-menu-item ap-playlist-item';
-    row.setAttribute('draggable', 'true');
-    row.dataset.id = item.id;
-
-    let statusTxt = 'Na fila';
-    let statusCls = '';
-    if (i === playlistVideoIndice) {
-      if (projetadoEhAtual && audioStateRemoto.playing) {
-        statusTxt = 'Tocando agora';
-        statusCls = 'is-playing';
-      } else if (projetadoEhAtual) {
-        statusTxt = 'Pausado';
-        statusCls = 'is-current';
-      } else {
-        statusTxt = 'Selecionado';
-        statusCls = 'is-current';
-      }
-    } else if (i === playlistVideoIndice + 1) {
-      statusTxt = 'Próximo';
-      statusCls = 'is-next';
-    }
-    if (statusCls) row.classList.add(statusCls);
-
-    const durTxt = Number(item.duracao) > 0 ? ` · ${fmtTempoAudio(item.duracao)}` : '';
-    const badge = statusCls === 'is-playing' ? '▶' : String(i + 1).padStart(2, '0');
-    row.innerHTML = `
-      <div class="ap-playlist-badge" aria-hidden="true">${escapeHtml(badge)}</div>
-      <div class="ap-menu-item-main">
-        <div class="ap-menu-item-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</div>
-        <span class="ap-menu-item-meta">${escapeHtml(statusTxt)}${durTxt}</span>
-      </div>
-      <div class="ap-menu-item-actions">
-        <button type="button" class="ap-menu-action mv-up" title="Mover para cima" aria-label="Mover para cima">↑</button>
-        <button type="button" class="ap-menu-action mv-down" title="Mover para baixo" aria-label="Mover para baixo">↓</button>
-        <button type="button" class="ap-menu-action delete" title="Remover da playlist" aria-label="Remover da playlist">✕</button>
-      </div>
-    `;
-
-    row.addEventListener('dblclick', () => {
-      void reproduzirItemPlaylist(i);
-    });
-    row.querySelector('.mv-up')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      playlistMover(item.id, 'up');
-    });
-    row.querySelector('.mv-down')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      playlistMover(item.id, 'down');
-    });
-    row.querySelector('.delete')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const ok = await appConfirm(`Remover "${item.name}" da playlist?`, 'Modo mídias');
-      if (ok) playlistRemover(item.id);
-    });
-
-    row.addEventListener('dragstart', (e) => {
-      playlistArrastandoId = item.id;
-      row.classList.add('arrastando');
-      try {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', item.id);
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    });
-    row.addEventListener('dragend', () => {
-      playlistArrastandoId = null;
-      row.classList.remove('arrastando');
-      list.querySelectorAll('.ap-playlist-item').forEach((r) => r.classList.remove('drag-over'));
-    });
-    row.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      row.classList.add('drag-over');
-      try {
-        e.dataTransfer.dropEffect = 'move';
-      } catch (_) {
-  // intencional — erro ignorado
-}
-    });
-    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-    row.addEventListener('drop', (e) => {
-      e.preventDefault();
-      row.classList.remove('drag-over');
-      const fromId = playlistArrastandoId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
-      playlistReordenarArrastando(fromId, item.id);
-    });
-
-    list.appendChild(row);
-  });
-  atualizarControlesPlaylistUi();
-  atualizarPreviewVideoAoVivo();
-}
-
-let _playerVideoToggleLock = false;
-
-async function tocarAudioAtualSelecionado() {
-  const itemVideo = obterItemVideoProjetadoNoPlayer();
-  if (itemVideo) {
-    if (_playerVideoToggleLock) return;
-    _playerVideoToggleLock = true;
-    const querPausar = !!audioStateRemoto.playing;
-    let liberarLockNoFinally = true;
-    try {
-      audioStateRemoto.mediaKind = 'video';
-      audioStateRemoto.name = itemVideo.name || 'Vídeo';
-
-      if (querPausar) {
-        pausarAudioLocalApresentacao();
-        renderGridApresentacao();
-        liberarLockNoFinally = false;
-        setTimeout(() => {
-          _playerVideoToggleLock = false;
-        }, 0);
-        return;
-      }
-
-      const item = await restaurarItemVideoApresentacao(itemVideo);
-      if (!item?.src) {
-        alert('Não foi possível carregar o vídeo. Selecione o arquivo novamente no card 5.');
-        return;
-      }
-      const el = obterElementoVideoLocal();
-      if (el && (!Number.isFinite(audioStateRemoto.duration) || audioStateRemoto.duration <= 0)) {
-        if (!el.src || el.src !== item.src) {
-          prepararElementoVideoLocalControle(el);
-          el.preload = 'metadata';
-          el.src = item.src;
-          await aguardarMetadadosVideo(el, 6000);
-        }
-        if (Number.isFinite(el.duration) && el.duration > 0) {
-          audioStateRemoto.duration = Number(el.duration);
-        }
-      }
-      const t = Number(audioStateRemoto.currentTime) || 0;
-      audioStateRemoto.playing = true;
-      _videoUiClockBase = t;
-      _videoUiClockT0 = performance.now();
-      emitirEstadoVideoParaServidor({ playing: true, syncTime: true, currentTime: t });
-      iniciarRelogioUiVideo();
-      reproduzirElementoPreviewLocal(t);
-      atualizarUiPlayerAudioRemoto();
-      renderGridApresentacao();
-    } finally {
-      if (liberarLockNoFinally) _playerVideoToggleLock = false;
-    }
-    return;
-  }
-  if (!apresentacaoAudioAtualId) return;
-  const item = apresentacaoAudios.find((x) => x.id === apresentacaoAudioAtualId);
-  if (!item) return;
-  if (audioStateRemoto.playing && audioStateRemoto.mediaKind === 'audio' && apresentacaoAudioAtualId === item.id) {
-    pausarAudioServidor();
-  } else {
-    const deveRetomarMesmoAudio = audioStateRemoto.mediaKind === 'audio' && apresentacaoAudioAtualId === item.id;
-    if (deveRetomarMesmoAudio) {
-      const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
-      const atual = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
-      const startTime = dur > 0 && atual >= Math.max(0, dur - 0.35) ? 0 : atual;
-      const ok = await tocarAudioServidorApresentacao(item, { startTime });
-      if (ok) atualizarRodapeAudioApresentacao(item);
-    } else {
-      await projetarItemApresentacao(item);
-    }
-  }
-  renderListaAudiosApresentacao();
-}
-
-function pausarAudioServidor() {
-  pausarAudioServidorPlayback();
-}
-
-function pararAudioServidor() {
-  const eraVideo = audioStateRemoto.mediaKind === 'video' && videoProjetadoAtivoNoPlayer();
-  pararAudioServidorPlayback();
-  apresentacaoAudioAtualId = null;
-  salvarEstadoModoApresentacaoNoStorage();
-  renderListaAudiosApresentacao();
-  if (eraVideo) {
-    void encerrarModoApresentacaoNoTelao();
-    renderGridApresentacao();
-    return;
-  }
-  if (!apresentacaoMidiaProjetadaId) {
-    atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Reprodução parada.' });
-  } else {
-    renderGridApresentacao();
-  }
-}
-
-
-/**
- * URL segura para `<img>` nos cards: só conteúdo **imagem** (`data:image/…`, `blob:` ou
- * `http(s)://…/api/apresentacao/media/id`). PDF/vídeo/áudio usam o mesmo endpoint no servidor
- * mas não são renderizáveis em `<img>` — sem o filtro por tipo aparecia ícone de imagem partida.
- */
-/** Índice do card destacado na grelha (0–5) ou null — igual «slide seleccionado» na faixa do modo slide. */
-let apresentacaoCardSelecionadoIdx = null;
-/** Debounce entre clique simples e duplo na grelha de apresentação (padrão playlist). */
-let apresentacaoCardUiClickTimer = null;
-
-function aplicarClasseSelecaoCardsApresentacaoNoDom() {
-  const grid = document.getElementById('apresentacao-grid');
-  if (!grid) return;
-  grid.querySelectorAll('.ap-card[data-ap-card-idx]').forEach((el) => {
-    const idx = parseInt(el.dataset.apCardIdx, 10);
-    const sel =
-      Number.isFinite(idx) &&
-      apresentacaoCardSelecionadoIdx !== null &&
-      idx === apresentacaoCardSelecionadoIdx;
-    el.classList.toggle('ap-card--selecionado', sel);
-  });
-}
-
-function definirSelecaoCardApresentacao(idx) {
-  if (idx === null || idx === undefined) {
-    apresentacaoCardSelecionadoIdx = null;
-  } else {
-    const n = Number(idx);
-    apresentacaoCardSelecionadoIdx = Number.isFinite(n) && n >= 0 && n <= 5 ? n : null;
-  }
-  /* Seleccionar outro card larga a área destacada dentro do card 4. */
-  if (apresentacaoCardSelecionadoIdx !== APRESENTACAO_IDX_CARD4) {
-    apresentacaoCard4SubSelecionadoIdx = null;
-  }
-  aplicarClasseSelecaoCardsApresentacaoNoDom();
-}
-
-/**
- * Card 4 — quatro áreas de imagem numa grelha 2×2 dentro do mesmo cartão.
- *
- * Ocupa a célula da grelha que sempre ocupou e mantém a moldura, o número e o
- * comportamento dos outros cards; o que muda é o interior, dividido por uma linha
- * vertical e uma horizontal em quatro áreas que se enchem e projetam uma a uma.
- *
- * O cartão em si nunca fica com o desenho de «vazio»: quem está vazia, ou não, é cada
- * uma das áreas lá dentro.
- */
-function montarCardQuatroImagensApresentacao() {
-  const card = document.createElement('div');
-  card.dataset.apCardIdx = String(APRESENTACAO_IDX_CARD4);
-  card.className = 'ap-card ap-card--quad';
-
-  const num = document.createElement('span');
-  num.className = 'ap-card-num';
-  num.textContent = `CARD ${APRESENTACAO_IDX_CARD4 + 1}`;
-
-  const body = document.createElement('div');
-  body.className = 'ap-card-body ap-card-body--quad';
-  body.dataset.cardIdx = String(APRESENTACAO_IDX_CARD4);
-  for (let sub = 0; sub < 4; sub++) {
-    body.appendChild(montarAreaImagemCard4(sub));
-  }
-
-  card.appendChild(num);
-  card.appendChild(body);
-  return card;
-}
-
-/**
- * Uma das quatro áreas do card 4.
- *
- * Cada área é independente: recebe o seu ficheiro, mostra a sua imagem, tem o seu «X» e
- * responde ao clique (selecionar) e ao duplo clique (projetar) como qualquer card da
- * grelha — é o mesmo `projetarItemApresentacao` de sempre, que não precisa de saber de
- * onde veio a imagem.
- *
- * Aqui só entram imagens. Vídeo continua a ser exclusivo do card 5, e PDF/apresentação
- * não teriam como se mostrar numa área deste tamanho.
- *
- * @param {number} sub 0 = cima-esquerda, 1 = cima-direita, 2 = baixo-esquerda, 3 = baixo-direita
- */
-function montarAreaImagemCard4(sub) {
-  const item = apresentacaoCard4Imagens[sub] || null;
-  const slot = document.createElement('div');
-  slot.className = 'ap-quad-slot' + (item ? '' : ' ap-quad-slot--vazio');
-  slot.dataset.card4Sub = String(sub);
-  if (apresentacaoCard4SubSelecionadoIdx === sub) slot.classList.add('ap-quad-slot--selecionado');
-
-  if (!item) {
-    slot.title = `Imagem ${sub + 1} do card 4 — clique para escolher um ficheiro`;
-    const mais = document.createElement('div');
-    mais.className = 'ap-quad-plus';
-    mais.textContent = '+';
-    mais.setAttribute('aria-hidden', 'true');
-    slot.appendChild(mais);
-    slot.addEventListener('click', () => {
-      apresentacaoCard4InputTarget = sub;
-      apresentacaoCardInputTarget = null;
-      const input = document.getElementById('apresentacao-add-card-input');
-      if (!input) return;
-      input.accept = 'image/*';
-      input.value = '';
-      input.click();
-    });
-  } else {
-    slot.title = `${String(item.name || 'imagem')} — clique para selecionar · duplo clique para projetar`;
-    const src = srcImagemApresentacaoSeguro(item.src, item);
-    if (src) {
-      const img = document.createElement('img');
-      img.className = 'ap-quad-img';
-      img.alt = String(item.name || 'imagem');
-      img.src = src;
-      slot.appendChild(img);
-    }
-    if (item.id && item.id === apresentacaoMidiaProjetadaId) {
-      slot.classList.add('ap-quad-slot--projetando');
-      const live = document.createElement('div');
-      live.className = 'ap-quad-live';
-      live.textContent = 'AO VIVO';
-      live.setAttribute('aria-hidden', 'true');
-      slot.appendChild(live);
-    }
-
-    slot.draggable = true;
-    slot.addEventListener('dragstart', (ev) => {
-      ev.dataTransfer.setData('text/plain', item.id || '');
-      ev.dataTransfer.setData('application/x-ap-card4-sub-idx', String(sub));
-      ev.dataTransfer.effectAllowed = 'copyMove';
-    });
-    slot.addEventListener('click', (ev) => {
-      if (ev.target.closest('.ap-quad-remove')) return;
-      if (ev.detail >= 2) return;
-      clearTimeout(apresentacaoCardUiClickTimer);
-      apresentacaoCardUiClickTimer = setTimeout(() => {
-        apresentacaoCardUiClickTimer = null;
-        apresentacaoCard4SubSelecionadoIdx = sub;
-        definirSelecaoCardApresentacao(APRESENTACAO_IDX_CARD4);
-        /* Troca a classe nas quatro áreas em vez de redesenhar a grelha: um clique não
-           deve fazer as imagens piscarem enquanto voltam a carregar. */
-        slot.parentElement?.querySelectorAll('.ap-quad-slot').forEach((el) => {
-          el.classList.toggle('ap-quad-slot--selecionado', el === slot);
-        });
-      }, 300);
-    });
-    slot.addEventListener('dblclick', (ev) => {
-      if (ev.target.closest('.ap-quad-remove')) return;
-      ev.preventDefault();
-      clearTimeout(apresentacaoCardUiClickTimer);
-      apresentacaoCardUiClickTimer = null;
-      projetarItemApresentacao(item);
-    });
-
-    const btnRemove = document.createElement('button');
-    btnRemove.type = 'button';
-    btnRemove.className = 'ap-quad-remove';
-    btnRemove.title = 'Remover esta imagem';
-    btnRemove.setAttribute('aria-label', `Remover a imagem ${sub + 1} do card 4`);
-    btnRemove.textContent = 'X';
-    btnRemove.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      if (item.id && apresentacaoMidiaProjetadaId === item.id) {
-        apresentacaoMidiaProjetadaId = null;
-        void emitirEncerrarApresentacaoPublicoAoServidor();
-      }
-      if (apresentacaoCard4SubSelecionadoIdx === sub) apresentacaoCard4SubSelecionadoIdx = null;
-      apresentacaoCard4Imagens[sub] = null;
-      salvarEstadoModoApresentacaoNoStorage();
-      renderGridApresentacao();
-      atualizarFeedbackProjecaoApresentacaoUi({
-        mensagemIdle: `Imagem ${sub + 1} do card 4 removida.`,
-      });
-    });
-    slot.appendChild(btnRemove);
-  }
-
-  slot.addEventListener('dragover', (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    slot.classList.add('drag-over');
-    ev.dataTransfer.dropEffect = 'copy';
-  });
-  slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-  slot.addEventListener('drop', (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    slot.classList.remove('drag-over');
-    const id = String(ev.dataTransfer.getData('text/plain') || '');
-    const subDe = parseInt(String(ev.dataTransfer.getData('application/x-ap-card4-sub-idx') || ''), 10);
-    const cardDe = parseInt(String(ev.dataTransfer.getData('application/x-ap-card-idx') || ''), 10);
-    const veioDeArea = Number.isInteger(subDe) && subDe >= 0 && subDe < 4;
-    const veioDeCard = !veioDeArea && Number.isInteger(cardDe) && cardDe >= 0 && cardDe < 5;
-
-    let it = null;
-    if (id) it = apresentacaoBiblioteca.find((x) => x.id === id) || null;
-    if (!it && veioDeArea) it = apresentacaoCard4Imagens[subDe] || null;
-    if (!it && veioDeCard) it = apresentacaoCards[cardDe] || null;
-    if (!it) return;
-    if (!ehItemImagemApresentacao(it)) {
-      alert('As quatro áreas do card 4 exibem apenas imagens.');
-      return;
-    }
-    /* Arrastar é mover, como entre os outros cards: a origem fica livre. */
-    if (veioDeArea) {
-      if (subDe === sub) return;
-      apresentacaoCard4Imagens[subDe] = null;
-    } else if (veioDeCard) {
-      apresentacaoCards[cardDe] = null;
-    }
-    apresentacaoCard4Imagens[sub] = it;
-    salvarEstadoModoApresentacaoNoStorage();
-    renderGridApresentacao();
-  });
-
-  return slot;
-}
-
-/**
- * Ficheiro escolhido no seletor para uma das quatro áreas do card 4.
- *
- * Espelha `adicionarArquivoDiretoNoCard` — cria o item, junta-o à biblioteca se ainda lá
- * não estiver e grava — mudando só onde o item fica e o que é aceite.
- */
-function adicionarImagemNaAreaCard4(file, sub) {
-  const s = Number(sub);
-  if (!Number.isInteger(s) || s < 0 || s > 3) return;
-  criarItemApresentacaoDeArquivo(file, (item) => {
-    if (!ehItemImagemApresentacao(item)) {
-      alert('As quatro áreas do card 4 aceitam apenas imagens.');
-      return;
-    }
-    apresentacaoCard4Imagens[s] = item;
-    const ja = apresentacaoBiblioteca.some((x) => x.src === item.src && x.name === item.name);
-    if (!ja) apresentacaoBiblioteca.push(item);
-    salvarEstadoModoApresentacaoNoStorage();
-    renderMenuApresentacao();
-    renderGridApresentacao();
-    atualizarFeedbackProjecaoApresentacaoUi({
-      mensagemIdle: `Imagem ${s + 1} do card 4: ${item.name}`,
-    });
-  });
-}
-
-function renderGridApresentacao() {
-  const grid = document.getElementById('apresentacao-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  for (let i = 0; i < 5; i++) {
-    /* O card 4 não guarda uma mídia: é o recipiente das quatro áreas de imagem. */
-    if (i === APRESENTACAO_IDX_CARD4) {
-      grid.appendChild(montarCardQuatroImagensApresentacao());
-      continue;
-    }
-    const card = document.createElement('div');
-    const item = apresentacaoCards[i];
-    card.dataset.apCardIdx = String(i);
-    card.className = item ? 'ap-card' : 'ap-card ap-card--vazio';
-    const num = document.createElement('span');
-    num.className = 'ap-card-num';
-    num.textContent = i === APRESENTACAO_IDX_CARD5 ? 'CARD 5 — (APENAS VÍDEO)' : `CARD ${i + 1}`;
-    const body = document.createElement('div');
-    body.className = 'ap-card-body';
-    body.dataset.cardIdx = String(i);
-    if (!item) {
-      body.innerHTML = '<div class="ap-card-plus">+</div>';
-      body.addEventListener('click', () => {
-        apresentacaoCardInputTarget = i;
-        apresentacaoCard4InputTarget = null;
-        const input = document.getElementById('apresentacao-add-card-input');
-        if (!input) return;
-        input.accept =
-          i === APRESENTACAO_IDX_CARD5
-            ? 'video/*'
-            : 'image/*,application/pdf,.ppt,.pptx,.odp';
-        input.value = '';
-        input.click();
-      });
-    } else {
-      const srcRaw = String(item.src || '');
-      const kItem = String(item.kind || '').toLowerCase();
-      const mimeItem = String(item.mime || '').toLowerCase();
-      const ehCard5Video = i === APRESENTACAO_IDX_CARD5 && kItem === 'video';
-      if (ehCard5Video) {
-        card.classList.add('ap-card--video');
-        body.className = 'ap-card-body ap-card-body--video';
-      }
-      const ehImg =
-        !ehCard5Video &&
-        (/^data:image\//i.test(srcRaw) ||
-          (kItem === 'image' || mimeItem.startsWith('image/')));
-      const srcImg = ehImg ? srcImagemApresentacaoSeguro(item.src, item) : '';
-      const metaLinha = `${svgIconeTipoMidiaApresentacao(item.kind)}<span>${escapeHtml(rotuloTipoMidiaApresentacao(item.kind))}</span>`;
-      const wrap = document.createElement('div');
-      wrap.className = ehCard5Video ? 'ap-card5-video-wrap' : 'ap-card-file';
-      const card5VideoAoVivo =
-        ehCard5Video &&
-        item.id === apresentacaoMidiaProjetadaId &&
-        audioStateRemoto.mediaKind === 'video' &&
-        !!audioStateRemoto.playing;
-      if (ehCard5Video && card5VideoAoVivo) {
-        /* Slot placeholder com id estável; o overlay de vídeo ao vivo o cobre. */
-        const slot = document.createElement('div');
-        slot.className = 'ap-card5-video-player';
-        slot.id = 'ap-card5-video-live-slot';
-        slot.setAttribute('aria-hidden', 'true');
-        wrap.appendChild(slot);
-      } else if (ehCard5Video) {
-        const thumbSrc = obterThumbVideoApresentacao(item);
-        if (thumbSrc) {
-          const img = document.createElement('img');
-          img.className = 'ap-card5-video-player ap-card5-video-thumb';
-          img.alt = '';
-          img.src = thumbSrc;
-          wrap.appendChild(img);
-        } else {
-          const ph = document.createElement('div');
-          ph.className = 'ap-card5-video-player ap-card5-video-thumb-placeholder';
-          ph.setAttribute('aria-hidden', 'true');
-          wrap.appendChild(ph);
-          void garantirThumbnailVideoItem(item).then((it) => {
-            if (videoProjetadoAtivoNoPlayer() && audioStateRemoto.playing) return;
-            if (!it?.thumb) return;
-            apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
-            const bibIdx = apresentacaoBiblioteca.findIndex((x) => x && x.id === it.id);
-            if (bibIdx >= 0) apresentacaoBiblioteca[bibIdx] = it;
-            salvarEstadoModoApresentacaoNoStorage();
-            if (ehModoApresentacaoOperador()) renderGridApresentacao();
-          });
-        }
-      } else if (srcImg) {
-        const img = document.createElement('img');
-        img.className = 'ap-card-preview-image';
-        img.alt = String(item.name || 'imagem');
-        img.src = srcImg;
-        wrap.appendChild(img);
-      }
-      const nomeEl = document.createElement('div');
-      nomeEl.className = ehCard5Video ? 'ap-card5-video-name' : 'ap-card-file-name';
-      nomeEl.title = String(item.name || '');
-      nomeEl.textContent = String(item.name || 'Arquivo');
-      wrap.appendChild(nomeEl);
-      if (!ehCard5Video) {
-        const metaEl = document.createElement('div');
-        metaEl.className = 'ap-card-file-meta';
-        metaEl.title = String(item.name || '');
-        metaEl.innerHTML = metaLinha;
-        wrap.appendChild(metaEl);
-      }
-      if (item.id && item.id === apresentacaoMidiaProjetadaId && item.kind !== 'audio') {
-        card.classList.add('ap-card--projetando');
-        const live = document.createElement('div');
-        live.className = 'ap-card-live-pill';
-        live.textContent = 'AO VIVO';
-        live.setAttribute('aria-hidden', 'true');
-        wrap.insertBefore(live, wrap.firstChild);
-      }
-      body.appendChild(wrap);
-      body.draggable = true;
-      body.title = 'Clique para selecionar · duplo clique para projetar';
-      body.addEventListener('dragstart', (ev) => {
-        ev.dataTransfer.setData('text/plain', item.id || '');
-        ev.dataTransfer.setData('application/x-ap-card-idx', String(i));
-        ev.dataTransfer.effectAllowed = 'copyMove';
-      });
-      body.addEventListener('click', (ev) => {
-        if (ev.target.closest('.ap-card-remove')) return;
-        if (ev.detail >= 2) return;
-        clearTimeout(apresentacaoCardUiClickTimer);
-        apresentacaoCardUiClickTimer = setTimeout(() => {
-          apresentacaoCardUiClickTimer = null;
-          definirSelecaoCardApresentacao(i);
-        }, 300);
-      });
-      body.addEventListener('dblclick', (ev) => {
-        if (ev.target.closest('.ap-card-remove')) return;
-        ev.preventDefault();
-        clearTimeout(apresentacaoCardUiClickTimer);
-        apresentacaoCardUiClickTimer = null;
-        projetarItemApresentacao(item);
-      });
-
-      const btnRemove = document.createElement('button');
-      btnRemove.type = 'button';
-      btnRemove.className = 'ap-card-remove';
-      btnRemove.title = 'Remover arquivo do card';
-      btnRemove.setAttribute('aria-label', `Remover arquivo do card ${i + 1}`);
-      btnRemove.innerHTML =
-        '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>';
-      btnRemove.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        if (item.id && apresentacaoMidiaProjetadaId === item.id) {
-          apresentacaoMidiaProjetadaId = null;
-          void emitirEncerrarApresentacaoPublicoAoServidor();
-        }
-        if (apresentacaoCardSelecionadoIdx === i) definirSelecaoCardApresentacao(null);
-        apresentacaoCards[i] = null;
-        salvarEstadoModoApresentacaoNoStorage();
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: `Card ${i + 1} limpo.` });
-      });
-      card.appendChild(btnRemove);
-    }
-    body.addEventListener('dragover', (ev) => {
-      ev.preventDefault();
-      body.classList.add('drag-over');
-      ev.dataTransfer.dropEffect = 'copy';
-    });
-    body.addEventListener('dragleave', () => body.classList.remove('drag-over'));
-    body.addEventListener('drop', (ev) => {
-      ev.preventDefault();
-      body.classList.remove('drag-over');
-      const id = String(ev.dataTransfer.getData('text/plain') || '');
-      const fromIdxRaw = ev.dataTransfer.getData('application/x-ap-card-idx');
-      const fromIdx = parseInt(String(fromIdxRaw || ''), 10);
-      let it = null;
-      if (id) it = apresentacaoBiblioteca.find((x) => x.id === id) || null;
-      if (!it && Number.isInteger(fromIdx) && fromIdx >= 0 && fromIdx < 5) {
-        it = apresentacaoCards[fromIdx] || null;
-      }
-      if (!it) return;
-      if (it.kind === 'video' && i !== APRESENTACAO_IDX_CARD5) {
-        alert('Use o card 5 para ficheiros de vídeo.');
-        return;
-      }
-      if (it.kind !== 'video' && i === APRESENTACAO_IDX_CARD5) {
-        alert('O card 5 aceita apenas vídeos.');
-        return;
-      }
-      if (Number.isInteger(fromIdx) && fromIdx >= 0 && fromIdx < 5) {
-        if (fromIdx === i) return;
-        apresentacaoCards[fromIdx] = null;
-      }
-      if (it.kind === 'video') {
-        void (async () => {
-          const itemHttp = await garantirVideoSrcHttp(it);
-          await garantirThumbnailVideoItem(itemHttp);
-          apresentacaoCards[i] = itemHttp;
-          salvarEstadoModoApresentacaoNoStorage();
-          renderGridApresentacao();
-        })();
-        return;
-      }
-      apresentacaoCards[i] = it;
-      salvarEstadoModoApresentacaoNoStorage();
-      renderGridApresentacao();
-    });
-    card.appendChild(num);
-    card.appendChild(body);
-    grid.appendChild(card);
-  }
-
-  /* Card 6: avisos em texto (sem ficheiro) */
-  const i = 5;
-  const card6 = document.createElement('div');
-  card6.dataset.apCardIdx = '5';
-  card6.className = 'ap-card ap-card--aviso';
-  card6.title = 'Clique para selecionar o card · duplo clique fora do texto para projetar';
-  if (apresentacaoAvisoCard6Ativo) card6.classList.add('ap-card--projetando');
-  const num6 = document.createElement('span');
-  num6.className = 'ap-card-num';
-  num6.textContent = 'CARD 6 — AVISOS';
-  const body6 = document.createElement('div');
-  body6.className = 'ap-card-body ap-card-body--aviso';
-  body6.dataset.cardIdx = '5';
-  const ta = document.createElement('textarea');
-  ta.className = 'ap-card6-aviso-textarea';
-  ta.dataset.apCard6CfgField = '1';
-  ta.setAttribute('aria-label', 'Texto de avisos para projetar no card 6');
-  ta.placeholder = 'Digite o aviso… (duplo clique projeta)';
-  ta.value = apresentacaoCard6Texto;
-  aplicarEstiloTextareaAvisoCard6(ta, apresentacaoCard6AvisoCfg);
-  ta.addEventListener('click', (ev) => ev.stopPropagation());
-  ta.addEventListener('input', () => {
-    // Atualização em memória é instantânea; a gravação pesada é adiada (debounce) para não travar a digitação.
-    apresentacaoCard6Texto = ta.value;
-    agendarSalvarEstadoAposDigitarAviso();
-  });
-  ta.addEventListener('blur', flushSalvarEstadoAposDigitarAviso);
-  ta.addEventListener('dblclick', (ev) => {
-    ev.stopPropagation();
-    clearTimeout(apresentacaoCardUiClickTimer);
-    apresentacaoCardUiClickTimer = null;
-    projetarAvisoCard6();
-  });
-  card6.addEventListener('click', (ev) => {
-    if (ev.target === ta || (ta && ta.contains(ev.target))) return;
-    if (ev.target.closest('.ap-card6-footer')) return;
-    if (ev.target.closest('button')) return;
-    if (ev.detail >= 2) return;
-    clearTimeout(apresentacaoCardUiClickTimer);
-    apresentacaoCardUiClickTimer = setTimeout(() => {
-      apresentacaoCardUiClickTimer = null;
-      definirSelecaoCardApresentacao(5);
-    }, 300);
-  });
-  card6.addEventListener('dblclick', (ev) => {
-    if (ev.target === ta || (ta && ta.contains(ev.target))) return;
-    if (ev.target.closest('.ap-card6-footer')) return;
-    if (ev.target.closest('button')) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    clearTimeout(apresentacaoCardUiClickTimer);
-    apresentacaoCardUiClickTimer = null;
-    projetarAvisoCard6();
-  });
-  if (apresentacaoAvisoCard6Ativo) {
-    const live = document.createElement('div');
-    live.className = 'ap-card-live-pill';
-    live.textContent = 'AO VIVO';
-    live.setAttribute('aria-hidden', 'true');
-    body6.appendChild(live);
-  }
-  const footer6 = document.createElement('div');
-  footer6.className = 'ap-card6-footer';
-  footer6.appendChild(criarSeletorMonitorAvisoCard6());
-  const btnProjCard6 = document.createElement('button');
-  btnProjCard6.type = 'button';
-  btnProjCard6.className = 'btn sm primary ap-card6-btn-projetar';
-  /* Visual: ▶ + «Projetar»; com o aviso no ar, pontinho verde + «Projetando». */
-  btnProjCard6.innerHTML = apresentacaoAvisoCard6Ativo
-    ? '<span class="ap-card6-dot" aria-hidden="true"></span><span>Projetando</span>'
-    : '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg><span>Projetar</span>';
-  btnProjCard6.title = 'Projeta o aviso no monitor escolhido ao lado (independente das mídias)';
-  btnProjCard6.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    projetarAvisoCard6();
-  });
-  const btnEncerrarAviso = document.createElement('button');
-  btnEncerrarAviso.type = 'button';
-  btnEncerrarAviso.className = 'btn sm danger ap-card6-btn-icone ap-card6-btn-encerrar';
-  btnEncerrarAviso.innerHTML =
-    '<svg class="ap-card6-ico" viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1.2" fill="currentColor"/></svg>';
-  btnEncerrarAviso.title = 'Encerrar';
-  btnEncerrarAviso.setAttribute('aria-label', 'Encerrar');
-  btnEncerrarAviso.disabled = !apresentacaoAvisoCard6Ativo;
-  btnEncerrarAviso.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    void encerrarAvisoCard6NoControlador();
-  });
-  const btnLimparTxt = document.createElement('button');
-  btnLimparTxt.type = 'button';
-  btnLimparTxt.className = 'btn sm ap-card6-btn-limpar';
-  /* Ícone (borracha/backspace) + rótulo «Limpar»; em card estreito o rótulo some (CSS) e fica o ícone. */
-  btnLimparTxt.innerHTML =
-    '<svg class="ap-card6-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h7.5a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6L1.8 8z"/><path d="M8.5 6l3 4M11.5 6l-3 4"/></svg><span class="ap-card6-btn-rotulo">Limpar</span>';
-  btnLimparTxt.title = 'Limpar texto';
-  btnLimparTxt.setAttribute('aria-label', 'Limpar texto');
-  btnLimparTxt.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    apresentacaoCard6Texto = '';
-    salvarEstadoModoApresentacaoNoStorage();
-    renderGridApresentacao();
-  });
-  footer6.appendChild(btnProjCard6);
-  footer6.appendChild(btnEncerrarAviso);
-  footer6.appendChild(btnLimparTxt);
-  body6.appendChild(footer6);
-  body6.appendChild(ta);
-  card6.appendChild(num6);
-  card6.appendChild(body6);
-  grid.appendChild(card6);
-
-  aplicarClasseSelecaoCardsApresentacaoNoDom();
-  atualizarPreviewVideoAoVivo();
-}
-
-function adicionarArquivosAoMenu(files) {
-  Array.from(files || []).forEach((file) => {
-    criarItemApresentacaoDeArquivo(file, (item) => {
-      apresentacaoBiblioteca.push(item);
-      salvarEstadoModoApresentacaoNoStorage();
-      renderMenuApresentacao();
-    });
-  });
-}
-
-function adicionarArquivoDiretoNoCard(file, cardIdx) {
-  const idx = Number(cardIdx);
-  if (!Number.isInteger(idx) || idx < 0 || idx > 5) return;
-  if (idx === 5) return;
-  criarItemApresentacaoDeArquivo(file, async (item) => {
-    if (item.kind === 'video' && idx !== APRESENTACAO_IDX_CARD5) {
-      alert('Vídeos devem ser adicionados no card 5.');
-      return;
-    }
-    if (item.kind !== 'video' && idx === APRESENTACAO_IDX_CARD5) {
-      alert('O card 5 aceita apenas vídeos.');
-      return;
-    }
-    if (item.kind === 'video') {
-      await garantirVideoSrcHttp(item);
-      await garantirThumbnailVideoItem(item);
-    }
-    apresentacaoCards[idx] = item;
-    const ja = apresentacaoBiblioteca.some((x) => x.src === item.src && x.name === item.name);
-    if (!ja) apresentacaoBiblioteca.push(item);
-    salvarEstadoModoApresentacaoNoStorage();
-    renderMenuApresentacao();
-    if (apresentacaoMidiaProjetadaId) {
-      renderGridApresentacao();
-    } else {
-      atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: `Arquivo no card ${idx + 1}: ${item.name}` });
-    }
-  });
-}
+// (extraído) grelha de cards → painel/gridApresentacao.js
 
 function abrirMenuModoApresentacao() {
   const ativo = ehModoApresentacaoOperador();
@@ -5574,7 +3295,7 @@ function abrirMenuModoApresentacao() {
     aplicarMonitorLembradoAoEntrarNoModo('apresentacao');
     sincronizarCheckboxLembrarMonitor();
     aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
-    apresentacaoCardSelecionadoIdx = null;
+    setApresentacaoCardSelecionadoIdx(null);
     renderGridApresentacao();
     void restaurarVideosModoApresentacao().then(() => {
       if (ehModoApresentacaoOperador()) {
@@ -5640,9 +3361,9 @@ function fecharMenuModoApresentacao() {
     if (!preservarProjecao) {
       apresentacaoMidiaProjetadaId = null;
     }
-    clearTimeout(apresentacaoCardUiClickTimer);
-    apresentacaoCardUiClickTimer = null;
-    apresentacaoCardSelecionadoIdx = null;
+    clearTimeout(getApresentacaoCardUiClickTimer());
+    setApresentacaoCardUiClickTimer(null);
+    setApresentacaoCardSelecionadoIdx(null);
     atualizarBtnModoApresentacao();
     renderSlidesStrip();
     if (!preservarProjecao) {
@@ -5959,9 +3680,9 @@ async function alternarModoSlidesOperador(opts = {}) {
     if (ehModoApresentacaoOperador()) {
       /* Sair de Mídias para Slides: nunca encerrar imagem/vídeo no telão. */
       document.body.classList.remove('app-mod-apresentacao');
-      clearTimeout(apresentacaoCardUiClickTimer);
-      apresentacaoCardUiClickTimer = null;
-      apresentacaoCardSelecionadoIdx = null;
+      clearTimeout(getApresentacaoCardUiClickTimer());
+      setApresentacaoCardUiClickTimer(null);
+      setApresentacaoCardSelecionadoIdx(null);
     }
     if (ehModoBibliaOperador()) {
       reconhecimentoVozBiblia.aoSairModoBiblia();
@@ -6987,8 +4708,7 @@ const APRESENTACAO_IDX_CARD4 = 3;
 let apresentacaoCard4Imagens = Array(4).fill(null);
 /** Área do card 4 à espera do ficheiro escolhido no seletor, ou `null`. */
 let apresentacaoCard4InputTarget = null;
-/** Área do card 4 destacada por clique (0–3) ou `null` — só realce, como nos outros cards. */
-let apresentacaoCard4SubSelecionadoIdx = null;
+// (extraído) seleção do card de 4 imagens → painel/gridApresentacao.js
 
 /** As quatro áreas exibem imagens; o mesmo critério que a prévia dos outros cards usa. */
 function ehItemImagemApresentacao(it) {
@@ -7017,8 +4737,7 @@ let audioStateRemoto = {
 };
 let audioLoopAtivo = false;
 let audioLoopReinicioPendente = false;
-/** Volume guardado antes de mutar, para o botão de mudo restaurar ao desmutar. */
-let audioVolAntesDeMutar = 1;
+// (extraído) volume antes de mutar → painel/playerLocalMidia.js
 /** ─── Playlist de vídeos (modo Mídias) — camada sobre o motor de vídeo único ─── */
 let apresentacaoVideoPlaylist = [];
 /** Índice do item atualmente carregado/reproduzido na playlist (-1 = nenhum). */
@@ -7029,12 +4748,10 @@ let playlistVideoModo = 'manual';
 let playlistVideoAtrasoAuto = 0;
 /** true quando a playlist é o contexto que controla o player de vídeo. */
 let playlistVideoAtiva = false;
-/** Timeout do avanço automático entre vídeos. */
-let _playlistAutoTimer = null;
+// (extraído) timer da playlist de vídeos → painel/playlistVideoApresentacao.js
 /** Guarda: reaproveita projetarItemApresentacao sem desativar a playlist. */
 let _playlistProjetando = false;
-/** Id do item sendo arrastado (reordenar por drag-and-drop). */
-let playlistArrastandoId = null;
+// (extraído) arrastar na playlist de vídeos → painel/playlistVideoApresentacao.js
 /** Cache do estado tocando/pausado para atualizar a UI só em transições. */
 let _playlistUiTocandoCache = null;
 let audioResumeVisualGuard = null;
@@ -13405,8 +11122,8 @@ document.getElementById('ap-playlist-clear')?.addEventListener('click', () => {
 document.getElementById('ap-playlist-modo')?.addEventListener('click', () => playlistAlternarModo());
 document.getElementById('ap-playlist-atraso')?.addEventListener('change', (e) => playlistDefinirAtraso(e?.target?.value));
 /* Mantém o overlay de preview alinhado ao slot ao rolar/redimensionar. */
-window.addEventListener('scroll', () => { if (_previewAlvoAtual) posicionarOverlayPreview(); }, true);
-window.addEventListener('resize', () => { if (_previewAlvoAtual) posicionarOverlayPreview(); });
+window.addEventListener('scroll', () => { if (get_previewAlvoAtual()) posicionarOverlayPreview(); }, true);
+window.addEventListener('resize', () => { if (get_previewAlvoAtual()) posicionarOverlayPreview(); });
 (function ligarBotaoPlayPauseApresentacao() {
   const btn = document.getElementById('ap-audio-play-pause');
   if (!btn) return;
