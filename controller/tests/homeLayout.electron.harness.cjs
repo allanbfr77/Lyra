@@ -42,6 +42,8 @@ window.addEventListener('error',e=>{(window.__errors ||= []).push(e.message)});
 window.addEventListener('unhandledrejection',e=>{(window.__errors ||= []).push(String(e.reason))});
 `;
 const bridge = `
+const __pc = await import('./painel/playlistCompartilhar.js');
+const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
  async seed() {
   const lc=await import('./painel/letraCompleta.js'), ee=await import('./painel/editorEstrofes.js');
@@ -76,7 +78,7 @@ window.__homeTest = {
  banner:{disponivel:mostrarBannerAtualizacaoDisponivel,progressoCompanion:mostrarBannerCompanionProgresso,esconder:esconderBannerAtualizacao,estado:lyraUpdaterUiState},
  dialogo:{confirm:appConfirm,prompt:appPrompt,fechar:fecharAppDialog,estado:appDialogEstado},
  normTema:normalizarTemaPlaylist,
- fluxos:{compartilhar:abrirModalCompartilharPlaylist,codigo:modalCompartilharMostrarCodigo,importar:importarPlaylist,impLoading:modalImportarPlaylistLoading,impErro:modalImportarPlaylistErro,impSucesso:modalImportarPlaylistSucesso,sincronizar:abrirModalSincronizarBanco,sincSucesso:modalSincronizarSucesso,sincAviso:modalSincronizarAviso,sincErro:modalSincronizarErro},
+ fluxos:{confirmarImport:__pc.abrirJanelaConfirmarImport,conflitoImport:__pc.abrirJanelaConflitoImport,compartilhar:__pc.abrirModalCompartilharPlaylist,codigo:__pc.modalCompartilharMostrarCodigo,importar:__pc.importarPlaylist,impLoading:__pc.modalImportarPlaylistLoading,impErro:__pc.modalImportarPlaylistErro,impSucesso:__pc.modalImportarPlaylistSucesso,sincronizar:__sb.abrirModalSincronizarBanco,sincSucesso:__sb.modalSincronizarSucesso,sincAviso:__sb.modalSincronizarAviso,sincErro:__sb.modalSincronizarErro},
  handoff:()=>companionHandoffEmCurso,
  handoffReset:()=>{companionHandoffEmCurso=false},
 };`;
@@ -348,6 +350,15 @@ async function run() {
   await check('Sincronizar: abre em carregamento, sem botões, com o estado reservado',`${dlgAberto} && document.getElementById('app-dialog-head').textContent==='Sincronizar banco' && document.getElementById('app-dialog-ok').style.display==='none' && document.getElementById('app-dialog-cancel').style.display==='none' && typeof __homeTest.dialogo.estado.sincronizarResolver==='function' && __homeTest.dialogo.estado.fecharNoBackdrop===true && !!document.querySelector('.share-modal-loading')`);
   await js(esc);await pause(80);
   await check('Sincronizar: Escape durante o carregamento fecha e limpa o estado',`!(${dlgAberto}) && __homeTest.dialogo.estado.sincronizarResolver===null`);
+  // Janelas de importação (listeners de Escape registrados por iniciarPlaylistCompartilhar)
+  await js("window.__rc=null;__homeTest.fluxos.confirmarImport({musicas:[{titulo:'Música A'}],cultoIdCodigo:'',jaExistem:[]}).then(r=>{window.__rc=r});void 0");await pause(150);
+  await check('Importar: a janela de confirmação abre com a lista de músicas',`!document.getElementById('confirmar-import-backdrop').hidden && document.querySelectorAll('#confirmar-import-lista .confirmar-import-item').length===1`);
+  await js(esc);await pause(150);
+  await check('Importar: Escape cancela a janela de confirmação (listener do módulo)',`document.getElementById('confirmar-import-backdrop').hidden && window.__rc && window.__rc.confirmado===false`);
+  await js("window.__rf=null;__homeTest.fluxos.conflitoImport({atual:{titulo:'A',estrofes:['x']},recebida:{titulo:'A',estrofes:['y']},total:1,indice:1,restantes:0}).then(r=>{window.__rf=r});void 0");await pause(150);
+  await check('Importar: a janela de conflito abre',`!document.getElementById('conflito-import-backdrop').hidden`);
+  await js(esc);await pause(150);
+  await check('Importar: Escape cancela a janela de conflito (listener do módulo)',`document.getElementById('conflito-import-backdrop').hidden && window.__rf && window.__rf.acao==='cancelar'`);
   await js("window.__w=__homeTest.fluxos.sincronizar();__homeTest.fluxos.sincSucesso(window.__w,'Banco enviado.');void 0");await pause(50);
   await check('Sincronizar: sucesso mostra a mensagem e o Fechar',`document.querySelector('.share-modal-sucesso').textContent==='Banco enviado.' && document.getElementById('app-dialog-cancel').textContent==='Fechar'`);
   await js("window.__clears.length=0;window.__antes=window.__t2600.length;document.getElementById('app-dialog-cancel').click()");await pause(50);
