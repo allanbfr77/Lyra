@@ -50,6 +50,8 @@
  *   bannerAtualizacao.js — banner de atualização do app e dos componentes (companion)
  *   docs.js — modo DOCS: biblioteca, faixa de páginas, prévia e projeção
  *   contagemRegressiva.js — painel da Contagem (DOM e transporte; a regra está em modules/contagemPainel.js)
+ *   biblia.js — modo Bíblia: tradução, livros/capítulos/versículos, busca rápida, projeção e aparência
+ *   configExibicao.js — Exibição (Ajustes): modal de configuração, tema escuro e config de slides
  * =============================================================================
  */
 
@@ -61,8 +63,6 @@ import {
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
   LS_APRESENTACAO_STATE,
-  LS_BIBLIA_CFG,
-  LS_SLIDE_CFG,
   SVG_OLHO_ABERTO,
   SVG_OLHO_CORTADO,
   LS_PLAYLISTS,
@@ -92,7 +92,6 @@ import {
   LS_BANCO_SQLITE_LISTA_ABERTA,
   SVG_PLAYLIST_SECAO_EXPANDIR,
   SVG_PLAYLIST_SECAO_RECOLHER,
-  LS_DARK_CTRL,
 } from './modules/chavesArmazenamentoLocal.js';
 import { migrarChavesLegadoLocalStorage } from './modules/migrarChavesArmazenamentoLocal.js';
 import {
@@ -212,7 +211,6 @@ import {
 } from './modules/navegadorAlfabeticoBiblioteca.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
-import { criarReconhecimentoVozBiblia } from './modules/reconhecimentoVozBiblia.js';
 import {
   configurarNotasSlideControlador,
   atualizarNotaSlideControladorUI,
@@ -221,11 +219,9 @@ import {
   filtrarLinhasParaPublico,
   aplicarPreviewMinistranteNoElemento,
   textoMinistranteDeElementoPreview,
-  normalizarCorComentarioMinistrante,
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
-import { inicializarSlidersComEdicao, sincronizarSliderComEdicao } from './modules/sliderComEdicao.js';
 import {
   htmlCorpoLinhaPlaylistComTom,
   htmlCorpoLinhaPlaylistSimples,
@@ -258,14 +254,6 @@ import {
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
 import {
-  LIMITE_DIVISAO_PADRAO,
-  normalizarLimiteDivisao,
-  dividirVersiculos,
-  indicePrimeiraParteDoVersiculo,
-  indiceDaParteEquivalente,
-} from './modules/dividirVersiculos.js';
-import { deltaScrollListaVersiculos } from './modules/scrollListaVersiculos.js';
-import {
   compararLetras,
   resumirComparacao,
 } from './modules/diffLetrasComparativo.js';
@@ -277,10 +265,8 @@ import {
 import {
   alvoDeRota,
   rotaCobreAlvo,
-  resolverEnvioBiblia,
 } from './modules/rotaEnvioBiblia.js';
 import { criarSocketPainel } from './modules/socketPainel.js';
-import { bnpNumeroEntradaCompleta } from './modules/bnpNumeroEntradaCompleta.js';
 import {
   GRAVIDADE_IMPEDE,
   verificarTelas,
@@ -335,7 +321,6 @@ import {
   registrarDependenciasDocs,
 } from './painel/docs.js';
 import {
-  popularFormCfgContagem,
   onContagemCfgChange,
   setPosContagemCtrl,
   onContagemBgImagemChange,
@@ -348,6 +333,101 @@ import {
   iniciarContagemRegressivaPainel,
   registrarDependenciasContagem,
 } from './painel/contagemRegressiva.js';
+import {
+  alternarModoBiblia,
+  aplicarTraducaoBibliaNoSelect,
+  atualizarBtnModoBiblia,
+  bibliaAplicarCfgExibicao,
+  bibliaBuscaRapida,
+  bibliaBuscaRapidaTecla,
+  bibliaEscolherFundo,
+  bibliaHaParteProjetada,
+  bibliaLimparProjecaoOperador,
+  bibliaNavPopupAberto,
+  bibliaNavPopupAbrir,
+  bibliaNavPopupFechar,
+  bibliaNavegarVersiculosComSeta,
+  bibliaPayloadCfgExibicao,
+  bibliaPopularFormularioCfg,
+  bibliaSairModo,
+  bibliaTratarKeydownModo,
+  bibliaZerarParteProjetada,
+  bibliaZerarVersiculoSelecionado,
+  bnpConfirmarCap,
+  bnpConfirmarVer,
+  bnpSelecionarLivro,
+  carregarBibliaCfgDoStorage,
+  definirFiltroTestamentoBiblia,
+  encerrarProjecaoModoBiblia,
+  fetchListaTraducoesBiblia,
+  getBibliaCfgExibicao,
+  getBibliaCfgMinistrante,
+  lerBibliaCfgDoFormularioMinistrante,
+  lerBibliaCfgDoFormularioPublico,
+  marcarRotaBibliaSincronizada,
+  obterBibliaTraducaoSessao,
+  onBibliaDivisaoCfgChange,
+  onBibliaMinistranteBgTypeCtrlChange,
+  onBibliaMinistranteCfgChange,
+  onBibliaPublicoBgTypeCtrlChange,
+  onBibliaPublicoCfgChange,
+  onTraducaoBibliaChange,
+  popularGradeLivros,
+  reconhecimentoVozBiblia,
+  registrarDependenciasBiblia,
+  salvarBibliaCfgNoStorage,
+  setBibliaPosCtrl,
+} from './painel/biblia.js';
+import {
+  abrirCfgModal,
+  aplicarCfgRelogio,
+  aplicarCorComentarioMinistranteNoPainel,
+  aplicarWrapImediato,
+  aprimorarControlesVisuaisCfg,
+  debounceSalvarCfg,
+  fecharCfgModal,
+  getChkVal,
+  iniciarConfigExibicao,
+  lerCurrentCfgCtrl,
+  lerNumeroInput,
+  limparCfgBusca,
+  mesclarSlideCfgNoEstado,
+  mudarAbaCfg,
+  mudarDestinoCfg,
+  onAvisoCard6CfgChange,
+  onCfgBuscaInput,
+  onCfgGeralTemaChange,
+  onCfgGeralVozChange,
+  onClockBgImageCtrlChange,
+  onClockBgTypeCtrlChange,
+  onClockDateFontSizeCtrlInput,
+  onClockFontSizeCtrlInput,
+  onClockVerseFontSizeCtrlInput,
+  onMinistranteBgColorCtrlInput,
+  onMinistranteBgGradientCtrlInput,
+  onMinistranteBgImageCtrlChange,
+  onMinistranteBgTypeCtrlChange,
+  onMinistranteSlideCfgChange,
+  onPublicoBgColorCtrlInput,
+  onPublicoBgGradientCtrlInput,
+  onPublicoBgImageCtrlChange,
+  onPublicoBgTypeCtrlChange,
+  popularFormCfg,
+  popularFormCfgAvisoCard6,
+  registrarDependenciasConfigExibicao,
+  salvarCfgNoServidor,
+  setCfgSwitchState,
+  setChkVal,
+  setInputVal,
+  setPosAvisoCard6Ctrl,
+  setPosCtrl,
+  setSelVal,
+  setSpanText,
+  sincronizarFormCfgGeral,
+  slidesAplicarCfgArmazenada,
+  toggleCfgSwitch,
+  toggleDarkCtrl,
+} from './painel/configExibicao.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -425,6 +505,84 @@ registrarDependenciasContagem({
   getRotasPorModo: () => rotasPorModo,
   getMonitoresServidorCache: () => monitoresServidorCache,
   getProjecao: () => projecao,
+});
+registrarDependenciasBiblia({
+  aplicarMonitorLembradoAoEntrarNoModo,
+  aplicarRotaDoModoAtualNaUiEServidor,
+  atualizarBtnModoApresentacao,
+  atualizarBtnTelaInicial,
+  atualizarBtnToggleModoSlides,
+  atualizarPreviewOperador,
+  carregarTraducoes,
+  definirEstadoBtnModoCabecalho,
+  desativarRotasModosTransitorios,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  executarComTransicaoUi,
+  getControllerApiBase,
+  hayProjecaoApresentacaoModoAtiva,
+  hayProjecaoAtivaModoBibliaOuApresentacao,
+  hayProjecaoMidiaApresentacaoAtiva,
+  liberarBloqueioUiModos,
+  limparUiAoSairDoModoSlides,
+  marcarRotaLiveNoDom,
+  mensagemAlvoInvalidoBiblia,
+  normalizarRota,
+  preferenciaMovimentoReduzido,
+  renderSlidesStrip,
+  rotaDesativada,
+  rotaSelecionadaNaUi,
+  salvarRotasPorModoNoStorage,
+  salvarRoteamentoTelasNoServidor,
+  sincronizarCheckboxLembrarMonitor,
+  getEstadoServidor: () => estadoServidor,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getReconhecimentoVozSlides: () => reconhecimentoVozSlides,
+  getRotasPorModo: () => rotasPorModo,
+  getUltimoConteudoProjetadoModoUnificado: () => ultimoConteudoProjetadoModoUnificado,
+  setEstadoServidor: (valor) => {
+    estadoServidor = valor;
+  },
+  setUltimoConteudoProjetadoModoUnificado: (valor) => {
+    ultimoConteudoProjetadoModoUnificado = valor;
+  },
+});
+registrarDependenciasConfigExibicao({
+  agendarAtualizacaoAvisoCard6AoVivo,
+  algumCampoAvisoCard6EmEdicao,
+  aplicarEstiloPreviewTituloAbertura,
+  atualizarUrlsObs,
+  carregarEstadoModoApresentacaoDoServidor,
+  controladorSomenteLeitura,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  hostProjecao,
+  renderGridApresentacao,
+  renderListaCfgMinistrantes,
+  salvarEstadoModoApresentacaoNoStorage,
+  sincronizarPreviewOciosoMinistranteSlides,
+  sincronizarTicksSliderVh,
+  bibliaPayloadCfgExibicao,
+  bibliaPopularFormularioCfg,
+  carregarBibliaCfgDoStorage,
+  lerBibliaCfgDoFormularioMinistrante,
+  lerBibliaCfgDoFormularioPublico,
+  salvarBibliaCfgNoStorage,
+  getApresentacaoIdxCard5: () => APRESENTACAO_IDX_CARD5,
+  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  getBibliaCfgExibicao,
+  getBibliaCfgMinistrante,
+  getCorComentarioMinistrantePainel: () => corComentarioMinistrantePainel,
+  getProjecao: () => projecao,
+  setApresentacaoCard6AvisoCfg: (valor) => {
+    apresentacaoCard6AvisoCfg = valor;
+  },
+  setCorComentarioMinistrantePainel: (valor) => {
+    corComentarioMinistrantePainel = valor;
+  },
 });
 
 /**
@@ -979,7 +1137,7 @@ function hayProjecaoApresentacaoModoAtiva() {
 /** Projeção de Bíblia ou apresentação ainda no ar — ao mudar de tela, manter rota de monitores. */
 function hayProjecaoAtivaModoBibliaOuApresentacao() {
   if (hayProjecaoApresentacaoModoAtiva()) return true;
-  if (bibliaParteProjetadaChave != null) return true;
+  if (bibliaHaParteProjetada()) return true;
   const e = estadoServidor;
   if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
@@ -1870,7 +2028,7 @@ async function reemitirConteudoAposMudancaDeRotaUnificada() {
   }
 
   if (guardado.tipo === 'biblia') {
-    if (bibliaParteProjetadaChave == null) return;
+    if (!bibliaHaParteProjetada()) return;
     /* `somenteTexto: false` de propósito: o monitor que acabou de entrar não recebeu a
        referência nem a configuração de exibição, e um reenvio abreviado deixá-lo-ia com
        o versículo sem cabeçalho. */
@@ -4856,286 +5014,7 @@ function abrirMenuModoApresentacao() {
   });
 }
 
-/** Tradução escolhida ao entrar no modo Bíblia; só vale nesta janela do controlador (não persiste ao fechar o app). */
-let bibliaTraducaoSessao = null;
-const SS_BIBLIA_TRADUCAO_SESSAO = 'lyra_biblia_traducao_sessao_v1';
-
-function obterBibliaTraducaoSessao() {
-  if (bibliaTraducaoSessao) return bibliaTraducaoSessao;
-  try {
-    const codigo = String(sessionStorage.getItem(SS_BIBLIA_TRADUCAO_SESSAO) || '').trim();
-    if (codigo) bibliaTraducaoSessao = codigo;
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  return bibliaTraducaoSessao;
-}
-
-function definirBibliaTraducaoSessao(codigo) {
-  const traducao = String(codigo || '').trim();
-  bibliaTraducaoSessao = traducao || null;
-  try {
-    if (bibliaTraducaoSessao) {
-      sessionStorage.setItem(SS_BIBLIA_TRADUCAO_SESSAO, bibliaTraducaoSessao);
-    } else {
-      sessionStorage.removeItem(SS_BIBLIA_TRADUCAO_SESSAO);
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  return bibliaTraducaoSessao;
-}
-
-async function fetchListaTraducoesBiblia() {
-  const res = await fetch(`${getControllerApiBase()}/api/biblia/traducoes`);
-  if (!res.ok) throw new Error('Falha ao carregar traduções da Bíblia');
-  return res.json();
-}
-
-async function perguntarTraducaoBibliaSeNecessario() {
-  const traducaoSessao = obterBibliaTraducaoSessao();
-  if (traducaoSessao) return traducaoSessao;
-  let lista;
-  try {
-    lista = await fetchListaTraducoesBiblia();
-  } catch (e) {
-    console.error('Erro ao carregar traduções', e);
-    await appAlert('Não foi possível carregar as traduções da Bíblia.', 'Modo Bíblia');
-    return null;
-  }
-  if (!Array.isArray(lista) || !lista.length) {
-    await appAlert('Nenhuma tradução da Bíblia disponível neste servidor.', 'Modo Bíblia');
-    return null;
-  }
-  const escolha = await appEscolherOpcao(
-    'Versão da Bíblia',
-    lista.map((t) => ({
-      label: `${t.traducao} — ${t.nome}`,
-      value: t.traducao,
-    })),
-    'Escolha a tradução para projetar nesta sessão do controlador.\nAo fechar e abrir o app de novo, será perguntado outra vez.',
-    { itensEmLista: true }
-  );
-  if (!escolha) return null;
-  return definirBibliaTraducaoSessao(escolha);
-}
-
-function aplicarTraducaoBibliaNoSelect(codigo) {
-  const hid = document.getElementById('traducao-sel');
-  const wrap = document.getElementById('traducao-sel-dd');
-  if (!codigo) return;
-  bibliaTraducaoAtual = codigo;
-  if (!hid || !wrap) return;
-  const item = wrap.querySelector(`.playlist-tema-dd-item[data-value="${CSS.escape(codigo)}"]`);
-  if (!item) return;
-  hid.value = codigo;
-  const label = wrap.querySelector('.playlist-tema-dd-label');
-  if (label) label.textContent = item.textContent;
-  wrap.querySelectorAll('.playlist-tema-dd-item').forEach((ib) => {
-    ib.setAttribute('aria-selected', ib.dataset.value === codigo ? 'true' : 'false');
-  });
-}
-
-/**
- * Troca da tradução no seletor do modo Bíblia.
- *
- * Trocar de versão é pedir o MESMO texto noutras palavras — não é recomeçar. Antes isto
- * largava livro, capítulo e versículo e devolvia o operador à grade dos 66 livros: a meio
- * de uma leitura em João 10, comparar duas versões custava refazer toda a navegação.
- * Agora fica-se onde se estava e só o conteúdo muda.
- *
- * Com um versículo no ar, a projecção acompanha: quem trocou a versão quer o mesmo
- * versículo na versão nova, e deixar o têão na anterior seria mostrar uma coisa enquanto o
- * painel diz outra.
- *
- * Sem livro ou capítulo escolhidos não há nada a preservar, e o caminho é o de sempre.
- */
-async function onTraducaoBibliaChange() {
-  const cod = (document.getElementById('traducao-sel')?.value || '').trim();
-  if (!cod) return;
-  definirBibliaTraducaoSessao(cod);
-  bibliaTraducaoAtual = cod;
-  bibliaCapsRequestSeq++;
-  bibliaVersiculosRequestSeq++;
-  bibliaPrefetchCapJob++;
-  /* O cache é por tradução na chave, mas os capítulos vizinhos já lá dentro são da versão
-     que se acabou de deixar: sem utilidade e a ocupar memória. */
-  bibliaCapituloCache.clear();
-
-  const livro = bibliaSelecionadoLivro;
-  const livroDb = bibliaSelecionadoLivroDb;
-  const cap = bibliaSelecionadoCap;
-
-  /* Nada aberto: caminho de sempre — os 66 livros e o painel limpo. */
-  if (!livro) {
-    bibliaSelecionadoLivro = null;
-    bibliaSelecionadoLivroDb = null;
-    bibliaSelecionadoCap = null;
-    popularGradeLivros();
-    bibliaReporPainelNavegacao();
-    return;
-  }
-
-  /* Livro aberto mas ainda sem capítulo: também é navegação em curso. O livro fica, a
-     lista de capítulos é a da versão nova. */
-  if (!cap) {
-    popularGradeLivros();
-    await bibliaCarregarCaps(livroDb || livro);
-    return;
-  }
-
-  /* Lido ANTES de recarregar: `bibliaCarregarVersiculos` zera os dois e substitui a lista. */
-  const selecionadoAntes = bibliaVersiculosCapitulo[bibliaVersiculoSelecionadoIdx] || null;
-  const projetadoAntes =
-    bibliaParteProjetadaChave != null
-      ? bibliaVersiculosCapitulo.find((v) => v?.chave === bibliaParteProjetadaChave) || null
-      : null;
-
-  /* Duas trocas em sequência rápida: o pedido antigo não pode restaurar seleção nem
-     projetar por cima do novo. As funções de carregamento já se protegem por sequência;
-     isto protege o que corre entre elas, aqui. */
-  const aindaNesta = () => bibliaTraducaoAtual === cod;
-
-  popularGradeLivros();
-  await bibliaCarregarCaps(livroDb || livro);
-  if (!aindaNesta()) return;
-
-  /* A grade de capítulos é redesenhada do zero e o realce vive no botão; sem isto o
-     capítulo continuava carregado mas sem ninguém marcado na coluna. */
-  const btnCap = document.querySelector(`.biblia-cap-btn[data-cap="${cap}"]`);
-  document.querySelectorAll('.biblia-cap-btn').forEach((b) => {
-    b.classList.toggle('selecionado', b === btnCap);
-  });
-  if (!btnCap) {
-    /* A versão nova não tem este capítulo: fica no livro, sem inventar uma leitura que
-       não existe ali. */
-    bibliaSelecionadoCap = null;
-    const colVers = document.getElementById('biblia-col-versiculos');
-    if (colVers) colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
-    return;
-  }
-  if (btnCap.scrollIntoView) btnCap.scrollIntoView({ block: 'nearest' });
-
-  await bibliaCarregarVersiculos();
-  if (!aindaNesta()) return;
-
-  const idxSelecionado = selecionadoAntes
-    ? indiceDaParteEquivalente(
-        bibliaVersiculosCapitulo,
-        selecionadoAntes.versiculo,
-        selecionadoAntes.parteIndice
-      )
-    : -1;
-  if (idxSelecionado >= 0) {
-    bibliaVersiculoSelecionadoIdx = idxSelecionado;
-    const card = document.querySelector(`.biblia-v-card[data-indice="${idxSelecionado}"]`);
-    if (card) {
-      card.classList.add('selecionado');
-      bibliaRolarListaParaContextoDoFoco(card);
-    }
-  }
-
-  if (!projetadoAntes) return;
-  const idxProjetado = indiceDaParteEquivalente(
-    bibliaVersiculosCapitulo,
-    projetadoAntes.versiculo,
-    projetadoAntes.parteIndice
-  );
-  if (idxProjetado < 0) return;
-  const parteNova = bibliaVersiculosCapitulo[idxProjetado];
-  const cardProjetado = document.querySelector(`.biblia-v-card[data-indice="${idxProjetado}"]`);
-  await bibliaProjetarVersiculo(parteNova, cardProjetado);
-}
-
-async function alternarModoBiblia() {
-  const ativo = document.body.classList.contains('app-mod-biblia');
-  /* Slide → Bíblia: só troca de aba. A projeção de slides, se existir, permanece. */
-  const vinhaDoModoSlides = !ativo && ehModoSlidesOperador();
-  if (!ativo) {
-    /* Estado da sessão (livro/cap/versículo) sobrevive à saída do modo — inclusive sem projeção. */
-    const preservarNav = !!bibliaSelecionadoLivro;
-    /* Sem estado a preservar: abre sempre com os 66 livros e painel vazio. */
-    if (!preservarNav) {
-      bibliaFiltroTestamento = null;
-    }
-    const trad = await perguntarTraducaoBibliaSeNecessario();
-    if (!trad) return;
-    await carregarTraducoes();
-    aplicarTraducaoBibliaNoSelect(trad);
-    if (preservarNav) {
-      /* DOM de caps/versículos sobrevive à troca de modo; só re-sincroniza o destaque. */
-      bibliaAtualizarDestaqueGradeLivros();
-    } else {
-      bibliaReporPainelNavegacao();
-    }
-  }
-  executarComTransicaoUi(() => {
-    document.body.classList.remove('app-mod-slides', 'app-mod-apresentacao', 'app-mod-docs');
-    if (!ativo) {
-      salvarSlideCfgNoStorage();
-      document.body.classList.add('app-mod-biblia');
-      document.title = 'Lyra — Modo Bíblia';
-      if (vinhaDoModoSlides) {
-        try { localStorage.setItem(LS_UI_MODO_SLIDES, '0'); } catch (_) {
-          // intencional — erro ignorado
-        }
-        limparUiAoSairDoModoSlides();
-        renderSlidesStrip();
-        atualizarPreviewOperador();
-      }
-      carregarBibliaCfgDoStorage();
-      if (hayProjecaoMidiaApresentacaoAtiva()) {
-        /* Canal partilhado: adopta monitores da mídia ainda no ar — não os desativa. */
-        rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
-      } else if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
-        rotasPorModo.biblia = rotaDesativada();
-        marcarRotaLiveNoDom(false);
-        /* Slides no ar: limpar rota partilhada residual para o merge do servidor não
-           preferir `apresentacao` vazio e apagar a letra nos monitores. */
-        if (projecaoMusicaEmitidaNoServidor && !hayProjecaoApresentacaoModoAtiva()) {
-          rotasPorModo.apresentacao = rotaDesativada();
-        }
-      }
-      /* Entrar num modo não é escolher «Não exibir»: a ordem do operador não sobrevive à
-         troca de ecrã. Ver `modules/ordemNaoExibirUnificado.js`. */
-      limparOrdemNaoExibirUnificado();
-      aplicarMonitorLembradoAoEntrarNoModo('biblia');
-      sincronizarCheckboxLembrarMonitor();
-      bibliaAplicarCfgExibicao();
-      bibliaRotaSyncServidorChave = null;
-      aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: true });
-      bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
-    } else {
-      document.body.classList.remove('app-mod-biblia');
-      document.title = 'Lyra — Controlador';
-      bibliaSairModo();
-      liberarBloqueioUiModos();
-      /* Navegação não encerra projeção: sem `forcar`, rotas com Bíblia/mídia no ar ficam. */
-      void desativarRotasModosTransitorios({ sincronizarServidor: true });
-      aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-    }
-    atualizarBtnModoBiblia();
-    atualizarBtnToggleModoSlides();
-    atualizarBtnModoApresentacao();
-    if (!ativo) {
-      reconhecimentoVozSlides.aoSairModoSlides();
-      reconhecimentoVozBiblia.aoEntrarModoBiblia();
-    } else {
-      reconhecimentoVozBiblia.aoSairModoBiblia();
-      reconhecimentoVozSlides.atualizarUi();
-    }
-  });
-}
-
-function atualizarBtnModoBiblia() {
-  definirEstadoBtnModoCabecalho(
-    'btn-modo-biblia',
-    document.body.classList.contains('app-mod-biblia'),
-    'MODO BÍBLIA (ativo) — voltar à tela inicial',
-    'Entrar no MODO BÍBLIA',
-  );
-  atualizarBtnTelaInicial();
-}
+// (extraído) Modo Bíblia (tradução e entrada/saída do modo) → painel/biblia.js
 
 /**
  * A Home está ativa quando nenhum modo está ativo. O realce visual é resolvido
@@ -13106,7 +12985,7 @@ function aplicarRespiroPreviewTituloAbertura() {
 function aplicarEstiloPreviewTituloAbertura() {
   const opTit = document.getElementById('op-titulo');
   if (!opTit) return;
-  const mb = currentCfgCtrl?.ministrante || {};
+  const mb = lerCurrentCfgCtrl()?.ministrante || {};
   const cor = String(mb.aberturaTituloColor || '').trim() || '#f3c15a';
   const vh = Number(mb.aberturaTituloFontSize);
   const fontVh = Number.isFinite(vh) && vh >= 0 ? vh : 7;
@@ -13182,7 +13061,7 @@ const previewMinistranteHelpers = {
      config ainda por chegar nunca produza um frame com a cor errada. */
   get commentColor() {
     try {
-      return aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl?.ministrante?.commentColor);
+      return aplicarCorComentarioMinistranteNoPainel(lerCurrentCfgCtrl()?.ministrante?.commentColor);
     } catch (_) {
       return corComentarioMinistrantePainel;
     }
@@ -13688,7 +13567,7 @@ let previewRelogioOciosoTimer = null;
 /** Config de relógio usada pelo M3 real (`currentCfgCtrl.clock`). */
 function obterCfgClockPreviewSlides() {
   const cfg =
-    typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : currentCfgCtrl;
+    typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : lerCurrentCfgCtrl();
   return (cfg && cfg.clock) || {};
 }
 
@@ -18077,7 +17956,7 @@ async function salvarRoteamentoTelasNoServidor(opts = {}) {
       body: JSON.stringify(payloadDual),
     });
     if (modo === 'biblia') {
-      bibliaRotaSyncServidorChave = bibliaChaveRotaAtual();
+      marcarRotaBibliaSincronizada();
       bibliaAplicarCfgExibicao();
     }
     /* Same latch as the Bible: the key is the route the server accepted. A failed
@@ -18706,7 +18585,7 @@ function aplicarDisplayConfigDoServidorNoPainel(cfg) {
   if (!cfg || typeof cfg !== 'object') return;
   try {
     mesclarSlideCfgNoEstado(cfg);
-    popularFormCfg(currentCfgCtrl);
+    popularFormCfg(lerCurrentCfgCtrl());
   } catch (_) {
     // intencional — shape inesperado do servidor não deve derrubar o painel
   }
@@ -18748,7 +18627,7 @@ function aoReceberEstadoDaProjecao(estado) {
    * continua por baixo e o marcador fica.
    */
   try {
-    if (bibliaParteProjetadaChave != null) {
+    if (bibliaHaParteProjetada()) {
       const tip = estado && estado.tipo;
       const camadaPorCima =
         tip === 'contagem' || tip === 'apresentacao' || tip === 'aviso';
@@ -22300,11 +22179,11 @@ function encerrarProjecaoDoControlador(opts = {}) {
   /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
   projecao.enviar('limpar_tela');
   if (ehModoBibliaOperador()) {
-    bibliaParteProjetadaChave = null;
+    bibliaZerarParteProjetada();
     if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
       ultimoConteudoProjetadoModoUnificado = null;
     }
-    bibliaVersiculoSelecionadoIdx = null;
+    bibliaZerarVersiculoSelecionado();
     document.querySelectorAll('.biblia-v-card').forEach((c) => {
       c.classList.remove('projetado', 'selecionado');
     });
@@ -22351,2067 +22230,11 @@ function projetarPorDuploCliqueCentral(index, opts = {}) {
   exibirEstrofe(index, { semScroll: opts.rolarComoNasSetas !== true });
 }
 
-/* ═══════════════════════════════════════════════
-   MODO BÍBLIA — dados
-   ═══════════════════════════════════════════════ */
-/** Nove grupos canônicos (índice final inclusivo em `LIVROS`). */
-const BIBLIA_GRUPOS = [
-  { id: 'pent', label: 'Pentateuco', cor: '#3F2F13', textoClaro: true, fim: 4 },
-  { id: 'hist', label: 'Históricos', cor: '#BE532D', textoClaro: true, fim: 16 },
-  { id: 'poet', label: 'Poéticos', cor: '#B81450', textoClaro: true, fim: 21 },
-  { id: 'pmay', label: 'Prof. maiores', cor: '#522182', textoClaro: true, fim: 26 },
-  { id: 'pmen', label: 'Prof. menores', cor: '#AF1DA6', textoClaro: true, fim: 38 },
-  { id: 'evan', label: 'Evangelhos + Atos', cor: '#0C60DF', textoClaro: true, fim: 43 },
-  { id: 'paul', label: 'Epístolas de Paulo', cor: '#085E41', textoClaro: true, fim: 57 },
-  { id: 'gera', label: 'Epístolas gerais', cor: '#096771', textoClaro: true, fim: 64 },
-  { id: 'apoc', label: 'Apocalipse', cor: '#2A5408', textoClaro: true, fim: 65 },
-];
+// (extraído) Modo Bíblia (dados, estado e aparência) → painel/biblia.js
 
-function bibliaGrupoPorIndiceLivro(idx) {
-  const i = Math.max(0, Math.min(idx, LIVROS.length - 1));
-  return BIBLIA_GRUPOS.find((g) => i <= g.fim) || BIBLIA_GRUPOS[BIBLIA_GRUPOS.length - 1];
-}
+// (extraído) Exibição (Ajustes: avisos, abas, busca) → painel/configExibicao.js
 
-function bibliaGrupoPorLivro(livro) {
-  const idx = LIVROS.findIndex((l) => l.nome === livro.nome);
-  return bibliaGrupoPorIndiceLivro(idx >= 0 ? idx : 0);
-}
-
-function bibliaCorTextoGrupo(grupo) {
-  return grupo.textoClaro ? '#ffffff' : '#1a1a1a';
-}
-
-function bibliaAplicarEstiloGrupoNoElemento(el, grupo) {
-  if (!el || !grupo) return;
-  el.style.backgroundColor = grupo.cor;
-  el.style.color = bibliaCorTextoGrupo(grupo);
-}
-
-const LIVROS = [
-  { nome: 'Gênesis', sigla: 'Gn', nt: false }, { nome: 'Êxodo', sigla: 'Ex', nt: false },
-  { nome: 'Levítico', sigla: 'Lv', nt: false }, { nome: 'Números', sigla: 'Nm', nt: false },
-  { nome: 'Deuteronômio', sigla: 'Dt', nt: false }, { nome: 'Josué', sigla: 'Js', nt: false },
-  { nome: 'Juízes', sigla: 'Jz', nt: false }, { nome: 'Rute', sigla: 'Rt', nt: false },
-  { nome: '1 Samuel', sigla: '1Sm', nt: false }, { nome: '2 Samuel', sigla: '2Sm', nt: false },
-  { nome: '1 Reis', sigla: '1Rs', nt: false }, { nome: '2 Reis', sigla: '2Rs', nt: false },
-  { nome: '1 Crônicas', sigla: '1Cr', nt: false }, { nome: '2 Crônicas', sigla: '2Cr', nt: false },
-  { nome: 'Esdras', sigla: 'Ed', nt: false }, { nome: 'Neemias', sigla: 'Ne', nt: false },
-  { nome: 'Ester', sigla: 'Et', nt: false }, { nome: 'Jó', sigla: 'Jó', nt: false },
-  { nome: 'Salmos', sigla: 'Sl', nt: false }, { nome: 'Provérbios', sigla: 'Pv', nt: false },
-  { nome: 'Eclesiastes', sigla: 'Ec', nt: false }, { nome: 'Cantares', dbNome: 'Cânticos', sigla: 'Ct', nt: false },
-  { nome: 'Isaías', sigla: 'Is', nt: false }, { nome: 'Jeremias', sigla: 'Jr', nt: false },
-  { nome: 'Lamentações', sigla: 'Lm', nt: false }, { nome: 'Ezequiel', sigla: 'Ez', nt: false },
-  { nome: 'Daniel', sigla: 'Dn', nt: false }, { nome: 'Oséias', sigla: 'Os', nt: false },
-  { nome: 'Joel', sigla: 'Jl', nt: false }, { nome: 'Amós', sigla: 'Am', nt: false },
-  { nome: 'Obadias', sigla: 'Ob', nt: false }, { nome: 'Jonas', sigla: 'Jn', nt: false },
-  { nome: 'Miquéias', sigla: 'Mq', nt: false }, { nome: 'Naum', sigla: 'Na', nt: false },
-  { nome: 'Habacuque', sigla: 'Hc', nt: false }, { nome: 'Sofonias', sigla: 'Sf', nt: false },
-  { nome: 'Ageu', sigla: 'Ag', nt: false }, { nome: 'Zacarias', sigla: 'Zc', nt: false },
-  { nome: 'Malaquias', sigla: 'Ml', nt: false },
-  { nome: 'Mateus', sigla: 'Mt', nt: true }, { nome: 'Marcos', sigla: 'Mc', nt: true },
-  { nome: 'Lucas', sigla: 'Lc', nt: true }, { nome: 'João', sigla: 'Jo', nt: true },
-  { nome: 'Atos', dbNome: 'Atos dos Apóstolos', sigla: 'At', nt: true }, { nome: 'Romanos', sigla: 'Rm', nt: true },
-  { nome: '1 Coríntios', sigla: '1Co', nt: true }, { nome: '2 Coríntios', sigla: '2Co', nt: true },
-  { nome: 'Gálatas', sigla: 'Gl', nt: true }, { nome: 'Efésios', sigla: 'Ef', nt: true },
-  { nome: 'Filipenses', sigla: 'Fp', nt: true }, { nome: 'Colossenses', sigla: 'Cl', nt: true },
-  { nome: '1 Tessalonicenses', sigla: '1Ts', nt: true }, { nome: '2 Tessalonicenses', sigla: '2Ts', nt: true },
-  { nome: '1 Timóteo', sigla: '1Tm', nt: true }, { nome: '2 Timóteo', sigla: '2Tm', nt: true },
-  { nome: 'Tito', sigla: 'Tt', nt: true }, { nome: 'Filemom', sigla: 'Fm', nt: true },
-  { nome: 'Hebreus', sigla: 'Hb', nt: true }, { nome: 'Tiago', sigla: 'Tg', nt: true },
-  { nome: '1 Pedro', sigla: '1Pe', nt: true }, { nome: '2 Pedro', sigla: '2Pe', nt: true },
-  { nome: '1 João', sigla: '1Jo', nt: true }, { nome: '2 João', sigla: '2Jo', nt: true },
-  { nome: '3 João', sigla: '3Jo', nt: true }, { nome: 'Judas', sigla: 'Jd', nt: true },
-  { nome: 'Apocalipse', sigla: 'Ap', nt: true },
-];
-
-/** Navega na UI do modo Bíblia e projeta o versículo (voz / referência). */
-async function bibliaNavegarEProjetarPorReferencia(livroNome, capitulo, versiculo) {
-  const livro = LIVROS.find((l) => l.nome === livroNome);
-  if (!livro || !ehModoBibliaOperador()) return false;
-  const traducao = document.getElementById('traducao-sel')?.value;
-  if (!traducao) return false;
-  const livroDbRef = bibliaLivroNomeDb(livro);
-  try {
-    const resCap = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroDbRef)}/caps`
-    );
-    if (!resCap.ok) return false;
-    const { total: totalCaps } = await resCap.json();
-    if (capitulo < 1 || capitulo > totalCaps) return false;
-
-    /* Este fetch só confirma que a referência existe. O que se projeta vem sempre de
-       `bibliaVersiculosCapitulo` — que já está dividido em partes; projetar o resultado
-       deste fetch mandaria o versículo inteiro enquanto o seletor mostra as partes. */
-    const resVer = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroDbRef)}/${capitulo}`
-    );
-    if (!resVer.ok) return false;
-    const versiculos = await resVer.json();
-    if (!versiculos.some((item) => item.versiculo === versiculo)) return false;
-
-    await bibliaEscolherLivro(livro);
-    const capBtn = document.querySelector(`.biblia-cap-btn[data-cap="${capitulo}"]`);
-    if (!capBtn) return false;
-    await bibliaEscolherCap(capitulo, capBtn);
-    /* Voz e referência levam sempre à primeira parte do versículo. */
-    const idx = indicePrimeiraParteDoVersiculo(bibliaVersiculosCapitulo, versiculo);
-    const v = idx >= 0 ? bibliaVersiculosCapitulo[idx] : null;
-    if (!v) return false;
-    const card = bibliaMarcarVersiculoNaUi(v, idx);
-    await bibliaProjetarVersiculo(v, card);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-const reconhecimentoVozBiblia = criarReconhecimentoVozBiblia({
-  ehModoBiblia: ehModoBibliaOperador,
-  livros: LIVROS,
-  navegarEProjetarVersiculo: (ref) =>
-    bibliaNavegarEProjetarPorReferencia(ref.livro, ref.capitulo, ref.versiculo),
-});
-
-/**
- * Filtro de testamento da grade de livros: `null` (todos), `'at'` ou `'nt'`.
- *
- * Nasce e volta sempre a `null` ao sair (e de novo ao entrar) do modo: o filtro é
- * um gesto do operador para aquele momento, não uma preferência. Guardá-lo entre
- * visitas abriria o modo Bíblia com metade dos livros escondidos sem ninguém ter
- * pedido — e a leitura que se procura durante um culto tanto pode estar num
- * testamento como no outro.
- *
- * A separação já existe em `LIVROS` (o campo `nt` de cada livro, 39 contra 27), por
- * isso não há aqui uma segunda lista de nomes a divergir da primeira.
- */
-let bibliaFiltroTestamento = null;
-
-let bibliaSelecionadoLivro = null;
-let bibliaSelecionadoLivroDb = null;
-let bibliaSelecionadoCap = null;
-let bibliaTraducaoAtual = null;
-/**
- * `chave` da parte que está no ar (ver `modules/dividirVersiculos.js`), ou `null`.
- *
- * Guarda a chave da **parte**, não o número do versículo: com a divisão ligada, duas
- * partes do mesmo versículo têm o mesmo número, e comparar números faria o controlador
- * julgar que nada mudou ao passar da parte 1 para a parte 2 — reenviando a configuração
- * de exibição inteira (com `bgImage` em base64) a cada parte.
- */
-let bibliaParteProjetadaChave = null;
-let bibliaVersiculoSelecionadoIdx = null;
-let bnpEtapa = 'livro';
-let bnpLivroSelecionado = null;
-let bnpCapSelecionado = null;
-let bnpDigitando = '';
-let bnpFocoIndex = -1;
-let bnpTotalCaps = 0;
-let bnpTotalVers = 0;
-/** Evita PUT /api/display-routing (reabria janelas) em cada versículo projetado. */
-let bibliaRotaSyncServidorChave = null;
-/**
- * **Partes** do capítulo actual (memória — navegação por setas sem novo fetch).
- *
- * Fonte única do seletor E da projeção. Já vem dividido por
- * `bibliaRederivarPartesCapitulo()`; com a opção de divisão desligada há exactamente uma
- * parte por versículo. Nem o render nem `bibliaProjetarVersiculo` dividem seja o que for.
- */
-let bibliaVersiculosCapitulo = [];
-/** Versículos inteiros do capítulo actual, como vieram da API — origem da re-derivação. */
-let bibliaVersiculosBrutosCapitulo = [];
-/** Cache de capítulos adjacentes pré-carregados: `${trad}|${livro}|${cap}` → versículos[]. */
-const bibliaCapituloCache = new Map();
-let bibliaPrefetchCapJob = 0;
-let bibliaCapsRequestSeq = 0;
-let bibliaVersiculosRequestSeq = 0;
-
-function bibliaNormalizarCampoReferencia(valor) {
-  if (valor == null) return '';
-  const texto = String(valor).trim();
-  if (!texto) return '';
-  const lower = texto.toLowerCase();
-  return lower === 'null' || lower === 'undefined' ? '' : texto;
-}
-
-function bibliaLivroNomeDb(livro) {
-  if (livro && typeof livro === 'object' && !Array.isArray(livro)) {
-    return String(livro.dbNome || livro.nome || '').trim();
-  }
-  const nome = String(livro || '').trim();
-  if (!nome) return '';
-  const meta = LIVROS.find((item) => item.nome === nome);
-  return String(meta?.dbNome || meta?.nome || nome).trim();
-}
-
-function bibliaAnexarReferenciaVersiculos(versiculos, livro, capitulo) {
-  if (!Array.isArray(versiculos)) return [];
-  const livroRef = bibliaNormalizarCampoReferencia(livro);
-  const capRef = bibliaNormalizarCampoReferencia(capitulo);
-  return versiculos.map((item) => ({
-    ...(item && typeof item === 'object' ? item : {}),
-    livro: livroRef || bibliaNormalizarCampoReferencia(item?.livro),
-    capitulo: bibliaNormalizarCampoReferencia(item?.capitulo) || capRef,
-    versiculo: bibliaNormalizarCampoReferencia(item?.versiculo),
-    texto: item?.texto != null ? String(item.texto) : '',
-  }));
-}
-
-const BIBLIA_CFG_EXIBICAO_PADRAO = {
-  fontSize: 5.5,
-  fontFamily: 'CMG Sans, sans-serif',
-  lineSpacing: 1.4,
-  wrapLongLines: true,
-  bgType: 'solid',
-  bgColor: '#000000',
-  bgGradientFrom: '#000000',
-  bgGradientTo: '#161616',
-  bgGradient: 'linear-gradient(135deg, #000000 0%, #161616 100%)',
-  bgImage: '',
-  textColor: '#ffffff',
-  negrito: true,
-  maiusculo: false,
-  textAlign: 'center',
-  posX: 'center',
-  posY: 'center',
-  refMostrar: true,
-  refFontSize: 1.8,
-  refColor: '#fbf904',
-};
-
-let bibliaCfgExibicao = { ...BIBLIA_CFG_EXIBICAO_PADRAO };
-
-const BIBLIA_CFG_MINISTRANTE_PADRAO = {
-  fontSize: 4.1,
-  fontFamily: 'CMG Sans, sans-serif',
-  lineSpacing: 1.35,
-  wrapLongLines: true,
-  negrito: true,
-  maiusculo: false,
-  autoFitLongLines: false,
-  bgType: 'solid',
-  bgColor: '#000000',
-  bgGradientFrom: '#000000',
-  bgGradientTo: '#161616',
-  bgGradient: 'linear-gradient(135deg, #000000 0%, #161616 100%)',
-  bgImage: '',
-  textColorAtual: '#ffffff',
-  textColorProximo: '#f3c15a',
-  posX: 'center',
-  posY: 'center',
-  refMostrar: true,
-  refFontSize: 1.7,
-  refColor: '#fbf904',
-};
-
-let bibliaCfgMinistrante = { ...BIBLIA_CFG_MINISTRANTE_PADRAO };
-
-/**
- * Leitura — opções que não são de um canal, mas do modo Bíblia inteiro.
- *
- * A divisão de versículos longos afeta o telão, o ministrante e o seletor do operador ao
- * mesmo tempo; por isso não cabe em `exibicao` nem em `ministrante`. Nasce desligada: JSON
- * antigo sem `leitura` cai nos padrões e nenhuma instalação muda de comportamento.
- */
-const BIBLIA_CFG_LEITURA_PADRAO = {
-  dividirVersiculosLongos: false,
-  limiteCaracteres: LIMITE_DIVISAO_PADRAO,
-};
-
-let bibliaCfgLeitura = { ...BIBLIA_CFG_LEITURA_PADRAO };
-
-function bibliaMesclarCfgSalva(salva) {
-  if (!salva || typeof salva !== 'object') return;
-  if (salva.exibicao && typeof salva.exibicao === 'object') {
-    bibliaCfgExibicao = { ...BIBLIA_CFG_EXIBICAO_PADRAO, ...salva.exibicao };
-  }
-  if (salva.ministrante && typeof salva.ministrante === 'object') {
-    bibliaCfgMinistrante = { ...BIBLIA_CFG_MINISTRANTE_PADRAO, ...salva.ministrante };
-  }
-  if (salva.leitura && typeof salva.leitura === 'object') {
-    bibliaCfgLeitura = { ...BIBLIA_CFG_LEITURA_PADRAO, ...salva.leitura };
-  }
-  bibliaCfgLeitura.dividirVersiculosLongos = bibliaCfgLeitura.dividirVersiculosLongos === true;
-  bibliaCfgLeitura.limiteCaracteres = normalizarLimiteDivisao(bibliaCfgLeitura.limiteCaracteres);
-}
-
-function carregarBibliaCfgDoStorage() {
-  try {
-    const raw = localStorage.getItem(LS_BIBLIA_CFG);
-    if (!raw) return;
-    bibliaMesclarCfgSalva(JSON.parse(raw));
-    bibliaMesclarGradienteSalvo(bibliaCfgExibicao, BIBLIA_CFG_EXIBICAO_PADRAO);
-    bibliaMesclarGradienteSalvo(bibliaCfgMinistrante, BIBLIA_CFG_MINISTRANTE_PADRAO);
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function salvarBibliaCfgNoStorage() {
-  try {
-    localStorage.setItem(
-      LS_BIBLIA_CFG,
-      JSON.stringify({
-        exibicao: bibliaCfgExibicao,
-        ministrante: bibliaCfgMinistrante,
-        leitura: bibliaCfgLeitura,
-      })
-    );
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function bibliaGradienteCss(camada) {
-  const a = camada.bgGradientFrom || '#000000';
-  const b = camada.bgGradientTo || '#161616';
-  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
-}
-
-function bibliaMesclarGradienteSalvo(camada, padrao) {
-  if (camada.bgGradientFrom && camada.bgGradientTo) return;
-  const m = String(camada.bgGradient || '').match(/#[0-9a-fA-F]{3,8}/g);
-  if (m && m.length >= 2) {
-    camada.bgGradientFrom = m[0];
-    camada.bgGradientTo = m[1];
-  } else {
-    camada.bgGradientFrom = padrao.bgGradientFrom;
-    camada.bgGradientTo = padrao.bgGradientTo;
-  }
-}
-
-function bibliaSanitizarCamada(camada) {
-  const out = { ...camada };
-  if (out.bgType !== 'image') out.bgImage = '';
-  if (out.bgType === 'gradient') out.bgGradient = bibliaGradienteCss(out);
-  return out;
-}
-
-/** Fundo no payload: só envia bgImage quando há data URL — evita apagar imagem no servidor. */
-function bibliaFundoParaPayload(camada) {
-  const c = bibliaSanitizarCamada(camada);
-  const fundo = {
-    bgType: c.bgType || 'solid',
-    bgColor: c.bgColor,
-    bgGradient: c.bgGradient,
-  };
-  if (c.bgType === 'image') {
-    if (c.bgImage && String(c.bgImage).length > 0) fundo.bgImage = c.bgImage;
-  } else {
-    fundo.bgImage = '';
-  }
-  return fundo;
-}
-
-function bibliaAtualizarPreviewFundo(alvo) {
-  const prefix = alvo === 'ministrante' ? 'cfg-biblia-min' : 'cfg-biblia-pub';
-  const cfg = alvo === 'ministrante' ? bibliaCfgMinistrante : bibliaCfgExibicao;
-  const prev = document.getElementById(`${prefix}-bg-preview-ctrl`);
-  if (!prev) return;
-  const tipo = cfg.bgType || 'solid';
-  prev.style.backgroundImage = '';
-  prev.style.backgroundColor = '';
-  if (tipo === 'image' && cfg.bgImage) {
-    prev.style.backgroundImage = `url(${cfg.bgImage})`;
-    prev.style.backgroundColor = 'var(--surface2)';
-  } else if (tipo === 'gradient') {
-    const from = cfg.bgGradientFrom || '#000000';
-    const to = cfg.bgGradientTo || '#161616';
-    prev.style.backgroundImage = `linear-gradient(135deg, ${from}, ${to})`;
-  } else {
-    prev.style.backgroundColor = cfg.bgColor || '#000000';
-  }
-}
-
-function bibliaAtualizarVisibilidadeFundo(alvo) {
-  const prefix = alvo === 'ministrante' ? 'cfg-biblia-min' : 'cfg-biblia-pub';
-  const cfg = alvo === 'ministrante' ? bibliaCfgMinistrante : bibliaCfgExibicao;
-  const val = cfg.bgType || 'solid';
-  const solid = document.getElementById(`${prefix}-bg-solid-ctrl`);
-  const grad = document.getElementById(`${prefix}-bg-gradient-wrap-ctrl`);
-  const img = document.getElementById(`${prefix}-bg-image-wrap-ctrl`);
-  if (solid) solid.style.display = val === 'solid' ? '' : 'none';
-  if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
-  if (img) img.style.display = val === 'image' ? '' : 'none';
-  bibliaAtualizarPreviewFundo(alvo);
-}
-
-function setBibliaPosCtrlBtn(alvo, axis, val) {
-  const prefix = alvo === 'ministrante' ? 'cfg-biblia-min' : 'cfg-biblia-pub';
-  const groupId = axis === 'posX' ? `${prefix}-posx-ctrl-group` : `${prefix}-posy-ctrl-group`;
-  const group = document.getElementById(groupId);
-  if (!group) return;
-  group.querySelectorAll('.cfg-btn-pos').forEach((b) => {
-    b.classList.toggle('ativo', b.dataset.val === val);
-  });
-}
-
-function setBibliaPosCtrl(alvo, axis, val) {
-  const cfg = alvo === 'ministrante' ? bibliaCfgMinistrante : bibliaCfgExibicao;
-  cfg[axis] = val;
-  setBibliaPosCtrlBtn(alvo, axis, val);
-  bibliaAplicarCfgExibicao();
-}
-
-function onBibliaPublicoBgTypeCtrlChange() {
-  const val = document.getElementById('cfg-biblia-pub-bg-type-ctrl')?.value || 'solid';
-  bibliaCfgExibicao.bgType = val;
-  if (val !== 'image') bibliaCfgExibicao.bgImage = '';
-  bibliaAtualizarVisibilidadeFundo('publico');
-  bibliaAplicarCfgExibicao();
-}
-
-function onBibliaMinistranteBgTypeCtrlChange() {
-  const val = document.getElementById('cfg-biblia-min-bg-type-ctrl')?.value || 'solid';
-  bibliaCfgMinistrante.bgType = val;
-  if (val !== 'image') bibliaCfgMinistrante.bgImage = '';
-  bibliaAtualizarVisibilidadeFundo('ministrante');
-  bibliaAplicarCfgExibicao();
-}
-
-function lerBibliaCfgDoFormularioPublico() {
-  const pub = bibliaCfgExibicao;
-  pub.bgType = document.getElementById('cfg-biblia-pub-bg-type-ctrl')?.value || pub.bgType || 'solid';
-  pub.bgColor = document.getElementById('cfg-biblia-pub-bg-color-ctrl')?.value || pub.bgColor;
-  pub.bgGradientFrom =
-    document.getElementById('cfg-biblia-pub-bg-gradient-from-ctrl')?.value || pub.bgGradientFrom;
-  pub.bgGradientTo =
-    document.getElementById('cfg-biblia-pub-bg-gradient-to-ctrl')?.value || pub.bgGradientTo;
-  pub.fontFamily = document.getElementById('cfg-biblia-pub-fontfamily-ctrl')?.value || pub.fontFamily;
-  pub.fontSize = parseFloat(document.getElementById('cfg-biblia-pub-fontsize-ctrl')?.value) || pub.fontSize;
-  pub.textColor = document.getElementById('cfg-biblia-pub-text-color-ctrl')?.value || pub.textColor;
-  pub.maiusculo = getChkVal('cfg-biblia-pub-maiusculo-ctrl');
-  pub.negrito = getChkVal('cfg-biblia-pub-negrito-ctrl');
-  pub.wrapLongLines = getChkVal('cfg-biblia-pub-wrap-ctrl');
-  pub.refMostrar = getChkVal('cfg-biblia-pub-ref-mostrar-ctrl');
-  pub.refFontSize =
-    parseFloat(document.getElementById('cfg-biblia-pub-ref-size-ctrl')?.value) ||
-    BIBLIA_CFG_EXIBICAO_PADRAO.refFontSize;
-  pub.refColor =
-    document.getElementById('cfg-biblia-pub-ref-color-ctrl')?.value || BIBLIA_CFG_EXIBICAO_PADRAO.refColor;
-  if (pub.bgType === 'gradient') pub.bgGradient = bibliaGradienteCss(pub);
-}
-
-function lerBibliaCfgDoFormularioMinistrante() {
-  const mon = bibliaCfgMinistrante;
-  mon.bgType = document.getElementById('cfg-biblia-min-bg-type-ctrl')?.value || mon.bgType || 'solid';
-  mon.bgColor = document.getElementById('cfg-biblia-min-bg-color-ctrl')?.value || mon.bgColor;
-  mon.bgGradientFrom =
-    document.getElementById('cfg-biblia-min-bg-gradient-from-ctrl')?.value || mon.bgGradientFrom;
-  mon.bgGradientTo =
-    document.getElementById('cfg-biblia-min-bg-gradient-to-ctrl')?.value || mon.bgGradientTo;
-  mon.fontFamily = document.getElementById('cfg-biblia-min-fontfamily-ctrl')?.value || mon.fontFamily;
-  mon.fontSize = parseFloat(document.getElementById('cfg-biblia-min-fontsize-ctrl')?.value) || mon.fontSize;
-  mon.textColorAtual =
-    document.getElementById('cfg-biblia-min-text-color-ctrl')?.value || mon.textColorAtual;
-  mon.maiusculo = getChkVal('cfg-biblia-min-maiusculo-ctrl');
-  mon.negrito = getChkVal('cfg-biblia-min-negrito-ctrl');
-  mon.wrapLongLines = getChkVal('cfg-biblia-min-wrap-ctrl');
-  mon.refMostrar = getChkVal('cfg-biblia-min-ref-mostrar-ctrl');
-  mon.refFontSize =
-    parseFloat(document.getElementById('cfg-biblia-min-ref-size-ctrl')?.value) ||
-    BIBLIA_CFG_MINISTRANTE_PADRAO.refFontSize;
-  mon.refColor =
-    document.getElementById('cfg-biblia-min-ref-color-ctrl')?.value || BIBLIA_CFG_MINISTRANTE_PADRAO.refColor;
-  if (mon.bgType === 'gradient') mon.bgGradient = bibliaGradienteCss(mon);
-}
-
-function onBibliaPublicoCfgChange() {
-  lerBibliaCfgDoFormularioPublico();
-  setSpanText('cfg-biblia-pub-fontsize-val-ctrl', String(bibliaCfgExibicao.fontSize));
-  setSpanText('cfg-biblia-pub-ref-size-val-ctrl', String(bibliaCfgExibicao.refFontSize));
-  bibliaAtualizarPreviewFundo('publico');
-  bibliaAplicarCfgExibicao();
-}
-
-function onBibliaMinistranteCfgChange() {
-  lerBibliaCfgDoFormularioMinistrante();
-  setSpanText('cfg-biblia-min-fontsize-val-ctrl', String(bibliaCfgMinistrante.fontSize));
-  setSpanText('cfg-biblia-min-ref-size-val-ctrl', String(bibliaCfgMinistrante.refFontSize));
-  bibliaAtualizarPreviewFundo('ministrante');
-  bibliaAplicarCfgExibicao();
-}
-
-/**
- * Divisão de versículos longos — a única opção do modo Bíblia que não é de um canal.
- *
- * Re-deriva as partes e redesenha o seletor, mas **não reprojeta**: mexer nas
- * configurações durante o culto não deve trocar o que está no telão. O realce
- * `.projetado` some (os índices mudaram) e volta na próxima projeção.
- */
-function onBibliaDivisaoCfgChange() {
-  bibliaCfgLeitura.dividirVersiculosLongos =
-    getChkVal('cfg-biblia-divisao-ativa-ctrl');
-  bibliaCfgLeitura.limiteCaracteres = normalizarLimiteDivisao(
-    document.getElementById('cfg-biblia-divisao-limite-ctrl')?.value
-  );
-  salvarBibliaCfgNoStorage();
-  bibliaPopularFormularioCfgLeitura();
-  bibliaRederivarPartesCapitulo();
-  bibliaVersiculoSelecionadoIdx = null;
-  bibliaRenderizarSeletorVersiculos();
-}
-
-function bibliaPopularFormularioCfgLeitura() {
-  const ativo = bibliaCfgLeitura.dividirVersiculosLongos === true;
-  setChkVal('cfg-biblia-divisao-ativa-ctrl', ativo);
-  setSelVal(
-    'cfg-biblia-divisao-limite-ctrl',
-    String(normalizarLimiteDivisao(bibliaCfgLeitura.limiteCaracteres))
-  );
-  const sel = document.getElementById('cfg-biblia-divisao-limite-ctrl');
-  if (sel) sel.disabled = !ativo;
-}
-
-function bibliaPopularFormularioCfg() {
-  const pub = bibliaCfgExibicao;
-  const mon = bibliaCfgMinistrante;
-  bibliaPopularFormularioCfgLeitura();
-  bibliaMesclarGradienteSalvo(pub, BIBLIA_CFG_EXIBICAO_PADRAO);
-  bibliaMesclarGradienteSalvo(mon, BIBLIA_CFG_MINISTRANTE_PADRAO);
-
-  setSelVal('cfg-biblia-pub-bg-type-ctrl', pub.bgType || 'solid');
-  setInputVal('cfg-biblia-pub-bg-color-ctrl', pub.bgColor || '#000000');
-  setInputVal('cfg-biblia-pub-bg-gradient-from-ctrl', pub.bgGradientFrom || '#000000');
-  setInputVal('cfg-biblia-pub-bg-gradient-to-ctrl', pub.bgGradientTo || '#161616');
-  setSelVal('cfg-biblia-pub-fontfamily-ctrl', pub.fontFamily || BIBLIA_CFG_EXIBICAO_PADRAO.fontFamily);
-  setInputVal('cfg-biblia-pub-fontsize-ctrl', pub.fontSize ?? BIBLIA_CFG_EXIBICAO_PADRAO.fontSize);
-  setSpanText('cfg-biblia-pub-fontsize-val-ctrl', String(pub.fontSize ?? BIBLIA_CFG_EXIBICAO_PADRAO.fontSize));
-  setInputVal('cfg-biblia-pub-text-color-ctrl', pub.textColor || '#ffffff');
-  setChkVal('cfg-biblia-pub-maiusculo-ctrl', pub.maiusculo === true);
-  setChkVal('cfg-biblia-pub-negrito-ctrl', pub.negrito !== false);
-  setChkVal('cfg-biblia-pub-wrap-ctrl', pub.wrapLongLines !== false);
-  setChkVal('cfg-biblia-pub-ref-mostrar-ctrl', pub.refMostrar !== false);
-  setInputVal('cfg-biblia-pub-ref-size-ctrl', pub.refFontSize ?? BIBLIA_CFG_EXIBICAO_PADRAO.refFontSize);
-  setSpanText('cfg-biblia-pub-ref-size-val-ctrl', String(pub.refFontSize ?? BIBLIA_CFG_EXIBICAO_PADRAO.refFontSize));
-  setInputVal('cfg-biblia-pub-ref-color-ctrl', pub.refColor || BIBLIA_CFG_EXIBICAO_PADRAO.refColor);
-  setBibliaPosCtrlBtn('publico', 'posX', pub.posX || 'center');
-  setBibliaPosCtrlBtn('publico', 'posY', pub.posY || 'center');
-  bibliaAtualizarVisibilidadeFundo('publico');
-
-  setSelVal('cfg-biblia-min-bg-type-ctrl', mon.bgType || 'solid');
-  setInputVal('cfg-biblia-min-bg-color-ctrl', mon.bgColor || '#000000');
-  setInputVal('cfg-biblia-min-bg-gradient-from-ctrl', mon.bgGradientFrom || '#000000');
-  setInputVal('cfg-biblia-min-bg-gradient-to-ctrl', mon.bgGradientTo || '#161616');
-  setSelVal('cfg-biblia-min-fontfamily-ctrl', mon.fontFamily || BIBLIA_CFG_MINISTRANTE_PADRAO.fontFamily);
-  setInputVal('cfg-biblia-min-fontsize-ctrl', mon.fontSize ?? BIBLIA_CFG_MINISTRANTE_PADRAO.fontSize);
-  setSpanText('cfg-biblia-min-fontsize-val-ctrl', String(mon.fontSize ?? BIBLIA_CFG_MINISTRANTE_PADRAO.fontSize));
-  setInputVal('cfg-biblia-min-text-color-ctrl', mon.textColorAtual || '#ffffff');
-  setChkVal('cfg-biblia-min-maiusculo-ctrl', mon.maiusculo === true);
-  setChkVal('cfg-biblia-min-negrito-ctrl', mon.negrito !== false);
-  setChkVal('cfg-biblia-min-wrap-ctrl', mon.wrapLongLines !== false);
-  setChkVal('cfg-biblia-min-ref-mostrar-ctrl', mon.refMostrar !== false);
-  setInputVal('cfg-biblia-min-ref-size-ctrl', mon.refFontSize ?? BIBLIA_CFG_MINISTRANTE_PADRAO.refFontSize);
-  setSpanText('cfg-biblia-min-ref-size-val-ctrl', String(mon.refFontSize ?? BIBLIA_CFG_MINISTRANTE_PADRAO.refFontSize));
-  setInputVal('cfg-biblia-min-ref-color-ctrl', mon.refColor || BIBLIA_CFG_MINISTRANTE_PADRAO.refColor);
-  setBibliaPosCtrlBtn('ministrante', 'posX', mon.posX || 'center');
-  setBibliaPosCtrlBtn('ministrante', 'posY', mon.posY || 'center');
-  bibliaAtualizarVisibilidadeFundo('ministrante');
-}
-
-function setPosAvisoCard6CtrlBtn(val) {
-  const group = document.getElementById('cfg-card6-posy-ctrl-group');
-  if (!group) return;
-  group.querySelectorAll('.cfg-btn-pos').forEach((b) => {
-    b.classList.toggle('ativo', b.dataset.val === val);
-  });
-}
-
-function sincronizarEstadoCorFundoAvisoCard6() {
-  const cfg = normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg);
-  const bgColor = document.getElementById('cfg-card6-bg-color-ctrl');
-  if (!bgColor) return;
-  bgColor.disabled = cfg.transparentBackground;
-  bgColor.title = cfg.transparentBackground ? 'Desative o fundo transparente para escolher uma cor.' : '';
-}
-
-function popularFormCfgAvisoCard6() {
-  const cfg = normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg);
-  setInputVal('cfg-card6-fontsize-ctrl', cfg.fontSize);
-  setSpanText('cfg-card6-fontsize-val-ctrl', String(cfg.fontSize));
-  setInputVal('cfg-card6-text-color-ctrl', cfg.textColor);
-  setInputVal('cfg-card6-bg-color-ctrl', cfg.backgroundColor);
-  setChkVal('cfg-card6-bg-transparent-ctrl', cfg.transparentBackground);
-  setChkVal('cfg-card6-wrap-ctrl', cfg.wrapLongLines);
-  setChkVal('cfg-card6-italic-ctrl', cfg.italic);
-  setPosAvisoCard6CtrlBtn(cfg.verticalPosition);
-  sincronizarEstadoCorFundoAvisoCard6();
-}
-
-function persistirCfgAvisoCard6(opts = {}) {
-  salvarEstadoModoApresentacaoNoStorage();
-  if (ehModoApresentacaoOperador()) renderGridApresentacao();
-  if (opts.atualizarAoVivo !== false) agendarAtualizacaoAvisoCard6AoVivo();
-}
-
-function lerCfgAvisoCard6DoFormulario() {
-  return normalizarCfgAvisoCard6({
-    fontSize: lerNumeroInput('cfg-card6-fontsize-ctrl', apresentacaoCard6AvisoCfg?.fontSize ?? 5.5),
-    textColor: document.getElementById('cfg-card6-text-color-ctrl')?.value,
-    backgroundColor: document.getElementById('cfg-card6-bg-color-ctrl')?.value,
-    transparentBackground: getChkVal('cfg-card6-bg-transparent-ctrl'),
-    wrapLongLines: getChkVal('cfg-card6-wrap-ctrl'),
-    italic: getChkVal('cfg-card6-italic-ctrl'),
-    verticalPosition: (document.querySelector('#cfg-card6-posy-ctrl-group .cfg-btn-pos.ativo')?.dataset.val || 'center'),
-  });
-}
-
-function onAvisoCard6CfgChange() {
-  apresentacaoCard6AvisoCfg = lerCfgAvisoCard6DoFormulario();
-  sincronizarEstadoCorFundoAvisoCard6();
-  persistirCfgAvisoCard6();
-}
-
-function setPosAvisoCard6Ctrl(val) {
-  apresentacaoCard6AvisoCfg = normalizarCfgAvisoCard6({
-    ...apresentacaoCard6AvisoCfg,
-    verticalPosition: val,
-  });
-  popularFormCfgAvisoCard6();
-  persistirCfgAvisoCard6();
-}
-
-/* O menu lateral é fixo: seis entradas, nenhuma escondida por modo.
-   Telão/Ministrante deixaram de ser abas e passaram a ser destinos dentro
-   de «Slides» e «Bíblia» — ver `mudarDestinoCfg`. */
-const CFG_ABAS_CTRL = ['geral', 'conexao', 'slides', 'biblia', 'relogio', 'avisos', 'contagem', 'ministrantes'];
-
-const CFG_DESTINOS_CTRL = {
-  slides: ['telao', 'ministrante'],
-  biblia: ['biblia-telao', 'biblia-ministrante', 'biblia-leitura'],
-};
-
-/* Os nomes antigos de aba continuam válidos como atalho para aba + destino,
-   para que chamadas como `abrirCfgModal('biblia-telao')` não quebrem. */
-const CFG_ALIAS_ABA_CTRL = {
-  telao: ['slides', 'telao'],
-  ministrante: ['slides', 'ministrante'],
-  'biblia-telao': ['biblia', 'biblia-telao'],
-  'biblia-ministrante': ['biblia', 'biblia-ministrante'],
-  'biblia-leitura': ['biblia', 'biblia-leitura'],
-};
-
-const cfgDestinoAtualCtrl = { slides: 'telao', biblia: 'biblia-telao' };
-
-function resolverAbaCfgCtrl(aba) {
-  if (CFG_ALIAS_ABA_CTRL[aba]) return CFG_ALIAS_ABA_CTRL[aba].slice();
-  return [aba, null];
-}
-
-function abaCfgPadraoDoModo() {
-  return ehModoBibliaOperador() ? 'biblia' : 'slides';
-}
-
-
-/* ── Busca de ajustes ──────────────────────────────────────────────
-   Filtra as linhas onde elas já estão (nada é reconstruído, por isso
-   nenhum id fica duplicado) e mostra todos os painéis ao mesmo tempo,
-   cada um rotulado com o seu caminho. */
-function normalizarTermoCfg(txt) {
-  return String(txt || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function realcarTermoCfg(el, termos) {
-  const original = el.dataset.textoOriginal ?? el.textContent;
-  el.dataset.textoOriginal = original;
-  const plano = normalizarTermoCfg(original);
-  const faixas = [];
-  termos.forEach((t) => {
-    let i = plano.indexOf(t);
-    while (i !== -1) {
-      faixas.push([i, i + t.length]);
-      i = plano.indexOf(t, i + t.length);
-    }
-  });
-  if (!faixas.length) {
-    el.textContent = original;
-    return;
-  }
-  faixas.sort((a, b) => a[0] - b[0]);
-  el.textContent = '';
-  let fim = 0;
-  faixas.forEach(([a, b]) => {
-    if (a < fim) return;
-    if (a > fim) el.appendChild(document.createTextNode(original.slice(fim, a)));
-    const marca = document.createElement('mark');
-    marca.textContent = original.slice(a, b);
-    el.appendChild(marca);
-    fim = b;
-  });
-  if (fim < original.length) el.appendChild(document.createTextNode(original.slice(fim)));
-}
-
-function limparRealcesCfg() {
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row-label[data-texto-original]').forEach((el) => {
-    el.textContent = el.dataset.textoOriginal;
-    delete el.dataset.textoOriginal;
-  });
-}
-
-function onCfgBuscaInput() {
-  const input = document.getElementById('cfg-busca-ctrl');
-  const corpo = document.getElementById('cfg-modal-body-ctrl');
-  if (!input || !corpo) return;
-  const bruto = input.value.trim();
-  const limpar = document.getElementById('cfg-busca-limpar-ctrl');
-  if (limpar) limpar.hidden = !bruto;
-  if (!bruto) {
-    limparCfgBusca({ manterAba: true });
-    return;
-  }
-
-  const termos = normalizarTermoCfg(bruto).split(/\s+/).filter(Boolean);
-  corpo.classList.add('buscando');
-  limparRealcesCfg();
-
-  let total = 0;
-  const porAba = {};
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row[data-busca]').forEach((row) => {
-    const rotulo = row.querySelector('.cfg-row-label');
-    const alvo = normalizarTermoCfg(`${row.dataset.busca} ${rotulo ? rotulo.textContent : ''}`);
-    const bate = termos.every((t) => alvo.includes(t));
-    row.hidden = !bate;
-    if (!bate) return;
-    total += 1;
-    if (rotulo) realcarTermoCfg(rotulo, termos);
-    const painel = row.closest('.cfg-panel-body');
-    if (painel) {
-      const id = painel.id.replace('cfg-panel-ctrl-', '');
-      porAba[id] = (porAba[id] || 0) + 1;
-    }
-  });
-
-  /* Cartões e blocos de destino sem nenhuma linha visível saem do caminho. */
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-card').forEach((card) => {
-    card.hidden = !card.querySelector('.cfg-row[data-busca]:not([hidden])');
-  });
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-destino-painel').forEach((p) => {
-    p.hidden = !p.querySelector('.cfg-card:not([hidden])');
-  });
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-panel-body').forEach((p) => {
-    p.hidden = !p.querySelector('.cfg-card:not([hidden])');
-  });
-
-  CFG_ABAS_CTRL.forEach((a) => {
-    const tab = document.getElementById(`cfg-tab-ctrl-${a}`);
-    if (!tab) return;
-    const n = porAba[a] || 0;
-    const conta = tab.querySelector('.cfg-tab-conta');
-    if (conta) {
-      conta.textContent = String(n);
-      conta.hidden = !n;
-    }
-    tab.classList.toggle('sem-resultado', !n);
-    tab.classList.remove('ativo');
-  });
-
-  const cabecalho = document.getElementById('cfg-busca-cabecalho-ctrl');
-  const titulo = document.getElementById('cfg-busca-titulo-ctrl');
-  const vazio = document.getElementById('cfg-busca-vazio-ctrl');
-  if (titulo) {
-    titulo.textContent = `${total} resultado${total === 1 ? '' : 's'} para “${bruto}”`;
-  }
-  if (cabecalho) cabecalho.hidden = false;
-  if (vazio) vazio.hidden = total > 0;
-  corpo.scrollTop = 0;
-}
-
-function limparCfgBusca(opts) {
-  const corpo = document.getElementById('cfg-modal-body-ctrl');
-  const input = document.getElementById('cfg-busca-ctrl');
-  if (!corpo) return;
-  const estavaBuscando = corpo.classList.contains('buscando');
-  if (input && input.value) input.value = '';
-  const limpar = document.getElementById('cfg-busca-limpar-ctrl');
-  if (limpar) limpar.hidden = true;
-  const cabecalho = document.getElementById('cfg-busca-cabecalho-ctrl');
-  if (cabecalho) cabecalho.hidden = true;
-  const vazio = document.getElementById('cfg-busca-vazio-ctrl');
-  if (vazio) vazio.hidden = true;
-  if (!estavaBuscando) return;
-  corpo.classList.remove('buscando');
-  limparRealcesCfg();
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-row[data-busca]').forEach((r) => { r.hidden = false; });
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-card').forEach((c) => { c.hidden = false; });
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-destino-painel').forEach((p) => { p.hidden = false; });
-  document.querySelectorAll('#cfg-modal-body-ctrl .cfg-panel-body').forEach((p) => { p.hidden = false; });
-  CFG_ABAS_CTRL.forEach((a) => {
-    const tab = document.getElementById(`cfg-tab-ctrl-${a}`);
-    if (!tab) return;
-    const conta = tab.querySelector('.cfg-tab-conta');
-    if (conta) conta.hidden = true;
-    tab.classList.remove('sem-resultado');
-    tab.classList.toggle('ativo', a === cfgAbaAtualCtrl);
-  });
-  if (!opts || !opts.manterAba) mudarAbaCfg(cfgAbaAtualCtrl);
-  if (input) input.focus();
-}
-
-function mudarDestinoCfg(aba, destino) {
-  const lista = CFG_DESTINOS_CTRL[aba];
-  if (!lista) return;
-  const alvo = lista.includes(destino) ? destino : lista[0];
-  cfgDestinoAtualCtrl[aba] = alvo;
-  const painel = document.getElementById(`cfg-panel-ctrl-${aba}`);
-  if (painel) {
-    painel.querySelectorAll('.cfg-destino').forEach((b) => {
-      const on = b.dataset.destino === alvo;
-      b.classList.toggle('ativo', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-  }
-  lista.forEach((d) => {
-    const p = document.getElementById(`cfg-destino-${d}`);
-    if (p) p.classList.toggle('ativo', d === alvo);
-  });
-}
-
-function setCfgSwitchState(el, ligado) {
-  if (!el) return;
-  const on = !!ligado;
-  el.classList.toggle('cfg-switch--on', on);
-  el.setAttribute('aria-checked', on ? 'true' : 'false');
-}
-
-function sincronizarFormCfgGeral() {
-  const temaEl = document.getElementById('cfg-geral-tema-ctrl');
-  setCfgSwitchState(temaEl, document.documentElement.classList.contains('dark'));
-  const vozDock = document.getElementById('btn-voz-slides-toggle');
-  const vozEl = document.getElementById('cfg-geral-voz-ctrl');
-  if (vozEl && vozDock) {
-    const ativo =
-      vozDock.getAttribute('aria-pressed') === 'true' ||
-      vozDock.classList.contains('voz-mic--on') ||
-      vozDock.classList.contains('voz-mic--ouvindo');
-    setCfgSwitchState(vozEl, ativo);
-  }
-}
-
-function onCfgGeralTemaChange(ligado) {
-  const isDark = document.documentElement.classList.contains('dark');
-  if (ligado !== isDark) toggleDarkCtrl();
-  sincronizarFormCfgGeral();
-}
-
-function onCfgGeralVozChange(ligado) {
-  const vozDock = document.getElementById('btn-voz-slides-toggle');
-  const ativo =
-    !!vozDock &&
-    (vozDock.getAttribute('aria-pressed') === 'true' ||
-      vozDock.classList.contains('voz-mic--on') ||
-      vozDock.classList.contains('voz-mic--ouvindo'));
-  if (ligado !== ativo && typeof window.alternarVozSlides === 'function') {
-    window.alternarVozSlides();
-  }
-  // Estado visual do dock pode atualizar de forma assíncrona
-  setTimeout(sincronizarFormCfgGeral, 0);
-}
-
-function salvarSlideCfgNoStorage() {
-  try {
-    const cfg =
-      typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : currentCfgCtrl;
-    if (cfg && typeof cfg === 'object') {
-      localStorage.setItem(LS_SLIDE_CFG, JSON.stringify(cfg));
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function carregarSlideCfgDoStorage() {
-  try {
-    const raw = localStorage.getItem(LS_SLIDE_CFG);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-/** Mescla config Slides salva em `lyra_slide_cfg_v1` sobre o estado em memória (M2 público + M3 ministrante). */
-function mesclarSlideCfgNoEstado(salva) {
-  if (!salva || typeof salva !== 'object') return;
-  const s = sanitizarCfgSlidesLocal(salva);
-  const base = currentCfgCtrl && typeof currentCfgCtrl === 'object' ? currentCfgCtrl : {};
-  for (const k of ['posX', 'posY', 'fontSize', 'lineSpacing', 'autoFitLongLines']) {
-    if (s[k] !== undefined) base[k] = s[k];
-  }
-  if (s.publico && typeof s.publico === 'object') {
-    base.publico = { ...(base.publico || {}), ...s.publico };
-  }
-  if (s.ministrante && typeof s.ministrante === 'object') {
-    base.ministrante = { ...(base.ministrante || {}), ...s.ministrante };
-  }
-  if (s.clock && typeof s.clock === 'object') {
-    base.clock = { ...(base.clock || {}), ...s.clock };
-  }
-  currentCfgCtrl = base;
-  if (typeof window.setCurrentCfgCtrl === 'function') window.setCurrentCfgCtrl(currentCfgCtrl);
-  aplicarCorComentarioMinistranteNoPainel(
-    currentCfgCtrl.ministrante && currentCfgCtrl.ministrante.commentColor
-  );
-}
-
-/** Ao abrir o app: repõe `currentCfgCtrl` a partir do localStorage (antes de conectar ao servidor). */
-function carregarSlideCfgInicialDoStorage() {
-  const salva = carregarSlideCfgDoStorage();
-  if (!salva) return;
-  mesclarSlideCfgNoEstado(salva);
-  try {
-    cfgSnapshotSalvoCtrl = JSON.stringify(currentCfgCtrl || {});
-    cfgDirtyCtrl = false;
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function sanitizarCfgSlidesLocal(cfg) {
-  if (!cfg || typeof cfg !== 'object') return cfg;
-  let c;
-  try {
-    c = JSON.parse(JSON.stringify(cfg));
-  } catch (_) {
-    return cfg;
-  }
-  for (const chave of ['publico', 'ministrante']) {
-    const layer = c[chave];
-    if (!layer || typeof layer !== 'object') continue;
-    if (layer.bgType !== 'image') {
-      layer.bgImage = '';
-      if (!layer.bgType) layer.bgType = 'solid';
-    }
-    delete layer.refMostrar;
-    delete layer.refFontSize;
-    delete layer.refColor;
-  }
-  if (c.clock && typeof c.clock === 'object') {
-    delete c.clock.showChurchName;
-    delete c.clock.churchName;
-    delete c.clock.churchFontSize;
-  }
-  return c;
-}
-
-/**
- * Vídeo do card 5 (único card de vídeo do modo Mídias) ainda projetado.
- * Navegar para Bíblia / Slides / Ajustes não pode mandar `preview_display_config`:
- * esse comando re-dispara `exibir` no telão, recria o `<video>` e interrompe a reprodução;
- * em cascata a rota de Mídias acabava a cair em «Não exibir».
- */
-function hayVideoDoCard5EmProjecao() {
-  const id = apresentacaoMidiaProjetadaId;
-  if (!id) return false;
-  const card = apresentacaoCards?.[APRESENTACAO_IDX_CARD5];
-  return !!(card && card.id === id && String(card.kind || '').toLowerCase() === 'video');
-}
-
-function enviarPreviewDisplayConfig(cfg, opts = {}) {
-  // Pull-by-role: um controlador somente-leitura NUNCA empurra config (nem no boot, nem ao
-  // mexer no painel). O servidor já rejeitaria via guarda; aqui evitamos até o ruído do envio.
-  if (controladorSomenteLeitura()) return;
-  /* Só este caso: vídeo do card de vídeo no ar. Outras mídias e o resto dos modos
-     continuam a empurrar o tema normalmente. */
-  if (hayVideoDoCard5EmProjecao()) return;
-  const modo = opts.modoConfig || 'slides';
-  let corpo = cfg && typeof cfg === 'object' ? cfg : {};
-  if (modo === 'biblia') {
-    corpo = bibliaPayloadCfgExibicao();
-  } else {
-    corpo = sanitizarCfgSlidesLocal(corpo);
-  }
-  const payload = {
-    ...corpo,
-    modoConfig: modo,
-    forcarModo: opts.forcarModo || modo,
-  };
-  if (projecao.enviar('preview_display_config', payload)) return;
-  const ip = hostProjecao();
-  if (!ip) return;
-  fetch(`http://${ip}:5510/api/display-config/preview`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-}
-
-function slidesAplicarCfgArmazenada() {
-  let cfg = carregarSlideCfgDoStorage();
-  if (!cfg) {
-    try {
-      if (cfgSnapshotSalvoCtrl) cfg = JSON.parse(cfgSnapshotSalvoCtrl);
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-  if (!cfg || typeof cfg !== 'object') {
-    cfg = sanitizarCfgSlidesLocal(
-      typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : currentCfgCtrl
-    );
-  } else {
-    mesclarSlideCfgNoEstado(cfg);
-    cfg = sanitizarCfgSlidesLocal(
-      typeof window.getCurrentCfgCtrl === 'function' ? window.getCurrentCfgCtrl() : currentCfgCtrl
-    );
-  }
-  if (typeof window.setCurrentCfgCtrl === 'function') window.setCurrentCfgCtrl(cfg);
-  try {
-    popularFormCfg(cfg);
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  enviarPreviewDisplayConfig(cfg, {
-    modoConfig: 'slides',
-    forcarModo: 'slides',
-  });
-}
-
-function bibliaCacheChaveCapitulo(traducao, livro, cap) {
-  return `${traducao}|${livro}|${cap}`;
-}
-
-/**
- * **O ponto único de aplicação da divisão** (ver
- * `docs/architecture/divisao-automatica-versiculos.md`, §6).
- *
- * Deriva `bibliaVersiculosCapitulo` (partes) a partir de `bibliaVersiculosBrutosCapitulo`
- * (versículos inteiros). É a única função do painel que lê `bibliaCfgLeitura` — todos os
- * consumidores a jusante (seletor, setas, projeção, prefetch) veem sempre a mesma
- * estrutura, com a divisão ligada ou desligada.
- */
-function bibliaRederivarPartesCapitulo() {
-  bibliaVersiculosCapitulo = dividirVersiculos(bibliaVersiculosBrutosCapitulo, {
-    ativo: bibliaCfgLeitura.dividirVersiculosLongos === true,
-    limite: bibliaCfgLeitura.limiteCaracteres,
-  });
-}
-
-function bibliaGuardarVersiculosCapitulo(versiculos, traducao, livro, cap) {
-  bibliaVersiculosBrutosCapitulo = bibliaAnexarReferenciaVersiculos(versiculos, livro, cap);
-  if (traducao && livro && cap) {
-    /* O cache guarda o BRUTO, não as partes: assim mudar o limite nas configurações é só
-       re-derivar, sem invalidar os capítulos vizinhos já pré-carregados. */
-    bibliaCapituloCache.set(
-      bibliaCacheChaveCapitulo(traducao, livro, cap),
-      bibliaVersiculosBrutosCapitulo
-    );
-  }
-  bibliaRederivarPartesCapitulo();
-  bibliaPrefetchCapitulosVizinhos();
-}
-
-function bibliaPrefetchCapitulosVizinhos() {
-  const traducao = bibliaTraducaoAtual || document.getElementById('traducao-sel')?.value;
-  const livro = bibliaSelecionadoLivro;
-  const livroDb = bibliaSelecionadoLivroDb || livro;
-  const cap = bibliaSelecionadoCap;
-  if (!traducao || !livro || !livroDb || !cap || !bibliaVersiculosCapitulo.length) return;
-  const idx = bibliaVersiculoSelecionadoIdx ?? 0;
-  const caps = [];
-  if (idx >= bibliaVersiculosCapitulo.length - 2 && cap > 1) caps.push(cap - 1);
-  if (idx <= 1) caps.push(cap + 1);
-  if (!caps.length) return;
-  const job = ++bibliaPrefetchCapJob;
-  caps.forEach((capNum) => {
-    const chave = bibliaCacheChaveCapitulo(traducao, livro, capNum);
-    if (bibliaCapituloCache.has(chave)) return;
-    fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroDb)}/${capNum}`
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (job !== bibliaPrefetchCapJob || !Array.isArray(data)) return;
-        bibliaCapituloCache.set(chave, bibliaAnexarReferenciaVersiculos(data, livro, capNum));
-      })
-      .catch(() => {});
-  });
-}
-
-/**
- * Tira só o que está no ar (marcadores de projeção/seleção de versículo).
- * Mantém livro, capítulo e lista — o operador continua a navegar após ESC/encerrar.
- */
-function bibliaLimparProjecaoOperador() {
-  bibliaParteProjetadaChave = null;
-  if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
-    ultimoConteudoProjetadoModoUnificado = null;
-  }
-  bibliaVersiculoSelecionadoIdx = null;
-  document.querySelectorAll('.biblia-v-card').forEach((c) => {
-    c.classList.remove('projetado', 'selecionado');
-  });
-}
-
-/**
- * Recoloca o painel de navegação no estado de primeira abertura: capítulos e
- * versículos vazios, busca rápida limpa, colunas no topo. Não mexe na tradução.
- */
-function bibliaReporPainelNavegacao() {
-  const colCaps = document.getElementById('biblia-col-caps');
-  if (colCaps) {
-    colCaps.innerHTML = '<div class="biblia-placeholder">← Selecione um livro</div>';
-    colCaps.scrollTop = 0;
-  }
-  const colVers = document.getElementById('biblia-col-versiculos');
-  if (colVers) {
-    colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
-    colVers.scrollTop = 0;
-  }
-  const colLivros = document.getElementById('biblia-col-livros');
-  if (colLivros) colLivros.scrollTop = 0;
-  const busca = document.getElementById('biblia-busca-rapida');
-  if (busca) busca.value = '';
-}
-
-function bibliaReporEstadoBuscaRapida() {
-  bnpEtapa = 'livro';
-  bnpLivroSelecionado = null;
-  bnpCapSelecionado = null;
-  bnpDigitando = '';
-  bnpFocoIndex = -1;
-  bnpTotalCaps = 0;
-  bnpTotalVers = 0;
-}
-
-/**
- * Limpa navegação local (livro/capítulo/versículos/filtro/busca).
- * A tradução da sessão (`bibliaTraducaoSessao`) não se toca.
- */
-function bibliaLimparEstadoOperador() {
-  bibliaLimparProjecaoOperador();
-  bibliaVersiculosCapitulo = [];
-  bibliaVersiculosBrutosCapitulo = [];
-  bibliaCapituloCache.clear();
-  bibliaPrefetchCapJob++;
-  bibliaCapsRequestSeq++;
-  bibliaVersiculosRequestSeq++;
-  bibliaSelecionadoLivro = null;
-  bibliaSelecionadoLivroDb = null;
-  bibliaSelecionadoCap = null;
-  bibliaFiltroTestamento = null;
-  bibliaReporEstadoBuscaRapida();
-  bibliaNavPopupFechar();
-  popularGradeLivros();
-  bibliaReporPainelNavegacao();
-}
-
-/**
- * Encerra a camada Bíblia no servidor.
- * @param {{ limparNavegacao?: boolean }} [opts]
- *   `limparNavegacao: false` — só tira a projeção; livro/capítulo ficam activos.
- *   Por omissão limpa também a navegação local.
- */
-function encerrarCamadaBibliaNoControlador(opts = {}) {
-  if (opts.limparNavegacao === false) {
-    bibliaLimparProjecaoOperador();
-  } else {
-    bibliaLimparEstadoOperador();
-  }
-  if (estadoServidor && estadoServidor.tipo === 'biblia') {
-    estadoServidor = {
-      tipo: null,
-      titulo: '',
-      linhas: [],
-      estrofeIndex: 0,
-      totalEstrofes: 0,
-      telaLimpa: true,
-      blackout: false,
-      slidePretoFinal: false,
-    };
-  }
-  projecao.enviar('encerrar_projecao_biblia');
-}
-
-/** Encerra apenas a projeção da Bíblia (botão «Encerrar projeção» / ESC no modo Bíblia). */
-function encerrarProjecaoModoBiblia() {
-  if (!ehModoBibliaOperador()) return;
-  encerrarCamadaBibliaNoControlador({ limparNavegacao: false });
-  atualizarPreviewOperador();
-}
-
-/**
- * Há versículo da Bíblia activo no telão (ou marcado como projetado neste painel).
- */
-function hayProjecaoBibliaAtivaParaPreservarEstado() {
-  if (bibliaParteProjetadaChave != null) return true;
-  const e = estadoServidor;
-  return !!(
-    e &&
-    e.tipo === 'biblia' &&
-    !e.telaLimpa &&
-    Array.isArray(e.linhas) &&
-    e.linhas.length
-  );
-}
-
-/**
- * Ao sair do modo Bíblia.
- * Preserva livro/capítulo/versículo e a navegação para retomar ao voltar
- * (com ou sem projeção activa). A projeção, se existir, não é encerrada aqui.
- * Sem projeção: repõe só a cfg de slides do preview (Home / outros modos).
- */
-function bibliaSairModo() {
-  if (!hayProjecaoBibliaAtivaParaPreservarEstado()) {
-    slidesAplicarCfgArmazenada();
-  }
-  try {
-    atualizarPreviewOperador();
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-/** Um livro passa o filtro actual? Sem filtro, passam todos. */
-function livroVisivelNoFiltroTestamento(livro) {
-  if (bibliaFiltroTestamento === 'at') return !livro.nt;
-  if (bibliaFiltroTestamento === 'nt') return !!livro.nt;
-  return true;
-}
-
-/**
- * Liga, troca ou desliga o filtro.
- *
- * Clicar no filtro que já está ligado desliga-o — é como se volta a «todos os livros»
- * sem precisar de um terceiro botão a dizer «Tudo», que só existiria para desfazer os
- * outros dois.
- *
- * A selecção de livro, capítulo e versículo não é tocada: filtrar é mudar o que se vê
- * na grade, não largar a passagem que já se estava a preparar. Se o livro escolhido
- * ficar do lado escondido, ele volta assim que o filtro sair.
- */
-function definirFiltroTestamentoBiblia(filtro) {
-  bibliaFiltroTestamento = bibliaFiltroTestamento === filtro ? null : filtro;
-  atualizarBotoesFiltroTestamentoBiblia();
-  popularGradeLivros();
-}
-
-function atualizarBotoesFiltroTestamentoBiblia() {
-  [['biblia-filtro-at', 'at'], ['biblia-filtro-nt', 'nt']].forEach(([id, valor]) => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    const ligado = bibliaFiltroTestamento === valor;
-    btn.classList.toggle('ativo', ligado);
-    btn.setAttribute('aria-pressed', ligado ? 'true' : 'false');
-  });
-}
-
-/**
- * Só os grupos que têm livros à vista.
- *
- * Uma legenda com «Evangelhos + Atos» por cima de uma grade só com o Antigo Testamento
- * estaria a descrever uma lista que não está no ecrã.
- */
-function popularLegendaBiblia() {
-  const el = document.getElementById('biblia-legenda');
-  if (!el) return;
-  const visiveis = new Set();
-  LIVROS.forEach((l, idx) => {
-    if (livroVisivelNoFiltroTestamento(l)) visiveis.add(bibliaGrupoPorIndiceLivro(idx).id);
-  });
-  el.innerHTML = BIBLIA_GRUPOS.filter((g) => visiveis.has(g.id))
-    .map(
-      (g) =>
-        `<span class="biblia-legenda-item">` +
-        `<span class="biblia-legenda-swatch" style="background:${g.cor}"></span>` +
-        `<span>${escapeHtml(g.label)}</span></span>`
-    )
-    .join('');
-}
-
-function popularGradeLivros() {
-  const col = document.getElementById('biblia-col-livros');
-  if (!col) return;
-  popularLegendaBiblia();
-  atualizarBotoesFiltroTestamentoBiblia();
-  col.innerHTML = '';
-  LIVROS.forEach((l, idx) => {
-    /* `idx` continua a ser o índice em `LIVROS`, e não na lista filtrada: é dele que
-       sai a cor do grupo, que tem de ser a mesma com filtro ou sem ele. */
-    if (!livroVisivelNoFiltroTestamento(l)) return;
-    const grupo = bibliaGrupoPorIndiceLivro(idx);
-    const btn = document.createElement('button');
-    btn.className =
-      'biblia-livro-btn' + (grupo.textoClaro ? '' : ' biblia-livro-btn--texto-escuro');
-    btn.dataset.nome = l.nome;
-    btn.dataset.grupo = grupo.id;
-    bibliaAplicarEstiloGrupoNoElemento(btn, grupo);
-    btn.innerHTML = `<span class="livro-sigla">${escapeHtml(l.sigla)}</span><span class="livro-nome">${escapeHtml(l.nome)}</span>`;
-    btn.onclick = () => bibliaEscolherLivro(l);
-    col.appendChild(btn);
-  });
-  bibliaAtualizarDestaqueGradeLivros();
-}
-
-/**
- * Põe a grade de livros a condizer com `bibliaSelecionadoLivro`.
- *
- * É o único sítio que mexe no realce: marca o livro escolhido e assinala na coluna
- * que há uma selecção activa (é dessa classe que vem o escurecimento dos outros).
- * Sem livro escolhido, tudo volta ao normal — inclusive depois de repopular a grade,
- * que é o que acontece ao filtrar por testamento.
- */
-function bibliaAtualizarDestaqueGradeLivros() {
-  const col = document.getElementById('biblia-col-livros');
-  const nome = bibliaSelecionadoLivro;
-  document.querySelectorAll('.biblia-livro-btn').forEach((b) => {
-    b.classList.toggle('selecionado', Boolean(nome) && b.dataset.nome === nome);
-  });
-  if (col) col.classList.toggle('tem-selecao', Boolean(nome));
-}
-
-function bibliaEscolherLivro(livro) {
-  bibliaSelecionadoLivro = livro.nome;
-  bibliaSelecionadoLivroDb = bibliaLivroNomeDb(livro);
-  bibliaSelecionadoCap = null;
-  bibliaAtualizarDestaqueGradeLivros();
-  const btn = document.querySelector(
-    `.biblia-livro-btn[data-nome="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(livro.nome) : livro.nome}"]`
-  );
-  if (btn) btn.scrollIntoView({ block: 'nearest' });
-  const carregamentoCaps = bibliaCarregarCaps(bibliaSelecionadoLivroDb || livro.nome);
-  const colVers = document.getElementById('biblia-col-versiculos');
-  if (colVers) {
-    colVers.innerHTML = '<div class="biblia-placeholder">← Selecione um capítulo</div>';
-  }
-  bibliaNavPopupFechar();
-  const busca = document.getElementById('biblia-busca-rapida');
-  if (busca) busca.value = '';
-  return carregamentoCaps;
-}
-
-async function bibliaCarregarCaps(livro) {
-  const traducao = document.getElementById('traducao-sel')?.value;
-  const col = document.getElementById('biblia-col-caps');
-  const livroRef = String(livro || '').trim();
-  if (!col || !traducao || !livroRef) return;
-  const requestSeq = ++bibliaCapsRequestSeq;
-  col.innerHTML = '<div class="biblia-placeholder">…</div>';
-  try {
-    const res = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroRef)}/caps`
-    );
-    const { total } = await res.json();
-    if (requestSeq !== bibliaCapsRequestSeq) return;
-    col.innerHTML = '';
-    for (let i = 1; i <= total; i++) {
-      const btn = document.createElement('button');
-      btn.className = 'biblia-cap-btn';
-      btn.textContent = i;
-      btn.dataset.cap = i;
-      btn.onclick = () => bibliaEscolherCap(i, btn);
-      col.appendChild(btn);
-    }
-  } catch (_) {
-    if (requestSeq !== bibliaCapsRequestSeq) return;
-    col.innerHTML = '<div class="biblia-placeholder">Erro ao carregar</div>';
-  }
-}
-
-function bibliaEscolherCap(cap, btnEl) {
-  bibliaSelecionadoCap = cap;
-  bibliaVersiculoSelecionadoIdx = null;
-  bibliaParteProjetadaChave = null;
-  document.querySelectorAll('.biblia-cap-btn').forEach((b) => b.classList.remove('selecionado'));
-  btnEl.classList.add('selecionado');
-  return bibliaCarregarVersiculos();
-}
-
-async function bibliaCarregarVersiculos() {
-  if (!bibliaSelecionadoLivro || !bibliaSelecionadoCap) return;
-  const livroRef = String(bibliaSelecionadoLivro || '').trim();
-  const livroDbRef = String(bibliaSelecionadoLivroDb || livroRef).trim();
-  const capRef = bibliaSelecionadoCap;
-  const traducao = document.getElementById('traducao-sel')?.value;
-  bibliaTraducaoAtual = traducao;
-  const col = document.getElementById('biblia-col-versiculos');
-  if (!col || !traducao || !livroDbRef) return;
-  const requestSeq = ++bibliaVersiculosRequestSeq;
-  bibliaVersiculoSelecionadoIdx = null;
-  bibliaParteProjetadaChave = null;
-  col.innerHTML = '<div class="biblia-placeholder">Carregando…</div>';
-  try {
-    const res = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livroDbRef)}/${capRef}`
-    );
-    const versiculos = await res.json();
-    if (requestSeq !== bibliaVersiculosRequestSeq) return;
-    bibliaGuardarVersiculosCapitulo(versiculos, traducao, livroRef, capRef);
-    bibliaRenderizarSeletorVersiculos();
-  } catch (_) {
-    if (requestSeq !== bibliaVersiculosRequestSeq) return;
-    col.innerHTML = '<div class="biblia-placeholder">Erro ao carregar versículos</div>';
-  }
-}
-
-/**
- * Redesenha a coluna de versículos a partir de `bibliaVersiculosCapitulo`.
- *
- * Um card por **parte**: com a divisão ligada, o versículo 12 pode aparecer em dois cards,
- * ambos numerados «12». Por isso `data-versiculo` deixou de ser único e a seleção passou a
- * usar `data-indice`.
- *
- * Dois chamadores — o carregamento do capítulo e a mudança da opção de divisão — e uma só
- * cópia do render.
- */
-function bibliaRenderizarSeletorVersiculos() {
-  const col = document.getElementById('biblia-col-versiculos');
-  if (!col) return;
-  col.innerHTML = '';
-  bibliaVersiculosCapitulo.forEach((v, index) => {
-    const card = document.createElement('div');
-    card.className = 'biblia-v-card' + (v.parteTotal > 1 ? ' biblia-v-parte' : '');
-    card.dataset.versiculo = v.versiculo;
-    card.dataset.indice = index;
-    card.dataset.parte = v.parteIndice ?? 0;
-    if (v.parteTotal > 1) {
-      card.title = `${v.livro} ${v.capitulo}:${v.versiculo} — parte ${(v.parteIndice ?? 0) + 1} de ${v.parteTotal}`;
-    }
-    card.innerHTML = `
-      <div class="biblia-v-num">${v.versiculo}</div>
-      <div class="biblia-v-texto">${escapeHtml(v.texto)}</div>
-    `;
-    card.onclick = () => bibliaClicarVersiculo(v, card, index);
-    col.appendChild(card);
-  });
-}
-
-function bibliaClicarVersiculo(v, cardEl, index) {
-  const jaSelecionado = cardEl.classList.contains('selecionado');
-  document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
-  cardEl.classList.add('selecionado');
-  bibliaVersiculoSelecionadoIdx = index;
-  bibliaRolarListaParaContextoDoFoco(cardEl);
-  if (jaSelecionado || bibliaParteProjetadaChave !== null) {
-    bibliaProjetarVersiculo(v, cardEl);
-  }
-}
-
-function bibliaChaveRotaAtual() {
-  const r = normalizarRota(rotasPorModo.biblia);
-  return `${r.publicoIndex},${r.ministranteIndex},${r.live ? 1 : 0}`;
-}
-
-async function bibliaSincronizarRotaComServidorSeMudou() {
-  const fromUi = rotaSelecionadaNaUi();
-  if (fromUi) rotasPorModo.biblia = normalizarRota(fromUi);
-  salvarRotasPorModoNoStorage();
-  const chave = bibliaChaveRotaAtual();
-  if (chave === bibliaRotaSyncServidorChave) return;
-  await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-}
-
-async function bibliaProjetarVersiculo(v, cardEl, opts = {}) {
-  if (!projecao.ligada()) return;
-  const livroRef = bibliaNormalizarCampoReferencia(v?.livro) || bibliaNormalizarCampoReferencia(bibliaSelecionadoLivro);
-  const capituloRef =
-    bibliaNormalizarCampoReferencia(v?.capitulo) || bibliaNormalizarCampoReferencia(bibliaSelecionadoCap);
-  const versiculoRef = bibliaNormalizarCampoReferencia(v?.versiculo);
-  /* Chave da parte, não o número: duas partes do mesmo versículo têm o mesmo número e
-     seriam tomadas por «o mesmo conteúdo», forçando o reenvio da config a cada parte. */
-  const chaveParte = v?.chave ?? `${livroRef}|${capituloRef}|${versiculoRef}|0`;
-  const navegacaoRapida =
-    opts.navegacaoRapida === true ||
-    (bibliaParteProjetadaChave != null && bibliaParteProjetadaChave !== chaveParte);
-
-  /*
-   * Sincronizar primeiro, ler o alvo depois — a ordem é a correcção, e está em
-   * `modules/rotaEnvioBiblia.js` (com o histórico do defeito) para poder ser testada.
-   *
-   * Sincroniza-se só na primeira projeção: evita um PUT /api/display-routing por versículo
-   * durante a navegação rápida, onde a rota já foi alinhada.
-   */
-  const { alvo, alvoEnvio, enviar } = await resolverEnvioBiblia({
-    sincronizarRota: navegacaoRapida ? null : bibliaSincronizarRotaComServidorSeMudou,
-    lerRota: () => rotasPorModo.biblia,
-  });
-  if (!enviar) {
-    /* Único motivo legítimo para não enviar: «Não exibir» é o operador a dizer que não
-       quer projetar. Ausência de monitor físico não é — o OBS não precisa de nenhum. */
-    if (!navegacaoRapida) alert(mensagemAlvoInvalidoBiblia(alvo));
-    return;
-  }
-  document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('projetado'));
-  if (cardEl && cardEl.classList) cardEl.classList.add('projetado');
-  bibliaParteProjetadaChave = chaveParte;
-  const payloadVersiculo = {
-    livro: livroRef,
-    capitulo: capituloRef,
-    versiculo: versiculoRef,
-    texto: v?.texto != null ? String(v.texto) : '',
-    traducao: bibliaTraducaoAtual,
-    alvoProjecao: alvoEnvio,
-    somenteTexto: navegacaoRapida,
-  };
-  projecao.enfileirar('exibir_versiculo', payloadVersiculo);
-  ultimoConteudoProjetadoModoUnificado = { tipo: 'biblia', payload: payloadVersiculo };
-  bibliaPrefetchCapitulosVizinhos();
-}
-
-function bibliaPayloadCfgExibicao() {
-  const pub = { ...bibliaCfgExibicao };
-  const mon = { ...bibliaCfgMinistrante };
-  const fundoPub = bibliaFundoParaPayload(pub);
-  const fundoMon = bibliaFundoParaPayload(mon);
-  return {
-    publico: {
-      fontSize: pub.fontSize,
-      fontFamily: pub.fontFamily,
-      lineSpacing: pub.lineSpacing,
-      wrapLongLines: pub.wrapLongLines !== false,
-      textColor: pub.textColor,
-      negrito: pub.negrito,
-      maiusculo: pub.maiusculo === true,
-      textAlign: pub.textAlign,
-      posX: pub.posX || 'center',
-      posY: pub.posY || 'center',
-      ...fundoPub,
-      refMostrar: pub.refMostrar !== false,
-      refFontSize: pub.refFontSize ?? BIBLIA_CFG_EXIBICAO_PADRAO.refFontSize,
-      refColor: pub.refColor || BIBLIA_CFG_EXIBICAO_PADRAO.refColor,
-    },
-    ministrante: {
-      fontSize: mon.fontSize,
-      fontSizeAtual: mon.fontSize,
-      fontSizeProximo: mon.fontSize,
-      fontFamily: mon.fontFamily,
-      lineSpacing: mon.lineSpacing,
-      wrapLongLines: mon.wrapLongLines !== false,
-      autoFitLongLines: mon.autoFitLongLines,
-      negrito: mon.negrito !== false,
-      maiusculo: mon.maiusculo === true,
-      textColorAtual: mon.textColorAtual,
-      textColorProximo: mon.textColorProximo,
-      posX: mon.posX || 'center',
-      posY: mon.posY || 'center',
-      ...fundoMon,
-      refMostrar: mon.refMostrar !== false,
-      refFontSize: mon.refFontSize ?? BIBLIA_CFG_MINISTRANTE_PADRAO.refFontSize,
-      refColor: mon.refColor || BIBLIA_CFG_MINISTRANTE_PADRAO.refColor,
-    },
-  };
-}
-
-let bibliaPreviewTimer = null;
-const BIBLIA_PREVIEW_DEBOUNCE_MS = 140;
-
-function bibliaAplicarCfgExibicao() {
-  clearTimeout(bibliaPreviewTimer);
-  bibliaPreviewTimer = setTimeout(() => {
-    bibliaPreviewTimer = null;
-    salvarBibliaCfgNoStorage();
-    enviarPreviewDisplayConfig(null, {
-      modoConfig: 'biblia',
-      forcarModo: 'biblia',
-    });
-  }, BIBLIA_PREVIEW_DEBOUNCE_MS);
-}
-
-function bibliaNavPopupAberto() {
-  const popup = document.getElementById('biblia-nav-popup');
-  return popup && !popup.classList.contains('oculto');
-}
-
-function bibliaNavPopupAbrir() {
-  bnpEtapa = 'livro';
-  bnpLivroSelecionado = null;
-  bnpCapSelecionado = null;
-  bnpDigitando = '';
-  bnpFocoIndex = -1;
-  const livroDisp = document.getElementById('bnp-livro-display');
-  const capDisp = document.getElementById('bnp-cap-display');
-  const verDisp = document.getElementById('bnp-ver-display');
-  const linhaCap = document.getElementById('bnp-linha-cap');
-  const linhaVer = document.getElementById('bnp-linha-ver');
-  if (livroDisp) livroDisp.textContent = '—';
-  if (capDisp) {
-    capDisp.textContent = '—';
-    capDisp.style.color = 'var(--text, #fff)';
-  }
-  if (verDisp) {
-    verDisp.textContent = '—';
-    verDisp.style.color = 'var(--text, #fff)';
-  }
-  if (linhaCap) linhaCap.style.display = 'none';
-  if (linhaVer) linhaVer.style.display = 'none';
-  const popup = document.getElementById('biblia-nav-popup');
-  if (popup) popup.classList.remove('oculto');
-  const inp = document.getElementById('biblia-busca-rapida');
-  if (inp) {
-    inp.value = '';
-    setTimeout(() => inp.focus(), 30);
-  }
-}
-
-function bibliaNavPopupFechar() {
-  const popup = document.getElementById('biblia-nav-popup');
-  if (popup) popup.classList.add('oculto');
-  const lista = document.getElementById('bnp-livro-lista');
-  if (lista) lista.innerHTML = '';
-  bnpDigitando = '';
-  bnpFocoIndex = -1;
-  const inp = document.getElementById('biblia-busca-rapida');
-  if (inp) inp.blur();
-}
-
-function bnpLivroPorSiglaExata(q) {
-  const t = String(q || '').trim().toLowerCase();
-  if (!t) return null;
-  const matches = LIVROS.filter((l) => l.sigla.toLowerCase() === t);
-  return matches.length === 1 ? matches[0] : null;
-}
-
-function bibliaBuscaRapida(val) {
-  bnpDigitando = val;
-  bnpFocoIndex = -1;
-
-  if (bnpEtapa === 'livro') {
-    const lista = document.getElementById('bnp-livro-lista');
-    const livroDisp = document.getElementById('bnp-livro-display');
-    if (!lista || !livroDisp) return;
-    const q = val.trim().toLowerCase();
-    livroDisp.textContent = val || '—';
-    if (!q) {
-      lista.innerHTML = '';
-      return;
-    }
-    const exato = bnpLivroPorSiglaExata(val);
-    if (exato) {
-      bnpSelecionarLivro(exato);
-      return;
-    }
-    const encontrados = LIVROS.filter((l) =>
-      l.sigla.toLowerCase().startsWith(q) ||
-      l.nome.toLowerCase().startsWith(q) ||
-      l.nome.toLowerCase().includes(q)
-    ).slice(0, 8);
-    lista.innerHTML = '';
-    encontrados.forEach((l) => {
-      const grupo = bibliaGrupoPorLivro(l);
-      const item = document.createElement('div');
-      item.className = 'bnp-item';
-      item.innerHTML =
-        `<span class="bnp-sigla" style="background:${grupo.cor};color:${bibliaCorTextoGrupo(grupo)}">` +
-        `${escapeHtml(l.sigla)}</span><span>${escapeHtml(l.nome)}</span>`;
-      item.onclick = () => bnpSelecionarLivro(l);
-      lista.appendChild(item);
-    });
-    lista._resultados = encontrados;
-  } else if (bnpEtapa === 'cap') {
-    const capDisp = document.getElementById('bnp-cap-display');
-    if (!capDisp) return;
-    capDisp.textContent = val || '—';
-    const num = parseInt(val, 10);
-    if (num >= 1 && num <= bnpTotalCaps) {
-      capDisp.style.color = 'var(--accent, #c49a3a)';
-      if (bnpNumeroEntradaCompleta(val, bnpTotalCaps)) {
-        bnpConfirmarCap(val);
-      }
-    } else {
-      capDisp.style.color = 'var(--text, #fff)';
-    }
-  } else if (bnpEtapa === 'ver') {
-    const verDisp = document.getElementById('bnp-ver-display');
-    if (!verDisp) return;
-    verDisp.textContent = val || '—';
-    const num = parseInt(val, 10);
-    if (num >= 1 && num <= bnpTotalVers) {
-      verDisp.style.color = 'var(--accent, #c49a3a)';
-      if (bnpNumeroEntradaCompleta(val, bnpTotalVers)) {
-        bnpConfirmarVer(val);
-      }
-    } else {
-      verDisp.style.color = 'var(--text, #fff)';
-    }
-  }
-}
-
-async function bnpSelecionarLivro(livro) {
-  bnpLivroSelecionado = livro;
-  bnpEtapa = 'cap';
-  bnpDigitando = '';
-  const inp = document.getElementById('biblia-busca-rapida');
-  if (inp) inp.value = '';
-  const livroDisp = document.getElementById('bnp-livro-display');
-  const lista = document.getElementById('bnp-livro-lista');
-  if (livroDisp) livroDisp.textContent = `${livro.sigla} — ${livro.nome}`;
-  if (lista) lista.innerHTML = '';
-  const traducao = document.getElementById('traducao-sel')?.value;
-  try {
-    const res = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(livro.nome)}/caps`
-    );
-    const { total } = await res.json();
-    bnpTotalCaps = total;
-  } catch (_) {
-    bnpTotalCaps = 150;
-  }
-  const linhaCap = document.getElementById('bnp-linha-cap');
-  const capDisp = document.getElementById('bnp-cap-display');
-  if (linhaCap) linhaCap.style.display = 'flex';
-  if (capDisp) {
-    capDisp.textContent = '—';
-    capDisp.style.color = 'var(--text, #fff)';
-  }
-  setTimeout(() => document.getElementById('biblia-busca-rapida')?.focus(), 30);
-}
-
-async function bnpConfirmarCap(val) {
-  const num = parseInt(val, 10);
-  if (!num || num < 1 || num > bnpTotalCaps) return;
-  bnpCapSelecionado = num;
-  bnpEtapa = 'ver';
-  bnpDigitando = '';
-  const inp = document.getElementById('biblia-busca-rapida');
-  if (inp) inp.value = '';
-  const capDisp = document.getElementById('bnp-cap-display');
-  if (capDisp) capDisp.textContent = String(num);
-  const traducao = document.getElementById('traducao-sel')?.value;
-  try {
-    const res = await fetch(
-      `${getControllerApiBase()}/api/biblia/${traducao}/${encodeURIComponent(bnpLivroSelecionado.nome)}/${num}`
-    );
-    const vers = await res.json();
-    bnpTotalVers = vers.length;
-  } catch (_) {
-    bnpTotalVers = 200;
-  }
-  const linhaVer = document.getElementById('bnp-linha-ver');
-  const verDisp = document.getElementById('bnp-ver-display');
-  if (linhaVer) linhaVer.style.display = 'flex';
-  if (verDisp) {
-    verDisp.textContent = '—';
-    verDisp.style.color = 'var(--text, #fff)';
-  }
-  setTimeout(() => document.getElementById('biblia-busca-rapida')?.focus(), 30);
-}
-
-async function bnpConfirmarVer(val) {
-  const num = parseInt(val, 10);
-  if (!num || num < 1 || num > bnpTotalVers || !bnpLivroSelecionado) return;
-  bibliaNavPopupFechar();
-  await bibliaEscolherLivro(bnpLivroSelecionado);
-  await new Promise((r) => setTimeout(r, 200));
-  const capBtn = document.querySelector(`.biblia-cap-btn[data-cap="${bnpCapSelecionado}"]`);
-  if (capBtn) bibliaEscolherCap(bnpCapSelecionado, capBtn);
-  await new Promise((r) => setTimeout(r, 300));
-  /* Uma referência aponta sempre para o início do versículo — nunca para o meio. */
-  const idx = indicePrimeiraParteDoVersiculo(bibliaVersiculosCapitulo, num);
-  const v = idx >= 0 ? bibliaVersiculosCapitulo[idx] : null;
-  if (!v) return;
-  /* O objeto projetado sai da lista, não do DOM: ler o texto do card traria as reticências
-     decorativas para dentro da projeção e perderia `livro`/`capitulo` (referência vazia). */
-  const card = bibliaMarcarVersiculoNaUi(v, idx);
-  await bibliaProjetarVersiculo(v, card);
-}
-
-/**
- * Backspace num campo vazio volta uma etapa (verso → capítulo → livro) devolvendo o valor
- * já confirmado menos o último caractere, para que o operador o corrija em vez de ficar
- * preso a um número que avançou sozinho.
- */
-function bnpVoltarEtapa() {
-  const inp = document.getElementById('biblia-busca-rapida');
-  if (!inp) return;
-  let valor = '';
-  if (bnpEtapa === 'ver') {
-    valor = String(bnpCapSelecionado ?? '').slice(0, -1);
-    bnpEtapa = 'cap';
-    bnpCapSelecionado = null;
-    const linhaVer = document.getElementById('bnp-linha-ver');
-    const verDisp = document.getElementById('bnp-ver-display');
-    if (linhaVer) linhaVer.style.display = 'none';
-    if (verDisp) verDisp.textContent = '—';
-  } else if (bnpEtapa === 'cap') {
-    valor = String(bnpLivroSelecionado?.sigla ?? '').slice(0, -1);
-    bnpEtapa = 'livro';
-    bnpLivroSelecionado = null;
-    const linhaCap = document.getElementById('bnp-linha-cap');
-    const capDisp = document.getElementById('bnp-cap-display');
-    if (linhaCap) linhaCap.style.display = 'none';
-    if (capDisp) capDisp.textContent = '—';
-  } else {
-    return;
-  }
-  inp.value = valor;
-  bibliaBuscaRapida(valor);
-  inp.focus();
-}
-
-function bibliaBuscaRapidaTecla(e) {
-  if (
-    bibliaNavPopupAberto() &&
-    (bnpEtapa === 'cap' || bnpEtapa === 'ver') &&
-    e.key === 'Backspace' &&
-    !(e.target?.value || '')
-  ) {
-    e.preventDefault();
-    bnpVoltarEtapa();
-    return;
-  }
-  if (!bibliaNavPopupAberto()) {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      bibliaNavegarVersiculosComSeta(e.key);
-    }
-    return;
-  }
-
-  if (bnpEtapa === 'livro') {
-    const lista = document.getElementById('bnp-livro-lista');
-    if (!lista) return;
-    const items = lista.querySelectorAll('.bnp-item');
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      bnpFocoIndex = Math.min(bnpFocoIndex + 1, items.length - 1);
-      items.forEach((el, i) => el.classList.toggle('focado', i === bnpFocoIndex));
-      if (items[bnpFocoIndex]) items[bnpFocoIndex].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      bnpFocoIndex = Math.max(bnpFocoIndex - 1, 0);
-      items.forEach((el, i) => el.classList.toggle('focado', i === bnpFocoIndex));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const idx = bnpFocoIndex >= 0 ? bnpFocoIndex : 0;
-      if (lista._resultados && lista._resultados[idx]) {
-        bnpSelecionarLivro(lista._resultados[idx]);
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      bibliaNavPopupFechar();
-    }
-  } else if (bnpEtapa === 'cap') {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      bnpConfirmarCap(document.getElementById('biblia-busca-rapida')?.value || '');
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      bibliaNavPopupFechar();
-    }
-  } else if (bnpEtapa === 'ver') {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      bnpConfirmarVer(document.getElementById('biblia-busca-rapida')?.value || '');
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      bibliaNavPopupFechar();
-    }
-  }
-}
-
-function bibliaIndicePorTeclaNavegacao(key, idxAtual, total) {
-  let idx = idxAtual ?? -1;
-  if (key === 'ArrowDown' || key === 'ArrowRight') idx = Math.min(idx + 1, total - 1);
-  else if (key === 'ArrowUp' || key === 'ArrowLeft') idx = Math.max(idx - 1, 0);
-  return idx;
-}
-
-/**
- * Rola a coluna para o versículo focado + 1 (ou 2, se couber) seguintes visíveis.
- * Suave na projeção ao vivo; instantâneo se o sistema pede menos movimento.
- */
-function bibliaRolarListaParaContextoDoFoco(card) {
-  const col = document.getElementById('biblia-col-versiculos');
-  if (!col || !card || !col.contains(card)) return;
-  const cards = [...col.querySelectorAll('.biblia-v-card')];
-  const idx = cards.indexOf(card);
-  if (idx < 0) return;
-
-  const colRect = col.getBoundingClientRect();
-  const cardRect = card.getBoundingClientRect();
-  const seguintes = [];
-  for (let k = 1; k <= 2; k++) {
-    const el = cards[idx + k];
-    if (!el) break;
-    const r = el.getBoundingClientRect();
-    seguintes.push({ top: r.top, bottom: r.bottom, height: r.height });
-  }
-
-  const delta = deltaScrollListaVersiculos({
-    viewport: { top: colRect.top, bottom: colRect.bottom, height: colRect.height },
-    foco: { top: cardRect.top, bottom: cardRect.bottom, height: cardRect.height },
-    seguintes,
-  });
-  if (Math.abs(delta) < 1) return;
-
-  col.scrollTo({
-    top: col.scrollTop + delta,
-    behavior: preferenciaMovimentoReduzido() ? 'auto' : 'smooth',
-  });
-}
-
-/**
- * Marca a parte de índice `idx` como selecionada.
- *
- * Procura por `data-indice` e não por `data-versiculo`: com a divisão ligada o número do
- * versículo repete-se entre partes e a consulta antiga acertaria sempre na primeira.
- */
-function bibliaMarcarVersiculoNaUi(v, idx) {
-  const card = document.querySelector(`.biblia-v-card[data-indice="${idx}"]`);
-  document.querySelectorAll('.biblia-v-card').forEach((c) => c.classList.remove('selecionado'));
-  if (card) {
-    card.classList.add('selecionado');
-    bibliaRolarListaParaContextoDoFoco(card);
-  }
-  bibliaVersiculoSelecionadoIdx = idx;
-  return card;
-}
-
-function bibliaNavegarVersiculosComSeta(key) {
-  if (bibliaNavPopupAberto()) return;
-  const total = bibliaVersiculosCapitulo.length;
-  if (!total) {
-    const cards = document.querySelectorAll('.biblia-v-card');
-    if (!cards.length) return;
-    let idx = bibliaVersiculoSelecionadoIdx ?? -1;
-    idx = bibliaIndicePorTeclaNavegacao(key, idx, cards.length);
-    if (idx === bibliaVersiculoSelecionadoIdx && bibliaParteProjetadaChave != null) return;
-    bibliaVersiculoSelecionadoIdx = idx;
-    cards[idx].click();
-    return;
-  }
-  let idx = bibliaVersiculoSelecionadoIdx ?? -1;
-  const prox = bibliaIndicePorTeclaNavegacao(key, idx, total);
-  if (prox === idx && bibliaParteProjetadaChave != null) return;
-  const v = bibliaVersiculosCapitulo[prox];
-  if (!v) return;
-  const card = bibliaMarcarVersiculoNaUi(v, prox);
-  if (bibliaParteProjetadaChave != null) {
-    void bibliaProjetarVersiculo(v, card, { navegacaoRapida: true });
-  }
-}
-
-/** Teclado no modo Bíblia: retorna true se o evento foi consumido. */
-function bibliaTratarKeydownModo(e) {
-  if (!ehModoBibliaOperador()) return false;
-
-  const inpNav = document.getElementById('biblia-busca-rapida');
-  const tag = document.activeElement?.tagName?.toLowerCase();
-  const isField =
-    (tag === 'input' || tag === 'select' || tag === 'textarea') &&
-    document.activeElement !== inpNav;
-  if (isField) return false;
-
-  if (e.ctrlKey || e.altKey || e.metaKey) return false;
-
-  if (e.key === 'Escape') {
-    if (bibliaNavPopupAberto()) {
-      e.preventDefault();
-      bibliaNavPopupFechar();
-      return true;
-    }
-    return false;
-  }
-
-  if (bibliaNavPopupAberto()) {
-    if (document.activeElement === inpNav) return false;
-    return false;
-  }
-
-  if (
-    e.key === 'ArrowDown' ||
-    e.key === 'ArrowUp' ||
-    e.key === 'ArrowLeft' ||
-    e.key === 'ArrowRight'
-  ) {
-    e.preventDefault();
-    bibliaNavegarVersiculosComSeta(e.key);
-    return true;
-  }
-
-  if (e.key.length === 1 || e.key === 'Backspace') {
-    e.preventDefault();
-    bibliaNavPopupAbrir();
-    setTimeout(() => {
-      if (!inpNav) return;
-      inpNav.focus();
-      if (e.key === 'Backspace') {
-        inpNav.value = '';
-      } else {
-        inpNav.value = e.key;
-      }
-      bibliaBuscaRapida(inpNav.value);
-    }, 0);
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Lê a imagem de fundo já reduzida ao que o monitor consegue mostrar.
- *
- * O fundo era guardado como veio da câmara ou do banco de imagens. Um JPEG 4K de 5 MB
- * vira 6,7 MB de Base64 — que vai para o localStorage (síncrono), para o payload de
- * configuração e, dentro dele, por um `JSON.parse(JSON.stringify(...))` por janela de
- * projeção. Medido, isso custava 67 ms por aplicação de configuração; a 1920px de
- * largura, 4,7 ms.
- *
- * Imagem que já cabe na largura alvo passa intacta, no formato original — reduzir só
- * quando há o que reduzir. Acima disso vai a JPEG: um fundo de projeção ocupa o ecrã
- * inteiro e não tem o que fazer com transparência.
- *
- * @param {File} file
- * @param {number} [larguraMax] Largura alvo em pixels (padrão: 1920, um telão comum).
- * @returns {Promise<string>} data URL, ou '' se não deu para ler.
- */
-function lerImagemFundoReduzida(file, larguraMax = 1920) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onerror = () => resolve('');
-    reader.onload = () => {
-      const original = String(reader.result || '');
-      if (!original) return resolve('');
-      const img = new Image();
-      img.onerror = () => resolve(original);
-      img.onload = () => {
-        try {
-          const w = img.naturalWidth || 0;
-          const h = img.naturalHeight || 0;
-          if (w < 2 || h < 2 || w <= larguraMax) return resolve(original);
-          const escala = larguraMax / w;
-          const c = document.createElement('canvas');
-          c.width = Math.max(2, Math.round(w * escala));
-          c.height = Math.max(2, Math.round(h * escala));
-          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-          const reduzida = c.toDataURL('image/jpeg', 0.85);
-          /* Só troca se realmente encolheu — imagens muito comprimidas podem crescer. */
-          resolve(reduzida && reduzida.length < original.length ? reduzida : original);
-        } catch (_) {
-          resolve(original);
-        }
-      };
-      img.src = original;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function bibliaEscolherFundo(input) {
-  const file = input.files?.[0];
-  if (!file) return;
-  const id = input.id || '';
-  const alvo = id.includes('biblia-min') ? 'ministrante' : 'publico';
-  input.value = '';
-  const dataUrl = await lerImagemFundoReduzida(file);
-  if (dataUrl) {
-    if (alvo === 'ministrante') {
-      bibliaCfgMinistrante.bgType = 'image';
-      bibliaCfgMinistrante.bgImage = dataUrl;
-      setSelVal('cfg-biblia-min-bg-type-ctrl', 'image');
-      bibliaAtualizarVisibilidadeFundo('ministrante');
-    } else {
-      bibliaCfgExibicao.bgType = 'image';
-      bibliaCfgExibicao.bgImage = dataUrl;
-      setSelVal('cfg-biblia-pub-bg-type-ctrl', 'image');
-      bibliaAtualizarVisibilidadeFundo('publico');
-    }
-    salvarBibliaCfgNoStorage();
-    bibliaAplicarCfgExibicao();
-  }
-}
+// (extraído) Modo Bíblia (runtime) → painel/biblia.js
 
 /**
  * A Home só assume o ESC quando não há nada por cima dela.
@@ -24537,7 +22360,7 @@ document.addEventListener('keydown', (e) => {
         bibliaNavPopupFechar();
         return;
       }
-      if (bibliaParteProjetadaChave != null) {
+      if (bibliaHaParteProjetada()) {
         e.preventDefault();
         encerrarProjecaoModoBiblia();
         return;
@@ -24641,7 +22464,7 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
         bibliaNavPopupFechar();
       } else if (
-        bibliaParteProjetadaChave != null ||
+        bibliaHaParteProjetada() ||
         (estadoServidor && estadoServidor.projecaoBibliaMinistrante) ||
         (estadoServidor &&
           estadoServidor.tipo === 'biblia' &&
@@ -25126,853 +22949,8 @@ setTimeout(() => {
 // (extraído) Banner de atualização → painel/bannerAtualizacao.js
 
 window.alert = (msg) => { appAlert(msg); };
-let currentCfgCtrl = {
-  fontSize: 5, lineSpacing: 1.7, autoFitLongLines: false, posX: 'center', posY: 'center',
-  publico: {
-    bgType: 'solid',
-    bgColor: '#f5f2ea',
-    bgGradient: 'linear-gradient(135deg, #f5f2ea 0%, #e9e2d4 100%)',
-    bgImage: '',
-    textColor: '#1c1816',
-    fontSize: 5.5,
-    lineSpacing: 1.35,
-    fillScreen: false,
-    wrapLongLines: true,
-    autoFitLongLines: false,
-  },
-  ministrante: {
-    bgType: 'solid',
-    bgColor: '#000000',
-    bgGradient: 'linear-gradient(135deg, #000000 0%, #161616 100%)',
-    bgImage: '',
-    textColorAtual: '#ffffff',
-    textColorProximo: '#f3c15a',
-    commentColor: '#00c8ff',
-    aberturaTituloColor: '#f3c15a',
-    aberturaTituloFontSize: 7,
-    fontFamily: 'CMG Sans, sans-serif',
-    negrito: true,
-    italico: false,
-    maiusculo: true,
-    fontSize: 4.1,
-    lineSpacing: 1.35,
-    letterSpacing: 0,
-    wrapLongLines: true,
-    autoFitLongLines: false,
-  },
-  clock: {
-    format: 'HH:MM', fontSize: 13, dateFontSize: 2.4, verseFontSize: 2.4, showClock: true, monitorRelogio: 'ministrante', showDate: true,
-    showVerse: false, verse: '', bgType: 'solid', bgColor: '#f5f2ea',
-    bgGradient: 'linear-gradient(135deg, #1a1816 0%, #2c2420 100%)',
-    bgImage: '', textColor: '#1c1816', dateColor: '#1c1816', verseColor: '#1c1816'
-  }
-};
-let cfgAbaAtualCtrl = 'slides';
-let cfgSaveTimerCtrl = null;
-let cfgDirtyCtrl = false;
-let cfgSnapshotSalvoCtrl = '';
-let preenchendoForm = false;
-carregarSlideCfgInicialDoStorage();
-
-function syncColorSchemeCtrl() {
-  try {
-    document.documentElement.style.colorScheme = document.documentElement.classList.contains('dark')
-      ? 'dark'
-      : 'light';
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function atualizarIconeTemaCabecalho() {
-  const el = document.getElementById('btn-dark-ctrl-letter');
-  if (!el) return;
-  const isDark = document.documentElement.classList.contains('dark');
-  el.textContent = isDark ? '☀' : '☾';
-}
-
-function toggleDarkCtrl() {
-  document.documentElement.classList.toggle('dark');
-  const isDark = document.documentElement.classList.contains('dark');
-  try { localStorage.setItem(LS_DARK_CTRL, isDark ? '1' : '0'); } catch (_) {
-  // intencional — erro ignorado
-}
-  syncColorSchemeCtrl();
-  atualizarIconeTemaCabecalho();
-  sincronizarFormCfgGeral();
-}
-
-// --- SECÇÃO H — Tema escuro, modal de configuração de exibição, atalhos (ex.: Escape) ---
-function loadDarkCtrl() {
-  try {
-    const saved = localStorage.getItem(LS_DARK_CTRL);
-    if (saved === '1') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    atualizarIconeTemaCabecalho();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  syncColorSchemeCtrl();
-}
-
-function abrirCfgModal(aba) {
-  const statusEl = document.getElementById('cfg-status-ctrl');
-  if (statusEl) statusEl.textContent = '';
-  carregarBibliaCfgDoStorage();
-  bibliaPopularFormularioCfg();
-  popularFormCfgAvisoCard6();
-  popularFormCfgContagem();
-  sincronizarFormCfgGeral();
-  aprimorarControlesVisuaisCfg();
-  void carregarEstadoModoApresentacaoDoServidor().then(() => {
-    if (!algumCampoAvisoCard6EmEdicao()) popularFormCfgAvisoCard6();
-  });
-  const abaEfetiva = aba || cfgAbaAtualCtrl || abaCfgPadraoDoModo();
-  mudarAbaCfg(abaEfetiva);
-  if (cfgAbaAtualCtrl !== 'conexao' && cfgAbaAtualCtrl !== 'geral' && !ehModoBibliaOperador()) {
-    carregarCfgDoServidor();
-  }
-  atualizarUrlsObs();
-  document.getElementById('cfg-modal-overlay-ctrl').classList.add('aberto');
-}
-
-async function fecharCfgModal() {
-  if (cfgDirtyCtrl) {
-    const sair = await appConfirm('Existem alterações não salvas. Deseja sair sem salvar?');
-    if (!sair) return;
-    try {
-      const cfgSalva = JSON.parse(cfgSnapshotSalvoCtrl || '{}');
-      currentCfgCtrl = cfgSalva;
-      aplicarPreviewCfgNoServidor();
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    cfgDirtyCtrl = false;
-  }
-  document.getElementById('cfg-modal-overlay-ctrl').classList.remove('aberto');
-}
-
-function mudarAbaCfg(aba) {
-  const [pedida, destino] = resolverAbaCfgCtrl(aba);
-  const alvo = CFG_ABAS_CTRL.includes(pedida) ? pedida : abaCfgPadraoDoModo();
-  cfgAbaAtualCtrl = alvo;
-  limparCfgBusca({ manterAba: true });
-  if (alvo === 'geral') sincronizarFormCfgGeral();
-  if (alvo === 'ministrantes') renderListaCfgMinistrantes().catch(() => {});
-  CFG_ABAS_CTRL.forEach((a) => {
-    const tab = document.getElementById('cfg-tab-ctrl-' + a);
-    const panel = document.getElementById('cfg-panel-ctrl-' + a);
-    if (tab) tab.classList.toggle('ativo', a === alvo);
-    if (panel) panel.classList.toggle('ativo', a === alvo);
-  });
-  if (CFG_DESTINOS_CTRL[alvo]) {
-    mudarDestinoCfg(alvo, destino || cfgDestinoAtualCtrl[alvo]);
-  }
-  const corpo = document.getElementById('cfg-modal-body-ctrl');
-  if (corpo) corpo.scrollTop = 0;
-}
-
-async function carregarCfgDoServidor() {
-  const ip = hostProjecao();
-  if (!ip) return;
-  const cfgLocal = carregarSlideCfgDoStorage();
-  if (cfgLocal) {
-    mesclarSlideCfgNoEstado(cfgLocal);
-    const cfg = sanitizarCfgSlidesLocal(currentCfgCtrl);
-    cfgSnapshotSalvoCtrl = JSON.stringify(cfg || {});
-    cfgDirtyCtrl = false;
-    popularFormCfg(cfg);
-    if (!ehModoBibliaOperador()) {
-      enviarPreviewDisplayConfig(cfg, { modoConfig: 'slides', forcarModo: 'slides' });
-    }
-    return;
-  }
-  try {
-    /** Config do telão vive na API do app SERVIDOR (5510); :3001 aqui só é o BD local/proxy opcional — evitar GET inexistente. */
-    const res = await fetch(`http://${ip}:5510/api/display-config`);
-    if (!res.ok) return;
-    const cfg = await res.json();
-    currentCfgCtrl = cfg;
-    cfgSnapshotSalvoCtrl = JSON.stringify(cfg || {});
-    cfgDirtyCtrl = false;
-    salvarSlideCfgNoStorage();
-    popularFormCfg(cfg);
-    if (!ehModoBibliaOperador()) {
-      enviarPreviewDisplayConfig(cfg, { modoConfig: 'slides', forcarModo: 'slides' });
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function popularFormCfg(cfg) {
-  if (!cfg) return;
-  preenchendoForm = true;
-  try {
-  const fs = document.getElementById('cfg-fontsize-ctrl');
-  if (fs) { fs.value = cfg.fontSize || 5; document.getElementById('cfg-fontsize-val-ctrl').textContent = cfg.fontSize || 5; }
-  const ls = document.getElementById('cfg-linespacing-ctrl');
-  if (ls) { ls.value = cfg.lineSpacing || 1.7; document.getElementById('cfg-linespacing-val-ctrl').textContent = (cfg.lineSpacing || 1.7).toFixed(1); }
-  setChkVal('cfg-autofit-long-lines-ctrl', cfg.autoFitLongLines === true);
-  setPosCtrlBtn('posX', cfg.posX || 'center');
-  setPosCtrlBtn('posY', cfg.posY || 'center');
-  const ck = cfg.clock || {};
-  const pb = cfg.publico || {};
-  const mb = cfg.ministrante || {};
-  aplicarPublicoCfgForm(pb);
-  setSelVal('cfg-ministrante-bg-type-ctrl', mb.bgType || 'solid');
-  setInputVal('cfg-ministrante-bg-color-ctrl', mb.bgColor || '#000000');
-  setInputVal('cfg-ministrante-bg-gradient-ctrl', mb.bgGradient || '');
-  setInputVal('cfg-ministrante-text-color-atual-ctrl', mb.textColorAtual || '#ffffff');
-  setInputVal('cfg-ministrante-text-color-proximo-ctrl', mb.textColorProximo || '#f3c15a');
-  const opACor = document.getElementById('op-atual');
-  const opPCor = document.getElementById('op-proximo');
-  if (opACor) opACor.style.color = mb.textColorAtual || '#ffffff';
-  if (opPCor) opPCor.style.color = mb.textColorProximo || '#f3c15a';
-  const corComentarioForm = normalizarCorComentarioMinistrante(
-    mb.commentColor,
-    corComentarioMinistrantePainel
-  );
-  setInputVal('cfg-ministrante-comment-color-ctrl', corComentarioForm);
-  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-  currentCfgCtrl.ministrante.commentColor = corComentarioForm;
-  aplicarCorComentarioMinistranteNoPainel(corComentarioForm);
-  const mbAberturaCor = String(mb.aberturaTituloColor || '').trim() || '#f3c15a';
-  const mbAberturaFontRaw = Number(mb.aberturaTituloFontSize);
-  const mbAberturaFont = Number.isFinite(mbAberturaFontRaw) ? mbAberturaFontRaw : 7;
-  setInputVal('cfg-ministrante-abertura-titulo-color-ctrl', mbAberturaCor);
-  setInputVal('cfg-ministrante-abertura-titulo-fontsize-ctrl', mbAberturaFont);
-  setSpanText('cfg-ministrante-abertura-titulo-fontsize-val-ctrl', String(mbAberturaFont));
-  currentCfgCtrl.ministrante.aberturaTituloColor = mbAberturaCor;
-  currentCfgCtrl.ministrante.aberturaTituloFontSize = mbAberturaFont;
-  aplicarEstiloPreviewTituloAbertura();
-  const mbFontAtual = mb.fontSizeAtual ?? mb.fontSize ?? 4.1;
-  const mbFontProximo = mb.fontSizeProximo ?? mb.fontSize ?? 4.1;
-  setInputVal('cfg-ministrante-fontsize-atual-ctrl', mbFontAtual);
-  setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(mbFontAtual));
-  setInputVal('cfg-ministrante-fontsize-proximo-ctrl', mbFontProximo);
-  setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(mbFontProximo));
-  setInputVal('cfg-ministrante-linespacing-ctrl', mb.lineSpacing || 1.35);
-  setSpanText('cfg-ministrante-linespacing-val-ctrl', String(mb.lineSpacing || 1.35));
-  const mbLetter = Number(mb.letterSpacing);
-  const mbLetterOk = Number.isFinite(mbLetter) ? mbLetter : 0;
-  setSelVal('cfg-ministrante-letterspacing-ctrl', String(mbLetterOk));
-  setSpanText('cfg-ministrante-letterspacing-val-ctrl', String(mbLetterOk));
-  if (opACor) opACor.style.letterSpacing = '';
-  if (opPCor) opPCor.style.letterSpacing = '';
-  setChkVal('cfg-ministrante-wrap-ctrl', mb.wrapLongLines !== false);
-  setChkVal('cfg-ministrante-autofit-ctrl', mb.autoFitLongLines === true);
-  /* Tipografia do M3. `maiusculo` ausente = LIGADO: o ministrante sempre saiu em caixa
-     alta, logo uma config antiga (sem o campo) não pode virar minúsculas ao actualizar. */
-  setSelVal('cfg-ministrante-fontfamily-ctrl', mb.fontFamily || 'CMG Sans, sans-serif');
-  setChkVal('cfg-ministrante-negrito-ctrl', mb.negrito !== false);
-  setChkVal('cfg-ministrante-italico-ctrl', mb.italico === true);
-  setChkVal('cfg-ministrante-maiusculo-ctrl', mb.maiusculo !== false);
-  aplicarTipografiaMinistranteNoPreview(mb);
-  setSelVal('cfg-clock-format-ctrl', ck.format || 'HH:MM');
-  setChkVal('cfg-clock-show-ctrl', ck.showClock !== false);
-  setInputVal('cfg-clock-fontsize-ctrl', ck.fontSize || 13);
-  setSpanText('cfg-clock-fontsize-val-ctrl', String(ck.fontSize || 13));
-  setInputVal('cfg-clock-date-fontsize-ctrl', ck.dateFontSize || 2.4);
-  setSpanText('cfg-clock-date-fontsize-val-ctrl', String(ck.dateFontSize || 2.4));
-  setInputVal('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize || 2.4);
-  setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(ck.verseFontSize || 2.4));
-  setChkVal('cfg-clock-date-ctrl', ck.showDate !== false);
-  setChkVal('cfg-clock-verse-ctrl', !!ck.showVerse);
-  setInputVal('cfg-verse-ctrl', ck.verse || '');
-  const clockTextColor = ck.textColor || '#1c1816';
-  const clockDateColor = ck.dateColor || clockTextColor;
-  const clockVerseColor = ck.verseColor || clockTextColor;
-  setInputVal('cfg-clock-text-color-ctrl', clockTextColor);
-  setSpanText('cfg-clock-text-color-val-ctrl', clockTextColor);
-  setInputVal('cfg-clock-date-color-ctrl', clockDateColor);
-  setSpanText('cfg-clock-date-color-val-ctrl', clockDateColor);
-  setInputVal('cfg-clock-verse-color-ctrl', clockVerseColor);
-  setSpanText('cfg-clock-verse-color-val-ctrl', clockVerseColor);
-  setSelVal('cfg-clock-bg-type-ctrl', ck.bgType || 'solid');
-  setInputVal('cfg-clock-bg-color-ctrl', ck.bgColor || '#f5f2ea');
-  setSpanText('cfg-clock-bg-color-val-ctrl', ck.bgColor || '#f5f2ea');
-  setInputVal('cfg-clock-gradient-ctrl', ck.bgGradient || '');
-  onClockBgTypeCtrlChange();
-  onPublicoBgTypeCtrlChange();
-  onMinistranteBgTypeCtrlChange();
-  atualizarVisibilidadeCamposRelogio();
-  atualizarDependenciaAutoFitPublico();
-  } finally {
-    preenchendoForm = false;
-    aprimorarControlesVisuaisCfg();
-    try {
-      sincronizarPreviewOciosoMinistranteSlides();
-    } catch (_) {
-      // intencional — erro ignorado
-    }
-  }
-}
-
-function setSelVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
-function isCfgSwitchEl(el) {
-  return !!(el && (el.classList.contains('cfg-switch') || el.getAttribute('role') === 'switch'));
-}
-function getChkVal(id) {
-  const el = document.getElementById(id);
-  if (!el) return false;
-  if (isCfgSwitchEl(el)) return el.getAttribute('aria-checked') === 'true';
-  return !!el.checked;
-}
-function setChkVal(id, v) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (isCfgSwitchEl(el)) {
-    setCfgSwitchState(el, !!v);
-    return;
-  }
-  el.checked = !!v;
-}
-function toggleCfgSwitch(el) {
-  if (!el) return false;
-  const next = el.getAttribute('aria-checked') !== 'true';
-  setCfgSwitchState(el, next);
-  return next;
-}
-function setInputVal(id, v) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  /* Reescrever o valor no meio do arrasto do seletor nativo (Windows) trava a paleta. */
-  if (el.type === 'color') {
-    const atual = String(el.value || '').trim().toLowerCase();
-    const novo = String(v ?? '').trim().toLowerCase();
-    if (atual === novo) return;
-  } else if (String(el.value) === String(v)) {
-    if (el.dataset.sceMontado === '1') sincronizarSliderComEdicao(el);
-    return;
-  }
-  el.value = v;
-  if (el.dataset.sceMontado === '1') sincronizarSliderComEdicao(el);
-}
-function setSpanText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
-function lerNumeroInput(id, fallback) {
-  const el = document.getElementById(id);
-  const raw = String(el?.value || '').trim().replace(',', '.');
-  const num = Number(raw);
-  return Number.isFinite(num) ? num : fallback;
-}
-
-/** Feedback imediato no painel de pré-visualização (mesmo critério que `publicProjectionUtils`). */
-function aplicarWrapImediato(pb) {
-  const elLetrasEl = document.getElementById('pv-live-letras');
-  if (!elLetrasEl) return;
-  const wrap = pb?.wrapLongLines === true;
-  elLetrasEl.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
-  elLetrasEl.style.overflowWrap = wrap ? 'anywhere' : 'normal';
-  elLetrasEl.style.wordBreak = wrap ? 'break-word' : 'normal';
-}
-
-window.setSpanText = setSpanText;
-window.setSelVal = setSelVal;
-window.setInputVal = setInputVal;
-window.setChkVal = setChkVal;
-window.getChkVal = getChkVal;
-window.toggleCfgSwitch = toggleCfgSwitch;
-window.lerNumeroInput = lerNumeroInput;
-window.debounceSalvarCfg = debounceSalvarCfg;
-window.aplicarWrapImediato = aplicarWrapImediato;
-window.getCurrentCfgCtrl = () => currentCfgCtrl;
-window.setCurrentCfgCtrl = (next) => { currentCfgCtrl = next || {}; };
-window.getElLetras = () => elLetras;
-try {
-  if (typeof window.attachPublicDisplayConfig === 'function') {
-    window.attachPublicDisplayConfig(window);
-  }
-  exporCallbacksParaAtributosHtml({
-    onPublicoSlideCfgChange: window.onPublicoSlideCfgChange,
-    onPublicoSlideCfgRangeInput: window.onPublicoSlideCfgRangeInput,
-  });
-} catch (e) {
-  console.error('[controller] attachPublicDisplayConfig', e);
-}
-function atualizarDependenciaAutoFitPublico() {
-  const wrap = document.getElementById('cfg-publico-wrap-ctrl');
-  const auto = document.getElementById('cfg-publico-autofit-ctrl');
-  if (!wrap || !auto) return;
-  const wrapOn = isCfgSwitchEl(wrap)
-    ? wrap.getAttribute('aria-checked') === 'true'
-    : !!wrap.checked;
-  /** Igual ao telão físico (`publicProjectionUtils`): sem wrap o autoajuste está sempre ligado — reflete só com wrap opcional na UI */
-  if (isCfgSwitchEl(auto)) {
-    auto.disabled = !wrapOn;
-    auto.setAttribute('aria-disabled', wrapOn ? 'false' : 'true');
-    auto.style.opacity = wrapOn ? '' : '0.45';
-    auto.style.pointerEvents = wrapOn ? '' : 'none';
-  } else {
-    auto.disabled = !wrapOn;
-  }
-  auto.title = wrapOn
-    ? ''
-    : 'Sem quebra automática da linha longa o telão sempre reduz a fonte até caber na horizontal.';
-}
-
-try {
-  window.atualizarDependenciaAutoFitPublico = atualizarDependenciaAutoFitPublico;
-} catch (_) {
-  // intencional — erro ignorado
-}
-
-function setPosCtrl(axis, val) {
-  if (axis === 'posX') currentCfgCtrl.posX = val;
-  else currentCfgCtrl.posY = val;
-  setPosCtrlBtn(axis, val);
-  debounceSalvarCfg();
-}
-
-function setPosCtrlBtn(axis, val) {
-  const groupId = axis === 'posX' ? 'cfg-posx-ctrl-group' : 'cfg-posy-ctrl-group';
-  const group = document.getElementById(groupId);
-  if (!group) return;
-  group.querySelectorAll('.cfg-btn-pos').forEach(b => b.classList.toggle('ativo', b.dataset.val === val));
-}
-
-function aplicarCfgRelogio() {
-  const ck = currentCfgCtrl.clock || {};
-  ck.format       = document.getElementById('cfg-clock-format-ctrl')?.value || 'HH:MM';
-  ck.showClock    = (document.getElementById('cfg-clock-show-ctrl') ? getChkVal('cfg-clock-show-ctrl') : true);
-  ck.monitorRelogio = 'ministrante';
-  ck.fontSize     = lerNumeroInput('cfg-clock-fontsize-ctrl', ck.fontSize ?? 13);
-  ck.dateFontSize = lerNumeroInput('cfg-clock-date-fontsize-ctrl', ck.dateFontSize ?? 2.4);
-  ck.verseFontSize = lerNumeroInput('cfg-clock-verse-fontsize-ctrl', ck.verseFontSize ?? 2.4);
-  ck.showDate     = (document.getElementById('cfg-clock-date-ctrl') ? getChkVal('cfg-clock-date-ctrl') : true);
-  ck.showVerse    = (document.getElementById('cfg-clock-verse-ctrl') ? getChkVal('cfg-clock-verse-ctrl') : false);
-  ck.verse        = document.getElementById('cfg-verse-ctrl')?.value || '';
-  const tcEl = document.getElementById('cfg-clock-text-color-ctrl');
-  if (tcEl) { ck.textColor = tcEl.value; setSpanText('cfg-clock-text-color-val-ctrl', tcEl.value); }
-  const dcEl = document.getElementById('cfg-clock-date-color-ctrl');
-  if (dcEl) { ck.dateColor = dcEl.value; setSpanText('cfg-clock-date-color-val-ctrl', dcEl.value); }
-  const vcEl = document.getElementById('cfg-clock-verse-color-ctrl');
-  if (vcEl) { ck.verseColor = vcEl.value; setSpanText('cfg-clock-verse-color-val-ctrl', vcEl.value); }
-  const bgColEl = document.getElementById('cfg-clock-bg-color-ctrl');
-  if (bgColEl) { ck.bgColor = bgColEl.value; setSpanText('cfg-clock-bg-color-val-ctrl', bgColEl.value); }
-  ck.bgGradient   = document.getElementById('cfg-clock-gradient-ctrl')?.value || '';
-  delete ck.showChurchName;
-  delete ck.churchName;
-  delete ck.churchFontSize;
-  currentCfgCtrl.clock = ck;
-  setSpanText('cfg-clock-fontsize-val-ctrl', String(ck.fontSize));
-  setSpanText('cfg-clock-date-fontsize-val-ctrl', String(ck.dateFontSize));
-  setSpanText('cfg-clock-verse-fontsize-val-ctrl', String(ck.verseFontSize));
-  atualizarVisibilidadeCamposRelogio();
-  atualizarPreviewFundoRelogioCtrl();
-  debounceSalvarCfg();
-  try {
-    sincronizarPreviewOciosoMinistranteSlides();
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-function onClockFontSizeCtrlInput() {
-  const val = lerNumeroInput('cfg-clock-fontsize-ctrl', currentCfgCtrl.clock?.fontSize ?? 13);
-  if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
-  currentCfgCtrl.clock.fontSize = val;
-  setSpanText('cfg-clock-fontsize-val-ctrl', String(val));
-  debounceSalvarCfg();
-  try {
-    sincronizarPreviewOciosoMinistranteSlides();
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-function onClockDateFontSizeCtrlInput() {
-  aplicarCfgRelogio();
-}
-
-function onClockVerseFontSizeCtrlInput() {
-  aplicarCfgRelogio();
-}
-
-function pintarCfgBgPreview(elId, { bgType, bgColor, bgGradient, bgImage }) {
-  const prev = document.getElementById(elId);
-  if (!prev) return;
-  const tipo = bgType || 'solid';
-  prev.style.backgroundImage = '';
-  prev.style.backgroundColor = '';
-  if (tipo === 'image' && bgImage) {
-    prev.style.backgroundImage = `url(${bgImage})`;
-    prev.style.backgroundColor = 'var(--surface2)';
-  } else if (tipo === 'gradient' && bgGradient) {
-    prev.style.backgroundImage = bgGradient;
-  } else {
-    prev.style.backgroundColor = bgColor || '#000000';
-  }
-}
-
-function atualizarPreviewFundoPublicoCtrl() {
-  const p = currentCfgCtrl?.publico || {};
-  pintarCfgBgPreview('cfg-publico-bg-preview-ctrl', {
-    bgType: p.bgType,
-    bgColor: p.bgColor,
-    bgGradient: p.bgGradient,
-    bgImage: p.bgImage,
-  });
-}
-
-function atualizarPreviewFundoMinistranteCtrl() {
-  const m = currentCfgCtrl?.ministrante || {};
-  pintarCfgBgPreview('cfg-ministrante-bg-preview-ctrl', {
-    bgType: m.bgType,
-    bgColor: m.bgColor,
-    bgGradient: m.bgGradient,
-    bgImage: m.bgImage,
-  });
-}
-
-function atualizarPreviewFundoRelogioCtrl() {
-  pintarCfgBgPreview('cfg-clock-bg-preview-ctrl', {
-    bgType: document.getElementById('cfg-clock-bg-type-ctrl')?.value,
-    bgColor: document.getElementById('cfg-clock-bg-color-ctrl')?.value,
-    bgGradient: document.getElementById('cfg-clock-gradient-ctrl')?.value,
-    bgImage: currentCfgCtrl?.clock?.bgImage || '',
-  });
-}
-
-function onPublicoBgTypeCtrlChange() {
-  if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
-  const val = document.getElementById('cfg-publico-bg-type-ctrl')?.value || 'solid';
-  currentCfgCtrl.publico.bgType = val;
-  if (val !== 'image') currentCfgCtrl.publico.bgImage = '';
-  const solid = document.getElementById('cfg-publico-bg-solid-ctrl');
-  const grad = document.getElementById('cfg-publico-bg-gradient-wrap-ctrl');
-  const img = document.getElementById('cfg-publico-bg-image-wrap-ctrl');
-  if (solid) solid.style.display = val === 'solid' ? '' : 'none';
-  if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
-  if (img) img.style.display = val === 'image' ? '' : 'none';
-  atualizarPreviewFundoPublicoCtrl();
-  debounceSalvarCfg();
-}
-
-function onMinistranteBgTypeCtrlChange() {
-  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-  const val = document.getElementById('cfg-ministrante-bg-type-ctrl')?.value || 'solid';
-  currentCfgCtrl.ministrante.bgType = val;
-  if (val !== 'image') currentCfgCtrl.ministrante.bgImage = '';
-  const solid = document.getElementById('cfg-ministrante-bg-solid-ctrl');
-  const grad = document.getElementById('cfg-ministrante-bg-gradient-wrap-ctrl');
-  const img = document.getElementById('cfg-ministrante-bg-image-wrap-ctrl');
-  if (solid) solid.style.display = val === 'solid' ? '' : 'none';
-  if (grad) grad.style.display = val === 'gradient' ? '' : 'none';
-  if (img) img.style.display = val === 'image' ? '' : 'none';
-  atualizarPreviewFundoMinistranteCtrl();
-  debounceSalvarCfg();
-}
-
-function onPublicoBgColorCtrlInput() {
-  if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
-  currentCfgCtrl.publico.bgColor = document.getElementById('cfg-publico-bg-color-ctrl')?.value || '#f5f2ea';
-  atualizarPreviewFundoPublicoCtrl();
-  debounceSalvarCfg();
-}
-
-function onPublicoBgGradientCtrlInput() {
-  if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
-  currentCfgCtrl.publico.bgGradient = document.getElementById('cfg-publico-bg-gradient-ctrl')?.value || '';
-  atualizarPreviewFundoPublicoCtrl();
-  debounceSalvarCfg();
-}
-
-function onMinistranteBgColorCtrlInput() {
-  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-  currentCfgCtrl.ministrante.bgColor = document.getElementById('cfg-ministrante-bg-color-ctrl')?.value || '#000000';
-  atualizarPreviewFundoMinistranteCtrl();
-  debounceSalvarCfg();
-}
-
-function onMinistranteBgGradientCtrlInput() {
-  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-  currentCfgCtrl.ministrante.bgGradient = document.getElementById('cfg-ministrante-bg-gradient-ctrl')?.value || '';
-  atualizarPreviewFundoMinistranteCtrl();
-  debounceSalvarCfg();
-}
-
-function onPublicoBgImageCtrlChange() {
-  const file = document.getElementById('cfg-publico-bg-image-ctrl')?.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (!currentCfgCtrl.publico) currentCfgCtrl.publico = {};
-    currentCfgCtrl.publico.bgImage = e.target.result;
-    atualizarPreviewFundoPublicoCtrl();
-    debounceSalvarCfg();
-  };
-  reader.readAsDataURL(file);
-}
-
-
-/**
- * Regista a cor efectiva dos comentários. Não escreve custom property nenhuma: a cor entra
- * por `style` inline no render da prévia (ver nota em `css/controller.css`).
- */
-function aplicarCorComentarioMinistranteNoPainel(cor) {
-  corComentarioMinistrantePainel = normalizarCorComentarioMinistrante(
-    cor,
-    corComentarioMinistrantePainel
-  );
-  return corComentarioMinistrantePainel;
-}
-
-/**
- * Espelha na prévia do painel a tipografia do M3 (família, negrito, itálico, maiúsculas).
- *
- * Vai por custom properties, não por `style` directo: o CSS só as lê em
- * `.op-slide-text:not(.vazio)`, de modo que a mensagem de estado («sem slide») continua na
- * fonte da interface. Inline, o negrito/caixa alta do M3 também a apanhariam.
- *
- * Defaults iguais aos do M3 real: negrito e maiúsculas ligados quando o campo não existe.
- */
-function aplicarTipografiaMinistranteNoPreview(mn = {}) {
-  const familia = String(mn.fontFamily || '').trim();
-  const peso = mn.negrito !== false ? '600' : '400';
-  const estilo = mn.italico === true ? 'italic' : 'normal';
-  const caixa = mn.maiusculo !== false ? 'uppercase' : 'none';
-  for (const id of ['op-atual', 'op-proximo']) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    if (familia) el.style.setProperty('--m3-font-familia', familia);
-    else el.style.removeProperty('--m3-font-familia');
-    el.style.setProperty('--m3-font-peso', peso);
-    el.style.setProperty('--m3-font-estilo', estilo);
-    el.style.setProperty('--m3-font-caixa', caixa);
-  }
-}
-
-function onMinistranteSlideCfgChange() {
-  if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-  currentCfgCtrl.ministrante.textColorAtual =
-    document.getElementById('cfg-ministrante-text-color-atual-ctrl')?.value || '#ffffff';
-  currentCfgCtrl.ministrante.textColorProximo =
-    document.getElementById('cfg-ministrante-text-color-proximo-ctrl')?.value || '#f3c15a';
-  currentCfgCtrl.ministrante.commentColor = normalizarCorComentarioMinistrante(
-    document.getElementById('cfg-ministrante-comment-color-ctrl')?.value,
-    corComentarioMinistrantePainel
-  );
-  currentCfgCtrl.ministrante.aberturaTituloColor =
-    document.getElementById('cfg-ministrante-abertura-titulo-color-ctrl')?.value || '#f3c15a';
-  currentCfgCtrl.ministrante.aberturaTituloFontSize = lerNumeroInput(
-    'cfg-ministrante-abertura-titulo-fontsize-ctrl',
-    currentCfgCtrl.ministrante.aberturaTituloFontSize ?? 7
-  );
-  currentCfgCtrl.ministrante.fontSizeAtual = lerNumeroInput(
-    'cfg-ministrante-fontsize-atual-ctrl',
-    currentCfgCtrl.ministrante.fontSizeAtual ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
-  );
-  currentCfgCtrl.ministrante.fontSizeProximo = lerNumeroInput(
-    'cfg-ministrante-fontsize-proximo-ctrl',
-    currentCfgCtrl.ministrante.fontSizeProximo ?? currentCfgCtrl.ministrante.fontSize ?? 4.1
-  );
-  currentCfgCtrl.ministrante.lineSpacing = lerNumeroInput(
-    'cfg-ministrante-linespacing-ctrl',
-    currentCfgCtrl.ministrante.lineSpacing ?? 1.35
-  );
-  {
-    const rawLs = parseFloat(
-      document.getElementById('cfg-ministrante-letterspacing-ctrl')?.value ?? '0'
-    );
-    const ls = Number.isFinite(rawLs) ? Math.min(30, Math.max(-10, rawLs)) : 0;
-    currentCfgCtrl.ministrante.letterSpacing = ls;
-    setSpanText('cfg-ministrante-letterspacing-val-ctrl', String(ls));
-  }
-  currentCfgCtrl.ministrante.fontFamily =
-    document.getElementById('cfg-ministrante-fontfamily-ctrl')?.value || 'CMG Sans, sans-serif';
-  currentCfgCtrl.ministrante.negrito = getChkVal('cfg-ministrante-negrito-ctrl');
-  currentCfgCtrl.ministrante.italico = getChkVal('cfg-ministrante-italico-ctrl');
-  currentCfgCtrl.ministrante.maiusculo = getChkVal('cfg-ministrante-maiusculo-ctrl');
-  currentCfgCtrl.ministrante.wrapLongLines = getChkVal('cfg-ministrante-wrap-ctrl');
-  currentCfgCtrl.ministrante.autoFitLongLines = getChkVal('cfg-ministrante-autofit-ctrl');
-  setSpanText('cfg-ministrante-abertura-titulo-fontsize-val-ctrl', String(currentCfgCtrl.ministrante.aberturaTituloFontSize));
-  setSpanText('cfg-ministrante-fontsize-atual-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeAtual));
-  setSpanText('cfg-ministrante-fontsize-proximo-val-ctrl', String(currentCfgCtrl.ministrante.fontSizeProximo));
-  setSpanText('cfg-ministrante-linespacing-val-ctrl', String(currentCfgCtrl.ministrante.lineSpacing));
-  aplicarCorComentarioMinistranteNoPainel(currentCfgCtrl.ministrante.commentColor);
-  aplicarTipografiaMinistranteNoPreview(currentCfgCtrl.ministrante);
-  aplicarEstiloPreviewTituloAbertura();
-  const opA = document.getElementById('op-atual');
-  const opP = document.getElementById('op-proximo');
-  if (opA) {
-    opA.style.color = currentCfgCtrl.ministrante.textColorAtual || '#ffffff';
-    /* Prévia do painel não espelha letter-spacing — isso vai só ao M3 real. */
-    opA.style.letterSpacing = '';
-  }
-  if (opP) {
-    opP.style.color = currentCfgCtrl.ministrante.textColorProximo || '#f3c15a';
-    opP.style.letterSpacing = '';
-  }
-  debounceSalvarCfg();
-}
-
-function onMinistranteBgImageCtrlChange() {
-  const file = document.getElementById('cfg-ministrante-bg-image-ctrl')?.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (!currentCfgCtrl.ministrante) currentCfgCtrl.ministrante = {};
-    currentCfgCtrl.ministrante.bgImage = e.target.result;
-    atualizarPreviewFundoMinistranteCtrl();
-    debounceSalvarCfg();
-  };
-  reader.readAsDataURL(file);
-}
-
-function atualizarVisibilidadeCamposRelogio() {
-  const showVerse  = getChkVal('cfg-clock-verse-ctrl');
-  const vg  = document.getElementById('cfg-verse-group-ctrl');
-  if (vg)  vg.style.display  = showVerse  ? '' : 'none';
-}
-
-function onClockBgTypeCtrlChange() {
-  const val = document.getElementById('cfg-clock-bg-type-ctrl')?.value || 'solid';
-  if (!currentCfgCtrl.clock) currentCfgCtrl.clock = {};
-  currentCfgCtrl.clock.bgType = val;
-  if (val !== 'image') currentCfgCtrl.clock.bgImage = '';
-  const solid    = document.getElementById('cfg-bg-solid-ctrl');
-  const gradient = document.getElementById('cfg-bg-gradient-ctrl');
-  const image    = document.getElementById('cfg-bg-image-ctrl');
-  if (solid)    solid.style.display    = val === 'solid'    ? '' : 'none';
-  if (gradient) gradient.style.display = val === 'gradient' ? '' : 'none';
-  if (image)    image.style.display    = val === 'image'    ? '' : 'none';
-  atualizarPreviewFundoRelogioCtrl();
-  debounceSalvarCfg();
-}
-
-function onClockBgImageCtrlChange() {
-  const file = document.getElementById('cfg-clock-image-ctrl')?.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (currentCfgCtrl.clock) currentCfgCtrl.clock.bgImage = e.target.result;
-    atualizarPreviewFundoRelogioCtrl();
-    debounceSalvarCfg();
-  };
-  reader.readAsDataURL(file);
-}
-
-function aplicarPreviewCfgNoServidor() {
-  if (ehModoBibliaOperador()) return;
-  salvarSlideCfgNoStorage();
-  enviarPreviewDisplayConfig(currentCfgCtrl, { modoConfig: 'slides', forcarModo: 'slides' });
-  try {
-    sincronizarPreviewOciosoMinistranteSlides();
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-}
-
-function debounceSalvarCfg() {
-  if (preenchendoForm) return;
-  clearTimeout(cfgSaveTimerCtrl);
-  cfgDirtyCtrl = JSON.stringify(currentCfgCtrl || {}) !== cfgSnapshotSalvoCtrl;
-  cfgSaveTimerCtrl = setTimeout(() => {
-    if (ehModoBibliaOperador()) {
-      salvarSlideCfgNoStorage();
-      enviarPreviewDisplayConfig({ clock: currentCfgCtrl?.clock || {} }, {
-        modoConfig: 'slides',
-        forcarModo: 'slides',
-      });
-      return;
-    }
-    aplicarPreviewCfgNoServidor();
-  }, 120);
-}
-
-async function salvarCfgNoServidor() {
-  const ip = hostProjecao();
-  const statusEl = document.getElementById('cfg-status-ctrl');
-  if (!ip) { if (statusEl) statusEl.textContent = 'Sem IP configurado'; return; }
-
-  if (ehModoBibliaOperador()) {
-    lerBibliaCfgDoFormularioPublico();
-    lerBibliaCfgDoFormularioMinistrante();
-    salvarBibliaCfgNoStorage();
-    const payloadBiblia = {
-      ...bibliaPayloadCfgExibicao(),
-      modoConfig: 'biblia',
-      forcarModo: 'biblia',
-    };
-    if (projecao.pronta()) {
-      projecao.enviar('set_display_config', { clock: currentCfgCtrl?.clock || {}, modoConfig: 'slides' });
-      projecao.enviar('set_display_config', payloadBiblia, (ack) => {
-        if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
-        if (ack?.ok) {
-          cfgDirtyCtrl = false;
-          salvarSlideCfgNoStorage();
-          fecharCfgModal();
-        }
-        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-      });
-      return;
-    }
-    try {
-      const res = await fetch(`http://${ip}:5510/api/display-config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadBiblia),
-      });
-      if (statusEl) statusEl.textContent = res.ok ? 'Salvo ✓' : 'Erro ao salvar';
-      if (res.ok) {
-        cfgDirtyCtrl = false;
-        salvarSlideCfgNoStorage();
-        fecharCfgModal();
-      }
-      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-    } catch (_) {
-      if (statusEl) statusEl.textContent = 'Erro de rede';
-      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-    }
-    return;
-  }
-
-  if (projecao.pronta()) {
-    const payloadSlides = {
-      ...(currentCfgCtrl || {}),
-      modoConfig: 'slides',
-      forcarModo: 'slides',
-    };
-    projecao.enviar('set_display_config', payloadSlides, (ack) => {
-      if (statusEl) statusEl.textContent = ack?.ok ? 'Salvo ✓' : 'Erro ao salvar';
-      if (ack?.ok) {
-        cfgSnapshotSalvoCtrl = JSON.stringify(currentCfgCtrl || {});
-        cfgDirtyCtrl = false;
-        salvarSlideCfgNoStorage();
-        fecharCfgModal();
-      }
-      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-    });
-    return;
-  }
-  try {
-    const res = await fetch(`http://${ip}:5510/api/display-config`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentCfgCtrl)
-    });
-    if (statusEl) statusEl.textContent = res.ok ? 'Salvo ✓' : 'Erro ao salvar';
-    if (res.ok) {
-      cfgSnapshotSalvoCtrl = JSON.stringify(currentCfgCtrl || {});
-      cfgDirtyCtrl = false;
-      salvarSlideCfgNoStorage();
-      fecharCfgModal();
-    }
-    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-  } catch (_) {
-    if (statusEl) statusEl.textContent = 'Erro de rede';
-    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
-  }
-}
-
-loadDarkCtrl();
-
-window.bibliaCfgExibicao = bibliaCfgExibicao;
-window.bibliaCfgMinistrante = bibliaCfgMinistrante;
+// (extraído) Exibição (Ajustes) → painel/configExibicao.js
+iniciarConfigExibicao();
 
 function bootOverlaysEAppDialogCtrl() {
   try {
@@ -25994,73 +22972,7 @@ function bootOverlaysEAppDialogCtrl() {
   aprimorarControlesVisuaisCfg();
 }
 
-/** Slider vh com pontinhos 0…max (atributo do input) + cores com código hex à direita. */
-function aprimorarControlesVisuaisCfg() {
-  inicializarSlidersComEdicao(document.querySelector('.cfg-modal') || document);
-  document.querySelectorAll('.cfg-modal .cfg-slider--vh').forEach((input) => {
-    if (input.dataset.sceMontado === '1' || input.hasAttribute('data-sce-label')) return;
-    if (input.dataset.cfgTicks === '1') {
-      sincronizarTicksSliderVh(input);
-      return;
-    }
-    const maxVh = Math.max(0, Math.round(Number(input.max) || 9));
-    input.min = '0';
-    input.max = String(maxVh);
-    input.step = '1';
-    const rounded = Math.max(0, Math.min(maxVh, Math.round(Number(input.value) || 0)));
-    input.value = String(rounded);
-    input.dataset.cfgTicks = '1';
-    const wrap = document.createElement('div');
-    wrap.className = 'cfg-size-wrap';
-    input.parentNode.insertBefore(wrap, input);
-    wrap.appendChild(input);
-    const ticks = document.createElement('div');
-    ticks.className = 'cfg-size-ticks';
-    ticks.setAttribute('aria-hidden', 'true');
-    for (let i = 0; i <= maxVh; i += 1) {
-      const d = document.createElement('span');
-      d.className = 'cfg-size-tick';
-      d.dataset.n = String(i);
-      if (i === 0 || i === maxVh) d.setAttribute('data-label', String(i));
-      ticks.appendChild(d);
-    }
-    wrap.appendChild(ticks);
-    input.addEventListener('input', () => sincronizarTicksSliderVh(input));
-    sincronizarTicksSliderVh(input);
-  });
-
-  document.querySelectorAll('.cfg-modal input[type=color]').forEach((input) => {
-    /*
-     * Windows + Electron: o diálogo nativo de cor dispara `input` a cada pixel.
-     * Qualquer trabalho pesado aí (ler formulário, preview, IPC) trava a paleta.
-     * No arrasto só atualizamos o hex; a aplicação vai no `change` (ao confirmar).
-     */
-    if (!input.dataset.lyraCorLigada) {
-      input.dataset.lyraCorLigada = '1';
-      const aplicarArrasto = input.oninput;
-      if (typeof aplicarArrasto === 'function') {
-        input.oninput = null;
-        input.removeAttribute('oninput');
-        input.addEventListener('change', (ev) => aplicarArrasto.call(input, ev));
-      }
-      input.addEventListener('input', () => {
-        const hex = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
-        if (hex) hex.textContent = String(input.value || '#000000').toUpperCase();
-      });
-    }
-    if (!input.closest('.cfg-color-row')) {
-      const row = document.createElement('div');
-      row.className = 'cfg-color-row';
-      const val = document.createElement('span');
-      val.className = 'cfg-color-val';
-      input.parentNode.insertBefore(row, input);
-      row.appendChild(input);
-      row.appendChild(val);
-    }
-    const hex = input.closest('.cfg-color-row')?.querySelector('.cfg-color-val');
-    if (hex) hex.textContent = String(input.value || '#000000').toUpperCase();
-  });
-}
+// (extraído) aprimorarControlesVisuaisCfg → painel/configExibicao.js
 
 function sincronizarTicksSliderVh(input) {
   const wrap = input.closest('.cfg-size-wrap');
