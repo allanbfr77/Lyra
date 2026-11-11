@@ -72,6 +72,11 @@
  *   bibliotecaMidiasApresentacao.js — mídias: criação de itens a partir de arquivos e biblioteca de mídias (abas, busca, renomear, excluir)
  *   playlistVideoApresentacao.js — mídias: playlist de vídeos (avanço automático, ordem, atraso, interface) e controles de áudio do servidor
  *   gridApresentacao.js — mídias: grelha de cards da apresentação (seleção, card de 4 imagens, adicionar arquivos)
+ *   estadoApresentacao.js — mídias: estado do modo apresentação (coletar/aplicar, gravar no armazenamento, sincronizar com o servidor)
+ *   slidesStrip.js — faixa de slides: renderização, menu de contexto, edição rápida e exclusão de slide
+ *   projecaoLocalObs.js — projeção nesta máquina (IPC) e URLs de OBS
+ *   previewLetras.js — modal de pré-visualização de letras (catálogo online/offline, linhas por slide, cópia)
+ *   preVoo.js — pré-voo do culto: verificação de telas, músicas e mídias antes de começar
  * =============================================================================
  */
 
@@ -82,7 +87,6 @@ import {
   LS_PREVIEW_PAINEL_OCULTO,
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
-  LS_APRESENTACAO_STATE,
   SVG_OLHO_ABERTO,
   SVG_OLHO_CORTADO,
   LS_PLAYLISTS,
@@ -107,7 +111,6 @@ import {
 } from './modules/copiasLocaisLetra.js';
 import {
   versaoLocalIdTrimado,
-  idMusicaParaPreVoo,
   fonteBancoNormalizada,
   fonteBancoItemPlaylist,
   ehMarcadorTemaPlaylist,
@@ -119,18 +122,14 @@ import {
 } from './modules/fonteLetrasSite.js';
 import {
   criarSlidesGrelha,
-  digestEstrofesParaStripFaixa,
   textoSlideMaiusculo,
-  textoSlideSnippetHtmlParaChip,
 } from './modules/slidesGrelha.js';
 import { criarIrParaSlideNumero } from './modules/slidesIrParaNumero.js';
 import {
   rotuloTipoMidiaApresentacao,
   svgIconeTipoMidiaApresentacao,
-  normalizarItemApresentacao as normalizarItemApresentacaoPuro,
   clonarCfgAvisoCard6Padrao,
   normalizarCfgAvisoCard6,
-  cfgAvisoCard6TemPersonalizacao,
 } from './modules/midiaApresentacao.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import {
@@ -156,7 +155,7 @@ import {
   registrarEscolhaMonitor,
   rotaLembradaParaEntrada,
 } from './modules/monitorLembrado.js';
-import { criarMenuFlutuante, fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
+import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import {
   estaSelecionada,
   rotuloConfirmacaoExclusaoLote,
@@ -165,7 +164,6 @@ import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import {
   configurarNotasSlideControlador,
-  atualizarNotaSlideControladorUI,
 } from './modules/notasSlideControlador.js';
 import {
   filtrarLinhasParaPublico,
@@ -189,9 +187,7 @@ import {
 import {
   criarPortaProjecao,
   criarTransporteSocket,
-  criarTransporteLocal,
 } from './modules/projecaoPorta.js';
-import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
 import {
   resumirComparacao,
 } from './modules/diffLetrasComparativo.js';
@@ -205,16 +201,6 @@ import {
   rotaCobreAlvo,
 } from './modules/rotaEnvioBiblia.js';
 import { criarSocketPainel } from './modules/socketPainel.js';
-import {
-  GRAVIDADE_IMPEDE,
-  verificarTelas,
-  verificarTonsEMinistrantes,
-  verificarLetras,
-  verificarMidias,
-  verificarPlaylistVazia,
-  consolidar,
-  resumoPreVoo,
-} from './modules/preVooPlaylist.js';
 import {
   appDialogEstado,
   fecharAppDialog,
@@ -349,7 +335,6 @@ import {
   onPublicoBgImageCtrlChange,
   onPublicoBgTypeCtrlChange,
   popularFormCfg,
-  popularFormCfgAvisoCard6,
   registrarDependenciasConfigExibicao,
   salvarCfgNoServidor,
   setCfgSwitchState,
@@ -382,8 +367,6 @@ import {
   filtrar,
   garantirBuscaLetrasEditavel,
   garantirBuscaLocalEditavel,
-  importarLetrasDoCatalogoParaBanco,
-  importarLetrasParaBanco,
   initBancoPainelFromStorage,
   limparBuscaLetras,
   onBancoFonteChange,
@@ -562,7 +545,6 @@ import {
 } from './painel/playlistMenus.js';
 import {
   registrarDependenciasVideoApresentacao,
-  restaurarItemVideoApresentacao,
   restaurarVideosModoApresentacao,
   urlMidiaApresentacaoHttpPorId,
   videoProjetadoAtivoNoPlayer,
@@ -591,7 +573,6 @@ import {
   renderMenuApresentacao,
 } from './painel/bibliotecaMidiasApresentacao.js';
 import {
-  PLAYLIST_ATRASOS_PERMITIDOS,
   aoTerminarVideoPlaylist,
   atualizarPlaylistUiAoVivoSeMudou,
   cancelarAvancoAutoPlaylist,
@@ -615,6 +596,57 @@ import {
   setApresentacaoCardSelecionadoIdx,
   setApresentacaoCardUiClickTimer,
 } from './painel/gridApresentacao.js';
+import {
+  agendarSalvarEstadoAposDigitarAviso,
+  ajustarEstadoVisualRetomadaAudio,
+  armarGuardaVisualRetomadaAudio,
+  carregarEstadoModoApresentacaoDoServidor,
+  carregarEstadoModoApresentacaoDoStorage,
+  encerrarModoApresentacaoNoTelao,
+  flushSalvarEstadoAposDigitarAviso,
+  gravarEstadoModoApresentacaoNoStorageAgora,
+  limparGuardaVisualRetomadaAudio,
+  normalizarItemApresentacao,
+  registrarDependenciasEstadoApresentacao,
+  salvarEstadoModoApresentacaoNoStorage,
+} from './painel/estadoApresentacao.js';
+import {
+  abrirSlideQuickEditModal,
+  fecharSlideDeleteConfirmModal,
+  fecharSlideQuickEditModal,
+  registrarDependenciasSlidesStrip,
+  renderSlidesStrip,
+  setupSlidesStripContextMenuEEdicaoRapida,
+} from './painel/slidesStrip.js';
+import {
+  alternarProjecaoNestaMaquina,
+  atualizarUrlsObs,
+  copiarUrlObs,
+  desligarProjecaoNestaMaquina,
+  emModoProjecaoLocal,
+  getProjecaoLocalActiva,
+  getProjecaoLocalEmCurso,
+  getServidorLanIpObs,
+  ligarProjecaoNestaMaquina,
+  ponteProjecaoLocal,
+  registrarDependenciasProjecaoLocalObs,
+  setServidorLanIpObs,
+  setServidorObsPort,
+} from './painel/projecaoLocalObs.js';
+import {
+  abrirModalPreviewLetras,
+  abrirModalPreviewLetrasOffline,
+  configurarModalPreviewLetras,
+  definirIsolamentoSelecaoPreviewLetras,
+  fecharModalPreviewLetras,
+  registrarDependenciasPreviewLetras,
+} from './painel/previewLetras.js';
+import {
+  correrPreVooDoCulto,
+  iniciarPreVoo,
+  registrarDependenciasPreVoo,
+  setPreVooMonitoresEmFalta,
+} from './painel/preVoo.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -1401,6 +1433,134 @@ registrarDependenciasGridApresentacao({
     apresentacaoMidiaProjetadaId = valor;
   },
   getAudioStateRemoto: () => audioStateRemoto,
+});
+registrarDependenciasEstadoApresentacao({
+  algumCampoAvisoCard6EmEdicao,
+  aplicarExtrasModoApresentacao,
+  ehModoApresentacaoOperador,
+  encerrarProjecaoModoApresentacao,
+  getControllerApiBase,
+  hostProjecao,
+  modoRoteamentoAtual,
+  normalizarRota,
+  renderRoteamentoTelas,
+  salvarAvisoCard6CfgNoStorage,
+  getAPRESENTACAO_IDX_CARD4: () => APRESENTACAO_IDX_CARD4,
+  getAPRESENTACAO_IDX_CARD5: () => APRESENTACAO_IDX_CARD5,
+  get_playlistUiTocandoCache: () => _playlistUiTocandoCache,
+  set_playlistUiTocandoCache: (valor) => {
+    _playlistUiTocandoCache = valor;
+  },
+  getApresentacaoArquivoSelecionadoId: () => apresentacaoArquivoSelecionadoId,
+  setApresentacaoArquivoSelecionadoId: (valor) => {
+    apresentacaoArquivoSelecionadoId = valor;
+  },
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  setApresentacaoAudioAtualId: (valor) => {
+    apresentacaoAudioAtualId = valor;
+  },
+  getApresentacaoAudios: () => apresentacaoAudios,
+  setApresentacaoAudios: (valor) => {
+    apresentacaoAudios = valor;
+  },
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  setApresentacaoBiblioteca: (valor) => {
+    apresentacaoBiblioteca = valor;
+  },
+  getApresentacaoCard4Imagens: () => apresentacaoCard4Imagens,
+  getApresentacaoCard6AvisoCfg: () => apresentacaoCard6AvisoCfg,
+  getApresentacaoCard6Texto: () => apresentacaoCard6Texto,
+  getApresentacaoCards: () => apresentacaoCards,
+  setApresentacaoCards: (valor) => {
+    apresentacaoCards = valor;
+  },
+  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
+  setApresentacaoVideoPlaylist: (valor) => {
+    apresentacaoVideoPlaylist = valor;
+  },
+  getAudioLoopAtivo: () => audioLoopAtivo,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getPlaylistVideoAtiva: () => playlistVideoAtiva,
+  setPlaylistVideoAtiva: (valor) => {
+    playlistVideoAtiva = valor;
+  },
+  getPlaylistVideoAtrasoAuto: () => playlistVideoAtrasoAuto,
+  setPlaylistVideoAtrasoAuto: (valor) => {
+    playlistVideoAtrasoAuto = valor;
+  },
+  getPlaylistVideoIndice: () => playlistVideoIndice,
+  setPlaylistVideoIndice: (valor) => {
+    playlistVideoIndice = valor;
+  },
+  getPlaylistVideoModo: () => playlistVideoModo,
+  setPlaylistVideoModo: (valor) => {
+    playlistVideoModo = valor;
+  },
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasSlidesStrip({
+  ajustarEncaixeGrelhaSlidesModoSlides,
+  aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice,
+  atualizarPreviewOperador,
+  atualizarSlidesInstrucoes,
+  atualizarSomenteAtivoFaixaSlides,
+  definirControlosZoomFaixaSlidesInertes,
+  definirNomeMusicaBarraSlides,
+  definirVazioDaFaixaSlidesVisivel,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  emitirEstrofeAoServidor,
+  exibirEstrofe,
+  marcacaoEstrofeEditor,
+  podeAtualizarSomenteAtivoFaixaSlides,
+  projetarPorDuploCliqueCentral,
+  getEstadoServidor: () => estadoServidor,
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  getMusicaAtiva: () => musicaAtiva,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getSlidesGrelha: () => slidesGrelha,
+  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
+});
+registrarDependenciasProjecaoLocalObs({
+  atualizarUiConexao,
+  carregarRoteamentoTelasDoServidor,
+  ehModoBibliaOperador,
+  emitirEstadoMinistranteAoServidor,
+  getServidorIp,
+  recordarIpsDestaMaquina,
+  setStatusServidorRemoto,
+  getPapelControladorLocal: () => papelControladorLocal,
+  setPapelControladorLocal: (valor) => {
+    papelControladorLocal = valor;
+  },
+  getProjecao: () => projecao,
+  getSocket: () => socket,
+});
+registrarDependenciasPreviewLetras({
+  getControllerApiBase,
+  selecionarMusicaDoBanco,
+});
+registrarDependenciasPreVoo({
+  getControllerApiBase,
+  getPlaylist,
+  nomeCultoAtivoParaHistorico,
+  normalizarRota,
+  obterRotaSlidesParaUi,
+  sanitizarRotaProjecao,
+  getApresentacaoAudios: () => apresentacaoAudios,
+  getApresentacaoBiblioteca: () => apresentacaoBiblioteca,
+  getApresentacaoCards: () => apresentacaoCards,
+  getApresentacaoVideoPlaylist: () => apresentacaoVideoPlaylist,
+  getCultoId: () => cultoId,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getRotasPorModo: () => rotasPorModo,
 });
 
 /**
@@ -4754,7 +4914,7 @@ let _playlistProjetando = false;
 // (extraído) arrastar na playlist de vídeos → painel/playlistVideoApresentacao.js
 /** Cache do estado tocando/pausado para atualizar a UI só em transições. */
 let _playlistUiTocandoCache = null;
-let audioResumeVisualGuard = null;
+// (extraído) guarda visual do áudio → painel/estadoApresentacao.js
 let audioSeekDragging = false;
 let apresentacaoCardInputTarget = null;
 let rotasPorModo = {
@@ -4794,324 +4954,10 @@ let estadoServidor = null;
 let previewPainelOcultoLocal = [false, false];
 /** Composição visual da Home; música, versões e edição continuam neste núcleo. */
 let homeLayout = null;
-let syncApresentacaoTimer = null;
-let syncApresentacaoInFlight = false;
-let syncApresentacaoPending = false;
+// (extraído) sincronização do estado → painel/estadoApresentacao.js
 let syncApresentacaoAvisoLiveTimer = null;
 
-function limparGuardaVisualRetomadaAudio() {
-  audioResumeVisualGuard = null;
-}
-
-function armarGuardaVisualRetomadaAudio(itemId, currentTime) {
-  const t = Math.max(0, Number(currentTime) || 0);
-  if (!itemId || t <= 0) {
-    limparGuardaVisualRetomadaAudio();
-    return;
-  }
-  audioResumeVisualGuard = {
-    itemId: String(itemId),
-    targetTime: t,
-    expiresAt: performance.now() + 1800,
-  };
-}
-
-function ajustarEstadoVisualRetomadaAudio(st, estadoAnterior) {
-  const guard = audioResumeVisualGuard;
-  if (!guard) return st;
-  if (performance.now() > guard.expiresAt) {
-    limparGuardaVisualRetomadaAudio();
-    return st;
-  }
-  if (guard.itemId !== String(apresentacaoAudioAtualId || '')) {
-    limparGuardaVisualRetomadaAudio();
-    return st;
-  }
-  const mediaKind = String(st?.mediaKind || estadoAnterior?.mediaKind || '');
-  if (mediaKind !== 'audio') {
-    limparGuardaVisualRetomadaAudio();
-    return st;
-  }
-  const incomingTime = Number(st?.currentTime);
-  if (!Number.isFinite(incomingTime)) return st;
-  if (incomingTime >= Math.max(0, guard.targetTime - 0.25)) {
-    limparGuardaVisualRetomadaAudio();
-    return st;
-  }
-  return {
-    ...st,
-    currentTime: Math.max(0, Number(estadoAnterior?.currentTime) || 0),
-    duration: Math.max(Number(st?.duration) || 0, Number(estadoAnterior?.duration) || 0),
-  };
-}
-
-function normalizarItemApresentacao(raw) {
-  return normalizarItemApresentacaoPuro(raw, getControllerApiBase());
-}
-
-async function encerrarModoApresentacaoNoTelao() {
-  await encerrarProjecaoModoApresentacao();
-}
-
-function coletarEstadoModoApresentacaoAtual() {
-  return {
-    biblioteca: (apresentacaoBiblioteca || []).map((it) => normalizarItemApresentacao(it)).filter(Boolean),
-    cards: Array.from({ length: 6 }, (_, i) => {
-      if (i === 5) return null;
-      return normalizarItemApresentacao(apresentacaoCards?.[i] || null);
-    }),
-    audios: (apresentacaoAudios || []).map((it) => normalizarItemApresentacao(it)).filter((it) => it && it.kind === 'audio'),
-    arquivoSelecionadoId: apresentacaoArquivoSelecionadoId || '',
-    audioSelecionadoId: apresentacaoAudioAtualId || '',
-    videoPlaylist: {
-      modo: playlistVideoModo === 'auto' ? 'auto' : 'manual',
-      atrasoAuto: PLAYLIST_ATRASOS_PERMITIDOS.includes(Number(playlistVideoAtrasoAuto))
-        ? Number(playlistVideoAtrasoAuto)
-        : 0,
-      itens: (apresentacaoVideoPlaylist || [])
-        .map((it) => {
-          const base = normalizarItemApresentacao(it);
-          if (!base || base.kind !== 'video') return null;
-          if (Number(it && it.duracao) > 0) base.duracao = Number(it.duracao);
-          return base;
-        })
-        .filter(Boolean),
-    },
-    extras: {
-      audioLoop: !!audioLoopAtivo,
-      /* As quatro áreas do card 4 vão nos extras, e não em `cards`: assim o formato de
-         `cards` (seis posições, uma mídia cada) continua o mesmo para quem o lê — o
-         storage e o estado partilhado com os outros controladores. */
-      card4Imagens: Array.from({ length: 4 }, (_, i) =>
-        normalizarItemApresentacao(apresentacaoCard4Imagens?.[i] || null)),
-      card6AvisoTexto: apresentacaoCard6Texto,
-      card6AvisoConfig: normalizarCfgAvisoCard6(apresentacaoCard6AvisoCfg),
-    },
-  };
-}
-
-function aplicarEstadoModoApresentacao(payload, opts = {}) {
-  const p = payload && typeof payload === 'object' ? payload : {};
-  const biblioteca = Array.isArray(p.biblioteca) ? p.biblioteca.map(normalizarItemApresentacao).filter(Boolean) : [];
-  const cardsRaw = Array.isArray(p.cards) ? p.cards : [];
-  const cards = Array.from({ length: 6 }, (_, i) => {
-    if (i === 5) return null;
-    return normalizarItemApresentacao(cardsRaw[i] || null);
-  });
-  const audios = Array.isArray(p.audios)
-    ? p.audios.map(normalizarItemApresentacao).filter((it) => it && it.kind === 'audio')
-    : [];
-  apresentacaoBiblioteca = biblioteca;
-  apresentacaoCards = cards;
-  apresentacaoAudios = audios;
-  const vp = p.videoPlaylist && typeof p.videoPlaylist === 'object' ? p.videoPlaylist : {};
-  playlistVideoModo = vp.modo === 'auto' ? 'auto' : 'manual';
-  playlistVideoAtrasoAuto = PLAYLIST_ATRASOS_PERMITIDOS.includes(Math.round(Number(vp.atrasoAuto)))
-    ? Math.round(Number(vp.atrasoAuto))
-    : 0;
-  apresentacaoVideoPlaylist = Array.isArray(vp.itens)
-    ? vp.itens
-        .map((raw) => {
-          const base = normalizarItemApresentacao(raw);
-          if (!base || base.kind !== 'video') return null;
-          if (raw && Number(raw.duracao) > 0) base.duracao = Number(raw.duracao);
-          return base;
-        })
-        .filter(Boolean)
-    : [];
-  cancelarAvancoAutoPlaylist();
-  playlistVideoIndice = -1;
-  playlistVideoAtiva = false;
-  _playlistUiTocandoCache = null;
-  const v5 = apresentacaoCards[APRESENTACAO_IDX_CARD5];
-  if (v5?.kind === 'video') {
-    void restaurarItemVideoApresentacao(v5).then((it) => {
-      if (!it) return;
-      apresentacaoCards[APRESENTACAO_IDX_CARD5] = it;
-      salvarEstadoModoApresentacaoNoStorage();
-      if (ehModoApresentacaoOperador()) renderGridApresentacao();
-    });
-  }
-  const arqSel = String(p.arquivoSelecionadoId || '');
-  const audSel = String(p.audioSelecionadoId || '');
-  apresentacaoArquivoSelecionadoId = arqSel && biblioteca.some((it) => it.id === arqSel) ? arqSel : null;
-  apresentacaoAudioAtualId = audSel && audios.some((it) => it.id === audSel) ? audSel : null;
-  aplicarExtrasModoApresentacao(p.extras, {
-    skipCard6Aviso: !!opts.skipCard6Extras,
-    skipCard6AvisoConfig: !!opts.skipCard6Extras,
-  });
-  /* Estado gravado antes de o card 4 se dividir em quatro: o ficheiro que ocupava o card
-     inteiro passa para a primeira das áreas, em vez de desaparecer do painel sem aviso.
-     Daí em diante o slot 3 de `apresentacaoCards` fica sempre vazio. */
-  const legadoCard4 = apresentacaoCards[APRESENTACAO_IDX_CARD4];
-  if (legadoCard4 && !apresentacaoCard4Imagens.some(Boolean)) {
-    apresentacaoCard4Imagens[0] = legadoCard4;
-  }
-  apresentacaoCards[APRESENTACAO_IDX_CARD4] = null;
-  if (ehModoApresentacaoOperador()) {
-    const modo = modoRoteamentoAtual();
-    renderRoteamentoTelas(monitoresServidorCache, normalizarRota(rotasPorModo[modo]));
-  }
-}
-
-let _salvarEstadoApresentacaoTimer = null;
-let _avisouQuotaApresentacao = false;
-
-/**
- * Grava mesmo. Só o agendador abaixo e o `beforeunload` chamam isto directamente.
- */
-function gravarEstadoModoApresentacaoNoStorageAgora() {
-  clearTimeout(_salvarEstadoApresentacaoTimer);
-  _salvarEstadoApresentacaoTimer = null;
-  try {
-    localStorage.setItem(LS_APRESENTACAO_STATE, JSON.stringify(coletarEstadoModoApresentacaoAtual()));
-    _avisouQuotaApresentacao = false;
-  } catch (e) {
-    /*
-     * Isto falhava em silêncio, e o silêncio escondia um problema real: com a mídia
-     * embutida em base64, um único áudio já leva o estado para lá dos ~5 MB de quota do
-     * localStorage, a gravação nunca acontece — e o custo de a tentar (serializar dezenas
-     * de MB) é pago à mesma. Enquanto a mídia não sair do estado, que ao menos deixe rasto.
-     */
-    if (!_avisouQuotaApresentacao) {
-      _avisouQuotaApresentacao = true;
-      console.warn(
-        '[Lyra] estado do modo Mídias não foi gravado no localStorage:',
-        (e && e.name) || '',
-        (e && e.message) || ''
-      );
-    }
-  }
-  salvarAvisoCard6CfgNoStorage();
-  agendarSincronizacaoEstadoModoApresentacaoServidor();
-}
-
-/**
- * Agenda a gravação do estado do modo Mídias.
- *
- * Havia 31 pontos a chamar a gravação directa, e cada uma serializa o estado inteiro —
- * biblioteca, cards, áudios e playlist, com a mídia em base64 lá dentro. Adicionar 10
- * áudios chamava-a 10 vezes sobre um objecto que crescia a cada volta: trabalho
- * quadrático sobre dezenas de MB, medido em ~4 s numa máquina rápida.
- *
- * O debounce é de arrasto: chamadas seguidas empurram a gravação para a frente, e um
- * lote inteiro rende uma escrita só. Quem precisa de gravar já — sair da janela —
- * chama `gravarEstadoModoApresentacaoNoStorageAgora`.
- */
-function salvarEstadoModoApresentacaoNoStorage() {
-  clearTimeout(_salvarEstadoApresentacaoTimer);
-  _salvarEstadoApresentacaoTimer = setTimeout(gravarEstadoModoApresentacaoNoStorageAgora, 200);
-}
-
-/**
- * Debounce da gravação ao digitar avisos (Card 6). Persistir o estado inteiro do modo
- * Apresentação (biblioteca, cards, áudios, playlist — imagens podem ser base64) a cada tecla
- * trava a digitação. O texto já é atualizado em memória na hora; aqui só adiamos a gravação.
- */
-let _salvarEstadoAposDigitarAvisoTimer = null;
-function agendarSalvarEstadoAposDigitarAviso() {
-  if (_salvarEstadoAposDigitarAvisoTimer) clearTimeout(_salvarEstadoAposDigitarAvisoTimer);
-  _salvarEstadoAposDigitarAvisoTimer = setTimeout(() => {
-    _salvarEstadoAposDigitarAvisoTimer = null;
-    salvarEstadoModoApresentacaoNoStorage();
-  }, 350);
-}
-function flushSalvarEstadoAposDigitarAviso() {
-  if (!_salvarEstadoAposDigitarAvisoTimer) return;
-  clearTimeout(_salvarEstadoAposDigitarAvisoTimer);
-  _salvarEstadoAposDigitarAvisoTimer = null;
-  salvarEstadoModoApresentacaoNoStorage();
-}
-
-function carregarEstadoModoApresentacaoDoStorage() {
-  try {
-    const raw = localStorage.getItem(LS_APRESENTACAO_STATE);
-    if (!raw) return;
-    const p = JSON.parse(raw);
-    aplicarEstadoModoApresentacao(p);
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-async function sincronizarEstadoModoApresentacaoServidor() {
-  if (syncApresentacaoInFlight) {
-    syncApresentacaoPending = true;
-    return;
-  }
-  /* O destino do `fetch` abaixo é o banco desta máquina (:3001), não o Servidor — o nome
-     da função é herança de quando o Controlador retransmitia. O guard existe para não
-     gravar quando não há projeção alcançável, e no modo local há: é aqui mesmo. */
-  const host = hostProjecao();
-  if (!host) return;
-  syncApresentacaoInFlight = true;
-  try {
-    await fetch(`${getControllerApiBase()}/api/apresentacao/state`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(coletarEstadoModoApresentacaoAtual()),
-    });
-  } catch (_) {
-    // Sem rede/servidor: mantém só cache local
-  } finally {
-    syncApresentacaoInFlight = false;
-    if (syncApresentacaoPending) {
-      syncApresentacaoPending = false;
-      sincronizarEstadoModoApresentacaoServidor();
-    }
-  }
-}
-
-function agendarSincronizacaoEstadoModoApresentacaoServidor() {
-  if (syncApresentacaoTimer) clearTimeout(syncApresentacaoTimer);
-  syncApresentacaoTimer = setTimeout(() => {
-    syncApresentacaoTimer = null;
-    sincronizarEstadoModoApresentacaoServidor();
-  }, 480);
-}
-
-async function carregarEstadoModoApresentacaoDoServidor() {
-  /* Como em `sincronizarEstadoModoApresentacaoServidor`: lê do banco desta máquina. */
-  const host = hostProjecao();
-  if (!host) return;
-  const localAntes = coletarEstadoModoApresentacaoAtual();
-  const localTemConteudo =
-    (localAntes.biblioteca && localAntes.biblioteca.length > 0) ||
-    (localAntes.cards && localAntes.cards.some((x) => !!x)) ||
-    (localAntes.audios && localAntes.audios.length > 0) ||
-    String(localAntes.extras?.card6AvisoTexto || '').trim().length > 0 ||
-    cfgAvisoCard6TemPersonalizacao(localAntes.extras?.card6AvisoConfig);
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/apresentacao/state`);
-    if (!res.ok) return;
-    const data = await res.json().catch(() => null);
-    if (!data || typeof data !== 'object') return;
-    const remotoTemConteudo =
-      (Array.isArray(data.biblioteca) && data.biblioteca.length > 0) ||
-      (Array.isArray(data.cards) && data.cards.some((x) => !!x)) ||
-      (Array.isArray(data.audios) && data.audios.length > 0) ||
-      String(data.extras?.card6AvisoTexto || '').trim().length > 0 ||
-      cfgAvisoCard6TemPersonalizacao(data.extras?.card6AvisoConfig);
-    if (!remotoTemConteudo && localTemConteudo) {
-      await sincronizarEstadoModoApresentacaoServidor();
-      return;
-    }
-    const editingCard6 = algumCampoAvisoCard6EmEdicao();
-    aplicarEstadoModoApresentacao(data, { skipCard6Extras: editingCard6 });
-    try { localStorage.setItem(LS_APRESENTACAO_STATE, JSON.stringify(coletarEstadoModoApresentacaoAtual())); } catch (_) {
-  // intencional — erro ignorado
-}
-    if (!editingCard6) {
-      popularFormCfgAvisoCard6();
-      renderGridApresentacao();
-      renderMenuApresentacao();
-      renderListaAudiosApresentacao();
-      renderListaPlaylistApresentacao();
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
+// (extraído) estado do modo apresentação → painel/estadoApresentacao.js
 let cultoId = '';
 let playlists = {};
 let temaSelecionadoPorCulto = {};
@@ -7354,487 +7200,7 @@ function definirNomeMusicaBarraSlides(el, titulo) {
   else delete el.dataset.dica;
 }
 
-function renderSlidesStrip() {
-  const dock = document.getElementById('slides-dock');
-  const grid = document.getElementById('slides-grid');
-  const nomeEl = document.getElementById('slides-musica-nome');
-  if (grid) grid.dataset.slidesCols = String(slidesGrelha.getSlidesPorLinha());
-
-  try {
-  if (ehModoApresentacaoOperador()) {
-    dock.classList.add('oculto');
-    document.body.classList.remove('slides-rail-aberto');
-    return;
-  }
-
-  const semMusicaCarregada = !musicaAtiva || !musicaAtiva.estrofes;
-
-  /*
-   * Esconder a faixa inteira só se vale para fora do modo slides.
-   *
-   * Antes, `!musicaAtiva` bastava para esconder — e como este ramo corre primeiro, ao
-   * abrir o modo slides o painel aparecia sem barra nenhuma: duas prévias pretas a
-   * flutuar no meio do ecrã, sem nada a dizer que falta escolher uma música. O ramo
-   * seguinte, que mostra a barra vazia, nunca era alcançado.
-   */
-  if ((ehModoBibliaOperador() || semMusicaCarregada) && !ehModoSlidesOperador()) {
-    dock.classList.add('oculto');
-    grid.innerHTML = '';
-    grid.style.zoom = '';
-    delete grid.dataset.stripMusicaId;
-    delete grid.dataset.stripEstrofeCount;
-    delete grid.dataset.stripDigest;
-    delete grid.dataset.stripProjecao;
-    atualizarSlidesInstrucoes();
-    document.body.classList.remove('slides-rail-aberto');
-    return;
-  }
-
-  /**
-   * Modo slides ocioso: barra à vista, grelha vazia.
-   *
-   * Dois caminhos chegam aqui — abrir o modo sem música nenhuma carregada, e música
-   * vinda só do banco (modo completo), que não preenche a faixa ao alternar de modo.
-   * Assim que a playlist arma uma música, o comportamento volta a ser o de sempre.
-   */
-  if (ehModoSlidesOperador() && (semMusicaCarregada || !faixaSlidesHabilitadaPorPlaylistNoModoSlides)) {
-    dock.classList.toggle('oculto', false);
-    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, '');
-    grid.innerHTML = '';
-    grid.style.zoom = '';
-    delete grid.dataset.stripMusicaId;
-    delete grid.dataset.stripEstrofeCount;
-    delete grid.dataset.stripDigest;
-    delete grid.dataset.stripProjecao;
-    document.body.classList.remove('slides-rail-aberto');
-    const btnNx = document.getElementById('btn-proxima-musica-playlist');
-    if (btnNx) btnNx.disabled = true;
-    definirControlosZoomFaixaSlidesInertes(true);
-    definirVazioDaFaixaSlidesVisivel(true);
-    atualizarSlidesInstrucoes();
-    queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
-    return;
-  }
-
-  /* Home + letra completa: a faixa não é o destino. Não montar chips. */
-  if (modoLetraCompletaCentral && !ehModoSlidesOperador()) {
-    dock.classList.add('oculto');
-    document.body.classList.remove('slides-rail-aberto');
-    atualizarSlidesInstrucoes();
-    return;
-  }
-
-  definirControlosZoomFaixaSlidesInertes(false);
-  definirVazioDaFaixaSlidesVisivel(false);
-
-  if (podeAtualizarSomenteAtivoFaixaSlides()) {
-    if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, musicaAtiva.titulo || '');
-    atualizarSomenteAtivoFaixaSlides();
-    dock.classList.toggle('oculto', !ehModoSlidesOperador());
-    document.body.classList.toggle(
-      'slides-rail-aberto',
-      ehModoSlidesOperador() && !!musicaAtiva && !slidesRailUserRecolhido
-    );
-    atualizarEstadoBtnProximaMusicaPlaylist();
-    atualizarSlidesInstrucoes();
-    return;
-  }
-
-  if (nomeEl) definirNomeMusicaBarraSlides(nomeEl, musicaAtiva.titulo || '');
-
-  /* 1º frame com a fonte CSS; o auto-fit dos snippets corre depois, em lotes. */
-  if (grid.style.visibility === 'hidden') grid.style.visibility = '';
-  grid.innerHTML = '';
-  const nEst = musicaAtiva.estrofes.length;
-  const idxSlidePreto = nEst;
-
-  musicaAtiva.estrofes.forEach((estrofe, i) => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'slide-chip' + (estrofeAtiva === i ? ' ativo' : '');
-    chip.dataset.i = String(i);
-    chip.setAttribute('aria-current', estrofeAtiva === i ? 'true' : 'false');
-    chip.innerHTML = `
-      <span class="slide-num">${i + 1}</span>
-      <span class="slide-snippet">${textoSlideSnippetHtmlParaChip(estrofe)}</span>
-    `;
-    chip.onclick = (ev) => {
-      ev.preventDefault();
-      /* Sem projeção: 1 clique só seleciona. Com projeção ativa: 1 clique troca o slide no ar.
-         Nos dois casos a grelha rola como rolaria com as setas. */
-      if (projecaoMusicaEmitidaNoServidor) {
-        projetarPorDuploCliqueCentral(i, { rolarComoNasSetas: true });
-        return;
-      }
-      exibirEstrofe(i);
-    };
-    /* Duplo clique só para iniciar a projeção — com ela já no ar, o clique único basta. */
-    if (!projecaoMusicaEmitidaNoServidor) {
-      chip.addEventListener('dblclick', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        projetarPorDuploCliqueCentral(i);
-      });
-    }
-    chip.addEventListener('contextmenu', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      abrirMenuContextoSlideStrip(ev.clientX, ev.clientY, i);
-    });
-    grid.appendChild(chip);
-  });
-
-  const chipPreto = document.createElement('button');
-  chipPreto.type = 'button';
-  chipPreto.className = 'slide-chip slide-chip--preto' + (estrofeAtiva === idxSlidePreto ? ' ativo' : '');
-  chipPreto.dataset.i = String(idxSlidePreto);
-  chipPreto.innerHTML = '';
-  chipPreto.setAttribute('aria-label', 'Slide preto');
-  chipPreto.setAttribute('aria-current', estrofeAtiva === idxSlidePreto ? 'true' : 'false');
-  chipPreto.onclick = (ev) => {
-    ev.preventDefault();
-    if (projecaoMusicaEmitidaNoServidor) {
-      projetarPorDuploCliqueCentral(idxSlidePreto, { rolarComoNasSetas: true });
-      return;
-    }
-    exibirEstrofe(idxSlidePreto);
-  };
-  if (!projecaoMusicaEmitidaNoServidor) {
-    chipPreto.addEventListener('dblclick', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      projetarPorDuploCliqueCentral(idxSlidePreto);
-    });
-  }
-  grid.appendChild(chipPreto);
-
-  /** Faixa inferior de slides existe apenas no modo slides. */
-  dock.classList.toggle('oculto', !ehModoSlidesOperador());
-  document.body.classList.toggle(
-    'slides-rail-aberto',
-    ehModoSlidesOperador() && !!musicaAtiva && !slidesRailUserRecolhido
-  );
-
-  const btnNx = document.getElementById('btn-proxima-musica-playlist');
-  if (btnNx) {
-    atualizarEstadoBtnProximaMusicaPlaylist();
-  }
-
-  atualizarSlidesInstrucoes();
-  grid.dataset.stripMusicaId = String(musicaAtiva.id ?? '');
-  grid.dataset.stripEstrofeCount = String(nEst);
-  grid.dataset.stripDigest = digestEstrofesParaStripFaixa(musicaAtiva.estrofes);
-  grid.dataset.stripProjecao = projecaoMusicaEmitidaNoServidor ? '1' : '0';
-  queueMicrotask(() => ajustarEncaixeGrelhaSlidesModoSlides());
-  } finally {
-    try {
-      atualizarNotaSlideControladorUI();
-    } catch (_) {
-  // intencional — erro ignorado
-}
-  }
-}
-
-let slideQuickEditIndex = null;
-
-const menuContextoSlideStrip = criarMenuFlutuante({
-  id: 'slides-strip-context-menu',
-  rotuloAria: 'Ações do slide',
-});
-
-function fecharMenuContextoSlideStrip() {
-  menuContextoSlideStrip.fechar();
-}
-
-function abrirMenuContextoSlideStrip(clientX, clientY, slideIndex) {
-  if (!(slideIndex >= 0)) return;
-  menuContextoSlideStrip.abrirNoPonto(clientX, clientY, {
-    itens: [
-      {
-        rotulo: 'Edição rápida deste slide…',
-        svg: SVG_MENU_EDITAR,
-        aoEscolher: () => abrirSlideQuickEditModal(slideIndex),
-      },
-    ],
-  });
-}
-
-function fecharSlideQuickEditModal() {
-  const bd = document.getElementById('slide-quick-edit-backdrop');
-  if (bd) {
-    bd.hidden = true;
-    bd.setAttribute('aria-hidden', 'true');
-    bd.classList.remove('slide-quick-edit--arrastavel');
-  }
-  slideQuickEditIndex = null;
-  const projRow = document.getElementById('slide-quick-edit-proj-row');
-  if (projRow) projRow.hidden = true;
-  resetarPosicaoDialogQuickEdit();
-}
-
-/** Limpa posição fixa do diálogo (volta ao centro do flex no próximo abrir). */
-function resetarPosicaoDialogQuickEdit() {
-  const dialog = document.querySelector('#slide-quick-edit-backdrop .slide-quick-edit-dialog');
-  if (!dialog) return;
-  dialog.style.position = '';
-  dialog.style.left = '';
-  dialog.style.top = '';
-  dialog.style.width = '';
-  dialog.style.margin = '';
-  dialog.style.maxWidth = '';
-}
-
-/**
- * Índice 0-based do slide no telão (ou `estrofes.length` = tela preta).
- * Independente do slide aberto no modal de edição rápida.
- */
-function indiceEstrofeProjetadaNoTelao() {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return null;
-  if (!projecaoMusicaEmitidaNoServidor) return null;
-  const e = estadoServidor;
-  if (!e || e.tipo !== 'musica') return null;
-  if (e.musicaId != null && musicaAtiva.id != null && Number(e.musicaId) !== Number(musicaAtiva.id)) {
-    return null;
-  }
-  if (e.slidePretoFinal) return musicaAtiva.estrofes.length;
-  const idx = Number(e.estrofeIndex);
-  return Number.isFinite(idx) ? idx : null;
-}
-
-/** Atualiza o rodapé «Slide projetado» / PRÓXIMO SLIDE do modal de edição rápida (só modo Slide). */
-function atualizarUiProjecaoQuickEdit() {
-  const row = document.getElementById('slide-quick-edit-proj-row');
-  const status = document.getElementById('slide-quick-edit-proj-status');
-  const btn = document.getElementById('slide-quick-edit-next-proj');
-  if (!row || !status || !btn) return;
-  const emSlide = ehModoSlidesOperador();
-  row.hidden = !emSlide;
-  if (!emSlide) return;
-  const nEst = musicaAtiva?.estrofes?.length ?? 0;
-  const idx = indiceEstrofeProjetadaNoTelao();
-  if (idx == null || nEst <= 0) {
-    status.textContent = 'Slide projetado: —';
-    btn.disabled = true;
-    return;
-  }
-  const idxMaxPreto = nEst;
-  if (idx >= idxMaxPreto) {
-    status.textContent = 'Slide projetado: tela preta';
-    btn.disabled = true;
-    return;
-  }
-  status.textContent = `Slide projetado: ${idx + 1}`;
-  btn.disabled = false;
-}
-
-/**
- * Avança só a projeção no telão. Não fecha o modal nem troca o slide em edição.
- */
-function avancarProjecaoDoQuickEdit() {
-  if (!ehModoSlidesOperador()) return;
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
-  if (!projecao.pronta() || !projecaoMusicaEmitidaNoServidor) return;
-  const idxMaxPreto = musicaAtiva.estrofes.length;
-  const base = indiceEstrofeProjetadaNoTelao();
-  if (base == null || !Number.isFinite(base)) return;
-  const prox = Math.min(idxMaxPreto, base + 1);
-  if (prox === base) {
-    atualizarUiProjecaoQuickEdit();
-    return;
-  }
-  /* Só emite ao telão — sem `exibirEstrofe`, para não alterar seleção nem o texto do modal. */
-  emitirEstrofeAoServidor(prox);
-  atualizarUiProjecaoQuickEdit();
-}
-
-function abrirSlideQuickEditModal(slideIndex) {
-  if (!musicaAtiva || slideIndex < 0 || slideIndex >= musicaAtiva.estrofes.length) return;
-  fecharMenuContextoSlideStrip();
-  slideQuickEditIndex = slideIndex;
-  document.getElementById('slide-quick-edit-num').textContent = String(slideIndex + 1);
-  document.getElementById('slide-quick-edit-ta').value = musicaAtiva.estrofes[slideIndex] ?? '';
-  const bd = document.getElementById('slide-quick-edit-backdrop');
-  resetarPosicaoDialogQuickEdit();
-  bd.classList.toggle('slide-quick-edit--arrastavel', ehModoSlidesOperador());
-  bd.hidden = false;
-  bd.setAttribute('aria-hidden', 'false');
-  atualizarUiProjecaoQuickEdit();
-  setTimeout(() => {
-    const ta = document.getElementById('slide-quick-edit-ta');
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-  }, 50);
-}
-
-async function confirmarSlideQuickEdit() {
-  const idx = slideQuickEditIndex;
-  if (idx === null || !musicaAtiva) return;
-  const ta = document.getElementById('slide-quick-edit-ta');
-  aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, ta.value, { emitSocket: true });
-  fecharSlideQuickEditModal();
-  await persistirMusicaAtivaNoServidor();
-}
-
-function fecharSlideDeleteConfirmModal() {
-  const delBd = document.getElementById('slide-delete-confirm-backdrop');
-  if (delBd) {
-    delBd.hidden = true;
-    delBd.setAttribute('aria-hidden', 'true');
-  }
-}
-
-function abrirSlideDeleteConfirmModal() {
-  const idx = slideQuickEditIndex;
-  if (idx === null || !musicaAtiva) return;
-  const nEl = document.getElementById('slide-delete-confirm-num');
-  if (nEl) nEl.textContent = String(idx + 1);
-  const delBd = document.getElementById('slide-delete-confirm-backdrop');
-  if (!delBd) return;
-  delBd.hidden = false;
-  delBd.setAttribute('aria-hidden', 'false');
-}
-
-async function executarExclusaoSlideConfirmada() {
-  const idx = slideQuickEditIndex;
-  if (idx === null || !musicaAtiva) return;
-  if (musicaAtiva.estrofes.length <= 1) {
-    alert('É necessário pelo menos uma estrofe.');
-    fecharSlideDeleteConfirmModal();
-    return;
-  }
-
-  musicaAtiva.estrofes.splice(idx, 1);
-  if (estrofeAtiva === idx) estrofeAtiva = Math.max(0, idx - 1);
-  else if (estrofeAtiva > idx) estrofeAtiva--;
-
-  if (estrofeAtiva >= musicaAtiva.estrofes.length) {
-    estrofeAtiva = musicaAtiva.estrofes.length - 1;
-  }
-
-  fecharSlideDeleteConfirmModal();
-  fecharSlideQuickEditModal();
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  marcacaoEstrofeEditor();
-
-  if (
-    projecaoMusicaEmitidaNoServidor &&
-    projecao.pronta() &&
-    musicaAtiva &&
-    estrofeAtiva >= 0
-  ) {
-    emitirEstrofeAoServidor(estrofeAtiva);
-  }
-
-  await persistirMusicaAtivaNoServidor();
-}
-
-function excluirSlideEdicaoRapida() {
-  const idx = slideQuickEditIndex;
-  if (idx === null || !musicaAtiva) return;
-  if (musicaAtiva.estrofes.length <= 1) {
-    alert('É necessário pelo menos uma estrofe.');
-    return;
-  }
-  abrirSlideDeleteConfirmModal();
-}
-
-function setupSlidesStripContextMenuEEdicaoRapida() {
-  const bd = document.getElementById('slide-quick-edit-backdrop');
-  document.getElementById('slide-quick-edit-cancel')?.addEventListener('click', () => fecharSlideQuickEditModal());
-  document.getElementById('slide-quick-edit-save')?.addEventListener('click', () => confirmarSlideQuickEdit());
-  document.getElementById('slide-quick-edit-delete')?.addEventListener('click', () => excluirSlideEdicaoRapida());
-  document.getElementById('slide-quick-edit-next-proj')?.addEventListener('click', () => avancarProjecaoDoQuickEdit());
-  /**
-   * Só fecha ao clicar «no escuro»: mousedown + mouseup no próprio backdrop.
-   * Sem isto, arrastar seleção da textarea para fora termina no backdrop — o navegador
-   * sintetiza click no backdrop e fecha o modal inadvertidamente.
-   */
-  let slideQuickBackdropPointerDown = false;
-  bd?.addEventListener('pointerdown', (e) => {
-    slideQuickBackdropPointerDown = e.target === bd;
-  });
-  bd?.addEventListener('pointerup', (e) => {
-    if (slideQuickBackdropPointerDown && e.target === bd) fecharSlideQuickEditModal();
-    slideQuickBackdropPointerDown = false;
-  });
-  bd?.addEventListener('pointercancel', () => {
-    slideQuickBackdropPointerDown = false;
-  });
-  document.getElementById('slide-delete-confirm-cancel')?.addEventListener('click', () => fecharSlideDeleteConfirmModal());
-  document.getElementById('slide-delete-confirm-excluir')?.addEventListener('click', () => executarExclusaoSlideConfirmada());
-  configurarArrasteDialogQuickEdit();
-}
-
-/**
- * Arrastar o modal de edição rápida pelo título — só no modo Slide.
- * Textarea, botões e restante do conteúdo não iniciam o arraste.
- */
-function configurarArrasteDialogQuickEdit() {
-  const heading = document.getElementById('slide-quick-edit-heading');
-  const dialog = document.querySelector('#slide-quick-edit-backdrop .slide-quick-edit-dialog');
-  if (!heading || !dialog) return;
-
-  let arrasto = null;
-
-  function clampar(left, top) {
-    const pad = 8;
-    const w = dialog.offsetWidth;
-    const h = dialog.offsetHeight;
-    const maxL = Math.max(pad, window.innerWidth - w - pad);
-    const maxT = Math.max(pad, window.innerHeight - h - pad);
-    return {
-      left: Math.min(Math.max(pad, left), maxL),
-      top: Math.min(Math.max(pad, top), maxT),
-    };
-  }
-
-  heading.addEventListener('pointerdown', (e) => {
-    if (!ehModoSlidesOperador()) return;
-    if (e.button != null && e.button !== 0) return;
-    const bd = document.getElementById('slide-quick-edit-backdrop');
-    if (!bd || bd.hidden || !bd.classList.contains('slide-quick-edit--arrastavel')) return;
-    e.preventDefault();
-    const rect = dialog.getBoundingClientRect();
-    dialog.style.position = 'fixed';
-    dialog.style.left = `${rect.left}px`;
-    dialog.style.top = `${rect.top}px`;
-    dialog.style.width = `${rect.width}px`;
-    dialog.style.maxWidth = 'none';
-    dialog.style.margin = '0';
-    arrasto = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      origLeft: rect.left,
-      origTop: rect.top,
-    };
-    try {
-      heading.setPointerCapture(e.pointerId);
-    } catch (_) {
-      // intencional — captura opcional
-    }
-  });
-
-  heading.addEventListener('pointermove', (e) => {
-    if (!arrasto || e.pointerId !== arrasto.pointerId) return;
-    const pos = clampar(
-      arrasto.origLeft + (e.clientX - arrasto.startX),
-      arrasto.origTop + (e.clientY - arrasto.startY)
-    );
-    dialog.style.left = `${pos.left}px`;
-    dialog.style.top = `${pos.top}px`;
-  });
-
-  const encerrar = (e) => {
-    if (!arrasto) return;
-    if (e && e.pointerId != null && e.pointerId !== arrasto.pointerId) return;
-    arrasto = null;
-  };
-  heading.addEventListener('pointerup', encerrar);
-  heading.addEventListener('pointercancel', encerrar);
-}
+// (extraído) faixa de slides → painel/slidesStrip.js
 
 function marcacaoEstrofeEditor() {
   document.querySelectorAll('.estrofe-slide-edit').forEach((el, i) => {
@@ -8255,236 +7621,7 @@ async function conectar() {
   return socketPainel.conectar();
 }
 
-/* ─── Modo «projetar nesta máquina» ─────────────────────────────────────────────
- *
- * O painel não muda: os mesmos comandos, pela mesma porta de projeção. O que muda é o
- * transporte por baixo dela — IPC para o motor deste processo, em vez de socket para o
- * Servidor. Nenhum call site sabe em qual dos dois está, que era o propósito da Peça 1.
- *
- * OBS e celular continuam a ligar-se à 5510, agora servida pelo Controlador. Quem impede
- * dois donos das mesmas telas é o próprio `listen`: com o Servidor aberto, a porta está
- * ocupada e o modo local recusa arrancar.
- */
-
-/**
- * O modo de operação NÃO se guarda. Vive na sessão e morre com ela.
- *
- * Ligar ao Servidor é uma decisão sobre *este arranque*, não uma declaração permanente
- * sobre o PC. Quem opera duas máquinas hoje pode estar sozinho com uma amanhã, e um
- * Controlador que abrisse a apontar para um Servidor ausente ficava preso num
- * «conectando» sem nada projetável — para desfazer isso era preciso saber que existia um
- * menu que o desfazia. O padrão é o que funciona sempre: projeta-se nesta máquina.
- *
- * Por isso não há chave de preferência, nem em `localStorage`, nem em ficheiro de
- * configuração, nem em base de dados. A ligação ao Servidor é sempre um acto explícito do
- * operador — no badge ou em Ajustes › Conexão — repetido a cada abertura.
- *
- * Nota sobre `LS_IP_KEY`: o *endereço* pode ficar guardado (preferência «Lembrar IP»),
- * e isso não contradiz o acima. Guardar o IP poupa redigitação; não liga nada sozinho.
- * Quem decide ligar é o clique. Sem «Lembrar IP», o campo limpa-se no próximo arranque.
- *
- * A chave `lyra_projetar_nesta_maquina`, de versões que persistiam a escolha, é apagada no
- * arranque por `migrarChavesLegadoLocalStorage` — ver `CHAVES_OBSOLETAS` nesse módulo.
- */
-
-/** Verdadeiro entre o clique no menu e a resposta do processo principal. */
-let projecaoLocalEmCurso = false;
-
-/**
- * Verdadeiro enquanto o motor local está mesmo de pé.
- *
- * Distinto da *intenção* de estar em modo local, e a distinção não é académica: enquanto o
- * modo local se derivava da intenção declarada, uma tentativa falhada — porta ocupada
- * porque o Servidor está aberto — deixava o painel a acreditar que projetava localmente.
- * E aí recusava-se a ligar ao Servidor, porque «está em modo local», e não projetava,
- * porque não está. Ficava preso entre os dois.
- */
-let projecaoLocalActiva = false;
-
-/**
- * Motor que toca o áudio quando a projeção corre nesta máquina.
- *
- * Criado só quando há ponte (dentro do aplicativo) e ligado só no modo local — no remoto
- * quem toca é a janela de controle do Servidor, e dois motores a tocar dariam eco.
- */
-let motorAudioLocal = null;
-
-function garantirMotorAudioLocal() {
-  const ponte = ponteProjecaoLocal();
-  if (!ponte?.audio) return null;
-  if (!motorAudioLocal) motorAudioLocal = criarMotorAudioLocal(ponte.audio);
-  return motorAudioLocal;
-}
-
-/**
- * O painel está — ou está a ficar — em modo local?
- *
- * Serve de guarda ao auto-reconectar e à resolução do endereço da projeção. Cobre a
- * janela entre o clique e o arranque (`emCurso`) e o período em que o motor está de facto
- * a correr (`activa`) — nunca a mera intenção gravada.
- */
-function emModoProjecaoLocal() {
-  return projecaoLocalEmCurso || projecaoLocalActiva;
-}
-
-/** A ponte só existe dentro do Electron; no browser o modo local não se aplica. */
-function ponteProjecaoLocal() {
-  return window.lyraElectron?.projecaoLocal || null;
-}
-
-/**
- * Liga o modo local e aponta a porta de projeção ao motor deste processo.
- *
- * @returns {Promise<{ ok: boolean, erro?: string }>}
- */
-async function ligarProjecaoNestaMaquina() {
-  const ponte = ponteProjecaoLocal();
-  if (!ponte) return { ok: false, erro: 'modo local indisponível fora do aplicativo' };
-
-  setStatusServidorRemoto('ocioso');
-  /* `projecaoLocalEmCurso` bloqueia o auto-reconectar enquanto isto decorre: abrir as
-     janelas de projeção rouba o foco, o foco dispara `tentarAutoConectarSeDesconectado`,
-     e o painel ia atrás de um Servidor no meio do arranque do modo local. */
-  projecaoLocalEmCurso = true;
-  let r;
-  try {
-    r = await ponte.ligar();
-  } catch (e) {
-    r = { ok: false, erro: e?.message || String(e) };
-  } finally {
-    projecaoLocalEmCurso = false;
-  }
-  if (!r?.ok) {
-    projecaoLocalActiva = false;
-    setStatusServidorRemoto('ocioso');
-    atualizarUiConexao(false);
-    return r || { ok: false, erro: 'falha desconhecida' };
-  }
-  projecaoLocalActiva = true;
-
-  /* Desligar o socket antes de trocar de transporte: um Servidor ainda ligado continuaria
-     a mandar `estado` para o painel e a disputar as telas com o motor local. */
-  try {
-    if (socket) socket.disconnect();
-  } catch (_) {
-    // intencional
-  }
-
-  projecao.usarTransporte(criarTransporteLocal(ponte));
-  garantirMotorAudioLocal()?.ligar();
-  /* Nada se grava aqui: o modo local é o padrão de todo arranque, e um padrão não precisa
-     de ser lembrado. */
-  papelControladorLocal = { primario: true, podeEscrever: true, donoAtual: null };
-  setStatusServidorRemoto('ocioso');
-  atualizarUiConexao(true);
-  if (r.lanIp) {
-    servidorLanIpObs = String(r.lanIp).trim();
-    atualizarUrlsObs();
-  }
-  recordarIpsDestaMaquina(r.lanIps, r.lanIp);
-
-  /* O mesmo que o handler de `connect` do socket faz no modo remoto. Sem isto o painel
-     ficava com os seletores de tela vazios: a carga do arranque corre antes de a 5510
-     estar de pé, falha em silêncio, e no modo local não há evento de ligação a seguir
-     que a repita. */
-  try {
-    await carregarRoteamentoTelasDoServidor();
-    if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
-    else slidesAplicarCfgArmazenada();
-    renderSlidesStrip();
-    emitirEstadoMinistranteAoServidor();
-  } catch (_) {
-    // intencional — o modo local já está de pé; o painel recupera ao trocar de modo
-  }
-  return { ok: true };
-}
-
-/**
- * Desliga o modo local — só nesta sessão, como tudo o que diz respeito ao modo.
- *
- * Não escreve nada, e nenhum outro caminho escreve: o arranque seguinte volta sempre a
- * projetar nesta máquina, tenha ou não o operador desmarcado o item de menu antes de
- * fechar. Ver o bloco sobre persistência junto a `projecaoLocalEmCurso`.
- */
-async function desligarProjecaoNestaMaquina() {
-  const ponte = ponteProjecaoLocal();
-  projecaoLocalActiva = false;
-  motorAudioLocal?.desligar();
-  if (ponte) await ponte.desligar();
-  projecao.usarTransporte(null);
-  atualizarUiConexao(false);
-  /* O badge único descreve a ligação ao Servidor remoto; ao desligar a projeção local
-     não há Servidor em jogo, então volta ao estado ocioso (cinza), sem soar a avaria. */
-  setStatusServidorRemoto('ocioso');
-}
-
-/** Alterna o modo, para ligar a um botão ou item de menu. */
-async function alternarProjecaoNestaMaquina() {
-  const ponte = ponteProjecaoLocal();
-  const estado = ponte ? await ponte.estado() : null;
-  if (estado?.activa) return desligarProjecaoNestaMaquina();
-  return ligarProjecaoNestaMaquina();
-}
-
-/** IP de LAN do servidor de projeção informado por ele (evento `server_info`); vazio até conectar. */
-let servidorLanIpObs = '';
-/** Porta do servidor HTTP das páginas de Browser Source do OBS (informada pelo servidor). */
-let servidorObsPort = 5001;
-
-/**
- * Atualiza os campos de URL de Browser Source (OBS) na aba «Conexão» dos Ajustes.
- * Host preferido: IP de LAN informado pelo servidor → IP usado para conectar → localhost.
- * O OBS pode rodar noutro PC, por isso `localhost` só serve como último recurso.
- */
-function atualizarUrlsObs() {
-  const host = servidorLanIpObs || getServidorIp() || 'localhost';
-  const bib = document.getElementById('obs-url-biblia');
-  const sli = document.getElementById('obs-url-slides');
-  if (bib) bib.value = `http://${host}:${servidorObsPort}/obs/biblia`;
-  if (sli) sli.value = `http://${host}:${servidorObsPort}/obs/slides`;
-}
-
-/**
- * Copia para a área de transferência a URL de Browser Source (OBS) do campo indicado
- * e dá um retorno visual rápido no botão.
- */
-async function copiarUrlObs(inputId, btn) {
-  const input = document.getElementById(inputId);
-  if (!input) return;
-  const url = input.value.trim();
-  if (!url) return;
-  let ok = false;
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(url);
-      ok = true;
-    }
-  } catch (_) {
-    // fallback abaixo
-  }
-  if (!ok) {
-    try {
-      input.focus();
-      input.select();
-      ok = document.execCommand('copy');
-      input.setSelectionRange(0, 0);
-      input.blur();
-    } catch (_) {
-      ok = false;
-    }
-  }
-  if (btn) {
-    const rotuloOriginal = btn.dataset.rotuloOriginal || btn.textContent;
-    btn.dataset.rotuloOriginal = rotuloOriginal;
-    btn.textContent = ok ? 'Copiado!' : 'Erro';
-    btn.classList.toggle('success', ok);
-    clearTimeout(btn._copiarTimer);
-    btn._copiarTimer = setTimeout(() => {
-      btn.textContent = btn.dataset.rotuloOriginal || 'Copiar';
-      btn.classList.remove('success');
-    }, 1400);
-  }
-}
+// (extraído) projeção local e OBS → painel/projecaoLocalObs.js
 
 async function carregarRoteamentoTelasDoServidor() {
   const ip = hostProjecao();
@@ -8524,7 +7661,7 @@ async function carregarRoteamentoTelasDoServidor() {
     avisarMonitoresConfiguradosEmFalta(faltou);
     /* O pré-voo relata o mesmo, mas só quando o operador pergunta — a faixa do cabeçalho
        avisa na hora, e a lista da verificação recolhe-o junto do resto. */
-    preVooMonitoresEmFalta = faltou;
+    setPreVooMonitoresEmFalta(faltou);
     /* Apresentação primeiro: a reposição do Slides desvia-se do que a mídia já ocupa. */
     rotasPorModo.apresentacao = { ...apSrv };
     if (precisaReporRotaSlides(rotasPorModo.slides)) {
@@ -9010,15 +8147,7 @@ function alternarOcultacaoPreviewPainel(indice) {
   aplicarPreviewPainelOcultoNoDom();
 }
 
-let letrasPreviewPathPendente = '';
-let letrasPreviewCatalogIdPendente = null;
-let letrasPreviewUserIdPendente = null;
-let letrasPreviewOfflineOrigem = 'catalog';
-let letrasPreviewFontePendente = 'cifraclub';
-let letrasPreviewMaxLinhasPorSlide = 4;
-let letrasPreviewReqSeq = 0;
-/** Estrofes exibidas no modal — usadas para montar o clipboard com linhas em branco entre trechos. */
-let letrasPreviewPartesAtuais = [];
+// (extraído) estado da pré-visualização de letras → painel/previewLetras.js
 
 function getLetrasSiteFonteAtual() {
   const sel = document.getElementById('banco-fonte-select');
@@ -9067,352 +8196,7 @@ function alternarListaBancoSqlite() {
   atualizarUiToggleListaBancoSqlite();
 }
 
-function fontePreviewUsaEstruturaDoBanco() {
-  return letrasPreviewFontePendente === 'lyra-online' || letrasPreviewFontePendente === 'banco-local';
-}
-
-function configurarSelectLinhasPreviewLetras() {
-  const sel = document.getElementById('letras-preview-max-linhas');
-  if (!sel) return;
-  const usaBanco = fontePreviewUsaEstruturaDoBanco();
-  const optBanco = sel.querySelector('option[value="banco"]');
-  const opt4 = sel.querySelector('option[value="4"]');
-  if (optBanco) {
-    optBanco.hidden = !usaBanco;
-    optBanco.disabled = !usaBanco;
-  }
-  if (opt4) opt4.textContent = usaBanco ? '4 linhas' : '4 linhas (padrão)';
-  sel.value = usaBanco ? 'banco' : '4';
-}
-
-function lerMaxLinhasPreviewLetras() {
-  const raw = String(document.getElementById('letras-preview-max-linhas')?.value || '').trim();
-  if (raw === 'banco') return 'banco';
-  const n = parseInt(raw, 10);
-  if (n === 2 || n === 3 || n === 4) return n;
-  return fontePreviewUsaEstruturaDoBanco() ? 'banco' : 4;
-}
-
-function rotuloModoLinhasPreview(valor) {
-  return valor === 'banco' ? 'padrão do banco' : `${valor} linha(s)/slide`;
-}
-
-function modalPreviewLetrasEstaAberto() {
-  const bd = document.getElementById('letras-preview-backdrop');
-  return !!bd && !bd.hidden;
-}
-
-/** Enquanto o modal está aberto, bloqueia seleção no resto da página. */
-function definirIsolamentoSelecaoPreviewLetras(ativo) {
-  document.documentElement.classList.toggle('letras-preview-aberto', !!ativo);
-}
-
-/** Ctrl+A no modal: só os blocos de letra (`.letras-preview-pre`), não a interface atrás. */
-function selecionarTodoTextoPreviewLetras() {
-  const scroll = document.getElementById('letras-preview-scroll');
-  if (!scroll) return;
-  const blocos = scroll.querySelectorAll('.letras-preview-pre');
-  const sel = window.getSelection();
-  if (!sel) return;
-  sel.removeAllRanges();
-  if (!blocos.length) {
-    const msg = scroll.querySelector('.placeholder-msg');
-    if (!msg) return;
-    const range = document.createRange();
-    range.selectNodeContents(msg);
-    sel.addRange(range);
-    return;
-  }
-  const range = document.createRange();
-  range.setStart(blocos[0], 0);
-  const ultimo = blocos[blocos.length - 1];
-  range.setEnd(ultimo, ultimo.childNodes.length);
-  sel.addRange(range);
-}
-
-function selecaoPreviewLetrasIntersectaNo(sel, node) {
-  if (!sel?.rangeCount) return false;
-  const r = sel.getRangeAt(0);
-  const nr = document.createRange();
-  nr.selectNodeContents(node);
-  return r.compareBoundaryPoints(Range.END_TO_START, nr) > 0 && r.compareBoundaryPoints(Range.START_TO_END, nr) < 0;
-}
-
-/** Recorta o trecho de um `<pre>` que cai dentro da seleção actual. */
-function textoPrePreviewLetrasNaSelecao(pre, sel) {
-  const selRange = sel.getRangeAt(0);
-  const preRange = document.createRange();
-  preRange.selectNodeContents(pre);
-  const range = document.createRange();
-  range.selectNodeContents(pre);
-  if (selRange.compareBoundaryPoints(Range.START_TO_START, preRange) > 0) {
-    range.setStart(selRange.startContainer, selRange.startOffset);
-  }
-  if (selRange.compareBoundaryPoints(Range.END_TO_END, preRange) < 0) {
-    range.setEnd(selRange.endContainer, selRange.endOffset);
-  }
-  return range.toString();
-}
-
-function selecaoPreviewLetrasDentroDoScroll(scroll, sel) {
-  if (!sel?.rangeCount) return false;
-  const range = sel.getRangeAt(0);
-  const anc = range.commonAncestorContainer;
-  const el = anc.nodeType === Node.TEXT_NODE ? anc.parentElement : anc;
-  return !!el && scroll.contains(el);
-}
-
-/**
- * Ao copiar vários trechos, o espaço visual entre blocos é só CSS — o clipboard
- * vinha sem linha em branco. Junta cada `.letras-preview-pre` com `\n\n`.
- * @returns {string|null} texto formatado ou `null` para deixar o navegador copiar
- */
-function textoCopiaPreviewLetrasComEspacosEntreTrechos(scroll) {
-  const sel = window.getSelection();
-  if (!sel?.rangeCount || sel.isCollapsed) return null;
-  if (!selecaoPreviewLetrasDentroDoScroll(scroll, sel)) return null;
-
-  const pres = [...scroll.querySelectorAll('.letras-preview-pre')];
-  if (pres.length < 2) return null;
-
-  const intersecting = pres.filter((pre) => selecaoPreviewLetrasIntersectaNo(sel, pre));
-  if (intersecting.length < 2) return null;
-
-  const selRange = sel.getRangeAt(0);
-  if (
-    intersecting.length === pres.length &&
-    letrasPreviewPartesAtuais.length === pres.length &&
-    pres.every((pre) => {
-      const preRange = document.createRange();
-      preRange.selectNodeContents(pre);
-      return (
-        selRange.compareBoundaryPoints(Range.START_TO_START, preRange) <= 0 &&
-        selRange.compareBoundaryPoints(Range.END_TO_END, preRange) >= 0
-      );
-    })
-  ) {
-    return letrasPreviewPartesAtuais.join('\n\n');
-  }
-
-  const partes = intersecting.map((pre) => {
-    const preRange = document.createRange();
-    preRange.selectNodeContents(pre);
-    const inteiro =
-      selRange.compareBoundaryPoints(Range.START_TO_START, preRange) <= 0 &&
-      selRange.compareBoundaryPoints(Range.END_TO_END, preRange) >= 0;
-    return inteiro ? pre.textContent || '' : textoPrePreviewLetrasNaSelecao(pre, sel);
-  });
-  return partes.join('\n\n');
-}
-
-function tratarCopiaPreviewLetras(e) {
-  if (!modalPreviewLetrasEstaAberto()) return;
-  const scroll = document.getElementById('letras-preview-scroll');
-  if (!scroll) return;
-  const texto = textoCopiaPreviewLetrasComEspacosEntreTrechos(scroll);
-  if (texto === null) return;
-  e.preventDefault();
-  e.clipboardData.setData('text/plain', texto);
-}
-
-function fecharModalPreviewLetras() {
-  const bd = document.getElementById('letras-preview-backdrop');
-  if (bd) {
-    bd.hidden = true;
-    bd.setAttribute('aria-hidden', 'true');
-  }
-  definirIsolamentoSelecaoPreviewLetras(false);
-  letrasPreviewPathPendente = '';
-  letrasPreviewCatalogIdPendente = null;
-  letrasPreviewUserIdPendente = null;
-  letrasPreviewOfflineOrigem = 'catalog';
-  letrasPreviewFontePendente = 'cifraclub';
-  letrasPreviewPartesAtuais = [];
-}
-
-async function abrirModalPreviewLetras(path, fonte) {
-  letrasPreviewCatalogIdPendente = null;
-  letrasPreviewUserIdPendente = null;
-  letrasPreviewPathPendente = path || '';
-  letrasPreviewFontePendente = normalizarFonteLetrasSite(fonte || 'cifraclub');
-  const btnImp = document.getElementById('letras-preview-import');
-  if (btnImp) btnImp.textContent = 'Importar esta versão';
-  configurarSelectLinhasPreviewLetras();
-  const bd = document.getElementById('letras-preview-backdrop');
-  bd.hidden = false;
-  bd.setAttribute('aria-hidden', 'false');
-  definirIsolamentoSelecaoPreviewLetras(true);
-  await carregarPreviewLetrasNoModal();
-}
-
-async function abrirModalPreviewLetrasOffline(id, origem) {
-  const idNum = typeof id === 'number' ? id : parseInt(String(id), 10);
-  if (!Number.isFinite(idNum)) return;
-  const orig = origem === 'user' ? 'user' : 'catalog';
-  letrasPreviewPathPendente = '';
-  letrasPreviewCatalogIdPendente = orig === 'catalog' ? idNum : null;
-  letrasPreviewUserIdPendente = orig === 'user' ? idNum : null;
-  letrasPreviewOfflineOrigem = orig;
-  letrasPreviewFontePendente = 'banco-local';
-  configurarSelectLinhasPreviewLetras();
-  const bd = document.getElementById('letras-preview-backdrop');
-  bd.hidden = false;
-  bd.setAttribute('aria-hidden', 'false');
-  definirIsolamentoSelecaoPreviewLetras(true);
-  const btnImp = document.getElementById('letras-preview-import');
-  if (btnImp) btnImp.textContent = orig === 'user' ? 'Usar esta música' : 'Importar para o banco';
-  await carregarPreviewLetrasNoModal();
-}
-
-async function carregarPreviewLetrasNoModal() {
-  const scroll = document.getElementById('letras-preview-scroll');
-  const meta = document.getElementById('letras-preview-meta');
-  const btnImp = document.getElementById('letras-preview-import');
-  const path = letrasPreviewPathPendente;
-  const catalogId = letrasPreviewCatalogIdPendente;
-  const userId = letrasPreviewUserIdPendente;
-  letrasPreviewMaxLinhasPorSlide = lerMaxLinhasPreviewLetras();
-  const reqId = ++letrasPreviewReqSeq;
-  scroll.innerHTML = '<div class="placeholder-msg">Carregando a letra…</div>';
-  meta.textContent = '';
-  if (btnImp) btnImp.disabled = true;
-  try {
-    let res;
-    if (letrasPreviewFontePendente === 'banco-local' && (catalogId != null || userId != null)) {
-      const origem = letrasPreviewOfflineOrigem === 'user' ? 'user' : 'catalog';
-      const idPreview = origem === 'user' ? userId : catalogId;
-      const paramLinhas = `&maxLinhas=${encodeURIComponent(String(letrasPreviewMaxLinhasPorSlide))}`;
-      res = await fetch(
-        `${getControllerApiBase()}/api/letras/preview-local?id=${encodeURIComponent(String(idPreview))}&origem=${origem}${paramLinhas}`
-      );
-    } else {
-      res = await fetch(`${getControllerApiBase()}/api/letras/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path,
-          maxLinhasPorSlide: letrasPreviewMaxLinhasPorSlide,
-          fonte: letrasPreviewFontePendente,
-        }),
-      });
-    }
-    const data = await res.json().catch(() => ({}));
-    if (reqId !== letrasPreviewReqSeq) return;
-    if (!res.ok) {
-      scroll.innerHTML = `<div class="placeholder-msg">${escapeHtml(data.erro || `Erro HTTP ${res.status}`)}</div>`;
-      return;
-    }
-    if (data.sucesso === false) {
-      scroll.innerHTML = `<div class="placeholder-msg">${escapeHtml(data.erro || 'Falha ao carregar.')}</div>`;
-      return;
-    }
-    if (btnImp) btnImp.disabled = false;
-    const fonteLabel =
-      letrasPreviewFontePendente === 'banco-local'
-        ? letrasPreviewOfflineOrigem === 'user'
-          ? 'Banco local (suas músicas)'
-          : 'HLYRCS'
-        : letrasPreviewFontePendente === 'letras-mus-br'
-          ? 'Letras.mus.br'
-          : letrasPreviewFontePendente === 'lyra-online'
-            ? 'Banco online do Lyra'
-            : 'Cifra Club';
-    const metaLinhas = ` · ${rotuloModoLinhasPreview(letrasPreviewMaxLinhasPorSlide)}`;
-    meta.innerHTML = `<strong>${escapeHtml(data.titulo || '')}</strong>${data.artista ? ` · ${escapeHtml(data.artista)}` : ''} · ${escapeHtml(fonteLabel)}${metaLinhas}`;
-    const parts = Array.isArray(data.estrofes) ? data.estrofes : [];
-    letrasPreviewPartesAtuais = parts.slice();
-
-    // `parcial` = a letra veio de meta tag, que só traz o começo da música.
-    // Sem este aviso, uma letra truncada em 4 linhas passava por completa.
-    const avisoParcial = data.parcial
-      ? `<div class="letras-preview-aviso">⚠ Só o início da letra foi encontrado (${parts.length} trecho${parts.length === 1 ? '' : 's'}). As fontes completas não responderam — confira antes de importar.</div>`
-      : '';
-
-    scroll.innerHTML =
-      avisoParcial +
-      parts
-        .map((bloco, idx) => {
-          const sep =
-            idx > 0
-              ? '<span class="letras-preview-sep" aria-hidden="true">\n\n</span>'
-              : '';
-          return (
-            sep +
-            `<div class="letras-preview-bloco"><span class="letras-preview-num">Trecho ${idx + 1}</span><pre class="letras-preview-pre">${escapeHtml(bloco)}</pre></div>`
-          );
-        })
-        .join('');
-  } catch (e) {
-    if (reqId !== letrasPreviewReqSeq) return;
-    scroll.innerHTML = `<div class="placeholder-msg">${escapeHtml(e.message || 'Falha ao carregar.')}</div>`;
-  }
-}
-
-function configurarModalPreviewLetras() {
-  document.getElementById('letras-preview-cancel')?.addEventListener('click', () => fecharModalPreviewLetras());
-  document.getElementById('letras-preview-import')?.addEventListener('click', async () => {
-    const p = letrasPreviewPathPendente;
-    const catalogId = letrasPreviewCatalogIdPendente;
-    const userId = letrasPreviewUserIdPendente;
-    const maxLinhasPorSlide = lerMaxLinhasPreviewLetras();
-    const fontePend = letrasPreviewFontePendente;
-    fecharModalPreviewLetras();
-    if (userId != null && fontePend === 'banco-local') {
-      // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
-      // o seu papel — limpa igual aos demais para manter o painel consistente.
-      await selecionarMusicaDoBanco(userId, {
-        fonte: 'user',
-        preferirCopia: true,
-        origemUi: 'biblioteca',
-        abrirEmLetraCompleta: true,
-      });
-      limparBuscaLetras();
-    } else if (catalogId != null && fontePend === 'banco-local') {
-      await importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorSlide);
-    } else if (p) {
-      await importarLetrasParaBanco(p, maxLinhasPorSlide, fontePend);
-    }
-  });
-  document.getElementById('letras-preview-max-linhas')?.addEventListener('change', () => {
-    letrasPreviewMaxLinhasPorSlide = lerMaxLinhasPreviewLetras();
-    if (
-      letrasPreviewPathPendente ||
-      letrasPreviewCatalogIdPendente != null ||
-      letrasPreviewUserIdPendente != null
-    ) {
-      carregarPreviewLetrasNoModal();
-    }
-  });
-  /**
-   * Só fecha ao clicar «no escuro»: pointerdown + pointerup no próprio backdrop.
-   * Sem isto, arrastar seleção da letra para fora termina no backdrop — o navegador
-   * sintetiza click no backdrop e fecha o modal inadvertidamente.
-   */
-  let letrasPreviewBackdropPointerDown = false;
-  const letrasPreviewBd = document.getElementById('letras-preview-backdrop');
-  letrasPreviewBd?.addEventListener('pointerdown', (e) => {
-    letrasPreviewBackdropPointerDown = e.target === letrasPreviewBd;
-  });
-  letrasPreviewBd?.addEventListener('pointerup', (e) => {
-    if (letrasPreviewBackdropPointerDown && e.target === letrasPreviewBd) fecharModalPreviewLetras();
-    letrasPreviewBackdropPointerDown = false;
-  });
-  letrasPreviewBd?.addEventListener('pointercancel', () => {
-    letrasPreviewBackdropPointerDown = false;
-  });
-  document.addEventListener(
-    'keydown',
-    (e) => {
-      if (!modalPreviewLetrasEstaAberto()) return;
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'a') return;
-      e.preventDefault();
-      selecionarTodoTextoPreviewLetras();
-    },
-    true
-  );
-  /* O `copy` dispara no elemento focado (ex.: campo de busca atrás do modal), não no scroll. */
-  document.addEventListener('copy', tratarCopiaPreviewLetras, true);
-}
+// (extraído) pré-visualização de letras → painel/previewLetras.js
 
 async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;
@@ -9696,8 +8480,8 @@ const socketPainel = criarSocketPainel({
   getSocket: () => socket,
   setSocket: (s) => { socket = s; },
   io: () => (typeof io !== 'undefined' ? io : undefined),
-  getProjecaoLocalActiva: () => projecaoLocalActiva,
-  getProjecaoLocalEmCurso: () => projecaoLocalEmCurso,
+  getProjecaoLocalActiva: () => getProjecaoLocalActiva(),
+  getProjecaoLocalEmCurso: () => getProjecaoLocalEmCurso(),
   desligarProjecaoNestaMaquina,
   ligarProjecaoNestaMaquina,
   emModoProjecaoLocal,
@@ -9712,9 +8496,9 @@ const socketPainel = criarSocketPainel({
   setAutoConectarAoIniciarEmCurso: (v) => { autoConectarAoIniciarEmCurso = !!v; },
   getReassumirLocalEmCurso: () => reassumirLocalEmCurso,
   setReassumirLocalEmCurso: (v) => { reassumirLocalEmCurso = !!v; },
-  getServidorLanIpObs: () => servidorLanIpObs,
-  setServidorLanIpObs: (v) => { servidorLanIpObs = v; },
-  setServidorObsPort: (v) => { servidorObsPort = v; },
+  getServidorLanIpObs: () => getServidorLanIpObs(),
+  setServidorLanIpObs: (v) => { setServidorLanIpObs(v); },
+  setServidorObsPort: (v) => { setServidorObsPort(v); },
   getUltimaDisplayConfig: () => ultimaDisplayConfigServidor,
   controladorSomenteLeitura,
   aplicarDisplayConfigDoServidor: aplicarDisplayConfigDoServidorNoPainel,
@@ -11442,274 +10226,5 @@ function sincronizarLarguraLateraisCabecalho() {
  * falta (as letras) e mostrar o resultado.
  */
 
-/** Monitores que estavam guardados e já não existem — preenchido ao restaurar a rota. */
-let preVooMonitoresEmFalta = [];
-
-/** Evita duas verificações em paralelo se o operador clicar duas vezes. */
-let preVooACorrer = false;
-
-/** Músicas reais do culto, sem os marcadores de tema. */
-function musicasDoCultoParaPreVoo() {
-  if (!cultoId) return [];
-  const pl = getPlaylist(cultoId);
-  if (!Array.isArray(pl)) return [];
-  return pl.filter((it) => it && !ehMarcadorTemaPlaylist(it));
-}
-
-/**
- * Vai buscar a letra de cada música do culto.
- *
- * Em paralelo, e com o erro de cada uma isolado: uma música apagada devolve 404, e isso é
- * precisamente um dos achados que se procura — não uma falha que deva derrubar a
- * verificação inteira.
- *
- * @param {object[]} itens
- */
-async function carregarLetrasParaPreVoo(itens) {
-  const base = getControllerApiBase();
-  return Promise.all(
-    itens.map(async (item) => {
-      const id = idMusicaParaPreVoo(item);
-      if (id == null) return { item, musica: null, erro: true };
-      const fonte = item?.bancoFonte === 'catalog' ? '?fonte=catalog' : '';
-      try {
-        const r = await fetch(`${base}/api/musicas/${id}${fonte}`);
-        if (!r.ok) return { item, musica: null, erro: true };
-        return { item, musica: await r.json(), erro: false };
-      } catch (_) {
-        return { item, musica: null, erro: true };
-      }
-    })
-  );
-}
-
-/**
- * Confirma no disco os vídeos que o modo Mídias vai usar.
- *
- * Só itens com `filePath` — imagens e PDF viajam embutidos no estado e não têm como
- * desaparecer. Sem a ponte disponível (painel aberto fora do Electron), devolve lista
- * vazia: é preferível não verificar do que inventar que está tudo bem.
- */
-async function verificarMidiasNoDiscoParaPreVoo() {
-  const todos = [
-    ...(apresentacaoBiblioteca || []),
-    ...(apresentacaoCards || []),
-    ...(apresentacaoVideoPlaylist || []),
-    ...(apresentacaoAudios || []),
-  ].filter((it) => it && String(it.filePath || '').trim());
-
-  if (!todos.length) return [];
-  const api = window.lyraElectron;
-  if (!api || typeof api.verificarArquivosExistem !== 'function') return [];
-
-  /* Um caminho pode estar em vários sítios (biblioteca e card): perguntar uma vez só. */
-  const caminhos = [...new Set(todos.map((it) => String(it.filePath).trim()))];
-  try {
-    const res = await api.verificarArquivosExistem(caminhos);
-    const mapa = new Map((res || []).map((r) => [r.caminho, !!r.existe]));
-    return caminhos.map((c) => ({
-      caminho: c,
-      filePath: c,
-      name: todos.find((it) => String(it.filePath).trim() === c)?.name || c,
-      existe: mapa.get(c) !== false,
-    }));
-  } catch (_) {
-    return [];
-  }
-}
-
-/** Corre as quatro verificações e desenha o resultado. */
-async function correrPreVooDoCulto() {
-  if (preVooACorrer) return;
-  preVooACorrer = true;
-
-  abrirPainelPreVoo();
-  desenharPreVooACarregar();
-
-  try {
-    const itens = musicasDoCultoParaPreVoo();
-
-    /* Telas e tons saem do que já está em memória; letras e mídias precisam de ir buscar.
-       As duas idas acontecem ao mesmo tempo — não dependem uma da outra. */
-    const [carregadas, midias] = await Promise.all([
-      itens.length ? carregarLetrasParaPreVoo(itens) : Promise.resolve([]),
-      verificarMidiasNoDiscoParaPreVoo(),
-    ]);
-
-    /* Telas: não ler os seletores do cabeçalho (`rotaSelecionadaNaUi`). Esses reflectem o
-       modo/aba aberto (Home→completo, Slides→slides, …). No Home o completo pode estar em
-       «Não exibir» enquanto o telão do culto (slides) já tem monitor — e o pré-voo acusava
-       «nenhum monitor a receber o telão» só por causa da aba. A verificação do culto olha
-       a rota de infraestrutura, independente do modo activo. */
-    let rota = null;
-    try {
-      const slides = obterRotaSlidesParaUi();
-      const completo = sanitizarRotaProjecao(
-        normalizarRota(rotasPorModo.completo),
-        monitoresServidorCache
-      );
-      rota =
-        slides.live || slides.publicoIndex >= 0
-          ? slides
-          : completo.live || completo.publicoIndex >= 0
-            ? completo
-            : slides;
-    } catch (_) {
-      rota = null;
-    }
-
-    const resultado = consolidar([
-      verificarTelas(rota, monitoresServidorCache, preVooMonitoresEmFalta),
-      verificarPlaylistVazia(itens),
-      verificarTonsEMinistrantes(
-        itens.map((it) => ({
-          ...it,
-          titulo: it.titulo || it.nome || '',
-          ministranteNome: nomeMinistrantePorId(it.ministranteId),
-        }))
-      ),
-      verificarLetras(carregadas),
-      verificarMidias(midias),
-    ]);
-
-    desenharResultadoPreVoo(resultado, itens.length);
-  } catch (e) {
-    desenharErroPreVoo(e);
-  } finally {
-    preVooACorrer = false;
-  }
-}
-
-function abrirPainelPreVoo() {
-  const bd = document.getElementById('prevoo-backdrop');
-  if (!bd) return;
-  bd.classList.add('aberto');
-  bd.setAttribute('aria-hidden', 'false');
-  document.getElementById('prevoo-ok')?.focus();
-}
-
-function fecharPainelPreVoo() {
-  const bd = document.getElementById('prevoo-backdrop');
-  if (!bd) return;
-  bd.classList.remove('aberto');
-  bd.setAttribute('aria-hidden', 'true');
-}
-
-function desenharPreVooACarregar() {
-  const corpo = document.getElementById('prevoo-corpo');
-  const sub = document.getElementById('prevoo-sub');
-  if (sub) sub.textContent = 'A verificar…';
-  if (corpo) {
-    corpo.innerHTML = '';
-    const d = document.createElement('div');
-    d.className = 'prevoo-tudo-bem';
-    d.innerHTML =
-      '<div class="prevoo-tudo-bem-tit">A verificar o culto…</div>' +
-      '<div class="prevoo-tudo-bem-det">Telas, tons, letras e mídias.</div>';
-    corpo.appendChild(d);
-  }
-}
-
-function desenharErroPreVoo(e) {
-  const corpo = document.getElementById('prevoo-corpo');
-  const sub = document.getElementById('prevoo-sub');
-  if (sub) sub.textContent = 'A verificação não terminou';
-  if (!corpo) return;
-  corpo.innerHTML = '';
-  const d = document.createElement('div');
-  d.className = 'prevoo-tudo-bem';
-  const tit = document.createElement('div');
-  tit.className = 'prevoo-tudo-bem-tit';
-  tit.textContent = 'Não foi possível verificar tudo';
-  const det = document.createElement('div');
-  det.className = 'prevoo-tudo-bem-det';
-  /* Sem lista parcial: meia verificação lida como completa é pior do que nenhuma. */
-  det.textContent =
-    'Algo falhou a meio, por isso não há resultado de confiança para mostrar. ' +
-    'Tente «Verificar de novo». (' + ((e && e.message) || e) + ')';
-  d.appendChild(tit);
-  d.appendChild(det);
-  corpo.appendChild(d);
-}
-
-/**
- * @param {{achados: object[], impedem: number, atencao: number, tudoBem: boolean}} r
- * @param {number} quantasMusicas
- */
-function desenharResultadoPreVoo(r, quantasMusicas) {
-  const corpo = document.getElementById('prevoo-corpo');
-  const sub = document.getElementById('prevoo-sub');
-  const nota = document.getElementById('prevoo-nota');
-  if (!corpo) return;
-
-  const nomeCulto = nomeCultoAtivoParaHistorico();
-  if (sub) {
-    sub.textContent =
-      (nomeCulto ? `${nomeCulto} · ` : '') +
-      `${quantasMusicas} música${quantasMusicas === 1 ? '' : 's'} · ${resumoPreVoo(r)}`;
-  }
-  if (nota) {
-    nota.textContent = r.tudoBem
-      ? ''
-      : 'Nada foi alterado — o pré-voo só relata.';
-  }
-
-  corpo.innerHTML = '';
-
-  if (r.tudoBem) {
-    const d = document.createElement('div');
-    d.className = 'prevoo-tudo-bem';
-    const ico = document.createElement('div');
-    ico.className = 'prevoo-tudo-bem-ico';
-    ico.textContent = '✓';
-    const tit = document.createElement('div');
-    tit.className = 'prevoo-tudo-bem-tit';
-    tit.textContent = 'Tudo pronto';
-    const det = document.createElement('div');
-    det.className = 'prevoo-tudo-bem-det';
-    det.textContent =
-      'As telas estão configuradas, as músicas têm letra e tom, e os ficheiros de mídia ' +
-      'estão onde deviam. Pode começar.';
-    d.appendChild(ico);
-    d.appendChild(tit);
-    d.appendChild(det);
-    corpo.appendChild(d);
-    return;
-  }
-
-  r.achados.forEach((a) => {
-    const linha = document.createElement('div');
-    linha.className = 'prevoo-item' + (a.gravidade === GRAVIDADE_IMPEDE ? ' impede' : '');
-    const txt = document.createElement('div');
-    txt.className = 'prevoo-item-txt';
-    const tit = document.createElement('div');
-    tit.className = 'prevoo-item-tit';
-    tit.textContent = a.titulo;
-    const det = document.createElement('div');
-    det.className = 'prevoo-item-det';
-    det.textContent = a.detalhe;
-    txt.appendChild(tit);
-    txt.appendChild(det);
-    linha.appendChild(txt);
-    corpo.appendChild(linha);
-  });
-}
-
-(function iniciarPreVoo() {
-  document.getElementById('prevoo-fechar')?.addEventListener('click', fecharPainelPreVoo);
-  document.getElementById('prevoo-ok')?.addEventListener('click', fecharPainelPreVoo);
-  document.getElementById('prevoo-repetir')?.addEventListener('click', () => {
-    void correrPreVooDoCulto();
-  });
-  document.getElementById('prevoo-backdrop')?.addEventListener('click', (e) => {
-    if (e.target?.id === 'prevoo-backdrop') fecharPainelPreVoo();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    const bd = document.getElementById('prevoo-backdrop');
-    if (bd?.classList.contains('aberto')) {
-      e.preventDefault();
-      fecharPainelPreVoo();
-    }
-  });
-})();
+// (extraído) pré-voo do culto → painel/preVoo.js
+iniciarPreVoo();
