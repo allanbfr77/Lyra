@@ -36,15 +36,15 @@ let persistenciaMetaSyncPendente = {
 let sharedBancoLocalUpdatedAt = '';
 let pedidoSyncBancoEmAberto = false;
 
-function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpdatedAt = false } = {}) {
+export function snapshotMetaCompartilhadaAtual({ incluirPlaylists = true, preservarUpdatedAt = false } = {}) {
   const payload = {
     cultosManuais: Array.isArray(dep.getCultosManuaisCache()) ? dep.getCultosManuaisCache() : [],
-    temasPorCulto: dep.getTemasPorCulto() && typeof temasPorCulto === 'object' ? dep.getTemasPorCulto() : {},
+    temasPorCulto: dep.getTemasPorCulto() && typeof dep.getTemasPorCulto() === 'object' ? dep.getTemasPorCulto() : {},
     aberturaRemovidaPorCulto:
-      getAberturaRemovidaPorCulto() && typeof aberturaRemovidaPorCulto === 'object' ? getAberturaRemovidaPorCulto() : {},
+      getAberturaRemovidaPorCulto() && typeof getAberturaRemovidaPorCulto() === 'object' ? getAberturaRemovidaPorCulto() : {},
     ministrantePadraoPorCulto: mapaMinistrantePadraoPersistivel(),
   };
-  if (incluirPlaylists) payload.playlists = dep.getPlaylists() && typeof playlists === 'object' ? dep.getPlaylists() : {};
+  if (incluirPlaylists) payload.playlists = dep.getPlaylists() && typeof dep.getPlaylists() === 'object' ? dep.getPlaylists() : {};
   if (!preservarUpdatedAt && sharedBancoLocalUpdatedAt) payload.updatedAt = sharedBancoLocalUpdatedAt;
   return payload;
 }

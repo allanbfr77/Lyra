@@ -80,6 +80,11 @@
  *   removerMusicaBanco.js — excluir música do banco (modal de confirmação, exclusão em lote e limpeza da interface)
  *   tituloAberturaPreview.js — prévia do slide de título de abertura (M3) e primeiras linhas da estrofe para o ministrante
  *   previewProjecao.js — pré-visualização «ao vivo» do telão e do ministrante (relógio ocioso, instruções, espelho do estado)
+ *   previewOculto.js — ocultar/mostrar a prévia do painel quando não há saída física (flags de sincronização, DOM, alternância)
+ *   toolbarEdicaoHome.js — barra de edição da Home: título/artista editáveis, botões Editar/Salvar/Cancelar e estados dos modos
+ *   roteamentoTelas.js — roteamento de telas no servidor: carregar e salvar rotas por modo
+ *   eventosProjecao.js — eventos recebidos da projeção (estado, áudio, display, monitores), ligação do socket e duplo clique na playlist
+ *   projecaoMusica.js — música ativa: seleção no banco, projeção/navegação de estrofes, voz, ir-para-slide, limpar/encerrar e blackout
  * =============================================================================
  */
 
@@ -87,11 +92,8 @@ import { montarHomeLayout } from './painel/homeLayout.js';
 
 import {
   LS_UI_MODO_SLIDES,
-  LS_PREVIEW_PAINEL_OCULTO,
   LS_MODO_APRESENTACAO_ATIVO,
   LS_ROTAS_POR_MODO,
-  SVG_OLHO_ABERTO,
-  SVG_OLHO_CORTADO,
   LS_PLAYLISTS,
   TEMA_PADRAO_ABERTURA,
   PLAYLIST_TIPO_MARCADOR_TEMA,
@@ -110,9 +112,6 @@ import {
   parseLabelCulto,
 } from './modules/cultosCalendario.js';
 import {
-  ehVersaoServidorId,
-} from './modules/copiasLocaisLetra.js';
-import {
   versaoLocalIdTrimado,
   fonteBancoNormalizada,
   fonteBancoItemPlaylist,
@@ -126,7 +125,6 @@ import {
 import {
   criarSlidesGrelha,
 } from './modules/slidesGrelha.js';
-import { criarIrParaSlideNumero } from './modules/slidesIrParaNumero.js';
 import {
   rotuloTipoMidiaApresentacao,
   svgIconeTipoMidiaApresentacao,
@@ -135,19 +133,12 @@ import {
 } from './modules/midiaApresentacao.js';
 import { rotaSemMonitorRepetido as aplicarSaidaExclusiva } from './modules/saidasMonitorExclusivas.js';
 import {
-  rotaSlidesParaEnvioComBiblia,
-  rotaSlidesParaEnvioComApresentacao,
-} from './modules/supressaoCanalSlides.js';
-import {
   precisaReporRotaSlides,
   rotaSlidesReposta,
-  sincronizarNaoExibirManualSlidesDaEscolha,
   limparNaoExibirManualSlides,
-  obterNaoExibirManualSlides,
 } from './modules/reposicaoRotaSlides.js';
 import {
   registrarEscolhaSeletorUnificado,
-  ordemNaoExibirDoSeletorUnificado,
   limparOrdemNaoExibirUnificado,
 } from './modules/ordemNaoExibirUnificado.js';
 import {
@@ -159,7 +150,6 @@ import {
 } from './modules/monitorLembrado.js';
 import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
-import { criarReconhecimentoVozSlides } from './modules/reconhecimentoVozSlides.js';
 import {
   configurarNotasSlideControlador,
 } from './modules/notasSlideControlador.js';
@@ -180,7 +170,6 @@ import {
 } from './painel/tipografiaPainelPreview.js';
 import {
   criarPortaProjecao,
-  criarTransporteSocket,
 } from './modules/projecaoPorta.js';
 import {
   resumirComparacao,
@@ -194,18 +183,15 @@ import {
   alvoDeRota,
   rotaCobreAlvo,
 } from './modules/rotaEnvioBiblia.js';
-import { criarSocketPainel } from './modules/socketPainel.js';
 import {
   appDialogEstado,
   fecharAppDialog,
   appAlert,
-  appConfirm,
   registrarDependenciasAppDialog,
 } from './painel/appDialog.js';
 import {
   fecharLyraMenuModal,
   atualizarModalStatusReinicioServidor,
-  encerrarServidorRemotoViaMenu,
   tratarComandoMenuLyra,
   registrarDependenciasMenuLyra,
 } from './painel/menuLyra.js';
@@ -231,7 +217,6 @@ import {
   carregarDocsBibliotecaDoStorage,
   renderListaDocsImportados,
   configurarBuscaDocsImportados,
-  marcarRotaDocsSincronizada,
   docsHaPaginaProjetada,
   docsPaginaSelecionadaAtual,
   registrarDependenciasDocs,
@@ -242,8 +227,6 @@ import {
   onContagemBgImagemChange,
   limparImagemFundoContagem,
   restaurarPadraoContagem,
-  rotaContagemParaServidor,
-  renderSeletorMonitorContagem,
   alternarPainelContagem,
   abrirPainelContagem,
   iniciarContagemRegressivaPainel,
@@ -253,100 +236,44 @@ import {
   alternarModoBiblia,
   aplicarTraducaoBibliaNoSelect,
   atualizarBtnModoBiblia,
-  bibliaAplicarCfgExibicao,
-  bibliaBuscaRapida,
-  bibliaBuscaRapidaTecla,
-  bibliaEscolherFundo,
   bibliaHaParteProjetada,
-  bibliaLimparProjecaoOperador,
   bibliaNavPopupAberto,
-  bibliaNavPopupAbrir,
   bibliaNavPopupFechar,
   bibliaNavegarVersiculosComSeta,
   bibliaPayloadCfgExibicao,
   bibliaPopularFormularioCfg,
   bibliaSairModo,
   bibliaTratarKeydownModo,
-  bibliaZerarParteProjetada,
-  bibliaZerarVersiculoSelecionado,
-  bnpConfirmarCap,
-  bnpConfirmarVer,
-  bnpSelecionarLivro,
   carregarBibliaCfgDoStorage,
-  definirFiltroTestamentoBiblia,
   encerrarProjecaoModoBiblia,
   fetchListaTraducoesBiblia,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
   lerBibliaCfgDoFormularioMinistrante,
   lerBibliaCfgDoFormularioPublico,
-  marcarRotaBibliaSincronizada,
   obterBibliaTraducaoSessao,
-  onBibliaDivisaoCfgChange,
-  onBibliaMinistranteBgTypeCtrlChange,
-  onBibliaMinistranteCfgChange,
-  onBibliaPublicoBgTypeCtrlChange,
-  onBibliaPublicoCfgChange,
   onTraducaoBibliaChange,
   popularGradeLivros,
   reconhecimentoVozBiblia,
   registrarDependenciasBiblia,
   salvarBibliaCfgNoStorage,
-  setBibliaPosCtrl,
 } from './painel/biblia.js';
 import {
   abrirCfgModal,
-  aplicarCfgRelogio,
-  aplicarWrapImediato,
   aprimorarControlesVisuaisCfg,
-  debounceSalvarCfg,
   fecharCfgModal,
   getChkVal,
   iniciarConfigExibicao,
-  lerCurrentCfgCtrl,
   lerNumeroInput,
-  limparCfgBusca,
-  mesclarSlideCfgNoEstado,
-  mudarAbaCfg,
-  mudarDestinoCfg,
-  onAvisoCard6CfgChange,
-  onCfgBuscaInput,
-  onCfgGeralTemaChange,
-  onCfgGeralVozChange,
-  onClockBgImageCtrlChange,
-  onClockBgTypeCtrlChange,
-  onClockDateFontSizeCtrlInput,
-  onClockFontSizeCtrlInput,
-  onClockVerseFontSizeCtrlInput,
-  onMinistranteBgColorCtrlInput,
-  onMinistranteBgGradientCtrlInput,
-  onMinistranteBgImageCtrlChange,
-  onMinistranteBgTypeCtrlChange,
-  onMinistranteSlideCfgChange,
-  onPublicoBgColorCtrlInput,
-  onPublicoBgGradientCtrlInput,
-  onPublicoBgImageCtrlChange,
-  onPublicoBgTypeCtrlChange,
-  popularFormCfg,
   registrarDependenciasConfigExibicao,
-  salvarCfgNoServidor,
-  setCfgSwitchState,
   setChkVal,
   setInputVal,
-  setPosAvisoCard6Ctrl,
-  setPosCtrl,
   setSelVal,
   setSpanText,
-  sincronizarFormCfgGeral,
   slidesAplicarCfgArmazenada,
-  toggleCfgSwitch,
-  toggleDarkCtrl,
 } from './painel/configExibicao.js';
 import {
   BIB_ORIGEM_META,
-  abrirModalNovaMusicaManual,
-  agendarRenderizacoesOcultasDoModoSlides,
-  buscarLetrasExterno,
   carregarMusicas,
   configurarBarraSelecaoBiblioteca,
   configurarModalNovaMusicaManual,
@@ -356,52 +283,29 @@ import {
   garantirBuscaLetrasEditavel,
   garantirBuscaLocalEditavel,
   initBancoPainelFromStorage,
-  limparBuscaLetras,
-  onBancoFonteChange,
-  onBuscaLetrasInput,
-  onFiltroBuscaChange,
-  refreshListaBanco,
   registrarDependenciasBibliotecaMusicas,
 } from './painel/bibliotecaMusicas.js';
 import {
-  ERRO_ROTULO_DUPLICADO_API,
-  apagarCopiaVersaoSelecionada,
-  aplicarBaseMusicaSelecionada,
-  concluirRenomearVersaoServidor,
-  editarNomeVersaoSelecionada,
-  nomeVersaoJaUsadoNaMusica,
   registrarDependenciasVersoesMusica,
-  renderMusicaVersoesBar,
-  versaoCopiaSelecionadaAtual,
 } from './painel/versoesMusica.js';
 import {
-  alternarModoLetraCompletaCentral,
-  alternarModoLetraCompletaOuVoltarGrade,
   aplicarLayoutModoLetraCompleta,
   atualizarTextoPainelLetraCompleta,
-  atualizarToolbarModoLetraCompleta,
-  cancelarModoLetraCompletaCentral,
   confirmarProsseguirDescartandoEdicaoPendente,
-  descartarEdicaoLetraCompletaSemSair,
   entrarModoLetraCompletaCentral,
   estrofesArraysIguaisParaEdicao,
   irParaGradeSlidesDesdeLetraCompleta,
-  letraCompletaSujaVsSnapshot,
   registrarDependenciasLetraCompleta,
   splitTextoLetraCompletaEmEstrofes,
   temEdicaoMusicaNaoGravada,
 } from './painel/letraCompleta.js';
 import {
-  alternarModoComparativoCentral,
   aplicarLayoutModoComparativo,
   comparativoSujoVsSnapshot,
-  fecharModoComparativo,
   registrarDependenciasComparativoVersoes,
   sairModoComparativoParaTrocarModo,
-  salvarComparativoNoServidor,
 } from './painel/comparativoVersoes.js';
 import {
-  alternarCaixaLetrasEdicao,
   atualizarEstrofesEditorInPlace,
   configurarCamposMetadadosMusicaHome,
   entrarModoEdicao,
@@ -412,8 +316,6 @@ import {
   reaplicarAlturasEstrofesEditor,
   registrarDependenciasEditorEstrofes,
   renderEstrofesEditor,
-  sairModoEdicao,
-  salvarMusicaServidor,
   sincronizarFlagCaixaLetrasComTextoAtual,
 } from './painel/editorEstrofes.js';
 import {
@@ -427,7 +329,6 @@ import {
   loadTemaSelecionadoPorCulto,
   loadTemasPorCulto,
   marcarAberturaRemovidaPeloUsuario,
-  migrarTemasParaGlobal,
   normalizarListaTemas,
   normalizarTemaPlaylist,
   ordenarTemasLista,
@@ -467,7 +368,6 @@ import {
   solicitarExcluirCultoManual,
 } from './painel/cultoDoDia.js';
 import {
-  dataRefDoCultoImportado,
   getAppImportarBloqueadoFechar,
   getModalImportarTimerAutoFechar,
   iniciarPlaylistCompartilhar,
@@ -483,14 +383,10 @@ import {
   registrarDependenciasSincronizacaoBanco,
   setEnviarPlaylistsServidorTimer,
   setSharedBancoLocalUpdatedAt,
-  tratarPedidoSincronizacaoBanco,
   tratarPedidoSyncBancoDirecto,
 } from './painel/sincronizacaoBanco.js';
 import {
-  atualizarChecksAoProjetar,
-  atualizarEstadoBtnProximaMusicaPlaylist,
   deselecionarMusicaAtivaAPartirDaPlaylist,
-  marcarUltimaMusicaAoEncerrar,
   playlistItemSelecionadoNaUi,
   registrarDependenciasPlaylistTransmitidas,
 } from './painel/playlistTransmitidas.js';
@@ -498,11 +394,7 @@ import {
   garantirMinistrantesCarregados,
   iniciarSyncPeriodicoTonsInvb,
   nomeMinistrantePorId,
-  onCfgImportTonsArquivoChange,
-  onCfgMinistranteAdicionar,
-  onCfgSyncTonsInvbClick,
   onPlaylistTomChange,
-  onSincronizarPlaylistLyraClick,
   registrarDependenciasMinistrantesTons,
   renderListaCfgMinistrantes,
 } from './painel/ministrantesTons.js';
@@ -515,7 +407,6 @@ import {
 import {
   addMusicaNaPlaylist,
   addMusicaNaPlaylistParaCulto,
-  adicionarVersaoAtivaNaPlaylistHome,
   processarMusicasSincronizadasPayload,
   registrarDependenciasPlaylistAdicionar,
 } from './painel/playlistAdicionar.js';
@@ -585,7 +476,6 @@ import {
 } from './painel/gridApresentacao.js';
 import {
   agendarSalvarEstadoAposDigitarAviso,
-  ajustarEstadoVisualRetomadaAudio,
   armarGuardaVisualRetomadaAudio,
   carregarEstadoModoApresentacaoDoServidor,
   carregarEstadoModoApresentacaoDoStorage,
@@ -608,17 +498,10 @@ import {
 import {
   alternarProjecaoNestaMaquina,
   atualizarUrlsObs,
-  copiarUrlObs,
-  desligarProjecaoNestaMaquina,
   emModoProjecaoLocal,
-  getProjecaoLocalActiva,
-  getProjecaoLocalEmCurso,
-  getServidorLanIpObs,
   ligarProjecaoNestaMaquina,
   ponteProjecaoLocal,
   registrarDependenciasProjecaoLocalObs,
-  setServidorLanIpObs,
-  setServidorObsPort,
 } from './painel/projecaoLocalObs.js';
 import {
   abrirModalPreviewLetras,
@@ -632,7 +515,6 @@ import {
   correrPreVooDoCulto,
   iniciarPreVoo,
   registrarDependenciasPreVoo,
-  setPreVooMonitoresEmFalta,
 } from './painel/preVoo.js';
 import {
   configurarModalExcluirMusica,
@@ -644,9 +526,7 @@ import {
 import {
   aplicarEstiloPreviewTituloAbertura,
   limparPreviewTituloMusicaAbertura,
-  obterTomPlaylistMusicaAtiva,
   registrarDependenciasTituloAberturaPreview,
-  tituloAberturaM3MusicaAtiva,
 } from './painel/tituloAberturaPreview.js';
 import {
   aplicarPreviewTelaoNoDom,
@@ -669,6 +549,52 @@ import {
   selecaoLocalAlinhadaComProjecaoMusicaServidor,
   sincronizarPreviewOciosoMinistranteSlides,
 } from './painel/previewProjecao.js';
+import {
+  aplicarPreviewPainelOcultoNoDom,
+  carregarPreviewPainelOcultoDoArmazenamento,
+  registrarDependenciasPreviewOculto,
+} from './painel/previewOculto.js';
+import {
+  atualizarBotoesSalvarCancelarBarraPadrao,
+  atualizarToolbarCaixaLetrasEdicao,
+  atualizarToolbarModoEdicao,
+  cancelarModoComparativoCentral,
+  marcacaoEstrofeEditor,
+  metadadosMusicaSujosNaHome,
+  registrarDependenciasToolbarEdicaoHome,
+  renomearVersaoSelecionadaComNome,
+} from './painel/toolbarEdicaoHome.js';
+import {
+  carregarRoteamentoTelasDoServidor,
+  registrarDependenciasRoteamentoTelas,
+  salvarRoteamentoTelasNoServidor,
+} from './painel/roteamentoTelas.js';
+import {
+  controladorSomenteLeitura,
+  iniciarEventosProjecao,
+  playlistDuploCliqueIniciarProjecao,
+  registrarDependenciasEventosProjecao,
+  socketPainel,
+} from './painel/eventosProjecao.js';
+import {
+  direcaoTeclaPassadorSlides,
+  emitirEstrofeAoServidor,
+  encerrarProjecaoDoControlador,
+  exibirEstrofe,
+  iniciarProjecaoMusica,
+  montarPayloadExibirMusica,
+  musicaEstadoCombinaComAtiva,
+  navegarEstrofe,
+  navegarEstrofePassadorSlides,
+  navegarEstrofePorSeta,
+  nomeCultoAtivoParaHistorico,
+  projetarPorDuploCliqueCentral,
+  reconhecimentoVozSlides,
+  registrarDependenciasProjecaoMusica,
+  selecionarMusicaDoBanco,
+  sincronizarEstrofeAtiva,
+  toggleBlackoutTelas,
+} from './painel/projecaoMusica.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -1676,6 +1602,262 @@ registrarDependenciasPreviewProjecao({
   getProjecao: () => projecao,
   getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
   getSlidesDockVisivel: () => slidesDockVisivel,
+});
+registrarDependenciasPreviewOculto({
+  classificarSaidaMonitorMinistranteSlides,
+  classificarSaidaMonitorPublicoSlides,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  indicesEfetivosRoteamentoDualCliente,
+  normalizarRota,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasToolbarEdicaoHome({
+  atualizarRotuloVersaoNasPlaylists,
+  getControllerApiBase,
+  getCaixaLetrasEdicaoMaiuscula: () => caixaLetrasEdicaoMaiuscula,
+  getEstrofeAtiva: () => estrofeAtiva,
+  getHomeLayout: () => homeLayout,
+  getLetraCompletaEditando: () => letraCompletaEditando,
+  setLetraCompletaEditando: (valor) => {
+    letraCompletaEditando = valor;
+  },
+  getModoComparativoCentral: () => modoComparativoCentral,
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  getMusicaAtiva: () => musicaAtiva,
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
+});
+registrarDependenciasRoteamentoTelas({
+  aplicarRotaDoModoAtualNaUiEServidor,
+  atualizarFeedbackProjecaoApresentacaoUi,
+  avisarMonitoresConfiguradosEmFalta,
+  ehModoSlidesOperador,
+  hayProjecaoMidiaApresentacaoAtiva,
+  hostProjecao,
+  modoRoteamentoAtual,
+  normalizarRota,
+  obterRotaApresentacaoParaServidor,
+  persistirIdentidadesDosModos,
+  restaurarRotaSlidesAposLibertarMonitores,
+  rotaRestauradaPorIdentidade,
+  rotaSelecionadaNaUi,
+  rotaSemMonitorRepetido,
+  rotaSlidesAoEntrarNoModo,
+  salvarRotasPorModoNoStorage,
+  sanitizarRotaProjecao,
+  emitirEstrofeAoServidor,
+  getEstrofeAtiva: () => estrofeAtiva,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  setMonitoresServidorCache: (valor) => {
+    monitoresServidorCache = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  getProjecao: () => projecao,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasEventosProjecao({
+  agendarRepinturaCompositorAposEstadoServidor,
+  aplicarSelecaoUiPlaylist,
+  assinaturaEstadoProjecaoRecebido,
+  atualizarBtnModoApresentacao,
+  atualizarFeedbackProjecaoApresentacaoUi,
+  atualizarIndicadorProjecaoLiveUi,
+  atualizarRodapeAudioApresentacao,
+  atualizarUiConexao,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  emitirPlaylistsDoControlador,
+  enviarPlaylistsParaServidor,
+  forcarRepinturaCompositorLyra,
+  hostProjecao,
+  readLsMigrate,
+  projetarPorDuploCliqueCentral,
+  selecionarMusicaDoBanco,
+  sincronizarEstrofeAtiva,
+  getApresentacaoAudioAtualId: () => apresentacaoAudioAtualId,
+  getApresentacaoAudios: () => apresentacaoAudios,
+  getApresentacaoAvisoCard6Ativo: () => apresentacaoAvisoCard6Ativo,
+  setApresentacaoAvisoCard6Ativo: (valor) => {
+    apresentacaoAvisoCard6Ativo = valor;
+  },
+  getApresentacaoMidiaProjetadaId: () => apresentacaoMidiaProjetadaId,
+  setApresentacaoMidiaProjetadaId: (valor) => {
+    apresentacaoMidiaProjetadaId = valor;
+  },
+  getAudioLoopAtivo: () => audioLoopAtivo,
+  getAudioLoopReinicioPendente: () => audioLoopReinicioPendente,
+  setAudioLoopReinicioPendente: (valor) => {
+    audioLoopReinicioPendente = valor;
+  },
+  getAudioStateRemoto: () => audioStateRemoto,
+  setAudioStateRemoto: (valor) => {
+    audioStateRemoto = valor;
+  },
+  getAutoConectarAoIniciarEmCurso: () => autoConectarAoIniciarEmCurso,
+  setAutoConectarAoIniciarEmCurso: (valor) => {
+    autoConectarAoIniciarEmCurso = valor;
+  },
+  getCompanionHandoffEmCurso: () => companionHandoffEmCurso,
+  getEstadoServidor: () => estadoServidor,
+  setEstadoServidor: (valor) => {
+    estadoServidor = valor;
+  },
+  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
+    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
+  },
+  getLyraAssinaturaEstadoProjecaoRecebido: () => lyraAssinaturaEstadoProjecaoRecebido,
+  setLyraAssinaturaEstadoProjecaoRecebido: (valor) => {
+    lyraAssinaturaEstadoProjecaoRecebido = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getPapelControladorLocal: () => papelControladorLocal,
+  setPapelControladorLocal: (valor) => {
+    papelControladorLocal = valor;
+  },
+  getProjecao: () => projecao,
+  getReassumirLocalEmCurso: () => reassumirLocalEmCurso,
+  setReassumirLocalEmCurso: (valor) => {
+    reassumirLocalEmCurso = valor;
+  },
+  getSlidesDockVisivel: () => slidesDockVisivel,
+  setSlidesDockVisivel: (valor) => {
+    slidesDockVisivel = valor;
+  },
+  getSocket: () => socket,
+  setSocket: (valor) => {
+    socket = valor;
+  },
+  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
+  setTemaSelecionadoPorCulto: (valor) => {
+    temaSelecionadoPorCulto = valor;
+  },
+  getTemasPorCulto: () => temasPorCulto,
+  setTemasPorCulto: (valor) => {
+    temasPorCulto = valor;
+  },
+  getUltimaDisplayConfigServidor: () => ultimaDisplayConfigServidor,
+  setUltimaDisplayConfigServidor: (valor) => {
+    ultimaDisplayConfigServidor = valor;
+  },
+  getUltimoPayloadAvisoCard6: () => ultimoPayloadAvisoCard6,
+  setUltimoPayloadAvisoCard6: (valor) => {
+    ultimoPayloadAvisoCard6 = valor;
+  },
+});
+registrarDependenciasProjecaoMusica({
+  abrirMenuModoApresentacao,
+  alternarListaBancoSqlite,
+  alternarModoSlidesOperador,
+  aplicarSelecaoUiBiblioteca,
+  aplicarSelecaoUiPlaylist,
+  apresentacaoProjecaoAtivaNoCanalPublico,
+  conectar,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoSlidesOperador,
+  fecharMenuModoApresentacao,
+  getControllerApiBase,
+  getPlaylist,
+  hostProjecao,
+  indiceProximaMusicaNaPlaylist,
+  irParaTelaInicial,
+  limparEspelhoLocalSoCamadaSlides,
+  modoRoteamentoAtual,
+  onCfgAutoConectarChange,
+  onCfgLembrarIpChange,
+  playlistItemMesmaVersaoQueAtiva,
+  recarregarPainelControlador,
+  revelarChipEstrofeFocado,
+  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
+  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
+    bloqueioSincronizarEstrofeDoServidor = valor;
+  },
+  getCultoId: () => cultoId,
+  getEstadoServidor: () => estadoServidor,
+  setEstadoServidor: (valor) => {
+    estadoServidor = valor;
+  },
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getFaixaSlidesHabilitadaPorPlaylistNoModoSlides: () => faixaSlidesHabilitadaPorPlaylistNoModoSlides,
+  setFaixaSlidesHabilitadaPorPlaylistNoModoSlides: (valor) => {
+    faixaSlidesHabilitadaPorPlaylistNoModoSlides = valor;
+  },
+  getLyraAssinaturaEstadoProjecaoRecebido: () => lyraAssinaturaEstadoProjecaoRecebido,
+  setLyraAssinaturaEstadoProjecaoRecebido: (valor) => {
+    lyraAssinaturaEstadoProjecaoRecebido = valor;
+  },
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  setModoEdicaoEstrofes: (valor) => {
+    modoEdicaoEstrofes = valor;
+  },
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  setModoLetraCompletaCentral: (valor) => {
+    modoLetraCompletaCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  setMusicaAtiva: (valor) => {
+    musicaAtiva = valor;
+  },
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  setMusicaBancoFonte: (valor) => {
+    musicaBancoFonte = valor;
+  },
+  getMusicaRootId: () => musicaRootId,
+  setMusicaRootId: (valor) => {
+    musicaRootId = valor;
+  },
+  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
+  setMusicaVersaoLocalId: (valor) => {
+    musicaVersaoLocalId = valor;
+  },
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  setProjecaoMusicaEmitidaNoServidor: (valor) => {
+    projecaoMusicaEmitidaNoServidor = valor;
+  },
+  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
+  setSelecaoUiBiblioteca: (valor) => {
+    selecaoUiBiblioteca = valor;
+  },
+  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
+  setSelecaoUiPlaylist: (valor) => {
+    selecaoUiPlaylist = valor;
+  },
+  getSlidesDockVisivel: () => slidesDockVisivel,
+  setSlidesDockVisivel: (valor) => {
+    slidesDockVisivel = valor;
+  },
+  getSlidesGrelha: () => slidesGrelha,
+  getSlidesRailUserRecolhido: () => slidesRailUserRecolhido,
+  setSlidesRailUserRecolhido: (valor) => {
+    slidesRailUserRecolhido = valor;
+  },
+  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
+  setSnapshotEdicaoEstrofes: (valor) => {
+    snapshotEdicaoEstrofes = valor;
+  },
+  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
+  setSnapshotLetraCompleta: (valor) => {
+    snapshotLetraCompleta = valor;
+  },
+  getTodasMusicas: () => todasMusicas,
+  getUltimoConteudoProjetadoModoUnificado: () => ultimoConteudoProjetadoModoUnificado,
+  setUltimoConteudoProjetadoModoUnificado: (valor) => {
+    ultimoConteudoProjetadoModoUnificado = valor;
+  },
+  getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
+  setVersoesMusicaServidorCache: (valor) => {
+    versoesMusicaServidorCache = valor;
+  },
 });
 
 /**
@@ -5065,8 +5247,7 @@ let versoesMusicaServidorCache = { rootId: null, versoes: [] };
 let estrofeAtiva = -1;
 let todasMusicas = [];
 let estadoServidor = null;
-/** Quando true, o cartão de pré-visualização fica recolhido só neste painel (não afeta monitores). */
-let previewPainelOcultoLocal = [false, false];
+// (extraído) estado da prévia oculta → painel/previewOculto.js
 /** Composição visual da Home; música, versões e edição continuam neste núcleo. */
 let homeLayout = null;
 // (extraído) sincronização do estado → painel/estadoApresentacao.js
@@ -5966,395 +6147,7 @@ function aplicarSplitsEstrofesDosTextareasAntesDePersistir() {
 
 // (extraído) faixa de slides → painel/slidesStrip.js
 
-function marcacaoEstrofeEditor() {
-  document.querySelectorAll('.estrofe-slide-edit').forEach((el, i) => {
-    el.classList.toggle('ativa', estrofeAtiva === i);
-  });
-}
-
-function metadadosMusicaEditaveisNaHome() {
-  return !!musicaAtiva && musicaBancoFonte !== 'catalog';
-}
-
-function tituloMusicaEditavelNaHome() {
-  return metadadosMusicaEditaveisNaHome();
-}
-
-function metadadosMusicaSujosNaHome() {
-  if (!metadadosMusicaEditaveisNaHome()) return false;
-  const et = document.getElementById('edit-titulo');
-  const ea = document.getElementById('edit-artista');
-  if (!et || !ea) return false;
-  return et.value !== String(musicaAtiva?.titulo || '') || ea.value !== String(musicaAtiva?.artista || '');
-}
-
-/**
- * Barra de ações central («menu padrão») — SECÇÃO A: itens que dependem só de
- * `musicaAtiva` / `modoEdicaoEstrofes` / `modoLetraCompletaCentral` / `modoComparativoCentral`.
- *
- * Regra geral do menu padrão (mesma barra nos dois modos, Grade/Slide e Letra
- * Completa — ver `atualizarToolbarModoLetraCompleta`, `atualizarToolbarModoComparativo`
- * e `atualizarBotoesSalvarCancelarBarraPadrao`): trocar de modo NUNCA esconde ou troca
- * o conjunto de botões — só habilita/desabilita os que não fazem sentido no estado
- * atual. A única exceção continua a ser «Editar tag» / «Apagar esta versão», que somem
- * (e não apenas desabilitam) quando não há cópia/versão selecionada — isso é uma
- * questão de qual versão está ativa, não de qual modo a barra está.
- */
-function atualizarToolbarModoEdicao() {
-  const m = !!musicaAtiva;
-  const ed = modoEdicaoEstrofes;
-  const full = modoLetraCompletaCentral;
-  const comp = modoComparativoCentral;
-  /* Setas de navegação e Sair continuam disponíveis também no modo Letra Completa —
-     o utilizador quer poder controlar a projeção enquanto edita a letra inteira.
-     Só a edição por estrofes e o modo comparativo (telas de edição exclusivas,
-     sem projeção visível por trás) escondem esse grupo. */
-  const emModoEdicaoVisual = ed || comp;
-  /* «Criar nova versão» deixou de ser um botão desta barra — passou a ser o chip
-     «Nova versão» na barra de versões (renderMusicaVersoesBar). */
-  const metadadosEditaveis = metadadosMusicaEditaveisNaHome();
-  const tituloEditavel = tituloMusicaEditavelNaHome();
-  document.getElementById('btn-editar-letra').style.display = m ? '' : 'none';
-  document.getElementById('btn-editar-letra').disabled = !m || full;
-  document.getElementById('btn-nova-estrofe').style.display = m ? '' : 'none';
-  document.getElementById('btn-nova-estrofe').disabled = !m || !ed;
-  const bAnt = document.getElementById('btn-seta-anterior');
-  const bProx = document.getElementById('btn-seta-proxima');
-  const bSair = document.getElementById('btn-sair-projecao');
-  /* Navegar/encerrar só faz sentido com música carregada — sem o `m` estas
-     ficavam visíveis sobre o placeholder «Escolha uma música…». */
-  const mostrarNavegacaoProjecao = m && !emModoEdicaoVisual;
-  if (bAnt) bAnt.style.display = mostrarNavegacaoProjecao ? '' : 'none';
-  if (bProx) bProx.style.display = mostrarNavegacaoProjecao ? '' : 'none';
-  if (bSair) bSair.style.display = mostrarNavegacaoProjecao ? '' : 'none';
-  const et = document.getElementById('edit-titulo');
-  const ea = document.getElementById('edit-artista');
-  if (et) {
-    et.disabled = !tituloEditavel;
-    et.readOnly = !tituloEditavel;
-    et.title = '';
-  }
-  if (ea) {
-    ea.disabled = !metadadosEditaveis;
-    ea.readOnly = !metadadosEditaveis;
-  }
-
-  /* Ações contextuais da cópia (Editar tag / Apagar esta versão): só aparecem
-     quando há uma cópia selecionada (não ORIGINAL) — somem, não ficam
-     desabilitadas por isso. Isso vale nos dois modos da barra padrão (Grade/Slide
-     e Letra Completa) igualmente, mesmo durante a edição por estrofes — só o
-     modo comparativo (tela de edição exclusiva, sem a versão selecionada à
-     vista) as desabilita: a versão selecionada não muda, só não é hora de
-     mexer nela por cima do comparativo. */
-  const copiaSel = versaoCopiaSelecionadaAtual();
-  const mostrarAcoesCopia = !!copiaSel;
-  const btnEditarNome = document.getElementById('btn-editar-nome-versao');
-  const btnApagarCopia = document.getElementById('btn-apagar-copia-versao');
-  if (btnEditarNome) {
-    btnEditarNome.style.display = mostrarAcoesCopia ? '' : 'none';
-    btnEditarNome.disabled = !mostrarAcoesCopia || comp;
-  }
-  if (btnApagarCopia) {
-    btnApagarCopia.style.display = mostrarAcoesCopia ? '' : 'none';
-    btnApagarCopia.disabled = !mostrarAcoesCopia || comp;
-  }
-  const sep1 = document.getElementById('toolbar-sep-1');
-  if (sep1) sep1.style.display = mostrarAcoesCopia ? '' : 'none';
-
-  atualizarToolbarCaixaLetrasEdicao();
-  atualizarToolbarAdicionarPlaylistHome();
-
-  /* Sem música a linha fica sem nenhum botão: esconder remove também a
-     divisória que ela desenha por baixo dos campos de título/artista. */
-  document
-    .getElementById('centro-toolbar-acoes')
-    ?.classList.toggle('centro-toolbar-acoes--sem-musica', !m);
-
-  atualizarToolbarModoLetraCompleta();
-  atualizarToolbarModoComparativo();
-  /* Por último: «Salvar alterações» e «Cancelar» dependem do resultado de todos
-     os outros — cada um decide, pelo sub-modo activo, o que salvar/descartar. */
-  atualizarBotoesSalvarCancelarBarraPadrao();
-  homeLayout?.update({
-    ...estadoFaixaEdicaoHome(),
-    key: musicaAtiva ? `${musicaBancoFonte}:${musicaAtiva.id}:${musicaVersaoLocalId || ''}` : '',
-    title: musicaAtiva?.titulo, artist: musicaAtiva?.artista,
-    slides: musicaAtiva?.estrofes?.length || 0,
-    metadataEditable: metadadosEditaveis, full, comparison: comp,
-    editing: ed || full || comp,
-  });
-}
-
-/** Estado que decide a faixa de edição da Home (recalculado também a cada tecla). */
-function estadoFaixaEdicaoHome() {
-  return {
-    full: modoLetraCompletaCentral,
-    comparison: modoComparativoCentral,
-    dirty: temEdicaoMusicaNaoGravada(),
-    // Na letra completa/comparativo a faixa só vale com texto alterado (dirty).
-    editingSlides: modoEdicaoEstrofes && !modoLetraCompletaCentral && !modoComparativoCentral,
-    editingFull: modoLetraCompletaCentral && letraCompletaEditando && !modoComparativoCentral,
-    // Nome da cópia/versão selecionada (null no Original, que não é renomeável).
-    versionName: versaoCopiaSelecionadaAtual()?.rotulo ?? null,
-  };
-}
-
-/**
- * Renomeia a cópia/versão selecionada a partir do campo do cabeçalho (modo Editar).
- * Mesmas regras do diálogo «Renomear versão»: nome vazio não grava, nome repetido avisa
- * e não grava. Devolve true quando o nome foi gravado.
- */
-async function renomearVersaoSelecionadaComNome(nomeBruto) {
-  const c = versaoCopiaSelecionadaAtual();
-  const nome = String(nomeBruto ?? '').trim();
-  if (!c || !nome || nome === String(c.rotulo || '').trim()) return false;
-  if (c.tipo === 'local') {
-    if (nomeVersaoJaUsadoNaMusica(c.rootId, nome, c.id)) {
-      await appAlert(`Já existe uma versão chamada «${nome}» nesta música. Escolha um nome diferente.`, 'Nome de versão repetido');
-      return false;
-    }
-    const up = atualizarCopiaLocal(c.rootId, c.id, { rotulo: nome });
-    if (!up.ok) {
-      await appAlert(up.erro || 'Não foi possível renomear a versão local.');
-      return false;
-    }
-    atualizarRotuloVersaoNasPlaylists(c.rootId, c.id, nome);
-    renderMusicaVersoesBar();
-    renderPlaylist();
-    return true;
-  }
-  const idNum = parseInt(c.id, 10);
-  if (!Number.isFinite(idNum)) return false;
-  try {
-    const url = `${getControllerApiBase()}/api/musicas/${idNum}/rotulo`;
-    const opts = { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rotulo: nome }) };
-    let res = await fetch(url, { method: 'PATCH', ...opts });
-    if (res.status === 404) res = await fetch(url, { method: 'POST', ...opts });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (data.codigo === ERRO_ROTULO_DUPLICADO_API) await appAlert(data.erro, 'Nome de versão repetido');
-      else await appAlert(data.erro || `Não foi possível renomear (HTTP ${res.status}).`);
-      return false;
-    }
-    await concluirRenomearVersaoServidor(c.rootId, c.id, idNum, String(data.rotulo || nome).trim());
-    return true;
-  } catch (e) {
-    await appAlert(e?.message || 'Não foi possível renomear a versão.');
-    return false;
-  }
-}
-
-// (extraído) letra completa → painel/letraCompleta.js
-
-// (extraído) modo comparativo → painel/comparativoVersoes.js
-
-/** Botão «Editar letra»: no comparativo, sai dele primeiro. */
-async function acionarEditarLetraBarraPadrao() {
-  if (!musicaAtiva) return;
-  if (!(await sairModoComparativoParaTrocarModo())) return;
-  if (homeLayout?.isHome() && modoLetraCompletaCentral) {
-    // Na letra completa, «Editar» só libera o texto para edição (continua na letra completa).
-    if (!letraCompletaEditando) {
-      letraCompletaEditando = true;
-      atualizarToolbarModoEdicao();
-      document.getElementById('centro-letra-completa-ta')?.focus();
-    }
-    return;
-  }
-  if (homeLayout?.isHome()) {
-    // Na Home «Editar letra» abre a edição por slides (antigo botão do lápis).
-    if (modoEdicaoEstrofes) return;
-    if (!(await confirmarProsseguirDescartandoEdicaoPendente())) return;
-  }
-  entrarModoEdicao();
-}
-
-/** Sai do modo sem gravar nada — o que foi digitado nas colunas é descartado. */
-async function cancelarModoComparativoCentral() {
-  if (!modoComparativoCentral) return;
-  if (comparativoSujoVsSnapshot()) {
-    const ok = await appConfirm(
-      'Descartar as alterações feitas nesta comparação?',
-      'Modo comparativo'
-    );
-    if (!ok) return;
-  }
-  fecharModoComparativo();
-}
-
-/**
- * Botão «Modo comparativo» na barra padrão.
- *
- * Fica visível sempre que há música (nunca some — ver a regra geral no topo de
- * `atualizarToolbarModoEdicao`), e desabilitado quando não é possível abrir
- * (catálogo, sem versões) ou quando já está aberto — reabrir por cima de si
- * mesmo não faz sentido; para sair usa-se «Salvar alterações» ou «Cancelar»
- * da própria barra padrão. Pode ser aberto tanto durante a edição por
- * estrofes quanto durante a letra completa — `abrirModoComparativo` já pede
- * confirmação antes de descartar o que estiver pendente em qualquer um dos
- * dois (via `confirmarProsseguirDescartandoEdicaoPendente`).
- */
-function atualizarToolbarModoComparativo() {
-  const btn = document.getElementById('btn-modo-comparativo');
-  const on = modoComparativoCentral;
-  const m = !!musicaAtiva;
-  const podeAbrir = m && musicaBancoFonte !== 'catalog';
-
-  if (!btn) return;
-  btn.style.display = m ? '' : 'none';
-  /* Aberto, o botão é o toggle de saída — nunca pode ficar preso desabilitado. */
-  btn.disabled = !m || (!on && !podeAbrir);
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-  btn.classList.toggle('ativo', on);
-  btn.title = on
-    ? 'Sai do modo comparativo (pede confirmação se houver alterações não gravadas)'
-    : 'Abrir duas versões lado a lado e destacar as diferenças';
-}
-
-/**
- * «Salvar alterações» e «Cancelar» da barra padrão — um único par de botões
- * reaproveitado pelos três sub-modos de edição (estrofes, letra completa,
- * comparativo) e pela edição solta de título/artista, em vez de um par por
- * sub-modo. Cada um decide, pelo sub-modo activo no momento do clique, qual
- * função já existente chamar — nenhuma delas muda de comportamento.
- */
-
-/**
- * «Salvar alterações»: habilitado só quando há alteração concreta e ainda não
- * gravada — nunca só por estar num sub-modo de edição. `temEdicaoMusicaNaoGravada`
- * já compara o conteúdo actual com o snapshot de quando o sub-modo abriu (não a
- * simples presença de um `<textarea>` focado), por isso digitar e depois desfazer
- * até voltar ao texto original mantém o botão desabilitado.
- *
- * «Cancelar» segue o mesmo critério — precisa de alteração pendente de facto,
- * não só de estar num sub-modo — EXCETO na edição por estrofes (Grade/Slide):
- * esse sub-modo não tem nenhum outro botão para sair dele (a Letra Completa
- * tem o próprio botão «Grade/Slide»; o Comparativo satura o «Comparativo» já
- * aberto), então «Cancelar» precisa ficar habilitado assim que o usuário
- * clica em «Editar letra», mesmo sem ter digitado nada ainda, só para poder
- * sair do modo edição.
- */
-function atualizarBotoesSalvarCancelarBarraPadrao() {
-  const m = !!musicaAtiva;
-  const emSubModoEdicao = modoEdicaoEstrofes || modoLetraCompletaCentral || modoComparativoCentral;
-  const temAlteracaoPendente = temEdicaoMusicaNaoGravada();
-  const btnSalvar = document.getElementById('btn-salvar-musica');
-  if (btnSalvar) {
-    btnSalvar.style.display = m ? '' : 'none';
-    btnSalvar.disabled = !m || !temAlteracaoPendente;
-  }
-  const btnCancelar = document.getElementById('btn-cancelar-padrao');
-  if (btnCancelar) {
-    btnCancelar.style.display = m ? '' : 'none';
-    btnCancelar.disabled =
-      !m || (!emSubModoEdicao && !homeLayout?.metadataOpen()) ||
-      (!modoEdicaoEstrofes && !temAlteracaoPendente && !homeLayout?.isHome());
-  }
-  // Cada edição passa por aqui: mantém a faixa da Home em dia sem recalcular o resto.
-  homeLayout?.updateStrip?.(estadoFaixaEdicaoHome());
-}
-
-/**
- * Grava o que estiver pendente no sub-modo activo no momento do clique.
- * Reaproveita, sem alterar, a função de gravação própria de cada sub-modo —
- * inclusive o tratamento do catálogo (letra completa grava só na sessão;
- * estrofes/metadados bloqueiam com aviso; comparativo grava por versão e
- * bifurca o ORIGINAL quando necessário).
- */
-async function acionarSalvarAlteracoesBarraPadrao() {
-  if (!musicaAtiva) return;
-  if (modoComparativoCentral) {
-    if (!comparativoSujoVsSnapshot()) return;
-    const ok = await salvarComparativoNoServidor();
-    if (ok) fecharModoComparativo();
-    return;
-  }
-  if (modoLetraCompletaCentral) {
-    if (!letraCompletaSujaVsSnapshot() && !metadadosMusicaSujosNaHome()) return;
-    // Mesmo caminho do antigo botão «Modo letra completa» quando clicado já activo.
-    await alternarModoLetraCompletaCentral();
-    return;
-  }
-  // Cobre tanto a edição por estrofes quanto título/artista sozinhos.
-  await salvarMusicaServidor();
-}
-
-/**
- * Descarta o que estiver pendente no sub-modo activo no momento do clique.
- * Cada sub-modo mantém o seu próprio destino/confirmação de sempre — só a
- * posição do botão na barra é que passou a ser uma só. Na Letra Completa,
- * «Cancelar» só desfaz a digitação (`descartarEdicaoLetraCompletaSemSair`) e
- * permanece na Letra Completa — trocar de tela é só o botão «Grade/Slide».
- */
-async function acionarCancelarBarraPadrao() {
-  if (modoComparativoCentral) {
-    await cancelarModoComparativoCentral();
-    return;
-  }
-  if (modoLetraCompletaCentral) {
-    descartarEdicaoLetraCompletaSemSair();
-    if (homeLayout?.isHome()) {
-      // Cancelar volta à visualização da letra completa (não à grade) e restaura título/artista.
-      letraCompletaEditando = false;
-      const et = document.getElementById('edit-titulo');
-      const ea = document.getElementById('edit-artista');
-      if (et) et.value = musicaAtiva?.titulo || '';
-      if (ea) ea.value = musicaAtiva?.artista || '';
-      atualizarToolbarModoEdicao();
-    }
-    return;
-  }
-  if (modoEdicaoEstrofes) {
-    await sairModoEdicao();
-    return;
-  }
-  if (homeLayout?.isHome() && homeLayout.metadataOpen()) {
-    document.getElementById('edit-titulo').value = musicaAtiva?.titulo || '';
-    document.getElementById('edit-artista').value = musicaAtiva?.artista || '';
-    homeLayout.closeMetadata();
-    atualizarToolbarModoEdicao();
-  }
-}
-
-/** Caixa das letras — habilitada só no modo edição (slides ou letra completa), mas
- *  sempre visível na barra padrão, como os demais itens (ver nota no topo de
- *  `atualizarToolbarModoEdicao`). */
-function atualizarToolbarCaixaLetrasEdicao() {
-  const btn = document.getElementById('btn-caixa-letras-edicao');
-  const sep = document.getElementById('toolbar-sep-caixa-letras');
-  const m = !!musicaAtiva;
-  const habilitado = m && (modoEdicaoEstrofes || modoLetraCompletaCentral);
-  /* aA fica sempre no fim da fila de ações; o «|» separa das ações à esquerda. */
-  if (sep) sep.style.display = m ? '' : 'none';
-  if (!btn) return;
-  btn.style.display = m ? '' : 'none';
-  btn.disabled = !habilitado;
-  btn.classList.toggle('ativo', !!caixaLetrasEdicaoMaiuscula);
-  btn.setAttribute('aria-pressed', caixaLetrasEdicaoMaiuscula ? 'true' : 'false');
-  // Habilitado só ao editar a letra (por slides ou letra completa): explica o motivo quando apagado.
-  const tituloCaixa = !habilitado
-    ? 'Caixa das letras: disponível ao editar a letra (clique em «Editar letra» ou use a visualização em lista)'
-    : caixaLetrasEdicaoMaiuscula
-      ? 'Caixa: MAIÚSCULAS (clique para 1.ª maiúscula + resto minúsculas)'
-      : 'Caixa: 1.ª maiúscula + resto minúsculas (clique para MAIÚSCULAS)';
-  btn.title = tituloCaixa;
-  btn.setAttribute('aria-label', tituloCaixa);
-}
-
-/**
- * «Adicionar à playlist» (HOME), ao lado do aA: visível sempre que há música
- * ativa, como o próprio aA (ver `atualizarToolbarCaixaLetrasEdicao` acima) —
- * não depende do sub-modo (Grade/Slide, Letra Completa ou Comparativo).
- */
-function atualizarToolbarAdicionarPlaylistHome() {
-  const btn = document.getElementById('btn-adicionar-playlist-home');
-  const sep = document.getElementById('toolbar-sep-playlist');
-  const m = !!musicaAtiva;
-  if (sep) sep.style.display = m ? '' : 'none';
-  if (!btn) return;
-  btn.style.display = m ? '' : 'none';
-  btn.disabled = !m;
-}
+// (extraído) barra de edição da Home → painel/toolbarEdicaoHome.js
 
 // (extraído) editor de estrofes → painel/editorEstrofes.js
 iniciarEditorEstrofes();
@@ -6387,529 +6180,9 @@ async function conectar() {
 
 // (extraído) projeção local e OBS → painel/projecaoLocalObs.js
 
-async function carregarRoteamentoTelasDoServidor() {
-  const ip = hostProjecao();
-  if (!ip) return;
-  try {
-    const [rMon, rRoute] = await Promise.all([
-      fetch(`http://${ip}:5510/api/monitores`),
-      fetch(`http://${ip}:5510/api/display-routing`),
-    ]);
-    const mon = await rMon.json().catch(() => []);
-    const route = await rRoute.json().catch(() => ({}));
-    monitoresServidorCache = Array.isArray(mon) ? mon : [];
-    let slidesSrv;
-    let apSrv;
-    if (route && route.version === 2 && route.slides && route.apresentacao) {
-      slidesSrv = sanitizarRotaProjecao(route.slides, monitoresServidorCache);
-      apSrv = sanitizarRotaProjecao(route.apresentacao, monitoresServidorCache);
-    } else {
-      const leg = sanitizarRotaProjecao(route || {}, monitoresServidorCache);
-      slidesSrv = leg;
-      apSrv = { publicoIndex: -1, ministranteIndex: -1, live: false };
-    }
+// (extraído) roteamento de telas no servidor → painel/roteamentoTelas.js
 
-    /* A identidade manda sobre os índices: tanto os do servidor como os de
-       `LS_ROTAS_POR_MODO` referem-se ao arranjo de monitores da sessão anterior, que é
-       exactamente o que a renumeração do Windows corrompe. Ver `identidadeMonitores.js`.
-       `apresentacao` fica de fora por ser rota de sessão, reposta a cada arranque.
-
-       O seletor do modo Slides é só de sessão: a identidade ainda alimenta o pré-voo
-       (avisos de monitor em falta), mas a rota em vigor não herda «Não exibir» nem a
-       escolha da sessão anterior. Na primeira detecção (rota ainda virgem) aplica-se o
-       padrão M2/M3; nas reconexões seguintes preserva-se o que o operador já escolheu. */
-    const restSlides = rotaRestauradaPorIdentidade('slides', slidesSrv);
-    const restCompleto = rotaRestauradaPorIdentidade('completo', rotasPorModo.completo);
-    rotasPorModo.completo = restCompleto.rota;
-    const faltou = [...restSlides.faltou, ...restCompleto.faltou];
-    avisarMonitoresConfiguradosEmFalta(faltou);
-    /* O pré-voo relata o mesmo, mas só quando o operador pergunta — a faixa do cabeçalho
-       avisa na hora, e a lista da verificação recolhe-o junto do resto. */
-    setPreVooMonitoresEmFalta(faltou);
-    /* Apresentação primeiro: a reposição do Slides desvia-se do que a mídia já ocupa. */
-    rotasPorModo.apresentacao = { ...apSrv };
-    if (precisaReporRotaSlides(rotasPorModo.slides)) {
-      rotasPorModo.slides = rotaSlidesReposta(
-        rotasPorModo.slides,
-        rotaSlidesAoEntrarNoModo()
-      );
-    }
-    const mergedSrv = apSrv.live
-      ? { publicoIndex: -1, ministranteIndex: -1, live: true }
-      : {
-          publicoIndex: apSrv.publicoIndex >= 0 ? apSrv.publicoIndex : slidesSrv.publicoIndex,
-          ministranteIndex: apSrv.ministranteIndex >= 0 ? apSrv.ministranteIndex : slidesSrv.ministranteIndex,
-          live: false,
-        };
-    const semSalvo =
-      normalizarRota(rotasPorModo.completo).publicoIndex === -1 &&
-      normalizarRota(rotasPorModo.completo).ministranteIndex === -1;
-    if (semSalvo) {
-      const padraoSlides = normalizarRota(rotasPorModo.slides);
-      if (padraoSlides.publicoIndex >= 0 || padraoSlides.ministranteIndex >= 0) {
-        rotasPorModo.completo = { ...padraoSlides };
-        salvarRotasPorModoNoStorage();
-      }
-    }
-    /**
-     * Não sincronizar o modo atual para o servidor só por ligar o socket:
-     * no modo slides com telão «Não exibir» (-1,-1) isso gravava -1 no PC servidor
-     * e `garantirTelasAbertasParaProjecao` deixava de abrir janelas — só prévias no painel.
-     */
-    if (ehModoSlidesOperador()) {
-      const s = normalizarRota(rotasPorModo.slides);
-      if (s.publicoIndex < 0 && s.ministranteIndex < 0) {
-        /* Só preenche se não for «Não exibir» manual nesta sessão. */
-        if (precisaReporRotaSlides(s)) {
-          rotasPorModo.slides = rotaSlidesAoEntrarNoModo();
-          salvarRotasPorModoNoStorage();
-        }
-      }
-    }
-    await aplicarRotaDoModoAtualNaUiEServidor({ sincronizarServidor: false });
-    const modo = modoRoteamentoAtual();
-    const rotaLocalModo = normalizarRota(rotasPorModo[modo]);
-    const servidorSemMonitores =
-      mergedSrv.publicoIndex < 0 && mergedSrv.ministranteIndex < 0 && !mergedSrv.live;
-    const modoTemMonitores =
-      rotaLocalModo.publicoIndex >= 0 ||
-      rotaLocalModo.ministranteIndex >= 0 ||
-      rotaLocalModo.live;
-    if (servidorSemMonitores && modoTemMonitores) {
-      await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-/**
- * Os canais que o operador apagou NO SELETOR DO MODO EM QUE ESTÁ.
- *
- * É uma leitura do que está escolhido agora, recalculada a cada envio — não um estado que
- * fica pendurado. Só o modo em vigor a preenche: sair do Slides para a Bíblia devolve
- * `false` nos canais do Slides no envio seguinte, e vice-versa. Quem manda no que se vê é
- * sempre o modo em que o operador está.
- *
- * Os três seletores — o duplo do Slides e o unificado da Bíblia/Mídias/DOCS — alimentam a
- * MESMA ordem e a mesma mecânica no motor (`semExibicaoOrdenada` → lençol preto por cima
- * do conteúdo). O que difere é só a leitura do gesto, porque os seletores são diferentes;
- * ver `modules/ordemNaoExibirUnificado.js`.
- *
- * «Live — OBS» não é «apagar o monitor»: é mandar a saída para outro sítio. Fica de fora.
- *
- * @param {string} modo modo de roteamento em vigor (`modoRoteamentoAtual()`)
- */
-function semExibicaoDoSeletorDoModo(modo) {
-  const NENHUM = { publico: false, ministrante: false };
-  if (modo === 'biblia' || modo === 'apresentacao' || modo === 'docs') {
-    return ordemNaoExibirDoSeletorUnificado(modo, obterRotaApresentacaoParaServidor());
-  }
-  if (modo !== 'slides' && modo !== 'completo') return NENHUM;
-
-  const enviada = normalizarRota(rotasPorModo.slides);
-  if (enviada.live) return NENHUM;
-
-  /*
-   * A escolha do operador, ANTES dos ajustes automáticos.
-   *
-   * O −1 da ocupação pelas Mídias já não passa por aqui — vive só no pacote
-   * (`rotaSlidesParaEnvioComApresentacao`) —, mas a distinção continua a ser a mesma e é
-   * o que esta leitura protege: apagar o monitor é ordem do operador, não consequência de
-   * a mídia lá estar. No modo Slides quem guarda a escolha à mão é `reposicaoRotaSlides`
-   * (o mesmo registo que a reposição de rota já consulta); no modo completo,
-   * `rotasPorModo.completo`.
-   */
-  const escolha =
-    modo === 'slides'
-      ? obterNaoExibirManualSlides()
-      : (() => {
-          const c = normalizarRota(rotasPorModo.completo);
-          return { publico: c.publicoIndex < 0, ministrante: c.ministranteIndex < 0 };
-        })();
-
-  /* E só apaga o canal que de facto vai sair a −1: se o ajuste lhe deu um monitor, há
-     conteúdo para mostrar e nada a apagar. */
-  return {
-    publico: !!escolha.publico && enviada.publicoIndex < 0,
-    ministrante: !!escolha.ministrante && enviada.ministranteIndex < 0,
-  };
-}
-
-async function salvarRoteamentoTelasNoServidor(opts = {}) {
-  const usarValoresDaUi = opts.usarValoresDaUi !== false;
-  const modo = modoRoteamentoAtual();
-  /** 'publico' | 'ministrante' — a saída que o operador acabou de escolher, quando veio de um clique. */
-  const canalEscolhido =
-    opts.canalEscolhido === 'publico' || opts.canalEscolhido === 'ministrante'
-      ? opts.canalEscolhido
-      : null;
-
-  const slidesAntes = normalizarRota(rotasPorModo.slides);
-
-  if (usarValoresDaUi) {
-    const fromUi = rotaSelecionadaNaUi();
-    if (!fromUi) return;
-    rotasPorModo[modo] = { ...normalizarRota(fromUi) };
-
-    /* Rede de segurança da regra «um monitor, uma saída». O clique já libertou a outra
-       saída; isto cobre um DOM fora de sincronia e deixa a regra escrita num sítio só. */
-    if (modo === 'slides' || modo === 'completo') {
-      rotasPorModo[modo] = rotaSemMonitorRepetido(rotasPorModo[modo], 'publico');
-    }
-
-    if (modo === 'slides') {
-      /* Marca «Não exibir» manual a partir do clique — antes do ajuste por conflito com
-         Mídias, que também escreve −1 e não pode contar como escolha do operador.
-         E só para a saída que o clique mexeu: a rota vem do DOM com as duas, e o −1 que
-         o outro seletor trazia é justamente o do conflito com as Mídias. */
-      sincronizarNaoExibirManualSlidesDaEscolha(
-        rotasPorModo.slides,
-        canalEscolhido ? { publico: canalEscolhido === 'publico', ministrante: canalEscolhido === 'ministrante' } : null
-      );
-      rotasPorModo.slides = normalizarRota(rotasPorModo.slides);
-    } else if (modo === 'completo') {
-      rotasPorModo.slides = normalizarRota(rotasPorModo.completo);
-    } else if (modo === 'apresentacao') {
-      const a = normalizarRota(rotasPorModo.apresentacao);
-      if (!a.live && a.publicoIndex < 0 && a.ministranteIndex < 0) {
-        /*
-         * «Não exibir» nas Mídias NÃO encerra a mídia.
-         *
-         * Encerrava: este ramo chamava `encerrarProjecaoMidiaApresentacaoNoControlador()`,
-         * que pára o áudio, limpa `apresentacaoMidiaProjetadaId` e manda o servidor fechar
-         * os canais. O vídeo morria a meio, o áudio calava-se, e voltar a exibir obrigava a
-         * projetar tudo de novo — nada disto é «não exibir», é encerrar.
-         *
-         * Agora é o mesmo lençol preto do Slides: a projeção continua activa, o vídeo e o
-         * áudio continuam, e o que muda é só o que se vê no monitor. Encerrar de verdade
-         * continua a existir, no botão «Encerrar projeção» do cabeçalho
-         * (`encerrarProjecaoMidiaCabecalhoModoApresentacao`) — que é um gesto diferente e
-         * segue por um caminho automático, sem ordem de «Não exibir».
-         *
-         * A libertação do monitor mantém-se, e é outra pergunta: canais do Slides
-         * desligados só por conflito voltam; «Não exibir» que o operador escolheu à mão no
-         * Slides nesta sessão fica intocado.
-         */
-        restaurarRotaSlidesAposLibertarMonitores();
-        try {
-          atualizarFeedbackProjecaoApresentacaoUi();
-        } catch (_) {
-  // intencional — erro ignorado
-}
-      } else {
-        /*
-         * A ocupação do monitor pelas Mídias NÃO se escreve em `rotasPorModo.slides`.
-         *
-         * Era o que fazia o antigo `desfazerConflitoSlidesComRotaApresentacao`, e é a
-         * armadilha que `modules/supressaoCanalSlides.js` já documentava para a Bíblia:
-         * gravado, o «este monitor agora é das Mídias» deixa de se distinguir do «Não
-         * exibir» que o operador escolheu, e o seletor do Slides fica a anunciar «Não
-         * exibir» num monitor apenas emprestado — de M2 para M3 apagava o ministrante e
-         * nada o repunha na troca seguinte. A ocupação é facto do momento e recalcula-se
-         * a cada envio, em `rotaSlidesParaEnvioComApresentacao`, no pacote e só nele.
-         *
-         * Fica a reposição: uma rota que chegue a −1 por outra via (arranque, servidor)
-         * continua a ser preenchida, e canais desligados à mão continuam intocados.
-         */
-        restaurarRotaSlidesAposLibertarMonitores();
-      }
-    } else if (modo === 'biblia') {
-      /*
-       * Atenção ao ler: este ramo só corre com `usarValoresDaUi === true`, ou seja, o
-       * operador acabou de escolher um monitor. Adoptar a rota da mídia descarta essa
-       * escolha — deliberado, porque Bíblia e Mídias partilham o canal `apresentacao` no
-       * servidor e mover a rota fecharia as janelas da mídia que ainda está no ar.
-       *
-       * O que era bug: `hayProjecaoMidiaApresentacaoAtiva()` dava `true` para uma Bíblia
-       * projetada só no público, sem mídia nenhuma — e então toda e qualquer troca de
-       * monitor em modo Bíblia caía aqui e era descartada em silêncio.
-       */
-      if (hayProjecaoMidiaApresentacaoAtiva()) {
-        /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
-        rotasPorModo.biblia = { ...normalizarRota(rotasPorModo.apresentacao) };
-      } else {
-        rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.biblia) };
-        /*
-         * A rota do modo Slides NÃO se toca aqui — mesmo princípio do ramo `apresentacao`
-         * acima, que já tinha sido corrigido: cada modo manda na configuração dele.
-         *
-         * O canal do Slides continua a ter de ser silenciado enquanto a Bíblia manda. Sem
-         * isso o merge do servidor (`a.publicoIndex >= 0 ? a : s`) deixa o índice antigo do
-         * Slides passar por baixo, e com a Bíblia só no público o M3 abre com conteúdo de
-         * slides em vez do escudo preto. Mas isso é uma decisão sobre o PACOTE que sai, e é
-         * lá que passa a viver: `rotaSlidesParaEnvioComBiblia()`, ao montar o `payloadDual`.
-         *
-         * Aqui zerava-se `rotasPorModo.slides` para obter o mesmo efeito — e as quatro
-         * condições (`>= 0` e `< 0`) cobriam todos os valores, portanto zerava sempre. O
-         * `persistirIdentidadesDosModos()` logo abaixo gravava esse zero como escolha
-         * explícita do operador, e `restaurarRotaPorIdentidade()` no arranque seguinte lia
-         * `houveSalvo === false`: uma única ida ao Modo Bíblia apagava para sempre o telão
-         * configurado do Modo Slides. Ver `modules/supressaoCanalSlides.js`.
-         */
-      }
-    } else if (modo === 'docs') {
-      /*
-       * O DOCS também não tem canal próprio: espelha-se no `apresentacao`, como a Bíblia.
-       * A rota do DOCS continua a ser só dele — partilhado é o canal do servidor, não a
-       * escolha. Com mídia no ar o canal não se toca, senão fechavam-se as janelas do que
-       * está a projetar.
-       */
-      if (hayProjecaoMidiaApresentacaoAtiva()) {
-        rotasPorModo.docs = { ...normalizarRota(rotasPorModo.apresentacao) };
-      } else {
-        rotasPorModo.apresentacao = { ...normalizarRota(rotasPorModo.docs) };
-      }
-    }
-
-    if (modo !== 'biblia' && modo !== 'apresentacao' && modo !== 'docs') {
-      salvarRotasPorModoNoStorage();
-    }
-  }
-
-  rotasPorModo.slides = sanitizarRotaProjecao(rotasPorModo.slides, monitoresServidorCache);
-  rotasPorModo.apresentacao = sanitizarRotaProjecao(rotasPorModo.apresentacao, monitoresServidorCache);
-  rotasPorModo.apresentacaoAviso = sanitizarRotaProjecao(
-    rotasPorModo.apresentacaoAviso,
-    monitoresServidorCache
-  );
-  rotasPorModo.contagem = sanitizarRotaProjecao(rotasPorModo.contagem, monitoresServidorCache);
-  if (modo === 'biblia') {
-    rotasPorModo.biblia = sanitizarRotaProjecao(rotasPorModo.biblia, monitoresServidorCache);
-  }
-  if (modo === 'docs') {
-    rotasPorModo.docs = sanitizarRotaProjecao(rotasPorModo.docs, monitoresServidorCache);
-  }
-
-  /* Guardar QUAIS monitores ficaram em uso, não em que posição estavam — é isto que
-     permite restaurar a configuração depois de o Windows renumerar os ecrãs. */
-  persistirIdentidadesDosModos();
-  avisarMonitoresConfiguradosEmFalta();
-
-  const payloadDual = {
-    version: 2,
-    /* Com o Modo Bíblia a reclamar o canal partilhado, o canal do Slides sai silenciado —
-       sem que a configuração guardada em `rotasPorModo.slides` mude, que é o que
-       `persistirIdentidadesDosModos()` acabou de gravar. Ver `modules/supressaoCanalSlides.js`. */
-    slides:
-      modo === 'biblia'
-        ? rotaSlidesParaEnvioComBiblia(rotasPorModo.biblia, rotasPorModo.slides)
-        : /* Mesma ideia, para o monitor que as Mídias estão a ocupar: silencia-se o canal
-             no pacote, sem tocar na configuração do operador. Ver o módulo. */
-          rotaSlidesParaEnvioComApresentacao(
-            obterRotaApresentacaoParaServidor(),
-            rotasPorModo.slides
-          ),
-    apresentacao: obterRotaApresentacaoParaServidor(),
-    /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
-       a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
-    contagem: rotaContagemParaServidor(),
-    /*
-     * «Não exibir» do seletor do modo em vigor, dito ao motor como ordem e não como índice.
-     *
-     * O −1 sozinho não chegava: no motor os canais fundem-se (`apresentacao >= 0 ? ... : slides`,
-     * e o pin do Contador ainda por cima), de modo que uma mídia ou uma contagem que ainda
-     * reivindicasse o M2 mantinha a projecção acesa — enquanto a prévia, que olha para a rota
-     * deste modo, apagava. Era o desencontro relatado: prévia preta, monitor físico aceso.
-     *
-     * Todos os modos com seletor a preenchem — Slides, Bíblia, Mídias e DOCS —, sempre a
-     * partir de um clique. Sem clique vai `false`, e aí o −1 continua a ser o de sempre:
-     * «este canal não reivindica monitor», deixando o outro assumir. São duas perguntas
-     * diferentes e continuam independentes.
-     */
-    semExibicaoOrdenada: semExibicaoDoSeletorDoModo(modo),
-  };
-  if (
-    !Number.isFinite(payloadDual.slides.publicoIndex) ||
-    !Number.isFinite(payloadDual.slides.ministranteIndex) ||
-    !Number.isFinite(payloadDual.apresentacao.publicoIndex) ||
-    !Number.isFinite(payloadDual.apresentacao.ministranteIndex)
-  ) {
-    return;
-  }
-
-  const ip = hostProjecao();
-  if (!ip) {
-    try {
-      aplicarPreviewPainelOcultoNoDom();
-    } catch (_) {
-  // intencional — erro ignorado
-}
-    return;
-  }
-  try {
-    await fetch(`http://${ip}:5510/api/display-routing`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payloadDual),
-    });
-    if (modo === 'biblia') {
-      marcarRotaBibliaSincronizada();
-      bibliaAplicarCfgExibicao();
-    }
-    /* Same latch as the Bible: the key is the route the server accepted. A failed
-       PUT leaves it unchanged, so the next docs page tries again. A monitor change
-       that already saved also lands here, and the following pages then skip. */
-    if (modo === 'docs') {
-      marcarRotaDocsSincronizada();
-    }
-    if (projecao.pronta() && modo === 'slides') {
-      const pubDepois = normalizarRota(rotasPorModo.slides).publicoIndex;
-      const publicoFoiAtivadoAgora = slidesAntes.publicoIndex < 0 && pubDepois >= 0;
-      if (publicoFoiAtivadoAgora) {
-        if (musicaAtiva && Number.isFinite(estrofeAtiva) && estrofeAtiva >= 0) {
-          emitirEstrofeAoServidor(estrofeAtiva);
-        }
-      }
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  try {
-    aplicarPreviewPainelOcultoNoDom();
-    atualizarPreviewOperador();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-/**
- * Ocultar prévia quando não há saída física naquele canal (após unir slide ∪ apresentação no servidor).
- * Modo slide: cartões sempre visíveis — tela preta no conteúdo quando o monitor está desativado ou sem projeção.
- * Modo completo / apresentação: usa rota efetiva — ex.: apresentação «Não exibir» com slide em M2+M3 mostra as duas prévias.
- * [0] = público / telão, [1] = ministrante / retorno.
- */
-function obterFlagsOcultarPreviewPorSincroniaModoSlides() {
-  if (ehModoSlidesOperador()) {
-    return [false, false];
-  }
-  if (ehModoBibliaOperador()) {
-    const r = normalizarRota(rotasPorModo.biblia);
-    if (r.live) return [true, true];
-    const pubOn = r.publicoIndex >= 0;
-    const minOn = r.ministranteIndex >= 0;
-    if (!pubOn && !minOn) return [false, false];
-    return [!pubOn, !minOn];
-  }
-  const eff = indicesEfetivosRoteamentoDualCliente();
-  if (eff.live) return [true, true];
-  const pubOn = eff.publicoIndex >= 0;
-  const minOn = eff.ministranteIndex >= 0;
-  if (!pubOn && !minOn) return [true, true];
-  return [!pubOn, !minOn];
-}
-
-/** Conteúdo na saída real do M2 que deve manter a prévia visível no modo Slides. */
-function hayConteudoExternoQueForcaPreviaPublicaModoSlide() {
-  if (!ehModoSlidesOperador()) return false;
-  const cls = classificarSaidaMonitorPublicoSlides();
-  return cls.mode === 'badge' || cls.mode === 'slides' || cls.mode === 'blackout';
-}
-
-/**
- * Conteúdo na saída real do M3 que deve manter a prévia TV visível no modo Slides.
- */
-function hayConteudoExternoQueForcaPreviaMinistranteModoSlide() {
-  if (!ehModoSlidesOperador()) return false;
-  const cls = classificarSaidaMonitorMinistranteSlides();
-  return cls.mode === 'badge' || cls.mode === 'slides' || cls.mode === 'blackout';
-}
-
-function carregarPreviewPainelOcultoDoArmazenamento() {
-  try {
-    const raw = localStorage.getItem(LS_PREVIEW_PAINEL_OCULTO);
-    if (!raw) return;
-    const p = JSON.parse(raw);
-    if (Array.isArray(p) && p.length >= 2) previewPainelOcultoLocal = [!!p[0], !!p[1]];
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function persistirPreviewPainelOcultoLocal() {
-  try {
-    localStorage.setItem(LS_PREVIEW_PAINEL_OCULTO, JSON.stringify(previewPainelOcultoLocal));
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-let lyraPreviewPainelOcultoDomCache = null;
-
-function aplicarPreviewPainelOcultoNoDom() {
-  const syncBase = obterFlagsOcultarPreviewPorSincroniaModoSlides();
-  const desbloqPub = hayConteudoExternoQueForcaPreviaPublicaModoSlide();
-  const desbloqMin = hayConteudoExternoQueForcaPreviaMinistranteModoSlide();
-  const syncEfetivo = [
-    !!(syncBase[0] && !desbloqPub),
-    !!(syncBase[1] && !desbloqMin),
-  ];
-  const eff = [
-    !!(previewPainelOcultoLocal[0] || syncEfetivo[0]),
-    !!(previewPainelOcultoLocal[1] || syncEfetivo[1]),
-  ];
-  const visCount = eff.filter((o) => !o).length;
-  let assinaturaDom = null;
-  try {
-    assinaturaDom = JSON.stringify({ eff, visCount, desbloqPub, desbloqMin, syncBase });
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  if (assinaturaDom !== null && assinaturaDom === lyraPreviewPainelOcultoDomCache) return;
-  lyraPreviewPainelOcultoDomCache = assinaturaDom;
-  const stack = document.querySelector('#layout-musicas .centro-col-preview-stack');
-  const items = document.querySelectorAll('#layout-musicas .centro-col-preview-stack .preview-stack-item');
-  items.forEach((el, i) => {
-    el.classList.remove('preview-stack-item--painel-oculto', 'preview-stack-item--destaque-solo');
-    const oculto = !!eff[i];
-    if (oculto) el.classList.add('preview-stack-item--painel-oculto');
-    if (!oculto && visCount === 1) el.classList.add('preview-stack-item--destaque-solo');
-    // O card TELÃO/PÚBLICO fica dentro de .preview-telao-col — o colapso precisa alcançar o
-    // wrapper (o operador não tem wrapper: closest() devolve null e nada acontece).
-    const wrapTelao = el.closest('.preview-telao-col');
-    if (wrapTelao) wrapTelao.classList.toggle('preview-telao-col--painel-oculto', oculto);
-  });
-  // Todas as prévias ocultas → encolher o container para não sobrar faixa vazia.
-  if (stack) stack.classList.toggle('centro-col-preview-stack--tudo-oculto', visCount === 0);
-  [0, 1].forEach((i) => {
-    const btn = document.getElementById(`btn-toggle-preview-${i}`);
-    if (!btn) return;
-    const oculto = !!eff[i];
-    const desbloq = i === 0 ? desbloqPub : desbloqMin;
-    const syncForca = !!(syncBase[i] && !desbloq);
-    btn.disabled = syncForca;
-    btn.innerHTML = oculto ? SVG_OLHO_CORTADO : SVG_OLHO_ABERTO;
-    btn.setAttribute('aria-pressed', oculto ? 'true' : 'false');
-    if (syncForca) {
-      const modoAp = ehModoApresentacaoOperador();
-      btn.title =
-        i === 0
-          ? modoAp
-            ? 'No modo apresentação, esta prévia fica oculta porque o destino não inclui o monitor público.'
-            : 'No modo slide, esta prévia fica oculta enquanto o Público estiver em «Não exibir» (escolha um monitor em Público para voltar a ver).'
-          : modoAp
-            ? 'No modo apresentação, esta prévia fica oculta porque o destino não inclui o monitor ministrante.'
-            : 'No modo slide, esta prévia fica oculta enquanto o Ministrante estiver em «Não exibir» (escolha um monitor em Ministrante para voltar a ver).';
-    } else if (desbloq && syncBase[i]) {
-      btn.title =
-        i === 0
-          ? 'Prévia visível: há conteúdo no telão público (ex.: apresentação). Pode ocultar só neste painel.'
-          : 'Prévia visível: há conteúdo na TV ministrante. Pode ocultar só neste painel.';
-    } else {
-      btn.title = oculto
-        ? 'Mostrar esta pré-visualização no painel (só aqui — não altera os monitores)'
-        : 'Ocultar esta pré-visualização só neste painel';
-    }
-  });
-}
-
-function alternarOcultacaoPreviewPainel(indice) {
-  const i = Number(indice);
-  if (i !== 0 && i !== 1) return;
-  previewPainelOcultoLocal[i] = !previewPainelOcultoLocal[i];
-  persistirPreviewPainelOcultoLocal();
-  aplicarPreviewPainelOcultoNoDom();
-}
+// (extraído) prévia oculta → painel/previewOculto.js
 
 // (extraído) estado da pré-visualização de letras → painel/previewLetras.js
 
@@ -6962,320 +6235,8 @@ function alternarListaBancoSqlite() {
 
 // (extraído) pré-visualização de letras → painel/previewLetras.js
 
-async function playlistDuploCliqueIniciarProjecao(itemOuId) {
-  if (!ehModoSlidesOperador()) return;
-  if (!projecao.pronta()) return alert('Conecte ao servidor para projetar.');
-  /* `hostProjecao`, não `getServidorIp`: a pergunta é «onde está a projeção», e no modo
-     local a resposta é esta máquina mesmo sem IP nenhum configurado. Com `getServidorIp`
-     uma instalação que nunca se ligou a um Servidor abortava aqui, com um pedido de IP
-     que não se aplica a quem projeta localmente. */
-  const hostAtual = hostProjecao();
-  if (!hostAtual) return alert('Informe o IP ou use «Conectar».');
-  const item =
-    typeof itemOuId === 'object' && itemOuId !== null && !Array.isArray(itemOuId)
-      ? itemOuId
-      : { id: itemOuId };
-  const idNum = Number(item.id);
-  if (!Number.isFinite(idNum)) return;
-  const rootAtivo = obterRootIdMusicaAtiva();
-  const va = versaoAtivaParaCompararPlaylist();
-  const vb = item.versaoLocalId ? String(item.versaoLocalId) : '';
-  const itemBf = fonteBancoItemPlaylist(item);
-  const curBf = fonteBancoNormalizada(musicaBancoFonte);
-  const mesmaMusicaEVersao =
-    musicaAtiva &&
-    Number.isFinite(rootAtivo) &&
-    Number(item.id) === rootAtivo &&
-    va === vb &&
-    itemBf === curBf;
-  if (!mesmaMusicaEVersao) {
-    await selecionarMusicaDoBanco(idNum, {
-      habilitarFaixaModoSlides: true,
-      versaoLocalId: item.versaoLocalId || undefined,
-      fonte: fonteBancoNormalizada(itemBf),
-      origemUi: 'playlist',
-    });
-  } else {
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-    aplicarSelecaoUiPlaylist(idNum, item.versaoLocalId, itemBf);
-    refreshListaBanco();
-    renderPlaylist();
-    renderSlidesStrip();
-  }
-  slidesDockVisivel = true;
-  projetarPorDuploCliqueCentral(0);
-}
-
-/** true quando o servidor já informou que este controlador está em somente-leitura (write-lock). */
-function controladorSomenteLeitura() {
-  return !!(papelControladorLocal && papelControladorLocal.podeEscrever === false);
-}
-
-/**
- * Pull-by-role: aplica a config autoritativa do servidor ao painel SEM reempurrar.
- * Reutiliza o mesmo caminho de merge/preenchimento usado ao carregar a config local,
- * mas nunca chama enviarPreviewDisplayConfig — quem é somente-leitura não projeta.
- */
-function aplicarDisplayConfigDoServidorNoPainel(cfg) {
-  if (!cfg || typeof cfg !== 'object') return;
-  try {
-    mesclarSlideCfgNoEstado(cfg);
-    popularFormCfg(lerCurrentCfgCtrl());
-  } catch (_) {
-    // intencional — shape inesperado do servidor não deve derrubar o painel
-  }
-}
-
-/**
- * --- Canal de retorno da projeção ---
- *
- * O que as telas estão a mostrar volta por aqui. São funções **nomeadas** e de topo, e
- * não arrow functions inline como antes, por uma razão de mecânica: `iniciarSocket()`
- * corre a cada (re)ligação, e `projecao.aoReceber()` deduplica por identidade de função.
- * Um arrow criado dentro de `iniciarSocket` seria uma função nova a cada chamada — e o
- * painel passaria a reagir duas, três, N vezes ao mesmo `estado`. Com nomes de topo, a
- * reinscrição é idempotente e o `socket.off(...)` manual deixa de ser necessário.
- */
-
-/**
- * Config autoritativa vinda de quem projeta. Pull-by-role:
- *  - somente-leitura: reflete a config no painel (fonte de verdade é quem projeta);
- *  - primário: guardamos, mas não sobrescrevemos o painel (o operador é a fonte).
- */
-function aoReceberDisplayConfigDaProjecao(cfg) {
-  ultimaDisplayConfigServidor = cfg;
-  if (controladorSomenteLeitura()) aplicarDisplayConfigDoServidorNoPainel(cfg);
-}
-
-/** Estado do que está projetado nas telas. */
-function aoReceberEstadoDaProjecao(estado) {
-  const assinatura = assinaturaEstadoProjecaoRecebido(estado);
-  if (assinatura !== null && assinatura === lyraAssinaturaEstadoProjecaoRecebido) return;
-  lyraAssinaturaEstadoProjecaoRecebido = assinatura;
-
-  estadoServidor = estado;
-  sincronizarEstrofeAtiva(estado);
-  /*
-   * ESC no telão (ou outro controlador) encerrou a Bíblia: o marcador local tem de
-   * acompanhar, senão o card fica «projetado» e o próximo ESC no painel parece falhar.
-   * Contagem/aviso/mídia por cima NÃO contam como «Bíblia encerrada» — o versículo
-   * continua por baixo e o marcador fica.
-   */
-  try {
-    if (bibliaHaParteProjetada()) {
-      const tip = estado && estado.tipo;
-      const camadaPorCima =
-        tip === 'contagem' || tip === 'apresentacao' || tip === 'aviso';
-      /* `projecaoBibliaMinistrante`: com o alvo «Ministrante — M3» o canal público leva
-         uma tela limpa de propósito, e o versículo viaja fora desta difusão. Sem ler a
-         bandeira, o eco parecia dizer «Bíblia encerrada» e apagava o marcador verde — e
-         com ele o estado de que o ESC precisa. Ver `projectionPayloads`. */
-      const bibliaNoAr =
-        !!estado.projecaoBibliaMinistrante ||
-        (tip === 'biblia' &&
-          !estado.telaLimpa &&
-          Array.isArray(estado.linhas) &&
-          estado.linhas.some((l) => String(l == null ? '' : l).length > 0));
-      if (!camadaPorCima && !bibliaNoAr) {
-        bibliaLimparProjecaoOperador();
-      }
-    }
-  } catch (_) {
-    // intencional — erro ignorado
-  }
-  atualizarPreviewOperador();
-  atualizarIndicadorProjecaoLiveUi();
-  atualizarBtnModoApresentacao();
-  agendarRepinturaCompositorAposEstadoServidor();
-  try {
-    if (ehModoApresentacaoOperador() && (apresentacaoMidiaProjetadaId || apresentacaoAvisoCard6Ativo)) {
-      const tip = estado && estado.tipo;
-      const minAp = !!(estado && estado.projecaoMinistranteApresentacao);
-      const pubAp =
-        tip === 'apresentacao' ||
-        (tip === 'aviso' && apresentacaoAvisoCard6Ativo) ||
-        minAp;
-      if (apresentacaoMidiaProjetadaId && !pubAp && tip !== 'apresentacao') {
-        apresentacaoMidiaProjetadaId = null;
-      }
-      if (apresentacaoAvisoCard6Ativo && tip !== 'aviso' && !minAp) {
-        apresentacaoAvisoCard6Ativo = false;
-        ultimoPayloadAvisoCard6 = null;
-      }
-      if (!apresentacaoMidiaProjetadaId && !apresentacaoAvisoCard6Ativo) {
-        atualizarFeedbackProjecaoApresentacaoUi();
-      } else {
-        atualizarFeedbackProjecaoApresentacaoUi();
-      }
-    }
-  } catch (_) {
-// intencional — erro ignorado
-}
-
-}
-
-/** Estado do player de áudio/vídeo da apresentação, do lado de quem projeta. */
-function aoReceberAudioStateDaProjecao(st) {
-
-  if (!st || typeof st !== 'object') return;
-  if (videoProjetadoAtivoNoPlayer()) return;
-  const estadoAnterior = { ...audioStateRemoto };
-  const stAjustado = ajustarEstadoVisualRetomadaAudio(st, estadoAnterior);
-  audioStateRemoto = {
-    ...audioStateRemoto,
-    ...stAjustado,
-  };
-  if (stAjustado.mediaKind) audioStateRemoto.mediaKind = stAjustado.mediaKind;
-  if (audioStateRemoto.playing) {
-    audioLoopReinicioPendente = false;
-  }
-  atualizarUiPlayerAudioRemoto();
-  const dur = Math.max(0, Number(audioStateRemoto.duration) || 0);
-  const atual = Math.max(0, Number(audioStateRemoto.currentTime) || 0);
-  const terminouFaixa =
-    audioLoopAtivo &&
-    !audioLoopReinicioPendente &&
-    estadoAnterior.mediaKind === 'audio' &&
-    estadoAnterior.playing === true &&
-    audioStateRemoto.playing === false &&
-    dur > 0 &&
-    atual >= Math.max(0, dur - 0.35) &&
-    !!apresentacaoAudioAtualId;
-  if (!terminouFaixa) return;
-  const item = apresentacaoAudios.find((x) => x.id === apresentacaoAudioAtualId);
-  if (!item?.src) return;
-  audioLoopReinicioPendente = true;
-  void tocarAudioServidorApresentacao(item, { startTime: 0 }).then((ok) => {
-    if (ok) {
-      atualizarRodapeAudioApresentacao(item);
-      return;
-    }
-    audioLoopReinicioPendente = false;
-  });
-
-}
-
-/*
- * As inscrições do canal de retorno são feitas UMA vez, ao carregar o painel — e não
- * dentro de `iniciarSocket()`.
- *
- * Enquanto viveram lá, existiam só no modo remoto: `iniciarSocket()` corre a partir de
- * `conectar()`, e no modo local nunca há ligação a fazer. O painel enviava comandos e não
- * recebia `estado` nenhum. `estadoServidor` ficava em `null`, e com ele morriam o preview
- * do operador, o badge do telão, a sincronização da estrofe activa e toda a decisão que
- * pergunta «o que está projetado agora».
- *
- * Aqui em cima funcionam para os dois transportes: a porta guarda as inscrições e
- * reinscreve-as sozinha ao trocar de transporte, e `aoReceber` deduplica por identidade
- * de função.
- */
-projecao.aoReceber('display_config', aoReceberDisplayConfigDaProjecao);
-/* Pedido de playlists vindo de um telemóvel, reencaminhado por quem hospeda a 5510. */
-projecao.aoReceber('solicitar_playlists_controlador', emitirPlaylistsDoControlador);
-projecao.aoReceber('estado', aoReceberEstadoDaProjecao);
-projecao.aoReceber('audio_state', aoReceberAudioStateDaProjecao);
-/*
- * O host avisou que o arranjo de monitores mudou (projetor ligado/desligado, resolução).
- *
- * Sem isto, os seletores só se actualizavam no arranque, ao ligar o socket e ao desenhar
- * a contagem — ligar o projetor com o app aberto deixava a lista desactualizada enquanto o
- * motor já tinha reorganizado as telas. `carregarRoteamentoTelasDoServidor()` é o caminho
- * completo: relê a lista, restaura a rota por identidade de monitor e avisa se algum
- * monitor configurado ficou em falta.
- */
-projecao.aoReceber('monitores_alterados', () => {
-  void carregarRoteamentoTelasDoServidor().then(() => {
-    try { renderSeletorMonitorContagem(); } catch (_) {
-      // intencional — o seletor da contagem pode ainda não estar montado
-    }
-  });
-});
-
-/**
- * Hidrata o painel depois do handshake remoto — temas, banco, rotas, slides.
- * Vive no núcleo de propósito: não é protocolo Socket.IO.
- */
-async function aoLigarSocketRemoto(_ip) {
-  migrarTemasParaGlobal();
-  temasPorCulto = loadTemasPorCulto();
-  temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
-  setAberturaRemovidaPorCulto(loadAberturaRemovidaPorCulto());
-  setMinistrantePadraoPorCulto(loadMinistrantePadraoPorCulto());
-  podarMinistrantePadraoSemMusicasNaPlaylist();
-  forcarRepinturaCompositorLyra();
-  await carregarMusicas(_ip);
-  await carregarRoteamentoTelasDoServidor();
-  await carregarEstadoModoApresentacaoDoServidor();
-  if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
-  else slidesAplicarCfgArmazenada();
-  renderSlidesStrip();
-  emitirEstadoMinistranteAoServidor();
-  emitirPlaylistsDoControlador();
-  enviarPlaylistsParaServidor();
-  forcarRepinturaCompositorLyra();
-  setTimeout(() => forcarRepinturaCompositorLyra(), 50);
-  setTimeout(() => forcarRepinturaCompositorLyra(), 400);
-}
-
-function aoDisconnectSocketPainel({ descarteCliente }) {
-  atualizarUiConexao(false);
-  if (descarteCliente) {
-    apresentacaoMidiaProjetadaId = null;
-  }
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  atualizarBtnModoApresentacao();
-  try {
-    if (ehModoApresentacaoOperador()) {
-      if (descarteCliente) {
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'DESCONECTADO — sem ligação ao servidor.' });
-      } else if (emModoProjecaoLocal()) {
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a projetar nesta máquina.' });
-      } else {
-        atualizarFeedbackProjecaoApresentacaoUi({ mensagemIdle: 'Servidor desligado — a reassumir projeção local…' });
-      }
-    }
-  } catch (_) {
-    // intencional
-  }
-}
-
-const socketPainel = criarSocketPainel({
-  getSocket: () => socket,
-  setSocket: (s) => { socket = s; },
-  io: () => (typeof io !== 'undefined' ? io : undefined),
-  getProjecaoLocalActiva: () => getProjecaoLocalActiva(),
-  getProjecaoLocalEmCurso: () => getProjecaoLocalEmCurso(),
-  desligarProjecaoNestaMaquina,
-  ligarProjecaoNestaMaquina,
-  emModoProjecaoLocal,
-  ponteProjecaoLocal,
-  adotarTransporteSocket: (sock) => {
-    projecao.usarTransporte(criarTransporteSocket(sock));
-  },
-  getPapelControlador: () => papelControladorLocal,
-  setPapelControlador: (p) => { papelControladorLocal = p; },
-  getCompanionHandoffEmCurso: () => companionHandoffEmCurso,
-  getAutoConectarAoIniciarEmCurso: () => autoConectarAoIniciarEmCurso,
-  setAutoConectarAoIniciarEmCurso: (v) => { autoConectarAoIniciarEmCurso = !!v; },
-  getReassumirLocalEmCurso: () => reassumirLocalEmCurso,
-  setReassumirLocalEmCurso: (v) => { reassumirLocalEmCurso = !!v; },
-  getServidorLanIpObs: () => getServidorLanIpObs(),
-  setServidorLanIpObs: (v) => { setServidorLanIpObs(v); },
-  setServidorObsPort: (v) => { setServidorObsPort(v); },
-  getUltimaDisplayConfig: () => ultimaDisplayConfigServidor,
-  controladorSomenteLeitura,
-  aplicarDisplayConfigDoServidor: aplicarDisplayConfigDoServidorNoPainel,
-  atualizarUiConexao,
-  atualizarUrlsObs,
-  readLsMigrate,
-  setCfgSwitchState,
-  aoLigarRemoto: aoLigarSocketRemoto,
-  aoDisconnectPainel: aoDisconnectSocketPainel,
-  aoApresentacaoStateAtualizada: () => { carregarEstadoModoApresentacaoDoServidor(); },
-  processarMusicasSincronizadas: processarMusicasSincronizadasPayload,
-  tratarPedidoSincronizacaoBanco,
-});
+// (extraído) eventos da projeção → painel/eventosProjecao.js
+iniciarEventosProjecao();
 
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
 function iniciarSocket(ip) { socketPainel.iniciarSocket(ip); }
@@ -7304,826 +6265,8 @@ function limparIpGuardado() { socketPainel.limparIpGuardado(); }
 
 // (extraído) versões da música → painel/versoesMusica.js
 
-/**
- * Carrega uma música do banco no editor/projeção.
- *
- * @param {number|string} id
- * @param {object} [opts]
- * @param {'user'|'catalog'} [opts.fonte]
- * @param {string} [opts.versaoLocalId] Versão explícita (item de playlist, chip
- *   de versão). Quando presente, manda — inclusive quando aponta para o original.
- * @param {boolean} [opts.preferirCopia] Abre a **cópia** editável em vez do
- *   ORIGINAL quando nenhuma versão foi pedida explicitamente. É o caminho dos
- *   cliques do usuário na lista do banco: o original fica preservado e as
- *   edições caem sempre na cópia. A playlist não usa isto — lá vale a versão
- *   que o item guardou.
- * @param {'biblioteca'|'playlist'} [opts.origemUi] Coluna que disparou a
- *   seleção. Essa coluna recebe o destaque; a outra é limpa.
- * @param {boolean} [opts.abrirEmLetraCompleta] No modo completo, abre a letra
- *   corrida em vez da grade de slides. Usado por clique na Biblioteca/Playlist
- *   e após importar dos bancos Locais/Online.
- */
-async function selecionarMusicaDoBanco(id, opts) {
-  const fonteBanco = fonteBancoNormalizada(opts && opts.fonte);
-  const qsMusica = fonteBanco === 'catalog' ? '?fonte=catalog' : '';
-  const abrirLetraCompleta =
-    !!(opts && opts.abrirEmLetraCompleta) &&
-    modoRoteamentoAtual() === 'completo' &&
-    !ehModoSlidesOperador();
-  try {
-    if (!(opts && opts.pularConfirmacaoDescarte)) {
-      if (
-        !(await confirmarProsseguirDescartandoEdicaoPendente(
-          'Há alterações não gravadas nesta sessão. Descartar e carregar outra música?',
-          'Alterações não gravadas',
-          { manterLetraCompleta: abrirLetraCompleta }
-        ))
-      ) {
-        return false;
-      }
-    }
-    if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
-    /* Modo controlador: se já existe projeção ativa, manter a faixa visível ao engatilhar próxima música. */
-    slidesDockVisivel = ehModoSlidesOperador() || slidesDockVisivel || hayProjecaoAtivaNoServidor();
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${id}${qsMusica}`);
-    if (!res.ok) throw new Error(`Falha ao carregar música (HTTP ${res.status}).`);
-    const base = await res.json();
-    if (!base || !Array.isArray(base.estrofes)) {
-      throw new Error('Resposta inválida do servidor ao carregar a música.');
-    }
-    let versaoReq =
-      opts && opts.versaoLocalId !== undefined && opts.versaoLocalId !== null
-        ? String(opts.versaoLocalId)
-        : null;
-
-    /* Clique do usuário sem versão pedida: cai na cópia editável, não no original.
-       Só faz sentido sobre um ORIGINAL do banco do usuário — o catálogo é
-       só-leitura e uma cópia já carregada não precisa de outra. */
-    if (
-      !versaoReq &&
-      opts &&
-      opts.preferirCopia &&
-      fonteBanco === 'user' &&
-      Number(base.is_immutable) === 1
-    ) {
-      const copiaId = await garantirCopiaPadraoServidor(base.id != null ? base.id : id);
-      if (copiaId != null) versaoReq = String(copiaId);
-    }
-
-    musicaBancoFonte = fonteBanco;
-    if (versaoReq && ehVersaoServidorId(versaoReq)) {
-      const resV = await fetch(`${getControllerApiBase()}/api/musicas/${encodeURIComponent(versaoReq)}`);
-      if (!resV.ok) throw new Error(`Falha ao carregar versão (HTTP ${resV.status}).`);
-      const ver = await resV.json();
-      musicaAtiva = ver;
-      musicaVersaoLocalId = null;
-      musicaRootId = Number(ver.root_id ?? id);
-      const et = document.getElementById('edit-titulo');
-      const ea = document.getElementById('edit-artista');
-      if (et) et.value = musicaAtiva.titulo || '';
-      if (ea) ea.value = musicaAtiva.artista || '';
-      /* Sem `await`: a barra de versões é informativa e mais um ida-e-volta aqui
-         atrasava a projeção. Igual ao que `aplicarBaseMusicaSelecionada` já faz. */
-      void carregarVersoesMusicaServidor(musicaRootId);
-    } else {
-      aplicarBaseMusicaSelecionada(base, id, versaoReq);
-    }
-    if (ehModoSlidesOperador()) {
-      faixaSlidesHabilitadaPorPlaylistNoModoSlides = !!(opts && opts.habilitarFaixaModoSlides);
-    } else {
-      faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-    }
-    estrofeAtiva = -1;
-
-    /* Antes de construir chips da faixa: sem isto, `projecaoMusicaEmitidaNoServidor` ainda vinha true da música anterior e um único clique no chip projetava. */
-    projecaoMusicaEmitidaNoServidor = false;
-    bloqueioSincronizarEstrofeDoServidor = true;
-
-    const origemUi =
-      opts && opts.origemUi === 'playlist'
-        ? 'playlist'
-        : opts && opts.origemUi === 'biblioteca'
-          ? 'biblioteca'
-          : opts && opts.habilitarFaixaModoSlides
-            ? 'playlist'
-            : opts && opts.preferirCopia
-              ? 'biblioteca'
-              : null;
-    if (origemUi === 'playlist') {
-      aplicarSelecaoUiPlaylist(id, opts && opts.versaoLocalId, fonteBanco);
-    } else if (origemUi === 'biblioteca') {
-      aplicarSelecaoUiBiblioteca(id, fonteBanco);
-    }
-
-    /*
-      Ponto mais cedo em que a música já está inteira em memória. Quem pediu projeção
-      imediata — o botão «Próxima música» — emite AQUI, antes de qualquer DOM: o telão
-      deixa de esperar pela reconstrução da grelha, das prévias e da playlist.
-      O callback também deixa `estrofeAtiva` e as flags no valor final, para o painel
-      ser desenhado UMA vez já no estado certo, em vez de duas.
-    */
-    if (typeof (opts && opts.aoCarregarAntesDeRenderizar) === 'function') {
-      opts.aoCarregarAntesDeRenderizar();
-    }
-
-    /* Biblioteca e editor de estrofes vivem em contentores `display:none` no Modo
-       Slides (`.panel-banco`, `.centro-col-letras`): reconstruí-los aqui só atrasaria
-       o primeiro quadro da grelha. Ficam para o tempo ocioso, logo a seguir. */
-    const emModoSlides = ehModoSlidesOperador();
-    if (emModoSlides) {
-      agendarRenderizacoesOcultasDoModoSlides();
-    } else refreshListaBanco();
-    renderPlaylist();
-    /* Home: clique na Biblioteca/Playlist abre só a letra corrida.
-       Montar a grade (cartões + chips) aqui era trabalho inútil e visível. */
-    if (abrirLetraCompleta) {
-      atualizarPreviewOperador();
-      entrarModoLetraCompletaCentral();
-    } else {
-      if (!emModoSlides) renderEstrofesEditor();
-      renderSlidesStrip();
-      atualizarPreviewOperador();
-    }
-    return true;
-  } catch (e) {
-    musicaAtiva = null;
-    musicaVersaoLocalId = null;
-    musicaRootId = null;
-    versoesMusicaServidorCache = { rootId: null, versoes: [] };
-    musicaBancoFonte = 'user';
-    estrofeAtiva = -1;
-    renderMusicaVersoesBar();
-    renderPlaylist();
-    renderEstrofesEditor();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    alert(e?.message || 'Não foi possível carregar a música para edição/projeção.');
-    return false;
-  }
-}
-
-async function projecaoProximaMusicaPlaylist() {
-  if (!projecao.pronta()) return alert('Conecte ao servidor.');
-  /* Mesma razão de `playlistDuploCliqueIniciarProjecao`: o guard é sobre alcançar a
-     projeção, e no modo local ela está nesta máquina — pedir um IP aqui bloqueava quem
-     nunca configurou nenhum. */
-  const hostAtual = hostProjecao();
-  if (!hostAtual) return alert('Informe o IP ou use «Conectar».');
-  if (!musicaAtiva) return alert('Selecione uma música primeiro.');
-  const pl = getPlaylist(cultoId);
-  const idx = pl.findIndex((it) => playlistItemMesmaVersaoQueAtiva(it));
-  if (idx < 0) return alert('A música atual não está nesta playlist.');
-  const j = indiceProximaMusicaNaPlaylist(pl, idx);
-  if (j < 0) return alert('Não há próxima música nesta playlist.');
-  if (
-    !(await confirmarProsseguirDescartandoEdicaoPendente(
-      'Há alterações não gravadas nesta sessão. Descartar e ir para a próxima música?',
-      'Alterações não gravadas'
-    ))
-  ) {
-    return;
-  }
-  const next = pl[j];
-  /*
-    A projeção sai no instante em que a música chega — antes de a grelha, as prévias e a
-    playlist serem redesenhadas. Antes, o `emitir` só vinha depois de um ciclo inteiro de
-    render (e de um segundo ciclo, aqui em baixo), e o telão trocava no fim: era esse o
-    atraso perceptível entre o clique e a próxima música.
-  */
-  const ok = await selecionarMusicaDoBanco(Number(next.id), {
-    habilitarFaixaModoSlides: true,
-    versaoLocalId: next.versaoLocalId || undefined,
-    fonte: fonteBancoItemPlaylist(next),
-    pularConfirmacaoDescarte: true,
-    origemUi: 'playlist',
-    aoCarregarAntesDeRenderizar: () => {
-      /* Destaque na playlist + botão «Próxima» alinhados à música recém-carregada. */
-      faixaSlidesHabilitadaPorPlaylistNoModoSlides = true;
-      estrofeAtiva = 0;
-      slidesDockVisivel = ehModoSlidesOperador();
-      emitirEstrofeAoServidor(0);
-    },
-  });
-  if (!ok || !musicaAtiva) return;
-  marcacaoEstrofeEditor();
-  atualizarEstadoBtnProximaMusicaPlaylist();
-}
-
-function montarPayloadExibirMusica(estrofeIndex) {
-  if (!musicaAtiva) return { musicaId: null, estrofeIndex };
-  const payload = { musicaId: musicaAtiva.id, estrofeIndex };
-  payload.estrofes = (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
-  payload.titulo = String(musicaAtiva.titulo || '').trim();
-  /* Tom só para o M3 (abertura); o título público permanece sem tom. */
-  payload.tom = obterTomPlaylistMusicaAtiva();
-  const idx = Number(estrofeIndex);
-  if (Number.isFinite(idx) && idx === 0) {
-    payload.tituloAbertura = tituloAberturaM3MusicaAtiva(payload.titulo);
-  }
-  return payload;
-}
-
-/**
- * Nome do culto activo, como aparece no seletor do painel.
- *
- * Gravado por extenso no histórico ao lado do id: renomear ou apagar um culto não pode
- * reescrever o que já aconteceu.
- */
-function nomeCultoAtivoParaHistorico() {
-  if (!cultoId) return '';
-  try {
-    const item = listarCultosDisponiveis(dataRefDoCultoImportado(cultoId)).find(
-      (c) => c.id === cultoId
-    );
-    if (!item) return cultoId;
-    const p = parseLabelCulto(item.label);
-    return [p.data, p.desc].filter(Boolean).join(' — ') || cultoId;
-  } catch (_) {
-    return cultoId;
-  }
-}
-
-/** Ministrante da música activa na playlist do culto (o do dia, não o cadastro todo). */
-function ministrantePlaylistMusicaAtiva() {
-  if (!musicaAtiva || !cultoId) return { id: null, nome: '' };
-  try {
-    const pl = getPlaylist(cultoId);
-    const it = Array.isArray(pl) ? pl.find((x) => playlistItemMesmaVersaoQueAtiva(x)) : null;
-    const id = it ? normalizarMinistranteIdPlaylist(it.ministranteId) : null;
-    return { id: id ?? null, nome: id != null ? nomeMinistrantePorId(id) : '' };
-  } catch (_) {
-    return { id: null, nome: '' };
-  }
-}
-
-/**
- * Regista no histórico que esta música foi ao ar.
- *
- * ## Porquê aqui, e porquê sem `await`
- *
- * Este é o ponto por onde toda a projeção de música passa — o duplo clique, as setas, o
- * «próxima da playlist», o comando de voz. Pendurar o registo em cada um deles seria
- * garantir que um fica esquecido.
- *
- * Não há `await` nem tratamento de erro visível: o histórico é um subproduto: se a rede
- * local engasgar ou o servidor HTTP estiver a arrancar, perde-se uma linha de relatório —
- * e é tudo. Fazer o operador esperar por isto, ou mostrar-lhe um erro a meio de um culto,
- * seria trocar o essencial pelo acessório.
- *
- * A decisão de gravar ou não é do servidor (ver `POST /api/historico`), que é quem tem a
- * regra de repetição; daqui manda-se a cada estrofe sem pensar. É também por isso que o
- * registo vive no painel e não no motor de projeção: só aqui se conhece o tom da playlist,
- * o ministrante do dia e o culto — o payload que vai para o telão não leva nada disso.
- */
-function registarProjecaoNoHistorico() {
-  if (!musicaAtiva) return;
-  const min = ministrantePlaylistMusicaAtiva();
-  const corpo = {
-    musicaId: Number(musicaAtiva.id) || null,
-    rootId: obterRootIdMusicaAtiva(),
-    bancoFonte: fonteBancoNormalizada(musicaBancoFonte),
-    titulo: String(musicaAtiva.titulo || '').trim(),
-    artista: String(musicaAtiva.artista || '').trim(),
-    rotulo: String(musicaAtiva.rotulo || '').trim(),
-    tom: obterTomPlaylistMusicaAtiva(),
-    ministranteId: min.id,
-    ministranteNome: min.nome,
-    cultoId: String(cultoId || ''),
-    cultoNome: nomeCultoAtivoParaHistorico(),
-  };
-  try {
-    fetch(`${getControllerApiBase()}/api/historico`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(corpo),
-    }).catch(() => {});
-  } catch (_) {
-  // intencional — o histórico nunca pode atrapalhar a projeção
-}
-}
-
-function emitirEstrofeAoServidor(index) {
-  if (!projecao.pronta() || !musicaAtiva) return;
-  bloqueioSincronizarEstrofeDoServidor = false;
-  projecaoMusicaEmitidaNoServidor = true;
-  if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
-  projecao.enviar('exibir_musica', montarPayloadExibirMusica(index));
-  if (ehModoSlidesOperador()) {
-    /* Espelho + refresh da prévia (e `exibir_ministrante`) — evita M3 com DOM antigo. */
-    espelharEstadoMusicaLocalAposEmitSlides(index);
-    try {
-      atualizarPreviewOperador();
-    } catch (_) {
-      // intencional — erro ignorado
-    }
-  } else {
-    emitirEstadoMinistranteAoServidor();
-  }
-  registarProjecaoNoHistorico();
-  atualizarChecksAoProjetar();
-}
-
-/**
- * Espelho otimista de `estadoServidor` após `exibir_musica` no modo Slides.
- * Só para as prévias refletirem o que acabou de ir às telas (seleção ≠ projeção).
- */
-function espelharEstadoMusicaLocalAposEmitSlides(index) {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
-  /*
-   * Mídias a ocupar o canal público (imagem/vídeo/PDF/web ou aviso do card 6): não há
-   * nada a espelhar nesse canal, porque nada lá mudou.
-   *
-   * `exibir_musica` escreve `estadoAtual` no servidor e não toca em
-   * `estadoPublicoOverride` — e é o override que o evento `estado` transporta. O eco que
-   * chega a seguir continua, portanto, a ser o da mídia (`tipo: 'apresentacao'`).
-   * Espelhar aqui `tipo: 'musica'` inventava, no intervalo entre o envio e o eco, um
-   * estado que o servidor nunca produz, e tudo o que lê o canal público ia atrás dele:
-   * `classificarSaidaMonitorPublicoSlides` trocava a badge «Imagem no Telão» pela cópia
-   * do slide e `atualizarEstiloRotasDesativadas` desbloqueava o seletor do M2 (ambos por
-   * `apresentacaoProjecaoAtivaNoCanalPublico`), para voltarem atrás assim que o eco
-   * chegasse — o piscar do M2 ao projetar um slide.
-   *
-   * Mesma regra de `limparEspelhoLocalSoCamadaSlides`: o espelho local só mexe na camada
-   * Slides; a camada de Mídias por cima sobrevive. O M3 não perde nada — a prévia dele e
-   * o `exibir_ministrante` saem da música local (`projecaoMusicaEmitidaNoServidor`), que
-   * é exactamente o caminho que já corria depois do eco.
-   */
-  if (apresentacaoProjecaoAtivaNoCanalPublico()) return;
-  const nEst = musicaAtiva.estrofes.length;
-  const idx = Number(index);
-  const slidePreto = Number.isFinite(idx) && idx === nEst;
-  const cur =
-    !slidePreto && Number.isFinite(idx) && idx >= 0 && idx < nEst
-      ? String(musicaAtiva.estrofes[idx] ?? '')
-      : '';
-  const nxtIdx = idx + 1;
-  const proximoSlidePreto = !slidePreto && nxtIdx === nEst;
-  let linhasProximo = [];
-  if (!slidePreto && !proximoSlidePreto && nxtIdx >= 0 && nxtIdx < nEst) {
-    linhasProximo = String(musicaAtiva.estrofes[nxtIdx] ?? '').split('\n');
-  }
-  const prev = estadoServidor && typeof estadoServidor === 'object' ? estadoServidor : {};
-  estadoServidor = {
-    ...prev,
-    tipo: 'musica',
-    titulo: String(musicaAtiva.titulo || '').trim(),
-    linhas: slidePreto ? [] : cur.split('\n'),
-    estrofeIndex: Number.isFinite(idx) ? idx : 0,
-    totalEstrofes: nEst,
-    telaLimpa: false,
-    slidePretoFinal: slidePreto,
-    proximoSlidePreto,
-    linhasProximo,
-    musicaId: musicaAtiva.id,
-  };
-  /* Permite o eco real do servidor atualizar de novo. */
-  lyraAssinaturaEstadoProjecaoRecebido = null;
-}
-
-/** Atualiza só o painel (estrofe «selecionada»). Não envia às telas nem altera a prévia de projeção real — use duplo clique ou setas após projeção iniciada. */
-function exibirEstrofe(index, opts) {
-  if (!musicaAtiva) return;
-  if (ehModoSlidesOperador()) slidesRailUserRecolhido = false;
-  estrofeAtiva = index;
-  renderSlidesStrip();
-  const semScroll = !!(opts && opts.semScroll);
-  if (!semScroll) {
-    const suave = !(opts && opts.suave === false);
-    requestAnimationFrame(() => revelarChipEstrofeFocado(estrofeAtiva, { suave }));
-  }
-  atualizarPreviewOperador();
-  renderPlaylist();
-  marcacaoEstrofeEditor();
-}
-
-function navegarEstrofe(dir) {
-  if (!musicaAtiva || !musicaAtiva.estrofes.length) return;
-  const idxMaxPreto = musicaAtiva.estrofes.length;
-  const prox = estrofeAtiva + dir;
-  if (prox >= 0 && prox <= idxMaxPreto) {
-    exibirEstrofe(prox);
-    if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
-      emitirEstrofeAoServidor(prox);
-    }
-  }
-}
-
-/**
- * Passador USB / apresentador sem fio (2 teclas): em geral envia PageDown/PageUp ou setas.
- * Devolve +1 (avançar), -1 (voltar) ou 0 se não for tecla de passador.
- */
-function direcaoTeclaPassadorSlides(tecla, code) {
-  const k = String(tecla || '');
-  const c = String(code || '');
-  const avancar = new Set([
-    'PageDown',
-    'ArrowRight',
-    'ArrowDown',
-    'Numpad2',
-    'Numpad3',
-    'Numpad6',
-    'NumpadEnter',
-    'Enter',
-  ]);
-  const voltar = new Set([
-    'PageUp',
-    'ArrowLeft',
-    'ArrowUp',
-    'Numpad4',
-    'Numpad8',
-    'Numpad9',
-    'Backspace',
-  ]);
-  if (avancar.has(k) || c === 'PageDown' || c === 'MediaTrackNext') return 1;
-  if (voltar.has(k) || c === 'PageUp' || c === 'MediaTrackPrevious') return -1;
-  if (ehModoSlidesOperador() && k === ' ') return 1;
-  return 0;
-}
-
-/**
- * Modo slides + passador: avançar/voltar slide. Só envia ao telão depois que a projeção
- * já foi iniciada (duplo clique, etc.) — antes disso, igual ao clique: só seleção no painel.
- */
-function navegarEstrofePassadorSlides(direcao, opts) {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
-  if (!ehModoSlidesOperador()) {
-    navegarEstrofe(direcao);
-    return;
-  }
-  const idxMaxPreto = musicaAtiva.estrofes.length;
-  let base = Number.isFinite(estrofeAtiva) ? estrofeAtiva : -1;
-  let prox = base + direcao;
-  if (base < 0 && direcao > 0) prox = 0;
-  prox = Math.max(0, Math.min(idxMaxPreto, prox));
-  if (prox === estrofeAtiva && projecaoMusicaEmitidaNoServidor) return;
-  exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
-  if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
-    emitirEstrofeAoServidor(prox);
-  }
-}
-
-/** Botão «Tela preta» do modo slides: vai direto ao último slide (o preto, índice N). */
-function irParaSlidePretoModoSlides() {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
-  projecionarEstrofeModoSlides(musicaAtiva.estrofes.length);
-}
-
-/**
- * Atalho «número + Enter» do modo slides: projeta o slide N da música atual.
- * Captura os dígitos no teclado todo (sem foco no campo), menos em campos de texto e com
- * modal / painel por cima. Detalhes em `modules/slidesIrParaNumero.js`.
- */
-const irParaSlideNumero = criarIrParaSlideNumero({
-  ehModoSlides: ehModoSlidesOperador,
-  totalEstrofes: () =>
-    musicaAtiva && Array.isArray(musicaAtiva.estrofes) ? musicaAtiva.estrofes.length : 0,
-  projetar: (indice) => projecionarEstrofeModoSlides(indice),
-  interfaceBloqueada: () => {
-    if (document.getElementById('contagem-backdrop')?.classList.contains('aberto')) return true;
-    if (document.getElementById('cfg-modal-overlay-ctrl')?.classList.contains('aberto')) return true;
-    return [
-      'musica-excluir-backdrop',
-      'nova-musica-manual-backdrop',
-      'letras-preview-backdrop',
-      'slide-delete-confirm-backdrop',
-      'slide-quick-edit-backdrop',
-    ].some((id) => {
-      const el = document.getElementById(id);
-      return !!el && !el.hidden;
-    });
-  },
-});
-irParaSlideNumero.ligar();
-
-/** Comando de voz / atalho: projeta estrofe no índice dado (0 … N, N = tela preta). */
-function projecionarEstrofeModoSlides(index) {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
-  const idxMaxPreto = musicaAtiva.estrofes.length;
-  const idx = Math.max(0, Math.min(idxMaxPreto, Number(index)));
-  if (projecao.pronta()) {
-    emitirEstrofeAoServidor(idx);
-    exibirEstrofe(idx);
-    return;
-  }
-  exibirEstrofe(idx);
-}
-
-const reconhecimentoVozSlides = criarReconhecimentoVozSlides({
-  ehModoSlides: ehModoSlidesOperador,
-  ehModoApresentacao: ehModoApresentacaoOperador,
-  // Microfone desativado no modo mídias (mesmo comportamento da Home): só disponível no modo slides.
-  painelVozVisivel: () => ehModoSlidesOperador(),
-  obterMusicaAtiva: () => musicaAtiva,
-  projecionarEstrofe: projecionarEstrofeModoSlides,
-  navegarDirecao: navegarEstrofePassadorSlides,
-  encerrarComoEsc: () => {
-    if (ehModoSlidesOperador()) {
-      encerrarProjecaoDoControlador({ limparMusica: true });
-    }
-  },
-  mudarModoApresentacao: () => {
-    if (!ehModoApresentacaoOperador()) abrirMenuModoApresentacao();
-  },
-  mudarModoSlides: () => {
-    if (ehModoApresentacaoOperador()) {
-      fecharMenuModoApresentacao();
-      setTimeout(() => {
-        if (!ehModoSlidesOperador()) alternarModoSlidesOperador();
-        else reconhecimentoVozSlides.atualizarUi();
-      }, 360);
-      return;
-    }
-    if (!ehModoSlidesOperador()) alternarModoSlidesOperador();
-  },
-  mudarModoCompleto: () => irParaTelaInicial(),
-  mudarModoBiblia: () => {
-    if (ehModoApresentacaoOperador()) {
-      fecharMenuModoApresentacao();
-      setTimeout(() => {
-        if (!ehModoBibliaOperador()) alternarModoBiblia();
-      }, 360);
-      return;
-    }
-    if (!ehModoBibliaOperador()) alternarModoBiblia();
-  },
-});
-
-/**
- * Regista cedo no `window` os handlers do HTML (`onclick="…"`).
- * Se o bootstrap abaixo falhar, os botões de modo continuam clicáveis.
- */
-exporCallbacksParaAtributosHtml({
-  recarregarPainelControlador,
-  conectar,
-  alternarProjecaoNestaMaquina,
-  ligarProjecaoNestaMaquina,
-  desligarProjecaoNestaMaquina,
-  encerrarServidorRemotoViaMenu,
-  copiarUrlObs,
-  irParaTelaInicial,
-  alternarModoSlidesOperador,
-  alternarModoBiblia,
-  onTraducaoBibliaChange,
-  alternarVozSlides: () => {
-    if (ehModoBibliaOperador()) reconhecimentoVozBiblia.alternarAtivo();
-    else reconhecimentoVozSlides.alternarAtivo();
-    setTimeout(() => {
-      if (typeof sincronizarFormCfgGeral === 'function') sincronizarFormCfgGeral();
-    }, 0);
-  },
-  abrirMenuModoApresentacao,
-  abrirModoDocs,
-  abrirCfgModal,
-  toggleDarkCtrl,
-  onCfgGeralTemaChange,
-  onCfgGeralVozChange,
-  onCfgLembrarIpChange,
-  onCfgAutoConectarChange,
-  sincronizarFormCfgGeral,
-  toggleCfgSwitch,
-  getChkVal,
-  abrirModalNovaMusicaManual,
-  buscarLetrasExterno,
-  editarNomeVersaoSelecionada,
-  apagarCopiaVersaoSelecionada,
-  entrarModoEdicao,
-  iniciarCriarNovaVersao,
-  alternarModoLetraCompletaCentral,
-  cancelarModoLetraCompletaCentral,
-  irParaGradeSlidesDesdeLetraCompleta,
-  alternarModoLetraCompletaOuVoltarGrade,
-  alternarModoComparativoCentral,
-  acionarEditarLetraBarraPadrao,
-  cancelarModoComparativoCentral,
-  alternarCaixaLetrasEdicao,
-  adicionarVersaoAtivaNaPlaylistHome,
-  sairModoEdicao,
-  salvarMusicaServidor,
-  acionarSalvarAlteracoesBarraPadrao,
-  acionarCancelarBarraPadrao,
-  novaEstrofe,
-  navegarEstrofe,
-  irParaSlidePretoModoSlides,
-  limparTela,
-  // SAIR na barra: encerra a prévia E limpa a seleção (música + slides), voltando ao estado inicial.
-  encerrarProjecaoDoControlador: () => encerrarProjecaoDoControlador({ limparMusica: true }),
-  alternarOcultacaoPreviewPainel,
-  bibliaBuscaRapida,
-  bibliaBuscaRapidaTecla,
-  bibliaNavPopupAbrir,
-  bibliaNavPopupFechar,
-  bnpSelecionarLivro,
-  bnpConfirmarCap,
-  bnpConfirmarVer,
-  bibliaAplicarCfgExibicao,
-  definirFiltroTestamentoBiblia,
-  bibliaEscolherFundo,
-  setBibliaPosCtrl,
-  onBibliaPublicoBgTypeCtrlChange,
-  onBibliaMinistranteBgTypeCtrlChange,
-  onBibliaPublicoCfgChange,
-  onBibliaMinistranteCfgChange,
-  projecaoProximaMusicaPlaylist,
-  fecharCfgModal,
-  mudarAbaCfg,
-  mudarDestinoCfg,
-  onCfgBuscaInput,
-  limparCfgBusca,
-  onCfgMinistranteAdicionar,
-  onCfgImportTonsArquivoChange,
-  onCfgSyncTonsInvbClick,
-  onSincronizarPlaylistLyraClick,
-  setPosCtrl,
-  salvarCfgNoServidor,
-  onBancoFonteChange,
-  alternarListaBancoSqlite,
-  onFiltroBuscaChange,
-  onBuscaLetrasInput,
-  limparBuscaLetras,
-  filtrar,
-  onPublicoBgTypeCtrlChange,
-  onPublicoBgImageCtrlChange,
-  onPublicoBgColorCtrlInput,
-  onPublicoBgGradientCtrlInput,
-  lerNumeroInput,
-  setSpanText,
-  debounceSalvarCfg,
-  setSelVal,
-  setInputVal,
-  setChkVal,
-  aplicarWrapImediato,
-  onMinistranteBgTypeCtrlChange,
-  onMinistranteBgImageCtrlChange,
-  onMinistranteBgColorCtrlInput,
-  onMinistranteBgGradientCtrlInput,
-  onMinistranteSlideCfgChange,
-  aplicarCfgRelogio,
-  onClockBgTypeCtrlChange,
-  onClockBgImageCtrlChange,
-  onClockFontSizeCtrlInput,
-  onClockDateFontSizeCtrlInput,
-  onClockVerseFontSizeCtrlInput,
-  onAvisoCard6CfgChange,
-  setPosAvisoCard6Ctrl,
-  onBibliaDivisaoCfgChange,
-});
-
-function navegarEstrofePorSeta(tecla, opts) {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes) || !musicaAtiva.estrofes.length) return;
-  const idxMaxPreto = musicaAtiva.estrofes.length;
-  let base = Number.isFinite(estrofeAtiva) ? estrofeAtiva : -1;
-  if (base < 0) base = 0;
-  let prox = base;
-  const cols = ehModoSlidesOperador() ? slidesGrelha.getSlidesPorLinha() : 3;
-
-  if (tecla === 'ArrowRight') prox = base + 1;
-  else if (tecla === 'ArrowLeft') prox = base - 1;
-  else if (tecla === 'ArrowDown') prox = base + cols;
-  else if (tecla === 'ArrowUp') prox = base - cols;
-
-  prox = Math.max(0, Math.min(idxMaxPreto, prox));
-  if (prox === estrofeAtiva) return;
-  exibirEstrofe(prox, { suave: !(opts && opts.repetir) });
-  if (projecaoMusicaEmitidaNoServidor && projecao.pronta()) {
-    emitirEstrofeAoServidor(prox);
-  }
-}
-
-function musicaEstadoCombinaComAtiva(estado) {
-  if (!musicaAtiva || estado.tipo !== 'musica') return false;
-  if (estado.musicaId != null && musicaAtiva.id != null) {
-    return Number(estado.musicaId) === Number(musicaAtiva.id);
-  }
-  return estado.titulo === musicaAtiva.titulo;
-}
-
-function sincronizarEstrofeAtiva(estado) {
-  if (!estado || estado.telaLimpa || estado.tipo === null) {
-    estrofeAtiva = -1;
-    slidesDockVisivel = ehModoSlidesOperador();
-    projecaoMusicaEmitidaNoServidor = false;
-    bloqueioSincronizarEstrofeDoServidor = false;
-    renderSlidesStrip();
-    renderPlaylist();
-    marcacaoEstrofeEditor();
-    return;
-  }
-
-  if (estado.tipo === 'musica' && musicaEstadoCombinaComAtiva(estado)) {
-    if (bloqueioSincronizarEstrofeDoServidor) return;
-    estrofeAtiva = estado.estrofeIndex;
-    if (ehModoSlidesOperador()) slidesDockVisivel = true;
-    projecaoMusicaEmitidaNoServidor = true;
-    renderSlidesStrip();
-    renderPlaylist();
-    marcacaoEstrofeEditor();
-  } else if (estado.tipo === 'musica' && todasMusicas.length && estado.musicaId != null) {
-    const m = todasMusicas.find((x) => Number(x.id) === Number(estado.musicaId));
-    if (m && musicaAtiva?.id === m.id) {
-      if (bloqueioSincronizarEstrofeDoServidor) return;
-      estrofeAtiva = estado.estrofeIndex;
-      if (ehModoSlidesOperador()) slidesDockVisivel = true;
-      projecaoMusicaEmitidaNoServidor = true;
-      renderSlidesStrip();
-      renderPlaylist();
-      marcacaoEstrofeEditor();
-    }
-  }
-}
-
-function limparTela() {
-  if (!projecao.ligada()) return;
-  marcarUltimaMusicaAoEncerrar();
-  estrofeAtiva = -1;
-  slidesDockVisivel = ehModoSlidesOperador();
-  projecaoMusicaEmitidaNoServidor = false;
-  bloqueioSincronizarEstrofeDoServidor = false;
-  projecao.enfileirar('limpar_tela');
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  if (musicaAtiva) renderPlaylist();
-  marcacaoEstrofeEditor();
-}
-
-/** `limparMusica`: modo slides — ESC desassocia a música do painel (playlist sem linha ativa, faixa de slides oculta). */
-function encerrarProjecaoDoControlador(opts = {}) {
-  marcarUltimaMusicaAoEncerrar();
-  const limparMusica = !!opts.limparMusica;
-  if (limparMusica) {
-    musicaAtiva = null;
-    musicaVersaoLocalId = null;
-    musicaRootId = null;
-    versoesMusicaServidorCache = { rootId: null, versoes: [] };
-    renderMusicaVersoesBar();
-    modoEdicaoEstrofes = false;
-    snapshotEdicaoEstrofes = null;
-    snapshotLetraCompleta = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
-    faixaSlidesHabilitadaPorPlaylistNoModoSlides = false;
-    selecaoUiPlaylist = null;
-    selecaoUiBiblioteca = null;
-  }
-  estrofeAtiva = -1;
-  slidesDockVisivel = ehModoSlidesOperador();
-  projecaoMusicaEmitidaNoServidor = false;
-  bloqueioSincronizarEstrofeDoServidor = false;
-  /* Sem isto, `estadoServidor` segue com música até o broadcast — no modo slides o cartão TV voltava pela ramo servidor ≠ painel alinhado.
-     Só a camada Slides: Mídias noutro monitor (badge «Imagem no Telão») tem de sobreviver. */
-  limparEspelhoLocalSoCamadaSlides();
-  /** No controlador, ESC/encerrar limpa as saídas sem fechar as janelas de projeção (emit só se ligado). */
-  projecao.enviar('limpar_tela');
-  if (ehModoBibliaOperador()) {
-    bibliaZerarParteProjetada();
-    if (ultimoConteudoProjetadoModoUnificado?.tipo === 'biblia') {
-      ultimoConteudoProjetadoModoUnificado = null;
-    }
-    bibliaZerarVersiculoSelecionado();
-    document.querySelectorAll('.biblia-v-card').forEach((c) => {
-      c.classList.remove('projetado', 'selecionado');
-    });
-  }
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  if (limparMusica) {
-    renderPlaylist();
-    renderEstrofesEditor();
-    refreshListaBanco();
-  } else if (musicaAtiva) {
-    renderPlaylist();
-  }
-  marcacaoEstrofeEditor();
-}
-
-function toggleBlackoutTelas() {
-  if (!projecao.ligada()) return;
-  projecao.enfileirar('toggle_blackout');
-}
-
-/**
- * @param {number} index
- * @param {{ rolarComoNasSetas?: boolean }} [opts] Ver a nota sobre a rolagem abaixo.
- */
-function projetarPorDuploCliqueCentral(index, opts = {}) {
-  if (!musicaAtiva || !projecao.pronta()) return;
-  slidesRailUserRecolhido = false;
-  slidesDockVisivel = true;
-  /** Emitir antes de `exibirEstrofe`: senão `atualizarPreviewOperador` roda com `projecaoMusicaEmitidaNoServidor` ainda false e o painel espelha só o estado antigo do socket (telão físico atualiza, preview não). */
-  emitirEstrofeAoServidor(index);
-  /*
-   * Quem rola aqui é o `exibirEstrofe` — o mesmo caminho das setas, que chega a
-   * `revelarChipEstrofeFocado`. O que muda entre os dois chamadores é só se ele deve correr:
-   *
-   * · Duplo clique (projecção ainda por começar): o primeiro clique já seleccionou e já
-   *   rolou. Um segundo scroll competia com esse e fazia a grelha tremer — daí o padrão
-   *   continuar a ser não rolar.
-   * · Clique único com a projecção no ar: não houve clique anterior nenhum, logo não há
-   *   scroll com que competir. Sem rolar, clicar no slide da última fileira visível deixava
-   *   a fileira seguinte escondida — enquanto chegar ao mesmo slide pelas setas a revelava.
-   *   É o mesmo destino pelo mesmo gesto, e tem de se comportar igual.
-   */
-  exibirEstrofe(index, { semScroll: opts.rolarComoNasSetas !== true });
-}
+// (extraído) projeção da música → painel/projecaoMusica.js
+iniciarProjecaoMusica();
 
 // (extraído) Modo Bíblia (dados, estado e aparência) → painel/biblia.js
 
