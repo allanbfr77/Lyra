@@ -22,7 +22,7 @@ window.__fixtureFetch = async (url, opts = {}) => {
  if(p.endsWith('/api/comando/exibir_apresentacao')&&opts.body){try{(window.__apresentacoes ||= []).push(JSON.parse(opts.body))}catch(_){}}
  if(window.__saveFail && opts.method==='PUT') return new Response(JSON.stringify({erro:'Falha simulada'}),{status:500});
  let data={};
- if(p==='/api/musicas') data=[window.__songs[0]];
+ if(p==='/api/musicas') data=window.__bibFix||[window.__songs[0]];
  else if(/\\/api\\/musicas\\/\\d+\\/versoes/.test(p)) data={root_id:1,versoes:window.__songs};
  else if(/\\/api\\/musicas\\/\\d+/.test(p)) {
   const id=Number(p.split('/')[3]);
@@ -52,7 +52,8 @@ window.__homeTest = {
  },
  state:()=>({id:musicaAtiva?.id, title:musicaAtiva?.titulo, slides:musicaAtiva?.estrofes, index:estrofeAtiva, full:modoLetraCompletaCentral, editing:modoEdicaoEstrofes}),
  preview:atualizarPreviewPlaylistCentral,
- filter:()=>aplicarFiltroBiblioteca(++filtrarBibliotecaGeracao),
+ filter:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.filtrar()),
+ bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
  openContagem:abrirPainelContagem,
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
  setMonitores:(m)=>{monitoresServidorCache=m},
@@ -531,6 +532,39 @@ async function run() {
   await js("document.getElementById('btn-modo-biblia').click()");
   for (let i = 0; i < 40 && await js("document.body.classList.contains('app-mod-biblia')"); i++) await pause(100);
   await check('Bíblia: o botão do cabeçalho sai do modo e restaura o título',`!document.body.classList.contains('app-mod-biblia') && document.title==='Lyra — Controlador' && document.getElementById('btn-modo-biblia').getAttribute('aria-pressed')==='false'`);
+  // Biblioteca de músicas (painel/bibliotecaMusicas.js): lista, busca, seleção, alfabeto e «nova música manual»
+  await js("window.__bibFix=[{id:12,root_id:12,parent_id:null,titulo:'Bondade',artista:'João'},{id:11,root_id:11,parent_id:null,titulo:'Alegria',artista:'Maria'},{id:13,root_id:13,parent_id:null,titulo:'Cantarei',artista:'Maria'}];window.__requests.length=0;__homeTest.bibliotecaCarregar();void 0");
+  await aguardar("document.querySelectorAll('#lista .item').length===3");
+  await check('Biblioteca: carrega do servidor, conta o acervo e ordena por título',`document.getElementById('bib-total-contagem').textContent==='3 músicas' && [...document.querySelectorAll('#lista .item .titulo')].map(e=>e.textContent).join(',')==='Alegria,Bondade,Cantarei'`);
+  const visiveis = "[...document.querySelectorAll('#lista .item:not([hidden]) .titulo')].map(e=>e.textContent).join(',')";
+  await js("(()=>{const b=document.getElementById('busca');b.value='bond';b.dispatchEvent(new Event('input',{bubbles:true}))})()");
+  await aguardar(`${visiveis}==='Bondade'`);
+  await check('Biblioteca: a busca (oninput do HTML) esconde as linhas que não casam',`${visiveis}==='Bondade' && document.getElementById('bib-total-contagem').textContent==='3 músicas'`);
+  await js("(()=>{const b=document.getElementById('busca');b.value='maria';b.dispatchEvent(new Event('input',{bubbles:true}))})()");
+  await aguardar(`${visiveis}==='Alegria,Cantarei'`);
+  await check('Biblioteca: a busca também casa o artista',`${visiveis}==='Alegria,Cantarei'`);
+  await js("(()=>{const b=document.getElementById('busca');b.value='';b.dispatchEvent(new Event('input',{bubbles:true}))})()");
+  await aguardar(`${visiveis}==='Alegria,Bondade,Cantarei'`);
+  await check('Biblioteca: limpar a busca devolve todas as linhas',`${visiveis}==='Alegria,Bondade,Cantarei'`);
+  await check('Biblioteca: o navegador alfabético lista as letras do acervo',`document.querySelectorAll('#bib-nav-alfabeto button, #bib-nav-alfabeto [data-letra]').length>=3`);
+  await js("window.__requests.length=0;document.querySelectorAll('#lista .item')[1].click()");
+  await aguardar("window.__requests.some(r=>r.path==='/api/musicas/12')");
+  await check('Biblioteca: clicar numa linha abre a música (pedido ao servidor)',`window.__requests.some(r=>r.path==='/api/musicas/12')`);
+  await js("document.querySelectorAll('#lista .item')[0].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:40,clientY:40}))");await pause(150);
+  await check('Biblioteca: o menu de contexto da linha oferece as ações da música',`['Adicionar à playlist','Duplicar música','Selecionar várias','Excluir música'].every(t=>[...document.querySelectorAll('.menu-flutuante [role=menuitem]')].some(i=>i.textContent.includes(t)))`);
+  await js("[...document.querySelectorAll('.menu-flutuante [role=menuitem]')].find(i=>i.textContent.includes('Selecionar várias')).click()");await pause(150);
+  await check('Biblioteca: «Selecionar várias» entra no modo já com a linha marcada',`!document.getElementById('bib-selecao-barra').hidden && document.getElementById('bib-selecao-contagem').textContent.includes('1') && document.querySelectorAll('#lista .item[aria-checked=true]').length===1`);
+  await js("document.getElementById('bib-selecao-cancelar').click()");await pause(150);
+  await check('Biblioteca: cancelar a seleção sai do modo e limpa as marcas',`document.getElementById('bib-selecao-barra').hidden && document.querySelectorAll('#lista .item[aria-checked=true]').length===0`);
+  await js("window.__lastAlert='';window.__requests.length=0;document.querySelector('.btn-nova-manual').click()");await pause(100);
+  await check('Biblioteca: «Nova música manual» abre o modal',`!document.getElementById('nova-musica-manual-backdrop').hidden`);
+  await js("document.getElementById('nova-musica-manual-salvar').click()");await pause(100);
+  await check('Biblioteca: salvar sem título avisa e não chama o servidor',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Informe o título da música') && !window.__requests.some(r=>r.method==='POST')`);
+  await js("document.getElementById('app-dialog-ok').click()");await pause(150);
+  await js("document.getElementById('nova-musica-manual-titulo').value='Nova de teste';document.getElementById('nova-musica-manual-artista').value='Alguém';document.getElementById('nova-musica-manual-estrofes').value='Linha A\\nLinha B\\n\\nLinha C';document.getElementById('nova-musica-manual-salvar').click()");
+  await aguardar("window.__requests.some(r=>r.method==='POST'&&r.path==='/api/musicas')");await pause(300);
+  await check('Biblioteca: salvar envia a música (POST) e fecha o modal',`window.__requests.some(r=>r.method==='POST'&&r.path==='/api/musicas') && document.getElementById('nova-musica-manual-backdrop').hidden`);
+  await js("window.__bibFix=null;void 0");
   await js(`document.body.classList.add('app-mod-biblia')`);await pause();
   await check('prévia não invade Bíblia',`document.getElementById('playlist-preview-card').hidden`);
   await check('sem erros de execução',`!(window.__errors||[]).length`);
