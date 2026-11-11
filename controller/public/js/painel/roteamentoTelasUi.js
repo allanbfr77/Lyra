@@ -142,8 +142,8 @@ export function rotuloRotaApresentacaoForaDoPreset(r, lista) {
   const pub = indiceRoteamentoMonitorNaUi(r?.publicoIndex);
   const min = indiceRoteamentoMonitorNaUi(r?.ministranteIndex);
   if (pub < 0 && min < 0) return 'Não exibir';
-  if (pub >= 0 && min < 0) return `Público — Monitor ${pub + 1}`;
-  if (pub < 0 && min >= 0) return `Ministrante — Monitor ${min + 1}`;
+  if (pub >= 0 && min < 0) return `Igreja (M${pub + 1})`;
+  if (pub < 0 && min >= 0) return `Ministrante (M${min + 1})`;
   return 'Ambos';
 }
 
@@ -159,14 +159,16 @@ export function renderRoteamentoTelas(monitores, routing) {
   if (!hidPub || !hidMin || !menuPub || !menuMin || !dispPub || !dispMin) return;
 
   const modoR = modoRoteamentoAtual();
-  if (lblPub) lblPub.textContent = modoUsaSeletorMonitorUnificado() ? 'Monitor' : 'Público';
+  if (lblPub) lblPub.textContent = modoUsaSeletorMonitorUnificado() ? 'Monitor' : 'Igreja';
 
-  const items = [{ value: '-1', label: 'Não exibir' }];
+  const items = [];
   const lista = Array.isArray(monitores) ? monitores : [];
   lista.forEach((m) => {
     if (m && m.primary) return;
     items.push({ value: String(m.index), label: montarLabelMonitor(m), title: montarTitleMonitor(m) });
   });
+  /* «Não exibir» sempre por último. */
+  items.push({ value: '-1', label: 'Não exibir' });
 
   /**
    * Tira este monitor da outra saída — ver `rotaSemMonitorRepetido`.

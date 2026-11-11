@@ -12876,7 +12876,9 @@ body.app-mod-slides .playlist-row .pl-num-badge {
   border-color: color-mix(in srgb, var(--red) 55%, var(--border));
   color: color-mix(in srgb, var(--red) 60%, #ff9a94);
 }
-.contagem-monitor-select option { color: var(--text); background: var(--surface); }
+/* Dropdown do Contador = `.route-dd` do cabeçalho, só mais largo e alto (painel modal). */
+.route-dd--contagem { width: 100%; }
+.route-dd--contagem .route-dd-btn { height: 44px; padding: 0 14px; font-size: var(--fs-500); }
 .contagem-ajuda { font-size: var(--fs-300); line-height: 1.45; color: var(--text-dim); }
 
 .contagem-mostrador {

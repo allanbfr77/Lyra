@@ -16,6 +16,7 @@ import { abrirCfgModal, getChkVal, lerNumeroInput, setChkVal, setInputVal, setSe
 import { carregarRoteamentoTelasDoServidor, salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { definirEstadoBtnModoCabecalho } from './modosUi.js';
 import { fecharMenusRoteamentoTelas, montarLabelMonitor, montarTitleMonitor } from './roteamentoTelasUi.js';
+import { fecharOutrosSeletoresDropdown } from './temasPlaylistUi.js';
 import { getServidorProjeccaoIp } from './servidorAlvo.js';
 import { indicesPadraoPublicoMinistranteApresentacao } from './conteudoUnificadoAviso.js';
 import { listaMonitoresParaProjecao, normalizarRota, rotaDesativada, sanitizarRotaProjecao } from './rotasMonitores.js';
@@ -698,40 +699,46 @@ function chaveMonitorSelecionadoContagem() {
  */
 function opcoesMonitorContagem() {
   const lista = listaMonitoresParaProjecao(estadoPainel.monitoresServidorCache);
-  const out = [
-    {
-      chave: '-1',
-      publicoIndex: -1,
-      alvo: 'publico',
-      label: 'Não exibir',
-      title: 'Sem telão — a contagem não aparece em monitor nenhum.',
-    },
-  ];
+  const out = [];
+  const naoExibir = {
+    chave: '-1',
+    publicoIndex: -1,
+    alvo: 'publico',
+    label: 'Não exibir',
+    title: 'Sem telão — a contagem não aparece em monitor nenhum.',
+  };
+
+  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(estadoPainel.monitoresServidorCache);
 
   lista.forEach((m) => {
+    /* Nomes do Lyra, não os do Windows: o nome físico passa para o tooltip (desempata painéis). */
+    const nomeLyra =
+      m.index === iPub ? `Igreja (M${m.index + 1})`
+        : m.index === iMin ? `Ministrante (M${m.index + 1})`
+          : `Monitor ${m.index + 1}`;
     out.push({
       chave: String(m.index),
       publicoIndex: m.index,
       alvo: 'publico',
-      label: montarLabelMonitor(m),
-      title: montarTitleMonitor(m),
+      label: nomeLyra,
+      title: [montarLabelMonitor(m), montarTitleMonitor(m)].filter(Boolean).join(' · '),
     });
   });
-
-  const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(estadoPainel.monitoresServidorCache);
   if (iPub >= 0 && iMin >= 0 && iPub !== iMin) {
     out.push({
       chave: 'ambos',
       publicoIndex: iPub,
       ministranteIndex: iMin,
       alvo: 'ambos',
-      label: `Ambos — Monitor ${iPub + 1} e Monitor ${iMin + 1}`,
+      label: `Ambos — Igreja (M${iPub + 1}) e Ministrante (M${iMin + 1})`,
       title:
         'A mesma contagem no telão e no monitor do ministrante, com os mesmos dígitos ao ' +
         'mesmo tempo.',
     });
   }
 
+  /* «Não exibir» por último, como nos seletores do cabeçalho. */
+  out.push(naoExibir);
   return out;
 }
 
@@ -743,24 +750,60 @@ export function renderSeletorMonitorContagem() {
   const atual = chaveMonitorSelecionadoContagem();
   host.innerHTML = '';
 
-  const sel = document.createElement('select');
-  sel.id = 'contagem-monitor-select';
-  sel.className = 'contagem-monitor-select';
-  sel.setAttribute('aria-labelledby', 'contagem-monitor-rotulo');
+  /* Mesmo componente dos seletores do cabeçalho (`.route-dd`): botão, caret e lista própria. */
+  const wrap = document.createElement('div');
+  wrap.className = 'route-dd route-dd--contagem';
+  wrap.id = 'contagem-monitor-dd';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'route-dd-btn';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-labelledby', 'contagem-monitor-rotulo');
+  const lbl = document.createElement('span');
+  lbl.className = 'route-dd-label';
+  const caret = document.createElement('span');
+  caret.className = 'route-dd-caret';
+  caret.setAttribute('aria-hidden', 'true');
+  caret.textContent = '▾';
+  btn.append(lbl, caret);
+  const menu = document.createElement('ul');
+  menu.className = 'route-dd-menu';
+  menu.setAttribute('role', 'listbox');
+  menu.hidden = true;
+
   opcoes.forEach((o) => {
-    const op = document.createElement('option');
-    op.value = o.chave;
-    op.textContent = o.chave === '-1' ? 'Nenhum monitor selecionado' : o.label;
-    if (o.title) op.title = o.title;
-    sel.appendChild(op);
+    const li = document.createElement('li');
+    li.setAttribute('role', 'presentation');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'route-dd-item';
+    b.dataset.value = o.chave;
+    b.textContent = o.label;
+    if (o.title) b.title = o.title;
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      fecharMenusRoteamentoTelas();
+      const escolhida = opcoesMonitorContagem().find((x) => x.chave === o.chave);
+      if (escolhida) void definirMonitorDoTelaoDaContagem(escolhida);
+      sincronizarSeletorMonitorContagem();
+    });
+    li.appendChild(b);
+    menu.appendChild(li);
   });
-  sel.value = atual;
-  sel.classList.toggle('sem-monitor', sel.value === '-1');
-  sel.addEventListener('change', () => {
-    const escolhida = opcoesMonitorContagem().find((o) => o.chave === sel.value);
-    if (escolhida) void definirMonitorDoTelaoDaContagem(escolhida);
+
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const abrir = !wrap.classList.contains('route-dd-open');
+    fecharOutrosSeletoresDropdown(wrap);
+    wrap.classList.toggle('route-dd-open', abrir);
+    menu.hidden = !abrir;
+    btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   });
-  host.appendChild(sel);
+
+  wrap.append(btn, menu);
+  host.appendChild(wrap);
+  aplicarEscolhaNoSeletorMonitorContagem(wrap, opcoes, atual);
 
   /* Só «Não exibir» significa que não há para onde projetar — dizer isso é mais útil do
      que oferecer uma lista de um item que não leva a lado nenhum. */
@@ -785,15 +828,24 @@ function sincronizarSeletorMonitorContagem() {
   const host = document.getElementById('contagem-monitores');
   if (!host) return;
 
-  const sel = host.querySelector('select.contagem-monitor-select');
+  const wrap = host.querySelector('.route-dd--contagem');
   const opcoes = opcoesMonitorContagem();
-  if (!sel || sel.options.length !== opcoes.length) {
+  if (!wrap || wrap.querySelectorAll('.route-dd-item').length !== opcoes.length) {
     renderSeletorMonitorContagem();
     return;
   }
-  const atual = chaveMonitorSelecionadoContagem();
-  if (sel.value !== atual) sel.value = atual;
-  sel.classList.toggle('sem-monitor', sel.value === '-1');
+  aplicarEscolhaNoSeletorMonitorContagem(wrap, opcoes, chaveMonitorSelecionadoContagem());
+}
+
+/** Texto do botão, destaque da opção e estado «Não exibir» — iguais aos do cabeçalho. */
+function aplicarEscolhaNoSeletorMonitorContagem(wrap, opcoes, atual) {
+  const escolhida = opcoes.find((o) => o.chave === atual) || opcoes[opcoes.length - 1];
+  const lbl = wrap.querySelector('.route-dd-label');
+  if (lbl && escolhida && lbl.textContent !== escolhida.label) lbl.textContent = escolhida.label;
+  wrap.querySelectorAll('.route-dd-item').forEach((it) => {
+    it.setAttribute('aria-selected', it.dataset.value === atual ? 'true' : 'false');
+  });
+  wrap.classList.toggle('route-dd--rota-desativada', atual === '-1');
 }
 
 /**

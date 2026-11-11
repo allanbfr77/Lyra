@@ -461,10 +461,10 @@ function mensagemAlvoInvalidoMonitor(alvo, modoLabel) {
     return `No modo ${modo}, abra «Monitor» no cabeçalho e escolha um destino (público, ministrante ou ambos) antes de projetar.`;
   }
   if (alvo === 'publico') {
-    return `Escolha «Público — Monitor …» em «Monitor» no cabeçalho antes de projetar para o telão.`;
+    return `Escolha «Igreja (M2)» em «Monitor» no cabeçalho antes de projetar para o telão.`;
   }
   if (alvo === 'ministrante') {
-    return 'Escolha «Ministrante — Monitor …» em «Monitor» no cabeçalho antes de projetar só no retorno.';
+    return 'Escolha «Ministrante (M3)» em «Monitor» no cabeçalho antes de projetar só no retorno.';
   }
   if (alvo === 'live') {
     return 'Escolha «Live — OBS» em «Monitor» no cabeçalho. No OBS, use Browser Source em http://127.0.0.1:5001/obs';
@@ -554,17 +554,18 @@ export function opcoesSeletorCabecalhoDoModoAtual() {
 export function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
   const incluirLive = opts.incluirLive !== false;
   const out = [];
-  out.push({ key: 'des', label: 'Não exibir', pub: -1, min: -1, live: false });
-  if (incluirLive) {
-    out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
-  }
+  const naoExibir = { key: 'des', label: 'Não exibir', pub: -1, min: -1, live: false };
   const sec = listaMonitoresParaProjecao(lista);
-  if (!sec.length) return out;
+  if (!sec.length) {
+    if (incluirLive) out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
+    out.push(naoExibir);
+    return out;
+  }
   const { iPub, iMin } = indicesPadraoPublicoMinistranteApresentacao(lista);
   if (iPub >= 0) {
     out.push({
       key: 'pub',
-      label: `Público — Monitor ${iPub + 1}`,
+      label: `Igreja (M${iPub + 1})`,
       pub: iPub,
       min: -1,
       live: false,
@@ -573,7 +574,7 @@ export function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
   if (iMin >= 0) {
     out.push({
       key: 'min',
-      label: `Ministrante — Monitor ${iMin + 1}`,
+      label: `Ministrante (M${iMin + 1})`,
       pub: -1,
       min: iMin,
       live: false,
@@ -596,6 +597,9 @@ export function opcoesRoteamentoUnificadoModoApresentacao(lista, opts = {}) {
       live: false,
     });
   }
+  /* Ordem: Igreja, Ministrante, Ambos, Live (se houver) e, por último, «Não exibir». */
+  if (incluirLive) out.push({ key: 'live', label: 'Live — OBS', pub: -1, min: -1, live: true });
+  out.push(naoExibir);
   return out;
 }
 
