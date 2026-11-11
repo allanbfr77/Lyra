@@ -147,9 +147,17 @@ export function aplicarPreviewMinistranteNoElemento(
   const html = htmlPreviewMinistranteComComentarios(raw, escapeHtml, mai, cor);
   /* Só escreve quando o HTML mudou: reescrever `innerHTML` idêntico destrói e recria os
      `<span>`, e o comentário — único elemento com cor própria — pisca no repaint. */
-  if (el.__lyraHtmlPreviewMinistrante !== html || el.childElementCount === 0) {
+  /* O cache só vale enquanto o elemento ainda guarda OS NÓS que escrevemos: outros escritores
+     (selo informativo de Bíblia/contagem/aviso/mídia, limpeza) trocam o conteúdo sem passar por
+     aqui, e com o mesmo texto de antes a prévia ficava presa no selo (monitor já na letra). */
+  if (
+    el.__lyraHtmlPreviewMinistrante !== html ||
+    el.childElementCount === 0 ||
+    el.firstElementChild !== el.__lyraNoPreviewMinistrante
+  ) {
     el.__lyraHtmlPreviewMinistrante = html;
     el.innerHTML = html;
+    el.__lyraNoPreviewMinistrante = el.firstElementChild;
   }
   el.classList.remove('vazio');
   aplicarClasseLinhas(el, textoPlanoPreviewMinistrante(raw));

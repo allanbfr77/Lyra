@@ -3,7 +3,7 @@
  * Movido verbatim do núcleo (`controllerAppCore.js`); o que o núcleo ainda possui entra por
  * `registrarDependenciasRoteamentoTelas`.
  */
-import { atualizarPreviewOperador } from './previewProjecao.js';
+import { atualizarPreviewOperador, emitirEstadoMinistranteAoServidor, reiniciarAssinaturaEmitMinistrante } from './previewProjecao.js';
 import { bibliaAplicarCfgExibicao, marcarRotaBibliaSincronizada } from './biblia.js';
 import { marcarRotaDocsSincronizada } from './docs.js';
 import { obterNaoExibirManualSlides, precisaReporRotaSlides, rotaSlidesReposta, sincronizarNaoExibirManualSlidesDaEscolha } from '../modules/reposicaoRotaSlides.js';
@@ -386,6 +386,12 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        that already saved also lands here, and the following pages then skip. */
     if (modo === 'docs') {
       marcarRotaDocsSincronizada();
+    }
+    /* Monitor trocado/religado no Slides: o monitor do ministrante pode estar vazio mesmo que a carga
+       seja a mesma de antes — reenvia o que a prévia do ministrante mostra. */
+    if (projecao.pronta() && modo === 'slides') {
+      reiniciarAssinaturaEmitMinistrante();
+      emitirEstadoMinistranteAoServidor();
     }
     if (projecao.pronta() && modo === 'slides') {
       const pubDepois = normalizarRota(estadoPainel.rotasPorModo.slides).publicoIndex;

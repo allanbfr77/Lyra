@@ -833,6 +833,15 @@ export function atualizarPreviewOperador() {
 
 let lyraAssinaturaEmitMinistrante = null;
 
+/**
+ * Esquece a última carga enviada ao monitor do ministrante. A assinatura evita reenviar o que não
+ * mudou, mas o monitor pode ter ficado sem ela (Servidor reiniciado, religação, monitor trocado ou
+ * reaberto): sem este reinício, a prévia mostrava a letra e o monitor ficava em branco.
+ */
+export function reiniciarAssinaturaEmitMinistrante() {
+  lyraAssinaturaEmitMinistrante = null;
+}
+
 export function emitirEstadoMinistranteAoServidor() {
   if (apresentacaoOcupandoCanalMinistrante()) return;
   if (!projecao.pronta()) return;

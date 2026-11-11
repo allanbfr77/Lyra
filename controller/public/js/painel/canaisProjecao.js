@@ -210,6 +210,10 @@ function preencherPreviewBadgeInformativoSlides(el, badge) {
   const iconKinds = new Set(['image', 'video', 'audio', 'pdf', 'iframe', 'aviso']);
   const icon = svgIconeTipoMidiaApresentacao(iconKinds.has(kind) ? kind : 'iframe');
   el.innerHTML = `<span class="pv-live-ap-meta">${icon}<span class="pv-live-ap-meta-txt">${escapeHtml(label)}</span></span>`;
+  /* O selo substitui o conteúdo: o texto cru e o cache da letra do ministrante deixam de valer. */
+  delete el.dataset.previewMinistranteRaw;
+  el.__lyraHtmlPreviewMinistrante = '';
+  el.__lyraNoPreviewMinistrante = null;
   const clsBase = el.classList.contains('op-slide-text') ? 'op-slide-text' : 'pv-live-letras';
   el.className = clsBase;
   el.classList.remove('vazio');

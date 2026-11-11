@@ -11,7 +11,7 @@ import { renderSlidesStrip } from './slidesStrip.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
 import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
 import { ehModoBibliaOperador } from './modosUi.js';
-import { emitirEstadoMinistranteAoServidor } from './previewProjecao.js';
+import { emitirEstadoMinistranteAoServidor, reiniciarAssinaturaEmitMinistrante } from './previewProjecao.js';
 import { getServidorIp } from './servidorAlvo.js';
 import { recordarIpsDestaMaquina, setStatusServidorRemoto } from './socketPainelApi.js';
 import { atualizarUiConexao } from './conexaoLetrasUi.js';
@@ -153,6 +153,7 @@ export async function ligarProjecaoNestaMaquina() {
     if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
     else slidesAplicarCfgArmazenada();
     renderSlidesStrip();
+    reiniciarAssinaturaEmitMinistrante();
     emitirEstadoMinistranteAoServidor();
   } catch (_) {
     // intencional — o modo local já está de pé; o painel recupera ao trocar de modo

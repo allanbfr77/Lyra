@@ -4,7 +4,7 @@
  * ainda possui entra por `registrarDependenciasEventosProjecao`.
  */
 import { ajustarEstadoVisualRetomadaAudio, carregarEstadoModoApresentacaoDoServidor } from './estadoApresentacao.js';
-import { atualizarPreviewOperador, emitirEstadoMinistranteAoServidor } from './previewProjecao.js';
+import { atualizarPreviewOperador, emitirEstadoMinistranteAoServidor, reiniciarAssinaturaEmitMinistrante } from './previewProjecao.js';
 import { atualizarUiPlayerAudioRemoto, tocarAudioServidorApresentacao } from './playerLocalMidia.js';
 import { atualizarUrlsObs, desligarProjecaoNestaMaquina, emModoProjecaoLocal, getProjecaoLocalActiva, getProjecaoLocalEmCurso, getServidorLanIpObs, ligarProjecaoNestaMaquina, ponteProjecaoLocal, setServidorLanIpObs, setServidorObsPort } from './projecaoLocalObs.js';
 import { bibliaAplicarCfgExibicao, bibliaHaParteProjetada, bibliaLimparProjecaoOperador } from './biblia.js';
@@ -259,7 +259,7 @@ function aoReceberAudioStateDaProjecao(st) {
  * Hidrata o painel depois do handshake remoto — temas, banco, rotas, slides.
  * Vive no núcleo de propósito: não é protocolo Socket.IO.
  */
-async function aoLigarSocketRemoto(_ip) {
+export async function aoLigarSocketRemoto(_ip) {
   migrarTemasParaGlobal();
   estadoPainel.temasPorCulto = loadTemasPorCulto();
   estadoPainel.temaSelecionadoPorCulto = loadTemaSelecionadoPorCulto();
@@ -273,6 +273,7 @@ async function aoLigarSocketRemoto(_ip) {
   if (ehModoBibliaOperador()) bibliaAplicarCfgExibicao();
   else slidesAplicarCfgArmazenada();
   renderSlidesStrip();
+  reiniciarAssinaturaEmitMinistrante();
   emitirEstadoMinistranteAoServidor();
   emitirPlaylistsDoControlador();
   enviarPlaylistsParaServidor();
