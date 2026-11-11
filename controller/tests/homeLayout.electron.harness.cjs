@@ -46,6 +46,8 @@ const __dlg = await import('./painel/appDialog.js');
 const __pa = await import('./painel/playlistAdicionar.js');
 const __pl = await import('./painel/playlistLista.js');
 const __ga = await import('./painel/gridApresentacao.js');
+const __pv = await import('./painel/preVoo.js');
+const __pr = await import('./painel/previewLetras.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -63,6 +65,7 @@ window.__homeTest = {
  versaoBase:{aplicar:(b,i,v)=>aplicarBaseMusicaSelecionada(b,i,v),local:()=>musicaVersaoLocalId,raiz:()=>musicaRootId},
  comparativo:()=>modoComparativoCentral,
  midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
+ preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
  culto:{id:()=>cultoId,playlists:()=>playlists},
  pl:{add:__pa.addMusicaNaPlaylist,reordenar:__pl.reordenarMusicaNaPlaylist,render:__pl.renderPlaylist,lista:()=>playlists[cultoId]||[]},
  bibliotecaCarregar:()=>import('./painel/bibliotecaMusicas.js').then(m=>m.carregarMusicas()),
@@ -231,6 +234,16 @@ async function run() {
   for(let i=0;i<50&&!await js("!!__homeTest.midias.cards()[0]");i++)await pause(100);await pause(300);
   await check('Mídias: soltar um arquivo no card guarda o item no card e o desenha preenchido',`!!__homeTest.midias.cards()[0] && !document.querySelector('#apresentacao-grid .ap-card[data-ap-card-idx="0"]').classList.contains('ap-card--vazio')`);
   await js("document.body.classList.remove('app-mod-apresentacao');void 0");
+  // Pré-voo (painel/preVoo.js) e pré-visualização de letras (painel/previewLetras.js)
+  await js("__homeTest.preVoo.correr();void 0");
+  for(let i=0;i<60&&!await js("document.getElementById('prevoo-corpo').children.length>0 && !document.querySelector('#prevoo-corpo .prevoo-carregando')");i++)await pause(100);await pause(300);
+  await check('Pré-voo: o painel abre e mostra o resultado da verificação do culto',`document.getElementById('prevoo-backdrop').classList.contains('aberto') && document.getElementById('prevoo-corpo').children.length>0 && document.getElementById('prevoo-sub').textContent.includes('música')`);
+  await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await pause(200);
+  await check('Pré-voo: Escape fecha o painel (listener registrado por iniciarPreVoo)',`!document.getElementById('prevoo-backdrop').classList.contains('aberto')`);
+  await js("__homeTest.previewLetras.abrir('/teste','cifraclub');void 0");await pause(400);
+  await check('Letras: o modal de pré-visualização abre e isola a seleção',`!document.getElementById('letras-preview-backdrop').hidden`);
+  await js("__homeTest.previewLetras.fechar()");await pause(200);
+  await check('Letras: fechar o modal de pré-visualização o esconde',`document.getElementById('letras-preview-backdrop').hidden`);
 
   await js(`document.getElementById('btn-seta-proxima').click();__homeTest.preview()`);
   await check('próximo mantém slide e contador sincronizados',`__homeTest.state().index===1 && document.querySelector('.home-preview-count').textContent==='2 de 7'`);
