@@ -54,6 +54,9 @@
  *   configExibicao.js — Exibição (Ajustes): modal de configuração, tema escuro e config de slides
  *   bibliotecaMusicas.js — biblioteca de músicas: lista, busca local/internet, seleção em lote, alfabeto, âncora, importação e nova música manual
  *   versoesMusica.js — versões da música: barra de versões, chips, renomear/remover (servidor e cópias locais) e troca de versão
+ *   letraCompleta.js — modo «letra completa» da coluna central (texto corrido, guias de estrofe, edição pendente)
+ *   comparativoVersoes.js — modo comparativo: duas versões lado a lado, realces e gravação
+ *   editorEstrofes.js — editor de estrofes: cartões, caixa de letras, alturas, persistência da música e nova versão
  * =============================================================================
  */
 
@@ -121,7 +124,6 @@ import {
   opcoesVersaoDistintasPorConteudo,
   playlistJaContemMesmaMusicaEVersao,
   playlistItemMesmaVersaoQueRaiz,
-  VALOR_OPCAO_VERSAO_ORIGINAL,
   decidirAcaoAdicionarVersaoAtivaNaPlaylist,
   substituirVersaoItemPlaylist,
   ACAO_JA_PRESENTE_PLAYLIST,
@@ -226,7 +228,6 @@ import {
 } from './modules/projecaoPorta.js';
 import { criarMotorAudioLocal } from './modules/motorAudioLocal.js';
 import {
-  compararLetras,
   resumirComparacao,
 } from './modules/diffLetrasComparativo.js';
 import {
@@ -441,6 +442,48 @@ import {
   rotuloExibicaoVersaoServidor,
   versaoCopiaSelecionadaAtual,
 } from './painel/versoesMusica.js';
+import {
+  alternarModoLetraCompletaCentral,
+  alternarModoLetraCompletaOuVoltarGrade,
+  aplicarLayoutModoLetraCompleta,
+  atualizarTextoPainelLetraCompleta,
+  atualizarToolbarModoLetraCompleta,
+  cancelarModoLetraCompletaCentral,
+  confirmarProsseguirDescartandoEdicaoPendente,
+  descartarEdicaoLetraCompletaSemSair,
+  entrarModoLetraCompletaCentral,
+  estrofesArraysIguaisParaEdicao,
+  irParaGradeSlidesDesdeLetraCompleta,
+  letraCompletaSujaVsSnapshot,
+  registrarDependenciasLetraCompleta,
+  splitTextoLetraCompletaEmEstrofes,
+  temEdicaoMusicaNaoGravada,
+} from './painel/letraCompleta.js';
+import {
+  alternarModoComparativoCentral,
+  aplicarLayoutModoComparativo,
+  comparativoSujoVsSnapshot,
+  fecharModoComparativo,
+  registrarDependenciasComparativoVersoes,
+  sairModoComparativoParaTrocarModo,
+  salvarComparativoNoServidor,
+} from './painel/comparativoVersoes.js';
+import {
+  alternarCaixaLetrasEdicao,
+  atualizarEstrofesEditorInPlace,
+  configurarCamposMetadadosMusicaHome,
+  entrarModoEdicao,
+  iniciarCriarNovaVersao,
+  iniciarEditorEstrofes,
+  novaEstrofe,
+  persistirMusicaAtivaNoServidor,
+  reaplicarAlturasEstrofesEditor,
+  registrarDependenciasEditorEstrofes,
+  renderEstrofesEditor,
+  sairModoEdicao,
+  salvarMusicaServidor,
+  sincronizarFlagCaixaLetrasComTextoAtual,
+} from './painel/editorEstrofes.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -698,6 +741,177 @@ registrarDependenciasVersoesMusica({
     snapshotLetraCompleta = valor;
   },
   getVersoesMusicaServidorCache: () => versoesMusicaServidorCache,
+});
+registrarDependenciasLetraCompleta({
+  atualizarPreviewOperador,
+  atualizarToolbarModoEdicao,
+  ehModoSlidesOperador,
+  marcacaoEstrofeEditor,
+  metadadosMusicaSujosNaHome,
+  montarPayloadExibirMusica,
+  renderSlidesStrip,
+  splitTextoEmEstrofesPorLinhaVaziaStrict,
+  aplicarLayoutModoComparativo,
+  comparativoSujoVsSnapshot,
+  persistirMusicaAtivaNoServidor,
+  renderEstrofesEditor,
+  sairModoComparativoParaTrocarModo,
+  sincronizarFlagCaixaLetrasComTextoAtual,
+  getComparativoLados: () => comparativoLados,
+  setComparativoLados: (valor) => {
+    comparativoLados = valor;
+  },
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getHomeLayout: () => homeLayout,
+  getLetraCompletaEditando: () => letraCompletaEditando,
+  setLetraCompletaEditando: (valor) => {
+    letraCompletaEditando = valor;
+  },
+  getModoComparativoCentral: () => modoComparativoCentral,
+  setModoComparativoCentral: (valor) => {
+    modoComparativoCentral = valor;
+  },
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  setModoEdicaoEstrofes: (valor) => {
+    modoEdicaoEstrofes = valor;
+  },
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  setModoLetraCompletaCentral: (valor) => {
+    modoLetraCompletaCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  getSnapshotComparativo: () => snapshotComparativo,
+  setSnapshotComparativo: (valor) => {
+    snapshotComparativo = valor;
+  },
+  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
+  setSnapshotEdicaoEstrofes: (valor) => {
+    snapshotEdicaoEstrofes = valor;
+  },
+  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
+  setSnapshotLetraCompleta: (valor) => {
+    snapshotLetraCompleta = valor;
+  },
+});
+registrarDependenciasComparativoVersoes({
+  atualizarBotoesSalvarCancelarBarraPadrao,
+  atualizarPreviewOperador,
+  atualizarToolbarModoEdicao,
+  cancelarModoComparativoCentral,
+  carregarVersoesMusicaServidor,
+  formatarRotuloVersaoExibicao,
+  getControllerApiBase,
+  marcacaoEstrofeEditor,
+  obterRootIdMusicaAtiva,
+  renderSlidesStrip,
+  renderEstrofesEditor,
+  getComparativoLados: () => comparativoLados,
+  setComparativoLados: (valor) => {
+    comparativoLados = valor;
+  },
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getModoComparativoCentral: () => modoComparativoCentral,
+  setModoComparativoCentral: (valor) => {
+    modoComparativoCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  setMusicaAtiva: (valor) => {
+    musicaAtiva = valor;
+  },
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getMusicaRootId: () => musicaRootId,
+  setMusicaRootId: (valor) => {
+    musicaRootId = valor;
+  },
+  getSnapshotComparativo: () => snapshotComparativo,
+  setSnapshotComparativo: (valor) => {
+    snapshotComparativo = valor;
+  },
+});
+registrarDependenciasEditorEstrofes({
+  abrirSlideQuickEditModal,
+  aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice,
+  aplicarSplitsEstrofesDosTextareasAntesDePersistir,
+  atualizarBotoesSalvarCancelarBarraPadrao,
+  atualizarCopiaLocal,
+  atualizarPreviewOperador,
+  atualizarSlidesInstrucoes,
+  atualizarToolbarCaixaLetrasEdicao,
+  atualizarToolbarModoEdicao,
+  carregarVersoesMusicaServidor,
+  ehModoSlidesOperador,
+  emitirEstrofeAoServidor,
+  exibirEstrofe,
+  getControllerApiBase,
+  marcacaoEstrofeEditor,
+  metadadosMusicaSujosNaHome,
+  obterRootIdMusicaAtiva,
+  projetarPorDuploCliqueCentral,
+  renderPlaylist,
+  renderSlidesStrip,
+  repontarVersaoNaPlaylistDoCulto,
+  splitTextoEmEstrofesPorLinhaVaziaStrict,
+  versaoAtivaParaCompararPlaylist,
+  getBloqueioSincronizarEstrofeDoServidor: () => bloqueioSincronizarEstrofeDoServidor,
+  setBloqueioSincronizarEstrofeDoServidor: (valor) => {
+    bloqueioSincronizarEstrofeDoServidor = valor;
+  },
+  getCaixaLetrasEdicaoMaiuscula: () => caixaLetrasEdicaoMaiuscula,
+  setCaixaLetrasEdicaoMaiuscula: (valor) => {
+    caixaLetrasEdicaoMaiuscula = valor;
+  },
+  getCultoId: () => cultoId,
+  getEstrofeAtiva: () => estrofeAtiva,
+  setEstrofeAtiva: (valor) => {
+    estrofeAtiva = valor;
+  },
+  getHomeLayout: () => homeLayout,
+  getModoEdicaoEstrofes: () => modoEdicaoEstrofes,
+  setModoEdicaoEstrofes: (valor) => {
+    modoEdicaoEstrofes = valor;
+  },
+  getModoLetraCompletaCentral: () => modoLetraCompletaCentral,
+  setModoLetraCompletaCentral: (valor) => {
+    modoLetraCompletaCentral = valor;
+  },
+  getMusicaAtiva: () => musicaAtiva,
+  setMusicaAtiva: (valor) => {
+    musicaAtiva = valor;
+  },
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  setMusicaBancoFonte: (valor) => {
+    musicaBancoFonte = valor;
+  },
+  getMusicaRootId: () => musicaRootId,
+  setMusicaRootId: (valor) => {
+    musicaRootId = valor;
+  },
+  getMusicaVersaoLocalId: () => musicaVersaoLocalId,
+  setMusicaVersaoLocalId: (valor) => {
+    musicaVersaoLocalId = valor;
+  },
+  getProjecao: () => projecao,
+  getProjecaoMusicaEmitidaNoServidor: () => projecaoMusicaEmitidaNoServidor,
+  setProjecaoMusicaEmitidaNoServidor: (valor) => {
+    projecaoMusicaEmitidaNoServidor = valor;
+  },
+  getSnapshotEdicaoEstrofes: () => snapshotEdicaoEstrofes,
+  setSnapshotEdicaoEstrofes: (valor) => {
+    snapshotEdicaoEstrofes = valor;
+  },
+  getSnapshotLetraCompleta: () => snapshotLetraCompleta,
+  setSnapshotLetraCompleta: (valor) => {
+    snapshotLetraCompleta = valor;
+  },
 });
 
 /**
@@ -7451,11 +7665,7 @@ let comparativoLados = null;
 let snapshotComparativo = null;
 /** Cópia ao entrar em edição — «Encerrar edição» restaura isto (não grava). */
 let snapshotEdicaoEstrofes = null;
-/**
- * Após separar estrofes no evento `input`, o `blur` do textarea antigo ainda tinha o texto com `\n\n`
- * e chamava de novo `aplicarSeparacao…`, duplicando slides — ignoramos esse blur pelo índice.
- */
-let ignorarBlurSeparacaoEstrofeIdx = null;
+// (extraído) estado do editor → painel/editorEstrofes.js
 /**
  * Faixa inferior de slides: no modo controlador só após duplo clique num slide central.
  * No modo slides fica visível ao escolher música na playlist (sem projetar até duplo clique na lista).
@@ -14920,1395 +15130,9 @@ async function renomearVersaoSelecionadaComNome(nomeBruto) {
   }
 }
 
-function juntarEstrofesParaLetraCompleta() {
-  if (!musicaAtiva?.estrofes) return '';
-  return musicaAtiva.estrofes
-    .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\s+$/, ''))
-    .join('\n\n');
-}
+// (extraído) letra completa → painel/letraCompleta.js
 
-/** Converte o texto do painel «letra completa» de volta em estrofes (mesma regra de linhas vazias do resto do sistema). */
-function splitTextoLetraCompletaEmEstrofes(texto) {
-  return splitTextoEmEstrofesPorLinhaVaziaStrict(texto);
-}
-
-/**
- * Divisórias entre estrofes no modo «letra completa».
- *
- * Um `<textarea>` desenha apenas texto puro, portanto as linhas não podem ser filhas dele.
- * A alternativa seria trocá-lo por blocos `contenteditable`, o que sacrificaria o histórico
- * de desfazer nativo, o IME e a colagem sanitizada. Em vez disso desenha-se numa camada por
- * baixo, e o textarea — que continua a ser a única fonte de verdade — fica transparente.
- *
- * Para saber onde cai cada linha em branco (que pode estar deslocada por quebras suaves de
- * linhas longas), o texto é reproduzido num espelho invisível que copia as métricas
- * tipográficas do textarea em tempo de execução, via `getComputedStyle`. Copiar em vez de
- * duplicar valores no CSS evita que as guias se desalinhem se a tipografia do painel mudar.
- *
- * Nada aqui lê ou escreve `musicaAtiva`: é estritamente decorativo.
- */
-const guiasEstrofesLetraCompleta = (() => {
-  /**
-   * Propriedades que afetam a disposição do texto e têm de ser idênticas no espelho.
-   * As larguras de borda ficam de fora de propósito: a camada `.centro-letra-completa-guias`
-   * já tem uma borda transparente da mesma espessura, e o filho posicionado em absoluto
-   * ancora no interior dela — copiá-las aqui contaria o desvio duas vezes.
-   */
-  const PROPS_METRICA = [
-    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
-    'letterSpacing', 'wordSpacing', 'lineHeight', 'textIndent', 'textTransform',
-    'tabSize', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-  ];
-
-  let espelho = null;
-  let desloca = null;
-  let agendado = false;
-  /* Recuos e colunas laterais (número do slide / contador) vêm das variáveis --lc-* do textarea
-     em home.css (grade 44px | 1fr | 72px), para CSS e JS nunca divergirem. */
-  /** Estrofes da última renderização: corridas de linhas não vazias (índices de linha do textarea). */
-  let estrofesRuns = [];
-
-  function elementos() {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    const guias = document.getElementById('centro-letra-completa-guias');
-    if (!ta || !guias) return null;
-    if (!desloca || desloca.parentNode !== guias) {
-      guias.innerHTML = '';
-      desloca = document.createElement('div');
-      desloca.className = 'centro-letra-completa-guias-desloca';
-      espelho = document.createElement('div');
-      espelho.className = 'centro-letra-completa-espelho';
-      desloca.appendChild(espelho);
-      guias.appendChild(desloca);
-    }
-    return { ta, guias };
-  }
-
-  /**
-   * Índices das linhas em branco que separam de facto duas estrofes.
-   * Espelha `splitTextoEmEstrofesPorLinhaVaziaStrict`: uma corrida de vazias é
-   * um único corte. A guia vai na ÚLTIMA vazia da corrida — assim um Enter no
-   * fim do slide (ainda no mesmo bloco) empurra a linha para baixo, em vez de
-   * a deixar colada à última frase. Dois Enters no fim (duas vazias) marcam
-   * slide novo; um Enter pendurado não.
-   * @param {string[]} linhas
-   * @returns {number[]}
-   */
-  function indicesLinhasSeparadoras(linhas) {
-    const idx = [];
-    let viuConteudo = false;
-    let inicioCorrida = -1;
-    for (let i = 0; i < linhas.length; i++) {
-      if (linhas[i] === '') {
-        if (viuConteudo && inicioCorrida === -1) inicioCorrida = i;
-        continue;
-      }
-      if (inicioCorrida !== -1) idx.push(i - 1);
-      inicioCorrida = -1;
-      viuConteudo = true;
-    }
-    if (inicioCorrida !== -1 && linhas.length - inicioCorrida >= 2) {
-      idx.push(linhas.length - 1);
-    }
-    return idx;
-  }
-
-  function desenhar() {
-    agendado = false;
-    const els = elementos();
-    if (!els) return;
-    const { ta, guias } = els;
-    if (!modoLetraCompletaCentral || guias.offsetParent === null) {
-      if (espelho) espelho.textContent = '';
-      if (desloca) {
-        desloca.querySelectorAll('.centro-letra-completa-guia, [data-estrofe]').forEach((n) => n.remove());
-      }
-      return;
-    }
-
-    const cs = getComputedStyle(ta);
-    PROPS_METRICA.forEach((p) => {
-      espelho.style[p] = cs[p];
-    });
-    /* O fluxo contínuo com <span> vazio não gerava caixa de linha: o offsetTop
-       ficava preso e as guias não acompanhavam o Enter. Cada linha do textarea
-       vira um bloco — linhas longas continuam a quebrar com as mesmas métricas. */
-    espelho.style.whiteSpace = 'pre-wrap';
-    espelho.style.overflowWrap = 'break-word';
-    espelho.style.wordBreak = 'normal';
-    /* `clientWidth` já exclui a barra de deslocamento — a largura útil bate certo. */
-    espelho.style.width = `${ta.clientWidth}px`;
-    espelho.style.border = '0';
-    desloca.style.width = `${ta.clientWidth}px`;
-
-    const linhas = String(ta.value ?? '')
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .split('\n');
-    const separadoras = indicesLinhasSeparadoras(linhas);
-    const alvo = new Set(separadoras);
-
-    desloca.querySelectorAll('.centro-letra-completa-guia, [data-estrofe]').forEach((n) => n.remove());
-    espelho.textContent = '';
-    const marcas = [];
-    linhas.forEach((linha, i) => {
-      const row = document.createElement('div');
-      row.className = 'centro-letra-completa-espelho-linha';
-      /* NBSP na linha vazia: sem caractere o bloco colapsa e o offset mente. */
-      row.textContent = linha === '' ? '\u00a0' : linha;
-      espelho.appendChild(row);
-      if (alvo.has(i)) {
-        row.dataset.i = String(i);
-        marcas.push(row);
-      }
-    });
-
-    const alturaLinha = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
-    /* Linhas de largura total: recuos e larguras laterais lidos das variáveis CSS do textarea. */
-    const larg = ta.clientWidth;
-    const px = (nome, padrao) => {
-      const v = parseFloat(cs.getPropertyValue(nome));
-      return Number.isFinite(v) ? v : padrao;
-    };
-    const insEsq = px('--lc-ins-e', 20);
-    const insDir = px('--lc-ins-d', 24);
-    const alturaTotal = espelho.offsetHeight;
-
-    /* Estrofes = corridas de linhas não vazias (a mesma regra de splitTextoEmEstrofesPorLinhaVaziaStrict). */
-    estrofesRuns = [];
-    let ini = -1;
-    linhas.forEach((l, i) => {
-      if (l === '') {
-        if (ini !== -1) {
-          estrofesRuns.push({ ini, fim: i - 1 });
-          ini = -1;
-        }
-      } else if (ini === -1) ini = i;
-    });
-    if (ini !== -1) estrofesRuns.push({ ini, fim: linhas.length - 1 });
-
-    /* Todas as leituras de layout do espelho primeiro, depois as escritas no DOM visual. */
-    const geo = estrofesRuns.map((r) => {
-      const primeira = espelho.children[r.ini];
-      const ultima = espelho.children[r.fim];
-      if (!primeira || !ultima) return null;
-      return { topo: primeira.offsetTop };
-    });
-    /* Y de cada divisor (meio da linha em branco que separa), indexado pela estrofe que vem antes dele. */
-    const divisorApos = [];
-    const reguas = marcas.map((marca) => {
-      const h = marca.offsetHeight || alturaLinha;
-      const i = Number(marca.dataset.i);
-      const apos = estrofesRuns.filter((r) => r.fim < i).length - 1;
-      const y = Math.round(marca.offsetTop + h / 2);
-      divisorApos[apos] = y;
-      return { apos, y };
-    });
-    const frag = document.createDocumentFragment();
-    geo.forEach((g, k) => {
-      if (!g) return;
-      /* O destaque ocupa a altura inteira da linha da estrofe: de divisor a divisor. */
-      const yTopo = k === 0 ? 0 : divisorApos[k - 1] ?? g.topo - 16;
-      const yBase = divisorApos[k] ?? alturaTotal;
-      const fundo = document.createElement('div');
-      fundo.className = 'centro-letra-completa-estrofe-fundo';
-      fundo.dataset.estrofe = String(k);
-      fundo.style.cssText = `top:${yTopo}px;height:${Math.max(0, yBase - yTopo)}px;left:0;width:${larg}px`;
-      const num = document.createElement('span');
-      num.className = 'centro-letra-completa-estrofe-num';
-      num.dataset.estrofe = String(k);
-      num.textContent = String(k + 1);
-      num.style.cssText = `top:${Math.round(g.topo + 2)}px;left:${insEsq}px`;
-      const cont = document.createElement('span');
-      cont.className = 'centro-letra-completa-estrofe-cont';
-      cont.dataset.estrofe = String(k);
-      cont.textContent = `${estrofesRuns[k].fim - estrofesRuns[k].ini + 1} linhas`;
-      cont.style.cssText = `top:${g.topo}px;height:${alturaLinha}px;right:${insDir}px`;
-      frag.append(fundo, num, cont);
-    });
-    reguas.forEach(({ apos, y }) => {
-      const regua = document.createElement('div');
-      regua.className = 'centro-letra-completa-guia';
-      regua.dataset.apos = String(apos);
-      regua.style.top = `${y}px`;
-      regua.style.left = '0';
-      regua.style.width = `${larg}px`;
-      regua.style.right = 'auto';
-      frag.appendChild(regua);
-    });
-    desloca.appendChild(frag);
-
-    desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
-    atualizarAtiva();
-  }
-
-  /** Estrofe que contém o cursor (só com o textarea em foco): destaque dourado, sem tocar no texto. */
-  function atualizarAtiva() {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    if (!ta || !desloca) return;
-    let ativa = -1;
-    if (document.activeElement === ta && estrofesRuns.length) {
-      const pos = ta.selectionStart ?? 0;
-      let linha = 0;
-      const v = ta.value;
-      for (let p = v.indexOf(String.fromCharCode(10)); p !== -1 && p < pos; p = v.indexOf(String.fromCharCode(10), p + 1)) linha++;
-      ativa = estrofesRuns.findIndex((r) => linha >= r.ini && linha <= r.fim);
-    }
-    desloca.querySelectorAll('[data-estrofe]').forEach((el) => {
-      el.classList.toggle('ativa', Number(el.dataset.estrofe) === ativa);
-    });
-    /* O divisor logo abaixo da estrofe ativa some, para não duplicar linhas com o destaque. */
-    desloca.querySelectorAll('.centro-letra-completa-guia').forEach((g) => {
-      g.classList.toggle('oculta', Number(g.dataset.apos) === ativa);
-    });
-  }
-
-  function sincronizarDeslocamento() {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    if (!ta || !desloca) return;
-    desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
-  }
-
-  /** Recalcula na próxima pintura (agrupa rajadas de `input`). */
-  function agendar() {
-    if (agendado) return;
-    agendado = true;
-    const pintar = () => {
-      desenhar();
-    };
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        pintar();
-        /* O Enter pode mostrar a barra de deslocamento só no frame seguinte. */
-        requestAnimationFrame(pintar);
-      });
-    } else setTimeout(pintar, 0);
-  }
-
-  function ligar() {
-    const els = elementos();
-    if (!els) return;
-    const { ta } = els;
-    if (ta.dataset.guiasLigadas === '1') {
-      agendar();
-      return;
-    }
-    ta.dataset.guiasLigadas = '1';
-    ta.addEventListener('input', agendar);
-    ta.addEventListener('keyup', agendar);
-    ta.addEventListener('paste', agendar);
-    ta.addEventListener('cut', agendar);
-    ta.addEventListener('scroll', sincronizarDeslocamento, { passive: true });
-    ta.addEventListener('focus', atualizarAtiva);
-    ta.addEventListener('blur', atualizarAtiva);
-    document.addEventListener('selectionchange', () => {
-      if (document.activeElement === ta) atualizarAtiva();
-    });
-    /* A métrica muda quando a fonte (Poppins) termina de carregar: remede tudo. */
-    if (document.fonts) {
-      document.fonts.addEventListener('loadingdone', agendar);
-      document.fonts.ready.then(agendar);
-    }
-    window.addEventListener('resize', agendar);
-    if (typeof ResizeObserver === 'function') {
-      /* Recalcula se a caixa mudar de tamanho (redimensionar a janela / o painel). */
-      new ResizeObserver(agendar).observe(ta);
-    }
-    agendar();
-  }
-
-  return { ligar, agendar };
-})();
-
-function atualizarTextoPainelLetraCompleta() {
-  const ta = document.getElementById('centro-letra-completa-ta');
-  if (!ta || !musicaAtiva?.estrofes) return;
-  if (!modoLetraCompletaCentral) return;
-  const novo = juntarEstrofesParaLetraCompleta();
-  if (ta.value === novo) return;
-  ta.value = novo;
-  guiasEstrofesLetraCompleta.agendar();
-}
-
-/**
- * @param {{ preencherTextarea?: boolean }} opts — Se true, preenche o textarea a partir de `musicaAtiva.estrofes` (ex.: ao abrir o modo). Se false, só ajusta visibilidade (não apaga o que o utilizador está a editar).
- */
-function aplicarLayoutModoLetraCompleta(opts = {}) {
-  const preencherTextarea = opts.preencherTextarea === true;
-  const ed = document.getElementById('estrofes-slide-editor');
-  const full = document.getElementById('centro-letra-completa-wrap');
-  if (!ed || !full) return;
-  if (!musicaAtiva) {
-    modoLetraCompletaCentral = false;
-    snapshotLetraCompleta = null;
-    full.hidden = true;
-    ed.style.display = '';
-    /* Sem música não há o que comparar — o painel comparativo também sai. */
-    if (modoComparativoCentral) {
-      modoComparativoCentral = false;
-      comparativoLados = null;
-      snapshotComparativo = null;
-      aplicarLayoutModoComparativo();
-    }
-    return;
-  }
-  const on = modoLetraCompletaCentral;
-  full.hidden = !on;
-  ed.style.display = on ? 'none' : '';
-  if (on && preencherTextarea) atualizarTextoPainelLetraCompleta();
-  /* As guias só medem com o painel visível — (re)calcular sempre que ele alterna. */
-  if (on) guiasEstrofesLetraCompleta.ligar();
-  else guiasEstrofesLetraCompleta.agendar();
-  /* O MODO COMPARATIVO tem painel próprio e manda no layout enquanto estiver
-     activo — nem os cartões por slide nem a letra completa podem reaparecer. */
-  if (modoComparativoCentral) {
-    ed.style.display = 'none';
-    full.hidden = true;
-  }
-}
-
-/** Grava o conteúdo do textarea de letra completa em `musicaAtiva.estrofes` e atualiza faixa/previews. */
-function sincronizarEstrofesDesdeTextareaLetraCompleta() {
-  if (!musicaAtiva) return;
-  const ta = document.getElementById('centro-letra-completa-ta');
-  if (!ta) return;
-  const novas = splitTextoLetraCompletaEmEstrofes(ta.value);
-  musicaAtiva.estrofes = novas;
-  const n = novas.length;
-  const idxPreto = n;
-  if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
-  if (estrofeAtiva < -1) estrofeAtiva = -1;
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  renderEstrofesEditor();
-  marcacaoEstrofeEditor();
-  if (
-    projecaoMusicaEmitidaNoServidor &&
-    projecao.pronta() &&
-    estrofeAtiva >= 0 &&
-    estrofeAtiva < n
-  ) {
-    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
-  }
-}
-
-function normalizarEstrofesParaCmp(arr) {
-  return (arr || []).map((s) => String(s ?? '').replace(/\r\n/g, '\n'));
-}
-
-function estrofesArraysIguaisParaEdicao(a, b) {
-  const aa = normalizarEstrofesParaCmp(a);
-  const bb = normalizarEstrofesParaCmp(b);
-  if (aa.length !== bb.length) return false;
-  return aa.every((s, i) => s === bb[i]);
-}
-
-/** Estrofes atuais do editor por slides (textareas) ou de `musicaAtiva`. */
-function obterEstrofesAtuaisDaEdicao() {
-  if (!musicaAtiva) return [];
-  if (modoEdicaoEstrofes) {
-    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
-    if (tas.length) {
-      const novas = [];
-      for (const ta of tas) novas.push(...splitTextoEmEstrofesPorLinhaVaziaStrict(ta.value));
-      return novas.length ? novas : [''];
-    }
-  }
-  if (modoLetraCompletaCentral) {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    if (ta) return splitTextoLetraCompletaEmEstrofes(ta.value);
-  }
-  return (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
-}
-
-function letraCompletaSujaVsSnapshot() {
-  if (!modoLetraCompletaCentral || !snapshotLetraCompleta) return false;
-  const ta = document.getElementById('centro-letra-completa-ta');
-  if (!ta) return false;
-  return !estrofesArraysIguaisParaEdicao(
-    splitTextoLetraCompletaEmEstrofes(ta.value),
-    snapshotLetraCompleta.estrofes
-  );
-}
-
-function edicaoEstrofesSujaVsSnapshot() {
-  if (!modoEdicaoEstrofes || !musicaAtiva || !snapshotEdicaoEstrofes) return false;
-  const et = document.getElementById('edit-titulo');
-  const ea = document.getElementById('edit-artista');
-  const titulo = et ? et.value : String(musicaAtiva.titulo || '');
-  const artista = ea ? ea.value : String(musicaAtiva.artista || '');
-  if (titulo !== String(snapshotEdicaoEstrofes.titulo || '')) return true;
-  if (artista !== String(snapshotEdicaoEstrofes.artista || '')) return true;
-  return !estrofesArraysIguaisParaEdicao(obterEstrofesAtuaisDaEdicao(), snapshotEdicaoEstrofes.estrofes);
-}
-
-function temEdicaoMusicaNaoGravada() {
-  if (metadadosMusicaSujosNaHome()) return true;
-  if (edicaoEstrofesSujaVsSnapshot()) return true;
-  if (letraCompletaSujaVsSnapshot()) return true;
-  if (comparativoSujoVsSnapshot()) return true;
-  return false;
-}
-
-function limparFlagsModoEdicaoMusica() {
-  homeLayout?.closeMetadata();
-  snapshotEdicaoEstrofes = null;
-  modoEdicaoEstrofes = false;
-  snapshotLetraCompleta = null;
-  modoLetraCompletaCentral = false;
-  modoComparativoCentral = false;
-  comparativoLados = null;
-  snapshotComparativo = null;
-  aplicarLayoutModoComparativo();
-  aplicarLayoutModoLetraCompleta();
-}
-
-/**
- * Se houver edições só em memória, pede confirmação antes de trocar de música/contexto.
- * @param {string} [mensagem]
- * @param {string} [titulo]
- * @param {{ manterLetraCompleta?: boolean }} [opts] — Clique na Biblioteca/Playlist no
- *   Home: não sai da letra corrida (evita montar a grade só para a esconder de novo).
- * @returns {Promise<boolean>} true para prosseguir (descartando ou sem sujo).
- */
-async function confirmarProsseguirDescartandoEdicaoPendente(mensagem, titulo, opts) {
-  const manterLetra = !!(opts && opts.manterLetraCompleta);
-  if (!temEdicaoMusicaNaoGravada()) {
-    if (modoEdicaoEstrofes || modoLetraCompletaCentral || modoComparativoCentral) {
-      if (manterLetra && modoLetraCompletaCentral && !modoEdicaoEstrofes && !modoComparativoCentral) {
-        snapshotLetraCompleta = null;
-        return true;
-      }
-      limparFlagsModoEdicaoMusica();
-    }
-    return true;
-  }
-  const ok = await appConfirm(
-    mensagem || 'Há alterações não gravadas nesta sessão. Descartar e continuar?',
-    titulo || 'Alterações não gravadas'
-  );
-  if (!ok) return false;
-  if (manterLetra) {
-    snapshotEdicaoEstrofes = null;
-    modoEdicaoEstrofes = false;
-    snapshotLetraCompleta = null;
-    modoComparativoCentral = false;
-    comparativoLados = null;
-    snapshotComparativo = null;
-    aplicarLayoutModoComparativo();
-    aplicarLayoutModoLetraCompleta();
-  } else {
-    limparFlagsModoEdicaoMusica();
-  }
-  return true;
-}
-
-/** Entra no modo letra completa (o mesmo do botão da barra). Salvar/cancelar continua a sair para a grade.
- *  Se já estiver neste modo, só atualiza o texto da música atual. */
-function entrarModoLetraCompletaCentral() {
-  if (!musicaAtiva) return;
-  modoLetraCompletaCentral = true;
-  letraCompletaEditando = false; // abre sempre em visualização
-  aplicarLayoutModoLetraCompleta({ preencherTextarea: true });
-  /* Snapshot do texto já no painel — o ida-e-volta juntar/partir não conta como sujo. */
-  const ta = document.getElementById('centro-letra-completa-ta');
-  snapshotLetraCompleta = {
-    estrofes: ta
-      ? splitTextoLetraCompletaEmEstrofes(ta.value)
-      : musicaAtiva.estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva,
-  };
-  sincronizarFlagCaixaLetrasComTextoAtual();
-  atualizarToolbarModoEdicao();
-}
-
-async function alternarModoLetraCompletaCentral() {
-  if (!musicaAtiva) return;
-  if (modoLetraCompletaCentral) {
-    const suja = letraCompletaSujaVsSnapshot() || metadadosMusicaSujosNaHome();
-    // Captura titulo/artista dos inputs ANTES da sincronizacao: renderEstrofesEditor()
-    // (chamado dentro da sync) sobrescreve os inputs com musicaAtiva.titulo/artista,
-    // apagando as edicoes do usuario antes de persistirMusicaAtivaNoServidor() le-las.
-    const _etLC = document.getElementById('edit-titulo');
-    const _eaLC = document.getElementById('edit-artista');
-    if (_etLC) musicaAtiva.titulo = _etLC.value;
-    if (_eaLC) musicaAtiva.artista = _eaLC.value;
-    sincronizarEstrofesDesdeTextareaLetraCompleta();
-    if (suja) {
-      if (musicaBancoFonte === 'catalog') {
-        await appAlert(
-          'Música do catálogo: as alterações ficam só nesta sessão. Importe para o seu banco para gravar de forma permanente.',
-          'Catálogo'
-        );
-      } else {
-        const ok = await persistirMusicaAtivaNoServidor();
-        if (!ok) return;
-        // Persistência já recarrega a música e limpa os modos; reforça layout.
-        limparFlagsModoEdicaoMusica();
-        // Na Home, gravar volta à visualização da letra completa (não à grade).
-        if (homeLayout?.isHome() && musicaAtiva) entrarModoLetraCompletaCentral();
-        atualizarToolbarModoEdicao();
-        return;
-      }
-    }
-    if (homeLayout?.isHome()) {
-      // Sem alteração (ou catálogo): sai da edição e continua na visualização.
-      letraCompletaEditando = false;
-      atualizarToolbarModoEdicao();
-      return;
-    }
-    sairDoModoLetraCompletaParaGrade();
-    return;
-  }
-  entrarModoLetraCompletaCentral();
-}
-
-/** Transição partilhada de volta à grade de slides (destino de Salvar, Cancelar e Grade/Slide). */
-function sairDoModoLetraCompletaParaGrade() {
-  snapshotLetraCompleta = null;
-  modoLetraCompletaCentral = false;
-  aplicarLayoutModoLetraCompleta();
-  renderEstrofesEditor();
-  if (ehModoSlidesOperador()) renderSlidesStrip();
-  atualizarToolbarModoEdicao();
-}
-
-/** Sai do modo letra completa sem aplicar o textarea — restaura o estado de quando entrou. */
-function cancelarModoLetraCompletaCentral() {
-  if (!modoLetraCompletaCentral) return;
-  if (snapshotLetraCompleta && musicaAtiva) {
-    musicaAtiva.estrofes = snapshotLetraCompleta.estrofes.map((s) => String(s));
-    estrofeAtiva = snapshotLetraCompleta.estrofeAtiva;
-    const n = musicaAtiva.estrofes.length;
-    const idxPreto = n;
-    if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
-    if (estrofeAtiva < -1) estrofeAtiva = -1;
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    renderEstrofesEditor();
-    marcacaoEstrofeEditor();
-    if (
-      projecaoMusicaEmitidaNoServidor &&
-      projecao.pronta() &&
-      estrofeAtiva >= 0 &&
-      estrofeAtiva < n
-    ) {
-      projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
-    }
-  }
-  sairDoModoLetraCompletaParaGrade();
-}
-
-/**
- * «Cancelar» da barra padrão, quando clicado na Letra Completa: descarta o texto
- * digitado (volta ao snapshot de quando o modo abriu) mas PERMANECE na Letra
- * Completa — ao contrário de `cancelarModoLetraCompletaCentral`, não troca de
- * tela. Trocar de tela é responsabilidade só do botão «Grade/Slide»
- * (`irParaGradeSlidesDesdeLetraCompleta` / `alternarModoLetraCompletaOuVoltarGrade`);
- * «Cancelar» aqui é só desfazer a alteração pendente, no mesmo lugar.
- */
-function descartarEdicaoLetraCompletaSemSair() {
-  if (!modoLetraCompletaCentral || !snapshotLetraCompleta || !musicaAtiva) return;
-  musicaAtiva.estrofes = snapshotLetraCompleta.estrofes.map((s) => String(s));
-  estrofeAtiva = snapshotLetraCompleta.estrofeAtiva;
-  const n = musicaAtiva.estrofes.length;
-  const idxPreto = n;
-  if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
-  if (estrofeAtiva < -1) estrofeAtiva = -1;
-  atualizarTextoPainelLetraCompleta();
-  guiasEstrofesLetraCompleta.agendar();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  if (
-    projecaoMusicaEmitidaNoServidor &&
-    projecao.pronta() &&
-    estrofeAtiva >= 0 &&
-    estrofeAtiva < n
-  ) {
-    projecao.enviar('exibir_musica', montarPayloadExibirMusica(estrofeAtiva));
-  }
-  /* Conteúdo já bate com o snapshot outra vez — Salvar/Cancelar voltam a ficar
-     desabilitados, mas o modo (Letra Completa) continua o mesmo. */
-  atualizarToolbarModoEdicao();
-}
-
-/**
- * Atalho de navegação: volta à grade sem gravar.
- * Reutiliza o mesmo destino de Cancelar. Se a letra estiver suja, pede confirmação
- * (o Cancelar desta barra descarta em silêncio; o Cancelar do modo edição por
- * slides já avisa — o mesmo cuidado aplica-se aqui).
- */
-async function irParaGradeSlidesDesdeLetraCompleta() {
-  if (!modoLetraCompletaCentral) return;
-  if (letraCompletaSujaVsSnapshot()) {
-    const ok = await appConfirm(
-      'Há alterações não gravadas. Descartar e voltar à grade de slides? Use «Salvar alterações» para gravar no banco.',
-      'Voltar à grade'
-    );
-    if (!ok) return;
-  }
-  cancelarModoLetraCompletaCentral();
-}
-
-/**
- * Botão único de alternância Grade/Slide ⇄ Letra completa, do menu padrão.
- *
- * Puramente navegação — quem salva é sempre «Salvar alterações»
- * (`acionarSalvarAlteracoesBarraPadrao`), nunca este botão. Por isso, ao sair da
- * letra completa por aqui, reaproveita-se `irParaGradeSlidesDesdeLetraCompleta`
- * (o mesmo destino do antigo botão «Grade/Slide»: pergunta antes de descartar
- * se houver algo por gravar) e não `alternarModoLetraCompletaCentral` (que
- * gravava ao sair).
- */
-async function alternarModoLetraCompletaOuVoltarGrade() {
-  if (!musicaAtiva) return;
-  if (!(await sairModoComparativoParaTrocarModo())) return;
-  if (modoLetraCompletaCentral) {
-    await irParaGradeSlidesDesdeLetraCompleta();
-  } else {
-    entrarModoLetraCompletaCentral();
-  }
-}
-
-function atualizarToolbarModoLetraCompleta() {
-  const btn = document.getElementById('btn-modo-letra-completa');
-  /* Visualização = somente leitura. No layout antigo (sem Home) o texto continua editável direto. */
-  const taLC = document.getElementById('centro-letra-completa-ta');
-  if (taLC) taLC.readOnly = !!homeLayout?.isHome() && !(modoLetraCompletaCentral && letraCompletaEditando);
-  if (!btn) return;
-  const m = !!musicaAtiva;
-  btn.style.display = m ? '' : 'none';
-  btn.disabled = !m;
-  /* Só o rótulo e o ícone mudam — não sobrescrever o botão inteiro (`textContent`
-     apagaria o SVG). O texto reflete sempre o modo PARA ONDE o clique leva. */
-  const txtModo = document.getElementById('txt-modo-letra-completa');
-  const icoModo = document.getElementById('ico-modo-letra-completa');
-  // Na Home o botão é só «Letra Completa» (a grade tem botão próprio): ícone fixo.
-  const noHome = !!homeLayout?.isHome();
-  if (txtModo) txtModo.textContent = modoLetraCompletaCentral && !noHome ? 'Grade/Slide' : 'Letra Completa';
-  if (icoModo && !noHome) {
-    icoModo.innerHTML = modoLetraCompletaCentral
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>';
-  }
-  // Toggle explícito: inativo = outline neutro, ativo (= modo actualmente aberto) = preenchido.
-  btn.setAttribute('aria-pressed', modoLetraCompletaCentral ? 'true' : 'false');
-  btn.classList.toggle('ativo', modoLetraCompletaCentral);
-  btn.title = modoLetraCompletaCentral
-    ? 'Volta aos cartões por slide sem gravar. Se houver alterações, pede confirmação.'
-    : 'Editar ou copiar a letra inteira num só texto';
-}
-
-/* ==========================================================================
- * MODO COMPARATIVO — duas versões da mesma música lado a lado
- * ==========================================================================
- * Painel próprio (`#centro-comparativo-wrap`), estado próprio
- * (`modoComparativoCentral` / `comparativoLados` / `snapshotComparativo`) e
- * gravação própria, por `id` de versão. Nada aqui escreve em `musicaAtiva`
- * durante a edição: os outros modos da coluna central continuam exactamente
- * como eram.
- *
- * O visual segue o MODO LETRA COMPLETA — mesma caixa, mesma tipografia — e os
- * realces usam o mesmo truque das divisórias daquele modo: como um `<textarea>`
- * só desenha texto puro, os fundos coloridos vivem numa camada por baixo, num
- * espelho que copia as métricas tipográficas do textarea em tempo de execução.
- * ========================================================================== */
-
-/** Rótulo de exibição de uma versão na coluna e no seletor. */
-function rotuloVersaoComparativo(v, rootId) {
-  if (!v) return '';
-  const ehOriginal = v.parent_id == null && Number(v.id) === Number(rootId);
-  if (ehOriginal) return 'Original';
-  const rotulo = String(v.rotulo || '').trim();
-  return formatarRotuloVersaoExibicao(rotulo, v.origem_importacao);
-}
-
-function comparativoTextarea(lado) {
-  return document.getElementById(`comparativo-ta-${lado}`);
-}
-
-/**
- * Camada de realces das duas colunas.
- *
- * Estritamente decorativa: lê o texto dos dois textareas, calcula as diferenças
- * com `compararLetras` e pinta os fundos. Não escreve em lado nenhum do estado
- * da aplicação.
- */
-const realcesComparativo = (() => {
-  /**
-   * Propriedades que afectam a disposição do texto e têm de ser idênticas no
-   * espelho. As larguras de borda ficam de fora de propósito — a camada
-   * `.centro-comparativo-realces` já tem uma borda transparente da mesma
-   * espessura, e contá-las aqui duplicaria o desvio.
-   */
-  const PROPS_METRICA = [
-    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'fontVariant',
-    'letterSpacing', 'wordSpacing', 'lineHeight', 'textIndent', 'textTransform',
-    'tabSize', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-  ];
-
-  const LADOS = ['a', 'b'];
-  const partes = { a: null, b: null };
-  let agendado = false;
-
-  function elementos(lado) {
-    const ta = comparativoTextarea(lado);
-    const camada = document.getElementById(`comparativo-realces-${lado}`);
-    if (!ta || !camada) return null;
-    let ref = partes[lado];
-    if (!ref || ref.desloca.parentNode !== camada) {
-      camada.innerHTML = '';
-      const desloca = document.createElement('div');
-      desloca.className = 'centro-comparativo-realces-desloca';
-      const espelho = document.createElement('div');
-      espelho.className = 'centro-comparativo-espelho';
-      desloca.appendChild(espelho);
-      camada.appendChild(desloca);
-      ref = { desloca, espelho };
-      partes[lado] = ref;
-    }
-    return { ta, camada, ...ref };
-  }
-
-  /**
-   * Reproduz as marcas de uma coluna no espelho, uma LINHA por bloco. Cada linha do textarea
-   * vira um <div>: assim o fundo da linha ocupa a largura inteira (a barra lateral fica na
-   * borda do painel) sem mudar a posição do texto — o recuo é compensado com margem negativa
-   * + padding iguais (variáveis --cmp-pl/--cmp-pr, copiadas do textarea em `desenhar`).
-   */
-  function pintar(espelho, marcas) {
-    espelho.textContent = '';
-    marcas.forEach((m) => {
-      const linha = document.createElement('div');
-      linha.className = 'cmp-row';
-      if (m.tipo === 'igual') {
-        /* NBSP na linha vazia: sem caractere o bloco colapsaria e as linhas desalinhariam. */
-        linha.textContent = m.texto ? m.texto : '\u00a0';
-        espelho.appendChild(linha);
-        return;
-      }
-      linha.classList.add('cmp-linha', m.tipo === 'exclusiva' ? 'cmp-linha--exclusiva' : 'cmp-linha--alterada');
-      if (!m.texto) {
-        linha.textContent = '\u00a0';
-      } else if (m.tipo === 'alterada') {
-        m.partes.forEach((p) => {
-          if (!p.txt) return;
-          if (!p.mudou) {
-            linha.appendChild(document.createTextNode(p.txt));
-            return;
-          }
-          const palavra = document.createElement('span');
-          palavra.className = 'cmp-palavra';
-          palavra.textContent = p.txt;
-          linha.appendChild(palavra);
-        });
-      } else {
-        linha.textContent = m.texto;
-      }
-      espelho.appendChild(linha);
-    });
-  }
-
-  /** Resumo em chips (uma contagem por chip, sem chip com zero) + legenda só quando há diferenças. */
-  function atualizarRodape(resultado) {
-    const resumo = document.getElementById('comparativo-resumo');
-    const legenda = document.getElementById('comparativo-legenda');
-    if (resumo) {
-      resumo.classList.toggle('igual', !!resultado.iguais);
-      resumo.textContent = '';
-      const chip = (texto, check) => {
-        const el = document.createElement('span');
-        el.className = 'cmp-chip';
-        if (check) {
-          el.innerHTML =
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
-        }
-        el.appendChild(document.createTextNode(texto));
-        resumo.appendChild(el);
-      };
-      if (resultado.iguais) {
-        chip('Versões idênticas', true);
-      } else {
-        const { alteradas, exclusivasA, exclusivasB } = resultado.totais;
-        if (alteradas) chip(`${alteradas} ${alteradas === 1 ? 'linha alterada' : 'linhas alteradas'}`);
-        if (exclusivasA) chip(`${exclusivasA} só à esquerda`);
-        if (exclusivasB) chip(`${exclusivasB} só à direita`);
-        if (!alteradas && !exclusivasA && !exclusivasB) chip('Diferenças apenas em espaços');
-      }
-    }
-    if (legenda) legenda.hidden = !!resultado.iguais;
-  }
-
-  function desenhar() {
-    agendado = false;
-    const refA = elementos('a');
-    const refB = elementos('b');
-    if (!refA || !refB) return;
-
-    if (!modoComparativoCentral || refA.camada.offsetParent === null) {
-      refA.espelho.textContent = '';
-      refB.espelho.textContent = '';
-      return;
-    }
-
-    const resultado = compararLetras(refA.ta.value, refB.ta.value);
-    const marcas = { a: resultado.linhasA, b: resultado.linhasB };
-
-    for (const lado of LADOS) {
-      const ref = lado === 'a' ? refA : refB;
-      const cs = getComputedStyle(ref.ta);
-      PROPS_METRICA.forEach((p) => {
-        ref.espelho.style[p] = cs[p];
-      });
-      /* `clientWidth` já exclui a barra de deslocamento — largura útil certa. */
-      ref.espelho.style.width = `${ref.ta.clientWidth}px`;
-      ref.espelho.style.border = '0';
-      /* As linhas do espelho são blocos que sangram até as bordas do painel. */
-      ref.espelho.style.setProperty('--cmp-pl', cs.paddingLeft);
-      ref.espelho.style.setProperty('--cmp-pr', cs.paddingRight);
-      ref.desloca.style.width = `${ref.ta.clientWidth}px`;
-      /* Iguais: espelho vazio. É o requisito de não marcar nada nesse caso. */
-      pintar(ref.espelho, resultado.iguais ? [] : marcas[lado]);
-      ref.desloca.style.transform = `translateY(${-ref.ta.scrollTop}px)`;
-    }
-
-    atualizarRodape(resultado);
-  }
-
-  function sincronizarDeslocamento(lado) {
-    const ref = partes[lado];
-    const ta = comparativoTextarea(lado);
-    if (!ref || !ta) return;
-    ref.desloca.style.transform = `translateY(${-ta.scrollTop}px)`;
-  }
-
-  /** Recalcula na próxima pintura (agrupa rajadas de `input`). */
-  function agendar() {
-    if (agendado) return;
-    agendado = true;
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(desenhar);
-    else setTimeout(desenhar, 0);
-  }
-
-  function ligar() {
-    for (const lado of LADOS) {
-      const ref = elementos(lado);
-      if (!ref) continue;
-      const { ta } = ref;
-      if (ta.dataset.realcesLigados === '1') continue;
-      ta.dataset.realcesLigados = '1';
-      ta.addEventListener('input', agendar);
-      /* «Salvar alterações» da barra padrão precisa saber, a cada tecla, se algum
-         dos lados já diverge do snapshot — não só quando o modo abre/fecha. */
-      ta.addEventListener('input', atualizarBotoesSalvarCancelarBarraPadrao);
-      ta.addEventListener('scroll', () => sincronizarDeslocamento(lado), { passive: true });
-      if (typeof ResizeObserver === 'function') new ResizeObserver(agendar).observe(ta);
-    }
-    window.addEventListener('resize', agendar);
-    /* A métrica muda quando a fonte da letra termina de carregar: remede os realces. */
-    if (document.fonts && !ligar._fonts) {
-      ligar._fonts = true;
-      document.fonts.addEventListener('loadingdone', agendar);
-      document.fonts.ready.then(agendar);
-    }
-    agendar();
-  }
-
-  function limpar() {
-    for (const lado of LADOS) {
-      const ref = partes[lado];
-      if (ref) ref.espelho.textContent = '';
-    }
-    const resumo = document.getElementById('comparativo-resumo');
-    if (resumo) resumo.textContent = '';
-    const legenda = document.getElementById('comparativo-legenda');
-    if (legenda) legenda.hidden = true;
-  }
-
-  return { ligar, agendar, limpar };
-})();
-
-/**
- * Reduz a lista de versões do Comparativo ao mesmo critério já usado em
- * Versões (`opcoesVersaoDistintasPorConteudo`, em `playlistVersaoMusica.js`):
- * quando a Original e uma Cópia têm conteúdo rigorosamente idêntico, só a
- * Cópia fica na lista — ela toma o lugar da Original (mesma posição). Não
- * recria o critério aqui; só adapta as versões cruas do servidor para o
- * formato `{ value, conteudo }` que aquela função espera e devolve o mesmo
- * objeto de versão de volta.
- */
-function versoesDistintasParaComparativo(versoes, rootId) {
-  const lista = Array.isArray(versoes) ? versoes : [];
-  const opcoes = lista.map((v) => {
-    const ehOriginal = !!v && v.parent_id == null && Number(v.id) === Number(rootId);
-    return {
-      value: ehOriginal ? VALOR_OPCAO_VERSAO_ORIGINAL : String(v.id),
-      conteudo: v,
-      _versao: v,
-    };
-  });
-  return opcoesVersaoDistintasPorConteudo(opcoes).map((op) => op._versao);
-}
-
-/**
- * Versões do servidor comparáveis (original + cópias) da música carregada.
- *
- * `totalVersoesBrutas` é a contagem ANTES da redução por conteúdo (quantas
- * versões existem mesmo no banco) — quem chama precisa dela para distinguir
- * «só existe uma versão» de «existem várias, mas todas idênticas entre si».
- */
-async function carregarVersoesParaComparativo() {
-  const rootId = obterRootIdMusicaAtiva();
-  if (!Number.isFinite(rootId)) return { rootId: null, versoes: [], totalVersoesBrutas: 0 };
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${rootId}/versoes`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const rootIdResolvido = Number(data.rootId) || rootId;
-    const versoesBrutas = Array.isArray(data.versoes) ? data.versoes : [];
-    const versoes = versoesDistintasParaComparativo(versoesBrutas, rootIdResolvido);
-    return { rootId: rootIdResolvido, versoes, totalVersoesBrutas: versoesBrutas.length };
-  } catch (_) {
-    return { rootId, versoes: [], totalVersoesBrutas: 0 };
-  }
-}
-
-/**
- * Pergunta que duas versões comparar.
- *
- * Reutiliza o `app-dialog` padrão (e o `appEscolhaResolver`, para que Escape
- * continue a cancelar). Clique no escuro não fecha. Resolve `{ idA, idB }` ou `null`.
- */
-function escolherVersoesParaComparar(versoes, rootId) {
-  const ov = document.getElementById('app-dialog-overlay');
-  const body = document.getElementById('app-dialog-body');
-  const head = document.getElementById('app-dialog-head');
-  const ok = document.getElementById('app-dialog-ok');
-  const cancel = document.getElementById('app-dialog-cancel');
-  const dialog = ov?.querySelector('.app-dialog');
-  if (!ov || !body || !head || !ok || !cancel) return Promise.resolve(null);
-
-  return new Promise((resolve) => {
-    appDialogEstado.escolhaResolver = resolve;
-    head.textContent = 'Comparar versões';
-    body.innerHTML = '';
-    dialog?.classList.add('app-dialog--cmp-escolha');
-
-    const wrap = document.createElement('div');
-    wrap.className = 'cmp-escolha-form';
-
-    const det = document.createElement('p');
-    det.className = 'cmp-escolha-intro';
-    det.textContent = 'Escolha as duas versões que quer ver lado a lado.';
-    wrap.appendChild(det);
-
-    /**
-     * A coluna avisa a OUTRA (via `aoSelecionar`) sempre que o usuário escolhe
-     * uma versão; a outra reage cinzando/desabilitando o botão da mesma versão
-     * na sua própria lista (`atualizarIndisponivel`), para impedir comparar uma
-     * versão com ela mesma. Nunca mexe na própria seleção da coluna — só na
-     * disponibilidade dos botões que representam a versão escolhida do lado de lá.
-     */
-    const criarColuna = (rotulo) => {
-      let selecionado = null;
-      let notificarOutraColuna = () => {};
-      const botoesPorId = new Map();
-      const col = document.createElement('div');
-      col.className = 'cmp-escolha-col';
-
-      const titulo = document.createElement('div');
-      titulo.className = 'cmp-escolha-col-titulo';
-      titulo.textContent = versoes.length > 1 ? `${rotulo} (${versoes.length})` : rotulo;
-
-      const hint = document.createElement('p');
-      hint.className = 'cmp-escolha-col-hint';
-      hint.textContent = 'Nenhuma versão selecionada';
-
-      const lista = document.createElement('div');
-      lista.className = 'cmp-escolha-lista';
-      lista.setAttribute('role', 'listbox');
-
-      versoes.forEach((v) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'cmp-escolha-opcao';
-        btn.setAttribute('role', 'option');
-        btn.textContent = rotuloVersaoComparativo(v, rootId);
-        btn.onclick = () => {
-          lista.querySelectorAll('.cmp-escolha-opcao').forEach((b) => {
-            b.classList.remove('ativo');
-            b.setAttribute('aria-selected', 'false');
-          });
-          btn.classList.add('ativo');
-          btn.setAttribute('aria-selected', 'true');
-          selecionado = Number(v.id);
-          col.classList.remove('cmp-escolha-col--pendente');
-          hint.textContent = `Selecionada: ${rotuloVersaoComparativo(v, rootId)}`;
-          hint.classList.add('cmp-escolha-col-hint--ok');
-          erro.textContent = '';
-          btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          notificarOutraColuna(selecionado);
-        };
-        botoesPorId.set(Number(v.id), btn);
-        lista.appendChild(btn);
-      });
-
-      col.appendChild(titulo);
-      if (versoes.length > 4) {
-        const nota = document.createElement('p');
-        nota.className = 'cmp-escolha-col-nota';
-        nota.textContent = 'Role a lista para ver todas as versões.';
-        col.appendChild(nota);
-      }
-      col.appendChild(hint);
-      col.appendChild(lista);
-      return {
-        col,
-        getId: () => selecionado,
-        marcarPendente: () => col.classList.add('cmp-escolha-col--pendente'),
-        /** Chamado pela OUTRA coluna quando sua seleção muda (ou é `null`). */
-        atualizarIndisponivel(idUsadoNaOutraColuna) {
-          botoesPorId.forEach((btn, id) => {
-            const indisponivel = idUsadoNaOutraColuna != null && id === idUsadoNaOutraColuna;
-            btn.disabled = indisponivel;
-            btn.classList.toggle('cmp-escolha-opcao--indisponivel', indisponivel);
-          });
-        },
-        /** Define quem avisar quando o usuário escolher algo nesta coluna. */
-        aoSelecionar(fn) {
-          notificarOutraColuna = fn;
-        },
-      };
-    };
-
-    const colA = criarColuna('Versão à esquerda');
-    const colB = criarColuna('Versão à direita');
-    colA.aoSelecionar((id) => colB.atualizarIndisponivel(id));
-    colB.aoSelecionar((id) => colA.atualizarIndisponivel(id));
-    wrap.appendChild(colA.col);
-    wrap.appendChild(colB.col);
-
-    const erro = document.createElement('div');
-    erro.className = 'cmp-escolha-erro';
-    wrap.appendChild(erro);
-    body.appendChild(wrap);
-
-    const finish = (v) => {
-      if (!appDialogEstado.escolhaResolver) return;
-      const r = appDialogEstado.escolhaResolver;
-      appDialogEstado.escolhaResolver = null;
-      body.innerHTML = '';
-      dialog?.classList.remove('app-dialog--cmp-escolha');
-      ok.style.display = '';
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-      r(v);
-    };
-
-    ok.style.display = '';
-    ok.textContent = 'Comparar';
-    ok.onclick = () => {
-      let pendente = false;
-      const idA = colA.getId();
-      const idB = colB.getId();
-      if (!Number.isFinite(idA)) {
-        colA.marcarPendente();
-        pendente = true;
-      }
-      if (!Number.isFinite(idB)) {
-        colB.marcarPendente();
-        pendente = true;
-      }
-      if (pendente) {
-        erro.textContent = 'Escolha as duas versões.';
-        return;
-      }
-      if (idA === idB) {
-        erro.textContent = 'Escolha duas versões diferentes.';
-        return;
-      }
-      finish({ idA, idB });
-    };
-    cancel.style.display = '';
-    cancel.textContent = 'Cancelar';
-    cancel.onclick = () => finish(null);
-
-    ov.hidden = false;
-    ov.classList.add('aberto');
-    appDialogEstado.fecharNoBackdrop = true;
-  });
-}
-
-/** Carrega uma versão do servidor no formato usado pelas colunas. */
-async function carregarLadoComparativo(id) {
-  const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(id)}`);
-  if (!res.ok) throw new Error(`Falha ao carregar a versão (HTTP ${res.status}).`);
-  const v = await res.json();
-  if (!v || !Array.isArray(v.estrofes)) throw new Error('Resposta inválida do controlador.');
-  return {
-    id: Number(v.id),
-    titulo: String(v.titulo || ''),
-    artista: String(v.artista || ''),
-    estrofes: v.estrofes.map((s) => String(s ?? '')),
-    rootId: Number(v.root_id ?? v.id),
-    imutavel: Number(v.is_immutable) === 1,
-    rotulo: String(v.rotulo || ''),
-  };
-}
-
-/** Junta estrofes num texto único, com a mesma regra do modo letra completa. */
-function juntarEstrofesParaComparativo(estrofes) {
-  return (estrofes || [])
-    .map((s) => String(s ?? '').replace(/\r\n/g, '\n').replace(/\s+$/, ''))
-    .join('\n\n');
-}
-
-function preencherPainelComparativo() {
-  if (!comparativoLados) return;
-  for (const lado of ['a', 'b']) {
-    const dados = comparativoLados[lado];
-    const ta = comparativoTextarea(lado);
-    const rotulo = document.getElementById(`comparativo-rotulo-${lado}`);
-    const selo = document.getElementById(`comparativo-selo-${lado}`);
-    if (ta) ta.value = juntarEstrofesParaComparativo(dados.estrofes);
-    if (rotulo) rotulo.textContent = dados.rotuloExibicao;
-    if (selo) {
-      selo.hidden = !dados.imutavel;
-      selo.title = dados.imutavel
-        ? 'O ORIGINAL nunca é alterado: gravar mudanças deste lado cria uma cópia nova.'
-        : '';
-    }
-  }
-}
-
-/** Estrofes actuais de um lado, lidas do textarea. */
-function estrofesLadoComparativo(lado) {
-  const ta = comparativoTextarea(lado);
-  if (!ta) return [];
-  return splitTextoLetraCompletaEmEstrofes(ta.value);
-}
-
-function comparativoSujoVsSnapshot() {
-  if (!modoComparativoCentral || !snapshotComparativo) return false;
-  return ['a', 'b'].some(
-    (lado) => !estrofesArraysIguaisParaEdicao(estrofesLadoComparativo(lado), snapshotComparativo[lado])
-  );
-}
-
-/**
- * Visibilidade do painel comparativo.
- *
- * Enquanto está activo manda no layout da coluna central: esconde tanto os
- * cartões por slide como o painel de letra completa.
- */
-function aplicarLayoutModoComparativo() {
-  const wrap = document.getElementById('centro-comparativo-wrap');
-  if (!wrap) return;
-  if (!musicaAtiva) {
-    modoComparativoCentral = false;
-    comparativoLados = null;
-    snapshotComparativo = null;
-  }
-  const on = modoComparativoCentral;
-  wrap.hidden = !on;
-  if (on) {
-    const ed = document.getElementById('estrofes-slide-editor');
-    const full = document.getElementById('centro-letra-completa-wrap');
-    if (ed) ed.style.display = 'none';
-    if (full) full.hidden = true;
-    realcesComparativo.ligar();
-  } else {
-    realcesComparativo.limpar();
-  }
-}
-
-/** Abre o modo, perguntando antes que duas versões comparar. */
-async function abrirModoComparativo() {
-  if (!musicaAtiva) return;
-  if (musicaBancoFonte === 'catalog') {
-    await appAlert(
-      'Música do catálogo: não há versões para comparar. Importe-a para o seu banco primeiro.',
-      'Modo comparativo'
-    );
-    return;
-  }
-  if (
-    !(await confirmarProsseguirDescartandoEdicaoPendente(
-      'Há alterações não gravadas nesta sessão. Descartar e abrir o modo comparativo?',
-      'Alterações não gravadas'
-    ))
-  ) {
-    return;
-  }
-
-  const { rootId, versoes, totalVersoesBrutas } = await carregarVersoesParaComparativo();
-  if (versoes.length < 2) {
-    /* Só uma versão no banco: falta o que criar para comparar. Duas ou mais,
-       mas reduzidas a uma só por serem rigorosamente idênticas (mesmo critério
-       de `opcoesVersaoDistintasPorConteudo`): já existem versões — só não há
-       diferença entre elas. */
-    await appAlert(
-      totalVersoesBrutas > 1
-        ? 'Todas as versões desta música são idênticas. Não há diferenças para comparar.'
-        : 'Esta música tem só uma versão no banco. Crie uma cópia (chip «Nova versão») para poder comparar.',
-      'Modo comparativo'
-    );
-    return;
-  }
-
-  const escolha = await escolherVersoesParaComparar(versoes, rootId);
-  if (!escolha) return;
-
-  try {
-    const [a, b] = await Promise.all([
-      carregarLadoComparativo(escolha.idA),
-      carregarLadoComparativo(escolha.idB),
-    ]);
-    const acharVersao = (id) => versoes.find((v) => Number(v.id) === Number(id)) || null;
-    a.rotuloExibicao = rotuloVersaoComparativo(acharVersao(a.id) || { ...a, parent_id: a.imutavel ? null : 1 }, rootId);
-    b.rotuloExibicao = rotuloVersaoComparativo(acharVersao(b.id) || { ...b, parent_id: b.imutavel ? null : 1 }, rootId);
-    comparativoLados = { a, b };
-    snapshotComparativo = {
-      a: a.estrofes.map((s) => String(s)),
-      b: b.estrofes.map((s) => String(s)),
-    };
-    modoComparativoCentral = true;
-    aplicarLayoutModoComparativo();
-    preencherPainelComparativo();
-    realcesComparativo.agendar();
-    atualizarToolbarModoEdicao();
-  } catch (e) {
-    comparativoLados = null;
-    snapshotComparativo = null;
-    modoComparativoCentral = false;
-    aplicarLayoutModoComparativo();
-    await appAlert(e?.message || 'Não foi possível abrir o modo comparativo.', 'Modo comparativo');
-  }
-}
-
-/** Fecha o painel e devolve a coluna central ao estado anterior. */
-function fecharModoComparativo() {
-  modoComparativoCentral = false;
-  comparativoLados = null;
-  snapshotComparativo = null;
-  aplicarLayoutModoComparativo();
-  /* Devolve os cartões por slide (ou o painel de letra completa, se estivesse aberto). */
-  aplicarLayoutModoLetraCompleta();
-  atualizarToolbarModoEdicao();
-}
-
-/**
- * Grava os lados que mudaram, um pedido por versão.
- *
- * Gravar sobre o ORIGINAL não o altera: o servidor bifurca e cria uma cópia
- * nova (`forked`), que é exactamente a protecção que se quer. O utilizador é
- * avisado quando isso acontece.
- */
-async function salvarComparativoNoServidor() {
-  if (!modoComparativoCentral || !comparativoLados || !snapshotComparativo) return false;
-  const api = getControllerApiBase();
-  const bifurcados = [];
-  const gravados = [];
-
-  for (const lado of ['a', 'b']) {
-    const dados = comparativoLados[lado];
-    const estrofes = estrofesLadoComparativo(lado);
-    if (estrofesArraysIguaisParaEdicao(estrofes, snapshotComparativo[lado])) continue;
-    if (!estrofes.length || estrofes.every((s) => !String(s).trim())) {
-      await appAlert(
-        `A versão «${dados.rotuloExibicao}» ficou sem nenhuma estrofe. Escreva ao menos uma linha antes de gravar.`,
-        'Modo comparativo'
-      );
-      return false;
-    }
-    try {
-      const res = await fetch(`${api}/api/musicas/${dados.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo: dados.titulo, artista: dados.artista, estrofes }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.erro || `Erro HTTP ${res.status}`);
-      gravados.push(dados.id);
-      if (data.forked) bifurcados.push({ rotulo: dados.rotuloExibicao, id: Number(data.id) });
-    } catch (e) {
-      await appAlert(
-        `Não foi possível gravar a versão «${dados.rotuloExibicao}»: ${e?.message || e}`,
-        'Modo comparativo'
-      );
-      return false;
-    }
-  }
-
-  if (!gravados.length) return true;
-
-  await carregarMusicas();
-  const rootId = obterRootIdMusicaAtiva();
-  if (Number.isFinite(rootId)) await carregarVersoesMusicaServidor(rootId);
-  /* Se um dos lados era a versão aberta no editor, recarrega-a para os cartões
-     e a pré-visualização mostrarem o texto novo. */
-  if (musicaAtiva && gravados.some((id) => Number(id) === Number(musicaAtiva.id))) {
-    await recarregarMusicaAtivaDoServidor();
-  }
-
-  if (bifurcados.length) {
-    const lista = bifurcados.map((b) => `«${b.rotulo}»`).join(' e ');
-    await appAlert(
-      `O ORIGINAL não é alterado: as mudanças em ${lista} foram gravadas numa cópia nova, visível na barra de versões.`,
-      'Original preservado'
-    );
-  }
-  return true;
-}
-
-/** Recarrega `musicaAtiva` do servidor mantendo o slide seleccionado. */
-async function recarregarMusicaAtivaDoServidor() {
-  if (!musicaAtiva || musicaAtiva.id == null) return;
-  try {
-    const res = await fetch(`${getControllerApiBase()}/api/musicas/${Number(musicaAtiva.id)}`);
-    if (!res.ok) return;
-    const nova = await res.json();
-    if (!nova || !Array.isArray(nova.estrofes)) return;
-    musicaAtiva = nova;
-    musicaRootId = Number(nova.root_id ?? nova.id);
-    const n = musicaAtiva.estrofes.length;
-    if (estrofeAtiva > n) estrofeAtiva = n;
-    if (estrofeAtiva < -1) estrofeAtiva = -1;
-    renderSlidesStrip();
-    renderEstrofesEditor();
-    atualizarPreviewOperador();
-    marcacaoEstrofeEditor();
-  } catch (_) {
-    // intencional — a gravação já foi feita; o painel recarrega na próxima seleção
-  }
-}
-
-/**
- * Botão da barra: abre o modo (escolher as duas versões a comparar).
- *
- * Puramente navegação, como o toggle da letra completa — enquanto o modo está
- * activo o botão fica desabilitado (ver `atualizarToolbarModoComparativo`) e
- * quem grava ou descarta é sempre «Salvar alterações» / «Cancelar» da barra
- * padrão (`acionarSalvarAlteracoesBarraPadrao` / `acionarCancelarBarraPadrao`).
- */
-async function alternarModoComparativoCentral() {
-  if (!musicaAtiva) return;
-  if (modoComparativoCentral) {
-    await cancelarModoComparativoCentral();
-    return;
-  }
-  await abrirModoComparativo();
-}
-
-/**
- * Sai do comparativo antes de trocar para outro modo (pede confirmação se houver
- * alterações). Devolve true quando o comparativo já não está activo.
- */
-async function sairModoComparativoParaTrocarModo() {
-  if (!modoComparativoCentral) return true;
-  await cancelarModoComparativoCentral();
-  return !modoComparativoCentral;
-}
+// (extraído) modo comparativo → painel/comparativoVersoes.js
 
 /** Botão «Editar letra»: no comparativo, sai dele primeiro. */
 async function acionarEditarLetraBarraPadrao() {
@@ -16518,924 +15342,8 @@ function atualizarToolbarAdicionarPlaylistHome() {
   btn.disabled = !m;
 }
 
-/** Por linha: 1.ª letra maiúscula, restante minúsculas (preserva espaços à esquerda). */
-function textoEstrofeCaixaSentenca(texto) {
-  return String(texto ?? '')
-    .split(/\r\n|\r|\n/)
-    .map((line) => {
-      const m = line.match(/^(\s*)(.*)$/);
-      if (!m) return line;
-      const corpo = m[2];
-      if (!corpo) return line;
-      return m[1] + corpo.charAt(0).toLocaleUpperCase('pt-BR') + corpo.slice(1).toLocaleLowerCase('pt-BR');
-    })
-    .join('\n');
-}
-
-function textoEstrofeCaixaMaiuscula(texto) {
-  return String(texto ?? '').toLocaleUpperCase('pt-BR');
-}
-
-function aplicarCaixaLetrasAoTexto(texto) {
-  return caixaLetrasEdicaoMaiuscula
-    ? textoEstrofeCaixaMaiuscula(texto)
-    : textoEstrofeCaixaSentenca(texto);
-}
-
-/** true se o texto já está todo em maiúsculas (e tem letras com caixa). */
-function textoEstaTodoEmMaiusculas(texto) {
-  const s = String(texto ?? '');
-  if (!s) return false;
-  if (s !== textoEstrofeCaixaMaiuscula(s)) return false;
-  return s !== s.toLocaleLowerCase('pt-BR');
-}
-
-function obterTextosEstrofesEmEdicao() {
-  if (modoLetraCompletaCentral) {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    if (ta) return [ta.value];
-  }
-  if (modoEdicaoEstrofes) {
-    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
-    if (tas.length) return tas.map((ta) => ta.value);
-  }
-  return Array.isArray(musicaAtiva?.estrofes)
-    ? musicaAtiva.estrofes.map((s) => String(s ?? ''))
-    : [];
-}
-
-function estrofesEmEdicaoEstaoEmMaiusculas() {
-  return textoEstaTodoEmMaiusculas(obterTextosEstrofesEmEdicao().join('\n'));
-}
-
-/** Alinha o botão aA ao que a letra já tem (evita 1.º clique no-op em letras MAIÚSCULAS). */
-function sincronizarFlagCaixaLetrasComTextoAtual() {
-  caixaLetrasEdicaoMaiuscula = estrofesEmEdicaoEstaoEmMaiusculas();
-}
-
-function aplicarValorTextareaPreservandoSelecao(ta, novo) {
-  if (!ta || ta.value === novo) return false;
-  const start = ta.selectionStart;
-  const end = ta.selectionEnd;
-  ta.value = novo;
-  try {
-    ta.setSelectionRange(start, end);
-  } catch (_) {
-    /* ignore */
-  }
-  return true;
-}
-
-/** Força MAIÚSCULAS no textarea preservando o cursor (só no modo aA activo). */
-function forcarMaiusculasNoTextareaSeAtivo(ta) {
-  if (!caixaLetrasEdicaoMaiuscula || !ta) return;
-  aplicarValorTextareaPreservandoSelecao(ta, textoEstrofeCaixaMaiuscula(ta.value));
-}
-
-/**
- * Aplica a caixa actual nos textareas já montados — sem reconstruir os cartões.
- * Faixa e prévias já mostram maiúsculas; um rebuild só fazia os slides tremerem.
- */
-function aplicarCaixaLetrasNasEstrofesEmEdicao() {
-  if (!musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return;
-  let alterou = false;
-  if (modoLetraCompletaCentral) {
-    const ta = document.getElementById('centro-letra-completa-ta');
-    if (ta) {
-      const novo = aplicarCaixaLetrasAoTexto(ta.value);
-      if (aplicarValorTextareaPreservandoSelecao(ta, novo)) alterou = true;
-      const novas = splitTextoLetraCompletaEmEstrofes(ta.value);
-      if (
-        novas.length !== musicaAtiva.estrofes.length ||
-        novas.some((s, i) => s !== musicaAtiva.estrofes[i])
-      ) {
-        musicaAtiva.estrofes = novas;
-        alterou = true;
-      }
-      if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
-        guiasEstrofesLetraCompleta.agendar();
-      }
-    }
-  } else if (modoEdicaoEstrofes) {
-    const tas = [...document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta')];
-    if (tas.length === musicaAtiva.estrofes.length) {
-      tas.forEach((ta) => {
-        const idx = parseInt(ta.dataset.i, 10);
-        const novo = aplicarCaixaLetrasAoTexto(ta.value);
-        if (Number.isFinite(idx) && musicaAtiva.estrofes[idx] != null && musicaAtiva.estrofes[idx] !== novo) {
-          musicaAtiva.estrofes[idx] = novo;
-          alterou = true;
-        }
-        if (aplicarValorTextareaPreservandoSelecao(ta, novo)) {
-          alterou = true;
-          aplicarAlturaCardEstrofe(ta.closest('.estrofe-slide-edit'));
-        }
-      });
-    } else {
-      const novas = musicaAtiva.estrofes.map((s) => aplicarCaixaLetrasAoTexto(s));
-      alterou = novas.some((s, i) => s !== musicaAtiva.estrofes[i]);
-      musicaAtiva.estrofes = novas;
-      renderEstrofesEditor();
-    }
-  }
-  if (!alterou) return;
-  const grid = document.getElementById('slides-grid');
-  if (grid && musicaAtiva.estrofes) {
-    grid.dataset.stripDigest = digestEstrofesParaStripFaixa(musicaAtiva.estrofes);
-  }
-  if (projecaoMusicaEmitidaNoServidor && projecao.pronta() && estrofeAtiva >= 0) {
-    emitirEstrofeAoServidor(estrofeAtiva);
-  }
-}
-
-function alternarCaixaLetrasEdicao() {
-  if (!musicaAtiva || (!modoEdicaoEstrofes && !modoLetraCompletaCentral)) return;
-  if (modoEdicaoEstrofes && !modoLetraCompletaCentral) {
-    /* Sincroniza textareas abertos antes de transformar. */
-    document.querySelectorAll('#estrofes-slide-editor textarea.estrofe-slide-ta').forEach((ta) => {
-      const idx = parseInt(ta.dataset.i, 10);
-      if (Number.isFinite(idx) && musicaAtiva.estrofes[idx] != null) {
-        musicaAtiva.estrofes[idx] = ta.value;
-      }
-    });
-  }
-  /* Converte para o oposto do que o texto já é — o flag arrancava em false,
-     então o 1.º clique só re-renderizava letras que já estavam em MAIÚSCULAS. */
-  caixaLetrasEdicaoMaiuscula = !estrofesEmEdicaoEstaoEmMaiusculas();
-  aplicarCaixaLetrasNasEstrofesEmEdicao();
-  atualizarToolbarCaixaLetrasEdicao();
-}
-
-function configurarCamposMetadadosMusicaHome() {
-  const atualizar = () => atualizarToolbarModoEdicao();
-  document.getElementById('edit-titulo')?.addEventListener('input', atualizar);
-  document.getElementById('edit-artista')?.addEventListener('input', atualizar);
-  const taFull = document.getElementById('centro-letra-completa-ta');
-  if (taFull && taFull.dataset.caixaLetrasLigada !== '1') {
-    taFull.dataset.caixaLetrasLigada = '1';
-    taFull.addEventListener('input', () => {
-      if (!modoLetraCompletaCentral) return;
-      forcarMaiusculasNoTextareaSeAtivo(taFull);
-      if (typeof guiasEstrofesLetraCompleta?.agendar === 'function') {
-        guiasEstrofesLetraCompleta.agendar();
-      }
-      atualizarToolbarModoLetraCompleta();
-      /* «Salvar alterações» da barra padrão precisa saber, a cada tecla, se o
-         conteúdo já diverge do snapshot — não só quando o modo abre/fecha. */
-      atualizarBotoesSalvarCancelarBarraPadrao();
-    });
-  }
-  const btnCaixa = document.getElementById('btn-caixa-letras-edicao');
-  if (btnCaixa && btnCaixa.dataset.caixaLetrasCfg !== '1') {
-    btnCaixa.dataset.caixaLetrasCfg = '1';
-    /* Evita blur do textarea no mousedown (rebuild dos cartões roubava o 1.º clique). */
-    btnCaixa.addEventListener('mousedown', (e) => e.preventDefault());
-  }
-}
-
-function entrarModoEdicao() {
-  if (!musicaAtiva) return;
-  if (modoLetraCompletaCentral) {
-    sincronizarEstrofesDesdeTextareaLetraCompleta();
-    snapshotLetraCompleta = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
-  }
-  const et = document.getElementById('edit-titulo');
-  const ea = document.getElementById('edit-artista');
-  if (et) musicaAtiva.titulo = et.value;
-  if (ea) musicaAtiva.artista = ea.value;
-  snapshotEdicaoEstrofes = {
-    titulo: musicaAtiva.titulo,
-    artista: musicaAtiva.artista || '',
-    estrofes: musicaAtiva.estrofes.map((s) => String(s ?? '')),
-    estrofeAtiva,
-  };
-  modoEdicaoEstrofes = true;
-  sincronizarFlagCaixaLetrasComTextoAtual();
-  renderEstrofesEditor();
-}
-
-async function sairModoEdicao() {
-  if (edicaoEstrofesSujaVsSnapshot()) {
-    const ok = await appConfirm(
-      'Há alterações não gravadas. Descartar e sair do modo edição? Use «Salvar alterações» para gravar no banco.',
-      'Encerrar edição'
-    );
-    if (!ok) return;
-  }
-  if (snapshotEdicaoEstrofes && musicaAtiva && modoEdicaoEstrofes) {
-    musicaAtiva.titulo = snapshotEdicaoEstrofes.titulo;
-    musicaAtiva.artista = snapshotEdicaoEstrofes.artista;
-    musicaAtiva.estrofes = snapshotEdicaoEstrofes.estrofes.map((s) => String(s));
-    estrofeAtiva = snapshotEdicaoEstrofes.estrofeAtiva;
-    const n = musicaAtiva.estrofes.length;
-    const idxPreto = n;
-    if (estrofeAtiva > idxPreto) estrofeAtiva = idxPreto;
-    if (estrofeAtiva < -1) estrofeAtiva = -1;
-  }
-  snapshotEdicaoEstrofes = null;
-  modoEdicaoEstrofes = false;
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  marcacaoEstrofeEditor();
-}
-
-/**
- * Altura mínima da área de texto de um slide, medida a partir da fonte actual do elemento.
- * Home: 4 linhas (+ o respiro inferior que mantém a alça de redimensionar dentro do cartão);
- * layout antigo: 5 linhas, como sempre.
- */
-function alturaMinimaTextoEstrofePx(el) {
-  const home = document.body.classList.contains('home-layout-v2');
-  const linhas = home ? 4 : 5;
-  if (!el) return linhas * 13 * 1.55;
-  const cs = getComputedStyle(el);
-  const fs = parseFloat(cs.fontSize) || 13;
-  const lhRaw = cs.lineHeight;
-  let lhPx;
-  if (!lhRaw || lhRaw === 'normal') {
-    lhPx = fs * 1.55;
-  } else if (lhRaw.endsWith('px')) {
-    lhPx = parseFloat(lhRaw);
-  } else {
-    const ratio = parseFloat(lhRaw);
-    lhPx = Number.isFinite(ratio) ? ratio * fs : fs * 1.55;
-  }
-  const respiro = home ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
-  return linhas * lhPx + respiro;
-}
-
-/** Guarda o tamanho que o usuário arrastou na alça, para respeitá-lo até o conteúdo exigir mais. */
-function observarRedimensionamentoManualTextareaEstrofe(ta) {
-  if (ta.dataset.alturaManualLigada === '1') return;
-  ta.dataset.alturaManualLigada = '1';
-  ta.addEventListener('pointerup', () => {
-    const h = ta.offsetHeight;
-    if (Math.abs(h - (ta._alturaAuto || 0)) > 2) ta._alturaManual = h;
-  });
-}
-
-/**
- * Auto-grow em lote: primeiro todas as escritas (`height:auto`), depois todas as leituras
- * (`scrollHeight`), depois as escritas finais — um único reflow, mesmo com muitos slides.
- * Overflow escondido (sem barra interna) e altura nunca menor que o conteúdo.
- */
-function aplicarAlturasTextareasEstrofes(tas) {
-  const lista = tas.filter((ta) => ta && ta.classList.contains('estrofe-slide-ta'));
-  if (!lista.length) return;
-  const minH = alturaMinimaTextoEstrofePx(lista[0]);
-  lista.forEach((ta) => {
-    observarRedimensionamentoManualTextareaEstrofe(ta);
-    ta.style.maxHeight = 'none';
-    ta.style.minHeight = minH + 'px';
-    ta.style.overflow = 'hidden';
-    ta.style.height = 'auto';
-  });
-  const alturas = lista.map((ta) => Math.max(minH, ta.scrollHeight, ta._alturaManual || 0));
-  lista.forEach((ta, i) => {
-    ta.style.height = alturas[i] + 'px';
-    ta._alturaAuto = alturas[i];
-  });
-  // Os cartões crescerem pode fazer a grade ganhar barra de rolagem e estreitar as colunas:
-  // as quebras de linha mudam. Confere (um reflow) e corrige o que ainda estiver cortado.
-  for (let passo = 0; passo < 3; passo++) {
-    const faltam = lista.filter((ta) => ta.scrollHeight > ta.clientHeight + 1);
-    if (!faltam.length) break;
-    faltam.forEach((ta) => {
-      ta.style.height = 'auto';
-    });
-    const novas = faltam.map((ta) => Math.max(minH, ta.scrollHeight, ta._alturaManual || 0));
-    faltam.forEach((ta, i) => {
-      ta.style.height = novas[i] + 'px';
-      ta._alturaAuto = novas[i];
-    });
-  }
-}
-
-/**
- * Modo edição: altura mínima fixa de linhas; cresce e encolhe com o conteúdo.
- * Modo exibição: só CSS — `.estrofe-slide-view-body` em fluxo, sem altura fixa em JS.
- */
-function aplicarAlturaTextareaEstrofe(ta) {
-  if (!ta || !ta.classList.contains('estrofe-slide-ta')) return;
-  aplicarAlturasTextareasEstrofes([ta]);
-  // Segunda passagem após o layout/fontes assentarem (quebras de linha podem mudar a altura).
-  requestAnimationFrame(() => requestAnimationFrame(() => aplicarAlturasTextareasEstrofes([ta])));
-}
-
-function aplicarAlturaCardEstrofe(cardEl) {
-  if (!cardEl) return;
-  const ta = cardEl.querySelector('.estrofe-slide-ta');
-  if (ta) aplicarAlturaTextareaEstrofe(ta);
-}
-
-/**
- * Texto do slide no modo exibição: a 1.ª linha lógica vai num <span> para ganhar peso 600
- * (`::first-line` pegaria só a 1.ª linha visual quando o texto quebra). O texto em si —
- * `textContent`, quebras de linha, contagem de linhas — fica exatamente o mesmo.
- */
-function definirTextoCorpoSlide(body, txt) {
-  const t = String(txt ?? '');
-  body.textContent = '';
-  const i = t.indexOf('\n');
-  const primeira = document.createElement('span');
-  primeira.className = 'estrofe-primeira-linha';
-  primeira.textContent = i < 0 ? t : t.slice(0, i);
-  body.appendChild(primeira);
-  if (i >= 0) body.appendChild(document.createTextNode(t.slice(i)));
-}
-
-function reaplicarAlturasEstrofesEditor() {
-  const wrap = document.getElementById('estrofes-slide-editor');
-  if (!wrap || !musicaAtiva || !musicaAtiva.estrofes) return;
-  aplicarAlturasTextareasEstrofes([...wrap.querySelectorAll('textarea.estrofe-slide-ta')]);
-}
-
-/* O scrollHeight muda quando a fonte do slide (Poppins) termina de carregar: recalcula as alturas. */
-if (document.fonts) {
-  document.fonts.addEventListener('loadingdone', () => reaplicarAlturasEstrofesEditor());
-  document.fonts.ready.then(() => reaplicarAlturasEstrofesEditor());
-}
-
-/**
- * Actualiza o texto dos cartões já montados, sem os destruir.
- * Devolve false quando a grelha não bate (contagem ou estrutura) e precisa de rebuild.
- */
-function atualizarEstrofesEditorInPlace() {
-  const wrap = document.getElementById('estrofes-slide-editor');
-  if (!wrap || !musicaAtiva || !Array.isArray(musicaAtiva.estrofes)) return false;
-  const cards = [...wrap.querySelectorAll('.estrofe-slide-edit')];
-  const n = musicaAtiva.estrofes.length;
-  if (cards.length !== n) return false;
-  if (modoEdicaoEstrofes) {
-    for (let i = 0; i < n; i++) {
-      const ta = cards[i].querySelector('.estrofe-slide-ta');
-      if (!ta) return false;
-      const txt = String(musicaAtiva.estrofes[i] ?? '');
-      if (ta.value !== txt) {
-        ta.value = txt;
-        aplicarAlturaCardEstrofe(cards[i]);
-      }
-      cards[i].classList.toggle('ativa', estrofeAtiva === i);
-    }
-    return true;
-  }
-  for (let i = 0; i < n; i++) {
-    const body = cards[i].querySelector('.estrofe-slide-view-body');
-    if (!body) return false;
-    const txt = String(musicaAtiva.estrofes[i] ?? '');
-    if (body.textContent !== txt) definirTextoCorpoSlide(body, txt);
-    cards[i].classList.toggle('ativa', estrofeAtiva === i);
-  }
-  return true;
-}
-
-function reorderEstrofesIndices(from, to) {
-  if (!musicaAtiva || !modoEdicaoEstrofes) return;
-  const arr = musicaAtiva.estrofes;
-  const n = arr.length;
-  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return;
-
-  const snapAtiva =
-    estrofeAtiva >= 0 && estrofeAtiva < n ? arr[estrofeAtiva] : null;
-
-  const [moved] = arr.splice(from, 1);
-  arr.splice(to, 0, moved);
-
-  if (snapAtiva !== null) {
-    const idx = arr.indexOf(snapAtiva);
-    estrofeAtiva = idx >= 0 ? idx : Math.max(0, Math.min(estrofeAtiva, arr.length - 1));
-  }
-
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  marcacaoEstrofeEditor();
-}
-
-function renderEstrofesEditor() {
-  const wrap = document.getElementById('estrofes-slide-editor');
-
-  if (!musicaAtiva) {
-    modoEdicaoEstrofes = false;
-    snapshotEdicaoEstrofes = null;
-    modoLetraCompletaCentral = false;
-    wrap.classList.remove('estrofes-modo-edicao');
-    wrap.classList.add('estrofes-slide-editor--vazio');
-    atualizarToolbarModoEdicao();
-    wrap.innerHTML =
-      '<div class="placeholder-msg placeholder-msg--escolha-musica">Escolha uma música na playlist (à direita) ou na biblioteca (à esquerda).</div>';
-    atualizarSlidesInstrucoes();
-    document.getElementById('edit-titulo').value = '';
-    document.getElementById('edit-artista').value = '';
-    aplicarLayoutModoLetraCompleta();
-    return;
-  }
-
-  document.getElementById('edit-titulo').value = musicaAtiva.titulo;
-  document.getElementById('edit-artista').value = musicaAtiva.artista || '';
-
-  wrap.classList.remove('estrofes-slide-editor--vazio');
-  wrap.classList.toggle('estrofes-modo-edicao', modoEdicaoEstrofes);
-
-  atualizarToolbarModoEdicao();
-
-  wrap.innerHTML = '';
-  musicaAtiva.estrofes.forEach((txt, i) => {
-    let centralSlideTapTimer = null;
-    const div = document.createElement('div');
-    div.className = 'estrofe-slide-edit' + (estrofeAtiva === i ? ' ativa' : '');
-    if (modoEdicaoEstrofes) {
-      div.title = ehModoSlidesOperador()
-        ? 'Edição · arrastar ⋮⋮ para reordenar · duplo clique fora do texto para projetar'
-        : 'Edição · arrastar ⋮⋮ para reordenar';
-    } else if (ehModoSlidesOperador()) {
-      div.title = 'Duplo clique para projetar nas telas';
-    } else {
-      div.title = 'Clique para selecionar · Botão ✎ ou clique direito: edição rápida';
-    }
-
-    if (modoEdicaoEstrofes) {
-      div.innerHTML = `
-        <div class="estrofe-slide-toolbar">
-          <div class="estrofe-slide-toolbar-left">
-            <span class="estrofe-drag-handle" draggable="true" data-drag-from="${i}" title="Arrastar para reordenar">⋮⋮</span>
-            <span class="estrofe-num-big">${i + 1}</span>
-          </div>
-          <button type="button" class="btn sm danger btn-del-estrofe" data-i="${i}" title="Remover estrofe">✕</button>
-        </div>
-        <textarea class="estrofe-slide-ta" data-i="${i}" spellcheck="false"></textarea>
-      `;
-      div.querySelector('textarea').value = txt;
-      const taEst = div.querySelector('textarea');
-      taEst.addEventListener('focus', () => aplicarAlturaCardEstrofe(div));
-      taEst.addEventListener('input', (e) => {
-        forcarMaiusculasNoTextareaSeAtivo(e.target);
-        /* «Salvar alterações» da barra padrão precisa saber, a cada tecla, se o
-           conteúdo já diverge do snapshot — não só quando o modo abre/fecha. */
-        atualizarBotoesSalvarCancelarBarraPadrao();
-        const idx = parseInt(e.target.dataset.i, 10);
-        const val = e.target.value;
-        const parts = splitTextoEmEstrofesPorLinhaVaziaStrict(val);
-        if (parts.length > 1) {
-          ignorarBlurSeparacaoEstrofeIdx = idx;
-          aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idx, val, {
-            emitSocket: true,
-            posCaretAposSplit: idx + parts.length - 1,
-          });
-          setTimeout(() => {
-            if (ignorarBlurSeparacaoEstrofeIdx === idx) ignorarBlurSeparacaoEstrofeIdx = null;
-          }, 0);
-          return;
-        }
-        musicaAtiva.estrofes[idx] = val;
-        aplicarAlturaCardEstrofe(div);
-        renderSlidesStrip();
-        atualizarPreviewOperador();
-      });
-      taEst.addEventListener('blur', (e) => {
-        const t = e.target;
-        if (!t.isConnected) return;
-        const idxBlur = parseInt(t.dataset.i, 10);
-        if (ignorarBlurSeparacaoEstrofeIdx === idxBlur) {
-          ignorarBlurSeparacaoEstrofeIdx = null;
-          return;
-        }
-        aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(idxBlur, t.value, { emitSocket: true });
-      });
-      div.querySelector('.btn-del-estrofe').addEventListener('click', (e) => {
-        e.stopPropagation();
-        removerEstrofeEditor(parseInt(e.currentTarget.dataset.i, 10));
-      });
-
-      const handle = div.querySelector('.estrofe-drag-handle');
-      handle.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        e.dataTransfer.setData('text/plain', String(i));
-        e.dataTransfer.effectAllowed = 'move';
-        div.classList.add('dragging-reorder');
-      });
-      handle.addEventListener('dragend', () => {
-        div.classList.remove('dragging-reorder');
-        wrap.querySelectorAll('.estrofe-slide-edit').forEach((el) =>
-          el.classList.remove('drag-over-reorder'));
-      });
-      div.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        div.classList.add('drag-over-reorder');
-      });
-      div.addEventListener('dragleave', () => div.classList.remove('drag-over-reorder'));
-      div.addEventListener('drop', (e) => {
-        e.preventDefault();
-        div.classList.remove('drag-over-reorder');
-        const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        const to = i;
-        if (!Number.isFinite(from)) return;
-        reorderEstrofesIndices(from, to);
-      });
-    } else {
-      const quickBtn = !ehModoSlidesOperador()
-        ? `<button type="button" class="btn sm btn-estrofe-quick" data-i="${i}" title="Edição rápida">✎</button>`
-        : '';
-      div.innerHTML = `
-        <div class="estrofe-slide-toolbar">
-          <div class="estrofe-slide-toolbar-left">
-            <span class="estrofe-num-big">${i + 1}</span>
-          </div>
-          ${quickBtn}
-        </div>
-      `;
-      const body = document.createElement('div');
-      body.className = 'estrofe-slide-view-body';
-      definirTextoCorpoSlide(body, txt);
-      div.appendChild(body);
-
-      if (!ehModoSlidesOperador()) {
-        div.querySelector('.btn-estrofe-quick')?.addEventListener('click', (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          abrirSlideQuickEditModal(i);
-        });
-        div.addEventListener('contextmenu', (ev) => {
-          ev.preventDefault();
-          abrirSlideQuickEditModal(i);
-        });
-      }
-
-      div.addEventListener('click', (e) => {
-        if (ehModoSlidesOperador()) return;
-        if (e.target.closest('.btn-del-estrofe')) return;
-        if (e.target.closest('.btn-estrofe-quick')) return;
-        clearTimeout(centralSlideTapTimer);
-        centralSlideTapTimer = setTimeout(() => {
-          centralSlideTapTimer = null;
-          if (projecaoMusicaEmitidaNoServidor) {
-            projetarPorDuploCliqueCentral(i);
-            return;
-          }
-          exibirEstrofe(i);
-          renderSlidesStrip();
-          atualizarPreviewOperador();
-          renderEstrofesEditor();
-          marcacaoEstrofeEditor();
-        }, 280);
-      });
-    }
-
-    div.addEventListener('dblclick', (e) => {
-      if (modoEdicaoEstrofes && e.target.closest('textarea')) return;
-      if (e.target.closest('.btn-del-estrofe')) return;
-      if (e.target.closest('.btn-estrofe-quick')) return;
-      e.preventDefault();
-      clearTimeout(centralSlideTapTimer);
-      centralSlideTapTimer = null;
-      if (ehModoSlidesOperador()) {
-        projetarPorDuploCliqueCentral(i);
-      }
-    });
-
-    wrap.appendChild(div);
-  });
-
-  homeLayout?.decorateCards();
-  queueMicrotask(() => {
-    requestAnimationFrame(() => requestAnimationFrame(() => reaplicarAlturasEstrofesEditor()));
-  });
-
-  atualizarSlidesInstrucoes();
-  aplicarLayoutModoLetraCompleta({ preencherTextarea: false });
-}
-
-function novaEstrofe() {
-  if (!musicaAtiva || !modoEdicaoEstrofes || modoLetraCompletaCentral) return;
-  const n = musicaAtiva.estrofes.length;
-  let insertAt;
-  if (estrofeAtiva < 0) insertAt = 0;
-  else if (estrofeAtiva >= n) insertAt = n;
-  else insertAt = estrofeAtiva + 1;
-  musicaAtiva.estrofes.splice(insertAt, 0, '');
-  exibirEstrofe(insertAt);
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-}
-
-function removerEstrofeEditor(index) {
-  if (!modoEdicaoEstrofes) return;
-  if (!musicaAtiva || musicaAtiva.estrofes.length <= 1) {
-    alert('É necessário pelo menos uma estrofe.');
-    return;
-  }
-  musicaAtiva.estrofes.splice(index, 1);
-  if (estrofeAtiva === index) estrofeAtiva = Math.max(0, index - 1);
-  else if (estrofeAtiva > index) estrofeAtiva--;
-
-  if (estrofeAtiva >= musicaAtiva.estrofes.length) {
-    estrofeAtiva = musicaAtiva.estrofes.length - 1;
-  }
-
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-}
-
-async function persistirMusicaAtivaNoServidor() {
-  if (!musicaAtiva) {
-    alert('Nenhuma música selecionada.');
-    return false;
-  }
-
-  if (musicaBancoFonte === 'catalog') {
-    alert('Música do catálogo: não é possível gravar no banco local.');
-    return false;
-  }
-
-  const idNum = Number(musicaAtiva.id);
-  if (!Number.isFinite(idNum)) {
-    alert('ID da música inválido.');
-    return false;
-  }
-
-  const titulo = document.getElementById('edit-titulo').value.trim();
-  if (!titulo) {
-    alert('Informe o título da música.');
-    return false;
-  }
-
-  aplicarSplitsEstrofesDosTextareasAntesDePersistir();
-
-  musicaAtiva.titulo = titulo;
-  musicaAtiva.artista = document.getElementById('edit-artista').value.trim();
-
-  const estrofesPayload = (musicaAtiva.estrofes || []).map((s) =>
-    typeof s === 'string' ? s : String(s ?? '')
-  );
-  const versaoLocalIdAtiva =
-    musicaVersaoLocalId && String(musicaVersaoLocalId).trim() ? String(musicaVersaoLocalId) : null;
-  const idPersistencia = Number(musicaAtiva.id);
-  /* Capturado antes de gravar: se o servidor bifurcar, é por aqui que se acha a entrada da playlist a repontar. */
-  const rootAntesDeGravar = obterRootIdMusicaAtiva();
-  const versaoPlaylistAntesDeGravar = versaoAtivaParaCompararPlaylist();
-  const cultoDaEdicao = cultoId;
-
-  const api = getControllerApiBase();
-
-  async function aplicarMusicaRecarregada(idAlvo, forked) {
-    await carregarMusicas();
-    const res2 = await fetch(`${api}/api/musicas/${idAlvo}`);
-    if (!res2.ok) throw new Error('Não foi possível recarregar a música.');
-    musicaAtiva = await res2.json();
-    musicaBancoFonte = 'user';
-    musicaVersaoLocalId = null;
-    musicaRootId = Number(musicaAtiva.root_id ?? musicaAtiva.id);
-    document.getElementById('edit-titulo').value = musicaAtiva.titulo;
-    document.getElementById('edit-artista').value = musicaAtiva.artista || '';
-    snapshotEdicaoEstrofes = null;
-    modoEdicaoEstrofes = false;
-    snapshotLetraCompleta = null;
-    modoLetraCompletaCentral = false;
-    aplicarLayoutModoLetraCompleta();
-    refreshListaBanco();
-    renderPlaylist();
-    await carregarVersoesMusicaServidor(musicaRootId);
-    renderMusicaVersoesBar();
-    renderEstrofesEditor();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    atualizarToolbarModoEdicao();
-    if (forked && !ehModoSlidesOperador()) {
-      await appAlert(
-        'As alterações foram gravadas numa nova cópia. O original no servidor foi preservado.',
-        'Cópia criada'
-      );
-    }
-  }
-
-  if (versaoLocalIdAtiva && ehVersaoLocalLegada(versaoLocalIdAtiva)) {
-    const rootLegado = obterRootIdMusicaAtiva() ?? idNum;
-    const up = atualizarCopiaLocal(rootLegado, versaoLocalIdAtiva, {
-      titulo,
-      artista: musicaAtiva.artista,
-      estrofes: estrofesPayload,
-    });
-    if (!up.ok) {
-      alert(up.erro || 'Não foi possível atualizar a cópia.');
-      return false;
-    }
-    await carregarVersoesMusicaServidor(obterRootIdMusicaAtiva() ?? idNum);
-    renderMusicaVersoesBar();
-    return true;
-  }
-
-  try {
-    const bodyJson = JSON.stringify({
-      titulo,
-      artista: musicaAtiva.artista,
-      estrofes: estrofesPayload,
-    });
-    let res = await fetch(`${api}/api/musicas/${idPersistencia}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: bodyJson,
-    });
-
-    if (res.status === 404) {
-      res = await fetch(`${api}/api/musicas/${idPersistencia}/salvar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: bodyJson,
-      });
-    }
-
-    if (!res.ok) {
-      const raw = await res.text().catch(() => '');
-      let msg = '';
-      try {
-        msg = JSON.parse(raw).erro || '';
-      } catch (_) {
-        msg = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
-      }
-      alert(
-        msg ||
-          `Não foi possível salvar (HTTP ${res.status}). Verifique se o aplicativo Controlador está em execução (API local na porta 3001).`
-      );
-      return false;
-    }
-
-    const data = await res.json().catch(() => ({}));
-    const forked = !!data.forked;
-    const idAlvo = forked && data.id != null ? Number(data.id) : idPersistencia;
-    musicaVersaoLocalId = null;
-    await aplicarMusicaRecarregada(idAlvo, forked);
-    /**
-     * Fork = a edição virou uma versão nova; a playlist do dia continuaria a apontar
-     * para o original imutável e recarregaria a letra antiga ao reentrar no modo slides.
-     */
-    if (forked) {
-      const rootFork = Number(data.rootId ?? musicaRootId ?? rootAntesDeGravar);
-      const repontou = repontarVersaoNaPlaylistDoCulto(
-        cultoDaEdicao,
-        rootFork,
-        versaoPlaylistAntesDeGravar,
-        idAlvo,
-        musicaAtiva?.rotulo || ''
-      );
-      if (repontou) renderPlaylist();
-    }
-    return true;
-  } catch (e) {
-    alert(e.message || 'Erro ao salvar no banco local do controlador.');
-    return false;
-  }
-}
-
-async function iniciarCriarNovaVersao() {
-  if (!musicaAtiva) return;
-  if (musicaBancoFonte === 'catalog') {
-    await appAlert(
-      'Música do catálogo somente leitura. Importe para o seu banco antes de criar uma versão editável.',
-      'Catálogo'
-    );
-    return;
-  }
-  const idNum = Number(musicaAtiva.id);
-  if (!Number.isFinite(idNum)) return;
-
-  if (
-    !(await confirmarProsseguirDescartandoEdicaoPendente(
-      'Você tem alterações não salvas. Descartar e criar uma nova versão a partir do texto gravado no servidor?',
-      'Criar nova versão'
-    ))
-  ) {
-    return;
-  }
-
-  /* Duas versões da mesma música não podem ter o mesmo nome: quando o servidor
-     recusa por nome repetido, avisa e volta a pedir outro — sem gravar nada. */
-  let sugestao = '';
-  let avisoNomeRepetido = '';
-  let payload = null;
-  for (;;) {
-    const nome = await appPrompt('Nome da nova versão:', {
-      title: 'Nova versão',
-      defaultValue: sugestao,
-      emptyMsg: 'Digite um nome para a versão.',
-      auxText: avisoNomeRepetido || undefined,
-    });
-    if (!nome) return;
-    try {
-      limparFlagsModoEdicaoMusica();
-
-      const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/criar-versao`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rotulo: nome }),
-      });
-      const resposta = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        if (resposta.codigo === ERRO_ROTULO_DUPLICADO_API) {
-          await appAlert(resposta.erro, 'Nome de versão repetido');
-          sugestao = nome;
-          avisoNomeRepetido = resposta.erro;
-          continue;
-        }
-        await appAlert(resposta.erro || `Não foi possível criar a versão (HTTP ${res.status}).`);
-        return;
-      }
-      payload = resposta;
-      break;
-    } catch (e) {
-      await appAlert(e?.message || 'Não foi possível criar a nova versão.');
-      return;
-    }
-  }
-
-  try {
-    const nova = payload.musica;
-    if (!nova || !Array.isArray(nova.estrofes)) throw new Error('Resposta inválida do servidor.');
-
-    musicaAtiva = nova;
-    musicaBancoFonte = 'user';
-    musicaVersaoLocalId = null;
-    musicaRootId = Number(nova.root_id ?? payload.rootId ?? idNum);
-    const et = document.getElementById('edit-titulo');
-    const ea = document.getElementById('edit-artista');
-    if (et) et.value = musicaAtiva.titulo || '';
-    if (ea) ea.value = musicaAtiva.artista || '';
-
-    estrofeAtiva = Math.min(
-      Math.max(estrofeAtiva < 0 ? 0 : estrofeAtiva, 0),
-      Math.max(0, musicaAtiva.estrofes.length - 1)
-    );
-    projecaoMusicaEmitidaNoServidor = false;
-    bloqueioSincronizarEstrofeDoServidor = true;
-    await carregarMusicas();
-    refreshListaBanco();
-    renderPlaylist();
-    await carregarVersoesMusicaServidor(musicaRootId);
-    renderEstrofesEditor();
-    renderSlidesStrip();
-    atualizarPreviewOperador();
-    marcacaoEstrofeEditor();
-
-    /* A cópia recém-criada abre na letra corrida, como uma música aberta do
-       banco — não na grade de edição por slides. `entrarModoLetraCompletaCentral`
-       já trata do layout, do snapshot e da barra de ações. */
-    entrarModoLetraCompletaCentral();
-  } catch (e) {
-    appAlert(e?.message || 'Não foi possível criar a nova versão.');
-  }
-}
-
-async function salvarMusicaServidor() {
-  if (!musicaAtiva) return;
-  const metadadosSujos = metadadosMusicaSujosNaHome();
-  if (!modoEdicaoEstrofes && !modoLetraCompletaCentral && !metadadosSujos) return;
-  if (musicaBancoFonte === 'catalog') {
-    await appAlert(
-      'Música do catálogo somente leitura: não é possível usar Salvar alterações. Importe a letra para o seu banco ou escolha uma música gravada neste servidor.'
-    );
-    return;
-  }
-  if (modoLetraCompletaCentral) sincronizarEstrofesDesdeTextareaLetraCompleta();
-  if (modoEdicaoEstrofes) aplicarSplitsEstrofesDosTextareasAntesDePersistir();
-
-  const vid =
-    musicaVersaoLocalId && ehVersaoLocalLegada(musicaVersaoLocalId)
-      ? String(musicaVersaoLocalId).trim()
-      : null;
-  const idNum = Number(musicaAtiva.id);
-
-  if (vid) {
-    const titulo = document.getElementById('edit-titulo').value.trim();
-    const artista = document.getElementById('edit-artista').value.trim();
-    const estrofesPayload = (musicaAtiva.estrofes || []).map((s) => String(s ?? ''));
-    const rootLegado = obterRootIdMusicaAtiva() ?? idNum;
-    const up = atualizarCopiaLocal(rootLegado, vid, { titulo, artista, estrofes: estrofesPayload });
-    if (!up.ok) {
-      await appAlert(up.erro || 'Não foi possível atualizar a cópia.');
-      return;
-    }
-    await carregarVersoesMusicaServidor(obterRootIdMusicaAtiva() ?? idNum);
-  } else {
-    const ok = await persistirMusicaAtivaNoServidor();
-    if (!ok) return;
-    return;
-  }
-
-  limparFlagsModoEdicaoMusica();
-  renderEstrofesEditor();
-  renderSlidesStrip();
-  atualizarPreviewOperador();
-  marcacaoEstrofeEditor();
-  atualizarToolbarModoEdicao();
-  renderMusicaVersoesBar();
-  refreshListaBanco();
-  renderPlaylist();
-}
+// (extraído) editor de estrofes → painel/editorEstrofes.js
+iniciarEditorEstrofes();
 
 /**
  * Estado de «há projeção alcançável», na barra do topo.
