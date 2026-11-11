@@ -1,0 +1,514 @@
+/**
+ * =============================================================================
+ * Lyra — Modo Claro (camada única de ajustes)
+ * =============================================================================
+ * O tema claro é o padrão do `:root` (controller.css); o escuro é `html.dark`.
+ * Várias folhas — sobretudo a Home v2 (home.css) — foram desenhadas contra o escuro e
+ * guardam cores escuras fixas (#141416, #1b1b1e, #2a2a2f, #f1efe9…) FORA de `html.dark`,
+ * por isso no claro apareciam painéis pretos com texto claro.
+ *
+ * Esta folha corrige isso num sítio só, carregada DEPOIS das outras, e TUDO aqui vive sob
+ * `html:not(.dark)`: o escuro nunca a lê. Não se edita regra do escuro para obter o claro.
+ *
+ * O que NÃO se toca: o conteúdo projetado. As prévias dos monitores (TV/Ministrante,
+ * `.preview-card-body`, `.pv-live-*`, `.op-*`), vídeo e o «slide preto» representam o que
+ * sai nos monitores e mantêm o fundo da própria projeção.
+ *
+ * Organização:
+ *   1. Fichas de cor do claro (variáveis)
+ *   2. Home v2 — cartões, barras, editor, letra completa, comparativo
+ *   3. Playlist, biblioteca, menus e dropdowns
+ *   4. Slides, Bíblia, Mídias, DOCS, Contador
+ *   5. Cabeçalho, modais, notificações e detalhes (foco, scrollbars)
+ * =============================================================================
+ */
+
+/* ── 1. Fichas de cor ─────────────────────────────────────────────────────── */
+html:not(.dark) {
+  --lm-page: #f5f3ee;        /* fundo da aplicação */
+  --lm-card: #ffffff;        /* cartões e painéis principais */
+  --lm-card-2: #faf8f4;      /* superfície interna (campos, cartões dentro de cartões) */
+  --lm-chip: #ebe8e2;        /* chips, pílulas, botões neutros */
+  --lm-chip-hover: #e2ded5;  /* hover de chip */
+  --lm-line: #d8d3c9;        /* bordas e divisórias */
+  --lm-line-strong: #bdb7aa; /* borda em hover/foco neutro */
+  --lm-ink: #1c1a17;         /* texto principal */
+  --lm-ink-2: #5d5a53;       /* texto secundário */
+  --lm-gold: #8b6225;        /* dourado legível sobre claro */
+  --lm-gold-soft: rgba(166, 124, 45, 0.14);
+  --lm-shadow: 0 1px 2px rgba(60, 50, 30, 0.06), 0 2px 8px rgba(60, 50, 30, 0.05);
+
+  /* Hierarquia de texto do escuro (principal #e8e5e0 / secundário #9a9690), em versão clara:
+     o claro tinha o secundário igual ao principal (preto), o que apagava a hierarquia. */
+  --text: var(--lm-ink);
+  --text-dim: var(--lm-ink-2);
+
+  /* Menu superior: o escuro usa UMA cor para todos os itens ativos (a mesma da Home). */
+  --nav-color-home: var(--lm-ink);
+  --nav-color-contador: var(--lm-ink);
+  --nav-color-biblia: var(--lm-ink);
+  --nav-color-slide: var(--lm-ink);
+  --nav-color-midias: var(--lm-ink);
+  --nav-color-docs: var(--lm-ink);
+  --nav-color-voz: var(--lm-ink);
+  --nav-color-ajustes: var(--lm-ink);
+}
+
+/* Fichas da Home (definidas no `body` em home.css com valores escuros). */
+html:not(.dark) body.home-layout-v2 {
+  --select-bg: rgba(166, 124, 45, 0.12);
+  --select-bd: rgba(166, 124, 45, 0.4);
+  --select-fg: #7a5a1f;
+  --select-bar: #a67c2d;
+  --select-row-bg: rgba(166, 124, 45, 0.1);
+  --select-view-bg: rgba(166, 124, 45, 0.16);
+  --cta-bg: #a67c2d;
+  --cta-bg-hover: #8f6a22;
+  --cta-fg: #ffffff;
+  --hdr: #6b675f;
+  --hdr-icon: #8a857b;
+  --letter: #7a766d;
+  --check: #8a857b;
+  --ui-text: var(--lm-ink);
+  --ui-dim: var(--lm-ink-2);
+  --ui-line: var(--lm-line);
+  --ui-chip: var(--lm-chip);
+}
+html:not(.dark) .home-layout-v2 { --lyrics-color: var(--lm-ink); }
+
+/* ── 1b. Espelho das regras exclusivas do escuro ──────────────────────────────
+   O escuro tem regras próprias (`html.dark …`) que definem estrutura e não só cor: pontinho
+   da versão ativa, visto no menu, peso 700 da aba ativa, barra lateral da biblioteca,
+   sublinhado 22×2 do menu, transições. No claro elas não existiam, e a interface divergia
+   em forma. Aqui estão repetidas com o mesmo conteúdo, trocando só os valores de cor
+   fixos pelos equivalentes claros. Gerado a partir dessas regras do escuro. */
+
+html:not(.dark) #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
+  color: color-mix(in srgb, var(--red) 72%, #000000);
+}
+
+html:not(.dark) .estrofe-slide-edit.ativa {
+  background: color-mix(in srgb, var(--surface) 52%, var(--surface2) 48%);
+}
+
+html:not(.dark) #slides-projecao-instrucoes kbd.slides-dock-kbd {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+html:not(.dark) .slide-chip:not(.slide-chip--preto) .slide-snippet {
+  color: color-mix(in srgb, var(--text) 78%, #000000 22%);
+}
+
+html:not(.dark) .home-search-tabs .btn[aria-pressed="true"], html:not(.dark) .home-view-tools .btn[aria-pressed="true"], html:not(.dark) .home-song-actions .btn.ativo {
+  color: var(--lm-gold);
+}
+
+html:not(.dark) body.home-layout-v2 .home-toolbar-card .home-versions-menu .btn.versao-chip::before {
+  content: none;
+  display: none;
+}
+
+html:not(.dark) body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .sidebar-title > span {
+  color: var(--hdr);
+}
+
+html:not(.dark) .hdr-btn-round::after {
+  width: 22px;
+  height: 2px;
+  background: var(--select-bar);
+}
+
+html:not(.dark) body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label) {
+  color: var(--hdr);
+}
+
+html:not(.dark) body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label)::before {
+  background-color: var(--hdr-icon);
+}
+
+html:not(.dark) body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) {
+  .hdr-action--home .hdr-btn-round {
+    color: var(--ui-text);
+  }
+  .hdr-action--home .hdr-btn-round::after {
+    width: 22px;
+    height: 2px;
+    background: var(--select-bar);
+  }
+  .home-search-tabs .btn {
+    color: var(--ui-dim);
+    transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+  }
+  .home-search-tabs .btn:hover:not([aria-pressed="true"]):not(:disabled) {
+    color: var(--ui-text);
+  }
+  .home-search-tabs .btn[aria-pressed="true"] {
+    color: var(--select-fg);
+    font-weight: 700;
+  }
+  .home-search-pill {
+    border-color: var(--select-bd);
+    background: var(--select-bg);
+  }
+  .home-search-tabs .btn:focus-visible, .home-search-tabs .btn[aria-pressed="true"]:focus-visible {
+    outline: 1px solid var(--select-bar);
+    outline-offset: 1px;
+  }
+  .sidebar-title, .panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label {
+    color: var(--hdr);
+  }
+  .sidebar-title svg {
+    color: var(--hdr-icon);
+  }
+  .playlist-panel-head-titulo::before, .playlist-lista-head-titulo::before, .culto-ministrante-label::before, .playlist-tema-label::before {
+    background-color: var(--hdr-icon);
+  }
+  .bib-total-contagem {
+    background: var(--lm-chip);
+    color: var(--ui-dim);
+  }
+  .bib-grupo-letra {
+    color: var(--letter);
+  }
+  .lista-sqlite .item:hover::before, .lista-sqlite .item:focus::before, .lista-sqlite .item:focus-visible::before {
+    border-left-color: transparent;
+  }
+  .lista-sqlite .item.ativo::before {
+    background: var(--select-row-bg);
+    border-left-color: transparent;
+    box-shadow: none;
+  }
+  .lista-sqlite .item.ativo::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--select-bar);
+    pointer-events: none;
+  }
+  .bib-check, .bib-add {
+    color: var(--check);
+  }
+  .bib-add:hover {
+    color: var(--ui-text);
+  }
+  .banco-filtros-checks input[type="checkbox"] {
+    accent-color: var(--lm-line-strong);
+  }
+  .home-song-actions #btn-adicionar-playlist-home, .home-song-edit-actions #btn-salvar-musica:not(:disabled) {
+    background: var(--cta-bg);
+    border: 1px solid var(--cta-bg);
+    color: var(--cta-fg);
+    transition: background-color .15s ease, border-color .15s ease;
+  }
+  .home-song-actions #btn-adicionar-playlist-home:hover:not(:disabled), .home-song-edit-actions #btn-salvar-musica:not(:disabled):hover {
+    background: var(--cta-bg-hover);
+    border-color: var(--cta-bg-hover);
+    filter: none;
+  }
+  .home-song-edit-actions #btn-salvar-musica:disabled {
+    background: var(--ui-chip);
+    border-color: var(--ui-line);
+    color: var(--ui-dim);
+    cursor: not-allowed;
+    opacity: 1;
+  }
+  .home-song-actions #btn-editar-letra {
+    background: transparent;
+    border: 1px solid var(--lm-line-strong);
+    color: var(--lm-ink);
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .home-song-actions #btn-editar-letra:hover:not(:disabled) {
+    background: transparent;
+    border-color: var(--lm-line-strong);
+  }
+  .home-toolbar-card #musica-versoes-bar .versao-chip:not(.versao-musica-ativa):not(.versao-nova-chip) {
+    background: var(--ui-chip);
+    border-color: var(--ui-line);
+    color: var(--ui-text);
+  }
+  .home-toolbar-card #musica-versoes-bar .btn, .home-toolbar-card .home-other-versions summary {
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .home-toolbar-card #musica-versoes-bar .versao-musica-ativa, .home-toolbar-card .home-other-versions summary.versao-musica-ativa {
+    background: var(--select-bg);
+    border: 1px solid var(--select-bd);
+    color: var(--select-fg);
+  }
+  .home-toolbar-card #musica-versoes-bar .versao-musica-ativa::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--select-bar);
+    flex: none;
+  }
+  .home-other-versions[open] > summary, .home-other-versions[open] > summary:focus, .home-other-versions[open] > summary:focus-visible {
+    border-color: var(--lm-line-strong);
+    color: var(--ui-text);
+  }
+  .home-other-versions[open] > summary.versao-musica-ativa, .home-other-versions[open] > summary.versao-musica-ativa:focus-visible {
+    border-color: var(--select-bd);
+    color: var(--select-fg);
+  }
+  .home-versions-menu .btn.versao-chip.versao-musica-ativa {
+    background: var(--select-bg);
+    color: var(--select-fg);
+  }
+  .home-versions-menu .btn.versao-chip.versao-musica-ativa::after {
+    content: "\2713";
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    background: none;
+    font-size: var(--fs-200);
+    line-height: 1;
+    color: var(--select-fg);
+  }
+  .home-versions-menu .btn.versao-chip:focus-visible {
+    outline: 1px solid var(--select-bar);
+  }
+  .home-toolbar-card .home-view-segment .btn {
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .home-toolbar-card .home-view-segment .btn[aria-pressed="true"], .home-toolbar-card .home-view-segment .btn.ativo, .home-toolbar-card .home-view-segment #btn-toggle-playlist-preview[aria-pressed="true"] {
+    background: var(--select-view-bg);
+    color: var(--select-fg);
+    border: 0;
+  }
+  .home-toolbar-card .home-view-segment .btn:not([aria-pressed="true"]):not(.ativo):hover:not(:disabled) {
+    background: var(--lm-chip-hover);
+    color: var(--ui-text);
+  }
+  #sidebar-title-sqlite > span:first-of-type {
+    color: var(--ui-text, var(--lm-ink));
+    font-weight: 700;
+    font-size: var(--fs-600);
+  }
+  #sidebar-title-sqlite .bib-total-contagem {
+    background: var(--lm-chip-hover);
+    border-color: var(--lm-line-strong);
+    color: var(--lm-ink);
+    font-size: var(--fs-200);
+    font-weight: 500;
+    padding: 2px 10px;
+  }
+}
+
+/* ── 2. Home v2 ───────────────────────────────────────────────────────────── */
+html:not(.dark) .home-layout-v2 .centro-toolbar.home-toolbar-card,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor.estrofes-modo-edicao,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao):not(.estrofes-slide-editor--vazio),
+html:not(.dark) .home-layout-v2 .centro-letra-completa-wrap,
+html:not(.dark) .home-layout-v2 .centro-comparativo-wrap {
+  background: var(--lm-card);
+  border: 1px solid var(--lm-line);
+  box-shadow: var(--lm-shadow);
+  color: var(--lm-ink);
+}
+html:not(.dark) .home-layout-v2 .centro-toolbar.home-toolbar-card { box-shadow: var(--lm-shadow); }
+
+/* Texto principal da barra e do editor. */
+html:not(.dark) .home-toolbar-card .home-song-heading:not(.is-editing) .home-song-title,
+html:not(.dark) .home-toolbar-editing .home-song-title,
+html:not(.dark) .home-toolbar-editing .home-song-copy .home-song-title-input,
+html:not(.dark) .home-toolbar-editing .home-song-copy .home-field .home-meta-input,
+html:not(.dark) .home-toolbar-editing .home-song-edit-actions .btn,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-ta,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor:not(.estrofes-modo-edicao) .estrofe-slide-view-body,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-num-big,
+html:not(.dark) .home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta,
+html:not(.dark) .home-layout-v2 .centro-letra-completa-hint strong,
+html:not(.dark) .home-layout-v2 .centro-comparativo-hint strong,
+html:not(.dark) .home-layout-v2 .centro-comparativo-col-rotulo,
+html:not(.dark) .home-layout-v2 .centro-comparativo-resumo,
+html:not(.dark) .cmp-chip { color: var(--lm-ink); }
+html:not(.dark) .home-layout-v2 .centro-comparativo-hint,
+html:not(.dark) .home-layout-v2 .centro-comparativo-hint-ico,
+html:not(.dark) .home-layout-v2 .centro-comparativo-legenda,
+html:not(.dark) .home-layout-v2 .centro-comparativo-col-selo { color: var(--lm-ink-2); }
+html:not(.dark) .home-layout-v2 .centro-comparativo-hint-ico { stroke: var(--lm-ink-2); }
+html:not(.dark) .home-toolbar-editing .home-dirty { color: var(--lm-gold); }
+
+/* Divisórias e bordas neutras. */
+html:not(.dark) .home-toolbar-card .home-versions-row,
+html:not(.dark) .home-toolbar-editing .home-song-copy .home-song-title-input,
+html:not(.dark) .home-toolbar-editing .home-song-copy .home-field .home-meta-input,
+html:not(.dark) .home-song-copy .home-field .home-meta-input,
+html:not(.dark) .home-layout-v2 .centro-letra-completa-editor .centro-letra-completa-ta { border-color: var(--lm-line); }
+
+/* Campos e superfícies internas. */
+html:not(.dark) .home-song-copy .home-field .home-meta-input,
+html:not(.dark) .home-toolbar-editing .home-song-copy .home-field .home-meta-input,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit.ativa,
+html:not(.dark) .home-layout-v2 .centro-letra-completa-guias,
+html:not(.dark) .home-layout-v2 .centro-letra-completa-editor,
+html:not(.dark) .home-layout-v2 .centro-comparativo-editor {
+  background: var(--lm-card-2);
+  border-color: var(--lm-line);
+}
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit:hover,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit.ativa:hover { border-color: var(--lm-line-strong); }
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit.ativa {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--lm-card));
+}
+
+/* Números, chips e etiquetas. */
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-num-big,
+html:not(.dark) .centro-letra-completa-estrofe-num,
+html:not(.dark) .home-layout-v2 .centro-comparativo-col-selo,
+html:not(.dark) .cmp-chip {
+  background: var(--lm-chip);
+  border-color: var(--lm-line);
+}
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit:focus-within .estrofe-num-big,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .estrofe-slide-edit.ativa .estrofe-num-big,
+html:not(.dark) .centro-letra-completa-estrofe-num.ativa,
+html:not(.dark) .home-layout-v2 #estrofes-slide-editor .btn-estrofe-quick:hover:not(:disabled) { color: var(--lm-gold); }
+
+/* Barra de versões e seletor de modo de visualização. */
+html:not(.dark) .home-layout-v2 .home-toolbar-card #musica-versoes-bar .btn,
+html:not(.dark) .home-toolbar-card .home-other-versions summary {
+  background: var(--lm-chip);
+  border-color: var(--lm-line);
+  color: var(--lm-ink);
+}
+html:not(.dark) .home-toolbar-card .home-other-versions summary::after { color: var(--lm-ink); }
+html:not(.dark) .home-layout-v2 .home-toolbar-card #musica-versoes-bar .versao-nova-chip {
+  background: transparent;
+  border: 1px dashed var(--lm-line-strong);
+}
+html:not(.dark) .home-toolbar-card #musica-versoes-bar .versao-musica-ativa,
+html:not(.dark) .home-toolbar-card .home-other-versions summary.versao-musica-ativa {
+  background: var(--select-bg);
+  border-color: var(--select-bd);
+  color: var(--select-fg);
+}
+html:not(.dark) .home-toolbar-card .home-view-segment { background: var(--lm-chip); border-color: var(--lm-line); }
+html:not(.dark) .home-toolbar-card .home-view-segment .btn { color: var(--lm-ink-2); }
+html:not(.dark) .home-toolbar-card .home-view-segment .btn:hover:not(:disabled) { background: var(--lm-chip-hover); color: var(--lm-ink); }
+html:not(.dark) .home-toolbar-card .home-view-segment .btn[aria-pressed="true"],
+html:not(.dark) .home-toolbar-card .home-view-segment .btn.ativo,
+html:not(.dark) .home-toolbar-card .home-view-segment #btn-toggle-playlist-preview[aria-pressed="true"] {
+  background: var(--lm-card);
+  color: var(--lm-gold);
+  box-shadow: 0 0 0 1px var(--select-bd), var(--lm-shadow);
+}
+html:not(.dark) .home-toolbar-card .home-view-sep,
+html:not(.dark) .home-toolbar-card .home-view-tools #btn-apagar-copia-versao::before { background: var(--lm-line); }
+html:not(.dark) .home-view-label { color: var(--lm-ink-2); }
+
+/* Botões de ação (Editar, Adicionar à playlist, Salvar/Cancelar). */
+html:not(.dark) .home-toolbar-card .home-song-actions #btn-editar-letra { color: var(--lm-gold); border-color: var(--select-bd); background: transparent; }
+html:not(.dark) .home-song-actions #btn-adicionar-playlist-home,
+html:not(.dark) .home-toolbar-card .home-song-actions #btn-adicionar-playlist-home,
+html:not(.dark) .home-song-edit-actions #btn-salvar-musica:not(:disabled),
+html:not(.dark) .home-toolbar-editing .home-song-edit-actions #btn-salvar-musica:not(:disabled) { color: #ffffff; }
+html:not(.dark) .home-song-edit-actions #btn-salvar-musica:disabled,
+html:not(.dark) .home-toolbar-editing .home-song-edit-actions #btn-salvar-musica:disabled {
+  background: var(--lm-chip); border-color: var(--lm-line); color: var(--lm-ink-2); opacity: 1;
+}
+html:not(.dark) .home-toolbar-editing .home-song-edit-actions .btn { background: var(--lm-chip); border-color: var(--lm-line); }
+
+/* Menu «Outras versões». */
+html:not(.dark) .home-versions-menu { background: var(--lm-card); border: 1px solid var(--lm-line); box-shadow: 0 8px 24px rgba(60, 50, 30, 0.14); }
+html:not(.dark) .home-versions-menu .btn.versao-chip:hover,
+html:not(.dark) .home-versions-menu .btn.versao-chip:focus-visible { background: var(--lm-chip); }
+
+/* Rolagem das áreas de texto. */
+html:not(.dark) .home-layout-v2 .centro-letra-completa-ta::-webkit-scrollbar-thumb,
+html:not(.dark) .home-layout-v2 .centro-comparativo-ta::-webkit-scrollbar-thumb { background: var(--lm-line-strong); }
+
+/* Abas Biblioteca | Online. */
+html:not(.dark) .home-layout-v2 .home-search-tabs { background: var(--lm-chip); border-color: var(--lm-line); }
+
+/* ── 3. Playlist, biblioteca, menus ───────────────────────────────────────── */
+html:not(.dark) body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { border-top-color: var(--lm-line); }
+html:not(.dark) body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .pl-sel-tom { background: var(--lm-chip); color: var(--lm-ink); }
+html:not(.dark) body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .pl-sel-tom:hover { background: var(--lm-chip-hover); }
+html:not(.dark) body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) .culto-adicionar-btn:hover,
+html:not(.dark) .playlist-momento-add:hover,
+html:not(.dark) .playlist-momento-add[aria-expanded="true"],
+html:not(.dark) .home-library-footer .banco-nova-manual-wrap .btn-nova-manual:hover { border-color: var(--lm-line-strong); color: var(--lm-ink); }
+html:not(.dark) .playlist-momento-add,
+html:not(.dark) .home-library-footer .banco-nova-manual-wrap .btn-nova-manual { border-color: var(--lm-line-strong); }
+html:not(.dark) .menu-flutuante-item-mais:hover,
+html:not(.dark) .menu-flutuante-item-mais:focus-visible { background: var(--lm-chip); }
+html:not(.dark) .pl-sel option,
+html:not(.dark) .pl-sel optgroup { background-color: var(--lm-card); color: var(--lm-ink); }
+html:not(.dark) .menu-flutuante-item--perigo:hover,
+html:not(.dark) .menu-flutuante-item--perigo:focus-visible { color: #8f221b; background: rgba(176, 48, 40, 0.1); }
+
+/* ── 4. Slides, Bíblia, Mídias, DOCS, Contador ───────────────────────────── */
+/* Moldura dos cartões de monitor: neutra e clara; o CORPO (a tela) mantém o preto da projeção. */
+html:not(.dark) .preview-card--dual-screen { background: var(--lm-card); border-color: var(--lm-line); }
+html:not(.dark) .preview-card--dual-screen .preview-card-head { background: var(--lm-chip); border-bottom-color: var(--lm-line); color: var(--lm-ink); }
+html:not(.dark) body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item .preview-card-body { border-color: var(--lm-line); }
+html:not(.dark) .btn.preview-painel-toggle-icon { border-color: var(--lm-line-strong); }
+html:not(.dark) body.app-mod-slides .slides-dock-bar-left #slides-musica-nome { color: var(--lm-ink); }
+/* Controle deslizante dos Ajustes: era uma caixa preta fixa. */
+html:not(.dark) .slider-com-edicao {
+  --sce-bg: var(--lm-card-2);
+  --sce-trilha: #cfc9bc;
+  --sce-marca: #a67c2d;
+  --sce-unid: #6b675f;
+  box-shadow: inset 0 0 0 1px var(--lm-line); /* sem `border`: a caixa não muda de tamanho */
+}
+html:not(.dark) .slider-com-edicao .sce-valor-btn,
+html:not(.dark) .slider-com-edicao .sce-valor-input { background: var(--lm-card); color: var(--lm-ink); border-color: var(--lm-line); }
+html:not(.dark) .slider-com-edicao .sce-valor-btn:hover { border-color: var(--lm-line-strong); }
+html:not(.dark) .slider-com-edicao .sce-label { color: var(--lm-ink); }
+
+/* Mídias: cartão de aviso e campos de texto da interface. */
+html:not(.dark) .ap-card.ap-card--aviso,
+html:not(.dark) .ap-card.ap-card--aviso.ap-card--selecionado:not(.ap-card--projetando) { background: var(--lm-card); border-color: var(--lm-line); }
+html:not(.dark) .ap-card.ap-card--aviso.ap-card--selecionado:not(.ap-card--projetando) { background: color-mix(in srgb, var(--accent) 8%, var(--lm-card)); }
+html:not(.dark) .ap-card6-aviso-textarea,
+html:not(.dark) .ap-card.ap-card--aviso .ap-card6-aviso-textarea { background: var(--lm-card-2); color: var(--lm-ink); box-shadow: inset 0 0 0 1px var(--lm-line); }
+html:not(.dark) .ap-card.ap-card--video { background: var(--lm-card); }
+html:not(.dark) .ap-quad-remove { background: var(--lm-chip); }
+html:not(.dark) .ap-switch { background: var(--lm-chip); }
+html:not(.dark) .ap-card-remove:hover { color: #b03028; }
+html:not(.dark) .ap-card.ap-card--aviso .ap-card6-footer .ap-card6-btn-encerrar:not(:disabled):hover { color: #ffffff; }
+
+/* Bíblia: popup de navegação, livros e versículos. */
+html:not(.dark) .biblia-nav-popup,
+html:not(.dark) .bnp-overlay-lista { background: var(--lm-card); border-color: var(--lm-line); box-shadow: 0 10px 28px rgba(60, 50, 30, 0.16); }
+html:not(.dark) .bnp-item { color: var(--lm-ink); border-bottom-color: var(--lm-line); }
+html:not(.dark) .bnp-item:hover,
+html:not(.dark) .bnp-item.focado { background: var(--lm-chip); }
+html:not(.dark) .bnp-campo { color: var(--lm-ink); }
+html:not(.dark) .biblia-v-num { color: var(--lm-gold); }
+
+/* ── 5. Cabeçalho, avisos, modais ─────────────────────────────────────────── */
+html:not(.dark) .hdr-projecao-pill { background: var(--lm-card); }
+html:not(.dark) .hdr-projecao-nome { color: var(--lm-ink-2); }
+html:not(.dark) .route-dd.route-dd--rota-desativada .route-dd-btn,
+html:not(.dark) .hdr-monitores-aviso,
+html:not(.dark) .indicador-live-obs { color: #a8590a; }
+html:not(.dark) .hdr-encerrar-projecao-btn { color: #b03028; }
+html:not(.dark) .hdr-encerrar-projecao-btn:hover { color: #8f221b; }
+html:not(.dark) .hdr-encerrar-projecao-btn:disabled,
+html:not(.dark) .hdr-encerrar-projecao-btn:disabled:hover { color: var(--lm-ink-2); }
+html:not(.dark) .contagem-monitor-select.sem-monitor,
+html:not(.dark) .contagem-acoes .contagem-acao-encerrar:not(:disabled) { color: #b03028; }
+html:not(.dark) .letras-preview-aviso { color: #8a5a00; }
+html:not(.dark) .cfg-modal-overlay,
+html:not(.dark) .app-dialog-overlay,
+html:not(.dark) .confirmar-import-backdrop,
+html:not(.dark) .conflito-import-backdrop,
+html:not(.dark) .slide-quick-edit-backdrop { background: rgba(40, 34, 24, 0.42); }
+html:not(.dark) .lyra-menu-modal-overlay { background: rgba(40, 34, 24, 0.42); }
+
+/* Linhas finas que eram «branco a 6–12 %» sobre o escuro e somem no claro: mesma espessura,
+   tom escuro equivalente. */
+html:not(.dark) .home-layout-v2 .centro-letra-completa-guia { background: rgba(60, 50, 30, 0.16); }
+html:not(.dark) .home-layout-v2 .centro-letra-completa-guia.oculta { background: transparent; }
+html:not(.dark) .biblia-legenda-swatch { border-color: rgba(60, 50, 30, 0.22); }

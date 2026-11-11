@@ -178,6 +178,17 @@ export function montarHomeLayout(actions) {
   views.append($('btn-modo-letra-completa'), $('btn-modo-comparativo'));
   sep();
   views.append($('btn-caixa-letras-edicao'));
+  // Nome do modo de visualização ativo, sob o seletor (só Grade / Letra completa / Comparar versões).
+  const viewLabel = element('span', 'home-view-label', views);
+  viewLabel.setAttribute('aria-live', 'polite');
+  // O nome fica centrado sob o botão do modo a que se refere.
+  const alinharViewLabel = (botao) => {
+    requestAnimationFrame(() => {
+      if (!botao || !botao.offsetWidth) { viewLabel.style.visibility = 'hidden'; return; }
+      viewLabel.style.left = `${botao.offsetLeft + botao.offsetWidth / 2}px`;
+      viewLabel.style.visibility = '';
+    });
+  };
   $('btn-modo-letra-completa').onclick = () => actions.letraCompleta();
   $('btn-nova-estrofe').classList.add('home-slide-vazio-oculto');
   tools.append($('btn-apagar-copia-versao'));
@@ -308,6 +319,8 @@ export function montarHomeLayout(actions) {
       artist.textContent = state.title ? (state.artist || 'Sem artista') : 'Biblioteca e playlist do culto';
       count.textContent = state.title ? `${state.slides} slides` : '';
       cards.disabled = !state.title;
+      viewLabel.textContent = !state.title ? '' : state.comparison ? 'Comparar versões' : state.full ? 'Letra completa' : 'Grade';
+      alinharViewLabel(state.comparison ? $('btn-modo-comparativo') : state.full ? $('btn-modo-letra-completa') : cards);
       cards.setAttribute('aria-pressed', String(!state.full && !state.comparison));
       $('btn-editar-letra').classList.toggle('ativo', state.full);
       editActions.hidden = !state.editing;

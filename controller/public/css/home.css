@@ -161,7 +161,9 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 .home-layout-v2 #musica-versoes-bar .versao-nova-chip svg { width: 14px; height: 14px; stroke-width: 2.4; }
 
 /* ── Grupo segmentado único: Prévia | visualizações | aA ── */
-.home-view-segment { display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.home-view-segment { position: relative; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+/* Rótulo do modo ativo: ocupa o respiro de baixo da barra, sem aumentar a altura dela. */
+.home-view-label { position: absolute; top: calc(100% + 6px); left: 0; transform: translateX(-50%); text-align: center; font-size: 11px; line-height: 12px; color: #fff; pointer-events: none; white-space: nowrap; }
 .home-view-segment .btn { height: 34px; min-height: 34px; min-width: 34px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); font-size: var(--fs-300); font-weight: 500; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: none; }
 .home-view-segment .btn:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .home-view-segment .btn[aria-pressed="true"],
