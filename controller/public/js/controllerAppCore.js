@@ -90,6 +90,11 @@
  *   canaisProjecao.js — canais de projeção: ocupação por Mídias/Bíblia, classificação da saída por monitor e prévias dos monitores virtuais (Slides)
  *   menuApresentacaoModo.js — menu do modo Mídias e encerramento da projeção de mídia/aviso
  *   modoSlidesOperador.js — alternância do modo Slides do operador (limpeza de espelho/UI) e callbacks expostos ao HTML
+ *   roteamentoTelasUi.js — seletores de roteamento de telas do cabeçalho (menus, rótulos de monitor, estado desativado, aplicar rota)
+ *   slidesRailLayout.js — altura da faixa de slides e da prévia (limites, persistência, redimensionamento por arraste)
+ *   temasPlaylistUi.js — temas da playlist na interface: seletor, dropdowns «Lyra select», excluir/selecionar tema
+ *   playlistServidor.js — playlists: envio ao servidor, emissão na rede, gravação local, remoção de música/versão e seleção na interface
+ *   playlistLinhaUi.js — playlist: rótulos de versão na linha, rolagem até a música ativa e ligação dos botões/seletores da linha
  * =============================================================================
  */
 
@@ -97,9 +102,6 @@ import { montarHomeLayout } from './painel/homeLayout.js';
 
 import {
   LS_UI_MODO_SLIDES,
-  LS_PLAYLISTS,
-  TEMA_PADRAO_ABERTURA,
-  PLAYLIST_TIPO_MARCADOR_TEMA,
   LS_IP_KEY,
   LS_IP_LEGACY,
   LS_IP_LEMBRAR,
@@ -115,13 +117,6 @@ import {
   parseLabelCulto,
 } from './modules/cultosCalendario.js';
 import {
-  versaoLocalIdTrimado,
-  fonteBancoNormalizada,
-  fonteBancoItemPlaylist,
-  ehMarcadorTemaPlaylist,
-  playlistItemMesmaVersaoQueRaiz,
-} from './modules/playlistVersaoMusica.js';
-import {
   normalizarFonteLetrasSite,
   placeholderBuscaLetrasPorFonte,
 } from './modules/fonteLetrasSite.js';
@@ -131,9 +126,6 @@ import {
 import {
   clonarCfgAvisoCard6Padrao,
 } from './modules/midiaApresentacao.js';
-import {
-  registrarEscolhaSeletorUnificado,
-} from './modules/ordemNaoExibirUnificado.js';
 import {
   definirLembrarMonitor,
 } from './modules/monitorLembrado.js';
@@ -146,10 +138,6 @@ import {
   COR_COMENTARIO_MINISTRANTE_PADRAO,
 } from './modules/comentariosSlide.js';
 import { iniciarDicasDeTextoTruncado } from './modules/dicaTexto.js';
-import {
-  normalizarMinistranteIdPlaylist,
-  normalizarTomPlaylist,
-} from './modules/playlistMinistranteTom.js';
 
 migrarChavesLegadoLocalStorage();
 import { escapeHtml } from './painel/textoHtmlSeguro.js';
@@ -243,7 +231,6 @@ import {
   setSpanText,
 } from './painel/configExibicao.js';
 import {
-  BIB_ORIGEM_META,
   carregarMusicas,
   configurarBarraSelecaoBiblioteca,
   configurarModalNovaMusicaManual,
@@ -288,25 +275,16 @@ import {
   sincronizarFlagCaixaLetrasComTextoAtual,
 } from './painel/editorEstrofes.js';
 import {
-  filtrarPlaylistRemovendoTemaComMarcadores,
   garantirAberturaNoCatalogoCulto,
   garantirMarcadorAberturaNaPlaylist,
-  getTemasDoCultoAtual,
   loadAberturaRemovidaPorCulto,
   loadMinistrantePadraoPorCulto,
   loadPlaylists,
   loadTemaSelecionadoPorCulto,
   loadTemasPorCulto,
-  marcarAberturaRemovidaPeloUsuario,
-  normalizarListaTemas,
   normalizarTemaPlaylist,
-  ordenarTemasLista,
-  persistirMinistrantePadraoNoLocalStorage,
-  playlistPossuiMarcadoresTema,
   podarMinistrantePadraoSemMusicasNaPlaylist,
   registrarDependenciasPlaylistTemas,
-  saveTemaSelecionadoPorCulto,
-  saveTemasPorCulto,
   setAberturaRemovidaPorCulto,
   setMinistrantePadraoPorCulto,
 } from './painel/playlistTemas.js';
@@ -345,30 +323,24 @@ import {
 } from './painel/playlistCompartilhar.js';
 import {
   aplicarSnapshotCompartilhadoNoRenderer,
-  getEnviarPlaylistsServidorTimer,
   getModalSincronizarTimerAutoFechar,
   marcarBancoCompartilhadoAlterado,
   recuperarPedidoSyncBancoPendente,
   registrarDependenciasSincronizacaoBanco,
-  setEnviarPlaylistsServidorTimer,
   setSharedBancoLocalUpdatedAt,
   tratarPedidoSyncBancoDirecto,
 } from './painel/sincronizacaoBanco.js';
 import {
-  deselecionarMusicaAtivaAPartirDaPlaylist,
-  playlistItemSelecionadoNaUi,
   registrarDependenciasPlaylistTransmitidas,
 } from './painel/playlistTransmitidas.js';
 import {
   garantirMinistrantesCarregados,
   iniciarSyncPeriodicoTonsInvb,
   nomeMinistrantePorId,
-  onPlaylistTomChange,
   registrarDependenciasMinistrantesTons,
   renderListaCfgMinistrantes,
 } from './painel/ministrantesTons.js';
 import {
-  configurarDragReordenarLinhaPlaylist,
   preferenciaMovimentoReduzido,
   registrarDependenciasPlaylistLista,
   renderPlaylist,
@@ -383,7 +355,6 @@ import {
   SVG_MENU_EDITAR,
   SVG_MENU_EXCLUIR,
   SVG_MENU_INSERIR,
-  abrirMenuAcoesLinhaPlaylist,
   configurarAcoesPlaylist,
   configurarMenuMomentoPlaylist,
   configurarModalSyncPlaylist,
@@ -524,7 +495,6 @@ import {
 import {
   controladorSomenteLeitura,
   iniciarEventosProjecao,
-  playlistDuploCliqueIniciarProjecao,
   registrarDependenciasEventosProjecao,
   socketPainel,
 } from './painel/eventosProjecao.js';
@@ -570,10 +540,7 @@ import {
   obterAlvoProjecaoDeRota,
   obterAlvoProjecaoModoApresentacao,
   obterRotaApresentacaoParaServidor,
-  opcoesRoteamentoUnificadoModoApresentacao,
-  opcoesSeletorCabecalhoDoModoAtual,
   projetarAvisoCard6,
-  reemitirConteudoAposMudancaDeRotaUnificada,
   registrarDependenciasConteudoUnificadoAviso,
   rotaSlidesAoEntrarNoModo,
   salvarAvisoCard6CfgNoStorage,
@@ -596,13 +563,10 @@ import {
   marcarRotaLiveNoDom,
   modoComMemoriaMonitorAtual,
   modoRoteamentoAtual,
-  modoUsaSeletorMonitorUnificado,
   normalizarRota,
   persistirIdentidadesDosModos,
   registrarDependenciasRotasMonitores,
-  registrarEscolhaMonitorDoOperador,
   rotaDesativada,
-  rotaLiveSelecionadaNaUi,
   rotaRestauradaPorIdentidade,
   rotaSemMonitorRepetido,
   salvarRotasPorModoNoStorage,
@@ -616,10 +580,6 @@ import {
   atualizarPreviewMonitorMinistranteSlides,
   atualizarPreviewMonitorPublicoSlides,
   atualizarPreviewsMonitoresVirtuaisModoSlides,
-  bibliaProjecaoAtivaNoCanalMinistrante,
-  bibliaProjecaoAtivaNoCanalPublico,
-  canalMinistranteOcupadoPorOutroModoNoSlides,
-  canalPublicoOcupadoPorOutroModoNoSlides,
   classificarSaidaMonitorMinistranteSlides,
   classificarSaidaMonitorPublicoSlides,
   estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
@@ -647,6 +607,65 @@ import {
   limparUiAoSairDoModoSlides,
   registrarDependenciasModoSlidesOperador,
 } from './painel/modoSlidesOperador.js';
+import {
+  aplicarRotaDoModoAtualNaUiEServidor,
+  atualizarEstiloRotasDesativadas,
+  avisarMonitoresConfiguradosEmFalta,
+  fecharMenusRoteamentoTelas,
+  impedirSelecaoDeTextoNoDuploClique,
+  indiceRoteamentoMonitorNaUi,
+  montarLabelMonitor,
+  montarTitleMonitor,
+  registrarDependenciasRoteamentoTelasUi,
+  renderRoteamentoTelas,
+  rotaSelecionadaNaUi,
+  rotuloRotaApresentacaoForaDoPreset,
+  setupMenusRoteamentoTelas,
+} from './painel/roteamentoTelasUi.js';
+import {
+  alturaPreviewModAtualPx,
+  aplicarAlturaPreviewMod,
+  clampSlidesRailHeight,
+  initAlturaPreviewModFromStorage,
+  initSlidesRailHeightFromStorage,
+  registrarDependenciasSlidesRailLayout,
+  setupSlidesRailResize,
+} from './painel/slidesRailLayout.js';
+import {
+  excluirTemaDoCulto,
+  fecharOutrosSeletoresDropdown,
+  getTemaSelecionadoAtual,
+  obterTemasDisponiveisPlaylist,
+  playlistAtualJaTemTema,
+  registrarDependenciasTemasPlaylistUi,
+  renderItensLyraSelectDropdown,
+  renderSeletorTemasPlaylist,
+  setTemaSelecionadoAtual,
+  setupLyraSelectDropdownWrap,
+} from './painel/temasPlaylistUi.js';
+import {
+  aplicarSelecaoUiBiblioteca,
+  aplicarSelecaoUiPlaylist,
+  atualizarRotuloVersaoNasPlaylists,
+  emitirPlaylistsDoControlador,
+  enviarPlaylistsParaServidor,
+  getPlaylist,
+  indiceProximaMusicaNaPlaylist,
+  playlistItemMesmaVersaoQueAtiva,
+  playlistItemMesmaVersaoQueSelecaoUi,
+  registrarDependenciasPlaylistServidor,
+  removerMusicaDeTodasPlaylists,
+  removerVersaoLocalDasPlaylists,
+  repontarVersaoNaPlaylistDoCulto,
+  savePlaylists,
+} from './painel/playlistServidor.js';
+import {
+  formatarRotuloVersaoExibicao,
+  garantirMusicaAtivaVisivelNaPlaylist,
+  ligarBotoesESeletoresLinhaPlaylist,
+  rotuloVersaoMaiusculo,
+  sufixoRotuloVersaoPlaylist,
+} from './painel/playlistLinhaUi.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -2055,7 +2074,43 @@ registrarDependenciasModoSlidesOperador({
     slidesRailUserRecolhido = valor;
   },
 });
-
+registrarDependenciasRoteamentoTelasUi({
+  ehModoSlidesOperador,
+  fecharOutrosSeletoresDropdown,
+  getMonitoresServidorCache: () => monitoresServidorCache,
+  getRotasPorModo: () => rotasPorModo,
+});
+registrarDependenciasSlidesRailLayout({
+  ehModoSlidesOperador,
+  getSlidesRailDrag: () => slidesRailDrag,
+});
+registrarDependenciasTemasPlaylistUi({
+  fecharMenuOverflowPlaylist,
+  getPlaylist,
+  playlistItemMesmaVersaoQueAtiva,
+  savePlaylists,
+  getCultoId: () => cultoId,
+  getMusicaAtiva: () => musicaAtiva,
+  getPlaylists: () => playlists,
+  getTemaSelecionadoPorCulto: () => temaSelecionadoPorCulto,
+  getTemasPorCulto: () => temasPorCulto,
+});
+registrarDependenciasPlaylistServidor({
+  getControllerApiBase,
+  hostProjecao,
+  getMusicaAtiva: () => musicaAtiva,
+  getMusicaBancoFonte: () => musicaBancoFonte,
+  getPlaylists: () => playlists,
+  getProjecao: () => projecao,
+  getSelecaoUiBiblioteca: () => selecaoUiBiblioteca,
+  setSelecaoUiBiblioteca: (valor) => {
+    selecaoUiBiblioteca = valor;
+  },
+  getSelecaoUiPlaylist: () => selecaoUiPlaylist,
+  setSelecaoUiPlaylist: (valor) => {
+    selecaoUiPlaylist = valor;
+  },
+});
 /**
  * Porta de projeção — ver `modules/projecaoPorta.js`.
  *
@@ -2660,557 +2715,9 @@ async function enviarComandoAudioProjeccao(evento, payload = {}) {
   }
 }
 
-/**
- * Rótulo do monitor no seletor.
- *
- * Prefere o nome que o sistema dá ao painel («LG TV», «EPSON PJ») em vez de `Monitor 2`:
- * o operador reconhece o equipamento, não a numeração do Windows — que aliás muda.
- * Quando o driver não expõe nome, cai para a numeração, que é melhor que nada.
- */
-function montarLabelMonitor(m) {
-  const base = m && m.label ? String(m.label) : `Monitor ${Number(m?.index || 0) + 1}`;
-  return m && m.primary ? `${base} (principal — sem projeção)` : base;
-}
+// (extraído) seletores de roteamento de telas → painel/roteamentoTelasUi.js
 
-/** Tooltip com a posição e a resolução — desempata dois painéis com o mesmo nome. */
-function montarTitleMonitor(m) {
-  if (!m) return '';
-  const partes = [];
-  if (m.nome && m.rotuloPosicional) partes.push(m.rotuloPosicional);
-  const w = Number(m?.size?.width || m?.bounds?.width || 0);
-  const h = Number(m?.size?.height || m?.bounds?.height || 0);
-  if (w && h) partes.push(`${w}×${h}`);
-  return partes.join(' · ');
-}
-
-/**
- * Aviso no cabeçalho quando não há nenhum monitor de projeção.
- *
- * O ecrã principal é do operador e não conta. Com pelo menos um monitor externo,
- * o aviso não aparece — mesmo que o que estava guardado tenha mudado de nome.
- * Sem lista ainda (servidor a responder), não mostra nem esconde: evitar o pisca.
- */
-function avisarMonitoresConfiguradosEmFalta() {
-  const el = document.getElementById('hdr-monitores-aviso');
-  if (!el) return;
-  if (!Array.isArray(monitoresServidorCache) || !monitoresServidorCache.length) return;
-  if (contarMonitoresDeProjecao() > 0) {
-    el.classList.add('oculto');
-    el.textContent = '';
-    el.removeAttribute('title');
-    return;
-  }
-  el.classList.remove('oculto');
-  el.textContent = '⚠ Monitor não encontrado';
-  el.title = 'Nenhum monitor de projeção foi encontrado. Ligue um monitor externo e escolha onde projetar.';
-}
-
-function fecharMenusRoteamentoTelas() {
-  document.querySelectorAll('.route-dd').forEach((wrap) => {
-    wrap.classList.remove('route-dd-open');
-    const menu = wrap.querySelector('.route-dd-menu');
-    const btn = wrap.querySelector('.route-dd-btn');
-    if (menu) menu.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
-  });
-}
-
-/**
- * Duplo clique projeta — não seleciona a palavra debaixo do cursor.
- *
- * O duplo clique é o gesto de projetar em quase todo o painel: versículo na Bíblia, chip
- * na faixa, cartão de estrofe, linha da playlist e do banco, cartão de mídia. Mas o
- * navegador também trata duplo clique como «selecionar palavra», e as duas coisas
- * aconteciam ao mesmo tempo: o operador projetava e ficava com um pedaço de texto
- * realçado a azul por cima do conteúdo, à vista durante o culto.
- *
- * A correção vai no `mousedown` e não no `dblclick`: quando o segundo clique chega, a
- * seleção já foi feita: limpá-la depois é um pisca visível. `preventDefault()` no clique
- * que a iniciaria impede-a de existir — e não cancela o evento `dblclick`, que continua a
- * disparar normalmente.
- *
- * Um listener só, em vez de remendar cada `dblclick`: os sítios com este gesto são muitos
- * e crescem, e um esquecido é um bug que só aparece em palco.
- *
- * Campos de texto ficam de fora: lá o duplo clique é mesmo para selecionar. Arrastar para
- * selecionar continua a funcionar em todo o lado — só o duplo clique deixa de o fazer.
- */
-function impedirSelecaoDeTextoNoDuploClique() {
-  const CAMPOS_DE_TEXTO = 'input, textarea, select, [contenteditable=""], [contenteditable="true"]';
-  document.addEventListener(
-    'mousedown',
-    (ev) => {
-      /* `detail` conta os cliques da sequência: 1 é clique simples e não selecciona nada. */
-      if (ev.detail < 2 || ev.button !== 0) return;
-      if (ev.target?.closest?.(CAMPOS_DE_TEXTO)) return;
-      ev.preventDefault();
-    },
-    true
-  );
-}
-
-function setupMenusRoteamentoTelas() {
-  document.querySelectorAll('.route-dd').forEach((wrap) => {
-    const btn = wrap.querySelector('.route-dd-btn');
-    const menu = wrap.querySelector('.route-dd-menu');
-    if (!btn || !menu) return;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const abrir = !wrap.classList.contains('route-dd-open');
-      fecharOutrosSeletoresDropdown(wrap);
-      if (abrir) {
-        wrap.classList.add('route-dd-open');
-        menu.hidden = false;
-        btn.setAttribute('aria-expanded', 'true');
-      } else {
-        wrap.classList.remove('route-dd-open');
-        menu.hidden = true;
-        btn.setAttribute('aria-expanded', 'false');
-      }
-    });
-  });
-  document.addEventListener('click', fecharMenusRoteamentoTelas);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fecharMenusRoteamentoTelas();
-  });
-}
-
-/** -1 = desativado; rejeita valores não numéricos (ex.: string vinda do JSON sem reparse). */
-function indiceRoteamentoMonitorNaUi(val) {
-  if (val === '' || val === null || val === undefined) return -1;
-  const n = typeof val === 'number' && Number.isFinite(val) ? val : parseInt(String(val).trim(), 10);
-  if (!Number.isFinite(n) || n < -1) return -1;
-  return n;
-}
-
-/** Texto do botão quando a rota do modo apresentação não coincide com um dos quatro presets. */
-function rotuloRotaApresentacaoForaDoPreset(r, lista) {
-  if (r && r.live) return 'Live — OBS';
-  const pub = indiceRoteamentoMonitorNaUi(r?.publicoIndex);
-  const min = indiceRoteamentoMonitorNaUi(r?.ministranteIndex);
-  if (pub < 0 && min < 0) return 'Não exibir';
-  if (pub >= 0 && min < 0) return `Público — Monitor ${pub + 1}`;
-  if (pub < 0 && min >= 0) return `Ministrante — Monitor ${min + 1}`;
-  return 'Ambos';
-}
-
-function renderRoteamentoTelas(monitores, routing) {
-  fecharMenusRoteamentoTelas();
-  const hidPub = document.getElementById('route-publico');
-  const hidMin = document.getElementById('route-ministrante');
-  const menuPub = document.getElementById('route-publico-menu');
-  const menuMin = document.getElementById('route-ministrante-menu');
-  const dispPub = document.getElementById('route-publico-display');
-  const dispMin = document.getElementById('route-ministrante-display');
-  const lblPub = document.getElementById('route-publico-label');
-  if (!hidPub || !hidMin || !menuPub || !menuMin || !dispPub || !dispMin) return;
-
-  const modoR = modoRoteamentoAtual();
-  if (lblPub) lblPub.textContent = modoUsaSeletorMonitorUnificado() ? 'Monitor' : 'Público';
-
-  const items = [{ value: '-1', label: 'Não exibir' }];
-  const lista = Array.isArray(monitores) ? monitores : [];
-  lista.forEach((m) => {
-    if (m && m.primary) return;
-    items.push({ value: String(m.index), label: montarLabelMonitor(m), title: montarTitleMonitor(m) });
-  });
-
-  /**
-   * Tira este monitor da outra saída — ver `rotaSemMonitorRepetido`.
-   *
-   * Mexe no DOM da outra coluna (valor, rótulo e `aria-selected`) porque a troca tem de
-   * ser visível no mesmo instante do clique: o operador escolhe o M2 no Ministrante e vê o
-   * Público passar a «Não exibir» sem ter de reabrir o menu. O `salvarRoteamento…` que
-   * corre logo a seguir lê os dois campos, por isso as duas saídas vão coerentes.
-   *
-   * @param {HTMLElement} outroMenu
-   * @param {HTMLInputElement} outroHid
-   * @param {HTMLElement} outroDisp
-   * @param {string} valorEscolhido
-   */
-  function libertarMonitorDaOutraSaida(outroMenu, outroHid, outroDisp, valorEscolhido) {
-    if (!outroMenu || !outroHid || !outroDisp) return;
-    if (valorEscolhido === '-1') return;
-    if (outroHid.value !== valorEscolhido) return;
-    outroHid.value = '-1';
-    outroDisp.textContent = 'Não exibir';
-    outroMenu.querySelectorAll('.route-dd-item').forEach((ib) => {
-      ib.setAttribute('aria-selected', ib.dataset.value === '-1' ? 'true' : 'false');
-    });
-  }
-
-  function preencherMenu(menuEl, hidEl, dispEl, valorSelecionado, outros = null) {
-    menuEl.innerHTML = '';
-    const vSel = String(valorSelecionado);
-    items.forEach(({ value, label, title }) => {
-      const li = document.createElement('li');
-      li.setAttribute('role', 'presentation');
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'route-dd-item';
-      b.dataset.value = value;
-      b.textContent = label;
-      if (title) b.title = title;
-      b.setAttribute('aria-selected', String(value) === vSel ? 'true' : 'false');
-      b.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        hidEl.value = value;
-        dispEl.textContent = label;
-        menuEl.querySelectorAll('.route-dd-item').forEach((ib) => {
-          ib.setAttribute('aria-selected', ib.dataset.value === String(value) ? 'true' : 'false');
-        });
-        if (outros) {
-          libertarMonitorDaOutraSaida(outros.menu, outros.hid, outros.disp, String(value));
-        }
-        fecharMenusRoteamentoTelas();
-        atualizarEstiloRotasDesativadas();
-        /* Qual das duas saídas o operador mexeu. Só ela conta como «Não exibir» à mão —
-           ver `sincronizarNaoExibirManualSlidesDaEscolha`. */
-        salvarRoteamentoTelasNoServidor({
-          canalEscolhido: hidEl === hidMin ? 'ministrante' : 'publico',
-        });
-      });
-      li.appendChild(b);
-      menuEl.appendChild(li);
-    });
-  }
-
-  if (modoUsaSeletorMonitorUnificado()) {
-    menuMin.innerHTML = '';
-    if (!lista.length) {
-      hidPub.value = '-1';
-      hidMin.value = '-1';
-      dispPub.textContent = 'Não exibir';
-      dispMin.textContent = 'Não exibir';
-      const op0 = opcoesRoteamentoUnificadoModoApresentacao(
-        lista,
-        opcoesSeletorCabecalhoDoModoAtual()
-      );
-      menuPub.innerHTML = '';
-      op0.forEach((o) => {
-        const li = document.createElement('li');
-        li.setAttribute('role', 'presentation');
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'route-dd-item';
-        b.dataset.apOp = o.key;
-        b.textContent = o.label;
-        b.setAttribute('aria-selected', o.key === 'des' ? 'true' : 'false');
-        b.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          hidPub.value = String(o.pub);
-          hidMin.value = String(o.min);
-          marcarRotaLiveNoDom(!!o.live);
-          dispPub.textContent = o.label;
-          menuPub.querySelectorAll('.route-dd-item').forEach((ib) => {
-            ib.setAttribute('aria-selected', ib.dataset.apOp === o.key ? 'true' : 'false');
-          });
-          fecharMenusRoteamentoTelas();
-          atualizarEstiloRotasDesativadas();
-          salvarRoteamentoTelasNoServidor();
-          atualizarIndicadorProjecaoLiveUi();
-        });
-        li.appendChild(b);
-        menuPub.appendChild(li);
-      });
-      marcarRotaLiveNoDom(false);
-      atualizarEstiloRotasDesativadas();
-      aplicarPreviewPainelOcultoNoDom();
-      atualizarIndicadorProjecaoLiveUi();
-      return;
-    }
-
-    const rLive = !!(routing && routing.live);
-    let pub = rLive ? -1 : indiceRoteamentoMonitorNaUi(routing?.publicoIndex);
-    let min = rLive ? -1 : indiceRoteamentoMonitorNaUi(routing?.ministranteIndex);
-    pub = sanitizarIndiceMonitorProjecao(pub, lista);
-    min = sanitizarIndiceMonitorProjecao(min, lista);
-    marcarRotaLiveNoDom(rLive);
-
-    const opcoes = opcoesRoteamentoUnificadoModoApresentacao(
-      lista,
-      opcoesSeletorCabecalhoDoModoAtual()
-    );
-    const combina = (o) => !!o.live === rLive && (o.live || (o.pub === pub && o.min === min));
-    const preset = opcoes.find(combina);
-    const rotuloBtn = preset
-      ? preset.label
-      : rotuloRotaApresentacaoForaDoPreset(
-          { publicoIndex: pub, ministranteIndex: min, live: rLive },
-          lista
-        );
-    hidPub.value = String(pub);
-    hidMin.value = String(min);
-    dispPub.textContent = rotuloBtn;
-    const rotMin = items.find((x) => x.value === String(min));
-    dispMin.textContent = rotMin ? rotMin.label : 'Não exibir';
-
-    menuPub.innerHTML = '';
-    opcoes.forEach((o) => {
-      const li = document.createElement('li');
-      li.setAttribute('role', 'presentation');
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'route-dd-item';
-      b.dataset.apOp = o.key;
-      b.textContent = o.label;
-      b.setAttribute('aria-selected', combina(o) ? 'true' : 'false');
-      b.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        hidPub.value = String(o.pub);
-        hidMin.value = String(o.min);
-        marcarRotaLiveNoDom(!!o.live);
-        dispPub.textContent = o.label;
-        menuPub.querySelectorAll('.route-dd-item').forEach((ib) => {
-          ib.setAttribute('aria-selected', ib.dataset.apOp === o.key ? 'true' : 'false');
-        });
-        fecharMenusRoteamentoTelas();
-        atualizarEstiloRotasDesativadas();
-        /* O reenvio tem de esperar pelo PUT: as janelas do canal novo só existem depois de
-           o servidor sincronizar a rota, e conteúdo enviado antes disso cai no vazio. */
-        /* Antes do PUT, e a partir do DOM que o clique acabou de escrever: é este o único
-           sítio onde se sabe que foi o operador a escolher. */
-        registrarEscolhaMonitorDoOperador();
-        /* E é também o único sítio onde se sabe que o «Não exibir» é ORDEM do operador, e
-           não o −1 que um caminho automático deixou. Ver `modules/ordemNaoExibirUnificado.js`. */
-        registrarEscolhaSeletorUnificado(modoRoteamentoAtual(), o.key);
-        salvarRoteamentoTelasNoServidor()
-          .then(() => reemitirConteudoAposMudancaDeRotaUnificada())
-          .catch(() => {
-            // intencional — falha de rede já é reportada por quem faz o PUT
-          });
-        atualizarIndicadorProjecaoLiveUi();
-      });
-      li.appendChild(b);
-      menuPub.appendChild(li);
-    });
-    atualizarEstiloRotasDesativadas();
-    aplicarPreviewPainelOcultoNoDom();
-    atualizarIndicadorProjecaoLiveUi();
-    return;
-  }
-
-  if (!lista.length) {
-    hidPub.value = '-1';
-    hidMin.value = '-1';
-    dispPub.textContent = 'Não exibir';
-    dispMin.textContent = 'Não exibir';
-    preencherMenu(menuPub, hidPub, dispPub, '-1');
-    preencherMenu(menuMin, hidMin, dispMin, '-1');
-    atualizarEstiloRotasDesativadas();
-    aplicarPreviewPainelOcultoNoDom();
-    return;
-  }
-
-  let pub = indiceRoteamentoMonitorNaUi(routing?.publicoIndex);
-  let min = indiceRoteamentoMonitorNaUi(routing?.ministranteIndex);
-  pub = sanitizarIndiceMonitorProjecao(pub, lista);
-  min = sanitizarIndiceMonitorProjecao(min, lista);
-  /* Rota gravada antes desta regra podia ter o mesmo monitor nas duas saídas. Mostrar isso
-     tal e qual deixaria o operador a olhar para uma configuração que o motor não consegue
-     cumprir. Resolve-se aqui, com o Público a prevalecer. */
-  ({ publicoIndex: pub, ministranteIndex: min } = rotaSemMonitorRepetido(
-    { publicoIndex: pub, ministranteIndex: min },
-    'publico'
-  ));
-
-  const pubStr = String(pub);
-  const minStr = String(min);
-  const rotPub = items.find((x) => x.value === pubStr);
-  const rotMin = items.find((x) => x.value === minStr);
-  hidPub.value = pubStr;
-  hidMin.value = minStr;
-  dispPub.textContent = rotPub ? rotPub.label : 'Não exibir';
-  dispMin.textContent = rotMin ? rotMin.label : 'Não exibir';
-
-  preencherMenu(menuPub, hidPub, dispPub, pubStr, {
-    menu: menuMin,
-    hid: hidMin,
-    disp: dispMin,
-  });
-  preencherMenu(menuMin, hidMin, dispMin, minStr, {
-    menu: menuPub,
-    hid: hidPub,
-    disp: dispPub,
-  });
-  atualizarEstiloRotasDesativadas();
-  aplicarPreviewPainelOcultoNoDom();
-}
-
-/** Destaque vermelho quando a rota está em «Não exibir» (sem telão/TV externos — só pré-visualizações). */
-function atualizarEstiloRotasDesativadas() {
-  const wrapPub = document.getElementById('route-publico-dd');
-  const wrapMin = document.getElementById('route-ministrante-dd');
-  const hidPub = document.getElementById('route-publico');
-  const hidMin = document.getElementById('route-ministrante');
-  const btnPub = document.getElementById('route-publico-btn');
-  const btnMin = document.getElementById('route-ministrante-btn');
-  const modoUnificado = modoUsaSeletorMonitorUnificado();
-  /* Monitor emprestado ao canal partilhado — Mídias ou Bíblia: o seletor do Slides
-     mostra-o apagado em vez de deixar mudá-lo por baixo da projeção no ar. */
-  const bloqPubAp = ehModoSlidesOperador() && canalPublicoOcupadoPorOutroModoNoSlides();
-  const bloqMinAp = ehModoSlidesOperador() && canalMinistranteOcupadoPorOutroModoNoSlides();
-  if (wrapPub && hidPub && hidMin) {
-    const des = modoUnificado
-      ? hidPub.value === '-1' && hidMin.value === '-1' && !rotaLiveSelecionadaNaUi()
-      : hidPub.value === '-1';
-    wrapPub.classList.toggle('route-dd--rota-desativada', des);
-    wrapPub.classList.toggle('route-dd--rota-live', modoUnificado && rotaLiveSelecionadaNaUi());
-    wrapPub.classList.toggle('route-dd--bloqueado-apresentacao', bloqPubAp);
-    if (btnPub) {
-      btnPub.disabled = bloqPubAp;
-      btnPub.title = bloqPubAp
-        ? rotuloBloqueioMonitorOcupado()
-        : des
-          ? modoUnificado
-            ? 'Não exibir: nenhum monitor externo disponível para este modo.'
-            : 'Não exibir: o monitor continua ligado, mas não recebe conteúdo deste modo — só a pré-visualização deste painel.'
-          : modoUnificado
-            ? 'Onde projetar (público, ministrante ou ambos).'
-            : 'Escolher monitor do telão / público';
-    }
-  }
-  if (wrapMin && hidMin) {
-    /* Com um só monitor de projeção não há segunda saída para dar ao ministrante: o
-       seletor fica desativado em vez de oferecer uma escolha que colidiria com o telão. */
-    const semSegundaSaida = !modoUnificado && contarMonitoresDeProjecao() <= 1;
-    if (semSegundaSaida && hidMin.value !== '-1') hidMin.value = '-1';
-    const des = hidMin.value === '-1';
-    wrapMin.classList.toggle('route-dd--rota-desativada', des && !semSegundaSaida);
-    wrapMin.classList.toggle('route-dd--sem-monitor', semSegundaSaida);
-    wrapMin.classList.toggle('route-dd--bloqueado-apresentacao', bloqMinAp);
-    const dispMin = document.getElementById('route-ministrante-display');
-    if (semSegundaSaida && dispMin) dispMin.textContent = 'Nenhum';
-    if (btnMin) {
-      btnMin.disabled = bloqMinAp || semSegundaSaida;
-      btnMin.title = semSegundaSaida
-        ? 'Só há um monitor de projeção disponível — ele está reservado ao telão. Ligue um segundo monitor para usar o retorno do ministrante.'
-        : bloqMinAp
-          ? rotuloBloqueioMonitorOcupado()
-          : des
-            ? 'Não exibir: o monitor continua ligado, mas não recebe conteúdo deste modo — só a pré-visualização deste painel.'
-            : 'Escolher monitor do ministrante / retorno';
-    }
-  }
-}
-
-/** Texto do seletor bloqueado: nomeia o modo que está a ocupar o monitor. */
-function rotuloBloqueioMonitorOcupado() {
-  const ehBiblia =
-    bibliaProjecaoAtivaNoCanalPublico() || bibliaProjecaoAtivaNoCanalMinistrante();
-  const modoQueOcupa = ehBiblia ? 'a Bíblia' : 'a Apresentação';
-  return `Bloqueado: ${modoQueOcupa} está a projetar neste monitor — encerre essa projeção para alterar.`;
-}
-
-/** Quantos monitores restam para projeção depois de reservar o principal ao operador. */
-function contarMonitoresDeProjecao() {
-  return listaMonitoresParaProjecao(monitoresServidorCache).length;
-}
-
-function rotaSelecionadaNaUi() {
-  const selPublico = document.getElementById('route-publico');
-  const selMin = document.getElementById('route-ministrante');
-  if (!selPublico || !selMin) return null;
-  const live = rotaLiveSelecionadaNaUi();
-  const publicoIndex = parseInt(selPublico.value, 10);
-  const ministranteIndex = parseInt(selMin.value, 10);
-  if (!Number.isFinite(publicoIndex) || !Number.isFinite(ministranteIndex)) return null;
-  return { publicoIndex: live ? -1 : publicoIndex, ministranteIndex: live ? -1 : ministranteIndex, live };
-}
-
-async function aplicarRotaDoModoAtualNaUiEServidor(opts = {}) {
-  const sincronizarServidor = opts.sincronizarServidor !== false;
-  const modo = modoRoteamentoAtual();
-
-  const rotaAjustada =
-    modo === 'slides'
-      ? obterRotaSlidesParaUi()
-      : sanitizarRotaProjecao(normalizarRota(rotasPorModo[modo]), monitoresServidorCache);
-  salvarRotasPorModoNoStorage();
-  renderRoteamentoTelas(monitoresServidorCache, rotaAjustada);
-  if (sincronizarServidor) {
-    await salvarRoteamentoTelasNoServidor({ usarValoresDaUi: false });
-  }
-}
-
-function clampSlidesRailHeight(px) {
-  const min = 260;
-  const max = Math.max(min + 80, Math.floor(window.innerHeight * 0.78));
-  return Math.min(Math.max(px, min), max);
-}
-
-function initSlidesRailHeightFromStorage() {
-  const saved = parseInt(localStorage.getItem(LS_SLIDES_RAIL_PX), 10);
-  const fallback = parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height'),
-    10
-  ) || 520;
-  const base = Number.isFinite(saved) ? saved : fallback;
-  document.documentElement.style.setProperty('--slides-rail-height', clampSlidesRailHeight(base) + 'px');
-}
-
-/**
- * Modo slides: a divisória arrasta a faixa de prévias (TELÃO/TV). Arrastar para baixo
- * aumenta as prévias e encolhe a grelha de slides; para cima faz o inverso. A grelha
- * fica sempre com o resto do espaço (`1fr`), por isso nunca sobra área morta.
- */
-const SLIDES_PREVIEW_H_MIN_FALLBACK = 172;
-
-/** Piso vem do CSS (`--preview-mod-card-h-min`) para não haver dois valores a divergir. */
-function alturaMinimaPreviewMod() {
-  const px = parseInt(
-    getComputedStyle(document.body).getPropertyValue('--preview-mod-card-h-min'),
-    10
-  );
-  return Number.isFinite(px) ? px : SLIDES_PREVIEW_H_MIN_FALLBACK;
-}
-
-/**
- * As prévias nunca encolhem abaixo do piso: arrastar a divisória para cima só
- * devolve espaço à grelha até esse limite; para baixo aumenta as prévias.
- */
-function clampAlturaPreviewMod(px) {
-  const min = alturaMinimaPreviewMod();
-  const max = Math.max(min + 60, Math.floor(window.innerHeight * 0.5));
-  return Math.min(Math.max(Math.round(px), min), max);
-}
-
-function alturaPreviewModAtualPx() {
-  const px = parseInt(getComputedStyle(document.body).getPropertyValue('--preview-mod-card-h'), 10);
-  return Number.isFinite(px) ? px : 68;
-}
-
-/* Inline no <body> para vencer o valor-padrão da regra `body.app-mod-slides`. */
-function aplicarAlturaPreviewMod(px) {
-  document.body.style.setProperty('--preview-mod-card-h', clampAlturaPreviewMod(px) + 'px');
-}
-
-function initAlturaPreviewModFromStorage() {
-  const saved = parseInt(localStorage.getItem(LS_SLIDES_PREVIEW_H_PX), 10);
-  if (Number.isFinite(saved)) aplicarAlturaPreviewMod(saved);
-}
-
-function setupSlidesRailResize() {
-  const handle = document.getElementById('slides-resize-handle');
-  if (!handle) return;
-
-  handle.addEventListener('mousedown', (e) => {
-    const emModoSlides = ehModoSlidesOperador();
-    if (!emModoSlides && !document.body.classList.contains('slides-rail-aberto')) return;
-    slidesRailDrag.active = true;
-    slidesRailDrag.alvo = emModoSlides ? 'previa' : 'faixa';
-    slidesRailDrag.startY = e.clientY;
-    slidesRailDrag.startH = emModoSlides
-      ? alturaPreviewModAtualPx()
-      : parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue('--slides-rail-height'),
-          10
-        ) || 520;
-    e.preventDefault();
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-  });
-}
+// (extraído) altura da faixa de slides e da prévia → painel/slidesRailLayout.js
 
 let socket = null;
 let companionHandoffEmCurso = false;
@@ -3380,8 +2887,7 @@ let projecaoMusicaEmitidaNoServidor = false;
  * até este cliente emitir `exibir_musica` — senão o servidor continua com a mesma música e os previews voltavam a mostrar letra só com um clique.
  */
 let bloqueioSincronizarEstrofeDoServidor = false;
-/** Evita que dois cliques rápidos na playlist disparem só seleção duas vezes + duplo clique (projeta sem querer). */
-let playlistRowClickTimer = null;
+// (extraído) temporizador do clique na linha → painel/playlistLinhaUi.js
 let slidesRailDrag = { active: false, alvo: 'faixa', startY: 0, startH: 520 };
 let monitoresServidorCache = [];
 
@@ -3439,438 +2945,11 @@ window.addEventListener('resize', () => {
 // (extraído) compartilhar e importar playlist → painel/playlistCompartilhar.js
 iniciarPlaylistCompartilhar();
 
-function excluirTemaDoCulto(tema) {
-  const t = normalizarTemaPlaylist(tema);
-  if (!t) return;
-  if (t === TEMA_PADRAO_ABERTURA && cultoId) marcarAberturaRemovidaPeloUsuario(cultoId);
-  temasPorCulto['__global__'] = getTemasDoCultoAtual().filter((x) => x !== t);
-  saveTemasPorCulto();
-  // Remove da playlist do culto atual
-  if (cultoId) {
-    const pl = getPlaylist(cultoId);
-    const filtrado = playlistPossuiMarcadoresTema(pl)
-      ? filtrarPlaylistRemovendoTemaComMarcadores(pl, t)
-      : pl.filter((it) => normalizarTemaPlaylist(it.tema) !== t);
-    playlists[cultoId] = filtrado;
-    if (getTemaSelecionadoAtual() === t) setTemaSelecionadoAtual('');
-    savePlaylists();
-    const plDepois = getPlaylist(cultoId);
-    const aindaNaLista =
-      !!musicaAtiva &&
-      plDepois.some((it) => !ehMarcadorTemaPlaylist(it) && playlistItemMesmaVersaoQueAtiva(it));
-    if (musicaAtiva && !aindaNaLista) encerrarProjecaoDoControlador({ limparMusica: true });
-  }
-}
-
-function getTemaSelecionadoAtual() {
-  if (!cultoId) return '';
-  return normalizarTemaPlaylist(temaSelecionadoPorCulto[cultoId] || '');
-}
-
-function setTemaSelecionadoAtual(v) {
-  if (!cultoId) return;
-  const t = normalizarTemaPlaylist(v);
-  temaSelecionadoPorCulto[cultoId] = t;
-  saveTemaSelecionadoPorCulto();
-}
-
-/**
- * Um tema só pode ocupar um bloco por culto. Cobre o marcador do bloco e as músicas
- * já etiquetadas; a comparação passa pelo normalizador (trim, espaços, maiúsculas).
- */
-function playlistAtualJaTemTema(tema) {
-  const t = normalizarTemaPlaylist(tema);
-  if (!t || !cultoId) return false;
-  return getPlaylist(cultoId).some((it) => normalizarTemaPlaylist(it?.tema) === t);
-}
-
-/**
- * Um seletor aberto de cada vez: fecha todos os dropdowns customizados excepto `excetoWrap`.
- * Não mexe em opções nem na lógica de escolha — só no estado aberto/fechado.
- */
-function fecharOutrosSeletoresDropdown(excetoWrap) {
-  document.querySelectorAll('.playlist-tema-dd, .banco-fonte-dd').forEach((w) => {
-    if (w !== excetoWrap) fecharLyraSelectDropdownWrap(w);
-  });
-  if (document.getElementById('culto-dd') !== excetoWrap) fecharCultoDropdown();
-  document.querySelectorAll('.route-dd').forEach((wrap) => {
-    if (wrap === excetoWrap) return;
-    wrap.classList.remove('route-dd-open');
-    const menu = wrap.querySelector('.route-dd-menu');
-    const btn = wrap.querySelector('.route-dd-btn');
-    if (menu) menu.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
-  });
-  const overflowWrap = document.querySelector('.ap-playlist-overflow');
-  if (overflowWrap && overflowWrap !== excetoWrap) fecharMenuOverflowPlaylist();
-}
-
-function fecharLyraSelectDropdownWrap(wrap) {
-  if (!wrap) return;
-  const menu = wrap.querySelector('.playlist-tema-dd-menu');
-  const btn = wrap.querySelector('.playlist-tema-dd-btn');
-  wrap.classList.remove('open');
-  if (menu) menu.hidden = true;
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-}
-
-/** Mesmo visual/hover do dropdown «Tema da playlist» — evita o destaque azul do `<select>` nativo. */
-function setupLyraSelectDropdownWrap(wrap) {
-  if (!wrap || wrap.dataset.lyraSelectDdBound === '1') return;
-  wrap.dataset.lyraSelectDdBound = '1';
-  const btn = wrap.querySelector('.playlist-tema-dd-btn');
-  const menu = wrap.querySelector('.playlist-tema-dd-menu');
-  if (!btn || !menu) return;
-  const fechar = () => fecharLyraSelectDropdownWrap(wrap);
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (btn.disabled) return;
-    const abrir = menu.hidden;
-    fecharOutrosSeletoresDropdown(wrap);
-    if (abrir) {
-      wrap.classList.add('open');
-      menu.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-    } else {
-      fecharLyraSelectDropdownWrap(wrap);
-    }
-  });
-  document.addEventListener('click', (e) => {
-    if (!wrap.contains(e.target)) fechar();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') fechar();
-  });
-}
-
-function renderItensLyraSelectDropdown(wrap, items, opts = {}) {
-  if (!wrap) return;
-  const menu = wrap.querySelector('.playlist-tema-dd-menu');
-  const label = wrap.querySelector('.playlist-tema-dd-label');
-  const hid = wrap.querySelector('input[type="hidden"]');
-  if (!menu || !label || !hid) return;
-  const valorAtual = opts.valorAtual != null ? String(opts.valorAtual) : String(hid.value || '');
-  const placeholder = opts.placeholder ?? '—';
-  menu.innerHTML = '';
-  let rotuloBtn = placeholder;
-  items.forEach(({ value, label: rotulo }) => {
-    const v = value != null ? String(value) : '';
-    const li = document.createElement('li');
-    li.setAttribute('role', 'presentation');
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'playlist-tema-dd-item';
-    b.dataset.value = v;
-    b.textContent = rotulo;
-    b.setAttribute('aria-selected', v === valorAtual ? 'true' : 'false');
-    li.appendChild(b);
-    menu.appendChild(li);
-    if (v === valorAtual) rotuloBtn = rotulo;
-  });
-  label.textContent = rotuloBtn;
-  hid.value = valorAtual;
-  menu.querySelectorAll('.playlist-tema-dd-item').forEach((b) => {
-    b.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const v = b.dataset.value ?? '';
-      hid.value = v;
-      label.textContent = b.textContent;
-      menu.querySelectorAll('.playlist-tema-dd-item').forEach((ib) => {
-        ib.setAttribute('aria-selected', ib.dataset.value === v ? 'true' : 'false');
-      });
-      fecharLyraSelectDropdownWrap(wrap);
-      if (typeof opts.aoSelecionar === 'function') opts.aoSelecionar(v);
-    });
-  });
-}
-
-/**
- * Sincroniza o catálogo de temas com a playlist do culto e devolve os temas disponíveis,
- * já ordenados. Só acrescenta ao catálogo temas vindos da playlist; não substitui o catálogo
- * pelo merge (substituir apagava temas criados em «Novo momento…» que ainda não tinham
- * música na playlist). Se o tema selecionado deixou de existir, a seleção é limpa.
- */
-function obterTemasDisponiveisPlaylist() {
-  const pl = cultoId ? getPlaylist(cultoId) : [];
-  const temasDaPlaylist = [
-    ...new Set(
-      pl.flatMap((x) => {
-        if (ehMarcadorTemaPlaylist(x)) {
-          const tm = normalizarTemaPlaylist(x.tema);
-          return tm ? [tm] : [];
-        }
-        const tm = normalizarTemaPlaylist(x?.tema);
-        return tm ? [tm] : [];
-      })
-    ),
-  ];
-  /* Só acrescenta à lista guardada temas vindos da playlist; não substituir o catálogo pelo merge
-   * (substituir apagava temas criados com «+ TEMA» que ainda não tinham música na playlist). */
-  if (cultoId) {
-    const base = normalizarListaTemas([...(temasPorCulto[cultoId] || [])]);
-    const seen = new Set(base);
-    let mudou = false;
-    temasDaPlaylist.forEach((t) => {
-      if (t && !seen.has(t)) {
-        base.push(t);
-        seen.add(t);
-        mudou = true;
-      }
-    });
-    if (mudou) {
-      temasPorCulto[cultoId] = ordenarTemasLista(normalizarListaTemas(base));
-      saveTemasPorCulto();
-    }
-  }
-  const temasDoCatalogoDepois = getTemasDoCultoAtual();
-  const temas = ordenarTemasLista(normalizarListaTemas([...temasDoCatalogoDepois, ...temasDaPlaylist]));
-  const atualAplicado = getTemaSelecionadoAtual();
-  if (atualAplicado && !temas.includes(atualAplicado)) setTemaSelecionadoAtual('');
-  return temas;
-}
-
-/** Mantém o nome histórico: chamado após qualquer mudança de tema/playlist para sincronizar o catálogo. */
-function renderSeletorTemasPlaylist() {
-  obterTemasDisponiveisPlaylist();
-}
+// (extraído) temas da playlist na interface → painel/temasPlaylistUi.js
 
 // (extraído) sincronização do banco → painel/sincronizacaoBanco.js
 
-async function enviarPlaylistsParaServidor() {
-  /* Escreve no `/api/playlists` desta máquina (:3001), que é de onde o celular as lê —
-     inclusive no modo local, via `solicitar_playlists_controlador`. Com o guard preso a
-     `getServidorIp`, uma instalação sem IP gravado nunca publicava a playlist e o celular
-     ficava a ver uma lista vazia. */
-  const hostAtual = hostProjecao();
-  if (!hostAtual) return;
-  try {
-    await fetch(`${getControllerApiBase()}/api/playlists`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(playlists),
-    });
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function enviarPlaylistsParaServidorDebounced() {
-  clearTimeout(getEnviarPlaylistsServidorTimer());
-  setEnviarPlaylistsServidorTimer(setTimeout(() => enviarPlaylistsParaServidor(), 450));
-}
-
-let emitirPlaylistsRedeTimer = null;
-
-/**
- * Publica as playlists para quem estiver a hospedar a porta 5510.
- *
- * Vai pela porta de projeção, e não pelo socket cru, porque o destinatário muda com o
- * modo: no remoto é o Servidor, que reencaminha aos telemóveis; no local é o próprio
- * processo principal, que faz o mesmo reencaminhamento. O celular não nota diferença — é
- * o mesmo evento com o mesmo formato.
- */
-function emitirPlaylistsDoControlador() {
-  try {
-    projecao.enviar('controlador_playlists', playlists);
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-function emitirPlaylistsDoControladorDebounced() {
-  clearTimeout(emitirPlaylistsRedeTimer);
-  emitirPlaylistsRedeTimer = setTimeout(() => emitirPlaylistsDoControlador(), 280);
-}
-
-function savePlaylists() {
-  localStorage.setItem(LS_PLAYLISTS, JSON.stringify(playlists));
-  /* Se o culto ganhou a 1.ª música com ministrante só em sessão, passa a
-     persistir; se ficou sem músicas, some do disco para o próximo reload. */
-  persistirMinistrantePadraoNoLocalStorage();
-  enviarPlaylistsParaServidorDebounced();
-  emitirPlaylistsDoControladorDebounced();
-  marcarBancoCompartilhadoAlterado(new Date().toISOString(), { incluirPlaylists: true });
-}
-
-/** Remove um id de todas as playlists guardadas (ex.: música apagada no servidor). */
-function removerMusicaDeTodasPlaylists(idMusica) {
-  const idNum = Number(idMusica);
-  if (!Number.isFinite(idNum)) return;
-  let mudou = false;
-  Object.keys(playlists).forEach((cid) => {
-    const pl = playlists[cid];
-    if (!Array.isArray(pl)) return;
-    const novo = pl.filter((it) => Number(it.id) !== idNum);
-    if (novo.length !== pl.length) {
-      playlists[cid] = novo;
-      mudou = true;
-    }
-  });
-  if (mudou) savePlaylists();
-}
-
-/** Quando uma cópia local é apagada, entradas da playlist que a usavam passam a referenciar o original. */
-function removerVersaoLocalDasPlaylists(idMusica, copiaId) {
-  const idStr = String(Number(idMusica));
-  const vid = String(copiaId);
-  let mudou = false;
-  Object.keys(playlists).forEach((cid) => {
-    const pl = playlists[cid];
-    if (!Array.isArray(pl)) return;
-    pl.forEach((it) => {
-      if (!it || ehMarcadorTemaPlaylist(it)) return;
-      if (String(it.id) !== idStr) return;
-      if (it.versaoLocalId && String(it.versaoLocalId) === vid) {
-        it.versaoLocalId = null;
-        it.versaoRotulo = '';
-        mudou = true;
-      }
-    });
-  });
-  if (mudou) savePlaylists();
-}
-
-/**
- * Edição rápida no modo slides: o servidor não altera originais imutáveis — cria um fork.
- * Sem repontar a entrada da playlist do dia para o fork, ao voltar ao modo slides
- * recarregava-se o original (a edição só existia no estado da sessão).
- *
- * Reaponta apenas as entradas do culto indicado que correspondiam à versão editada;
- * o `id` da entrada continua a ser o root (identidade da música na playlist), muda só
- * `versaoLocalId`/`versaoRotulo`. Não mexe em ordem, nem adiciona/remove entradas.
- *
- * @param {string} cid culto (dia) cuja playlist deve ser repontada
- * @param {number} rootId root da família de versões
- * @param {string} versaoAntes versão ativa antes de gravar ('' = original do servidor)
- * @param {number|string} novaVersaoId id do fork criado pelo servidor
- * @param {string} [novoRotulo] rótulo do fork, para o cache visual da linha
- * @returns {boolean} true se alguma entrada foi repontada
- */
-function repontarVersaoNaPlaylistDoCulto(cid, rootId, versaoAntes, novaVersaoId, novoRotulo) {
-  const root = Number(rootId);
-  const novoVid = novaVersaoId != null && String(novaVersaoId).trim() ? String(novaVersaoId).trim() : '';
-  if (!cid || !Number.isFinite(root) || !novoVid) return false;
-  const pl = playlists[cid];
-  if (!Array.isArray(pl)) return false;
-
-  const antes = versaoAntes ? String(versaoAntes).trim() : '';
-  const rotulo = String(novoRotulo || '').trim();
-  let mudou = false;
-
-  pl.forEach((it) => {
-    if (!it || ehMarcadorTemaPlaylist(it)) return;
-    /* Catálogo é somente leitura: nunca chega aqui, mas não repontar por segurança. */
-    if (it.bancoFonte === 'catalog') return;
-    if (Number(it.id) !== root) return;
-    const vidItem = it.versaoLocalId ? String(it.versaoLocalId).trim() : '';
-    if (vidItem !== antes) return;
-    if (vidItem === novoVid) return;
-    it.versaoLocalId = novoVid;
-    it.versaoRotulo = rotulo;
-    mudou = true;
-  });
-
-  if (mudou) savePlaylists();
-  return mudou;
-}
-
-/** Atualiza o rótulo em cache das entradas de playlist que apontam para esta versão. */
-function atualizarRotuloVersaoNasPlaylists(idMusica, versaoId, novoRotulo) {
-  const idStr = String(Number(idMusica));
-  const vid = String(versaoId);
-  const rotulo = String(novoRotulo || '').trim();
-  let mudou = false;
-  Object.keys(playlists).forEach((cid) => {
-    const pl = playlists[cid];
-    if (!Array.isArray(pl)) return;
-    pl.forEach((it) => {
-      if (!it || ehMarcadorTemaPlaylist(it)) return;
-      if (String(it.id) !== idStr) return;
-      if (it.versaoLocalId && String(it.versaoLocalId) === vid) {
-        it.versaoRotulo = rotulo;
-        mudou = true;
-      }
-    });
-  });
-  if (mudou) savePlaylists();
-}
-
-// (extraído) excluir música do banco → painel/removerMusicaBanco.js
-
-function getPlaylist(cid) {
-  if (!Array.isArray(playlists[cid])) playlists[cid] = [];
-  playlists[cid] = playlists[cid].map((it) => {
-    if (it && it.tipo === PLAYLIST_TIPO_MARCADOR_TEMA) {
-      return { tipo: PLAYLIST_TIPO_MARCADOR_TEMA, tema: normalizarTemaPlaylist(it.tema) };
-    }
-    return {
-      ...it,
-      tema: normalizarTemaPlaylist(it?.tema),
-      versaoLocalId: versaoLocalIdTrimado(it.versaoLocalId) || null,
-      versaoRotulo: String(it.versaoRotulo || '').trim(),
-      bancoFonte: fonteBancoItemPlaylist(it),
-      ministranteId: normalizarMinistranteIdPlaylist(it.ministranteId),
-      tom: normalizarTomPlaylist(it.tom),
-    };
-  });
-  return playlists[cid];
-}
-
-function playlistItemMesmaVersaoQueAtiva(it) {
-  if (!musicaAtiva) return false;
-  return playlistItemMesmaVersaoQueRaiz(
-    it,
-    obterRootIdMusicaAtiva(),
-    versaoAtivaParaCompararPlaylist(),
-    musicaBancoFonte
-  );
-}
-
-function aplicarSelecaoUiBiblioteca(id, fonte) {
-  const n = Number(id);
-  if (!Number.isFinite(n)) {
-    selecaoUiBiblioteca = null;
-    return;
-  }
-  selecaoUiBiblioteca = {
-    id: n,
-    fonte: fonteBancoNormalizada(fonte),
-  };
-  selecaoUiPlaylist = null;
-}
-
-function aplicarSelecaoUiPlaylist(id, versaoLocalId, fonte) {
-  const n = Number(id);
-  if (!Number.isFinite(n)) {
-    selecaoUiPlaylist = null;
-    return;
-  }
-  selecaoUiPlaylist = {
-    id: n,
-    versaoLocalId: versaoLocalId ? String(versaoLocalId) : '',
-    fonte: fonteBancoNormalizada(fonte),
-  };
-  selecaoUiBiblioteca = null;
-}
-
-function playlistItemMesmaVersaoQueSelecaoUi(it) {
-  if (!selecaoUiPlaylist) return false;
-  return playlistItemMesmaVersaoQueRaiz(
-    it,
-    Number(selecaoUiPlaylist.id),
-    selecaoUiPlaylist.versaoLocalId,
-    selecaoUiPlaylist.fonte
-  );
-}
-
-/** Índice da próxima música real na playlist (salta marcadores de tema). -1 se não houver. */
-function indiceProximaMusicaNaPlaylist(pl, idxAtual) {
-  const lista = Array.isArray(pl) ? pl : [];
-  let j = Number(idxAtual) + 1;
-  if (!Number.isFinite(j) || j < 1) j = 0;
-  while (j < lista.length && ehMarcadorTemaPlaylist(lista[j])) j++;
-  return j < lista.length ? j : -1;
-}
+// (extraído) playlists: servidor e seleção → painel/playlistServidor.js
 
 // (extraído) playlist: transmitidas → painel/playlistTransmitidas.js
 
@@ -3937,175 +3016,7 @@ function onCultoChange() {
   renderPlaylist();
 }
 
-/**
- * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
- * em controller/src/db/musicas.js → «Editada»; bases antigas podem ter «Cópia»).
- * Como quase toda a entrada da playlist acaba por ser uma cópia, repeti-lo em cada
- * linha é ruído — só nomes dados pelo operador dizem algo.
- * Comparação insensível a maiúsculas e normalizada; aceita também o rótulo legado
- * «cópia/modificada» já gravado em bases antigas.
- */
-const ROTULOS_VERSAO_AUTOMATICOS = new Set([
-  'cópia'.normalize('NFC'),
-  'cópia/modificada'.normalize('NFC'),
-]);
-
-/**
- * Forma canónica de exibição dos rótulos automáticos. Só nome exibido: o que está
- * gravado (`ROTULO_COPIA_PADRAO` = «Cópia», em controller/src/db/musicas.js) não
- * muda. A Cópia padrão — a que nasce junto com a Original — chama-se
- * «Cópia/Original» na interface, porque é a versão editável que carrega o mesmo
- * conteúdo da Original. Tags personalizadas mantêm exactamente a caixa que o
- * utilizador escreveu.
- */
-const ROTULOS_VERSAO_EXIBICAO = new Map([
-  ['cópia'.normalize('NFC'), 'Cópia/Original'],
-  ['cópia/modificada'.normalize('NFC'), 'Cópia'],
-  ['cópia/importada'.normalize('NFC'), 'Cópia/Importada'],
-  ['cópia/manual'.normalize('NFC'), 'Cópia/Manual'],
-]);
-
-/** Rótulo gravado na cópia criada por importação (`ROTULO_COPIA_IMPORTADA`). */
-const ROTULO_VERSAO_IMPORTADA_BRUTO = 'cópia/importada'.normalize('NFC');
-
-/**
- * Nome exibido da versão criada por uma importação: «Versão <BANCO DE ORIGEM>»
- * — «Versão HLYRCS», «Versão LYRA», «Versão CIFRA CLUB», … O banco sai de
- * `origem_importacao` (a origem real gravada na linha) e o nome curto é o
- * mesmo da legenda de origem da Biblioteca (`BIB_ORIGEM_META`).
- *
- * Só exibição: o rótulo gravado continua a ser «Cópia/Importada». Sem origem
- * conhecida devolve '' e quem chama mantém o nome de sempre.
- */
-function nomeVersaoImportadaPorOrigem(rotulo, origem) {
-  const bruto = String(rotulo || '').trim().normalize('NFC').toLocaleLowerCase('pt-BR');
-  if (bruto !== ROTULO_VERSAO_IMPORTADA_BRUTO) return '';
-  const meta = BIB_ORIGEM_META[String(origem || '').trim()];
-  return meta && meta.legenda ? `Versão ${meta.legenda}` : '';
-}
-
-function formatarRotuloVersaoExibicao(rotulo, origem) {
-  const importada = nomeVersaoImportadaPorOrigem(rotulo, origem);
-  if (importada) return importada;
-  const bruto = String(rotulo || '').trim();
-  if (!bruto) return 'Cópia';
-  const chave = bruto.normalize('NFC').toLocaleLowerCase('pt-BR');
-  const automatico = ROTULOS_VERSAO_EXIBICAO.get(chave);
-  if (automatico) return automatico;
-  return bruto;
-}
-
-/** Só exibição: o nome da versão aparece sempre em maiúsculas. O dado gravado não muda. */
-function rotuloVersaoMaiusculo(rotulo) {
-  return String(rotulo || '').toLocaleUpperCase('pt-BR');
-}
-
-/** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
-function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
-  const r = String(rotulo || '').trim();
-  if (!r) return '';
-  return ROTULOS_VERSAO_AUTOMATICOS.has(r.normalize('NFC').toLowerCase()) ? '' : r;
-}
-
-/** Sufixo de versão na linha da playlist — sempre vazio.
- * O vínculo interno (`versaoLocalId` / `versaoRotulo`) continua a existir;
- * a playlist não mostra tag visual de versão. */
-function sufixoRotuloVersaoPlaylist(_item) {
-  return '';
-}
-
-/* Última linha ativa já rolada para a vista — evita brigar com o scroll manual do operador. */
-let ultimaLinhaAtivaRoladaNaPlaylist = null;
-
-/**
- * Garante que a música ativa não fique cortada nas bordas da lista.
- * Só rola quando a linha ativa muda (troca de música), nunca a cada render.
- */
-function garantirMusicaAtivaVisivelNaPlaylist() {
-  const el = document.getElementById('playlist-list');
-  const row = el ? el.querySelector('.playlist-row.ativo') : null;
-  if (!row) {
-    ultimaLinhaAtivaRoladaNaPlaylist = null;
-    return;
-  }
-  const chave = row.dataset.plIdx || '';
-  if (chave === ultimaLinhaAtivaRoladaNaPlaylist) return;
-  ultimaLinhaAtivaRoladaNaPlaylist = chave;
-  requestAnimationFrame(() => {
-    if (!row.isConnected) return;
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  });
-}
-
-/**
- * Alça de arrasto, kebab de ações e o select de Tom da linha.
- * O select não dispara seleção/projeção da música (stopPropagation).
- */
-function ligarBotoesESeletoresLinhaPlaylist(row, item, idxPl) {
-  const btnKebab = row.querySelector('.pl-btn-kebab');
-  if (btnKebab) {
-    btnKebab.onclick = (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      abrirMenuAcoesLinhaPlaylist(btnKebab, row, idxPl);
-    };
-    /* Sem isto o `mousedown` chegava à linha e a música era seleccionada por baixo do
-       menu que se estava a abrir. */
-    btnKebab.addEventListener('mousedown', (e) => e.stopPropagation());
-  }
-
-  configurarDragReordenarLinhaPlaylist(row, idxPl);
-
-  const selTom = row.querySelector('.pl-sel-tom');
-  if (selTom) {
-    selTom.addEventListener('click', (e) => e.stopPropagation());
-    selTom.addEventListener('mousedown', (e) => e.stopPropagation());
-    selTom.addEventListener('change', (e) => {
-      e.stopPropagation();
-      onPlaylistTomChange(idxPl, selTom.value);
-    });
-  }
-
-  row.addEventListener('click', (ev) => {
-    if (
-      ev.target.closest('.playlist-btns') ||
-      ev.target.closest('.pl-sel') ||
-      ev.target.closest('.pl-grip')
-    ) {
-      return;
-    }
-    clearTimeout(playlistRowClickTimer);
-    const idNum = Number(item.id);
-    playlistRowClickTimer = setTimeout(() => {
-      playlistRowClickTimer = null;
-      if (playlistItemSelecionadoNaUi(item)) {
-        deselecionarMusicaAtivaAPartirDaPlaylist();
-        return;
-      }
-      selecionarMusicaDoBanco(idNum, {
-        habilitarFaixaModoSlides: true,
-        versaoLocalId: item.versaoLocalId || undefined,
-        fonte: fonteBancoItemPlaylist(item),
-        origemUi: 'playlist',
-        abrirEmLetraCompleta: true,
-      });
-    }, 300);
-  });
-  row.addEventListener('dblclick', (ev) => {
-    if (
-      ev.target.closest('.pl-sel') ||
-      ev.target.closest('.playlist-btns') ||
-      ev.target.closest('.pl-grip')
-    ) {
-      return;
-    }
-    ev.preventDefault();
-    ev.stopPropagation();
-    clearTimeout(playlistRowClickTimer);
-    playlistRowClickTimer = null;
-    playlistDuploCliqueIniciarProjecao(item);
-  });
-}
+// (extraído) playlist: linha → painel/playlistLinhaUi.js
 
 // (extraído) ministrantes e tons → painel/ministrantesTons.js
 
