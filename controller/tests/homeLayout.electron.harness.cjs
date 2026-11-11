@@ -54,6 +54,7 @@ const __pp = await import('./painel/previewProjecao.js');
 const __cr = await import('./painel/contagemRegressiva.js');
 const __vm = await import('./painel/versoesMusica.js');
 const __mm = await import('./painel/menuApresentacaoModo.js');
+const __rtu = await import('./painel/roteamentoTelasUi.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -84,7 +85,7 @@ window.__homeTest = {
  closeContagem:()=>import('./painel/contagemRegressiva.js').then(m=>m.fecharPainelContagem()),
  setMonitores:(m)=>{estadoPainel.monitoresServidorCache=m},
  rotas:()=>estadoPainel.rotasPorModo,
- renderRotas:(m,r)=>renderRoteamentoTelas(m,r),
+ renderRotas:(m,r)=>__rtu.renderRoteamentoTelas(m,r),
  espiarBiblia:()=>{const o={p:projecao.pronta,l:projecao.ligada,e:projecao.enfileirar,s:projecao.enviar};window.__enfileirados=[];window.__enviados=[];projecao.ligada=()=>true;projecao.pronta=()=>true;projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{projecao.pronta=o.p;projecao.ligada=o.l;projecao.enfileirar=o.e;projecao.enviar=o.s}},
  biblia:{haParte:bibliaHaParteProjetada},
  ultimo:()=>getUltimoConteudoProjetadoModoUnificado(),

@@ -13,6 +13,10 @@ import { listarCultosDisponiveis } from './cultoDoDia.js';
 import { rotuloExibicaoVersaoServidor } from './versoesMusica.js';
 import { renderPlaylist } from './playlistLista.js';
 import { estadoPainel } from './estadoPainel.js';
+import { formatarRotuloVersaoExibicao, rotuloVersaoMaiusculo } from './playlistLinhaUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist, savePlaylists } from './playlistServidor.js';
+import { getTemaSelecionadoAtual } from './temasPlaylistUi.js';
 
 let dep = {};
 
@@ -23,13 +27,7 @@ let dep = {};
 export function registrarDependenciasPlaylistAdicionar(d) {
   dep = d || {};
 }
-const formatarRotuloVersaoExibicao = (...a) => dep.formatarRotuloVersaoExibicao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const getTemaSelecionadoAtual = (...a) => dep.getTemaSelecionadoAtual(...a);
 const onCultoChange = (...a) => dep.onCultoChange(...a);
-const rotuloVersaoMaiusculo = (...a) => dep.rotuloVersaoMaiusculo(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
 
 export async function addMusicaNaPlaylist(meta) {
   if (!estadoPainel.cultoId) {

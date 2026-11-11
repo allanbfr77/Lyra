@@ -20,6 +20,17 @@ import { limparOrdemNaoExibirUnificado } from '../modules/ordemNaoExibirUnificad
 import { resolverEnvioBiblia } from '../modules/rotaEnvioBiblia.js';
 import { enviarPreviewDisplayConfig, getChkVal, salvarSlideCfgNoStorage, setChkVal, setInputVal, setSelVal, setSpanText, slidesAplicarCfgArmazenada } from './configExibicao.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { aplicarMonitorLembradoAoEntrarNoModo, desativarRotasModosTransitorios, hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, hayProjecaoMidiaApresentacaoAtiva, marcarRotaLiveNoDom, normalizarRota, rotaDesativada, salvarRotasPorModoNoStorage, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
+import { aplicarRotaDoModoAtualNaUiEServidor, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
+import { atualizarBtnModoApresentacao, atualizarBtnToggleModoSlides, definirEstadoBtnModoCabecalho, ehModoBibliaOperador, ehModoSlidesOperador, executarComTransicaoUi, liberarBloqueioUiModos } from './modosUi.js';
+import { atualizarBtnTelaInicial, carregarTraducoes } from './menuApresentacaoModo.js';
+import { atualizarPreviewOperador } from './previewProjecao.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { limparUiAoSairDoModoSlides } from './modoSlidesOperador.js';
+import { mensagemAlvoInvalidoBiblia } from './conteudoUnificadoAviso.js';
+import { preferenciaMovimentoReduzido } from './playlistLista.js';
+import { renderSlidesStrip } from './slidesStrip.js';
+import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 
 let dep = {};
 
@@ -30,34 +41,6 @@ let dep = {};
 export function registrarDependenciasBiblia(d) {
   dep = d || {};
 }
-const aplicarMonitorLembradoAoEntrarNoModo = (...a) => dep.aplicarMonitorLembradoAoEntrarNoModo(...a);
-const aplicarRotaDoModoAtualNaUiEServidor = (...a) => dep.aplicarRotaDoModoAtualNaUiEServidor(...a);
-const atualizarBtnModoApresentacao = (...a) => dep.atualizarBtnModoApresentacao(...a);
-const atualizarBtnTelaInicial = (...a) => dep.atualizarBtnTelaInicial(...a);
-const atualizarBtnToggleModoSlides = (...a) => dep.atualizarBtnToggleModoSlides(...a);
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const carregarTraducoes = (...a) => dep.carregarTraducoes(...a);
-const definirEstadoBtnModoCabecalho = (...a) => dep.definirEstadoBtnModoCabecalho(...a);
-const desativarRotasModosTransitorios = (...a) => dep.desativarRotasModosTransitorios(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const executarComTransicaoUi = (...a) => dep.executarComTransicaoUi(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const hayProjecaoApresentacaoModoAtiva = (...a) => dep.hayProjecaoApresentacaoModoAtiva(...a);
-const hayProjecaoAtivaModoBibliaOuApresentacao = (...a) => dep.hayProjecaoAtivaModoBibliaOuApresentacao(...a);
-const hayProjecaoMidiaApresentacaoAtiva = (...a) => dep.hayProjecaoMidiaApresentacaoAtiva(...a);
-const liberarBloqueioUiModos = (...a) => dep.liberarBloqueioUiModos(...a);
-const limparUiAoSairDoModoSlides = (...a) => dep.limparUiAoSairDoModoSlides(...a);
-const marcarRotaLiveNoDom = (...a) => dep.marcarRotaLiveNoDom(...a);
-const mensagemAlvoInvalidoBiblia = (...a) => dep.mensagemAlvoInvalidoBiblia(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const preferenciaMovimentoReduzido = (...a) => dep.preferenciaMovimentoReduzido(...a);
-const renderSlidesStrip = (...a) => dep.renderSlidesStrip(...a);
-const rotaDesativada = (...a) => dep.rotaDesativada(...a);
-const rotaSelecionadaNaUi = (...a) => dep.rotaSelecionadaNaUi(...a);
-const salvarRotasPorModoNoStorage = (...a) => dep.salvarRotasPorModoNoStorage(...a);
-const salvarRoteamentoTelasNoServidor = (...a) => dep.salvarRoteamentoTelasNoServidor(...a);
-const sincronizarCheckboxLembrarMonitor = (...a) => dep.sincronizarCheckboxLembrarMonitor(...a);
 
 /** Tradução escolhida ao entrar no modo Bíblia; só vale nesta janela do controlador (não persiste ao fechar o app). */
 let bibliaTraducaoSessao = null;

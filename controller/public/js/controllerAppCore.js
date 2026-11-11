@@ -95,6 +95,10 @@
  *   temasPlaylistUi.js — temas da playlist na interface: seletor, dropdowns «Lyra select», excluir/selecionar tema
  *   playlistServidor.js — playlists: envio ao servidor, emissão na rede, gravação local, remoção de música/versão e seleção na interface
  *   playlistLinhaUi.js — playlist: rótulos de versão na linha, rolagem até a música ativa e ligação dos botões/seletores da linha
+ *   modosUi.js — modos de UI do painel (Slides/Mídias/Bíblia/DOCS/Home): predicados, transições, botões do cabeçalho e tela inicial
+ *   slidesGrelhaPainel.js — grelha de slides do painel: instância de criarSlidesGrelha e funções de zoom/colunas/encaixe
+ *   servidorAlvo.js — endereço do servidor/controlador (IP, base da API, host de projeção) e comando de áudio à projeção
+ *   socketPainelApi.js — interface do socket do painel (conectar, reconectar, IP lembrado, auto-conectar) sobre socketPainel
  * =============================================================================
  */
 
@@ -121,12 +125,8 @@ import {
   placeholderBuscaLetrasPorFonte,
 } from './modules/fonteLetrasSite.js';
 import {
-  criarSlidesGrelha,
-} from './modules/slidesGrelha.js';
-import {
   definirLembrarMonitor,
 } from './modules/monitorLembrado.js';
-import { fecharMenuFlutuanteAberto } from './modules/menuFlutuante.js';
 import { exporCallbacksParaAtributosHtml } from './modules/ponteHtmlWindow.js';
 import {
   configurarNotasSlideControlador,
@@ -163,7 +163,6 @@ import {
   mostrarBannerCompanionProgresso,
 } from './painel/bannerAtualizacao.js';
 import {
-  fecharModoDocs,
   encerrarRotaModoDocs,
   navegarPaginaDocs,
   projetarPaginaDocs,
@@ -174,7 +173,6 @@ import {
   configurarBuscaDocsImportados,
   docsHaPaginaProjetada,
   docsPaginaSelecionadaAtual,
-  registrarDependenciasDocs,
 } from './painel/docs.js';
 import {
   onContagemCfgChange,
@@ -185,40 +183,27 @@ import {
   alternarPainelContagem,
   abrirPainelContagem,
   iniciarContagemRegressivaPainel,
-  registrarDependenciasContagem,
 } from './painel/contagemRegressiva.js';
 import {
-  alternarModoBiblia,
   atualizarBtnModoBiblia,
   bibliaHaParteProjetada,
   bibliaNavPopupAberto,
   bibliaNavPopupFechar,
   bibliaNavegarVersiculosComSeta,
-  bibliaPayloadCfgExibicao,
-  bibliaPopularFormularioCfg,
   bibliaTratarKeydownModo,
   carregarBibliaCfgDoStorage,
   encerrarProjecaoModoBiblia,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
-  lerBibliaCfgDoFormularioMinistrante,
-  lerBibliaCfgDoFormularioPublico,
   reconhecimentoVozBiblia,
   registrarDependenciasBiblia,
-  salvarBibliaCfgNoStorage,
 } from './painel/biblia.js';
 import {
   abrirCfgModal,
   aprimorarControlesVisuaisCfg,
   fecharCfgModal,
-  getChkVal,
   iniciarConfigExibicao,
-  lerNumeroInput,
   registrarDependenciasConfigExibicao,
-  setChkVal,
-  setInputVal,
-  setSelVal,
-  setSpanText,
 } from './painel/configExibicao.js';
 import {
   carregarMusicas,
@@ -233,36 +218,24 @@ import {
   registrarDependenciasBibliotecaMusicas,
 } from './painel/bibliotecaMusicas.js';
 import {
-  registrarDependenciasVersoesMusica,
 } from './painel/versoesMusica.js';
 import {
-  atualizarTextoPainelLetraCompleta,
   confirmarProsseguirDescartandoEdicaoPendente,
   entrarModoLetraCompletaCentral,
-  estrofesArraysIguaisParaEdicao,
   irParaGradeSlidesDesdeLetraCompleta,
   registrarDependenciasLetraCompleta,
-  splitTextoLetraCompletaEmEstrofes,
-  temEdicaoMusicaNaoGravada,
 } from './painel/letraCompleta.js';
 import {
-  aplicarLayoutModoComparativo,
-  comparativoSujoVsSnapshot,
-  registrarDependenciasComparativoVersoes,
   sairModoComparativoParaTrocarModo,
 } from './painel/comparativoVersoes.js';
 import {
-  atualizarEstrofesEditorInPlace,
   configurarCamposMetadadosMusicaHome,
   entrarModoEdicao,
-  iniciarCriarNovaVersao,
   iniciarEditorEstrofes,
   novaEstrofe,
-  persistirMusicaAtivaNoServidor,
   reaplicarAlturasEstrofesEditor,
   registrarDependenciasEditorEstrofes,
   renderEstrofesEditor,
-  sincronizarFlagCaixaLetrasComTextoAtual,
 } from './painel/editorEstrofes.js';
 import {
   garantirAberturaNoCatalogoCulto,
@@ -274,24 +247,12 @@ import {
   loadTemasPorCulto,
   normalizarTemaPlaylist,
   podarMinistrantePadraoSemMusicasNaPlaylist,
-  registrarDependenciasPlaylistTemas,
   setAberturaRemovidaPorCulto,
   setMinistrantePadraoPorCulto,
 } from './painel/playlistTemas.js';
 import {
-  atualizarCopiaLocal,
-  carregarVersoesMusicaServidor,
-  encontrarCopiaLocal,
-  garantirCopiaPadraoServidor,
-  getCopiasParaMusica,
-  musicaAtivaEhOriginalServidor,
-  obterRootIdMusicaAtiva,
-  registrarDependenciasCopiasLocaisPainel,
-  removerCopiaLocal,
-  versaoAtivaParaCompararPlaylist,
 } from './painel/copiasLocaisPainel.js';
 import {
-  ajustarCorpoSeletoresDoCulto,
   cultoIdEhManual,
   fecharCultoDropdown,
   listarCultosDisponiveis,
@@ -314,30 +275,21 @@ import {
 import {
   aplicarSnapshotCompartilhadoNoRenderer,
   getModalSincronizarTimerAutoFechar,
-  marcarBancoCompartilhadoAlterado,
   recuperarPedidoSyncBancoPendente,
   registrarDependenciasSincronizacaoBanco,
   setSharedBancoLocalUpdatedAt,
   tratarPedidoSyncBancoDirecto,
 } from './painel/sincronizacaoBanco.js';
 import {
-  registrarDependenciasPlaylistTransmitidas,
 } from './painel/playlistTransmitidas.js';
 import {
   garantirMinistrantesCarregados,
   iniciarSyncPeriodicoTonsInvb,
-  nomeMinistrantePorId,
-  registrarDependenciasMinistrantesTons,
-  renderListaCfgMinistrantes,
 } from './painel/ministrantesTons.js';
 import {
-  preferenciaMovimentoReduzido,
-  registrarDependenciasPlaylistLista,
   renderPlaylist,
 } from './painel/playlistLista.js';
 import {
-  addMusicaNaPlaylist,
-  addMusicaNaPlaylistParaCulto,
   processarMusicasSincronizadasPayload,
   registrarDependenciasPlaylistAdicionar,
 } from './painel/playlistAdicionar.js';
@@ -349,10 +301,8 @@ import {
   configurarMenuMomentoPlaylist,
   configurarModalSyncPlaylist,
   configurarSeletorTemaPlaylist,
-  registrarDependenciasPlaylistMenus,
 } from './painel/playlistMenus.js';
 import {
-  registrarDependenciasVideoApresentacao,
   urlMidiaApresentacaoHttpPorId,
 } from './painel/videoApresentacao.js';
 import {
@@ -361,57 +311,36 @@ import {
   atualizarUiPlayerAudioRemoto,
   definirVolumeAudioServidor,
   get_previewAlvoAtual,
-  obterElementoVideoLocal,
   posicionarOverlayPreview,
-  prepararPlayerVideoAposProjetar,
-  registrarDependenciasPlayerLocalMidia,
   seekAudioServidor,
-  tocarAudioServidorApresentacao,
 } from './painel/playerLocalMidia.js';
 import {
-  apLibFecharMenus,
   configurarBibliotecaMidiasApresentacao,
   importarArquivosBibliotecaMidias,
-  registrarDependenciasBibliotecaMidiasApresentacao,
   renderListaAudiosApresentacao,
   renderMenuApresentacao,
 } from './painel/bibliotecaMidiasApresentacao.js';
 import {
-  aoTerminarVideoPlaylist,
-  atualizarPlaylistUiAoVivoSeMudou,
-  cancelarAvancoAutoPlaylist,
   pararAudioServidor,
   playlistAdicionarVideos,
   playlistAlternarModo,
-  playlistControlaReproducaoAtual,
   playlistDefinirAtraso,
   playlistLimpar,
-  registrarDependenciasPlaylistVideoApresentacao,
   renderListaPlaylistApresentacao,
   tocarAudioAtualSelecionado,
 } from './painel/playlistVideoApresentacao.js';
 import {
   adicionarArquivoDiretoNoCard,
-  adicionarArquivosAoMenu,
   adicionarImagemNaAreaCard4,
   registrarDependenciasGridApresentacao,
   renderGridApresentacao,
 } from './painel/gridApresentacao.js';
 import {
-  agendarSalvarEstadoAposDigitarAviso,
-  armarGuardaVisualRetomadaAudio,
-  carregarEstadoModoApresentacaoDoServidor,
   carregarEstadoModoApresentacaoDoStorage,
   encerrarModoApresentacaoNoTelao,
-  flushSalvarEstadoAposDigitarAviso,
   gravarEstadoModoApresentacaoNoStorageAgora,
-  limparGuardaVisualRetomadaAudio,
-  normalizarItemApresentacao,
-  registrarDependenciasEstadoApresentacao,
-  salvarEstadoModoApresentacaoNoStorage,
 } from './painel/estadoApresentacao.js';
 import {
-  abrirSlideQuickEditModal,
   fecharSlideDeleteConfirmModal,
   fecharSlideQuickEditModal,
   registrarDependenciasSlidesStrip,
@@ -420,196 +349,89 @@ import {
 } from './painel/slidesStrip.js';
 import {
   alternarProjecaoNestaMaquina,
-  atualizarUrlsObs,
   emModoProjecaoLocal,
   ligarProjecaoNestaMaquina,
   ponteProjecaoLocal,
   registrarDependenciasProjecaoLocalObs,
 } from './painel/projecaoLocalObs.js';
 import {
-  abrirModalPreviewLetras,
-  abrirModalPreviewLetrasOffline,
   configurarModalPreviewLetras,
-  definirIsolamentoSelecaoPreviewLetras,
   fecharModalPreviewLetras,
-  registrarDependenciasPreviewLetras,
 } from './painel/previewLetras.js';
 import {
   correrPreVooDoCulto,
   iniciarPreVoo,
-  registrarDependenciasPreVoo,
 } from './painel/preVoo.js';
 import {
   configurarModalExcluirMusica,
   fecharModalExcluirMusica,
-  registrarDependenciasRemoverMusicaBanco,
-  solicitarRemoverMusicaDoBancoServidor,
-  solicitarRemoverMusicasDoBancoServidorEmLote,
 } from './painel/removerMusicaBanco.js';
 import {
-  aplicarEstiloPreviewTituloAbertura,
-  registrarDependenciasTituloAberturaPreview,
 } from './painel/tituloAberturaPreview.js';
 import {
   atualizarPreviewOperador,
   atualizarPreviewPlaylistCentral,
-  atualizarSlidesInstrucoes,
   configurarObserverPreviewMinistrante,
-  definirControlosZoomFaixaSlidesInertes,
-  definirNomeMusicaBarraSlides,
-  definirVazioDaFaixaSlidesVisivel,
-  emitirEstadoMinistranteAoServidor,
-  registrarDependenciasPreviewProjecao,
-  sincronizarPreviewOciosoMinistranteSlides,
 } from './painel/previewProjecao.js';
 import {
   aplicarPreviewPainelOcultoNoDom,
   carregarPreviewPainelOcultoDoArmazenamento,
-  registrarDependenciasPreviewOculto,
 } from './painel/previewOculto.js';
 import {
-  atualizarBotoesSalvarCancelarBarraPadrao,
-  atualizarToolbarCaixaLetrasEdicao,
   atualizarToolbarModoEdicao,
-  cancelarModoComparativoCentral,
   marcacaoEstrofeEditor,
-  metadadosMusicaSujosNaHome,
-  registrarDependenciasToolbarEdicaoHome,
   renomearVersaoSelecionadaComNome,
 } from './painel/toolbarEdicaoHome.js';
 import {
   carregarRoteamentoTelasDoServidor,
-  registrarDependenciasRoteamentoTelas,
-  salvarRoteamentoTelasNoServidor,
 } from './painel/roteamentoTelas.js';
 import {
-  controladorSomenteLeitura,
   iniciarEventosProjecao,
   registrarDependenciasEventosProjecao,
   socketPainel,
 } from './painel/eventosProjecao.js';
 import {
   direcaoTeclaPassadorSlides,
-  emitirEstrofeAoServidor,
   encerrarProjecaoDoControlador,
-  exibirEstrofe,
   iniciarProjecaoMusica,
   montarPayloadExibirMusica,
-  musicaEstadoCombinaComAtiva,
   navegarEstrofe,
   navegarEstrofePassadorSlides,
   navegarEstrofePorSeta,
-  nomeCultoAtivoParaHistorico,
-  projetarPorDuploCliqueCentral,
   reconhecimentoVozSlides,
   registrarDependenciasProjecaoMusica,
-  selecionarMusicaDoBanco,
-  sincronizarEstrofeAtiva,
   toggleBlackoutTelas,
 } from './painel/projecaoMusica.js';
 import {
-  agendarAtualizacaoAvisoCard6AoVivo,
-  algumCampoAvisoCard6EmEdicao,
-  aplicarEstiloTextareaAvisoCard6,
-  aplicarExtrasModoApresentacao,
-  atualizarFeedbackProjecaoApresentacaoUi,
-  atualizarRodapeAudioApresentacao,
-  canaisParaEncerrarConteudoApresentacao,
   carregarAvisoCard6CfgDoStorage,
-  criarSeletorMonitorAvisoCard6,
-  emitirApresentacao,
-  emitirEncerrarApresentacaoPublicoAoServidor,
-  encerrarCanaisApresentacaoNoServidor,
   getApresentacaoAvisoCard6Ativo,
   getUltimoConteudoProjetadoModoUnificado,
   getUltimoPayloadAvisoCard6,
-  indicesPadraoPublicoMinistranteApresentacao,
-  mensagemAlvoInvalidoApresentacao,
-  mensagemAlvoInvalidoBiblia,
-  monitoresApresentacaoCobremAlvo,
-  obterAlvoProjecaoDeRota,
-  obterAlvoProjecaoModoApresentacao,
-  obterRotaApresentacaoParaServidor,
-  projetarAvisoCard6,
-  registrarDependenciasConteudoUnificadoAviso,
-  rotaSlidesAoEntrarNoModo,
-  salvarAvisoCard6CfgNoStorage,
   setApresentacaoAvisoCard6Ativo,
   setUltimoConteudoProjetadoModoUnificado,
   setUltimoPayloadAvisoCard6,
-  sincronizarPillProjecaoNav,
 } from './painel/conteudoUnificadoAviso.js';
 import {
-  aplicarMonitorLembradoAoEntrarNoModo,
-  atualizarIndicadorProjecaoLiveUi,
   carregarRotasPorModoDoStorage,
-  desativarRotasModosTransitorios,
-  hayProjecaoApresentacaoModoAtiva,
-  hayProjecaoAtivaModoBibliaOuApresentacao,
-  hayProjecaoMidiaApresentacaoAtiva,
   hostChaveMonitores,
-  indicesEfetivosRoteamentoDualCliente,
-  listaMonitoresParaProjecao,
-  marcarRotaLiveNoDom,
   modoComMemoriaMonitorAtual,
-  modoRoteamentoAtual,
   normalizarRota,
-  persistirIdentidadesDosModos,
-  registrarDependenciasRotasMonitores,
   rotaDesativada,
-  rotaRestauradaPorIdentidade,
-  rotaSemMonitorRepetido,
-  salvarRotasPorModoNoStorage,
-  sanitizarIndiceMonitorProjecao,
-  sanitizarRotaProjecao,
   sincronizarCheckboxLembrarMonitor,
 } from './painel/rotasMonitores.js';
 import {
-  apresentacaoOcupandoCanalMinistrante,
-  apresentacaoProjecaoAtivaNoCanalPublico,
-  atualizarPreviewMonitorMinistranteSlides,
-  atualizarPreviewMonitorPublicoSlides,
-  atualizarPreviewsMonitoresVirtuaisModoSlides,
-  classificarSaidaMonitorMinistranteSlides,
-  classificarSaidaMonitorPublicoSlides,
-  estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
-  obterRotaSlidesParaUi,
-  registrarDependenciasCanaisProjecao,
-  restaurarRotaSlidesAposLibertarMonitores,
-  syncRoteamentoTelasModoSlidesNaUi,
 } from './painel/canaisProjecao.js';
 import {
-  abrirMenuModoApresentacao,
-  atualizarBtnTelaInicial,
-  carregarTraducoes,
-  encerrarAvisoCard6NoControlador,
   encerrarProjecaoMidiaCabecalhoModoApresentacao,
-  encerrarProjecaoModoApresentacao,
   escolherArquivoModoApresentacao,
   fecharMenuModoApresentacao,
-  registrarDependenciasMenuApresentacaoModo,
-  reidratarRotaApresentacaoDoSeletor,
 } from './painel/menuApresentacaoModo.js';
 import {
-  alternarModoSlidesOperador,
   iniciarModoSlidesOperador,
-  limparEspelhoLocalSoCamadaSlides,
-  limparUiAoSairDoModoSlides,
-  registrarDependenciasModoSlidesOperador,
 } from './painel/modoSlidesOperador.js';
 import {
-  aplicarRotaDoModoAtualNaUiEServidor,
-  atualizarEstiloRotasDesativadas,
-  avisarMonitoresConfiguradosEmFalta,
-  fecharMenusRoteamentoTelas,
   impedirSelecaoDeTextoNoDuploClique,
-  indiceRoteamentoMonitorNaUi,
-  montarLabelMonitor,
-  montarTitleMonitor,
-  registrarDependenciasRoteamentoTelasUi,
-  renderRoteamentoTelas,
   rotaSelecionadaNaUi,
-  rotuloRotaApresentacaoForaDoPreset,
   setupMenusRoteamentoTelas,
 } from './painel/roteamentoTelasUi.js';
 import {
@@ -618,45 +440,53 @@ import {
   clampSlidesRailHeight,
   initAlturaPreviewModFromStorage,
   initSlidesRailHeightFromStorage,
-  registrarDependenciasSlidesRailLayout,
   setupSlidesRailResize,
 } from './painel/slidesRailLayout.js';
 import {
-  excluirTemaDoCulto,
   fecharOutrosSeletoresDropdown,
-  getTemaSelecionadoAtual,
-  obterTemasDisponiveisPlaylist,
-  playlistAtualJaTemTema,
   registrarDependenciasTemasPlaylistUi,
-  renderItensLyraSelectDropdown,
   renderSeletorTemasPlaylist,
-  setTemaSelecionadoAtual,
   setupLyraSelectDropdownWrap,
 } from './painel/temasPlaylistUi.js';
 import {
-  aplicarSelecaoUiBiblioteca,
-  aplicarSelecaoUiPlaylist,
-  atualizarRotuloVersaoNasPlaylists,
-  emitirPlaylistsDoControlador,
-  enviarPlaylistsParaServidor,
-  getPlaylist,
-  indiceProximaMusicaNaPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-  playlistItemMesmaVersaoQueSelecaoUi,
-  registrarDependenciasPlaylistServidor,
-  removerMusicaDeTodasPlaylists,
-  removerVersaoLocalDasPlaylists,
-  repontarVersaoNaPlaylistDoCulto,
   savePlaylists,
 } from './painel/playlistServidor.js';
-import {
-  formatarRotuloVersaoExibicao,
-  garantirMusicaAtivaVisivelNaPlaylist,
-  ligarBotoesESeletoresLinhaPlaylist,
-  rotuloVersaoMaiusculo,
-  sufixoRotuloVersaoPlaylist,
-} from './painel/playlistLinhaUi.js';
 import { APRESENTACAO_IDX_CARD5, estadoPainel, projecao } from './painel/estadoPainel.js';
+import {
+  aplicarRotulosEPlaylistModoSlides,
+  atualizarBtnModoApresentacao,
+  atualizarBtnToggleModoSlides,
+  ehModoApresentacaoOperador,
+  ehModoBibliaOperador,
+  ehModoDocsOperador,
+  ehModoSlidesOperador,
+  liberarBloqueioUiModos,
+} from './painel/modosUi.js';
+import {
+  ajustarEncaixeGrelhaSlidesModoSlides,
+  initSlidesChipZoomFromStorage,
+  initSlidesPorLinhaFromStorage,
+  setupSlidesChipZoomButtons,
+  setupSlidesGridViewportFitObserver,
+  setupSlidesPorLinhaButtons,
+  slidesGrelha,
+} from './painel/slidesGrelhaPainel.js';
+import {
+  hostProjecao,
+  readLsMigrate,
+} from './painel/servidorAlvo.js';
+import {
+  configurarAutoConectarAoAlternarJanelas,
+  interromperReconexaoSocket,
+  limparIpGuardado,
+  persistirIpServidor,
+  preferenciaAutoConectar,
+  preferenciaLembrarIp,
+  sincronizarUiAutoConectar,
+  sincronizarUiLembrarIp,
+  tentarAutoConectarSeDesconectado,
+  tentarConectarAutomaticoAoIniciar,
+} from './painel/socketPainelApi.js';
 
 /*
  * Diálogo do app, menu Lyra e banner de atualização vivem em painel/. As dependências do núcleo são
@@ -677,81 +507,7 @@ registrarDependenciasMenuLyra({
   alternarProjecaoNestaMaquina: (...a) => alternarProjecaoNestaMaquina(...a),
   abrirCfgModal: (...a) => abrirCfgModal(...a),
 });
-registrarDependenciasDocs({
-  apLibFecharMenus,
-  aplicarMonitorLembradoAoEntrarNoModo,
-  aplicarRotaDoModoAtualNaUiEServidor,
-  atualizarBtnTelaInicial,
-  canaisParaEncerrarConteudoApresentacao,
-  definirEstadoBtnModoCabecalho,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoDocsOperador,
-  ehModoSlidesOperador,
-  emitirApresentacao,
-  encerrarCanaisApresentacaoNoServidor,
-  executarComTransicaoUi,
-  executarSemTransicaoUi,
-  getControllerApiBase,
-  hayProjecaoMidiaApresentacaoAtiva,
-  hostChaveMonitores,
-  irParaTelaInicial,
-  normalizarRota,
-  obterAlvoProjecaoDeRota,
-  rotaDesativada,
-  salvarRoteamentoTelasNoServidor,
-  sincronizarCheckboxLembrarMonitor,
-});
-registrarDependenciasContagem({
-  abrirCfgModal,
-  carregarRoteamentoTelasDoServidor,
-  definirEstadoBtnModoCabecalho,
-  fecharMenusRoteamentoTelas,
-  getChkVal,
-  getServidorProjeccaoIp,
-  indicesPadraoPublicoMinistranteApresentacao,
-  lerNumeroInput,
-  listaMonitoresParaProjecao,
-  montarLabelMonitor,
-  montarTitleMonitor,
-  normalizarRota,
-  rotaDesativada,
-  salvarRoteamentoTelasNoServidor,
-  sanitizarRotaProjecao,
-  setChkVal,
-  setInputVal,
-  setSelVal,
-  setSpanText,
-});
 registrarDependenciasBiblia({
-  aplicarMonitorLembradoAoEntrarNoModo,
-  aplicarRotaDoModoAtualNaUiEServidor,
-  atualizarBtnModoApresentacao,
-  atualizarBtnTelaInicial,
-  atualizarBtnToggleModoSlides,
-  atualizarPreviewOperador,
-  carregarTraducoes,
-  definirEstadoBtnModoCabecalho,
-  desativarRotasModosTransitorios,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  executarComTransicaoUi,
-  getControllerApiBase,
-  hayProjecaoApresentacaoModoAtiva,
-  hayProjecaoAtivaModoBibliaOuApresentacao,
-  hayProjecaoMidiaApresentacaoAtiva,
-  liberarBloqueioUiModos,
-  limparUiAoSairDoModoSlides,
-  marcarRotaLiveNoDom,
-  mensagemAlvoInvalidoBiblia,
-  normalizarRota,
-  preferenciaMovimentoReduzido,
-  renderSlidesStrip,
-  rotaDesativada,
-  rotaSelecionadaNaUi,
-  salvarRotasPorModoNoStorage,
-  salvarRoteamentoTelasNoServidor,
-  sincronizarCheckboxLembrarMonitor,
   getReconhecimentoVozSlides: () => reconhecimentoVozSlides,
   getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
@@ -759,421 +515,60 @@ registrarDependenciasBiblia({
   },
 });
 registrarDependenciasConfigExibicao({
-  agendarAtualizacaoAvisoCard6AoVivo,
-  algumCampoAvisoCard6EmEdicao,
-  aplicarEstiloPreviewTituloAbertura,
-  atualizarUrlsObs,
-  carregarEstadoModoApresentacaoDoServidor,
-  controladorSomenteLeitura,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  hostProjecao,
-  renderGridApresentacao,
-  renderListaCfgMinistrantes,
-  salvarEstadoModoApresentacaoNoStorage,
-  sincronizarPreviewOciosoMinistranteSlides,
   sincronizarTicksSliderVh,
-  bibliaPayloadCfgExibicao,
-  bibliaPopularFormularioCfg,
-  carregarBibliaCfgDoStorage,
-  lerBibliaCfgDoFormularioMinistrante,
-  lerBibliaCfgDoFormularioPublico,
-  salvarBibliaCfgNoStorage,
   getApresentacaoIdxCard5: () => APRESENTACAO_IDX_CARD5,
   getBibliaCfgExibicao,
   getBibliaCfgMinistrante,
 });
 registrarDependenciasBibliotecaMusicas({
-  abrirModalPreviewLetras,
-  abrirModalPreviewLetrasOffline,
-  addMusicaNaPlaylist,
   aplicarPlaceholderBuscaLetras,
   atualizarUiToggleListaBancoSqlite,
-  entrarModoEdicao,
-  garantirCopiaPadraoServidor,
-  getControllerApiBase,
   getLetrasSiteFonteAtual,
-  getPlaylist,
-  renderEstrofesEditor,
-  renderItensLyraSelectDropdown,
-  selecionarMusicaDoBanco,
-  setupLyraSelectDropdownWrap,
-  solicitarRemoverMusicaDoBancoServidor,
-  solicitarRemoverMusicasDoBancoServidorEmLote,
   splitTextoEmEstrofesPorLinhaVaziaStrict,
   getSVG_MENU_EDITAR: () => SVG_MENU_EDITAR,
   getSVG_MENU_EXCLUIR: () => SVG_MENU_EXCLUIR,
   getSVG_MENU_INSERIR: () => SVG_MENU_INSERIR,
 });
-registrarDependenciasVersoesMusica({
-  atualizarCopiaLocal,
-  atualizarEstrofesEditorInPlace,
-  atualizarRotuloVersaoNasPlaylists,
-  atualizarSomenteAtivoFaixaSlides,
-  atualizarTextoPainelLetraCompleta,
-  atualizarToolbarModoEdicao,
-  carregarVersoesMusicaServidor,
-  ehModoSlidesOperador,
-  encontrarCopiaLocal,
-  estrofesArraysIguaisParaEdicao,
-  formatarRotuloVersaoExibicao,
-  getControllerApiBase,
-  getCopiasParaMusica,
-  iniciarCriarNovaVersao,
-  marcacaoEstrofeEditor,
-  musicaAtivaEhOriginalServidor,
-  obterRootIdMusicaAtiva,
-  removerCopiaLocal,
-  removerVersaoLocalDasPlaylists,
-  renderEstrofesEditor,
-  renderPlaylist,
-  renderSlidesStrip,
-  rotuloVersaoMaiusculo,
-  splitTextoLetraCompletaEmEstrofes,
-  temEdicaoMusicaNaoGravada,
-});
 registrarDependenciasLetraCompleta({
-  atualizarPreviewOperador,
-  atualizarToolbarModoEdicao,
-  ehModoSlidesOperador,
-  marcacaoEstrofeEditor,
-  metadadosMusicaSujosNaHome,
-  montarPayloadExibirMusica,
-  renderSlidesStrip,
   splitTextoEmEstrofesPorLinhaVaziaStrict,
-  aplicarLayoutModoComparativo,
-  comparativoSujoVsSnapshot,
-  persistirMusicaAtivaNoServidor,
-  renderEstrofesEditor,
-  sairModoComparativoParaTrocarModo,
-  sincronizarFlagCaixaLetrasComTextoAtual,
-});
-registrarDependenciasComparativoVersoes({
-  atualizarBotoesSalvarCancelarBarraPadrao,
-  atualizarPreviewOperador,
-  atualizarToolbarModoEdicao,
-  cancelarModoComparativoCentral,
-  carregarVersoesMusicaServidor,
-  formatarRotuloVersaoExibicao,
-  getControllerApiBase,
-  marcacaoEstrofeEditor,
-  obterRootIdMusicaAtiva,
-  renderSlidesStrip,
-  renderEstrofesEditor,
 });
 registrarDependenciasEditorEstrofes({
-  abrirSlideQuickEditModal,
   aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice,
   aplicarSplitsEstrofesDosTextareasAntesDePersistir,
-  atualizarBotoesSalvarCancelarBarraPadrao,
-  atualizarCopiaLocal,
-  atualizarPreviewOperador,
-  atualizarSlidesInstrucoes,
-  atualizarToolbarCaixaLetrasEdicao,
-  atualizarToolbarModoEdicao,
-  carregarVersoesMusicaServidor,
-  ehModoSlidesOperador,
-  emitirEstrofeAoServidor,
-  exibirEstrofe,
-  getControllerApiBase,
-  marcacaoEstrofeEditor,
-  metadadosMusicaSujosNaHome,
-  obterRootIdMusicaAtiva,
-  projetarPorDuploCliqueCentral,
-  renderPlaylist,
-  renderSlidesStrip,
-  repontarVersaoNaPlaylistDoCulto,
   splitTextoEmEstrofesPorLinhaVaziaStrict,
-  versaoAtivaParaCompararPlaylist,
-});
-registrarDependenciasPlaylistTemas({
-  getControllerApiBase,
-  getPlaylist,
-  getTemaSelecionadoAtual,
-  marcarBancoCompartilhadoAlterado,
-  savePlaylists,
-  setTemaSelecionadoAtual,
-});
-registrarDependenciasCopiasLocaisPainel({
-  getControllerApiBase,
 });
 registrarDependenciasCultoDoDia({
-  fecharOutrosSeletoresDropdown,
   initCultoSelect,
-  marcarBancoCompartilhadoAlterado,
   onCultoChange,
-  savePlaylists,
 });
 registrarDependenciasPlaylistCompartilhar({
-  addMusicaNaPlaylistParaCulto,
-  garantirMinistrantesCarregados,
-  getControllerApiBase,
-  getPlaylist,
   initCultoSelect,
-  nomeMinistrantePorId,
   onCultoChange,
-  renderPlaylist,
-  renderSeletorTemasPlaylist,
-  savePlaylists,
 });
 registrarDependenciasSincronizacaoBanco({
-  emitirPlaylistsDoControlador,
   forcarRepinturaCompositorLyra,
-  getControllerApiBase,
-  getServidorProjeccaoIp,
   initCultoSelect,
   onCultoChange,
-  ponteProjecaoLocal,
-  renderSeletorTemasPlaylist,
-});
-registrarDependenciasPlaylistTransmitidas({
-  ehModoSlidesOperador,
-  encerrarProjecaoDoControlador,
-  getPlaylist,
-  indiceProximaMusicaNaPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-  playlistItemMesmaVersaoQueSelecaoUi,
-  renderPlaylist,
-});
-registrarDependenciasMinistrantesTons({
-  atualizarPreviewOperador,
-  ehModoSlidesOperador,
-  emitirEstadoMinistranteAoServidor,
-  emitirEstrofeAoServidor,
-  formatarRotuloVersaoExibicao,
-  getControllerApiBase,
-  getPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-  renderItensLyraSelectDropdown,
-  rotuloVersaoMaiusculo,
-  savePlaylists,
-  setupLyraSelectDropdownWrap,
-  renderPlaylist,
-});
-registrarDependenciasPlaylistLista({
-  ehModoSlidesOperador,
-  encerrarProjecaoDoControlador,
-  garantirMusicaAtivaVisivelNaPlaylist,
-  getPlaylist,
-  getTemaSelecionadoAtual,
-  ligarBotoesESeletoresLinhaPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-  renderSeletorTemasPlaylist,
-  savePlaylists,
-  setTemaSelecionadoAtual,
-  sufixoRotuloVersaoPlaylist,
 });
 registrarDependenciasPlaylistAdicionar({
-  formatarRotuloVersaoExibicao,
-  getControllerApiBase,
-  getPlaylist,
-  getTemaSelecionadoAtual,
   onCultoChange,
-  rotuloVersaoMaiusculo,
-  savePlaylists,
-});
-registrarDependenciasPlaylistMenus({
-  ehModoSlidesOperador,
-  excluirTemaDoCulto,
-  fecharOutrosSeletoresDropdown,
-  getPlaylist,
-  obterTemasDisponiveisPlaylist,
-  playlistAtualJaTemTema,
-  renderSeletorTemasPlaylist,
-  savePlaylists,
-  setTemaSelecionadoAtual,
-});
-registrarDependenciasVideoApresentacao({
-  atualizarFeedbackProjecaoApresentacaoUi,
-  atualizarRodapeAudioApresentacao,
-  emModoProjecaoLocal,
-  emitirApresentacao,
-  getControllerApiBase,
-  getServidorIp,
-  getServidorProjeccaoIp,
-  mensagemAlvoInvalidoApresentacao,
-  monitoresApresentacaoCobremAlvo,
-  normalizarItemApresentacao,
-  obterAlvoProjecaoModoApresentacao,
-  reidratarRotaApresentacaoDoSeletor,
-  salvarEstadoModoApresentacaoNoStorage,
-  atualizarUiPlayerAudioRemoto,
-  cancelarAvancoAutoPlaylist,
-  obterElementoVideoLocal,
-  prepararPlayerVideoAposProjetar,
-  renderGridApresentacao,
-  tocarAudioServidorApresentacao,
-});
-registrarDependenciasPlayerLocalMidia({
-  armarGuardaVisualRetomadaAudio,
-  enviarComandoAudioProjeccao,
-  hostProjecao,
-  limparGuardaVisualRetomadaAudio,
-  salvarEstadoModoApresentacaoNoStorage,
-  aoTerminarVideoPlaylist,
-  atualizarPlaylistUiAoVivoSeMudou,
-  playlistControlaReproducaoAtual,
-});
-registrarDependenciasBibliotecaMidiasApresentacao({
-  atualizarFeedbackProjecaoApresentacaoUi,
-  emitirEncerrarApresentacaoPublicoAoServidor,
-  escolherArquivoModoApresentacao,
-  salvarEstadoModoApresentacaoNoStorage,
-  sincronizarPillProjecaoNav,
-  adicionarArquivosAoMenu,
-  renderGridApresentacao,
-});
-registrarDependenciasPlaylistVideoApresentacao({
-  atualizarFeedbackProjecaoApresentacaoUi,
-  atualizarRodapeAudioApresentacao,
-  encerrarModoApresentacaoNoTelao,
-  salvarEstadoModoApresentacaoNoStorage,
-  renderGridApresentacao,
 });
 registrarDependenciasGridApresentacao({
-  agendarSalvarEstadoAposDigitarAviso,
-  aplicarEstiloTextareaAvisoCard6,
-  atualizarFeedbackProjecaoApresentacaoUi,
-  criarSeletorMonitorAvisoCard6,
   ehItemImagemApresentacao,
-  ehModoApresentacaoOperador,
-  emitirEncerrarApresentacaoPublicoAoServidor,
-  encerrarAvisoCard6NoControlador,
-  flushSalvarEstadoAposDigitarAviso,
-  projetarAvisoCard6,
-  salvarEstadoModoApresentacaoNoStorage,
   getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
 });
-registrarDependenciasEstadoApresentacao({
-  algumCampoAvisoCard6EmEdicao,
-  aplicarExtrasModoApresentacao,
-  ehModoApresentacaoOperador,
-  encerrarProjecaoModoApresentacao,
-  getControllerApiBase,
-  hostProjecao,
-  modoRoteamentoAtual,
-  normalizarRota,
-  renderRoteamentoTelas,
-  salvarAvisoCard6CfgNoStorage,
-});
 registrarDependenciasSlidesStrip({
-  ajustarEncaixeGrelhaSlidesModoSlides,
   aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice,
-  atualizarPreviewOperador,
-  atualizarSlidesInstrucoes,
-  atualizarSomenteAtivoFaixaSlides,
-  definirControlosZoomFaixaSlidesInertes,
-  definirNomeMusicaBarraSlides,
-  definirVazioDaFaixaSlidesVisivel,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  emitirEstrofeAoServidor,
-  exibirEstrofe,
-  marcacaoEstrofeEditor,
-  podeAtualizarSomenteAtivoFaixaSlides,
-  projetarPorDuploCliqueCentral,
   getSlidesGrelha: () => slidesGrelha,
 });
 registrarDependenciasProjecaoLocalObs({
   atualizarUiConexao,
-  carregarRoteamentoTelasDoServidor,
-  ehModoBibliaOperador,
-  emitirEstadoMinistranteAoServidor,
-  getServidorIp,
-  recordarIpsDestaMaquina,
-  setStatusServidorRemoto,
-});
-registrarDependenciasPreviewLetras({
-  getControllerApiBase,
-  selecionarMusicaDoBanco,
-});
-registrarDependenciasPreVoo({
-  getControllerApiBase,
-  getPlaylist,
-  nomeCultoAtivoParaHistorico,
-  normalizarRota,
-  obterRotaSlidesParaUi,
-  sanitizarRotaProjecao,
-});
-registrarDependenciasRemoverMusicaBanco({
-  ehModoSlidesOperador,
-  getControllerApiBase,
-  marcacaoEstrofeEditor,
-  removerMusicaDeTodasPlaylists,
-  atualizarPreviewOperador,
-});
-registrarDependenciasTituloAberturaPreview({
-  getPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-});
-registrarDependenciasPreviewProjecao({
-  aplicarPreviewPainelOcultoNoDom,
-  apresentacaoOcupandoCanalMinistrante,
-  atualizarPreviewMonitorMinistranteSlides,
-  atualizarPreviewMonitorPublicoSlides,
-  atualizarPreviewsMonitoresVirtuaisModoSlides,
-  classificarSaidaMonitorMinistranteSlides,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  musicaEstadoCombinaComAtiva,
-  obterRotaSlidesParaUi,
-  syncRoteamentoTelasModoSlidesNaUi,
-});
-registrarDependenciasPreviewOculto({
-  classificarSaidaMonitorMinistranteSlides,
-  classificarSaidaMonitorPublicoSlides,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  indicesEfetivosRoteamentoDualCliente,
-  normalizarRota,
-});
-registrarDependenciasToolbarEdicaoHome({
-  atualizarRotuloVersaoNasPlaylists,
-  getControllerApiBase,
-});
-registrarDependenciasRoteamentoTelas({
-  aplicarRotaDoModoAtualNaUiEServidor,
-  atualizarFeedbackProjecaoApresentacaoUi,
-  avisarMonitoresConfiguradosEmFalta,
-  ehModoSlidesOperador,
-  hayProjecaoMidiaApresentacaoAtiva,
-  hostProjecao,
-  modoRoteamentoAtual,
-  normalizarRota,
-  obterRotaApresentacaoParaServidor,
-  persistirIdentidadesDosModos,
-  restaurarRotaSlidesAposLibertarMonitores,
-  rotaRestauradaPorIdentidade,
-  rotaSelecionadaNaUi,
-  rotaSemMonitorRepetido,
-  rotaSlidesAoEntrarNoModo,
-  salvarRotasPorModoNoStorage,
-  sanitizarRotaProjecao,
-  emitirEstrofeAoServidor,
 });
 registrarDependenciasEventosProjecao({
   agendarRepinturaCompositorAposEstadoServidor,
-  aplicarSelecaoUiPlaylist,
   assinaturaEstadoProjecaoRecebido,
-  atualizarBtnModoApresentacao,
-  atualizarFeedbackProjecaoApresentacaoUi,
-  atualizarIndicadorProjecaoLiveUi,
-  atualizarRodapeAudioApresentacao,
   atualizarUiConexao,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  emitirPlaylistsDoControlador,
-  enviarPlaylistsParaServidor,
   forcarRepinturaCompositorLyra,
-  hostProjecao,
-  readLsMigrate,
-  projetarPorDuploCliqueCentral,
-  selecionarMusicaDoBanco,
-  sincronizarEstrofeAtiva,
   getApresentacaoAvisoCard6Ativo: () => getApresentacaoAvisoCard6Ativo(),
   setApresentacaoAvisoCard6Ativo: (valor) => {
     setApresentacaoAvisoCard6Ativo(valor);
@@ -1184,307 +579,24 @@ registrarDependenciasEventosProjecao({
   },
 });
 registrarDependenciasProjecaoMusica({
-  abrirMenuModoApresentacao,
   alternarListaBancoSqlite,
-  alternarModoSlidesOperador,
-  aplicarSelecaoUiBiblioteca,
-  aplicarSelecaoUiPlaylist,
-  apresentacaoProjecaoAtivaNoCanalPublico,
   conectar,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  fecharMenuModoApresentacao,
-  getControllerApiBase,
-  getPlaylist,
-  hostProjecao,
-  indiceProximaMusicaNaPlaylist,
-  irParaTelaInicial,
-  limparEspelhoLocalSoCamadaSlides,
-  modoRoteamentoAtual,
-  onCfgAutoConectarChange,
-  onCfgLembrarIpChange,
-  playlistItemMesmaVersaoQueAtiva,
   recarregarPainelControlador,
-  revelarChipEstrofeFocado,
   getSlidesGrelha: () => slidesGrelha,
   getUltimoConteudoProjetadoModoUnificado: () => getUltimoConteudoProjetadoModoUnificado(),
   setUltimoConteudoProjetadoModoUnificado: (valor) => {
     setUltimoConteudoProjetadoModoUnificado(valor);
   },
 });
-registrarDependenciasConteudoUnificadoAviso({
-  fecharOutrosSeletoresDropdown,
-  getServidorProjeccaoIp,
-  hostProjecao,
-  indiceRoteamentoMonitorNaUi,
-  rotuloRotaApresentacaoForaDoPreset,
-  encerrarAvisoCard6NoControlador,
-  listaMonitoresParaProjecao,
-  modoRoteamentoAtual,
-  normalizarRota,
-  sanitizarIndiceMonitorProjecao,
-});
-registrarDependenciasRotasMonitores({
-  avisarMonitoresConfiguradosEmFalta,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoDocsOperador,
-  ehModoSlidesOperador,
-  getServidorIp,
-  renderRoteamentoTelas,
-  rotaSelecionadaNaUi,
-  estadoServidorEhProjecaoApresentacaoAtivaNoTelao,
-  restaurarRotaSlidesAposLibertarMonitores,
-});
-registrarDependenciasCanaisProjecao({
-  atualizarEstiloRotasDesativadas,
-  ehModoSlidesOperador,
-  renderRoteamentoTelas,
-});
-registrarDependenciasMenuApresentacaoModo({
-  aplicarRotaDoModoAtualNaUiEServidor,
-  aplicarRotulosEPlaylistModoSlides,
-  atualizarBtnModoApresentacao,
-  atualizarBtnToggleModoSlides,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoDocsOperador,
-  ehModoSlidesOperador,
-  executarComTransicaoUi,
-  renderItensLyraSelectDropdown,
-  renderRoteamentoTelas,
-  rotaSelecionadaNaUi,
-});
-registrarDependenciasModoSlidesOperador({
-  aplicarRotaDoModoAtualNaUiEServidor,
-  aplicarRotulosEPlaylistModoSlides,
-  atualizarBtnModoApresentacao,
-  atualizarBtnToggleModoSlides,
-  ehModoApresentacaoOperador,
-  ehModoBibliaOperador,
-  ehModoSlidesOperador,
-  executarComTransicaoUi,
-  irParaTelaInicial,
-});
-registrarDependenciasRoteamentoTelasUi({
-  ehModoSlidesOperador,
-  fecharOutrosSeletoresDropdown,
-});
-registrarDependenciasSlidesRailLayout({
-  ehModoSlidesOperador,
-});
 registrarDependenciasTemasPlaylistUi({
   fecharMenuOverflowPlaylist,
-  getPlaylist,
-  playlistItemMesmaVersaoQueAtiva,
-  savePlaylists,
-});
-registrarDependenciasPlaylistServidor({
-  getControllerApiBase,
-  hostProjecao,
 });
 // (extraído) estado compartilhado → painel/estadoPainel.js
 
 // --- SECÇÃO A: modos de UI, localStorage de layout, ícones ---
 /** v2: padrão é modo completo; chave nova ignora preferência legada que deixava sempre «modo slides» ao abrir o .exe. */
 
-function ehModoSlidesOperador() {
-  return document.body.classList.contains('app-mod-slides');
-}
-function ehModoApresentacaoOperador() {
-  return document.body.classList.contains('app-mod-apresentacao');
-}
-function ehModoBibliaOperador() {
-  return document.body.classList.contains('app-mod-biblia');
-}
-function ehModoDocsOperador() {
-  return document.body.classList.contains('app-mod-docs');
-}
-
-function liberarBloqueioUiModos() {
-  try {
-    if (typeof fecharMenusRoteamentoTelas === 'function') fecharMenusRoteamentoTelas();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  try {
-    if (typeof bibliaNavPopupFechar === 'function') bibliaNavPopupFechar();
-    const ov = document.getElementById('app-dialog-overlay');
-    if (ov) {
-      ov.classList.remove('aberto');
-      ov.hidden = true;
-    }
-    document.getElementById('cfg-modal-overlay-ctrl')?.classList.remove('aberto');
-    [
-      'slide-quick-edit-backdrop',
-      'slide-nota-backdrop',
-      'slide-delete-confirm-backdrop',
-      'letras-preview-backdrop',
-      'musica-excluir-backdrop',
-      'nova-musica-manual-backdrop',
-      'culto-calendario-backdrop',
-    ].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.hidden = true;
-    });
-    definirIsolamentoSelecaoPreviewLetras(false);
-    fecharMenuFlutuanteAberto();
-  } catch (_) {
-  // intencional — erro ignorado
-}
-}
-
-/**
- * Enquanto for maior que zero, as trocas de ecrã aplicam-se sem cross-fade.
- * Só `executarSemTransicaoUi()` lhe mexe — ver a entrada no modo DOCS.
- */
-let transicoesUiSuprimidas = 0;
-
-/**
- * Corre `fn` com as View Transitions desligadas.
- *
- * Serve para as mudanças que envolvem mais do que uma troca de classe: encadeadas, cada
- * uma faria o seu cross-fade e o ecrã intermédio ficava à vista entre elas.
- */
-function executarSemTransicaoUi(fn) {
-  transicoesUiSuprimidas += 1;
-  try {
-    fn();
-  } finally {
-    transicoesUiSuprimidas -= 1;
-  }
-}
-
-/**
- * Transição suave ao mudar modo ou aba (View Transitions API — Chromium/Electron).
- * No Electron a API pode deixar uma camada que bloqueia cliques — aí aplica o callback direto.
- */
-function executarComTransicaoUi(fn) {
-  try {
-    liberarBloqueioUiModos();
-  } catch (err) {
-    console.error('[Lyra] liberarBloqueioUiModos', err);
-  }
-  const semAnimacaoViewTransition =
-    transicoesUiSuprimidas > 0 ||
-    (typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
-    !!(typeof window !== 'undefined' && window.process?.versions?.electron);
-  try {
-    if (semAnimacaoViewTransition) {
-      fn();
-      return Promise.resolve();
-    }
-    if (typeof document.startViewTransition === 'function') {
-      return document.startViewTransition(fn);
-    }
-  } catch (_) {
-  // intencional — erro ignorado
-}
-  fn();
-  return Promise.resolve();
-}
-
-function aplicarRotulosEPlaylistModoSlides() {
-  const modo = ehModoSlidesOperador();
-  const headPl = document.getElementById('playlist-panel-head');
-  const cultoWrap = document.querySelector('.culto-select-wrap');
-  /*
-    Título em elemento próprio (não num nó de texto solto): na coluna estreita do modo
-    slides o texto corrido quebrava a meio. Agora é só «CULTO», numa linha — vive na
-    secção de datas, acima do seletor; os botões L/I/C/S ficam no cabeçalho.
-  */
-  let titulo = document.querySelector('.playlist-panel-head-titulo');
-  if (!titulo && cultoWrap) {
-    titulo = document.createElement('span');
-    titulo.className = 'playlist-panel-head-titulo';
-    cultoWrap.insertBefore(titulo, cultoWrap.firstChild);
-  }
-  if (headPl) {
-    // Neutraliza nó de texto residual no cabeçalho, se ainda existir.
-    headPl.childNodes.forEach((n) => {
-      if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) n.textContent = '';
-    });
-  }
-  /* «CULTO» nos dois modos: a lista tem cabeçalho próprio («PLAYLIST», logo acima dela),
-     que é também onde vive o botão de copiar as músicas. */
-  if (titulo) titulo.textContent = 'CULTO';
-  /*
-    Rótulo da barra da faixa: no modo slides ela identifica o que está carregado
-    («MÚSICA ATUAL › Clamo Jesus»); nos outros modos continua a nomear a secção
-    («SLIDES • Clamo Jesus»).
-  */
-  const marcaFaixa = document.querySelector('.slides-dock-bar-left .slides-dock-marca');
-  const sepFaixa = document.querySelector('.slides-dock-bar-left .slides-dock-sep');
-  if (marcaFaixa) marcaFaixa.textContent = modo ? 'Música atual' : 'Slides';
-  if (sepFaixa) sepFaixa.textContent = modo ? '›' : '•';
-  const playlistAcoes = document.getElementById('playlist-panel-head');
-  if (playlistAcoes) playlistAcoes.hidden = modo;
-  const t0 = document.getElementById('preview-titulo-tela-0');
-  const t1 = document.getElementById('preview-titulo-tela-1');
-  if (t0) t0.textContent = 'TELÃO / PÚBLICO / IGREJA';
-  if (t1) t1.textContent = 'TV / MINISTRANTE / RETORNO';
-  /* A troca de modo muda a largura (e o corpo base) do botão do culto sem passar por um
-     `resize`: a descrição tem de ser remedida aqui também. */
-  ajustarCorpoSeletoresDoCulto();
-}
-
-/**
- * Estado visual + acessível de um botão de modo do dock do cabeçalho.
- * `primary` é a classe de seleção lida pelo CSS; `aria-pressed` expõe o mesmo
- * estado a leitores de ecrã.
- */
-function definirEstadoBtnModoCabecalho(idBtn, ativo, tituloAtivo, tituloInativo) {
-  const btn = document.getElementById(idBtn);
-  if (!btn) return;
-  btn.classList.toggle('primary', ativo);
-  btn.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-  btn.title = ativo ? tituloAtivo : tituloInativo;
-}
-
-function atualizarBtnToggleModoSlides() {
-  definirEstadoBtnModoCabecalho(
-    'btn-toggle-modo-slides',
-    ehModoSlidesOperador(),
-    'MODO SLIDE (ativo)',
-    'Entrar no MODO SLIDE',
-  );
-  atualizarBtnModoBiblia();
-}
-
-function atualizarBtnModoApresentacao() {
-  definirEstadoBtnModoCabecalho(
-    'btn-modo-apresentacao',
-    ehModoApresentacaoOperador(),
-    'MODO APRESENTAÇÃO (ativo)',
-    'Entrar no MODO APRESENTAÇÃO',
-  );
-  atualizarBtnToggleModoSlides();
-}
-
-// (extraído) DOCS → painel/docs.js
-
-function irParaTelaInicial() {
-  if (ehModoDocsOperador()) {
-    fecharModoDocs();
-    return;
-  }
-  if (ehModoApresentacaoOperador()) {
-    fecharMenuModoApresentacao();
-    return;
-  }
-  if (ehModoBibliaOperador()) {
-    alternarModoBiblia();
-    return;
-  }
-  if (ehModoSlidesOperador()) {
-    alternarModoSlidesOperador({ permitirDesativar: true });
-    return;
-  }
-  liberarBloqueioUiModos();
-  atualizarBtnToggleModoSlides();
-}
+// (extraído) modos de UI → painel/modosUi.js
 
 // --- SECÇÃO B — Modo apresentação (grelha, áudio, sync :3001); tipo/URL/item em midiaApresentacao.js ---
 // (extraído) rotas por modo e monitores → painel/rotasMonitores.js
@@ -1765,111 +877,9 @@ try {
 
 
 // --- SECÇÃO D — Faixa de slides (dock), zoom, chips; geometria em slidesGrelha.js ---
-const slidesGrelha = criarSlidesGrelha({
-  ehModoSlidesOperador,
-  getMusicaAtiva: () => estadoPainel.musicaAtiva,
-  getEstrofeAtiva: () => estadoPainel.estrofeAtiva,
-  getFaixaHabilitada: () => estadoPainel.faixaSlidesHabilitadaPorPlaylistNoModoSlides,
-  getProjecaoEmitida: () => estadoPainel.projecaoMusicaEmitidaNoServidor,
-});
+// (extraído) grelha de slides do painel → painel/slidesGrelhaPainel.js
 
-function applySlidesChipZoomLevel(z) { slidesGrelha.applySlidesChipZoomLevel(z); }
-function slideChipSnippetBaseFontPx() { return slidesGrelha.slideChipSnippetBaseFontPx(); }
-function podeAtualizarSomenteAtivoFaixaSlides() { return slidesGrelha.podeAtualizarSomenteAtivoFaixaSlides(); }
-function atualizarSomenteAtivoFaixaSlides() { slidesGrelha.atualizarSomenteAtivoFaixaSlides(); }
-function obterChipEstrofeNaGrelha(idx) { return slidesGrelha.obterChipEstrofeNaGrelha(idx); }
-function obterScrollportGrelhaSlides() { return slidesGrelha.obterScrollportGrelhaSlides(); }
-function colunasVisiveisGrelhaSlides() { return slidesGrelha.colunasVisiveisGrelhaSlides(); }
-function obterChipAntecipacaoNaGrelha(idx) { return slidesGrelha.obterChipAntecipacaoNaGrelha(idx); }
-function revelarChipEstrofeFocado(idx, opts) { slidesGrelha.revelarChipEstrofeFocado(idx, opts); }
-function revelarGradeSlides() { slidesGrelha.revelarGradeSlides(); }
-function ajustarFonteSnippetsNosSlideChips(tentativa) { slidesGrelha.ajustarFonteSnippetsNosSlideChips(tentativa); }
-function ajustarEncaixeGrelhaSlidesModoSlides() { slidesGrelha.ajustarEncaixeGrelhaSlidesModoSlides(); }
-function setupSlidesGridViewportFitObserver() { slidesGrelha.setupSlidesGridViewportFitObserver(); }
-function initSlidesChipZoomFromStorage() { slidesGrelha.initSlidesChipZoomFromStorage(); }
-function setupSlidesChipZoomButtons() { slidesGrelha.setupSlidesChipZoomButtons(); }
-function applySlidesPorLinha(n) { slidesGrelha.applySlidesPorLinha(n); }
-function initSlidesPorLinhaFromStorage() { slidesGrelha.initSlidesPorLinhaFromStorage(); }
-function setupSlidesPorLinhaButtons() { slidesGrelha.setupSlidesPorLinhaButtons(); }
-
-function readLsMigrate(key, legacyKey) {
-  let v = localStorage.getItem(key);
-  if (v === null && legacyKey) {
-    const old = localStorage.getItem(legacyKey);
-    if (old !== null) {
-      localStorage.setItem(key, old);
-      localStorage.removeItem(legacyKey);
-      v = old;
-    }
-  }
-  return v;
-}
-
-/** IP efetivo: prefere o gravado na barra após «Conectar»; senão usa o campo manual. */
-function getServidorIp() {
-  const fromSpan = (document.getElementById('info-ip')?.textContent || '').trim();
-  if (fromSpan && fromSpan !== '—') return fromSpan;
-  const fromInput = (document.getElementById('ip-input')?.value || '').trim();
-  return fromInput || null;
-}
-
-/** API HTTP do controlador (SQLite local) — sempre neste PC, porta 3001. */
-function getControllerApiBase() {
-  return 'http://127.0.0.1:3001';
-}
-
-/**
- * Endereço de quem hospeda a projeção na porta 5510.
- *
- * É o análogo HTTP do que a porta de projeção fez para os comandos: os call sites
- * perguntam «onde está a projeção», não «qual é o IP do Servidor». No modo local a
- * resposta é sempre esta máquina, mesmo que o campo de IP tenha sobrado de uma ligação
- * anterior — apontar para lá pediria os monitores ao PC errado.
- *
- * @returns {string|null} `null` quando não há projeção alcançável (modo remoto sem IP).
- */
-function hostProjecao() {
-  if (emModoProjecaoLocal()) return '127.0.0.1';
-  return getServidorIp();
-}
-
-/** Como `hostProjecao`, mas assume o próprio PC quando nada está configurado. */
-function getServidorProjeccaoIp() {
-  return hostProjecao() || '127.0.0.1';
-}
-
-/**
- * Comandos de áudio do modo apresentação → servidor de projeção (5510).
- * Preferência: Socket.IO; fallback HTTP (como `exibir_apresentacao`).
- */
-async function enviarComandoAudioProjeccao(evento, payload = {}) {
-  if (projecao.enviar(evento, payload)) return true;
-  const rotas = {
-    audio_play: '/api/comando/audio_play',
-    audio_pause: '/api/comando/audio_pause',
-    audio_stop: '/api/comando/audio_stop',
-    audio_volume: '/api/comando/audio_volume',
-    audio_seek: '/api/comando/audio_seek',
-  };
-  const path = rotas[evento];
-  if (!path) return false;
-  const ip = getServidorProjeccaoIp();
-  try {
-    const r = await fetch(`http://${ip}:5510${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || data.ok === false) {
-      throw new Error(data.erro || `HTTP ${r.status}`);
-    }
-    return true;
-  } catch (e) {
-    console.warn('[Lyra] comando áudio falhou:', evento, e);
-    return false;
-  }
-}
+// (extraído) endereço do servidor → painel/servidorAlvo.js
 
 // (extraído) seletores de roteamento de telas → painel/roteamentoTelasUi.js
 
@@ -2214,27 +1224,7 @@ function alternarListaBancoSqlite() {
 iniciarEventosProjecao();
 
 // --- SECÇÃO G — Socket.IO (eventos tempo real: estado, playlists, músicas, apresentação) ---
-function iniciarSocket(ip) { socketPainel.iniciarSocket(ip); }
-function tentarAutoConectarSeDesconectado() { socketPainel.tentarAutoConectarSeDesconectado(); }
-function configurarAutoConectarAoAlternarJanelas() { socketPainel.configurarAutoConectarAoAlternarJanelas(); }
-function setStatusServidorRemoto(estado) { socketPainel.setStatusServidorRemoto(estado); }
-function recordarIpsDestaMaquina(lista, preferido) { socketPainel.recordarIpsDestaMaquina(lista, preferido); }
-async function refrescarIpsDestaMaquina() { return socketPainel.refrescarIpsDestaMaquina(); }
-function ipRemotoAlvo() { return socketPainel.ipRemotoAlvo(); }
-function persistirIpServidor(ip) { socketPainel.persistirIpServidor(ip); }
-function sincronizarUiLembrarIp() { socketPainel.sincronizarUiLembrarIp(); }
-function onCfgLembrarIpChange(ligado) { socketPainel.onCfgLembrarIpChange(ligado); }
-function sincronizarUiAutoConectar() { socketPainel.sincronizarUiAutoConectar(); }
-function onCfgAutoConectarChange(ligado) { socketPainel.onCfgAutoConectarChange(ligado); }
-async function tentarConectarAutomaticoAoIniciar() { return socketPainel.tentarConectarAutomaticoAoIniciar(); }
-function ehEnderecoDestaMaquina(ip) { return socketPainel.ehEnderecoDestaMaquina(ip); }
-async function consultarPapelHost5510(ip) { return socketPainel.consultarPapelHost5510(ip); }
-function tratarFalhaLigacaoServidor(mensagem) { socketPainel.tratarFalhaLigacaoServidor(mensagem); }
-function interromperReconexaoSocket() { socketPainel.interromperReconexaoSocket(); }
-async function reassumirProjecaoLocalAposQuedaRemota() { return socketPainel.reassumirProjecaoLocalAposQuedaRemota(); }
-function preferenciaLembrarIp() { return socketPainel.preferenciaLembrarIp(); }
-function preferenciaAutoConectar() { return socketPainel.preferenciaAutoConectar(); }
-function limparIpGuardado() { socketPainel.limparIpGuardado(); }
+// (extraído) interface do socket do painel → painel/socketPainelApi.js
 
 // (extraído) biblioteca de músicas → painel/bibliotecaMusicas.js
 

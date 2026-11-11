@@ -6,17 +6,7 @@
 import { criarMapaCopiasLocais, ehVersaoLocalLegada } from '../modules/copiasLocaisLetra.js';
 import { renderMusicaVersoesBar } from './versoesMusica.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasCopiasLocaisPainel(d) {
-  dep = d || {};
-}
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
+import { getControllerApiBase } from './servidorAlvo.js';
 
 const mapaCopiasLocais = criarMapaCopiasLocais();
 

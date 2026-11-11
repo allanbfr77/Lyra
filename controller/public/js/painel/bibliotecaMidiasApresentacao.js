@@ -8,23 +8,10 @@ import { detectarKindApresentacaoPorMimeOuNome, ehArquivoPowerPointLocal, fmtTem
 import { atualizarUiPlayerAudioRemoto, pararAudioServidorPlayback } from './playerLocalMidia.js';
 import { importarMidiaApresentacaoPorCaminho, projetarItemApresentacao } from './videoApresentacao.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasBibliotecaMidiasApresentacao(d) {
-  dep = d || {};
-}
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const emitirEncerrarApresentacaoPublicoAoServidor = (...a) => dep.emitirEncerrarApresentacaoPublicoAoServidor(...a);
-const escolherArquivoModoApresentacao = (...a) => dep.escolherArquivoModoApresentacao(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
-const sincronizarPillProjecaoNav = (...a) => dep.sincronizarPillProjecaoNav(...a);
-const adicionarArquivosAoMenu = (...a) => dep.adicionarArquivosAoMenu(...a);
-const renderGridApresentacao = (...a) => dep.renderGridApresentacao(...a);
+import { atualizarFeedbackProjecaoApresentacaoUi, emitirEncerrarApresentacaoPublicoAoServidor, sincronizarPillProjecaoNav } from './conteudoUnificadoAviso.js';
+import { escolherArquivoModoApresentacao } from './menuApresentacaoModo.js';
+import { salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { adicionarArquivosAoMenu, renderGridApresentacao } from './gridApresentacao.js';
 
 export function criarItemApresentacaoDeArquivo(file, onDone) {
   if (!file) return;

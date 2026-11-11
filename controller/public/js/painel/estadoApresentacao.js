@@ -11,26 +11,12 @@ import { renderGridApresentacao } from './gridApresentacao.js';
 import { renderListaAudiosApresentacao, renderMenuApresentacao } from './bibliotecaMidiasApresentacao.js';
 import { restaurarItemVideoApresentacao } from './videoApresentacao.js';
 import { APRESENTACAO_IDX_CARD4, APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasEstadoApresentacao(d) {
-  dep = d || {};
-}
-const algumCampoAvisoCard6EmEdicao = (...a) => dep.algumCampoAvisoCard6EmEdicao(...a);
-const aplicarExtrasModoApresentacao = (...a) => dep.aplicarExtrasModoApresentacao(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const encerrarProjecaoModoApresentacao = (...a) => dep.encerrarProjecaoModoApresentacao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const modoRoteamentoAtual = (...a) => dep.modoRoteamentoAtual(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const renderRoteamentoTelas = (...a) => dep.renderRoteamentoTelas(...a);
-const salvarAvisoCard6CfgNoStorage = (...a) => dep.salvarAvisoCard6CfgNoStorage(...a);
+import { algumCampoAvisoCard6EmEdicao, aplicarExtrasModoApresentacao, salvarAvisoCard6CfgNoStorage } from './conteudoUnificadoAviso.js';
+import { ehModoApresentacaoOperador } from './modosUi.js';
+import { encerrarProjecaoModoApresentacao } from './menuApresentacaoModo.js';
+import { getControllerApiBase, hostProjecao } from './servidorAlvo.js';
+import { modoRoteamentoAtual, normalizarRota } from './rotasMonitores.js';
+import { renderRoteamentoTelas } from './roteamentoTelasUi.js';
 
 let audioResumeVisualGuard = null;
 

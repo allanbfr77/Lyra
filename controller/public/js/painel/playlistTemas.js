@@ -8,22 +8,10 @@ import { appAlert } from './appDialog.js';
 import { buscarTomMemoria, normalizarMinistranteIdPlaylist, normalizarMinistrantePadraoPorCulto, normalizarTomPlaylist } from '../modules/playlistMinistranteTom.js';
 import { ehMarcadorTemaPlaylist, fonteBancoItemPlaylist } from '../modules/playlistVersaoMusica.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistTemas(d) {
-  dep = d || {};
-}
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const getTemaSelecionadoAtual = (...a) => dep.getTemaSelecionadoAtual(...a);
-const marcarBancoCompartilhadoAlterado = (...a) => dep.marcarBancoCompartilhadoAlterado(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
-const setTemaSelecionadoAtual = (...a) => dep.setTemaSelecionadoAtual(...a);
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist, savePlaylists } from './playlistServidor.js';
+import { getTemaSelecionadoAtual, setTemaSelecionadoAtual } from './temasPlaylistUi.js';
+import { marcarBancoCompartilhadoAlterado } from './sincronizacaoBanco.js';
 
 export function loadPlaylists() {
   try {

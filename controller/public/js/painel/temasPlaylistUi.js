@@ -9,6 +9,7 @@ import { encerrarProjecaoDoControlador } from './projecaoMusica.js';
 import { fecharCultoDropdown } from './cultoDoDia.js';
 import { filtrarPlaylistRemovendoTemaComMarcadores, getTemasDoCultoAtual, marcarAberturaRemovidaPeloUsuario, normalizarListaTemas, normalizarTemaPlaylist, ordenarTemasLista, playlistPossuiMarcadoresTema, saveTemaSelecionadoPorCulto, saveTemasPorCulto } from './playlistTemas.js';
 import { estadoPainel } from './estadoPainel.js';
+import { getPlaylist, playlistItemMesmaVersaoQueAtiva, savePlaylists } from './playlistServidor.js';
 
 let dep = {};
 
@@ -20,9 +21,6 @@ export function registrarDependenciasTemasPlaylistUi(d) {
   dep = d || {};
 }
 const fecharMenuOverflowPlaylist = (...a) => dep.fecharMenuOverflowPlaylist(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
 
 export function excluirTemaDoCulto(tema) {
   const t = normalizarTemaPlaylist(tema);

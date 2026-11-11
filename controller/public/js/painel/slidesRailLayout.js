@@ -5,17 +5,7 @@
  */
 import { LS_SLIDES_PREVIEW_H_PX, LS_SLIDES_RAIL_PX } from '../modules/chavesArmazenamentoLocal.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasSlidesRailLayout(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
 
 export function clampSlidesRailHeight(px) {
   const min = 260;

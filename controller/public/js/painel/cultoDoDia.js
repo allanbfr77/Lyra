@@ -9,6 +9,9 @@ import { cultoIdPertenceAoMes, dataReferenciaCalendarioCultos, gerarCultosDoMes,
 import { ordenarCultosPorData, resolverProximoCultoPorHorarioBrasilia } from '../modules/proximoCulto.js';
 import { carregarMapaSecoesTemaPlaylistRecolhidas, garantirAberturaNoCatalogoCulto, garantirMarcadorAberturaNaPlaylist, getAberturaRemovidaPorCulto, getMinistrantePadraoPorCulto, saveAberturaRemovidaPorCulto, saveMinistrantePadraoPorCulto, saveTemaSelecionadoPorCulto, saveTemasPorCulto } from './playlistTemas.js';
 import { estadoPainel } from './estadoPainel.js';
+import { fecharOutrosSeletoresDropdown } from './temasPlaylistUi.js';
+import { marcarBancoCompartilhadoAlterado } from './sincronizacaoBanco.js';
+import { savePlaylists } from './playlistServidor.js';
 
 let dep = {};
 
@@ -19,11 +22,8 @@ let dep = {};
 export function registrarDependenciasCultoDoDia(d) {
   dep = d || {};
 }
-const fecharOutrosSeletoresDropdown = (...a) => dep.fecharOutrosSeletoresDropdown(...a);
 const initCultoSelect = (...a) => dep.initCultoSelect(...a);
-const marcarBancoCompartilhadoAlterado = (...a) => dep.marcarBancoCompartilhadoAlterado(...a);
 const onCultoChange = (...a) => dep.onCultoChange(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
 
 export function loadCultosManuais() {
   try {

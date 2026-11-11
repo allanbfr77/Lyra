@@ -6,24 +6,9 @@
 import { fmtTempoAudio } from '../modules/midiaApresentacao.js';
 import { aguardarMetadadosVideo, reescreverUrlVideoParaTelas, restaurarItemVideoApresentacao, videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { APRESENTACAO_IDX_CARD5, estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlayerLocalMidia(d) {
-  dep = d || {};
-}
-const armarGuardaVisualRetomadaAudio = (...a) => dep.armarGuardaVisualRetomadaAudio(...a);
-const enviarComandoAudioProjeccao = (...a) => dep.enviarComandoAudioProjeccao(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const limparGuardaVisualRetomadaAudio = (...a) => dep.limparGuardaVisualRetomadaAudio(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
-const aoTerminarVideoPlaylist = (...a) => dep.aoTerminarVideoPlaylist(...a);
-const atualizarPlaylistUiAoVivoSeMudou = (...a) => dep.atualizarPlaylistUiAoVivoSeMudou(...a);
-const playlistControlaReproducaoAtual = (...a) => dep.playlistControlaReproducaoAtual(...a);
+import { armarGuardaVisualRetomadaAudio, limparGuardaVisualRetomadaAudio, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { enviarComandoAudioProjeccao, hostProjecao } from './servidorAlvo.js';
+import { aoTerminarVideoPlaylist, atualizarPlaylistUiAoVivoSeMudou, playlistControlaReproducaoAtual } from './playlistVideoApresentacao.js';
 
 let audioLocalMotorPronto = false;
 

@@ -10,6 +10,11 @@ import { criarMenuFlutuante } from '../modules/menuFlutuante.js';
 import { digestEstrofesParaStripFaixa, textoSlideSnippetHtmlParaChip } from '../modules/slidesGrelha.js';
 import { persistirMusicaAtivaNoServidor, renderEstrofesEditor } from './editorEstrofes.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { ajustarEncaixeGrelhaSlidesModoSlides, atualizarSomenteAtivoFaixaSlides, podeAtualizarSomenteAtivoFaixaSlides } from './slidesGrelhaPainel.js';
+import { atualizarPreviewOperador, atualizarSlidesInstrucoes, definirControlosZoomFaixaSlidesInertes, definirNomeMusicaBarraSlides, definirVazioDaFaixaSlidesVisivel } from './previewProjecao.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
+import { emitirEstrofeAoServidor, exibirEstrofe, projetarPorDuploCliqueCentral } from './projecaoMusica.js';
+import { marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
 
 let dep = {};
 
@@ -20,22 +25,7 @@ let dep = {};
 export function registrarDependenciasSlidesStrip(d) {
   dep = d || {};
 }
-const ajustarEncaixeGrelhaSlidesModoSlides = (...a) => dep.ajustarEncaixeGrelhaSlidesModoSlides(...a);
 const aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice = (...a) => dep.aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(...a);
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const atualizarSlidesInstrucoes = (...a) => dep.atualizarSlidesInstrucoes(...a);
-const atualizarSomenteAtivoFaixaSlides = (...a) => dep.atualizarSomenteAtivoFaixaSlides(...a);
-const definirControlosZoomFaixaSlidesInertes = (...a) => dep.definirControlosZoomFaixaSlidesInertes(...a);
-const definirNomeMusicaBarraSlides = (...a) => dep.definirNomeMusicaBarraSlides(...a);
-const definirVazioDaFaixaSlidesVisivel = (...a) => dep.definirVazioDaFaixaSlidesVisivel(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const emitirEstrofeAoServidor = (...a) => dep.emitirEstrofeAoServidor(...a);
-const exibirEstrofe = (...a) => dep.exibirEstrofe(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const podeAtualizarSomenteAtivoFaixaSlides = (...a) => dep.podeAtualizarSomenteAtivoFaixaSlides(...a);
-const projetarPorDuploCliqueCentral = (...a) => dep.projetarPorDuploCliqueCentral(...a);
 
 export function renderSlidesStrip() {
   const dock = document.getElementById('slides-dock');

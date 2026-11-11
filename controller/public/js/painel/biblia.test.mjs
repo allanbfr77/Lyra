@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './_stubDom.mjs';
 
 /* O módulo cria o reconhecimento de voz da Bíblia ao ser importado, e este consulta `window`. */
 globalThis.window = globalThis.window || {};

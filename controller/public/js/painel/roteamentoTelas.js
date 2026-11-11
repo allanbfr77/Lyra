@@ -13,34 +13,13 @@ import { rotaSlidesParaEnvioComApresentacao, rotaSlidesParaEnvioComBiblia } from
 import { setPreVooMonitoresEmFalta } from './preVoo.js';
 import { aplicarPreviewPainelOcultoNoDom } from './previewOculto.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasRoteamentoTelas(d) {
-  dep = d || {};
-}
-const aplicarRotaDoModoAtualNaUiEServidor = (...a) => dep.aplicarRotaDoModoAtualNaUiEServidor(...a);
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const avisarMonitoresConfiguradosEmFalta = (...a) => dep.avisarMonitoresConfiguradosEmFalta(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const hayProjecaoMidiaApresentacaoAtiva = (...a) => dep.hayProjecaoMidiaApresentacaoAtiva(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const modoRoteamentoAtual = (...a) => dep.modoRoteamentoAtual(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const obterRotaApresentacaoParaServidor = (...a) => dep.obterRotaApresentacaoParaServidor(...a);
-const persistirIdentidadesDosModos = (...a) => dep.persistirIdentidadesDosModos(...a);
-const restaurarRotaSlidesAposLibertarMonitores = (...a) => dep.restaurarRotaSlidesAposLibertarMonitores(...a);
-const rotaRestauradaPorIdentidade = (...a) => dep.rotaRestauradaPorIdentidade(...a);
-const rotaSelecionadaNaUi = (...a) => dep.rotaSelecionadaNaUi(...a);
-const rotaSemMonitorRepetido = (...a) => dep.rotaSemMonitorRepetido(...a);
-const rotaSlidesAoEntrarNoModo = (...a) => dep.rotaSlidesAoEntrarNoModo(...a);
-const salvarRotasPorModoNoStorage = (...a) => dep.salvarRotasPorModoNoStorage(...a);
-const sanitizarRotaProjecao = (...a) => dep.sanitizarRotaProjecao(...a);
-const emitirEstrofeAoServidor = (...a) => dep.emitirEstrofeAoServidor(...a);
+import { aplicarRotaDoModoAtualNaUiEServidor, avisarMonitoresConfiguradosEmFalta, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
+import { atualizarFeedbackProjecaoApresentacaoUi, obterRotaApresentacaoParaServidor, rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
+import { ehModoSlidesOperador } from './modosUi.js';
+import { hayProjecaoMidiaApresentacaoAtiva, modoRoteamentoAtual, normalizarRota, persistirIdentidadesDosModos, rotaRestauradaPorIdentidade, rotaSemMonitorRepetido, salvarRotasPorModoNoStorage, sanitizarRotaProjecao } from './rotasMonitores.js';
+import { hostProjecao } from './servidorAlvo.js';
+import { restaurarRotaSlidesAposLibertarMonitores } from './canaisProjecao.js';
+import { emitirEstrofeAoServidor } from './projecaoMusica.js';
 
 export async function carregarRoteamentoTelasDoServidor() {
   const ip = hostProjecao();

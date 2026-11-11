@@ -5,23 +5,9 @@
  */
 import { LS_PREVIEW_PAINEL_OCULTO, SVG_OLHO_ABERTO, SVG_OLHO_CORTADO } from '../modules/chavesArmazenamentoLocal.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPreviewOculto(d) {
-  dep = d || {};
-}
-const classificarSaidaMonitorMinistranteSlides = (...a) => dep.classificarSaidaMonitorMinistranteSlides(...a);
-const classificarSaidaMonitorPublicoSlides = (...a) => dep.classificarSaidaMonitorPublicoSlides(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const indicesEfetivosRoteamentoDualCliente = (...a) => dep.indicesEfetivosRoteamentoDualCliente(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
+import { classificarSaidaMonitorMinistranteSlides, classificarSaidaMonitorPublicoSlides } from './canaisProjecao.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
+import { indicesEfetivosRoteamentoDualCliente, normalizarRota } from './rotasMonitores.js';
 
 /** Quando true, o cartão de pré-visualização fica recolhido só neste painel (não afeta monitores). */
 let previewPainelOcultoLocal = [false, false];

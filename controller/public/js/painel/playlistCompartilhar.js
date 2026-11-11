@@ -15,6 +15,12 @@ import { idsCultosJaNaLista, listarCultosDisponiveis, saveCultosManuais, setCult
 import { isoFromCultoId, ordenarCultosPorData } from '../modules/proximoCulto.js';
 import { labelFallbackDeCultoIdImport, parseLabelCulto } from '../modules/cultosCalendario.js';
 import { estadoPainel } from './estadoPainel.js';
+import { addMusicaNaPlaylistParaCulto } from './playlistAdicionar.js';
+import { garantirMinistrantesCarregados, nomeMinistrantePorId } from './ministrantesTons.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist, savePlaylists } from './playlistServidor.js';
+import { renderPlaylist } from './playlistLista.js';
+import { renderSeletorTemasPlaylist } from './temasPlaylistUi.js';
 
 let dep = {};
 
@@ -25,16 +31,8 @@ let dep = {};
 export function registrarDependenciasPlaylistCompartilhar(d) {
   dep = d || {};
 }
-const addMusicaNaPlaylistParaCulto = (...a) => dep.addMusicaNaPlaylistParaCulto(...a);
-const garantirMinistrantesCarregados = (...a) => dep.garantirMinistrantesCarregados(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
 const initCultoSelect = (...a) => dep.initCultoSelect(...a);
-const nomeMinistrantePorId = (...a) => dep.nomeMinistrantePorId(...a);
 const onCultoChange = (...a) => dep.onCultoChange(...a);
-const renderPlaylist = (...a) => dep.renderPlaylist(...a);
-const renderSeletorTemasPlaylist = (...a) => dep.renderSeletorTemasPlaylist(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
 
 let compartilharPlaylistEmAndamento = false;
 

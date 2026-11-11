@@ -9,27 +9,13 @@ import { carregarMusicas } from './bibliotecaMusicas.js';
 import { compararLetras } from '../modules/diffLetrasComparativo.js';
 import { aplicarLayoutModoLetraCompleta, confirmarProsseguirDescartandoEdicaoPendente, estrofesArraysIguaisParaEdicao, splitTextoLetraCompletaEmEstrofes } from './letraCompleta.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasComparativoVersoes(d) {
-  dep = d || {};
-}
-const atualizarBotoesSalvarCancelarBarraPadrao = (...a) => dep.atualizarBotoesSalvarCancelarBarraPadrao(...a);
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const atualizarToolbarModoEdicao = (...a) => dep.atualizarToolbarModoEdicao(...a);
-const cancelarModoComparativoCentral = (...a) => dep.cancelarModoComparativoCentral(...a);
-const carregarVersoesMusicaServidor = (...a) => dep.carregarVersoesMusicaServidor(...a);
-const formatarRotuloVersaoExibicao = (...a) => dep.formatarRotuloVersaoExibicao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const obterRootIdMusicaAtiva = (...a) => dep.obterRootIdMusicaAtiva(...a);
-const renderSlidesStrip = (...a) => dep.renderSlidesStrip(...a);
-const renderEstrofesEditor = (...a) => dep.renderEstrofesEditor(...a);
+import { atualizarBotoesSalvarCancelarBarraPadrao, atualizarToolbarModoEdicao, cancelarModoComparativoCentral, marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
+import { atualizarPreviewOperador } from './previewProjecao.js';
+import { carregarVersoesMusicaServidor, obterRootIdMusicaAtiva } from './copiasLocaisPainel.js';
+import { formatarRotuloVersaoExibicao } from './playlistLinhaUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { renderSlidesStrip } from './slidesStrip.js';
+import { renderEstrofesEditor } from './editorEstrofes.js';
 
 /* ==========================================================================
  * MODO COMPARATIVO — duas versões da mesma música lado a lado

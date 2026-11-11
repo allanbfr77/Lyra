@@ -21,28 +21,9 @@ import { aplicarMonitorLembradoAoEntrarNoModo, atualizarIndicadorProjecaoLiveUi,
 import { atualizarFeedbackProjecaoApresentacaoUi, canaisParaEncerrarConteudoApresentacao, encerrarCanaisApresentacaoNoServidor, getApresentacaoAvisoCard6Ativo, getUltimoConteudoProjetadoModoUnificado, getUltimoPayloadAvisoCard6, obterAlvoProjecaoAvisoCard6, obterAlvoProjecaoModoApresentacao, setApresentacaoAvisoCard6Ativo, setUltimoConteudoProjetadoModoUnificado, setUltimoPayloadAvisoCard6 } from './conteudoUnificadoAviso.js';
 import { restaurarRotaSlidesAposLibertarMonitores } from './canaisProjecao.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasMenuApresentacaoModo(d) {
-  dep = d || {};
-}
-const aplicarRotaDoModoAtualNaUiEServidor = (...a) => dep.aplicarRotaDoModoAtualNaUiEServidor(...a);
-const aplicarRotulosEPlaylistModoSlides = (...a) => dep.aplicarRotulosEPlaylistModoSlides(...a);
-const atualizarBtnModoApresentacao = (...a) => dep.atualizarBtnModoApresentacao(...a);
-const atualizarBtnToggleModoSlides = (...a) => dep.atualizarBtnToggleModoSlides(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoDocsOperador = (...a) => dep.ehModoDocsOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const executarComTransicaoUi = (...a) => dep.executarComTransicaoUi(...a);
-const renderItensLyraSelectDropdown = (...a) => dep.renderItensLyraSelectDropdown(...a);
-const renderRoteamentoTelas = (...a) => dep.renderRoteamentoTelas(...a);
-const rotaSelecionadaNaUi = (...a) => dep.rotaSelecionadaNaUi(...a);
+import { aplicarRotaDoModoAtualNaUiEServidor, renderRoteamentoTelas, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
+import { aplicarRotulosEPlaylistModoSlides, atualizarBtnModoApresentacao, atualizarBtnToggleModoSlides, ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoDocsOperador, ehModoSlidesOperador, executarComTransicaoUi } from './modosUi.js';
+import { renderItensLyraSelectDropdown } from './temasPlaylistUi.js';
 
 export function abrirMenuModoApresentacao() {
   const ativo = ehModoApresentacaoOperador();

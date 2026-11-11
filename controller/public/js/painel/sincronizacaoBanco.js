@@ -9,6 +9,10 @@ import { carregarMinistrantesDoServidor, normalizarMinistrantePadraoPorCulto } f
 import { carregarMusicas, refreshListaBanco } from './bibliotecaMusicas.js';
 import { getAberturaRemovidaPorCulto, mapaMinistrantePadraoPersistivel, podarMinistrantePadraoSemMusicasNaPlaylist, setAberturaRemovidaPorCulto, setMinistrantePadraoPorCulto } from './playlistTemas.js';
 import { estadoPainel } from './estadoPainel.js';
+import { emitirPlaylistsDoControlador } from './playlistServidor.js';
+import { getControllerApiBase, getServidorProjeccaoIp } from './servidorAlvo.js';
+import { ponteProjecaoLocal } from './projecaoLocalObs.js';
+import { renderSeletorTemasPlaylist } from './temasPlaylistUi.js';
 
 let dep = {};
 
@@ -19,14 +23,9 @@ let dep = {};
 export function registrarDependenciasSincronizacaoBanco(d) {
   dep = d || {};
 }
-const emitirPlaylistsDoControlador = (...a) => dep.emitirPlaylistsDoControlador(...a);
 const forcarRepinturaCompositorLyra = (...a) => dep.forcarRepinturaCompositorLyra(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getServidorProjeccaoIp = (...a) => dep.getServidorProjeccaoIp(...a);
 const initCultoSelect = (...a) => dep.initCultoSelect(...a);
 const onCultoChange = (...a) => dep.onCultoChange(...a);
-const ponteProjecaoLocal = (...a) => dep.ponteProjecaoLocal(...a);
-const renderSeletorTemasPlaylist = (...a) => dep.renderSeletorTemasPlaylist(...a);
 
 let enviarPlaylistsServidorTimer = null;
 let persistirMetaSyncLocalTimer = null;

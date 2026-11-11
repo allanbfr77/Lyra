@@ -18,6 +18,17 @@ import { normalizarCfgAvisoCard6 } from '../modules/midiaApresentacao.js';
 import { normalizarCorComentarioMinistrante } from '../modules/comentariosSlide.js';
 import { popularFormCfgContagem } from './contagemRegressiva.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { agendarAtualizacaoAvisoCard6AoVivo, algumCampoAvisoCard6EmEdicao } from './conteudoUnificadoAviso.js';
+import { aplicarEstiloPreviewTituloAbertura } from './tituloAberturaPreview.js';
+import { atualizarUrlsObs } from './projecaoLocalObs.js';
+import { carregarEstadoModoApresentacaoDoServidor, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { controladorSomenteLeitura } from './eventosProjecao.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador } from './modosUi.js';
+import { hostProjecao } from './servidorAlvo.js';
+import { renderGridApresentacao } from './gridApresentacao.js';
+import { renderListaCfgMinistrantes } from './ministrantesTons.js';
+import { sincronizarPreviewOciosoMinistranteSlides } from './previewProjecao.js';
+import { bibliaPayloadCfgExibicao, bibliaPopularFormularioCfg, carregarBibliaCfgDoStorage, lerBibliaCfgDoFormularioMinistrante, lerBibliaCfgDoFormularioPublico, salvarBibliaCfgNoStorage } from './biblia.js';
 
 let dep = {};
 
@@ -28,26 +39,7 @@ let dep = {};
 export function registrarDependenciasConfigExibicao(d) {
   dep = d || {};
 }
-const agendarAtualizacaoAvisoCard6AoVivo = (...a) => dep.agendarAtualizacaoAvisoCard6AoVivo(...a);
-const algumCampoAvisoCard6EmEdicao = (...a) => dep.algumCampoAvisoCard6EmEdicao(...a);
-const aplicarEstiloPreviewTituloAbertura = (...a) => dep.aplicarEstiloPreviewTituloAbertura(...a);
-const atualizarUrlsObs = (...a) => dep.atualizarUrlsObs(...a);
-const carregarEstadoModoApresentacaoDoServidor = (...a) => dep.carregarEstadoModoApresentacaoDoServidor(...a);
-const controladorSomenteLeitura = (...a) => dep.controladorSomenteLeitura(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const renderGridApresentacao = (...a) => dep.renderGridApresentacao(...a);
-const renderListaCfgMinistrantes = (...a) => dep.renderListaCfgMinistrantes(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
-const sincronizarPreviewOciosoMinistranteSlides = (...a) => dep.sincronizarPreviewOciosoMinistranteSlides(...a);
 const sincronizarTicksSliderVh = (...a) => dep.sincronizarTicksSliderVh(...a);
-const bibliaPayloadCfgExibicao = (...a) => dep.bibliaPayloadCfgExibicao(...a);
-const bibliaPopularFormularioCfg = (...a) => dep.bibliaPopularFormularioCfg(...a);
-const carregarBibliaCfgDoStorage = (...a) => dep.carregarBibliaCfgDoStorage(...a);
-const lerBibliaCfgDoFormularioMinistrante = (...a) => dep.lerBibliaCfgDoFormularioMinistrante(...a);
-const lerBibliaCfgDoFormularioPublico = (...a) => dep.lerBibliaCfgDoFormularioPublico(...a);
-const salvarBibliaCfgNoStorage = (...a) => dep.salvarBibliaCfgNoStorage(...a);
 
 function setPosAvisoCard6CtrlBtn(val) {
   const group = document.getElementById('cfg-card6-posy-ctrl-group');

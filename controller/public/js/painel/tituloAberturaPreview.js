@@ -7,18 +7,7 @@ import { lerCurrentCfgCtrl } from './configExibicao.js';
 import { normalizarTomPlaylist } from '../modules/playlistMinistranteTom.js';
 import { textoSlideMaiusculo } from '../modules/slidesGrelha.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasTituloAberturaPreview(d) {
-  dep = d || {};
-}
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
+import { getPlaylist, playlistItemMesmaVersaoQueAtiva } from './playlistServidor.js';
 
 /** Primeiras N linhas de uma estrofe — prévia do próximo no slide 1 do M3. */
 export function primeirasLinhasEstrofeMinistrante(texto, n = 2) {

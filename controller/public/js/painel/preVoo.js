@@ -7,22 +7,11 @@ import { GRAVIDADE_IMPEDE, consolidar, resumoPreVoo, verificarLetras, verificarM
 import { ehMarcadorTemaPlaylist, idMusicaParaPreVoo } from '../modules/playlistVersaoMusica.js';
 import { nomeMinistrantePorId } from './ministrantesTons.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPreVoo(d) {
-  dep = d || {};
-}
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const nomeCultoAtivoParaHistorico = (...a) => dep.nomeCultoAtivoParaHistorico(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const obterRotaSlidesParaUi = (...a) => dep.obterRotaSlidesParaUi(...a);
-const sanitizarRotaProjecao = (...a) => dep.sanitizarRotaProjecao(...a);
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist } from './playlistServidor.js';
+import { nomeCultoAtivoParaHistorico } from './projecaoMusica.js';
+import { normalizarRota, sanitizarRotaProjecao } from './rotasMonitores.js';
+import { obterRotaSlidesParaUi } from './canaisProjecao.js';
 
 /** Monitores que estavam guardados e já não existem — preenchido ao restaurar a rota. */
 let preVooMonitoresEmFalta = [];

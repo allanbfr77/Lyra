@@ -9,6 +9,10 @@ import { atualizarPreviewVideoAoVivo } from './playerLocalMidia.js';
 import { criarItemApresentacaoDeArquivo, renderMenuApresentacao } from './bibliotecaMidiasApresentacao.js';
 import { garantirThumbnailVideoItem, garantirVideoSrcHttp, projetarItemApresentacao, videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { APRESENTACAO_IDX_CARD4, APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
+import { agendarSalvarEstadoAposDigitarAviso, flushSalvarEstadoAposDigitarAviso, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { aplicarEstiloTextareaAvisoCard6, atualizarFeedbackProjecaoApresentacaoUi, criarSeletorMonitorAvisoCard6, emitirEncerrarApresentacaoPublicoAoServidor, projetarAvisoCard6 } from './conteudoUnificadoAviso.js';
+import { ehModoApresentacaoOperador } from './modosUi.js';
+import { encerrarAvisoCard6NoControlador } from './menuApresentacaoModo.js';
 
 let dep = {};
 
@@ -19,17 +23,7 @@ let dep = {};
 export function registrarDependenciasGridApresentacao(d) {
   dep = d || {};
 }
-const agendarSalvarEstadoAposDigitarAviso = (...a) => dep.agendarSalvarEstadoAposDigitarAviso(...a);
-const aplicarEstiloTextareaAvisoCard6 = (...a) => dep.aplicarEstiloTextareaAvisoCard6(...a);
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const criarSeletorMonitorAvisoCard6 = (...a) => dep.criarSeletorMonitorAvisoCard6(...a);
 const ehItemImagemApresentacao = (...a) => dep.ehItemImagemApresentacao(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const emitirEncerrarApresentacaoPublicoAoServidor = (...a) => dep.emitirEncerrarApresentacaoPublicoAoServidor(...a);
-const encerrarAvisoCard6NoControlador = (...a) => dep.encerrarAvisoCard6NoControlador(...a);
-const flushSalvarEstadoAposDigitarAviso = (...a) => dep.flushSalvarEstadoAposDigitarAviso(...a);
-const projetarAvisoCard6 = (...a) => dep.projetarAvisoCard6(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
 
 /**
  * URL segura para `<img>` nos cards: só conteúdo **imagem** (`data:image/…`, `blob:` ou

@@ -9,41 +9,17 @@ import { carregarMusicas } from './bibliotecaMusicas.js';
 import { ehVersaoLocalLegada, ehVersaoServidorId } from '../modules/copiasLocaisLetra.js';
 import { versoesConteudoRigorosamenteIdentico } from '../modules/playlistVersaoMusica.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasVersoesMusica(d) {
-  dep = d || {};
-}
-const atualizarCopiaLocal = (...a) => dep.atualizarCopiaLocal(...a);
-const atualizarEstrofesEditorInPlace = (...a) => dep.atualizarEstrofesEditorInPlace(...a);
-const atualizarRotuloVersaoNasPlaylists = (...a) => dep.atualizarRotuloVersaoNasPlaylists(...a);
-const atualizarSomenteAtivoFaixaSlides = (...a) => dep.atualizarSomenteAtivoFaixaSlides(...a);
-const atualizarTextoPainelLetraCompleta = (...a) => dep.atualizarTextoPainelLetraCompleta(...a);
-const atualizarToolbarModoEdicao = (...a) => dep.atualizarToolbarModoEdicao(...a);
-const carregarVersoesMusicaServidor = (...a) => dep.carregarVersoesMusicaServidor(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const encontrarCopiaLocal = (...a) => dep.encontrarCopiaLocal(...a);
-const estrofesArraysIguaisParaEdicao = (...a) => dep.estrofesArraysIguaisParaEdicao(...a);
-const formatarRotuloVersaoExibicao = (...a) => dep.formatarRotuloVersaoExibicao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getCopiasParaMusica = (...a) => dep.getCopiasParaMusica(...a);
-const iniciarCriarNovaVersao = (...a) => dep.iniciarCriarNovaVersao(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const musicaAtivaEhOriginalServidor = (...a) => dep.musicaAtivaEhOriginalServidor(...a);
-const obterRootIdMusicaAtiva = (...a) => dep.obterRootIdMusicaAtiva(...a);
-const removerCopiaLocal = (...a) => dep.removerCopiaLocal(...a);
-const removerVersaoLocalDasPlaylists = (...a) => dep.removerVersaoLocalDasPlaylists(...a);
-const renderEstrofesEditor = (...a) => dep.renderEstrofesEditor(...a);
-const renderPlaylist = (...a) => dep.renderPlaylist(...a);
-const renderSlidesStrip = (...a) => dep.renderSlidesStrip(...a);
-const rotuloVersaoMaiusculo = (...a) => dep.rotuloVersaoMaiusculo(...a);
-const splitTextoLetraCompletaEmEstrofes = (...a) => dep.splitTextoLetraCompletaEmEstrofes(...a);
-const temEdicaoMusicaNaoGravada = (...a) => dep.temEdicaoMusicaNaoGravada(...a);
+import { atualizarCopiaLocal, carregarVersoesMusicaServidor, encontrarCopiaLocal, getCopiasParaMusica, musicaAtivaEhOriginalServidor, obterRootIdMusicaAtiva, removerCopiaLocal } from './copiasLocaisPainel.js';
+import { atualizarEstrofesEditorInPlace, iniciarCriarNovaVersao, renderEstrofesEditor } from './editorEstrofes.js';
+import { atualizarRotuloVersaoNasPlaylists, removerVersaoLocalDasPlaylists } from './playlistServidor.js';
+import { atualizarSomenteAtivoFaixaSlides } from './slidesGrelhaPainel.js';
+import { atualizarTextoPainelLetraCompleta, estrofesArraysIguaisParaEdicao, splitTextoLetraCompletaEmEstrofes, temEdicaoMusicaNaoGravada } from './letraCompleta.js';
+import { atualizarToolbarModoEdicao, marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
+import { ehModoSlidesOperador } from './modosUi.js';
+import { formatarRotuloVersaoExibicao, rotuloVersaoMaiusculo } from './playlistLinhaUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { renderPlaylist } from './playlistLista.js';
+import { renderSlidesStrip } from './slidesStrip.js';
 
 export function aplicarBaseMusicaSelecionada(base, id, versaoLocalId) {
   const idNum = Number(id);

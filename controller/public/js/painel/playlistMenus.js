@@ -14,25 +14,9 @@ import { confirmarSyncPlaylistModal, fecharModalNovasMusicasSync } from './playl
 import { copiarNomesMusicasPlaylist, removePlItem, renderPlaylist } from './playlistLista.js';
 import { limparChecksTransmitidosDoCulto } from './playlistTransmitidas.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistMenus(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const excluirTemaDoCulto = (...a) => dep.excluirTemaDoCulto(...a);
-const fecharOutrosSeletoresDropdown = (...a) => dep.fecharOutrosSeletoresDropdown(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const obterTemasDisponiveisPlaylist = (...a) => dep.obterTemasDisponiveisPlaylist(...a);
-const playlistAtualJaTemTema = (...a) => dep.playlistAtualJaTemTema(...a);
-const renderSeletorTemasPlaylist = (...a) => dep.renderSeletorTemasPlaylist(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
-const setTemaSelecionadoAtual = (...a) => dep.setTemaSelecionadoAtual(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
+import { excluirTemaDoCulto, fecharOutrosSeletoresDropdown, obterTemasDisponiveisPlaylist, playlistAtualJaTemTema, renderSeletorTemasPlaylist, setTemaSelecionadoAtual } from './temasPlaylistUi.js';
+import { getPlaylist, savePlaylists } from './playlistServidor.js';
 
 /*
   Ícones dos menus flutuantes. Markup estático — é o que `menuFlutuante.js` aceita em

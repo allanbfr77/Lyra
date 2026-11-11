@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './_stubDom.mjs';
 import {
   DOCS_EXTENSOES_ACEITES,
   extensaoDoNomeDeArquivo,
@@ -11,7 +12,6 @@ import {
   docsPaginaSelecionadaAtual,
   carregarDocsBibliotecaDoStorage,
   renderListaDocsImportados,
-  registrarDependenciasDocs,
 } from './docs.js';
 
 test('extensões aceitas: PowerPoint, PDF e Word', () => {
@@ -53,11 +53,6 @@ test('estado inicial exposto ao núcleo: nada projetado, nenhuma página selecio
   assert.equal(docsPaginaSelecionadaAtual(), -1);
 });
 
-test('registrarDependenciasDocs aceita valor vazio sem lançar', () => {
-  assert.doesNotThrow(() => registrarDependenciasDocs(undefined));
-  assert.doesNotThrow(() => registrarDependenciasDocs({}));
-});
-
 /** DOM e armazenamento mínimos para a lista da biblioteca. */
 function criarEl() {
   const el = {
@@ -87,7 +82,6 @@ function montarAmbiente(storageDocs) {
     querySelectorAll: () => [],
     createElement: () => criarEl(),
   };
-  registrarDependenciasDocs({ apLibFecharMenus() {} });
   return lista;
 }
 

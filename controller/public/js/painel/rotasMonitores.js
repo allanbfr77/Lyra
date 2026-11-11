@@ -14,26 +14,10 @@ import { limparNaoExibirManualSlides } from '../modules/reposicaoRotaSlides.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { getApresentacaoAvisoCard6Ativo } from './conteudoUnificadoAviso.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasRotasMonitores(d) {
-  dep = d || {};
-}
-const avisarMonitoresConfiguradosEmFalta = (...a) => dep.avisarMonitoresConfiguradosEmFalta(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoDocsOperador = (...a) => dep.ehModoDocsOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const getServidorIp = (...a) => dep.getServidorIp(...a);
-const renderRoteamentoTelas = (...a) => dep.renderRoteamentoTelas(...a);
-const rotaSelecionadaNaUi = (...a) => dep.rotaSelecionadaNaUi(...a);
-const estadoServidorEhProjecaoApresentacaoAtivaNoTelao = (...a) => dep.estadoServidorEhProjecaoApresentacaoAtivaNoTelao(...a);
-const restaurarRotaSlidesAposLibertarMonitores = (...a) => dep.restaurarRotaSlidesAposLibertarMonitores(...a);
+import { avisarMonitoresConfiguradosEmFalta, renderRoteamentoTelas, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoDocsOperador, ehModoSlidesOperador } from './modosUi.js';
+import { getServidorIp } from './servidorAlvo.js';
+import { estadoServidorEhProjecaoApresentacaoAtivaNoTelao, restaurarRotaSlidesAposLibertarMonitores } from './canaisProjecao.js';
 
 export function modoRoteamentoAtual() {
   if (ehModoDocsOperador()) return 'docs';

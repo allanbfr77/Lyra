@@ -12,27 +12,11 @@ import { ehMarcadorTemaPlaylist } from '../modules/playlistVersaoMusica.js';
 import { htmlLinhaPlaylistModoAtual, renderSeletorMinistranteCulto, temaDoBlocoNaPlaylist } from './ministrantesTons.js';
 import { playlistItemDestacadoNaUi, playlistItemFoiTransmitido, podarTransmitidasDoCultoAtual } from './playlistTransmitidas.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistLista(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const encerrarProjecaoDoControlador = (...a) => dep.encerrarProjecaoDoControlador(...a);
-const garantirMusicaAtivaVisivelNaPlaylist = (...a) => dep.garantirMusicaAtivaVisivelNaPlaylist(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const getTemaSelecionadoAtual = (...a) => dep.getTemaSelecionadoAtual(...a);
-const ligarBotoesESeletoresLinhaPlaylist = (...a) => dep.ligarBotoesESeletoresLinhaPlaylist(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
-const renderSeletorTemasPlaylist = (...a) => dep.renderSeletorTemasPlaylist(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
-const setTemaSelecionadoAtual = (...a) => dep.setTemaSelecionadoAtual(...a);
-const sufixoRotuloVersaoPlaylist = (...a) => dep.sufixoRotuloVersaoPlaylist(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
+import { encerrarProjecaoDoControlador } from './projecaoMusica.js';
+import { garantirMusicaAtivaVisivelNaPlaylist, ligarBotoesESeletoresLinhaPlaylist, sufixoRotuloVersaoPlaylist } from './playlistLinhaUi.js';
+import { getPlaylist, playlistItemMesmaVersaoQueAtiva, savePlaylists } from './playlistServidor.js';
+import { getTemaSelecionadoAtual, renderSeletorTemasPlaylist, setTemaSelecionadoAtual } from './temasPlaylistUi.js';
 
 /**
  * Classe da linha de música conforme onde ela vai ser anexada.

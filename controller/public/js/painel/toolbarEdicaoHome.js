@@ -11,18 +11,8 @@ import { comparativoSujoVsSnapshot, fecharModoComparativo, sairModoComparativoPa
 import { entrarModoEdicao, sairModoEdicao, salvarMusicaServidor } from './editorEstrofes.js';
 import { renderPlaylist } from './playlistLista.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasToolbarEdicaoHome(d) {
-  dep = d || {};
-}
-const atualizarRotuloVersaoNasPlaylists = (...a) => dep.atualizarRotuloVersaoNasPlaylists(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
+import { atualizarRotuloVersaoNasPlaylists } from './playlistServidor.js';
+import { getControllerApiBase } from './servidorAlvo.js';
 
 export function marcacaoEstrofeEditor() {
   document.querySelectorAll('.estrofe-slide-edit').forEach((el, i) => {

@@ -7,18 +7,8 @@ import { escapeHtml } from './textoHtmlSeguro.js';
 import { importarLetrasDoCatalogoParaBanco, importarLetrasParaBanco, limparBuscaLetras } from './bibliotecaMusicas.js';
 import { normalizarFonteLetrasSite } from '../modules/fonteLetrasSite.js';
 import {  } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPreviewLetras(d) {
-  dep = d || {};
-}
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const selecionarMusicaDoBanco = (...a) => dep.selecionarMusicaDoBanco(...a);
+import { getControllerApiBase } from './servidorAlvo.js';
+import { selecionarMusicaDoBanco } from './projecaoMusica.js';
 
 let letrasPreviewPathPendente = '';
 let letrasPreviewCatalogIdPendente = null;

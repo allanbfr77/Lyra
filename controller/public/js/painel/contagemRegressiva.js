@@ -12,35 +12,13 @@
 import { AJUSTE_CONTAGEM_MS, LS_CONTAGEM_ALVO, LS_CONTAGEM_CFG, LS_CONTAGEM_MONITOR, LS_CONTAGEM_ULTIMO_TEMPO, PRESETS_CONTAGEM_MIN, acabouDeZerar, acaoBotaoPrincipal, ancorarContagem, camposParaMs, clonarCfgContagemPadrao, comandoAjustarContagem, comandoAparenciaContagem, comandoControloContagem, comandoIniciarContagem, estadoContagemVazio, formatarContagem, msParaCampos, normalizarCfgContagem, restanteLocalMs, situacaoContagem } from '../modules/contagemPainel.js';
 import { appConfirm } from './appDialog.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas
- * a cada uso, porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasContagem(d) {
-  dep = d || {};
-}
-const abrirCfgModal = (...a) => dep.abrirCfgModal(...a);
-const carregarRoteamentoTelasDoServidor = (...a) => dep.carregarRoteamentoTelasDoServidor(...a);
-const definirEstadoBtnModoCabecalho = (...a) => dep.definirEstadoBtnModoCabecalho(...a);
-const fecharMenusRoteamentoTelas = (...a) => dep.fecharMenusRoteamentoTelas(...a);
-const getChkVal = (...a) => dep.getChkVal(...a);
-const getServidorProjeccaoIp = (...a) => dep.getServidorProjeccaoIp(...a);
-const indicesPadraoPublicoMinistranteApresentacao = (...a) => dep.indicesPadraoPublicoMinistranteApresentacao(...a);
-const lerNumeroInput = (...a) => dep.lerNumeroInput(...a);
-const listaMonitoresParaProjecao = (...a) => dep.listaMonitoresParaProjecao(...a);
-const montarLabelMonitor = (...a) => dep.montarLabelMonitor(...a);
-const montarTitleMonitor = (...a) => dep.montarTitleMonitor(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const rotaDesativada = (...a) => dep.rotaDesativada(...a);
-const salvarRoteamentoTelasNoServidor = (...a) => dep.salvarRoteamentoTelasNoServidor(...a);
-const sanitizarRotaProjecao = (...a) => dep.sanitizarRotaProjecao(...a);
-const setChkVal = (...a) => dep.setChkVal(...a);
-const setInputVal = (...a) => dep.setInputVal(...a);
-const setSelVal = (...a) => dep.setSelVal(...a);
-const setSpanText = (...a) => dep.setSpanText(...a);
+import { abrirCfgModal, getChkVal, lerNumeroInput, setChkVal, setInputVal, setSelVal, setSpanText } from './configExibicao.js';
+import { carregarRoteamentoTelasDoServidor, salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
+import { definirEstadoBtnModoCabecalho } from './modosUi.js';
+import { fecharMenusRoteamentoTelas, montarLabelMonitor, montarTitleMonitor } from './roteamentoTelasUi.js';
+import { getServidorProjeccaoIp } from './servidorAlvo.js';
+import { indicesPadraoPublicoMinistranteApresentacao } from './conteudoUnificadoAviso.js';
+import { listaMonitoresParaProjecao, normalizarRota, rotaDesativada, sanitizarRotaProjecao } from './rotasMonitores.js';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SECÇÃO I — Contagem regressiva (telão pré-culto)

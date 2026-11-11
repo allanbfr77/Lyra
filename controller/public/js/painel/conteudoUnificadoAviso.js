@@ -12,26 +12,11 @@ import { normalizarItemApresentacao } from './estadoApresentacao.js';
 import { renderGridApresentacao } from './gridApresentacao.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasConteudoUnificadoAviso(d) {
-  dep = d || {};
-}
-const fecharOutrosSeletoresDropdown = (...a) => dep.fecharOutrosSeletoresDropdown(...a);
-const getServidorProjeccaoIp = (...a) => dep.getServidorProjeccaoIp(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const indiceRoteamentoMonitorNaUi = (...a) => dep.indiceRoteamentoMonitorNaUi(...a);
-const rotuloRotaApresentacaoForaDoPreset = (...a) => dep.rotuloRotaApresentacaoForaDoPreset(...a);
-const encerrarAvisoCard6NoControlador = (...a) => dep.encerrarAvisoCard6NoControlador(...a);
-const listaMonitoresParaProjecao = (...a) => dep.listaMonitoresParaProjecao(...a);
-const modoRoteamentoAtual = (...a) => dep.modoRoteamentoAtual(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const sanitizarIndiceMonitorProjecao = (...a) => dep.sanitizarIndiceMonitorProjecao(...a);
+import { fecharOutrosSeletoresDropdown } from './temasPlaylistUi.js';
+import { getServidorProjeccaoIp, hostProjecao } from './servidorAlvo.js';
+import { indiceRoteamentoMonitorNaUi, rotuloRotaApresentacaoForaDoPreset } from './roteamentoTelasUi.js';
+import { encerrarAvisoCard6NoControlador } from './menuApresentacaoModo.js';
+import { listaMonitoresParaProjecao, modoRoteamentoAtual, normalizarRota, sanitizarIndiceMonitorProjecao } from './rotasMonitores.js';
 
 /**
  * Último conteúdo enviado a projetar nos modos de seletor unificado.

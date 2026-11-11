@@ -5,35 +5,14 @@
  */
 import { obterThumbVideoApresentacao, reescreverUrlVideoParaTelas as reescreverUrlVideoParaTelasPuro, urlMidiaApresentacaoHttpPorId as urlMidiaApresentacaoHttpPorIdPuro } from '../modules/midiaApresentacao.js';
 import { APRESENTACAO_IDX_CARD5, estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasVideoApresentacao(d) {
-  dep = d || {};
-}
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const atualizarRodapeAudioApresentacao = (...a) => dep.atualizarRodapeAudioApresentacao(...a);
-const emModoProjecaoLocal = (...a) => dep.emModoProjecaoLocal(...a);
-const emitirApresentacao = (...a) => dep.emitirApresentacao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getServidorIp = (...a) => dep.getServidorIp(...a);
-const getServidorProjeccaoIp = (...a) => dep.getServidorProjeccaoIp(...a);
-const mensagemAlvoInvalidoApresentacao = (...a) => dep.mensagemAlvoInvalidoApresentacao(...a);
-const monitoresApresentacaoCobremAlvo = (...a) => dep.monitoresApresentacaoCobremAlvo(...a);
-const normalizarItemApresentacao = (...a) => dep.normalizarItemApresentacao(...a);
-const obterAlvoProjecaoModoApresentacao = (...a) => dep.obterAlvoProjecaoModoApresentacao(...a);
-const reidratarRotaApresentacaoDoSeletor = (...a) => dep.reidratarRotaApresentacaoDoSeletor(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
-const atualizarUiPlayerAudioRemoto = (...a) => dep.atualizarUiPlayerAudioRemoto(...a);
-const cancelarAvancoAutoPlaylist = (...a) => dep.cancelarAvancoAutoPlaylist(...a);
-const obterElementoVideoLocal = (...a) => dep.obterElementoVideoLocal(...a);
-const prepararPlayerVideoAposProjetar = (...a) => dep.prepararPlayerVideoAposProjetar(...a);
-const renderGridApresentacao = (...a) => dep.renderGridApresentacao(...a);
-const tocarAudioServidorApresentacao = (...a) => dep.tocarAudioServidorApresentacao(...a);
+import { atualizarFeedbackProjecaoApresentacaoUi, atualizarRodapeAudioApresentacao, emitirApresentacao, mensagemAlvoInvalidoApresentacao, monitoresApresentacaoCobremAlvo, obterAlvoProjecaoModoApresentacao } from './conteudoUnificadoAviso.js';
+import { emModoProjecaoLocal } from './projecaoLocalObs.js';
+import { getControllerApiBase, getServidorIp, getServidorProjeccaoIp } from './servidorAlvo.js';
+import { normalizarItemApresentacao, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { reidratarRotaApresentacaoDoSeletor } from './menuApresentacaoModo.js';
+import { atualizarUiPlayerAudioRemoto, obterElementoVideoLocal, prepararPlayerVideoAposProjetar, tocarAudioServidorApresentacao } from './playerLocalMidia.js';
+import { cancelarAvancoAutoPlaylist } from './playlistVideoApresentacao.js';
+import { renderGridApresentacao } from './gridApresentacao.js';
 
 /** Publica vídeo local no HTTP :3001 e devolve URL (evita Base64 enorme no POST ao servidor). */
 async function publicarVideoApresentacaoHttp(item) {

@@ -11,28 +11,10 @@ import { rotuloTipoMidiaApresentacao, svgIconeTipoMidiaApresentacao } from '../m
 import { textoSlideMaiusculo } from '../modules/slidesGrelha.js';
 import { aplicarPreviewTituloMusicaAbertura, limparPreviewTituloMusicaAbertura, primeirasLinhasEstrofeMinistrante, tituloAberturaM3MusicaAtiva } from './tituloAberturaPreview.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPreviewProjecao(d) {
-  dep = d || {};
-}
-const aplicarPreviewPainelOcultoNoDom = (...a) => dep.aplicarPreviewPainelOcultoNoDom(...a);
-const apresentacaoOcupandoCanalMinistrante = (...a) => dep.apresentacaoOcupandoCanalMinistrante(...a);
-const atualizarPreviewMonitorMinistranteSlides = (...a) => dep.atualizarPreviewMonitorMinistranteSlides(...a);
-const atualizarPreviewMonitorPublicoSlides = (...a) => dep.atualizarPreviewMonitorPublicoSlides(...a);
-const atualizarPreviewsMonitoresVirtuaisModoSlides = (...a) => dep.atualizarPreviewsMonitoresVirtuaisModoSlides(...a);
-const classificarSaidaMonitorMinistranteSlides = (...a) => dep.classificarSaidaMonitorMinistranteSlides(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const musicaEstadoCombinaComAtiva = (...a) => dep.musicaEstadoCombinaComAtiva(...a);
-const obterRotaSlidesParaUi = (...a) => dep.obterRotaSlidesParaUi(...a);
-const syncRoteamentoTelasModoSlidesNaUi = (...a) => dep.syncRoteamentoTelasModoSlidesNaUi(...a);
+import { aplicarPreviewPainelOcultoNoDom } from './previewOculto.js';
+import { apresentacaoOcupandoCanalMinistrante, atualizarPreviewMonitorMinistranteSlides, atualizarPreviewMonitorPublicoSlides, atualizarPreviewsMonitoresVirtuaisModoSlides, classificarSaidaMonitorMinistranteSlides, obterRotaSlidesParaUi, syncRoteamentoTelasModoSlidesNaUi } from './canaisProjecao.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
+import { musicaEstadoCombinaComAtiva } from './projecaoMusica.js';
 
 const previewMinistranteHelpers = {
   escapeHtml,

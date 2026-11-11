@@ -10,21 +10,9 @@ import { aguardarMetadadosVideo, obterItemVideoProjetadoNoPlayer, projetarItemAp
 import { atualizarPreviewVideoAoVivo, atualizarUiPlayerAudioRemoto, emitirEstadoVideoParaServidor, iniciarRelogioUiVideo, obterElementoVideoLocal, pararAudioServidorPlayback, pausarAudioLocalApresentacao, pausarAudioServidorPlayback, prepararElementoVideoLocalControle, reproduzirElementoPreviewLocal, set_videoUiClockBase, set_videoUiClockT0, tocarAudioServidorApresentacao } from './playerLocalMidia.js';
 import { criarItemApresentacaoDeArquivo, renderListaAudiosApresentacao } from './bibliotecaMidiasApresentacao.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistVideoApresentacao(d) {
-  dep = d || {};
-}
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const atualizarRodapeAudioApresentacao = (...a) => dep.atualizarRodapeAudioApresentacao(...a);
-const encerrarModoApresentacaoNoTelao = (...a) => dep.encerrarModoApresentacaoNoTelao(...a);
-const salvarEstadoModoApresentacaoNoStorage = (...a) => dep.salvarEstadoModoApresentacaoNoStorage(...a);
-const renderGridApresentacao = (...a) => dep.renderGridApresentacao(...a);
+import { atualizarFeedbackProjecaoApresentacaoUi, atualizarRodapeAudioApresentacao } from './conteudoUnificadoAviso.js';
+import { encerrarModoApresentacaoNoTelao, salvarEstadoModoApresentacaoNoStorage } from './estadoApresentacao.js';
+import { renderGridApresentacao } from './gridApresentacao.js';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Playlist de vídeos (modo Mídias)

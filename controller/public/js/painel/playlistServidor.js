@@ -10,18 +10,7 @@ import { normalizarMinistranteIdPlaylist, normalizarTomPlaylist } from '../modul
 import { normalizarTemaPlaylist, persistirMinistrantePadraoNoLocalStorage } from './playlistTemas.js';
 import { obterRootIdMusicaAtiva, versaoAtivaParaCompararPlaylist } from './copiasLocaisPainel.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistServidor(d) {
-  dep = d || {};
-}
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
+import { getControllerApiBase, hostProjecao } from './servidorAlvo.js';
 
 export async function enviarPlaylistsParaServidor() {
   /* Escreve no `/api/playlists` desta máquina (:3001), que é de onde o celular as lê —

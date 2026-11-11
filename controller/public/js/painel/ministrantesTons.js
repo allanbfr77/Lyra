@@ -11,29 +11,14 @@ import { ehMarcadorTemaPlaylist, fonteBancoItemPlaylist } from '../modules/playl
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { getMinistrantePadraoCulto, getMinistrantePadraoPorCulto, normalizarTemaPlaylist, playlistPossuiMarcadoresTema, saveMinistrantePadraoPorCulto, setMinistrantePadraoCulto } from './playlistTemas.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasMinistrantesTons(d) {
-  dep = d || {};
-}
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const emitirEstadoMinistranteAoServidor = (...a) => dep.emitirEstadoMinistranteAoServidor(...a);
-const emitirEstrofeAoServidor = (...a) => dep.emitirEstrofeAoServidor(...a);
-const formatarRotuloVersaoExibicao = (...a) => dep.formatarRotuloVersaoExibicao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
-const renderItensLyraSelectDropdown = (...a) => dep.renderItensLyraSelectDropdown(...a);
-const rotuloVersaoMaiusculo = (...a) => dep.rotuloVersaoMaiusculo(...a);
-const savePlaylists = (...a) => dep.savePlaylists(...a);
-const setupLyraSelectDropdownWrap = (...a) => dep.setupLyraSelectDropdownWrap(...a);
-const renderPlaylist = (...a) => dep.renderPlaylist(...a);
+import { atualizarPreviewOperador, emitirEstadoMinistranteAoServidor } from './previewProjecao.js';
+import { ehModoSlidesOperador } from './modosUi.js';
+import { emitirEstrofeAoServidor } from './projecaoMusica.js';
+import { formatarRotuloVersaoExibicao, rotuloVersaoMaiusculo } from './playlistLinhaUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist, playlistItemMesmaVersaoQueAtiva, savePlaylists } from './playlistServidor.js';
+import { renderItensLyraSelectDropdown, setupLyraSelectDropdownWrap } from './temasPlaylistUi.js';
+import { renderPlaylist } from './playlistLista.js';
 
 /**
  * Limpa ministrante e tom de TODAS as músicas desta playlist (não remove músicas).

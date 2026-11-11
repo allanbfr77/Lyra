@@ -13,19 +13,8 @@ import { rotuloTipoMidiaApresentacao, svgIconeTipoMidiaApresentacao } from '../m
 import { normalizarRota, salvarRotasPorModoNoStorage, sanitizarRotaProjecao } from './rotasMonitores.js';
 import { rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasCanaisProjecao(d) {
-  dep = d || {};
-}
-const atualizarEstiloRotasDesativadas = (...a) => dep.atualizarEstiloRotasDesativadas(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const renderRoteamentoTelas = (...a) => dep.renderRoteamentoTelas(...a);
+import { atualizarEstiloRotasDesativadas, renderRoteamentoTelas } from './roteamentoTelasUi.js';
+import { ehModoSlidesOperador } from './modosUi.js';
 
 function apresentacaoOcupandoCanalPublico() {
   return normalizarRota(estadoPainel.rotasPorModo.apresentacao).publicoIndex >= 0;

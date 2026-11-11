@@ -5,23 +5,10 @@
  */
 import { ehMarcadorTemaPlaylist } from '../modules/playlistVersaoMusica.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasPlaylistTransmitidas(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const encerrarProjecaoDoControlador = (...a) => dep.encerrarProjecaoDoControlador(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const indiceProximaMusicaNaPlaylist = (...a) => dep.indiceProximaMusicaNaPlaylist(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
-const playlistItemMesmaVersaoQueSelecaoUi = (...a) => dep.playlistItemMesmaVersaoQueSelecaoUi(...a);
-const renderPlaylist = (...a) => dep.renderPlaylist(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
+import { encerrarProjecaoDoControlador } from './projecaoMusica.js';
+import { getPlaylist, indiceProximaMusicaNaPlaylist, playlistItemMesmaVersaoQueAtiva, playlistItemMesmaVersaoQueSelecaoUi } from './playlistServidor.js';
+import { renderPlaylist } from './playlistLista.js';
 
 /* ── Músicas já transmitidas da playlist (check verde ao lado do número) ──
    Uma música ganha o check quando o operador passa para OUTRA música (ver `atualizarChecksAoProjetar`).

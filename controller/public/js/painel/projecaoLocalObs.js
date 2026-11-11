@@ -9,6 +9,11 @@ import { criarTransporteLocal } from '../modules/projecaoPorta.js';
 import { slidesAplicarCfgArmazenada } from './configExibicao.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
+import { ehModoBibliaOperador } from './modosUi.js';
+import { emitirEstadoMinistranteAoServidor } from './previewProjecao.js';
+import { getServidorIp } from './servidorAlvo.js';
+import { recordarIpsDestaMaquina, setStatusServidorRemoto } from './socketPainelApi.js';
 
 let dep = {};
 
@@ -20,12 +25,6 @@ export function registrarDependenciasProjecaoLocalObs(d) {
   dep = d || {};
 }
 const atualizarUiConexao = (...a) => dep.atualizarUiConexao(...a);
-const carregarRoteamentoTelasDoServidor = (...a) => dep.carregarRoteamentoTelasDoServidor(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const emitirEstadoMinistranteAoServidor = (...a) => dep.emitirEstadoMinistranteAoServidor(...a);
-const getServidorIp = (...a) => dep.getServidorIp(...a);
-const recordarIpsDestaMaquina = (...a) => dep.recordarIpsDestaMaquina(...a);
-const setStatusServidorRemoto = (...a) => dep.setStatusServidorRemoto(...a);
 
 /* ─── Modo «projetar nesta máquina» ─────────────────────────────────────────────
  *

@@ -17,39 +17,14 @@ import { lembrarMonitorLigado } from '../modules/monitorLembrado.js';
 import { limparOrdemNaoExibirUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { svgIconeTipoMidiaApresentacao } from '../modules/midiaApresentacao.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas
- * a cada uso, porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasDocs(d) {
-  dep = d || {};
-}
-const apLibFecharMenus = (...a) => dep.apLibFecharMenus(...a);
-const aplicarMonitorLembradoAoEntrarNoModo = (...a) => dep.aplicarMonitorLembradoAoEntrarNoModo(...a);
-const aplicarRotaDoModoAtualNaUiEServidor = (...a) => dep.aplicarRotaDoModoAtualNaUiEServidor(...a);
-const atualizarBtnTelaInicial = (...a) => dep.atualizarBtnTelaInicial(...a);
-const canaisParaEncerrarConteudoApresentacao = (...a) => dep.canaisParaEncerrarConteudoApresentacao(...a);
-const definirEstadoBtnModoCabecalho = (...a) => dep.definirEstadoBtnModoCabecalho(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoDocsOperador = (...a) => dep.ehModoDocsOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const emitirApresentacao = (...a) => dep.emitirApresentacao(...a);
-const encerrarCanaisApresentacaoNoServidor = (...a) => dep.encerrarCanaisApresentacaoNoServidor(...a);
-const executarComTransicaoUi = (...a) => dep.executarComTransicaoUi(...a);
-const executarSemTransicaoUi = (...a) => dep.executarSemTransicaoUi(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const hayProjecaoMidiaApresentacaoAtiva = (...a) => dep.hayProjecaoMidiaApresentacaoAtiva(...a);
-const hostChaveMonitores = (...a) => dep.hostChaveMonitores(...a);
-const irParaTelaInicial = (...a) => dep.irParaTelaInicial(...a);
-const normalizarRota = (...a) => dep.normalizarRota(...a);
-const obterAlvoProjecaoDeRota = (...a) => dep.obterAlvoProjecaoDeRota(...a);
-const rotaDesativada = (...a) => dep.rotaDesativada(...a);
-const salvarRoteamentoTelasNoServidor = (...a) => dep.salvarRoteamentoTelasNoServidor(...a);
-const sincronizarCheckboxLembrarMonitor = (...a) => dep.sincronizarCheckboxLembrarMonitor(...a);
+import { apLibFecharMenus } from './bibliotecaMidiasApresentacao.js';
+import { aplicarMonitorLembradoAoEntrarNoModo, hayProjecaoMidiaApresentacaoAtiva, hostChaveMonitores, normalizarRota, rotaDesativada, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
+import { aplicarRotaDoModoAtualNaUiEServidor } from './roteamentoTelasUi.js';
+import { atualizarBtnTelaInicial } from './menuApresentacaoModo.js';
+import { canaisParaEncerrarConteudoApresentacao, emitirApresentacao, encerrarCanaisApresentacaoNoServidor, obterAlvoProjecaoDeRota } from './conteudoUnificadoAviso.js';
+import { definirEstadoBtnModoCabecalho, ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoDocsOperador, ehModoSlidesOperador, executarComTransicaoUi, executarSemTransicaoUi, irParaTelaInicial } from './modosUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 
 export function atualizarBtnModoDocs() {
   definirEstadoBtnModoCabecalho(

@@ -10,6 +10,15 @@ import { digestEstrofesParaStripFaixa } from '../modules/slidesGrelha.js';
 import { ehVersaoLocalLegada } from '../modules/copiasLocaisLetra.js';
 import { aplicarLayoutModoLetraCompleta, atualizarToolbarModoLetraCompleta, confirmarProsseguirDescartandoEdicaoPendente, edicaoEstrofesSujaVsSnapshot, entrarModoLetraCompletaCentral, guiasEstrofesLetraCompleta, limparFlagsModoEdicaoMusica, sincronizarEstrofesDesdeTextareaLetraCompleta, splitTextoLetraCompletaEmEstrofes } from './letraCompleta.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { abrirSlideQuickEditModal, renderSlidesStrip } from './slidesStrip.js';
+import { atualizarBotoesSalvarCancelarBarraPadrao, atualizarToolbarCaixaLetrasEdicao, atualizarToolbarModoEdicao, marcacaoEstrofeEditor, metadadosMusicaSujosNaHome } from './toolbarEdicaoHome.js';
+import { atualizarCopiaLocal, carregarVersoesMusicaServidor, obterRootIdMusicaAtiva, versaoAtivaParaCompararPlaylist } from './copiasLocaisPainel.js';
+import { atualizarPreviewOperador, atualizarSlidesInstrucoes } from './previewProjecao.js';
+import { ehModoSlidesOperador } from './modosUi.js';
+import { emitirEstrofeAoServidor, exibirEstrofe, projetarPorDuploCliqueCentral } from './projecaoMusica.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { renderPlaylist } from './playlistLista.js';
+import { repontarVersaoNaPlaylistDoCulto } from './playlistServidor.js';
 
 let dep = {};
 
@@ -20,29 +29,9 @@ let dep = {};
 export function registrarDependenciasEditorEstrofes(d) {
   dep = d || {};
 }
-const abrirSlideQuickEditModal = (...a) => dep.abrirSlideQuickEditModal(...a);
 const aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice = (...a) => dep.aplicarSeparacaoEstrofesPorLinhasVaziasNoIndice(...a);
 const aplicarSplitsEstrofesDosTextareasAntesDePersistir = (...a) => dep.aplicarSplitsEstrofesDosTextareasAntesDePersistir(...a);
-const atualizarBotoesSalvarCancelarBarraPadrao = (...a) => dep.atualizarBotoesSalvarCancelarBarraPadrao(...a);
-const atualizarCopiaLocal = (...a) => dep.atualizarCopiaLocal(...a);
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const atualizarSlidesInstrucoes = (...a) => dep.atualizarSlidesInstrucoes(...a);
-const atualizarToolbarCaixaLetrasEdicao = (...a) => dep.atualizarToolbarCaixaLetrasEdicao(...a);
-const atualizarToolbarModoEdicao = (...a) => dep.atualizarToolbarModoEdicao(...a);
-const carregarVersoesMusicaServidor = (...a) => dep.carregarVersoesMusicaServidor(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const emitirEstrofeAoServidor = (...a) => dep.emitirEstrofeAoServidor(...a);
-const exibirEstrofe = (...a) => dep.exibirEstrofe(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const metadadosMusicaSujosNaHome = (...a) => dep.metadadosMusicaSujosNaHome(...a);
-const obterRootIdMusicaAtiva = (...a) => dep.obterRootIdMusicaAtiva(...a);
-const projetarPorDuploCliqueCentral = (...a) => dep.projetarPorDuploCliqueCentral(...a);
-const renderPlaylist = (...a) => dep.renderPlaylist(...a);
-const renderSlidesStrip = (...a) => dep.renderSlidesStrip(...a);
-const repontarVersaoNaPlaylistDoCulto = (...a) => dep.repontarVersaoNaPlaylistDoCulto(...a);
 const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
-const versaoAtivaParaCompararPlaylist = (...a) => dep.versaoAtivaParaCompararPlaylist(...a);
 
 /**
  * Após separar estrofes no evento `input`, o `blur` do textarea antigo ainda tinha o texto com `\n\n`

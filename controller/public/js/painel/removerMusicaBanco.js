@@ -12,21 +12,11 @@ import { renderMusicaVersoesBar } from './versoesMusica.js';
 import { renderPlaylist } from './playlistLista.js';
 import { renderSlidesStrip } from './slidesStrip.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasRemoverMusicaBanco(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const removerMusicaDeTodasPlaylists = (...a) => dep.removerMusicaDeTodasPlaylists(...a);
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
+import { removerMusicaDeTodasPlaylists } from './playlistServidor.js';
+import { atualizarPreviewOperador } from './previewProjecao.js';
 
 let musicaExcluirPendente = null;
 /** Lote pendente de exclusão, vindo do modo de seleção múltipla da Biblioteca. */

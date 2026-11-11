@@ -15,6 +15,15 @@ import { ehMarcadorTemaPlaylist, fonteBancoNormalizada } from '../modules/playli
 import { escapeHtml } from './textoHtmlSeguro.js';
 import { rotuloArtistaLista } from '../modules/playlistMinistranteTom.js';
 import { estadoPainel } from './estadoPainel.js';
+import { abrirModalPreviewLetras, abrirModalPreviewLetrasOffline } from './previewLetras.js';
+import { addMusicaNaPlaylist } from './playlistAdicionar.js';
+import { entrarModoEdicao, renderEstrofesEditor } from './editorEstrofes.js';
+import { garantirCopiaPadraoServidor } from './copiasLocaisPainel.js';
+import { getControllerApiBase } from './servidorAlvo.js';
+import { getPlaylist } from './playlistServidor.js';
+import { renderItensLyraSelectDropdown, setupLyraSelectDropdownWrap } from './temasPlaylistUi.js';
+import { selecionarMusicaDoBanco } from './projecaoMusica.js';
+import { solicitarRemoverMusicaDoBancoServidor, solicitarRemoverMusicasDoBancoServidorEmLote } from './removerMusicaBanco.js';
 
 let dep = {};
 
@@ -25,22 +34,9 @@ let dep = {};
 export function registrarDependenciasBibliotecaMusicas(d) {
   dep = d || {};
 }
-const abrirModalPreviewLetras = (...a) => dep.abrirModalPreviewLetras(...a);
-const abrirModalPreviewLetrasOffline = (...a) => dep.abrirModalPreviewLetrasOffline(...a);
-const addMusicaNaPlaylist = (...a) => dep.addMusicaNaPlaylist(...a);
 const aplicarPlaceholderBuscaLetras = (...a) => dep.aplicarPlaceholderBuscaLetras(...a);
 const atualizarUiToggleListaBancoSqlite = (...a) => dep.atualizarUiToggleListaBancoSqlite(...a);
-const entrarModoEdicao = (...a) => dep.entrarModoEdicao(...a);
-const garantirCopiaPadraoServidor = (...a) => dep.garantirCopiaPadraoServidor(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
 const getLetrasSiteFonteAtual = (...a) => dep.getLetrasSiteFonteAtual(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const renderEstrofesEditor = (...a) => dep.renderEstrofesEditor(...a);
-const renderItensLyraSelectDropdown = (...a) => dep.renderItensLyraSelectDropdown(...a);
-const selecionarMusicaDoBanco = (...a) => dep.selecionarMusicaDoBanco(...a);
-const setupLyraSelectDropdownWrap = (...a) => dep.setupLyraSelectDropdownWrap(...a);
-const solicitarRemoverMusicaDoBancoServidor = (...a) => dep.solicitarRemoverMusicaDoBancoServidor(...a);
-const solicitarRemoverMusicasDoBancoServidorEmLote = (...a) => dep.solicitarRemoverMusicasDoBancoServidorEmLote(...a);
 const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
 
 let filtrarLocalTimer = null;

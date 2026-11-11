@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import './_stubDom.mjs';
+import { estadoPainel } from './estadoPainel.js';
 import {
   formatarContagemPainel,
   normalizarAlvoContagemPainel,
   fundoCssPreviewContagem,
   rotaContagemParaServidor,
-  registrarDependenciasContagem,
   iniciarContagemRegressivaPainel,
 } from './contagemRegressiva.js';
 import { clonarCfgContagemPadrao, formatarContagem } from '../modules/contagemPainel.js';
@@ -36,24 +37,13 @@ test('formatarContagemPainel usa a mesma regra do módulo puro com a configuraç
 });
 
 function registrar(rotas, monitores = []) {
-  registrarDependenciasContagem({
-    getRotasPorModo: () => rotas,
-    getMonitoresServidorCache: () => monitores,
-    getProjecao: () => ({ aoReceber() {}, pronta: () => false }),
-    normalizarRota: (r) => ({ publicoIndex: -1, ministranteIndex: -1, live: false, ...(r || {}) }),
-    rotaDesativada: () => ({ publicoIndex: -1, ministranteIndex: -1, live: false }),
-    sanitizarRotaProjecao: (r) => r,
-    indicesPadraoPublicoMinistranteApresentacao: () => ({ iPub: 1, iMin: 2 }),
-  });
+  estadoPainel.rotasPorModo = rotas;
+  estadoPainel.monitoresServidorCache = monitores;
 }
 
 test('rotaContagemParaServidor: parada, o pin fica livre para não roubar monitores dos outros modos', () => {
   registrar({ contagem: { publicoIndex: 2, ministranteIndex: -1 } });
   assert.deepEqual(rotaContagemParaServidor(), { publicoIndex: -1, ministranteIndex: -1 });
-});
-
-test('registrarDependenciasContagem aceita valor vazio sem lançar', () => {
-  assert.doesNotThrow(() => registrarDependenciasContagem(undefined));
 });
 
 test('a inicialização é uma função exportada (antes era auto-invocada no núcleo)', () => {

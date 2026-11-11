@@ -10,18 +10,8 @@ import { opcoesRoteamentoUnificadoModoApresentacao, opcoesSeletorCabecalhoDoModo
 import { registrarEscolhaSeletorUnificado } from '../modules/ordemNaoExibirUnificado.js';
 import { salvarRoteamentoTelasNoServidor } from './roteamentoTelas.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasRoteamentoTelasUi(d) {
-  dep = d || {};
-}
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const fecharOutrosSeletoresDropdown = (...a) => dep.fecharOutrosSeletoresDropdown(...a);
+import { ehModoSlidesOperador } from './modosUi.js';
+import { fecharOutrosSeletoresDropdown } from './temasPlaylistUi.js';
 
 /**
  * Rótulo do monitor no seletor.

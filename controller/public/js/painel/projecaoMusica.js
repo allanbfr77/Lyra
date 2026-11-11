@@ -33,6 +33,15 @@ import { renderSlidesStrip } from './slidesStrip.js';
 import { acionarCancelarBarraPadrao, acionarEditarLetraBarraPadrao, acionarSalvarAlteracoesBarraPadrao, cancelarModoComparativoCentral, marcacaoEstrofeEditor } from './toolbarEdicaoHome.js';
 import { alternarOcultacaoPreviewPainel } from './previewOculto.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { abrirMenuModoApresentacao, fecharMenuModoApresentacao } from './menuApresentacaoModo.js';
+import { alternarModoSlidesOperador, limparEspelhoLocalSoCamadaSlides } from './modoSlidesOperador.js';
+import { aplicarSelecaoUiBiblioteca, aplicarSelecaoUiPlaylist, getPlaylist, indiceProximaMusicaNaPlaylist, playlistItemMesmaVersaoQueAtiva } from './playlistServidor.js';
+import { apresentacaoProjecaoAtivaNoCanalPublico } from './canaisProjecao.js';
+import { ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador, irParaTelaInicial } from './modosUi.js';
+import { getControllerApiBase, hostProjecao } from './servidorAlvo.js';
+import { modoRoteamentoAtual } from './rotasMonitores.js';
+import { onCfgAutoConectarChange, onCfgLembrarIpChange } from './socketPainelApi.js';
+import { revelarChipEstrofeFocado } from './slidesGrelhaPainel.js';
 
 let dep = {};
 
@@ -43,29 +52,9 @@ let dep = {};
 export function registrarDependenciasProjecaoMusica(d) {
   dep = d || {};
 }
-const abrirMenuModoApresentacao = (...a) => dep.abrirMenuModoApresentacao(...a);
 const alternarListaBancoSqlite = (...a) => dep.alternarListaBancoSqlite(...a);
-const alternarModoSlidesOperador = (...a) => dep.alternarModoSlidesOperador(...a);
-const aplicarSelecaoUiBiblioteca = (...a) => dep.aplicarSelecaoUiBiblioteca(...a);
-const aplicarSelecaoUiPlaylist = (...a) => dep.aplicarSelecaoUiPlaylist(...a);
-const apresentacaoProjecaoAtivaNoCanalPublico = (...a) => dep.apresentacaoProjecaoAtivaNoCanalPublico(...a);
 const conectar = (...a) => dep.conectar(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const fecharMenuModoApresentacao = (...a) => dep.fecharMenuModoApresentacao(...a);
-const getControllerApiBase = (...a) => dep.getControllerApiBase(...a);
-const getPlaylist = (...a) => dep.getPlaylist(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const indiceProximaMusicaNaPlaylist = (...a) => dep.indiceProximaMusicaNaPlaylist(...a);
-const irParaTelaInicial = (...a) => dep.irParaTelaInicial(...a);
-const limparEspelhoLocalSoCamadaSlides = (...a) => dep.limparEspelhoLocalSoCamadaSlides(...a);
-const modoRoteamentoAtual = (...a) => dep.modoRoteamentoAtual(...a);
-const onCfgAutoConectarChange = (...a) => dep.onCfgAutoConectarChange(...a);
-const onCfgLembrarIpChange = (...a) => dep.onCfgLembrarIpChange(...a);
-const playlistItemMesmaVersaoQueAtiva = (...a) => dep.playlistItemMesmaVersaoQueAtiva(...a);
 const recarregarPainelControlador = (...a) => dep.recarregarPainelControlador(...a);
-const revelarChipEstrofeFocado = (...a) => dep.revelarChipEstrofeFocado(...a);
 
 /**
  * Carrega uma música do banco no editor/projeção.

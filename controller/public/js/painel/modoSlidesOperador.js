@@ -22,25 +22,8 @@ import { hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresenta
 import { rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
 import { syncRoteamentoTelasModoSlidesNaUi } from './canaisProjecao.js';
 import { estadoPainel } from './estadoPainel.js';
-
-let dep = {};
-
-/**
- * Dependências do núcleo (funções e estado). O corpo abaixo é o original; estas ligações são lidas a
- * cada uso porque o núcleo é avaliado depois deste módulo e reatribui o estado mais adiante.
- */
-export function registrarDependenciasModoSlidesOperador(d) {
-  dep = d || {};
-}
-const aplicarRotaDoModoAtualNaUiEServidor = (...a) => dep.aplicarRotaDoModoAtualNaUiEServidor(...a);
-const aplicarRotulosEPlaylistModoSlides = (...a) => dep.aplicarRotulosEPlaylistModoSlides(...a);
-const atualizarBtnModoApresentacao = (...a) => dep.atualizarBtnModoApresentacao(...a);
-const atualizarBtnToggleModoSlides = (...a) => dep.atualizarBtnToggleModoSlides(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const executarComTransicaoUi = (...a) => dep.executarComTransicaoUi(...a);
-const irParaTelaInicial = (...a) => dep.irParaTelaInicial(...a);
+import { aplicarRotaDoModoAtualNaUiEServidor } from './roteamentoTelasUi.js';
+import { aplicarRotulosEPlaylistModoSlides, atualizarBtnModoApresentacao, atualizarBtnToggleModoSlides, ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador, executarComTransicaoUi, irParaTelaInicial } from './modosUi.js';
 
 function agendarTrabalhoPesadoAposModoSlides(ativo) {
   const rodar = () => {

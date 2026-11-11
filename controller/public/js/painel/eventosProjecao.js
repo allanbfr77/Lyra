@@ -23,6 +23,12 @@ import { tratarPedidoSincronizacaoBanco } from './sincronizacaoBanco.js';
 import { videoProjetadoAtivoNoPlayer } from './videoApresentacao.js';
 import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { aplicarSelecaoUiPlaylist, emitirPlaylistsDoControlador, enviarPlaylistsParaServidor } from './playlistServidor.js';
+import { atualizarBtnModoApresentacao, ehModoApresentacaoOperador, ehModoBibliaOperador, ehModoSlidesOperador } from './modosUi.js';
+import { atualizarFeedbackProjecaoApresentacaoUi, atualizarRodapeAudioApresentacao } from './conteudoUnificadoAviso.js';
+import { atualizarIndicadorProjecaoLiveUi } from './rotasMonitores.js';
+import { hostProjecao, readLsMigrate } from './servidorAlvo.js';
+import { projetarPorDuploCliqueCentral, selecionarMusicaDoBanco, sincronizarEstrofeAtiva } from './projecaoMusica.js';
 
 let dep = {};
 
@@ -34,24 +40,9 @@ export function registrarDependenciasEventosProjecao(d) {
   dep = d || {};
 }
 const agendarRepinturaCompositorAposEstadoServidor = (...a) => dep.agendarRepinturaCompositorAposEstadoServidor(...a);
-const aplicarSelecaoUiPlaylist = (...a) => dep.aplicarSelecaoUiPlaylist(...a);
 const assinaturaEstadoProjecaoRecebido = (...a) => dep.assinaturaEstadoProjecaoRecebido(...a);
-const atualizarBtnModoApresentacao = (...a) => dep.atualizarBtnModoApresentacao(...a);
-const atualizarFeedbackProjecaoApresentacaoUi = (...a) => dep.atualizarFeedbackProjecaoApresentacaoUi(...a);
-const atualizarIndicadorProjecaoLiveUi = (...a) => dep.atualizarIndicadorProjecaoLiveUi(...a);
-const atualizarRodapeAudioApresentacao = (...a) => dep.atualizarRodapeAudioApresentacao(...a);
 const atualizarUiConexao = (...a) => dep.atualizarUiConexao(...a);
-const ehModoApresentacaoOperador = (...a) => dep.ehModoApresentacaoOperador(...a);
-const ehModoBibliaOperador = (...a) => dep.ehModoBibliaOperador(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const emitirPlaylistsDoControlador = (...a) => dep.emitirPlaylistsDoControlador(...a);
-const enviarPlaylistsParaServidor = (...a) => dep.enviarPlaylistsParaServidor(...a);
 const forcarRepinturaCompositorLyra = (...a) => dep.forcarRepinturaCompositorLyra(...a);
-const hostProjecao = (...a) => dep.hostProjecao(...a);
-const readLsMigrate = (...a) => dep.readLsMigrate(...a);
-const projetarPorDuploCliqueCentral = (...a) => dep.projetarPorDuploCliqueCentral(...a);
-const selecionarMusicaDoBanco = (...a) => dep.selecionarMusicaDoBanco(...a);
-const sincronizarEstrofeAtiva = (...a) => dep.sincronizarEstrofeAtiva(...a);
 
 export async function playlistDuploCliqueIniciarProjecao(itemOuId) {
   if (!ehModoSlidesOperador()) return;

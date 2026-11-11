@@ -5,6 +5,13 @@
  */
 import { appAlert, appConfirm } from './appDialog.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
+import { atualizarPreviewOperador } from './previewProjecao.js';
+import { atualizarToolbarModoEdicao, marcacaoEstrofeEditor, metadadosMusicaSujosNaHome } from './toolbarEdicaoHome.js';
+import { ehModoSlidesOperador } from './modosUi.js';
+import { montarPayloadExibirMusica } from './projecaoMusica.js';
+import { renderSlidesStrip } from './slidesStrip.js';
+import { aplicarLayoutModoComparativo, comparativoSujoVsSnapshot, sairModoComparativoParaTrocarModo } from './comparativoVersoes.js';
+import { persistirMusicaAtivaNoServidor, renderEstrofesEditor, sincronizarFlagCaixaLetrasComTextoAtual } from './editorEstrofes.js';
 
 let dep = {};
 
@@ -15,20 +22,7 @@ let dep = {};
 export function registrarDependenciasLetraCompleta(d) {
   dep = d || {};
 }
-const atualizarPreviewOperador = (...a) => dep.atualizarPreviewOperador(...a);
-const atualizarToolbarModoEdicao = (...a) => dep.atualizarToolbarModoEdicao(...a);
-const ehModoSlidesOperador = (...a) => dep.ehModoSlidesOperador(...a);
-const marcacaoEstrofeEditor = (...a) => dep.marcacaoEstrofeEditor(...a);
-const metadadosMusicaSujosNaHome = (...a) => dep.metadadosMusicaSujosNaHome(...a);
-const montarPayloadExibirMusica = (...a) => dep.montarPayloadExibirMusica(...a);
-const renderSlidesStrip = (...a) => dep.renderSlidesStrip(...a);
 const splitTextoEmEstrofesPorLinhaVaziaStrict = (...a) => dep.splitTextoEmEstrofesPorLinhaVaziaStrict(...a);
-const aplicarLayoutModoComparativo = (...a) => dep.aplicarLayoutModoComparativo(...a);
-const comparativoSujoVsSnapshot = (...a) => dep.comparativoSujoVsSnapshot(...a);
-const persistirMusicaAtivaNoServidor = (...a) => dep.persistirMusicaAtivaNoServidor(...a);
-const renderEstrofesEditor = (...a) => dep.renderEstrofesEditor(...a);
-const sairModoComparativoParaTrocarModo = (...a) => dep.sairModoComparativoParaTrocarModo(...a);
-const sincronizarFlagCaixaLetrasComTextoAtual = (...a) => dep.sincronizarFlagCaixaLetrasComTextoAtual(...a);
 
 function juntarEstrofesParaLetraCompleta() {
   if (!estadoPainel.musicaAtiva?.estrofes) return '';
