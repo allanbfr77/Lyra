@@ -7334,10 +7334,7 @@ body.app-mod-slides .panel-centro .centro-col-preview-stack .preview-stack-item 
     inset 0 1px 0 rgba(200, 169, 110, 0.06);
 }
 
-/* Painel da TV: sem «próximo slide» (o elemento segue no DOM, o JS continua a escrevê-lo). */
-body.app-mod-slides .panel-centro #op-proximo {
-  display: none !important;
-}
+/* Painel da TV: mostra atual e próximo slide, como o monitor real do ministrante. */
 
 body.app-mod-slides .centro-col-preview-stack .preview-telao-col,
 body.app-mod-slides .centro-col-preview-stack > .preview-stack-item {
