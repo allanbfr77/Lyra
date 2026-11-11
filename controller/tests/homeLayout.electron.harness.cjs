@@ -53,6 +53,7 @@ const __rm = await import('./painel/removerMusicaBanco.js');
 const __pp = await import('./painel/previewProjecao.js');
 const __cr = await import('./painel/contagemRegressiva.js');
 const __vm = await import('./painel/versoesMusica.js');
+const __mm = await import('./painel/menuApresentacaoModo.js');
 const __pc = await import('./painel/playlistCompartilhar.js');
 const __sb = await import('./painel/sincronizacaoBanco.js');
 window.__homeTest = {
@@ -71,6 +72,7 @@ window.__homeTest = {
  comparativo:()=>modoComparativoCentral,
  midias:{grid:__ga.renderGridApresentacao,add:__ga.adicionarArquivosAoMenu,addCard:__ga.adicionarArquivoDiretoNoCard,biblioteca:()=>apresentacaoBiblioteca,cards:()=>apresentacaoCards,card4:()=>apresentacaoCard4Imagens},
  preVoo:{correr:__pv.correrPreVooDoCulto},previewLetras:{abrir:__pr.abrirModalPreviewLetras,fechar:__pr.fecharModalPreviewLetras},
+ modoMidias:{fechar:__mm.fecharMenuModoApresentacao},
  remover:{pedir:__rm.solicitarRemoverMusicaDoBancoServidor},
  eventosPorta:{ligar:()=>{window.__hand=new Map();window.__tpOrig=null;projecao.usarTransporte({pronto:()=>true,enviar:()=>true,enfileirar(){},inscrever(e,h){(window.__hand.get(e)||window.__hand.set(e,new Set()).get(e)).add(h)},desinscrever(e,h){window.__hand.get(e)?.delete(h)}})},emitir:(e,d)=>{(window.__hand.get(e)||[]).forEach(h=>h(d))},inscritos:()=>[...window.__hand.keys()].join(','),desligar:()=>projecao.usarTransporte(null)},
  previewTelao:{atualizar:__pp.atualizarPreviewTelaoPublico,forcar:(on)=>{if(on){window.__projOrig={p:projecao.pronta,l:projecao.ligada};projecao.pronta=()=>true;projecao.ligada=()=>true}else if(window.__projOrig){projecao.pronta=window.__projOrig.p;projecao.ligada=window.__projOrig.l}}},
@@ -85,7 +87,7 @@ window.__homeTest = {
  renderRotas:(m,r)=>renderRoteamentoTelas(m,r),
  espiarBiblia:()=>{const o={p:projecao.pronta,l:projecao.ligada,e:projecao.enfileirar,s:projecao.enviar};window.__enfileirados=[];window.__enviados=[];projecao.ligada=()=>true;projecao.pronta=()=>true;projecao.enfileirar=(ev,p)=>{window.__enfileirados.push([ev,p]);return true};projecao.enviar=(ev,p)=>{window.__enviados.push([ev,p]);return true};window.__restaurarBiblia=()=>{projecao.pronta=o.p;projecao.ligada=o.l;projecao.enfileirar=o.e;projecao.enviar=o.s}},
  biblia:{haParte:bibliaHaParteProjetada},
- ultimo:()=>ultimoConteudoProjetadoModoUnificado,
+ ultimo:()=>getUltimoConteudoProjetadoModoUnificado(),
  estado:()=>estadoServidor,
  setEstado:(e)=>{estadoServidor=e},
  cor:(c)=>__ce.aplicarCorComentarioMinistranteNoPainel(c),
@@ -254,6 +256,13 @@ async function run() {
   await check('Letras: o modal de pré-visualização abre e isola a seleção',`!document.getElementById('letras-preview-backdrop').hidden`);
   await js("__homeTest.previewLetras.fechar()");await pause(200);
   await check('Letras: fechar o modal de pré-visualização o esconde',`document.getElementById('letras-preview-backdrop').hidden`);
+  // Modo Mídias pelo menu do cabeçalho (painel/menuApresentacaoModo.js) e saída (fecharMenuModoApresentacao)
+  await js("window.abrirMenuModoApresentacao();void 0");
+  for(let i=0;i<40&&!await js("document.body.classList.contains('app-mod-apresentacao') && document.querySelectorAll('#apresentacao-grid > *').length===6");i++)await pause(100);
+  await check('Modo Mídias: o menu do cabeçalho entra no modo, troca o título e desenha a grelha',`document.body.classList.contains('app-mod-apresentacao') && document.title==='Lyra — Modo apresentação' && document.querySelectorAll('#apresentacao-grid > *').length===6 && !document.body.classList.contains('app-mod-slides')`);
+  await js("__homeTest.modoMidias.fechar();void 0");
+  for(let i=0;i<40&&await js("document.body.classList.contains('app-mod-apresentacao')");i++)await pause(100);
+  await check('Modo Mídias: sair devolve o título e tira o modo',`!document.body.classList.contains('app-mod-apresentacao') && document.title==='Lyra — Controlador'`);
   // Excluir música do banco (painel/removerMusicaBanco.js)
   await js("window.__requests.length=0;__homeTest.remover.pedir(12,'Bondade');void 0");await pause(100);
   await check('Excluir música: o modal abre com o nome da música',`!document.getElementById('musica-excluir-backdrop').hidden && document.getElementById('musica-excluir-nome').textContent==='Bondade'`);
