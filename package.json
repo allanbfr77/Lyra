@@ -1,6 +1,6 @@
 {
   "name": "lyra",
-  "version": "1.9.9",
+  "version": "2.0.0-rc.1",
   "private": true,
   "description": "Lyra — servidor, controlador e mobile",
   "scripts": {

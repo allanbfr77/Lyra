@@ -1,6 +1,6 @@
 {
   "name": "lyra-controller",
-  "version": "1.10.0",
+  "version": "2.0.0-rc.1",
   "description": "Controlador Lyra — PC operador",
   "main": "src/main.js",
   "scripts": {
@@ -41,7 +41,9 @@
       "public/**/*",
       "node_modules/**/*",
       "package.json",
-      "!**/*.test.js"
+      "!**/*.test.js",
+      "!**/*.test.mjs",
+      "!**/_stubDom.mjs"
     ],
     "asarUnpack": [
       "src/lib/*.vbs"
