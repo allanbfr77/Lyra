@@ -7,12 +7,14 @@
  */
 
 const { buscarCultosInvb } = require('../lib/invbPlaylistFetch');
+const { buscarCultosLyraApi, ErroLyraApi } = require('../lib/lyraPlaylistsApi');
 const lyraSongbank = require('../lib/lyraSongbank');
 const {
   importarMusicaUsuarioNoDb,
   inserirCopiaMusica,
   ROTULO_COPIA_IMPORTADA,
   ORIGEM_LYRA_ONLINE,
+  ORIGEM_MANUAL,
   garantirColunaOrigemImportacao,
   normalizarChaveComparacao,
 } = require('../db/musicas');
@@ -73,7 +75,7 @@ function pontuacaoTitulo(alvoNorm, candidatoNorm) {
  * Resolve o slug da música no banco online a partir do nome que vem do site.
  * Devolve o melhor acerto acima do mínimo, ou null (música fica em «não encontradas»).
  */
-async function resolverSlugNoLyra(nomeMusica) {
+async function resolverSlugNoLyra(nomeMusica, { exato = false } = {}) {
   const alvo = normalizarChaveComparacao(nomeMusica);
   if (!alvo) return null;
   let melhor = null;
@@ -100,7 +102,19 @@ async function resolverSlugNoLyra(nomeMusica) {
     }
     if (melhor && melhor.pontuacao >= 1) break;
   }
-  return melhor && melhor.pontuacao >= PONTUACAO_MINIMA_TITULO ? melhor : null;
+  /* `exato`: só aceita o MESMO título (sem maiúsculas, acentos nem pontuação). Sem isto, «começa com»
+     e «contém» ligavam um medley inteiro à primeira música dele. */
+  const minimo = exato ? 1 : PONTUACAO_MINIMA_TITULO;
+  return melhor && melhor.pontuacao >= minimo ? melhor : null;
+}
+
+/**
+ * Medley = UMA entrada do culto que junta várias músicas («A / B / C»). Não é uma música do banco.
+ * A API manda `medley: true`; o « / » (com espaços dos dois lados) cobre API antiga ou cache.
+ * «24/7» não tem espaços ao redor da barra e NÃO é medley.
+ */
+function ehMedley(item, nome) {
+  return !!(item && item.medley === true) || /\s\/\s/.test(String(nome || ''));
 }
 
 function ehMarcadorTema(item) {
@@ -366,6 +380,63 @@ function aplicarVinculoVersaoLyraNoItem(itemExistente, itemCorreto) {
 }
 
 /**
+ * Entrada própria para o medley na biblioteca local — o item da playlist precisa de um `id`, e o
+ * medley NUNCA é ligado a uma música individual do banco. Cria (ou reaproveita, pelo título EXATO
+ * do medley) uma entrada manual com o nome completo e sem letra: o operador pode completá-la.
+ * Devolve { rootRow, versao } ou null.
+ */
+function obterEntradaDeMedley(db, nome) {
+  const check = importarMusicaUsuarioNoDb(nome, '', [''], { aoDuplicar: 'perguntar', origem: ORIGEM_MANUAL });
+  let rootId = null;
+  if (check.ok) rootId = check.rootId;
+  else if (check.duplicado && check.existente) {
+    rootId = check.existente.root_id || check.existente.rootId || check.existente.id;
+  }
+  if (!rootId) return null;
+  const rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
+  if (!rootRow) return null;
+  const r = resolverVersaoLyraDoRoot(db, rootRow, rootId);
+  /* Medley já editado em mais de uma versão: mantém a Original (não pergunta por um medley). */
+  return { rootRow, versao: r.versao || rootRow };
+}
+
+/**
+ * Limpa vínculos errados de sincronizações antigas: um medley ficava ligado a uma música
+ * individual cujo título é o PRIMEIRO trecho dele (a busca por nome casava só o começo).
+ * Só sai a linha do mesmo bloco/tema do medley e cujo título é exatamente esse primeiro trecho —
+ * e nunca se a própria escala trouxer essa música como item avulso.
+ * Retorna quantas linhas foram removidas.
+ */
+function limparVinculosDeMedleys(playlistAtual, itens) {
+  const avulsos = new Set();
+  const medleys = [];
+  for (const it of itens) {
+    const nome = String((it && (it.nome || it.titulo || it.title)) || '').trim();
+    if (!nome) continue;
+    if (ehMedley(it, nome)) {
+      const primeiro = normalizarChaveComparacao(nome.split(/\s+\/\s+/)[0]);
+      if (primeiro) medleys.push({ primeiro, tema: chaveTema(it.tema || TEMA_PADRAO) });
+    } else {
+      avulsos.add(normalizarChaveComparacao(nome));
+    }
+  }
+  if (!medleys.length) return 0;
+  let removidas = 0;
+  for (let i = playlistAtual.length - 1; i >= 0; i--) {
+    const linha = playlistAtual[i];
+    if (!linha || ehMarcadorTema(linha) || linha.medley === true) continue;
+    const titulo = normalizarChaveComparacao(linha.titulo);
+    if (!titulo || avulsos.has(titulo)) continue;
+    const m = medleys.find((x) => x.primeiro === titulo);
+    if (!m) continue;
+    if (temaDoBlocoNoIndice(playlistAtual, i, TEMA_PADRAO) !== m.tema) continue;
+    playlistAtual.splice(i, 1);
+    removidas++;
+  }
+  return removidas;
+}
+
+/**
  * Sincroniza um único culto.
  * Retorna { adicionadas, naoEncontradas: [{nome, tipo}], pendentesVersao: [...] }
  *
@@ -386,14 +457,48 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
   const naoEncontradas = [];
   const pendentesVersao = [];
 
+  /* Antes de importar: desfaz medleys que uma sincronização antiga ligou a uma música individual. */
+  limparVinculosDeMedleys(playlistAtual, itens);
+
   for (const item of itens) {
     const nomeMusica = (item.nome || item.titulo || item.title || '').trim();
     if (!nomeMusica) continue;
 
     const tema = item.tema || TEMA_PADRAO;
 
-    // 1. Buscar no Lyra online pelo nome (variantes do termo + acerto pelo título)
-    const acerto = await resolverSlugNoLyra(nomeMusica);
+    /* Medley: item único, sem busca por nome e sem vínculo com música individual. */
+    if (ehMedley(item, nomeMusica)) {
+      try {
+        const e = obterEntradaDeMedley(db, nomeMusica);
+        if (!e) {
+          naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+          continue;
+        }
+        const rootIdMedley = Number(e.rootRow.root_id != null ? e.rootRow.root_id : e.rootRow.id);
+        const itemMedley = construirItemPlaylist(e.rootRow, cultoId, e.versao, tema);
+        itemMedley.titulo = nomeMusica;
+        itemMedley.medley = true;
+        const ix = indiceRootNaPlaylist(playlistAtual, rootIdMedley);
+        if (ix >= 0) {
+          aplicarVinculoVersaoLyraNoItem(playlistAtual[ix], itemMedley);
+          playlistAtual[ix].medley = true;
+          garantirTemaNoItemExistente(playlistAtual, ix, tema);
+        } else {
+          inserirMusicaNoBlocoTema(playlistAtual, tema, itemMedley);
+          adicionadas++;
+        }
+      } catch (e) {
+        naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
+      }
+      continue;
+    }
+
+    // 1. Buscar no Lyra online pelo nome (variantes do termo + acerto pelo título).
+    //    Quando a playlist vem da API do Lyra DB com o `slug` da música, ele é usado direto:
+    //    sem busca por título, não há risco de acertar a música errada.
+    const slugDoSite = item.slug ? String(item.slug).trim() : '';
+    /* Vinda da API do Lyra DB sem slug: só título EXATO (nada de «começa com» / «contém»). */
+    const acerto = slugDoSite ? { slug: slugDoSite } : await resolverSlugNoLyra(nomeMusica, { exato: item.fonteApi === true });
     const slug = acerto ? acerto.slug : null;
 
     if (!slug) {
@@ -608,12 +713,27 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
         return res.status(400).json({ erro: 'Selecione primeiro o culto no Lyra.' });
       }
 
-      // 1. Buscar cultos do Supabase
-      let cultos;
+      // 1. Buscar as playlists. Origem preferida: API do Lyra DB (database.invbotafogo.com.br),
+      //    autenticada pela LYRA_API_KEY — usada assim que o site a anuncia. Enquanto não
+      //    anunciar, segue a fonte anterior (Supabase), para o botão não ficar sem função.
+      let cultos = null;
+      let fonte = 'lyra-db-api';
       try {
-        cultos = await buscarCultosInvb();
+        cultos = await buscarCultosLyraApi();
       } catch (e) {
-        return res.status(502).json({ erro: 'Falha ao buscar dados do site INVB: ' + e.message });
+        if (e instanceof ErroLyraApi) {
+          /* 502 (e não 401): o 401 é do próprio Controller (E1/E2) — aqui falhou o serviço de fora. */
+          return res.status(502).json({ erro: e.message, codigo: e.codigo });
+        }
+        return res.status(502).json({ erro: 'Falha ao consultar as playlists do Lyra DB: ' + e.message });
+      }
+      if (cultos == null) {
+        fonte = 'supabase-legado';
+        try {
+          cultos = await buscarCultosInvb();
+        } catch (e) {
+          return res.status(502).json({ erro: 'Falha ao buscar dados do site INVB: ' + e.message });
+        }
       }
 
       /* `cultoId` do site usa a mesma convenção do painel (`cultoIdDoSite`). */
@@ -662,6 +782,8 @@ function registrarRotasSyncInvbPlaylist(expressApp, { db, marcarBancoCompartilha
         /* Músicas cuja versão o painel tem de perguntar antes de adicionar. */
         pendentesVersao: todasPendentesVersao,
         ministrantePorCulto,
+        /* De onde vieram as playlists: `lyra-db-api` ou `supabase-legado` (site ainda sem a API). */
+        fonte,
       });
     } catch (e) {
       if (e && typeof e.message === 'string' && e.message.includes('LYRA_API_KEY')) {
@@ -686,4 +808,6 @@ module.exports = {
   inserirMusicaNoBlocoTema,
   garantirTemaNoItemExistente,
   indiceRootNaPlaylist,
+  ehMedley,
+  limparVinculosDeMedleys,
 };

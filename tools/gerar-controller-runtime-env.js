@@ -64,6 +64,21 @@ if (!payload.INVB_SUPABASE_ANON_KEY) {
   process.exit(1);
 }
 
+/*
+ * Segredo de SERVIDOR nunca entra no instalador. `SUPABASE_SERVICE_ROLE_KEY` (que o site do Lyra DB
+ * usa na Vercel para ler as músicas adicionadas à mão) dá acesso total ao banco, ignorando as regras
+ * de acesso: quem instalar o Lyra poderia extraí-la de `resources/runtime-env.json`. O Controller
+ * só leva chaves de cliente (a lista `KEYS` acima) — se alguém a adicionar por engano, o build para.
+ */
+const SEGREDOS_SO_DE_SERVIDOR = ['SUPABASE_SERVICE_ROLE_KEY'];
+for (const nome of SEGREDOS_SO_DE_SERVIDOR) {
+  const valor = String(process.env[nome] || '').trim();
+  if (KEYS.includes(nome) || (valor && Object.values(payload).includes(valor))) {
+    console.error(`[runtime-env] ${nome} é segredo de servidor e não pode ir no instalador.`);
+    process.exit(1);
+  }
+}
+
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(outFile, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 console.log(
