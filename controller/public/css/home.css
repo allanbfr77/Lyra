@@ -590,10 +590,11 @@ html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app
   .banco-filtros-checks input[type="checkbox"] { accent-color: #3a3a40; }
 
   /* ── Botão principal claro ── */
-  .home-song-actions #btn-adicionar-playlist-home,
-  .home-song-edit-actions #btn-salvar-musica:not(:disabled) { background: var(--cta-bg); border: 1px solid var(--cta-bg); color: var(--cta-fg); transition: background-color .15s ease, border-color .15s ease; }
-  .home-song-actions #btn-adicionar-playlist-home:hover:not(:disabled),
-  .home-song-edit-actions #btn-salvar-musica:not(:disabled):hover { background: var(--cta-bg-hover); border-color: var(--cta-bg-hover); filter: none; }
+  .home-song-actions #btn-adicionar-playlist-home { background: var(--cta-bg); border: 1px solid var(--cta-bg); color: var(--cta-fg); transition: background-color .15s ease, border-color .15s ease; }
+  .home-song-actions #btn-adicionar-playlist-home:hover:not(:disabled) { background: var(--cta-bg-hover); border-color: var(--cta-bg-hover); filter: none; }
+  /* «Salvar alterações» (com alteração pendente) é dourado do projeto, não o branco do CTA. */
+  .home-song-edit-actions #btn-salvar-musica:not(:disabled) { background: var(--select-bar); border: 1px solid var(--select-bar); color: #1a1405; transition: background-color .15s ease, border-color .15s ease; }
+  .home-song-edit-actions #btn-salvar-musica:not(:disabled):hover { background: var(--select-fg); border-color: var(--select-fg); filter: none; }
   .home-song-edit-actions #btn-salvar-musica:disabled { background: var(--ui-chip); border-color: var(--ui-line); color: var(--ui-dim); cursor: not-allowed; opacity: 1; }
   .home-song-actions #btn-editar-letra { background: transparent; border: 1px solid #3a3a40; color: #d8d6d0; transition: border-color .15s ease, color .15s ease; }
   .home-song-actions #btn-editar-letra:hover:not(:disabled) { background: transparent; border-color: #4a4a52; }
