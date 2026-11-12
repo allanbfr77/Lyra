@@ -39,17 +39,24 @@ function closeBibliaDbs() {
   bibliaDbs = new Map();
 }
 
+/** Devolve 'ok' | 'ausente' | 'erro' (o chamador decide se avisa; a falha continua não-fatal). */
+function abrirBibliaTraducao(paths, Database, traducao) {
+  if (typeof paths.bibliaSqlitePath !== 'function') return 'ausente';
+  const dbPath = paths.bibliaSqlitePath(traducao);
+  if (!dbPath || !fs.existsSync(dbPath)) return 'ausente';
+  try {
+    bibliaDbs.set(traducao, new Database(dbPath, { readonly: true }));
+    return 'ok';
+  } catch (_) {
+    return 'erro';
+  }
+}
+
 function initBibliaSqliteDatabases(paths, Database) {
   closeBibliaDbs();
   if (typeof paths.bibliaSqlitePath !== 'function') return;
   for (const traducao of BIBLIA_TRADUCOES_SUPORTADAS) {
-    const dbPath = paths.bibliaSqlitePath(traducao);
-    if (!dbPath || !fs.existsSync(dbPath)) continue;
-    try {
-      bibliaDbs.set(traducao, new Database(dbPath, { readonly: true }));
-    } catch (_) {
-  // intencional — erro ignorado
-}
+    abrirBibliaTraducao(paths, Database, traducao);
   }
 }
 
@@ -117,7 +124,8 @@ function aplicarPragmasDesempenho(conexao) {
   }
 }
 
-function initControllerDatabase(paths, Database) {
+/** Fase 1 — abre o banco principal (copia o legado se preciso) e fecha o catálogo anterior. */
+function abrirBancoPrincipal(paths, Database) {
   const dbPathNew = paths.dbPathNew();
   const dbPathLegacyInvb = paths.dbPathLegacyInvb?.();
   const dbPathLegacy = paths.dbPathLegacy();
@@ -138,16 +146,21 @@ function initControllerDatabase(paths, Database) {
   if (catalog) { try { catalog.close(); } catch (_) {
   // intencional — erro ignorado
 } catalog = null; }
-  initBibliaSqliteDatabases(paths, Database);
+}
+
+/** Fase 3 — catálogo offline (já tem fallback: sem ele o app segue). */
+function abrirCatalogoOffline(paths, Database) {
   const catalogDbPath = resolveCatalogDatabasePath(paths);
   if (catalogDbPath && fs.existsSync(catalogDbPath)) {
     try {
       catalog = new Database(catalogDbPath, { readonly: true });
       const n = catalog.prepare('SELECT COUNT(*) AS c FROM musicas').get();
       console.log('[Lyra] Catálogo offline carregado:', catalogDbPath, `(${n?.c ?? 0} músicas)`);
+      return 'ok';
     } catch (e) {
       catalog = null;
       console.error('[Lyra] Não foi possível abrir catalog.db:', e.message);
+      return 'erro';
     }
   } else {
     const bundled = paths.catalogBundledDbPath?.();
@@ -156,8 +169,12 @@ function initControllerDatabase(paths, Database) {
       bundled ? `Esperado em: ${bundled}` : '',
       'Rode: node tools/gerar-catalog.js'
     );
+    return 'ausente';
   }
+}
 
+/** Fase 4 — tabelas e migrações. */
+function criarEstruturaBanco(paths) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS musicas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,12 +204,26 @@ function initControllerDatabase(paths, Database) {
   ministrantesDb.migrarMinistrantesAgrupadosDoSite(paths?.playlistsJsonPath);
 }
 
+function initControllerDatabase(paths, Database) {
+  abrirBancoPrincipal(paths, Database);
+  initBibliaSqliteDatabases(paths, Database);
+  abrirCatalogoOffline(paths, Database);
+  criarEstruturaBanco(paths);
+}
+
 
 module.exports = {
   ...musicasDb,
   ...ministrantesDb,
   ...historicoDb,
   initControllerDatabase,
+  /* Fases separadas — usadas pela splash para reportar cada unidade real do boot. */
+  abrirBancoPrincipal,
+  prepararBibliasSqlite: closeBibliaDbs,
+  abrirBibliaTraducao,
+  abrirCatalogoOffline,
+  criarEstruturaBanco,
+  BIBLIA_TRADUCOES_SUPORTADAS,
   getDb,
   getCatalog,
   getBibliaDb,
