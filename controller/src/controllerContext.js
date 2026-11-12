@@ -26,6 +26,8 @@ module.exports = {
   controllerRecarregarEmCurso: false,
   controllerRecarregarPendente: false,
   suprimirQuitWindowAllClosedRecarregar: false,
+  /** Splash de boot (null quando não carregou ou já foi fechada). */
+  splash: null,
   substituirJanelaAposFecharPorRecarregar: false,
   snapshotRecarregarJanelaBounds: null,
 

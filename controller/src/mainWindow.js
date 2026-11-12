@@ -868,7 +868,7 @@ function criarJanela(ctx) {
   const win = ctx.windowMain;
   const wc = win.webContents;
 
-  const revelar = () => {
+  const revelarAgora = () => {
     if (janelaMostrada || !win || win.isDestroyed()) return;
     janelaMostrada = true;
     try {
@@ -893,6 +893,40 @@ function criarJanela(ctx) {
       }, 120);
     }
   };
+
+  /*
+   * Com a splash ativa: tempo mínimo restante → fade-out → mainWindow.show() → splash fechada
+   * (nessa ordem — nunca há um instante com zero janelas). Sem splash, comportamento de sempre.
+   */
+  let revelarPedido = false;
+  const revelar = () => {
+    if (janelaMostrada || revelarPedido || !win || win.isDestroyed()) return;
+    const splash = ctx.splash;
+    if (!splash || !splash.ativa() || splash.emErro()) {
+      revelarAgora();
+      return;
+    }
+    revelarPedido = true;
+    splash
+      .finalizar()
+      .catch(() => {})
+      .then(() => {
+        revelarAgora();
+        splash.fechar();
+      });
+  };
+
+  /* Falha ao carregar a interface com a splash na tela: erro crítico em vez de splash eterna. */
+  /* `on`, não `once`: uma falha de subquadro não pode gastar o ouvinte; só o frame principal conta. */
+  wc.on('did-fail-load', (_e, codigo, descricao, _url, ehFramePrincipal) => {
+    if (!ehFramePrincipal || !ctx.splash || !ctx.splash.ativa()) return;
+    ctx.splash.erro({
+      group: 9,
+      message: 'Não foi possível carregar a interface.',
+      code: String(codigo),
+      detail: descricao,
+    });
+  });
 
   if (process.platform === 'win32') {
     let readyToShowOk = false;
