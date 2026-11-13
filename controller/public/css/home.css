@@ -749,12 +749,12 @@ body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod
 /* Rótulo «PRÉVIA» (caixa alta, como os demais rótulos pequenos). */
 .home-view-segment #btn-toggle-playlist-preview span { letter-spacing: 0.08em; }
 
-/* Logo do Lyra preenche a altura útil do cabeçalho; «Controlador» cresce na mesma proporção (15/44 do logo). */
+/* Logo do Lyra preenche a altura útil do cabeçalho; «Controlador» cresce na mesma proporção (0.24 do logo). */
 .logo-wrap {
   --logo-size: calc(var(--nav-item-h) + var(--nav-dock-pad) * 2 + 2px + var(--nav-dock-respiro) * 2 - 17px);
   gap: calc(var(--logo-size) * 0.3);
 }
-.logo-wrap .logo-texto { font-size: calc(var(--logo-size) * 0.34); }
+.logo-wrap .logo-texto { font-size: calc(var(--logo-size) * 0.24); }
 /* Com o logo maior, abaixo disto o «Controlador» invadiria o dock central: some o rótulo, o logo fica. */
 @media (max-width: 1399px) { .logo-wrap .logo-texto { display: none; } }
 
