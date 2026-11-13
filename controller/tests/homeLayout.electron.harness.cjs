@@ -352,8 +352,8 @@ async function run() {
   await check('restauração limitada à viewport',`(()=>{const r=document.getElementById('playlist-preview-card').getBoundingClientRect();return r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})()`);
   /* Contagem (redesenhada): o aviso de rota virou o estado do seletor — vermelho e «Nenhum monitor selecionado». */
   await js('__homeTest.openContagem()');await pause(150);
-  await check('Contagem: sem monitor, o seletor sinaliza a ausência',`(()=>{const s=document.getElementById('contagem-monitor-select');return !!s && s.classList.contains('sem-monitor') && s.options[s.selectedIndex].textContent==='Nenhum monitor selecionado'
-    && s.getAttribute('aria-labelledby')==='contagem-monitor-rotulo' && !document.getElementById('contagem-alerta-rota')})()`);
+  await check('Contagem: sem monitor, o seletor sinaliza a ausência',`(()=>{const w=document.getElementById('contagem-monitor-dd');const b=w&&w.querySelector('.route-dd-btn');return !!w && w.classList.contains('route-dd--rota-desativada') && w.querySelector('.route-dd-label').textContent==='Não exibir'
+    && b.getAttribute('aria-labelledby')==='contagem-monitor-rotulo' && !document.getElementById('contagem-alerta-rota')})()`);
   await js("document.getElementById('contagem-btn-principal').click()");await pause(150);
   await check('Contagem: Iniciar sem monitor avisa e não inicia',`!document.getElementById('app-dialog-overlay').hidden && document.getElementById('app-dialog-body').textContent.includes('Escolha um monitor') && document.getElementById('contagem-btn-encerrar').disabled`);
   await js("document.getElementById('app-dialog-ok').click()");await pause(100);
@@ -470,9 +470,9 @@ async function run() {
   const ctgPosts = "__requests.filter(r=>r.path==='/api/comando/exibir_contagem'&&r.method==='POST').length";
   await js('__homeTest.openContagem()');await pause(300);
   await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1',size:{width:1920,height:1080}},{index:1,label:'Projetor',size:{width:1920,height:1080}},{index:2,label:'TV',size:{width:1280,height:720}}]);__homeTest.contagem.renderSeletor()");await pause(100);
-  await check('Contagem: o seletor lista os monitores de projeção (sem o principal) e segue sem monitor',`(()=>{const s=document.getElementById('contagem-monitor-select');const t=[...s.options].map(o=>o.textContent);return s.classList.contains('sem-monitor') && t.includes('Projetor') && t.includes('TV') && !t.some(x=>x.includes('Monitor 1'))})()`);
-  await js("(()=>{const s=document.getElementById('contagem-monitor-select');s.value='1';s.dispatchEvent(new Event('change'))})()");await pause(250);
-  await check('Contagem: escolher o monitor sai do estado «sem monitor» e grava a escolha',`(()=>{const s=document.getElementById('contagem-monitor-select');const p=JSON.parse(localStorage.getItem('lyra_contagem_monitor_v1')||'{}');return !s.classList.contains('sem-monitor') && s.value==='1' && p.publicoIndex===1})()`);
+  await check('Contagem: o seletor lista os monitores de projeção (sem o principal) e segue sem monitor',`(()=>{const w=document.getElementById('contagem-monitor-dd');const v=[...w.querySelectorAll('.route-dd-item')].map(i=>i.dataset.value);return w.classList.contains('route-dd--rota-desativada') && v.includes('1') && v.includes('2') && !v.includes('0') && v[v.length-1]==='-1'})()`);
+  await js("document.querySelector('#contagem-monitor-dd .route-dd-btn').click();document.querySelector('#contagem-monitor-dd .route-dd-item[data-value=\"1\"]').click()");await pause(250);
+  await check('Contagem: escolher o monitor sai do estado «sem monitor» e grava a escolha',`(()=>{const w=document.getElementById('contagem-monitor-dd');const p=JSON.parse(localStorage.getItem('lyra_contagem_monitor_v1')||'{}');return !w.classList.contains('route-dd--rota-desativada') && w.querySelector('.route-dd-item[aria-selected="true"]')?.dataset.value==='1' && p.publicoIndex===1})()`);
   await js("document.querySelectorAll('#contagem-presets .contagem-preset')[1].click()");await pause(50);
   await check('Contagem: o preset define os minutos e zera os segundos',`document.getElementById('contagem-minutos').value==='10' && document.getElementById('contagem-segundos').value==='0'`);
   await js("window.__c0="+ctgPosts);
@@ -505,7 +505,7 @@ async function run() {
   for(let i=0;i<100;i++){if(await js('!!window.__homeTest'))break;await pause();}
   await js('__homeTest.openContagem()');await pause(300);
   await js("__homeTest.setMonitores([{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'},{index:2,label:'TV'}]);__homeTest.contagem.renderSeletor();__homeTest.contagem.popularForm()");await pause(100);
-  await check('Contagem: após recarregar, o monitor escolhido e a aparência voltam do armazenamento (ordem de inicialização)',`document.getElementById('contagem-monitor-select').value==='1' && document.querySelector('#cfg-contagem-posy-group .cfg-btn-pos.ativo')?.dataset.val==='top' && document.getElementById('cfg-contagem-fontsize').value==='20'`);
+  await check('Contagem: após recarregar, o monitor escolhido e a aparência voltam do armazenamento (ordem de inicialização)',`document.querySelector('#contagem-monitor-dd .route-dd-item[aria-selected="true"]')?.dataset.value==='1' && document.querySelector('#cfg-contagem-posy-group .cfg-btn-pos.ativo')?.dataset.val==='top' && document.getElementById('cfg-contagem-fontsize').value==='20'`);
   // Contagem depois de recarregar: os controles continuam funcionando (Iniciar, Encerrar)
   await js("window.__c0="+ctgPosts+";document.getElementById('contagem-btn-principal').click()");await pause(450);
   await check('Contagem: após recarregar, Iniciar envia o comando e entra no ar',`${ctgPosts}===window.__c0+1 && !document.getElementById('contagem-btn-encerrar').disabled`);
@@ -565,6 +565,10 @@ async function run() {
   await check('DOCS (PDF real): Escape (núcleo) encerra a projeção, avisa o servidor e solta a rota',`__homeTest.docs.paginaProjetada()===false && window.__enviados.some(e=>e[0]==='encerrar_apresentacao_publico'&&e[1]&&e[1].alvoProjecao==='publico') && __homeTest.rotas().docs.publicoIndex===-1 && document.body.classList.contains('app-mod-docs') && !document.querySelector('#docs-faixa .docs-miniatura.no-ar')`);
   await js("window.__restaurarEnviar()");
   await js("__homeTest.rotas().docs={publicoIndex:1,ministranteIndex:-1,live:false}");
+  /* O «Encerrar» do cabeçalho só age com projeção NESTE modo (botaoEncerrarCabecalho.js): põe a página no ar antes. */
+  await js("window.__n0=window.__apresentacoes.length;document.getElementById('docs-preview').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+  await aguardar("window.__apresentacoes.length>window.__n0 && __homeTest.docs.paginaProjetada()===true", 15000); /* envio concluído: encerrar com a renderização a meio deixava a página voltar ao ar */
+  await aguardar("!document.getElementById('hdr-encerrar-projecao').disabled", 3000); /* o botão reflete o estado a cada 250 ms: clicar antes dele habilitar não faz nada */
   await js("document.getElementById('hdr-encerrar-projecao').click()");await pause(250);
   await check('DOCS: «Encerrar projeção» do cabeçalho desativa a rota do DOCS (estado de rotas do núcleo)',`__homeTest.rotas().docs.publicoIndex===-1 && __homeTest.docs.paginaProjetada()===false`);
   await js("document.getElementById('btn-tela-inicial').click()");
@@ -606,8 +610,8 @@ async function run() {
   await js("window.__monitoresFixture=[{index:0,primary:true,label:'Monitor 1'},{index:1,label:'Projetor'}];__homeTest.setMonitores(window.__monitoresFixture);__homeTest.renderRotas(window.__monitoresFixture,{publicoIndex:-1,ministranteIndex:-1,live:false});__homeTest.espiarBiblia()");await pause(150);
   // A escolha do monitor é feita no seletor do cabeçalho (a Bíblia sincroniza a rota a partir dele)
   await js("document.getElementById('route-publico-btn').click()");await pause(150);
-  await js("[...document.querySelectorAll('#route-publico-menu .route-dd-item')].find(b=>b.textContent.includes('Monitor 2')).click()");await pause(400);
-  await check('Bíblia: escolher o monitor no seletor do cabeçalho grava a rota do modo',`__homeTest.rotas().biblia.publicoIndex===1 && document.getElementById('route-publico-display').textContent.includes('Monitor 2')`);
+  await js("[...document.querySelectorAll('#route-publico-menu .route-dd-item')].find(b=>b.textContent.includes('Igreja (M2)')).click()");await pause(400);
+  await check('Bíblia: escolher o monitor no seletor do cabeçalho grava a rota do modo',`__homeTest.rotas().biblia.publicoIndex===1 && document.getElementById('route-publico-display').textContent.includes('Igreja (M2)')`);
   await js("document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].click()");
   await aguardar("(window.__enfileirados||[]).length>=1", 8000);
   await check('Bíblia: clicar de novo no versículo selecionado o projeta (payload enviado ao servidor)',`(()=>{const e=window.__enfileirados||[];const p=(e[0]||[])[1]||{};return e.length===1 && e[0][0]==='exibir_versiculo' && String(p.livro)==='Gênesis' && String(p.capitulo)==='1' && String(p.versiculo)==='2' && String(p.texto).includes('sem forma') && p.traducao==='ARA' && p.somenteTexto===false && !!p.alvoProjecao && document.querySelectorAll('#biblia-col-versiculos .biblia-v-card')[1].classList.contains('projetado') && __homeTest.biblia.haParte()===true && __homeTest.ultimo()?.tipo==='biblia' && String(__homeTest.ultimo().payload.versiculo)==='2'})()`);
