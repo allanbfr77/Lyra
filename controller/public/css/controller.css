@@ -491,20 +491,29 @@ body.slides-rail-aberto {
   pointer-events: auto;
 }
 
-/* Grupos semânticos: navegação | modos de operação | preferências.
-   Continuam a existir na marcação (é o que dá os `role="group"` e os rótulos a
-   quem usa leitor de ecrã), mas já não se vêem: o traço vertical que os separava
-   saiu, e ficou só a folga um pouco maior entre um grupo e o seguinte. Numa fila
-   de sete itens espaçados, essa folga chega — a linha era ruído a mais numa barra
-   que agora não tem linha nenhuma. */
+/* Grupos semânticos: navegação | modos de operação | preferências
+   (Home | Bíblia e demais | Voz, Contador e Ajustes). Na marcação são `role="group"`
+   com rótulo, para leitores de ecrã. Na vista, um traço vertical fino e discreto
+   separa um grupo do seguinte, com a mesma folga de cada lado. */
 .nav-grupo {
   display: flex;
   align-items: stretch;
   gap: var(--nav-gap);
 }
 .nav-grupo + .nav-grupo {
+  position: relative;
   margin-left: calc(var(--nav-gap) + 2px);
   padding-left: calc(var(--nav-gap) + 2px);
+}
+.nav-grupo + .nav-grupo::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 1px;
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+  pointer-events: none;
 }
 
 /* Indicador global de projeção (o que está no telão). NÃO faz parte do dock
