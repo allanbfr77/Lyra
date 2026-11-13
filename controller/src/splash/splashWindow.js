@@ -81,13 +81,22 @@ function criarSplash({ app, BrowserWindow, ipcMain, ctx, log = () => {}, agora =
         enviar('splash:error', d);
       },
       emErro: () => comErro,
-      /** Tempo mínimo restante → splash:done → fade-out. Não vale para o caminho de erro. */
-      async finalizar() {
+      /** Espera o que falta dos 1,4 s mínimos. Não vale para o caminho de erro. */
+      async aguardarMinimo() {
         if (!api.ativa() || comErro) return;
         const restante = Math.max(0, MINIMO_VISIVEL_MS - (agora() - visivelDesde));
         if (restante) await new Promise((r) => setTimeout(r, restante));
+      },
+      /** splash:done + fade-out da splash (340 ms). */
+      async dissolver() {
+        if (!api.ativa() || comErro) return;
         enviar('splash:done');
         await new Promise((r) => setTimeout(r, FADE_MS));
+      },
+      /** Tempo mínimo restante → splash:done → fade-out (uso sem cross-fade). */
+      async finalizar() {
+        await api.aguardarMinimo();
+        await api.dissolver();
       },
       /** Destrói a janela (não só esconde). Chamar DEPOIS de mainWindow.show(). */
       fechar() {

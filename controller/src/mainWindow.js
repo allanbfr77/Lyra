@@ -860,6 +860,72 @@ function repinturaRendererControlador(wc) {
 }
 }
 
+/**
+ * Entrada suave do painel depois da splash. Antes, a janela aparecia de uma vez e ainda
+ * "balançava" (maximizar + empurrões de repintura) à vista de todos. Agora:
+ *   1. espera o tempo mínimo da splash;
+ *   2. mostra o painel com opacidade 0 (maximiza, repinta e assenta sem ninguém ver);
+ *   3. espera um quadro pintado;
+ *   4. dissolve a splash e sobe a opacidade do painel ao mesmo tempo (cross-fade);
+ *   5. só então fecha a splash (show() sempre antes de close()).
+ * Qualquer falha cai para o comportamento direto — a janela nunca fica invisível.
+ */
+const ASSENTAR_JANELA_MS = 280;
+const ENTRADA_PAINEL_MS = 320;
+
+function aparecerGradualmente(win, ms) {
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const passo = () => {
+      if (!win || win.isDestroyed()) return resolve();
+      const x = Math.min(1, (Date.now() - t0) / ms);
+      const suave = 1 - Math.pow(1 - x, 3); // ease-out
+      try {
+        win.setOpacity(suave);
+      } catch (_) {
+        return resolve();
+      }
+      if (x >= 1) return resolve();
+      setTimeout(passo, 16);
+    };
+    passo();
+  });
+}
+
+async function revelarComTransicaoSuave(win, wc, splash, revelarAgora) {
+  try {
+    await splash.aguardarMinimo();
+    try {
+      win.setOpacity(0);
+    } catch (_) {
+      // intencional — sem opacidade o painel entra direto
+    }
+    revelarAgora();
+    await new Promise((r) => setTimeout(r, ASSENTAR_JANELA_MS));
+    if (!wc.isDestroyed()) {
+      await Promise.race([
+        wc
+          .executeJavaScript('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))')
+          .catch(() => {}),
+        new Promise((r) => setTimeout(r, 400)),
+      ]);
+    }
+    await Promise.all([splash.dissolver(), aparecerGradualmente(win, ENTRADA_PAINEL_MS)]);
+  } catch (_) {
+    // intencional — cai para a entrada direta abaixo
+  } finally {
+    try {
+      if (!win.isDestroyed()) {
+        win.setOpacity(1);
+        if (!win.isVisible()) revelarAgora();
+      }
+    } catch (_) {
+      // intencional — erro ignorado
+    }
+    splash.fechar();
+  }
+}
+
 function criarJanela(ctx) {
   ctx.windowMain = new BrowserWindow({ ...obterOpcoesBrowserWindowPrincipal(), show: false });
   anexarLifecycleJanelaPrincipal(ctx);
@@ -871,12 +937,13 @@ function criarJanela(ctx) {
   const revelarAgora = () => {
     if (janelaMostrada || !win || win.isDestroyed()) return;
     janelaMostrada = true;
+    /* Maximiza ANTES de mostrar: senão a janela aparece em 1280x800 e salta para a tela cheia. */
+    aplicarTelaCheiaAoControlador(win);
     try {
       win.show();
     } catch (_) {
   // intencional — erro ignorado
 }
-    aplicarTelaCheiaAoControlador(win);
     try {
       win.focus();
     } catch (_) {
@@ -907,13 +974,7 @@ function criarJanela(ctx) {
       return;
     }
     revelarPedido = true;
-    splash
-      .finalizar()
-      .catch(() => {})
-      .then(() => {
-        revelarAgora();
-        splash.fechar();
-      });
+    revelarComTransicaoSuave(win, wc, splash, revelarAgora);
   };
 
   /* Falha ao carregar a interface com a splash na tela: erro crítico em vez de splash eterna. */
