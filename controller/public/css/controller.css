@@ -922,13 +922,6 @@ body:has(#cfg-modal-overlay-ctrl.aberto) .hdr-action--cfg .hdr-btn-caption {
 .hdr-action--voz { --nav-accent: var(--nav-color-voz); }
 .hdr-action--cfg { --nav-accent: var(--nav-color-ajustes); }
 
-/* Ícone de tema: mostra sempre um só — lua no tema claro, sol no escuro.
-   Especificidade alinhada com `.hdr-btn-round svg`, que define display:block. */
-.hdr-btn-round .ico-tema--lua { display: block; }
-.hdr-btn-round .ico-tema--sol { display: none; }
-html.dark .hdr-btn-round .ico-tema--lua { display: none; }
-html.dark .hdr-btn-round .ico-tema--sol { display: block; }
-
 /* Ancorado ao canto superior direito do ícone (20px centrado no botão), e já não
    à borda da cápsula que deixou de existir. Continua a ligar/desligar pelo mesmo
    `voz-mic--on` de sempre, independente do estado activo. */
@@ -1027,8 +1020,6 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
 .app-header-right {
   align-items: center;
 }
-
-.conn-sep { flex: 1; }
 
 .cfg-conexao-row {
   display: flex;
@@ -1396,8 +1387,7 @@ html.dark .hdr-btn-round .ico-tema--sol { display: block; }
    «TEMA NA PLAYLIST» e «PLAYLIST»): tipografia unificada na base do Ministrante. */
 .playlist-panel-head-titulo,
 .playlist-lista-head-titulo,
-.culto-ministrante-label,
-.playlist-tema-label {
+.culto-ministrante-label {
   font-family: var(--font-ui);
   font-size: var(--fs-section-base);
   font-weight: var(--fw-semibold);
@@ -1645,7 +1635,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
 .playlist-panel-head-titulo,
 .playlist-lista-head-titulo,
 .culto-ministrante-label,
-.playlist-tema-label,
 .ap-menu-section-label,
 .sidebar-title > span {
   color: var(--bib-letra-cab);
@@ -1665,7 +1654,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
 .playlist-panel-head-titulo,
 .playlist-lista-head-titulo,
 .culto-ministrante-label,
-.playlist-tema-label,
 .ap-menu-section-label {
   display: inline-flex;
   align-items: center;
@@ -1675,7 +1663,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
 .playlist-panel-head-titulo::before,
 .playlist-lista-head-titulo::before,
 .culto-ministrante-label::before,
-.playlist-tema-label::before,
 .ap-menu-section-label::before {
   content: '';
   flex-shrink: 0;
@@ -1690,7 +1677,6 @@ html.dark #playlist-linha-ctx-menu .menu-flutuante-item--perigo {
 
 .playlist-panel-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M16 2v4'/%3E%3Cpath d='M8 2v4'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E"); }
 .culto-ministrante-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2'/%3E%3Cpath d='M12 19v3'/%3E%3C/svg%3E"); }
-.playlist-tema-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4Z'/%3E%3Ccircle cx='7.5' cy='7.5' r='1.3'/%3E%3C/svg%3E"); }
 .playlist-lista-head-titulo { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15V6'/%3E%3Ccircle cx='18.5' cy='15.5' r='2.5'/%3E%3Cpath d='M12 12H3'/%3E%3Cpath d='M16 6H3'/%3E%3Cpath d='M12 18H3'/%3E%3C/svg%3E"); }
 .ap-menu-files-block .ap-menu-section-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/%3E%3C/svg%3E"); }
 .ap-menu-audio-block .ap-menu-section-label { --secao-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m10 8 6 4-6 4z'/%3E%3C/svg%3E"); }
@@ -2282,13 +2268,6 @@ body.app-mod-slides .slide-nota-cluster {
   border-radius: 6px 0 0 6px;
 }
 
-.playlist-row-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  justify-content: space-between;
-}
-
 /*
   Quatro colunas fixas: alça de arrasto · título/artista · tom · kebab.
 
@@ -2576,25 +2555,14 @@ html:not(.dark) .pl-sel {
 /*
   Feedback da mudança de posição.
 
-  O deslize das duas linhas é feito em JS (FLIP: mede antes, mede depois, anima a
-  diferença) — aqui fica só o realce que diz QUAL música mudou. O realce é pintado
+  Aqui fica só o realce que diz QUAL música mudou. O realce é pintado
   numa camada `::after` por cima da linha, e não no `background`: a linha da música
   activa tem fundo próprio (e uma barra em `::before`), e animar o `background`
   apagava esse estado durante meio segundo.
-
-  Duas intensidades: a música que o utilizador mandou mover recebe o realce cheio e
-  um anel; a que foi empurrada para o lugar dela recebe um terço disso — chega para
-  se perceber que as duas trocaram, sem competir com a que interessa.
 */
 @keyframes playlist-row-move-glow {
   0% { opacity: 0.02; }
   22% { opacity: 0.17; }
-  100% { opacity: 0; }
-}
-
-@keyframes playlist-row-move-glow-vizinho {
-  0% { opacity: 0.01; }
-  22% { opacity: 0.07; }
   100% { opacity: 0; }
 }
 
@@ -2604,8 +2572,7 @@ html:not(.dark) .pl-sel {
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
-.playlist-row.playlist-row--flash-move::after,
-.playlist-row.playlist-row--flash-swap::after {
+.playlist-row.playlist-row--flash-move::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -2619,22 +2586,9 @@ html:not(.dark) .pl-sel {
   animation: playlist-row-move-glow 0.62s ease-out;
 }
 
-.playlist-row.playlist-row--flash-swap::after {
-  animation: playlist-row-move-glow-vizinho 0.62s ease-out;
-}
-
 .playlist-row.playlist-row--flash-move {
   animation: playlist-row-move-ring 0.62s ease-out;
   border-color: color-mix(in srgb, var(--border) 40%, var(--accent) 60%);
-}
-
-/* Enquanto desliza, a linha em movimento passa por cima da outra. */
-.playlist-row.playlist-row--a-mover {
-  z-index: 3;
-}
-
-.playlist-row.playlist-row--a-deslocar {
-  z-index: 2;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2645,16 +2599,10 @@ html:not(.dark) .pl-sel {
   /* Sem deslize (o JS já o dispensa) — o realce fica, mais demorado, porque é ele
      que responde à pergunta «qual música é que mudou de lugar?». */
   .playlist-row.playlist-row--flash-move::after,
-  .playlist-row.playlist-row--flash-swap::after,
   .playlist-row.playlist-row--flash-move {
     animation-duration: 0.9s;
     animation-timing-function: ease-out;
   }
-}
-
-.playlist-row-tema-chip {
-  margin-top: 4px;
-  opacity: 0.85;
 }
 
 .playlist-row .mini {
@@ -4530,26 +4478,6 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   min-width: 0;
 }
 
-.centro-split-biblia {
-  flex: 1;
-  min-height: 0;
-  display: none;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0 12px;
-}
-
-.biblia-busca {
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.biblia-row { display: flex; gap: 8px; }
-
 .biblia-select, .biblia-input {
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -4563,29 +4491,6 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
 }
 
 .biblia-select:focus, .biblia-input:focus { border-color: var(--accent); }
-
-.biblia-versiculos {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.versiculo-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  gap: 10px;
-}
-
-.versiculo-card:hover { border-color: var(--accent2); background: var(--surface2); }
-.versiculo-card.ativo { border-color: var(--accent); background: var(--surface2); }
 
 .v-num {
   font-family: var(--font-ui);
@@ -4607,16 +4512,6 @@ body.app-mod-slides .preview-stack-item--destaque-solo {
   height: 100%;
   align-self: stretch;
   overflow: hidden;
-}
-
-.sidebar-header {
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: visible;
-  flex-shrink: 0;
 }
 
 .sidebar-title {
@@ -8717,13 +8612,6 @@ img.ap-card5-video-thumb {
   text-overflow: ellipsis;
   text-align: center;
 }
-.ap-card5-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-  flex-shrink: 0;
-}
 
 .ap-card-live-pill {
   position: absolute;
@@ -9045,12 +8933,6 @@ img.ap-card5-video-thumb {
   flex-direction: column;
   gap: 10px;
 }
-.ap-menu-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 .ap-collapse-toggle {
   width: 100%;
   display: flex;
@@ -9069,10 +8951,6 @@ img.ap-card5-video-thumb {
   font-size: var(--fs-200);
   opacity: .8;
 }
-.ap-collapsed .caret {
-  transform: rotate(-90deg);
-}
-.ap-collapse-body[hidden] { display: none !important; }
 .ap-menu-title {
   font-size: var(--fs-300);
 
@@ -9115,17 +8993,6 @@ img.ap-card5-video-thumb {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 22%, var(--surface2));
   transform: scale(1.04);
-}
-.ap-menu-list {
-  min-height: 0;
-  max-height: 190px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 4px 0 0;
-  margin-top: 4px;
-  border-top: 1px solid var(--border);
 }
 .ap-menu-item {
   border: 1px solid var(--border);
@@ -9727,81 +9594,6 @@ img.ap-card5-video-thumb {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-}
-.ap-dd-toolbar {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 0;
-}
-.ap-dd-toolbar .ap-dd {
-  flex: 1;
-  min-width: 0;
-}
-.ap-dd .ap-dd-btn {
-  grid-template-columns: 1fr auto;
-}
-.ap-dd .ap-dd-btn .culto-dd-col-desc {
-  border-left: none;
-  padding-left: 0;
-}
-.ap-dd-menu {
-  /* Herda `left: 0; right: 0` de `.culto-dd-menu` — mesma largura e alinhamento
-     do botão, como nos seletores do Modo Home. Nomes longos truncam na linha. */
-  max-height: min(280px, 48vh);
-}
-.ap-dd-menu .placeholder-msg {
-  padding: 10px 12px;
-  margin: 0;
-}
-/** Listas suspensas de arquivo e áudio: mesmo visual do menu do culto */
-.ap-dd-menu .ap-menu-item {
-  min-width: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-  padding: 8px 10px;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-  align-items: center;
-}
-.ap-dd-menu .ap-menu-item .ap-menu-item-actions {
-  flex-shrink: 0;
-}
-.ap-dd-menu .ap-menu-item:first-child {
-  border-top: none;
-}
-.ap-dd-menu .ap-menu-item:hover,
-.ap-dd-menu .ap-menu-item:focus-within {
-  background: rgba(166, 124, 45, 0.18);
-}
-.ap-dd-menu .ap-menu-item[aria-selected="true"] {
-  background: rgba(166, 124, 45, 0.14);
-}
-.ap-dd-menu .ap-menu-item[draggable="true"] {
-  cursor: grab;
-}
-.ap-dd-menu .ap-menu-item[draggable="true"]:active {
-  cursor: grabbing;
-}
-/* Nome completo: quando nem assim couber na largura máxima, quebra em
-   várias linhas em vez de cortar com reticências. `anywhere` cobre nomes
-   de ficheiro sem espaços (ex.: «Gemini_Generated_Image_xxxx.png»). */
-.ap-dd-menu .ap-menu-item-main .ap-menu-item-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ap-dd-menu .ap-menu-item-main .ap-menu-item-meta {
-  margin-top: 2px;
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ap-audio-player {
   border: 1px solid var(--border);
@@ -12114,7 +11906,6 @@ html.dark .cfg-form-select {
 
 .contagem-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .contagem-acoes .btn { flex: 1 1 auto; min-width: 96px; justify-content: center; }
-.contagem-acoes-secundarias { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .contagem-nota { font-size: var(--fs-400); line-height: 1.5; opacity: 0.7; }
 .contagem-nota button.contagem-link {
@@ -12630,7 +12421,6 @@ body.app-mod-docs #route-ministrante-dd {
 .playlist-panel-head-titulo,
 .playlist-lista-head-titulo,
 .culto-ministrante-label,
-.playlist-tema-label,
 .ap-menu-section-label,
 .sidebar-title,
 .playlist-preview-head,
@@ -12794,7 +12584,6 @@ body.app-mod-slides .playlist-row .pl-num-badge {
   position: relative;
   margin-right: 16px;
 }
-
 
 /* ─── Modo Mídias: paleta neutra, alinhada ao modo Home ───
    Dourado só onde sinaliza estado (aba ativa, item em uso, repetir ligado, playlist

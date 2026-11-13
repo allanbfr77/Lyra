@@ -118,11 +118,11 @@ html:not(.dark) .hdr-btn-round::after {
   background: var(--select-bar);
 }
 
-html:not(.dark) body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label) {
+html:not(.dark) body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label) {
   color: var(--hdr);
 }
 
-html:not(.dark) body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label)::before {
+html:not(.dark) body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label)::before {
   background-color: var(--hdr-icon);
 }
 
@@ -154,13 +154,13 @@ html:not(.dark) body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):no
     outline: 1px solid var(--select-bar);
     outline-offset: 1px;
   }
-  .sidebar-title, .panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label {
+  .sidebar-title, .panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label {
     color: var(--hdr);
   }
   .sidebar-title svg {
     color: var(--hdr-icon);
   }
-  .playlist-panel-head-titulo::before, .playlist-lista-head-titulo::before, .culto-ministrante-label::before, .playlist-tema-label::before {
+  .playlist-panel-head-titulo::before, .playlist-lista-head-titulo::before, .culto-ministrante-label::before {
     background-color: var(--hdr-icon);
   }
   .bib-total-contagem {

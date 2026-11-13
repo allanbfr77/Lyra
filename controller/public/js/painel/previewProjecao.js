@@ -198,21 +198,6 @@ export function podeEspelharLetraNosPreviewsModoSlide() {
   return !!estadoPainel.projecaoMusicaEmitidaNoServidor;
 }
 
-/**
- * Estado local do slide selecionado no painel (modo slide).
- * Não deve alimentar as prévias TELÃO/TV — essas espelham só a projeção real.
- * Mantido para usos pontuais que precisem do conteúdo da seleção local.
- */
-function estadoPreviewTelaoLocalModoSlides() {
-  if (!podeEspelharLetraNosPreviewsModoSlide()) {
-    return { semProjecao: true };
-  }
-  const idxPreto = estadoPainel.musicaAtiva.estrofes.length;
-  if (estadoPainel.estrofeAtiva === idxPreto) return { tipo: 'musica', slidePretoFinal: true };
-  const cur = String(estadoPainel.musicaAtiva.estrofes[estadoPainel.estrofeAtiva] ?? '');
-  return { tipo: 'musica', titulo: estadoPainel.musicaAtiva.titulo || '', telaLimpa: false, linhas: cur.split('\n') };
-}
-
 /** Telão no painel: espelha o servidor com as regras de `suprimirEspelhoPreviewsPorNavegacaoPlaylist`. */
 export function atualizarPreviewTelaoPublico() {
   /* Modo Slides: M2 é monitor virtual independente (não misturar com a TV). */

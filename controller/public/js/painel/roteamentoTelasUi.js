@@ -158,7 +158,6 @@ export function renderRoteamentoTelas(monitores, routing) {
   const lblPub = document.getElementById('route-publico-label');
   if (!hidPub || !hidMin || !menuPub || !menuMin || !dispPub || !dispMin) return;
 
-  const modoR = modoRoteamentoAtual();
   if (lblPub) lblPub.textContent = modoUsaSeletorMonitorUnificado() ? 'Monitor' : 'Igreja';
 
   const items = [];

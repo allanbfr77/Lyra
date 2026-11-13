@@ -268,11 +268,7 @@ function renderPlaylistPainelCorpo() {
   garantirMusicaAtivaVisivelNaPlaylist();
 }
 
-const PLAYLIST_MOVE_DUR_MS = 260;
 const PLAYLIST_MOVE_FLASH_MS = 640;
-/* Curva com travagem no fim: arranca depressa e assenta devagar, que é como se lê um
-   objecto a cair no lugar. Linear parecia um salto; `ease` parecia lento a arrancar. */
-const PLAYLIST_MOVE_EASING = 'cubic-bezier(0.22, 0.68, 0.28, 1)';
 
 export function preferenciaMovimentoReduzido() {
   try {
@@ -283,26 +279,6 @@ export function preferenciaMovimentoReduzido() {
   }
 }
 
-/**
- * Topo de cada linha no espaço de conteúdo da lista (soma do scroll), não no ecrã.
- *
- * Medir em coordenadas de ecrã dava deltas errados sempre que o `scrollIntoView` a seguir
- * mexia no scroll a meio da animação; descontando o `scrollTop` a medida deixa de
- * depender de onde a lista está a ser vista.
- *
- * @returns {Map<string, number>} índice na playlist → topo
- */
-function medirPosicoesLinhasPlaylist() {
-  const mapa = new Map();
-  const lista = document.getElementById('playlist-list');
-  if (!lista) return mapa;
-  const base = lista.getBoundingClientRect().top - lista.scrollTop;
-  lista.querySelectorAll('.playlist-row[data-pl-idx]').forEach((r) => {
-    mapa.set(String(r.dataset.plIdx), r.getBoundingClientRect().top - base);
-  });
-  return mapa;
-}
-
 /** Aplica uma classe de realce reiniciando a animação mesmo em cliques seguidos. */
 function realcarLinhaPlaylist(el, classe) {
   if (!el) return;
@@ -310,71 +286,6 @@ function realcarLinhaPlaylist(el, classe) {
   void el.offsetWidth; /* reinicia a animação: sem isto, dois cliques rápidos não piscam */
   el.classList.add(classe);
   setTimeout(() => el.classList.remove(classe), PLAYLIST_MOVE_FLASH_MS);
-}
-
-/**
- * Desliza as duas linhas trocadas entre a posição antiga e a nova (técnica FLIP).
- *
- * A lista é reconstruída do zero a cada `renderPlaylist()`, por isso não há elemento
- * para animar «de A para B»: o que se faz é medir onde as linhas estavam, deixar o
- * render pô-las já no sítio certo, e devolvê-las visualmente ao ponto de partida com um
- * `translateY` que depois se desfaz. O utilizador vê o movimento; o DOM nunca esteve
- * numa posição intermédia.
- *
- * @param {Map<string, number>} posAntes medições feitas ANTES de reordenar
- * @param {Map<string, string>} novoParaAntigo índice novo → índice antigo
- * @param {number} idxMovido
- * @param {number} idxDeslocado
- */
-function animarReordenacaoPlaylist(posAntes, novoParaAntigo, idxMovido, idxDeslocado) {
-  const lista = document.getElementById('playlist-list');
-  if (!lista) return;
-  const linhaMovida = lista.querySelector(`.playlist-row[data-pl-idx="${idxMovido}"]`);
-  const linhaDeslocada = lista.querySelector(`.playlist-row[data-pl-idx="${idxDeslocado}"]`);
-  const reduzido = preferenciaMovimentoReduzido();
-
-  if (!reduzido) {
-    const posDepois = medirPosicoesLinhasPlaylist();
-    const emMovimento = [];
-    novoParaAntigo.forEach((idxAntigo, idxNovo) => {
-      const el = lista.querySelector(`.playlist-row[data-pl-idx="${idxNovo}"]`);
-      const antes = posAntes.get(String(idxAntigo));
-      const depois = posDepois.get(String(idxNovo));
-      if (!el || antes == null || depois == null) return;
-      const delta = antes - depois;
-      /* Secção de tema recolhida, linha fora do DOM, troca sem deslocação: nada a animar. */
-      if (!Number.isFinite(delta) || Math.abs(delta) < 0.5) return;
-      el.classList.add(el === linhaMovida ? 'playlist-row--a-mover' : 'playlist-row--a-deslocar');
-      el.style.willChange = 'transform';
-      el.style.transition = 'none';
-      el.style.transform = `translateY(${delta}px)`;
-      emMovimento.push(el);
-    });
-
-    if (emMovimento.length) {
-      void lista.offsetWidth; /* fixa o ponto de partida antes de ligar a transição */
-      requestAnimationFrame(() => {
-        emMovimento.forEach((el) => {
-          el.style.transition = `transform ${PLAYLIST_MOVE_DUR_MS}ms ${PLAYLIST_MOVE_EASING}`;
-          el.style.transform = 'translateY(0)';
-        });
-      });
-      setTimeout(() => {
-        emMovimento.forEach((el) => {
-          el.style.transition = '';
-          el.style.transform = '';
-          el.style.willChange = '';
-          el.classList.remove('playlist-row--a-mover', 'playlist-row--a-deslocar');
-        });
-      }, PLAYLIST_MOVE_DUR_MS + 80);
-    }
-  }
-
-  realcarLinhaPlaylist(linhaMovida, 'playlist-row--flash-move');
-  realcarLinhaPlaylist(linhaDeslocada, 'playlist-row--flash-swap');
-  if (linhaMovida) {
-    linhaMovida.scrollIntoView({ block: 'nearest', behavior: reduzido ? 'auto' : 'smooth' });
-  }
 }
 
 /**

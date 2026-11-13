@@ -469,7 +469,6 @@ let bibliaVersiculoSelecionadoIdx = null;
 let bnpEtapa = 'livro';
 let bnpLivroSelecionado = null;
 let bnpCapSelecionado = null;
-let bnpDigitando = '';
 let bnpFocoIndex = -1;
 let bnpTotalCaps = 0;
 let bnpTotalVers = 0;
@@ -975,7 +974,6 @@ function bibliaReporEstadoBuscaRapida() {
   bnpEtapa = 'livro';
   bnpLivroSelecionado = null;
   bnpCapSelecionado = null;
-  bnpDigitando = '';
   bnpFocoIndex = -1;
   bnpTotalCaps = 0;
   bnpTotalVers = 0;
@@ -1425,7 +1423,6 @@ export function bibliaNavPopupAbrir() {
   bnpEtapa = 'livro';
   bnpLivroSelecionado = null;
   bnpCapSelecionado = null;
-  bnpDigitando = '';
   bnpFocoIndex = -1;
   const livroDisp = document.getElementById('bnp-livro-display');
   const capDisp = document.getElementById('bnp-cap-display');
@@ -1457,7 +1454,6 @@ export function bibliaNavPopupFechar() {
   if (popup) popup.classList.add('oculto');
   const lista = document.getElementById('bnp-livro-lista');
   if (lista) lista.innerHTML = '';
-  bnpDigitando = '';
   bnpFocoIndex = -1;
   const inp = document.getElementById('biblia-busca-rapida');
   if (inp) inp.blur();
@@ -1471,7 +1467,6 @@ export function bnpLivroPorSiglaExata(q) {
 }
 
 export function bibliaBuscaRapida(val) {
-  bnpDigitando = val;
   bnpFocoIndex = -1;
 
   if (bnpEtapa === 'livro') {
@@ -1538,7 +1533,6 @@ export function bibliaBuscaRapida(val) {
 export async function bnpSelecionarLivro(livro) {
   bnpLivroSelecionado = livro;
   bnpEtapa = 'cap';
-  bnpDigitando = '';
   const inp = document.getElementById('biblia-busca-rapida');
   if (inp) inp.value = '';
   const livroDisp = document.getElementById('bnp-livro-display');
@@ -1570,7 +1564,6 @@ export async function bnpConfirmarCap(val) {
   if (!num || num < 1 || num > bnpTotalCaps) return;
   bnpCapSelecionado = num;
   bnpEtapa = 'ver';
-  bnpDigitando = '';
   const inp = document.getElementById('biblia-busca-rapida');
   if (inp) inp.value = '';
   const capDisp = document.getElementById('bnp-cap-display');

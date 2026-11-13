@@ -111,10 +111,6 @@ const menuContextoTemaPlaylist = criarMenuFlutuante({
   rotuloAria: 'Ações do tema',
 });
 
-function fecharMenuContextoTemaPlaylist() {
-  menuContextoTemaPlaylist.fechar();
-}
-
 /**
  * Abre as ações do tema numa posição fixa: junto do botão «+ Adicionar momento»,
  * alinhado à esquerda dele. Não depende do item clicado — só o conteúdo do menu muda.

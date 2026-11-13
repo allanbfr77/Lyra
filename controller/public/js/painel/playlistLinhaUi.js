@@ -16,19 +16,6 @@ import { selecionarMusicaDoBanco } from './projecaoMusica.js';
 let playlistRowClickTimer = null;
 
 /**
- * Rótulo posto pelo servidor ao bifurcar um original imutável (`ROTULO_COPIA_MODIFICADA`
- * em controller/src/db/musicas.js → «Editada»; bases antigas podem ter «Cópia»).
- * Como quase toda a entrada da playlist acaba por ser uma cópia, repeti-lo em cada
- * linha é ruído — só nomes dados pelo operador dizem algo.
- * Comparação insensível a maiúsculas e normalizada; aceita também o rótulo legado
- * «cópia/modificada» já gravado em bases antigas.
- */
-const ROTULOS_VERSAO_AUTOMATICOS = new Set([
-  'cópia'.normalize('NFC'),
-  'cópia/modificada'.normalize('NFC'),
-]);
-
-/**
  * Forma canónica de exibição dos rótulos automáticos. Só nome exibido: o que está
  * gravado (`ROTULO_COPIA_PADRAO` = «Cópia», em controller/src/db/musicas.js) não
  * muda. A Cópia padrão — a que nasce junto com a Original — chama-se
@@ -76,13 +63,6 @@ export function formatarRotuloVersaoExibicao(rotulo, origem) {
 /** Só exibição: o nome da versão aparece sempre em maiúsculas. O dado gravado não muda. */
 export function rotuloVersaoMaiusculo(rotulo) {
   return String(rotulo || '').toLocaleUpperCase('pt-BR');
-}
-
-/** '' quando o rótulo é o automático; caso contrário o nome escolhido pelo utilizador. */
-function rotuloVersaoParaExibicaoNaPlaylist(rotulo) {
-  const r = String(rotulo || '').trim();
-  if (!r) return '';
-  return ROTULOS_VERSAO_AUTOMATICOS.has(r.normalize('NFC').toLowerCase()) ? '' : r;
 }
 
 /** Sufixo de versão na linha da playlist — sempre vazio.

@@ -465,7 +465,6 @@ export function renderGridApresentacao() {
   }
 
   /* Card 6: avisos em texto (sem ficheiro) */
-  const i = 5;
   const card6 = document.createElement('div');
   card6.dataset.apCardIdx = '5';
   card6.className = 'ap-card ap-card--aviso';

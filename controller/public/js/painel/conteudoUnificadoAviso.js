@@ -116,10 +116,6 @@ export function obterAlvoProjecaoModoApresentacao() {
   return obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.apresentacao);
 }
 
-function obterAlvoProjecaoModoBiblia() {
-  return obterAlvoProjecaoDeRota(estadoPainel.rotasPorModo.biblia);
-}
-
 /** Aviso do card 6 ainda no telão (pode coexistir com mídia noutro monitor). */
 let apresentacaoAvisoCard6Ativo = false;
 /** Último payload de aviso — reenvio ao mudar o seletor do card 6. */

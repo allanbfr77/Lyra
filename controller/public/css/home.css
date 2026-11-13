@@ -144,7 +144,6 @@ html.dark .home-song-actions .btn.ativo { color: var(--accent); }
 
 /* ── Cabeçalho: ações principais ── */
 .home-song-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; transition: opacity .15s; }
-.home-song-actions.is-dimmed { opacity: .45; pointer-events: none; }
 .home-song-actions .btn { height: 40px; min-height: 40px; padding: 0 16px; font-size: var(--fs-400); font-weight: 500; white-space: nowrap; }
 .home-song-actions #btn-editar-letra { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .home-song-actions #btn-editar-letra:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -572,10 +571,10 @@ html.dark body.home-layout-v2:not(.app-mod-slides):not(.app-mod-biblia):not(.app
   /* ── Títulos de seção, selo e índice alfabético ── */
   .sidebar-title, .panel-section-head,
   .playlist-panel-head-titulo, .playlist-lista-head-titulo,
-  .culto-ministrante-label, .playlist-tema-label { color: var(--hdr); }
+  .culto-ministrante-label { color: var(--hdr); }
   .sidebar-title svg { color: var(--hdr-icon); }
   .playlist-panel-head-titulo::before, .playlist-lista-head-titulo::before,
-  .culto-ministrante-label::before, .playlist-tema-label::before { background-color: var(--hdr-icon); }
+  .culto-ministrante-label::before { background-color: var(--hdr-icon); }
   .bib-total-contagem { background: #232327; color: var(--ui-dim); }
   .bib-grupo-letra { color: var(--letter); }
 
@@ -648,7 +647,7 @@ html body.home-layout-v2 .centro-toolbar .home-song-copy .home-song-title-input 
 html body .sidebar-title, html body .sidebar-title > span,
 html body .panel-section-head,
 html body .playlist-panel-head-titulo, html body .playlist-lista-head-titulo,
-html body .culto-ministrante-label, html body .playlist-tema-label { font-family: var(--font-ui); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+html body .culto-ministrante-label { font-family: var(--font-ui); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* Home: os quatro cartões de ação (Sinc. Lyra DB, Importar código, Compartilhar, Outro PC) descem para o rodapé do painel direito. */
 body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod-docs) #playlist-panel-head { order: 99; flex: none; border-top: 1px solid var(--border, #2c2c30); border-bottom: 0; }
@@ -694,8 +693,8 @@ body.home-layout-v2:not(.app-mod-biblia):not(.app-mod-apresentacao):not(.app-mod
 .playlist-momento-add[aria-expanded="true"] { border-color: #4a4a52; color: var(--text); }
 .playlist-momento-add:focus-visible { outline: 1px solid var(--select-bar, #d4a72c); outline-offset: 2px; }
 /* Slides: mesmos cabeçalhos do painel CULTO/PLAYLIST do Home (cor neutra do tema escuro). */
-html.dark body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label) { color: var(--hdr); }
-html.dark body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label, .playlist-tema-label)::before { background-color: var(--hdr-icon); }
+html.dark body.app-mod-slides .panel-playlist :is(.panel-section-head, .playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label) { color: var(--hdr); }
+html.dark body.app-mod-slides .panel-playlist :is(.playlist-panel-head-titulo, .playlist-lista-head-titulo, .culto-ministrante-label)::before { background-color: var(--hdr-icon); }
 #playlist-momento-menu .menu-flutuante-item:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Item de menu flutuante com botão «⋯» ao lado (menu de momentos). */

@@ -210,7 +210,7 @@ export function aplicarMonitorLembradoAoEntrarNoModo(modo) {
      responder daria «monitor não encontrado» para um monitor que está ligado e bem. A
      entrada seguinte, já com a lista, repõe. */
   if (!Array.isArray(estadoPainel.monitoresServidorCache) || !estadoPainel.monitoresServidorCache.length) return false;
-  const { aplicar, rota, faltou } = rotaLembradaParaEntrada(
+  const { aplicar, rota } = rotaLembradaParaEntrada(
     hostChaveMonitores(),
     modo,
     estadoPainel.monitoresServidorCache

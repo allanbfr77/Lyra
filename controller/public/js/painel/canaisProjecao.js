@@ -16,10 +16,6 @@ import { estadoPainel, projecao } from './estadoPainel.js';
 import { atualizarEstiloRotasDesativadas, renderRoteamentoTelas } from './roteamentoTelasUi.js';
 import { ehModoSlidesOperador } from './modosUi.js';
 
-function apresentacaoOcupandoCanalPublico() {
-  return normalizarRota(estadoPainel.rotasPorModo.apresentacao).publicoIndex >= 0;
-}
-
 export function apresentacaoOcupandoCanalMinistrante() {
   return normalizarRota(estadoPainel.rotasPorModo.apresentacao).ministranteIndex >= 0;
 }
@@ -127,12 +123,6 @@ export function estadoServidorEhProjecaoApresentacaoAtivaNoTelao() {
   return false;
 }
 
-/** Preview Slide (público): informe de mídia da Apresentação activa no telão público. */
-function slidePreviewDeveMostrarInformeMidiaApresentacaoNoPublico() {
-  if (!ehModoSlidesOperador()) return false;
-  return apresentacaoProjecaoAtivaNoCanalPublico();
-}
-
 /**
  * Mídia/aviso activos no canal ministrante (M3), para a prévia do modo Slides.
  * Usa o flag do socket (`projecaoMinistranteApresentacao`) e não só a rota local —
@@ -147,55 +137,6 @@ function midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides() {
   if (e.blackout || e.slidePretoFinal) return false;
   if (e.tipo === 'biblia' || e.tipo === 'contagem') return false;
   return !!e.projecaoMinistranteApresentacao;
-}
-
-/** Preview Slide (ministrante): informe de mídia da Apresentação activa na TV ministrante. */
-function slidePreviewDeveMostrarInformeMidiaApresentacaoNoMinistrante() {
-  if (!ehModoSlidesOperador()) return false;
-  return midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides();
-}
-
-/**
- * Há projeção real no canal ministrante (M3) para a prévia do modo Slides.
- * Independente do M2: mídia só no telão não conta; slides no M3 contam mesmo com
- * Mídias no M2 (o `estado` do socket pode continuar `tipo: 'apresentacao'`).
- */
-function hayProjecaoAtivaNoCanalMinistranteParaPreviewSlides() {
-  if (!ehModoSlidesOperador()) return false;
-  if (midiaApresentacaoAtivaNoCanalMinistranteParaPreviewSlides()) return true;
-  if (obterRotaSlidesParaUi().ministranteIndex < 0) return false;
-
-  /* Letra já emitida neste painel: M3 tem conteúdo mesmo com override de Mídias no público. */
-  if (estadoPainel.projecaoMusicaEmitidaNoServidor && estadoPainel.musicaAtiva && Number(estadoPainel.estrofeAtiva) >= 0) {
-    return true;
-  }
-
-  const e = estadoPainel.estadoServidor;
-  if (!e || !projecao.pronta()) return false;
-  if (e.blackout) return true;
-  if (e.tipo === 'musica') {
-    if (e.slidePretoFinal) return true;
-    return !!(!e.telaLimpa && e.linhas && e.linhas.length);
-  }
-  if (
-    e.tipo === 'biblia' &&
-    (!e.telaLimpa || e.projecaoSomenteMinistrante || e.projecaoBibliaMinistrante)
-  ) {
-    return !!(e.linhas && e.linhas.length) || !!e.projecaoBibliaMinistrante;
-  }
-  return false;
-}
-
-function preencherPreviewInformeMidiaApresentacaoSlide(el) {
-  if (!el) return;
-  const e = estadoPainel.estadoServidor;
-  const ap = e && e.apresentacao ? e.apresentacao : {};
-  const kind = String(ap.kind || 'image').toLowerCase();
-  const tipoRotulo = rotuloTipoMidiaApresentacao(kind);
-  preencherPreviewBadgeInformativoSlides(el, {
-    kind,
-    label: `${tipoRotulo} no Telão`,
-  });
 }
 
 /**
@@ -422,17 +363,6 @@ export function atualizarPreviewMonitorMinistranteSlides() {
 export function atualizarPreviewsMonitoresVirtuaisModoSlides() {
   atualizarPreviewMonitorMinistranteSlides();
   atualizarPreviewMonitorPublicoSlides();
-}
-
-/** Apresentação no público e slides no público em monitores diferentes (convivência). */
-function slidesCanalPublicoSeparadoDaApresentacao() {
-  if (!ehModoSlidesOperador()) return false;
-  const ap = normalizarRota(estadoPainel.rotasPorModo.apresentacao);
-  const sl = normalizarRota(estadoPainel.rotasPorModo.slides);
-  if (ap.live || sl.publicoIndex < 0) return false;
-  if (ap.publicoIndex >= 0 && sl.publicoIndex !== ap.publicoIndex) return true;
-  if (ap.ministranteIndex >= 0 && sl.publicoIndex !== ap.ministranteIndex) return true;
-  return false;
 }
 
 /**

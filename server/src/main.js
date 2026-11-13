@@ -37,7 +37,6 @@ const projectionCore = require('@lyra/projection-core');
 const { ligarTratadorMudancaDisplays } = projectionCore.displayChangePolicy;
 const { createWindowsApi } = require('./windows');
 const { createTrayApi } = require('./tray');
-const path = require('path');
 const { caminhoIconeDock, caminhoIconeApp } = require('./lib/iconPath');
 const { iniciarServidor } = require('./httpServer');
 const { criarPedirAprovacaoPareamento } = require('./lib/dialogoPareamento');

@@ -48,12 +48,6 @@ export function filtrarLinhasParaPublico(linhas) {
   return linhas.filter((l) => !isLinhaComentarioMinistrante(l));
 }
 
-/** Filtra linhas // de um bloco de estrofe (string com \\n). */
-export function filtrarTextoEstrofeParaPublico(texto) {
-  const lines = String(texto ?? '').split(/\r\n|\r|\n/);
-  return filtrarLinhasParaPublico(lines).join('\n');
-}
-
 /** Texto plano para medição de fonte e emissão ao servidor (ministrante). */
 export function textoPlanoPreviewMinistrante(texto) {
   return String(texto ?? '')

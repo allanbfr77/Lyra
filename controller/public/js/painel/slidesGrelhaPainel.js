@@ -15,21 +15,12 @@ export const slidesGrelha = criarSlidesGrelha({
   getProjecaoEmitida: () => estadoPainel.projecaoMusicaEmitidaNoServidor,
 });
 
-function applySlidesChipZoomLevel(z) { slidesGrelha.applySlidesChipZoomLevel(z); }
-function slideChipSnippetBaseFontPx() { return slidesGrelha.slideChipSnippetBaseFontPx(); }
 export function podeAtualizarSomenteAtivoFaixaSlides() { return slidesGrelha.podeAtualizarSomenteAtivoFaixaSlides(); }
 export function atualizarSomenteAtivoFaixaSlides() { slidesGrelha.atualizarSomenteAtivoFaixaSlides(); }
-function obterChipEstrofeNaGrelha(idx) { return slidesGrelha.obterChipEstrofeNaGrelha(idx); }
-function obterScrollportGrelhaSlides() { return slidesGrelha.obterScrollportGrelhaSlides(); }
-function colunasVisiveisGrelhaSlides() { return slidesGrelha.colunasVisiveisGrelhaSlides(); }
-function obterChipAntecipacaoNaGrelha(idx) { return slidesGrelha.obterChipAntecipacaoNaGrelha(idx); }
 export function revelarChipEstrofeFocado(idx, opts) { slidesGrelha.revelarChipEstrofeFocado(idx, opts); }
-function revelarGradeSlides() { slidesGrelha.revelarGradeSlides(); }
-function ajustarFonteSnippetsNosSlideChips(tentativa) { slidesGrelha.ajustarFonteSnippetsNosSlideChips(tentativa); }
 export function ajustarEncaixeGrelhaSlidesModoSlides() { slidesGrelha.ajustarEncaixeGrelhaSlidesModoSlides(); }
 export function setupSlidesGridViewportFitObserver() { slidesGrelha.setupSlidesGridViewportFitObserver(); }
 export function initSlidesChipZoomFromStorage() { slidesGrelha.initSlidesChipZoomFromStorage(); }
 export function setupSlidesChipZoomButtons() { slidesGrelha.setupSlidesChipZoomButtons(); }
-function applySlidesPorLinha(n) { slidesGrelha.applySlidesPorLinha(n); }
 export function initSlidesPorLinhaFromStorage() { slidesGrelha.initSlidesPorLinhaFromStorage(); }
 export function setupSlidesPorLinhaButtons() { slidesGrelha.setupSlidesPorLinhaButtons(); }

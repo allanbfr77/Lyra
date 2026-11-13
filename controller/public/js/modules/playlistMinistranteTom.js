@@ -31,43 +31,12 @@ export function normalizarMinistranteIdPlaylist(valor) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/**
- * Campos de playlist: ministrante + tom (por culto).
- * @param {object} it
- */
-export function normalizarCamposMinistranteTomItem(it) {
-  if (!it || typeof it !== 'object') return it;
-  return {
-    ...it,
-    ministranteId: normalizarMinistranteIdPlaylist(it.ministranteId),
-    tom: normalizarTomPlaylist(it.tom),
-  };
-}
-
 function escapeAttr(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-/**
- * Opções do seletor único de ministrante do culto (1 culto = 1 ministrante).
- * @param {{ id: number, nome: string }[]} lista
- * @param {number|null} selecionadoId
- */
-export function htmlOpcoesMinistranteCulto(lista, selecionadoId) {
-  const sel = normalizarMinistranteIdPlaylist(selecionadoId);
-  const opts = [`<option value="">—</option>`];
-  for (const m of lista) {
-    const id = Number(m.id);
-    if (!Number.isFinite(id)) continue;
-    const selected = sel === id ? ' selected' : '';
-    const nome = String(m.nome || '').toLocaleUpperCase('pt-BR');
-    opts.push(`<option value="${id}"${selected}>${escapeAttr(nome)}</option>`);
-  }
-  return opts.join('');
 }
 
 /**
@@ -323,31 +292,6 @@ export async function buscarTomMemoria(apiBase, ministranteId, musicaId, fonte, 
   if (!res.ok) return '';
   const data = await res.json().catch(() => ({}));
   return normalizarTomPlaylist(data.tom);
-}
-
-/**
- * @param {string} apiBase
- * @param {number} ministranteId
- * @param {number} musicaId
- * @param {string} fonte
- * @param {string} tom
- */
-export async function gravarTomMemoria(apiBase, ministranteId, musicaId, fonte, tom) {
-  const res = await fetch(`${apiBase}/api/tom-memoria`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ministranteId,
-      musicaId,
-      fonte: fonte === 'catalog' ? 'catalog' : 'user',
-      tom: normalizarTomPlaylist(tom),
-    }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.erro || 'Falha ao gravar memória de tom.');
-  }
-  return res.json();
 }
 
 /**
