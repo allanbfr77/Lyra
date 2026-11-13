@@ -109,17 +109,6 @@
       </div>
     </div>
     <div class="nav-grupo nav-grupo--modos" role="group" aria-label="Modos de operação">
-      <div class="hdr-action hdr-action--contagem">
-        <button type="button" class="hdr-btn-round" id="btn-modo-contagem" onclick="alternarPainelContagem()" title="CONTAGEM REGRESSIVA — tempo para o culto começar" aria-label="Contagem regressiva" aria-pressed="false">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M6 2h12"/>
-            <path d="M6 22h12"/>
-            <path d="M8 2v3.5a4 4 0 0 0 1.6 3.2L12 10.5l2.4-1.8A4 4 0 0 0 16 5.5V2"/>
-            <path d="M8 22v-3.5a4 4 0 0 1 1.6-3.2L12 13.5l2.4 1.8a4 4 0 0 1 1.6 3.2V22"/>
-          </svg>
-          <span class="hdr-btn-caption" aria-hidden="true">Contador</span>
-        </button>
-      </div>
       <div class="hdr-action hdr-action--biblia">
         <button type="button" class="hdr-btn-round" id="btn-modo-biblia" onclick="alternarModoBiblia()" title="MODO BÍBLIA" aria-label="Modo Bíblia" aria-pressed="false">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -177,6 +166,17 @@
           </svg>
           <span class="hdr-voz-indicador" aria-hidden="true"></span>
           <span class="hdr-btn-caption" aria-hidden="true">Voz</span>
+        </button>
+      </div>
+      <div class="hdr-action hdr-action--contagem">
+        <button type="button" class="hdr-btn-round" id="btn-modo-contagem" onclick="alternarPainelContagem()" title="CONTAGEM REGRESSIVA — tempo para o culto começar" aria-label="Contagem regressiva" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M6 2h12"/>
+            <path d="M6 22h12"/>
+            <path d="M8 2v3.5a4 4 0 0 0 1.6 3.2L12 10.5l2.4-1.8A4 4 0 0 0 16 5.5V2"/>
+            <path d="M8 22v-3.5a4 4 0 0 1 1.6-3.2L12 13.5l2.4 1.8a4 4 0 0 1 1.6 3.2V22"/>
+          </svg>
+          <span class="hdr-btn-caption" aria-hidden="true">Contador</span>
         </button>
       </div>
       <div class="hdr-action hdr-action--cfg">
