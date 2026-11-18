@@ -18,6 +18,7 @@ import { atualizarPreviewOperador, atualizarPreviewPlaylistCentral, configurarOb
 import { atualizarToolbarModoEdicao, renomearVersaoSelecionadaComNome } from './toolbarEdicaoHome.js';
 import { carregarAvisoCard6CfgDoStorage } from './conteudoUnificadoAviso.js';
 import { carregarEstadoModoApresentacaoDoStorage, encerrarModoApresentacaoNoTelao, gravarEstadoModoApresentacaoNoStorageAgora } from './estadoApresentacao.js';
+import { configurarAcoesRapidasSlides } from './acoesRapidasSlides.js';
 import { carregarMusicas, configurarBarraSelecaoBiblioteca, configurarModalNovaMusicaManual, configurarNavegadorAlfabeticoBiblioteca, filtrar, garantirBuscaLetrasEditavel, garantirBuscaLocalEditavel, initBancoPainelFromStorage } from './bibliotecaMusicas.js';
 import { carregarRotasPorModoDoStorage, hostChaveMonitores, modoComMemoriaMonitorAtual, normalizarRota, rotaDesativada, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
 import { carregarRoteamentoTelasDoServidor } from './roteamentoTelas.js';
@@ -481,6 +482,7 @@ export function iniciarPainel() {
   configurarNavegadorAlfabeticoBiblioteca();
   configurarModalSyncPlaylist();
   configurarModalNovaMusicaManual();
+  configurarAcoesRapidasSlides();
   configurarSeletorTemaPlaylist();
   configurarAcoesPlaylist();
   configurarMenuMomentoPlaylist();

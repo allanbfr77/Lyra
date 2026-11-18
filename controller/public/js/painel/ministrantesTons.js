@@ -528,6 +528,12 @@ export async function onSincronizarPlaylistLyraClick() {
       if (txtShortcut) txtShortcut.textContent = on ? 'Sincronizando…' : 'Sinc. Lyra DB';
       btnShortcut.title = on ? 'Sincronizando com Lyra…' : 'Sincronizar playlist com Lyra — importa músicas da escala do site usando o banco online do Lyra';
     }
+    /* Botão «Sincronizar Lyra DB» das Ações rápidas do modo Slides: mesma ação, só estado visual. */
+    document.querySelectorAll('[data-sync-lyra-db]').forEach((b) => {
+      b.disabled = on;
+      b.classList.toggle('carregando', on);
+      b.setAttribute('aria-busy', String(on));
+    });
   };
   /* Importa só a playlist do site do culto selecionado (data + turno). */
   const cultoIdSelecionado = String(estadoPainel.cultoId || '').trim();

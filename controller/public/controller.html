@@ -221,6 +221,11 @@
 
   <!-- Esquerda: banco -->
   <aside class="panel-banco" id="panel-banco">
+    <!-- Só aparece no modo Slides, quando a Biblioteca é aberta como janela pelas «Ações rápidas». -->
+    <div class="slides-biblioteca-cabecalho">
+      <span class="slides-biblioteca-cabecalho-titulo">Adicionar música à playlist</span>
+      <button type="button" class="btn sm" id="slides-biblioteca-fechar" aria-label="Fechar" title="Fechar (Esc)">×</button>
+    </div>
     <div class="banco-painel-conteudo" id="banco-painel-conteudo">
       <section class="banco-secao-internet" id="banco-secao-internet" aria-labelledby="sidebar-title-internet">
         <div class="sidebar-title sidebar-title--com-icone" id="sidebar-title-internet">
@@ -449,6 +454,29 @@
                placeholder="Digite o número do slide e pressione Enter"
                aria-label="Ir para o slide: digite o número e pressione Enter"
                title="Digite o número do slide em qualquer lugar da tela e pressione Enter" />
+        <!--
+          Ações rápidas: só reaproveitam o que já existe. Sincronizar = o mesmo handler do botão
+          «Sinc. Lyra DB» do Home; Adicionar música = a pesquisa da Biblioteca numa janela
+          (acoesRapidasSlides.js); Nova música manual = o mesmo formulário do Home, salvando
+          para a playlist; Nota = o mesmo botão de sempre (#btn-slide-nota), só mudou de lugar.
+        -->
+        <div class="slides-acoes-rapidas" role="group" aria-labelledby="slides-acoes-rapidas-titulo">
+          <div class="slides-acoes-rapidas-titulo" id="slides-acoes-rapidas-titulo">Ações rápidas</div>
+          <div class="slides-acoes-rapidas-grade">
+            <button type="button" class="btn slides-acao-rapida" id="btn-slides-acao-sync" data-sync-lyra-db onclick="onSincronizarPlaylistLyraClick()" title="Sincronizar Lyra DB — importa a playlist do culto selecionado a partir do site" aria-label="Sincronizar Lyra DB">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+            </button>
+            <button type="button" class="btn slides-acao-rapida" id="btn-slides-acao-add-musica" onclick="abrirBibliotecaParaSlides()" title="Adicionar música — pesquisa na Biblioteca e adiciona à playlist" aria-label="Adicionar música">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            </button>
+            <button type="button" class="btn slides-acao-rapida" id="btn-slides-acao-nova-manual" onclick="abrirModalNovaMusicaManualParaSlides()" title="Nova música manual — cadastra uma música e adiciona à playlist" aria-label="Nova música manual">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 11v6M9 14h6"/></svg>
+            </button>
+            <button type="button" class="btn slides-acao-rapida" id="btn-slide-nota" title="Adicionar nota — nota do slide (só no controlador)" aria-label="Adicionar ou editar nota do slide">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -790,8 +818,11 @@
       <!-- Nota do slide (lápis) e «?» no canto direito: Colunas · Zoom · lápis · ?. Mesmos ids. -->
       <div class="slide-nota-bar" id="slide-nota-bar" hidden>
         <div class="slide-nota-cluster">
-          <span class="slide-nota-badge" id="slide-nota-exibicao" hidden></span>
-          <button type="button" class="btn-slide-nota" id="btn-slide-nota" title="Nota do slide (só no controlador)" aria-label="Adicionar ou editar nota do slide"></button>
+          <span class="slide-nota-badge" id="slide-nota-exibicao" role="status" aria-live="polite" hidden>
+            <span class="slide-nota-selo"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="slide-nota-selo-num"></span></span>
+            <span class="slide-nota-texto-exib"></span>
+          </span>
+          <!-- O botão de nota (#btn-slide-nota) agora vive em «Ações rápidas», no painel da direita. -->
         </div>
       </div>
       <div class="slides-dock-bar-center">
@@ -908,6 +939,8 @@
     </div>
   </div>
 </div>
+
+<div id="slides-biblioteca-backdrop" class="slides-biblioteca-backdrop" hidden aria-hidden="true"></div>
 
 <div id="nova-musica-manual-backdrop" class="slide-quick-edit-backdrop" hidden aria-hidden="true">
   <div class="letras-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="nova-musica-manual-heading" style="max-width: 520px">

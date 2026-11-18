@@ -148,6 +148,18 @@ function salvarPopupNota() {
   atualizarNotaSlideControladorUI();
 }
 
+/** Esvazia o selo e o texto da etiqueta (a etiqueta em si fica oculta por quem chama). */
+function limparExibicaoNota(exib) {
+  const num = exib.querySelector('.slide-nota-selo-num');
+  const txt = exib.querySelector('.slide-nota-texto-exib');
+  if (num) num.textContent = '';
+  if (txt) {
+    txt.textContent = '';
+    txt.removeAttribute('title');
+  }
+  exib.removeAttribute('aria-label');
+}
+
 /** Atualiza barra de nota (modo Slide): botão + texto do slide ativo. */
 export function atualizarNotaSlideControladorUI() {
   const bar = document.getElementById('slide-nota-bar');
@@ -166,7 +178,7 @@ export function atualizarNotaSlideControladorUI() {
   if (!btn.querySelector('svg')) btn.innerHTML = SVG_NOTA_LAPIS;
   if (!emSlides || !temMusica) {
     exib.hidden = true;
-    exib.textContent = '';
+    limparExibicaoNota(exib);
     btn.disabled = true;
     return;
   }
@@ -177,7 +189,7 @@ export function atualizarNotaSlideControladorUI() {
   const idxValido = ativo >= 0 && ativo < nSlides;
   if (!idxValido) {
     exib.hidden = true;
-    exib.textContent = '';
+    limparExibicaoNota(exib);
     return;
   }
 
@@ -185,13 +197,21 @@ export function atualizarNotaSlideControladorUI() {
   const texto = obterNotaTexto(chave, ativo + 1);
   if (!texto) {
     exib.hidden = true;
-    exib.textContent = '';
+    limparExibicaoNota(exib);
     return;
   }
 
   exib.hidden = false;
-  exib.textContent = texto;
-  exib.setAttribute('title', `Nota do slide ${ativo + 1}`);
+  const num = exib.querySelector('.slide-nota-selo-num');
+  const txt = exib.querySelector('.slide-nota-texto-exib');
+  if (num) num.textContent = String(ativo + 1);
+  if (txt) {
+    txt.textContent = texto;
+    /* Nota longa é cortada com «…» no CSS; o texto completo fica no title. */
+    txt.setAttribute('title', texto);
+  }
+  exib.setAttribute('aria-label', `Nota do slide ${ativo + 1}: ${texto}`);
+  exib.removeAttribute('title');
 }
 
 /**

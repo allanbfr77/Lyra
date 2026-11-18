@@ -774,6 +774,14 @@ function bibGarantirTeclado() {
         return;
       }
       if (t.closest('.item-acoes-banco')) return;
+      /* Pesquisa aberta pelas Ações rápidas do modo Slides: o clique na linha adiciona à
+         playlist (como o «+»). Abrir a música aqui mexeria na seleção do próprio Slides. */
+      if (document.body.classList.contains('slides-biblioteca-aberta')) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        void bibAdicionarLinha(linha);
+        return;
+      }
       const m = bibMusicaDaLinha(linha);
       if (!m) return;
       selecionarMusicaDoBanco(m.id, {
@@ -787,6 +795,10 @@ function bibGarantirTeclado() {
       const linha = ev.target instanceof Element ? ev.target.closest('.item') : null;
       if (!linha || !el.contains(linha) || linha.hidden) return;
       if (linha.dataset.bibFonte !== 'user') return;
+      if (document.body.classList.contains('slides-biblioteca-aberta')) {
+        ev.preventDefault();
+        return;
+      }
       /* Durante o lote as ações são as da barra; um segundo menu por linha só
          confundiria sobre o que a próxima escolha ia atingir. */
       if (bibSelAtivo()) {
@@ -1941,6 +1953,17 @@ async function usarMusicaExistenteDoBanco(data) {
   limparBuscaLetras();
 }
 
+/** Versão do «usar a existente» para o fluxo do Slides: adiciona à playlist em vez de abrir. */
+async function adicionarMusicaExistenteNaPlaylist(data) {
+  const ex = data?.existente;
+  if (!Number.isFinite(Number(ex?.id))) {
+    alert('Não foi possível localizar a música existente no banco.');
+    return;
+  }
+  await carregarMusicas();
+  await addMusicaNaPlaylist({ id: ex.id, titulo: ex.titulo, artista: ex.artista, bancoFonte: 'user' });
+}
+
 export async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte, decisaoDuplicidade = '') {
   const fonteEnvio = fonteEnvioImportarLetras(fonte);
   try {
@@ -2008,7 +2031,21 @@ export async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorS
   }
 }
 
+/**
+ * `true` quando o formulário foi aberto pelas Ações rápidas do modo Slides: ao salvar, a música
+ * entra na playlist em vez de ser aberta no editor (que, no Slides, mexeria na seleção do modo).
+ * O formulário, as validações e o POST são os mesmos; só o destino do resultado muda.
+ */
+let novaMusicaManualDestinoPlaylist = false;
+
+/** Mesmo formulário de «+ Nova música manual», com a música salva indo para a playlist. */
+export function abrirModalNovaMusicaManualParaSlides() {
+  abrirModalNovaMusicaManual();
+  novaMusicaManualDestinoPlaylist = true;
+}
+
 export function abrirModalNovaMusicaManual() {
+  novaMusicaManualDestinoPlaylist = false;
   const tit = document.getElementById('nova-musica-manual-titulo');
   const art = document.getElementById('nova-musica-manual-artista');
   const est = document.getElementById('nova-musica-manual-estrofes');
@@ -2063,7 +2100,13 @@ async function salvarNovaMusicaManualNoServidor(decisaoDuplicidade = '') {
     if (res.status === 409 && data.duplicado) {
       fecharModalNovaMusicaManual();
       const escolha = await decidirDuplicidadeMusica(data);
-      if (escolha === 'usar') return usarMusicaExistenteDoBanco(data);
+      if (escolha === 'usar') {
+        if (novaMusicaManualDestinoPlaylist) {
+          novaMusicaManualDestinoPlaylist = false;
+          return adicionarMusicaExistenteNaPlaylist(data);
+        }
+        return usarMusicaExistenteDoBanco(data);
+      }
       if (escolha === 'criar') return salvarNovaMusicaManualNoServidor('criar');
       // Cancelou: devolve o formulário com o texto preservado.
       reabrirModalNovaMusicaManual();
@@ -2075,6 +2118,11 @@ async function salvarNovaMusicaManualNoServidor(decisaoDuplicidade = '') {
     }
     fecharModalNovaMusicaManual();
     await carregarMusicas();
+    if (novaMusicaManualDestinoPlaylist) {
+      novaMusicaManualDestinoPlaylist = false;
+      await addMusicaNaPlaylist({ id: data.id, titulo, artista, bancoFonte: 'user' });
+      return;
+    }
     await selecionarMusicaDoBanco(data.id, { preferirCopia: true, origemUi: 'biblioteca' });
   } catch (e) {
     alert(e.message || 'Erro ao criar a música no banco local.');

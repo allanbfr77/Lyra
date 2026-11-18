@@ -4,7 +4,8 @@
  * o núcleo ainda possui entra por `registrarDependenciasProjecaoMusica`.
  */
 import { abrirCfgModal, aplicarCfgRelogio, aplicarWrapImediato, debounceSalvarCfg, fecharCfgModal, getChkVal, lerNumeroInput, limparCfgBusca, mudarAbaCfg, mudarDestinoCfg, onAvisoCard6CfgChange, onCfgBuscaInput, onCfgGeralTemaChange, onCfgGeralVozChange, onClockBgImageCtrlChange, onClockBgTypeCtrlChange, onClockDateFontSizeCtrlInput, onClockFontSizeCtrlInput, onClockVerseFontSizeCtrlInput, onMinistranteBgColorCtrlInput, onMinistranteBgGradientCtrlInput, onMinistranteBgImageCtrlChange, onMinistranteBgTypeCtrlChange, onMinistranteSlideCfgChange, onPublicoBgColorCtrlInput, onPublicoBgGradientCtrlInput, onPublicoBgImageCtrlChange, onPublicoBgTypeCtrlChange, salvarCfgNoServidor, setChkVal, setInputVal, setPosAvisoCard6Ctrl, setPosCtrl, setSelVal, setSpanText, sincronizarFormCfgGeral, toggleCfgSwitch, toggleDarkCtrl } from './configExibicao.js';
-import { abrirModalNovaMusicaManual, agendarRenderizacoesOcultasDoModoSlides, buscarLetrasExterno, filtrar, limparBuscaLetras, onBancoFonteChange, onBuscaLetrasInput, onFiltroBuscaChange, refreshListaBanco } from './bibliotecaMusicas.js';
+import { abrirBibliotecaParaSlides } from './acoesRapidasSlides.js';
+import { abrirModalNovaMusicaManual, abrirModalNovaMusicaManualParaSlides, agendarRenderizacoesOcultasDoModoSlides, buscarLetrasExterno, filtrar, limparBuscaLetras, onBancoFonteChange, onBuscaLetrasInput, onFiltroBuscaChange, refreshListaBanco } from './bibliotecaMusicas.js';
 import { abrirModoDocs } from './docs.js';
 import { adicionarVersaoAtivaNaPlaylistHome } from './playlistAdicionar.js';
 import { alternarCaixaLetrasEdicao, entrarModoEdicao, iniciarCriarNovaVersao, novaEstrofe, renderEstrofesEditor, sairModoEdicao, salvarMusicaServidor } from './editorEstrofes.js';
@@ -792,6 +793,8 @@ export function iniciarProjecaoMusica() {
     toggleCfgSwitch,
     getChkVal,
     abrirModalNovaMusicaManual,
+    abrirModalNovaMusicaManualParaSlides,
+    abrirBibliotecaParaSlides,
     buscarLetrasExterno,
     editarNomeVersaoSelecionada,
     apagarCopiaVersaoSelecionada,
