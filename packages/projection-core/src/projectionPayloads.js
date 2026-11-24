@@ -123,6 +123,22 @@ function estadoPublicoParaSocketsOuApi(estadoAtual, estadoPublicoOverride, minis
   const out = payloadPublicoAtual(estadoAtual, estadoPublicoOverride);
   if (out && typeof out === 'object') {
     out.projecaoMinistranteApresentacao = !!ministranteApresentacaoOverride;
+    /* Mídia/aviso de facto no M3 — distinto da tela limpa que a Bíblia lá põe, que também
+       levanta a bandeira acima. Com versículo no telão e mídia no M3 a convivência é real,
+       e o controlador precisa de saber qual dos dois casos tem. */
+    const modoMin = String(ministranteApresentacaoOverride?.modo || '').toLowerCase();
+    out.projecaoMinistranteMidia = modoMin === 'apresentacao' || modoMin === 'aviso';
+    /* Versículo em `estadoAtual`, esteja ou não coberto por uma mídia no telão. Com mídia
+       no público e versículo no M3, o payload público é o da mídia e nenhuma outra
+       bandeira diz ao controlador que a Bíblia continua no ar. */
+    const ea = estadoAtual;
+    out.projecaoBibliaNoAr = !!(
+      ea &&
+      ea.tipo === 'biblia' &&
+      !ea.telaLimpa &&
+      Array.isArray(ea.linhas) &&
+      ea.linhas.some((l) => String(l == null ? '' : l).trim().length > 0)
+    );
     out.projecaoBibliaMinistrante = bibliaAtivaSomenteNoMinistrante(
       estadoAtual,
       estadoPublicoOverride

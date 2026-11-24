@@ -202,7 +202,10 @@ export function registrarEscolhaMonitorDoOperador() {
  */
 export function aplicarMonitorLembradoAoEntrarNoModo(modo) {
   if (!MODOS_COM_MEMORIA.includes(modo)) return false;
-  if (hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
+  /* A Bíblia convive com uma mídia no ar (canais diferentes): só um versículo já no ar a
+     impede de repor o monitor lembrado. Os outros modos mantêm a regra de sempre. */
+  const midiaNoAr = hayProjecaoApresentacaoModoAtiva();
+  if (modo === 'biblia' ? hayBibliaNoAr() : hayProjecaoAtivaModoBibliaOuApresentacao()) return false;
   /* Slides no ar: repor o monitor lembrado da Bíblia/Mídias reivindica o canal
      partilhado e o merge do servidor apaga a letra — trocar de aba não pode fazer isso. */
   if (estadoPainel.projecaoMusicaEmitidaNoServidor) return false;
@@ -232,7 +235,8 @@ export function aplicarMonitorLembradoAoEntrarNoModo(modo) {
    * qualquer projeção activa, que é a mesma condição sob a qual aquele ramo se abstém de
    * mexer no canal partilhado.
    */
-  if (modo === 'biblia') {
+  /* Com mídia no ar a rota das Mídias fica dela: o pacote junta as duas canal a canal. */
+  if (modo === 'biblia' && !midiaNoAr) {
     estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.biblia) };
   }
 
@@ -348,9 +352,23 @@ export function hayProjecaoMidiaApresentacaoAtiva() {
    * a Bíblia não há ambiguidade — `exibir_versiculo` escreve sempre o override do
    * ministrante, portanto nenhuma mídia pode estar viva lá nesse momento.
    */
-  if (e.tipo === 'biblia') return false;
+  /* Com versículo no telão, o servidor novo diz directamente se o override do M3 é uma
+     mídia (convivência) ou a tela limpa da Bíblia. Servidor antigo: regra de antes. */
+  if (e.tipo === 'biblia') return e.projecaoMinistranteMidia === true;
   if (e.projecaoMinistranteApresentacao) return true;
   return false;
+}
+
+/**
+ * Versículo no ar — inclusive quando uma mídia cobre o telão e o versículo está só no M3.
+ * Aí o payload público é o da mídia, e só `projecaoBibliaNoAr` (ou a marca local) o diz.
+ */
+export function hayBibliaNoAr() {
+  if (bibliaHaParteProjetada()) return true;
+  const e = estadoPainel.estadoServidor;
+  if (!e || !projecao.pronta()) return false;
+  if (e.projecaoBibliaNoAr || e.projecaoBibliaMinistrante) return true;
+  return !!(e.tipo === 'biblia' && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length);
 }
 
 export function hayProjecaoApresentacaoModoAtiva() {
@@ -364,8 +382,7 @@ export function hayProjecaoAtivaModoBibliaOuApresentacao() {
   const e = estadoPainel.estadoServidor;
   if (!e || !projecao.pronta()) return false;
   if (e.projecaoLive && !e.telaLimpa && Array.isArray(e.linhas) && e.linhas.length) return true;
-  if (e.projecaoBibliaMinistrante) return true;
-  if (e.tipo === 'biblia' && !e.telaLimpa && e.linhas && e.linhas.length) return true;
+  if (hayBibliaNoAr()) return true;
   return false;
 }
 

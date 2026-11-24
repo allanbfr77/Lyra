@@ -596,16 +596,32 @@ function criarAplicadorDeComandos(deps) {
         !!(state.estadoPublicoOverride && state.estadoPublicoOverride.tipo === 'contagem');
       const contagemNoMinistrante =
         contagemNoPublico && String(state.contagemAlvo || '').toLowerCase() === 'ambos';
+      /* Guardado para `encerrar_apresentacao_publico` saber, ao tirar uma mídia, se o canal
+         que ela liberta é da Bíblia ou tem de voltar à tela limpa. */
+      state.bibliaAlvoProjecao = alvo;
+
+      /*
+       * Mídia (ou aviso) no canal que NÃO é alvo do versículo: fica no ar, como fica quando
+       * se projeta um slide. A tela limpa só existe para o outro canal não continuar a
+       * mostrar conteúdo antigo — uma mídia que o operador pôs lá não é conteúdo antigo.
+       * No canal que É alvo, o versículo substitui a mídia: vence o último projetado.
+       */
+      const midiaNoPublico = identidadeConteudoApresentacao(state.estadoPublicoOverride) != null;
+      const midiaNoMinistrante =
+        identidadeConteudoApresentacao(state.ministranteApresentacaoOverride) != null;
 
       if (!contagemNoPublico) {
         /* `estadoPublicoOcioso()` já é, campo a campo, o literal de tela limpa que estava
            escrito à mão no handler. */
-        state.estadoPublicoOverride = vaiAoPublico ? null : projectionPayloads.estadoPublicoOcioso();
+        if (vaiAoPublico) state.estadoPublicoOverride = null;
+        else if (!midiaNoPublico) state.estadoPublicoOverride = projectionPayloads.estadoPublicoOcioso();
       }
 
       if (!contagemNoMinistrante) {
         if (vaiAoMinistrante) {
           state.ministranteApresentacaoOverride = null;
+        } else if (midiaNoMinistrante) {
+          /* Mídia no M3 com versículo só no telão: convivem. */
         } else if (contagemNoPublico && vaiAoPublico) {
           /* Contagem cobre o telão dela; o monitor da Bíblia (outro índice no pin dual)
              usa o canal ministrante com o versículo de `estadoAtual` — não tela limpa. */
@@ -828,6 +844,9 @@ function criarAplicadorDeComandos(deps) {
           state.projecaoLiveAtiva = false;
         }
       }
+      /* Versículo no ar noutro canal: o canal que a mídia largou não pode passar a
+         mostrá-lo também — volta à tela limpa que a Bíblia lhe tinha posto. */
+      projectionEncerrar.reporTelaLimpaBibliaForaDoAlvo(state);
       engine.garantirTelasAbertasParaProjecao();
       const { estadoPublico } = engine.render({ estado: state.estadoAtual });
       return [evEstado(estadoPublico), evBibliaObs()];

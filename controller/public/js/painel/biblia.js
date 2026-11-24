@@ -21,7 +21,7 @@ import { resolverEnvioBiblia } from '../modules/rotaEnvioBiblia.js';
 import { trocarContextoSelecao } from './contextoSelecaoModos.js';
 import { enviarPreviewDisplayConfig, getChkVal, salvarSlideCfgNoStorage, setChkVal, setInputVal, setSelVal, setSpanText, slidesAplicarCfgArmazenada } from './configExibicao.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
-import { aplicarMonitorLembradoAoEntrarNoModo, desativarRotasModosTransitorios, hayProjecaoApresentacaoModoAtiva, hayProjecaoAtivaModoBibliaOuApresentacao, hayProjecaoMidiaApresentacaoAtiva, marcarRotaLiveNoDom, normalizarRota, rotaDesativada, salvarRotasPorModoNoStorage, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
+import { aplicarMonitorLembradoAoEntrarNoModo, desativarRotasModosTransitorios, hayProjecaoApresentacaoModoAtiva, hayBibliaNoAr, marcarRotaLiveNoDom, normalizarRota, rotaDesativada, salvarRotasPorModoNoStorage, sincronizarCheckboxLembrarMonitor } from './rotasMonitores.js';
 import { aplicarRotaDoModoAtualNaUiEServidor, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
 import { atualizarBtnModoApresentacao, atualizarBtnToggleModoSlides, definirEstadoBtnModoCabecalho, ehModoBibliaOperador, ehModoSlidesOperador, executarComTransicaoUi, liberarBloqueioUiModos } from './modosUi.js';
 import { atualizarBtnTelaInicial, carregarTraducoes } from './menuApresentacaoModo.js';
@@ -265,10 +265,10 @@ export async function alternarModoBiblia() {
         atualizarPreviewOperador();
       }
       carregarBibliaCfgDoStorage();
-      if (hayProjecaoMidiaApresentacaoAtiva()) {
-        /* Canal partilhado: adopta monitores da mídia ainda no ar — não os desativa. */
-        estadoPainel.rotasPorModo.biblia = { ...normalizarRota(estadoPainel.rotasPorModo.apresentacao) };
-      } else if (!hayProjecaoAtivaModoBibliaOuApresentacao()) {
+      /* Mídia no ar já não decide o monitor da Bíblia: as duas convivem em canais
+         diferentes (ver `modules/canalPartilhadoBibliaMidia.js`). Sem versículo no ar, a
+         Bíblia começa em «Não exibir» e o monitor lembrado (abaixo) repõe a escolha. */
+      if (!hayBibliaNoAr()) {
         estadoPainel.rotasPorModo.biblia = rotaDesativada();
         marcarRotaLiveNoDom(false);
         /* Slides no ar: limpar rota partilhada residual para o merge do servidor não

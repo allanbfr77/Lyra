@@ -69,6 +69,34 @@ function encerrarCamadaApresentacaoAlvo(ctx, alvo) {
 }
 
 /**
+ * Depois de tirar uma mídia: se há versículo no ar e o canal liberto não é alvo da
+ * Bíblia, põe-lhe de volta a tela limpa que `exibir_versiculo` lhe teria posto.
+ *
+ * Sem isto, mídia no M2 + versículo só no M3: encerrar a mídia deixava o M2 sem camada
+ * e ele passava a mostrar o versículo de `estadoAtual` — a Bíblia nos dois monitores.
+ * @param {object} ctx
+ */
+function reporTelaLimpaBibliaForaDoAlvo(ctx) {
+  const e = ctx.estadoAtual;
+  if (!e || e.tipo !== 'biblia' || e.telaLimpa) return;
+  const alvo = String(ctx.bibliaAlvoProjecao || 'ambos').toLowerCase();
+  const noPublico = alvo === 'publico' || alvo === 'ambos' || alvo === 'live';
+  const noMinistrante = alvo === 'ministrante' || alvo === 'ambos';
+  if (!noPublico && !ctx.estadoPublicoOverride) {
+    ctx.estadoPublicoOverride = projectionPayloads.estadoPublicoOcioso();
+  }
+  if (!noMinistrante && !ctx.ministranteApresentacaoOverride) {
+    ctx.ministranteApresentacaoOverride = {
+      modo: 'biblia',
+      titulo: '',
+      atual: '',
+      proximo: '',
+      telaLimpa: true,
+    };
+  }
+}
+
+/**
  * Encerra projeção de slides/música em `estadoAtual` sem tocar Bíblia nem apresentação.
  * @param {object} ctx
  */
@@ -181,8 +209,10 @@ function inferirModoEncerrarPorCanalJanela(ctx, canal, canais = {}) {
 function aplicarEncerrarProjecaoModo(ctx, modo, canais = {}) {
   const m = normalizarModoEncerrar(modo) || MODO_TUDO;
 
-  if (m === MODO_APRESENTACAO) encerrarCamadaApresentacao(ctx);
-  else if (m === MODO_SLIDES) encerrarCamadaSlides(ctx);
+  if (m === MODO_APRESENTACAO) {
+    encerrarCamadaApresentacao(ctx);
+    reporTelaLimpaBibliaForaDoAlvo(ctx);
+  } else if (m === MODO_SLIDES) encerrarCamadaSlides(ctx);
   else if (m === MODO_BIBLIA) encerrarCamadaBiblia(ctx);
   else encerrarTodasCamadas(ctx);
 
@@ -201,6 +231,7 @@ module.exports = {
   encerrarCamadaSlides,
   encerrarCamadaBiblia,
   libertarTelasLimpasDaBiblia,
+  reporTelaLimpaBibliaForaDoAlvo,
   encerrarTodasCamadas,
   inferirModoEncerrarPorCanalJanela,
   aplicarEncerrarProjecaoModo,

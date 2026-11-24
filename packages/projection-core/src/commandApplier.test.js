@@ -1560,3 +1560,85 @@ test('contagem no telão sobrevive à música', () => {
   const pub = projectionPayloads.payloadPublicoAtual(state.estadoAtual, state.estadoPublicoOverride);
   assert.equal(pub.tipo, 'contagem', 'a contagem é outra camada e continua por cima');
 });
+
+/* ── Mídias + Bíblia em canais diferentes convivem (como Mídias + Slides) ── */
+
+function midiaNoCanal(aplicador, alvoProjecao) {
+  aplicador.aplicar('exibir_apresentacao', { kind: 'image', src: '/m/foto.png', alvoProjecao });
+}
+
+test('versículo só no ministrante mantém a mídia do telão', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'publico');
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'ministrante' });
+
+  assert.equal(state.estadoAtual.tipo, 'biblia');
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao', 'a mídia continua no telão');
+  assert.equal(state.ministranteApresentacaoOverride, null, 'o M3 mostra o versículo');
+});
+
+test('versículo só no telão mantém a mídia do ministrante', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'ministrante');
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'publico' });
+
+  assert.equal(state.estadoPublicoOverride, null, 'o telão mostra o versículo');
+  assert.equal(state.ministranteApresentacaoOverride.modo, 'apresentacao', 'a mídia continua no M3');
+});
+
+test('versículo no mesmo canal da mídia substitui a mídia (vence o último)', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'publico');
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'publico' });
+
+  assert.equal(state.estadoPublicoOverride, null);
+});
+
+test('mídia projetada depois do versículo, no outro canal, não derruba o versículo', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'ministrante' });
+  midiaNoCanal(aplicador, 'publico');
+
+  assert.equal(state.estadoAtual.tipo, 'biblia');
+  assert.equal(state.estadoPublicoOverride.tipo, 'apresentacao');
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});
+
+test('encerrar a mídia do telão não faz o versículo do M3 aparecer no telão', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'publico');
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'ministrante' });
+  aplicador.aplicar('encerrar_apresentacao_publico', { alvoProjecao: 'publico' });
+
+  assert.equal(state.estadoAtual.tipo, 'biblia', 'o versículo continua no ar');
+  assert.equal(state.estadoPublicoOverride.telaLimpa, true, 'o telão volta à tela limpa');
+  assert.equal(state.estadoPublicoOverride.tipo, null);
+});
+
+test('encerrar a mídia do M3 não faz o versículo do telão aparecer no M3', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'ministrante');
+  aplicador.aplicar('exibir_versiculo', { texto: 'x', alvoProjecao: 'publico' });
+  aplicador.aplicar('encerrar_apresentacao_publico', { alvoProjecao: 'ministrante' });
+
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.deepEqual(state.ministranteApresentacaoOverride, {
+    modo: 'biblia', titulo: '', atual: '', proximo: '', telaLimpa: true,
+  });
+});
+
+test('encerrar a mídia sem versículo no ar continua a libertar o canal', () => {
+  const state = estadoFalso();
+  const aplicador = criarAplicadorDeComandos({ state, engine: motorFalso() });
+  midiaNoCanal(aplicador, 'publico');
+  aplicador.aplicar('encerrar_apresentacao_publico', { alvoProjecao: 'publico' });
+
+  assert.equal(state.estadoPublicoOverride, null);
+  assert.equal(state.ministranteApresentacaoOverride, null);
+});

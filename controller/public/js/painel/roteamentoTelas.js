@@ -16,7 +16,8 @@ import { estadoPainel, projecao } from './estadoPainel.js';
 import { aplicarRotaDoModoAtualNaUiEServidor, avisarMonitoresConfiguradosEmFalta, rotaSelecionadaNaUi } from './roteamentoTelasUi.js';
 import { atualizarFeedbackProjecaoApresentacaoUi, obterRotaApresentacaoParaServidor, rotaSlidesAoEntrarNoModo } from './conteudoUnificadoAviso.js';
 import { ehModoSlidesOperador } from './modosUi.js';
-import { hayProjecaoMidiaApresentacaoAtiva, modoRoteamentoAtual, normalizarRota, persistirIdentidadesDosModos, rotaRestauradaPorIdentidade, rotaSemMonitorRepetido, salvarRotasPorModoNoStorage, sanitizarRotaProjecao } from './rotasMonitores.js';
+import { rotaCanalPartilhadoBibliaMidia } from '../modules/canalPartilhadoBibliaMidia.js';
+import { hayBibliaNoAr, hayProjecaoApresentacaoModoAtiva, hayProjecaoMidiaApresentacaoAtiva, modoRoteamentoAtual, normalizarRota, persistirIdentidadesDosModos, rotaRestauradaPorIdentidade, rotaSemMonitorRepetido, salvarRotasPorModoNoStorage, sanitizarRotaProjecao } from './rotasMonitores.js';
 import { hostProjecao } from './servidorAlvo.js';
 import { restaurarRotaSlidesAposLibertarMonitores } from './canaisProjecao.js';
 import { emitirEstrofeAoServidor } from './projecaoMusica.js';
@@ -170,6 +171,23 @@ function semExibicaoDoSeletorDoModo(modo) {
   };
 }
 
+/**
+ * Rota do canal `apresentacao` a enviar ao servidor.
+ *
+ * Com a Bíblia em jogo (modo aberto ou versículo no ar), junta as escolhas da Bíblia e
+ * das Mídias canal a canal — ver `modules/canalPartilhadoBibliaMidia.js`. Assim o monitor
+ * do versículo continua aberto quando se escolhe ou encerra uma mídia no modo Mídias.
+ * Única excepção: no modo Bíblia sem mídia no ar, `rotasPorModo.apresentacao` já é a
+ * cópia da rota da Bíblia, e juntar-lhe a rota antiga das Mídias reabriria monitores.
+ */
+function rotaApresentacaoParaServidorComBiblia(modo) {
+  const midia = obterRotaApresentacaoParaServidor();
+  const bibliaEmJogo = modo === 'biblia' || hayBibliaNoAr();
+  if (!bibliaEmJogo) return midia;
+  if (modo === 'biblia' && !hayProjecaoApresentacaoModoAtiva()) return midia;
+  return rotaCanalPartilhadoBibliaMidia(midia, estadoPainel.rotasPorModo.biblia);
+}
+
 export async function salvarRoteamentoTelasNoServidor(opts = {}) {
   const usarValoresDaUi = opts.usarValoresDaUi !== false;
   const modo = modoRoteamentoAtual();
@@ -260,8 +278,9 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
        * monitor em modo Bíblia caía aqui e era descartada em silêncio.
        */
       if (hayProjecaoMidiaApresentacaoAtiva()) {
-        /* Mídia no ar: canal `apresentacao` no servidor fica intocado. */
-        estadoPainel.rotasPorModo.biblia = { ...normalizarRota(estadoPainel.rotasPorModo.apresentacao) };
+        /* Mídia no ar: a escolha da Bíblia fica (já foi escrita a partir da UI) e a rota
+           das Mídias também — o pacote junta as duas canal a canal
+           (`rotaApresentacaoParaServidorComBiblia`), como Mídias + Slides. */
       } else {
         estadoPainel.rotasPorModo.apresentacao = { ...normalizarRota(estadoPainel.rotasPorModo.biblia) };
         /*
@@ -320,6 +339,7 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
   persistirIdentidadesDosModos();
   avisarMonitoresConfiguradosEmFalta();
 
+  const rotaApresentacaoServidor = rotaApresentacaoParaServidorComBiblia(modo);
   const payloadDual = {
     version: 2,
     /* Com o Modo Bíblia a reclamar o canal partilhado, o canal do Slides sai silenciado —
@@ -334,10 +354,10 @@ export async function salvarRoteamentoTelasNoServidor(opts = {}) {
         : /* Mesma ideia, para o monitor que as Mídias estão a ocupar: silencia-se o canal
              no pacote, sem tocar na configuração do operador. Ver o módulo. */
           rotaSlidesParaEnvioComApresentacao(
-            obterRotaApresentacaoParaServidor(),
+            rotaApresentacaoServidor,
             estadoPainel.rotasPorModo.slides
           ),
-    apresentacao: obterRotaApresentacaoParaServidor(),
+    apresentacao: rotaApresentacaoServidor,
     /* Pin exclusivo: com Contagem no ar o motor mantém o monitor dela aberto mesmo que
        a Bíblia vá para o M2 ou Live. Sem Contagem no ar o pin vai a −1. */
     contagem: rotaContagemParaServidor(),
