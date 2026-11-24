@@ -72,6 +72,16 @@
       margin-top: 14px;
     }
 
+    /* Troca de versículo com a caixa já no ar: só o texto some e volta. */
+    .biblia-texto,
+    .biblia-referencia {
+      transition: opacity 0.15s ease;
+    }
+    .biblia-wrap.trocando .biblia-texto,
+    .biblia-wrap.trocando .biblia-referencia {
+      opacity: 0;
+    }
+
     #obs-status {
       display: none;
     }
@@ -112,7 +122,14 @@
     const elReferencia = document.getElementById('biblia-referencia');
     const elStatus      = document.getElementById('obs-status');
     let fadeTimer;
+    let entradaTimer;
     let socket = null;
+    /** A caixa está no ar? Só a primeira projeção anima a caixa; as seguintes trocam o texto. */
+    let caixaVisivel = false;
+    /* Tempos casados com as transições do CSS (padrão ou personalizado no OBS). */
+    const TEMPO_TROCA_MS = 160;   // texto some antes de trocar
+    const TEMPO_SAIDA_MS = 800;   // caixa termina de sair antes de apagar o texto
+    const TEMPO_ENTRADA_MS = 1200; // duração da classe `entrando`
 
     function setStatus(msg, cls) {
       elStatus.textContent = msg;
@@ -126,30 +143,76 @@
      */
     function atualizar(estado) {
       clearTimeout(fadeTimer);
-      elWrap.classList.remove('visivel');
+      clearTimeout(entradaTimer);
 
-      fadeTimer = setTimeout(() => {
-        const ehBiblia = !!estado && estado.tipo === 'biblia';
-        const vazio =
-          !ehBiblia ||
-          estado.telaLimpa ||
-          estado.blackout ||
-          estado.slidePretoFinal ||
-          !Array.isArray(estado.linhas) ||
-          estado.linhas.length === 0;
+      const ehBiblia = !!estado && estado.tipo === 'biblia';
+      const vazio =
+        !ehBiblia ||
+        estado.telaLimpa ||
+        estado.blackout ||
+        estado.slidePretoFinal ||
+        !Array.isArray(estado.linhas) ||
+        estado.linhas.length === 0;
 
-        if (vazio) {
+      if (vazio) {
+        /* Saída: a caixa some inteira; o texto só é apagado depois da transição de
+           saída, para a caixa não encolher vazia enquanto ainda está a desaparecer. */
+        const estavaVisivel = caixaVisivel;
+        caixaVisivel = false;
+        elWrap.classList.remove('visivel', 'entrando', 'trocando');
+        const limpar = () => {
           elTexto.textContent = '';
           elReferencia.textContent = '';
           setStatus(`Ligado a ${SERVER_URL} — à espera de um versículo.`, 'ok');
-          return;
-        }
+        };
+        if (estavaVisivel) fadeTimer = setTimeout(limpar, TEMPO_SAIDA_MS);
+        else limpar();
+        return;
+      }
 
-        elTexto.textContent = estado.linhas.join('\n');
-        elReferencia.textContent = estado.titulo || '';
+      const texto = estado.linhas.join('\n');
+      const referencia = estado.titulo || '';
+
+      if (!caixaVisivel) {
+        /* Primeira projeção: a caixa entra com o efeito de entrada. `entrando` fica
+           só durante essa entrada — o CSS personalizado pode animá-la à parte. */
+        caixaVisivel = true;
+        elTexto.textContent = texto;
+        elReferencia.textContent = referencia;
+        elWrap.classList.remove('trocando');
+        elWrap.classList.add('entrando');
+        void elWrap.offsetWidth; // aplica o estado escondido antes de animar
         elWrap.classList.add('visivel');
+        entradaTimer = setTimeout(() => elWrap.classList.remove('entrando'), TEMPO_ENTRADA_MS);
         setStatus(`Ligado a ${SERVER_URL}`, 'ok');
-      }, 120);
+        return;
+      }
+
+      if (elTexto.textContent === texto && elReferencia.textContent === referencia) {
+        elWrap.classList.remove('trocando');
+        return;
+      }
+
+      /* Caixa já no ar: ela fica parada e só o texto troca (some, muda, volta).
+         O texto só muda quando o fade de saída termina — a duração vem do CSS em
+         vigor (padrão ou personalizado no OBS), para não trocar a meio do fade. */
+      elWrap.classList.add('trocando');
+      fadeTimer = setTimeout(() => {
+        elTexto.textContent = texto;
+        elReferencia.textContent = referencia;
+        elWrap.classList.remove('trocando');
+        setStatus(`Ligado a ${SERVER_URL}`, 'ok');
+      }, duracaoTransicaoMs(elTexto, TEMPO_TROCA_MS));
+    }
+
+    /** Maior duração+atraso entre as transições do elemento, em ms (lida do CSS). */
+    function duracaoTransicaoMs(el, padrao) {
+      const cs = getComputedStyle(el);
+      const emMs = (v) => (v.trim().endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000) || 0;
+      const dur = cs.transitionDuration.split(',').map(emMs);
+      const atr = cs.transitionDelay.split(',').map(emMs);
+      const total = Math.max(0, ...dur.map((d, i) => d + (atr[i % atr.length] || 0)));
+      return total > 0 ? total + 20 : padrao;
     }
 
     function conectar() {
@@ -180,7 +243,8 @@
       socket.on('estado_biblia_obs', atualizar);
 
       socket.on('disconnect', () => {
-        elWrap.classList.remove('visivel');
+        caixaVisivel = false;
+        elWrap.classList.remove('visivel', 'entrando', 'trocando');
         setStatus('Desligado do servidor.', 'erro');
       });
     }
