@@ -1,6 +1,6 @@
 {
   "name": "lyra-controller",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Controlador Lyra — PC operador",
   "main": "src/main.js",
   "scripts": {
@@ -96,6 +96,9 @@
       "owner": "allanbfr77",
       "repo": "lyra-releases",
       "releaseType": "release"
+    },
+    "releaseInfo": {
+      "releaseNotes": "• OBS (Bíblia): a caixa do versículo entra com efeito só no primeiro versículo.\n• Nos versículos seguintes, a caixa fica parada e só o texto troca, com transição suave.\n• Ao limpar a tela, a caixa sai por inteiro, sem encolher antes de sumir."
     }
   }
 }
