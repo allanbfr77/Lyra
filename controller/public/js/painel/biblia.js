@@ -237,6 +237,7 @@ export async function alternarModoBiblia() {
     /* Sem estado a preservar: abre sempre com os 66 livros e painel vazio. */
     if (!preservarNav) {
       bibliaFiltroTestamento = null;
+      bibliaFiltroGrupos.clear();
     }
     const trad = await perguntarTraducaoBibliaSeNecessario();
     if (!trad) return;
@@ -451,6 +452,14 @@ export const reconhecimentoVozBiblia = criarReconhecimentoVozBiblia({
  * isso não há aqui uma segunda lista de nomes a divergir da primeira.
  */
 let bibliaFiltroTestamento = null;
+
+/**
+ * Filtro por grupo (legenda clicável): ids de `BIBLIA_GRUPOS`. Vazio = todos.
+ * Clique simples deixa só aquele grupo (ou desliga, se já era o único);
+ * Ctrl/⌘+clique soma ou tira o grupo. Combina com o filtro de testamento e,
+ * como ele, volta a vazio ao entrar/sair do modo.
+ */
+const bibliaFiltroGrupos = new Set();
 
 let bibliaSelecionadoLivro = null;
 let bibliaSelecionadoLivroDb = null;
@@ -995,6 +1004,7 @@ function bibliaLimparEstadoOperador() {
   bibliaSelecionadoLivroDb = null;
   bibliaSelecionadoCap = null;
   bibliaFiltroTestamento = null;
+  bibliaFiltroGrupos.clear();
   bibliaReporEstadoBuscaRapida();
   bibliaNavPopupFechar();
   popularGradeLivros();
@@ -1087,7 +1097,41 @@ function livroVisivelNoFiltroTestamento(livro) {
  */
 export function definirFiltroTestamentoBiblia(filtro) {
   bibliaFiltroTestamento = bibliaFiltroTestamento === filtro ? null : filtro;
+  /* Grupos do outro testamento somem da legenda: tirá-los também do filtro,
+     senão a grade poderia ficar vazia sem legenda nenhuma marcada. */
+  bibliaFiltroGrupos.forEach((id) => {
+    const g = BIBLIA_GRUPOS.find((x) => x.id === id);
+    if (g && !livroVisivelNoFiltroTestamento(LIVROS[g.fim])) bibliaFiltroGrupos.delete(id);
+  });
   atualizarBotoesFiltroTestamentoBiblia();
+  popularGradeLivros();
+}
+
+/** Testamento de um grupo — todos os livros de um grupo são do mesmo lado. */
+function testamentoDoGrupoBiblia(grupo) {
+  return LIVROS[grupo.fim]?.nt ? 'nt' : 'at';
+}
+
+/**
+ * Clique numa legenda. Clicar num grupo do testamento escondido nunca acontece
+ * (a legenda dele não aparece), mas se o filtro AT/NT ativo não bater com o
+ * grupo, troca-se o testamento para não deixar a grade vazia.
+ */
+function alternarFiltroGrupoBiblia(id, somar) {
+  const grupo = BIBLIA_GRUPOS.find((g) => g.id === id);
+  if (!grupo) return;
+  if (somar) {
+    if (bibliaFiltroGrupos.has(id)) bibliaFiltroGrupos.delete(id);
+    else bibliaFiltroGrupos.add(id);
+  } else if (bibliaFiltroGrupos.size === 1 && bibliaFiltroGrupos.has(id)) {
+    bibliaFiltroGrupos.clear();
+  } else {
+    bibliaFiltroGrupos.clear();
+    bibliaFiltroGrupos.add(id);
+  }
+  if (bibliaFiltroGrupos.has(id) && bibliaFiltroTestamento && bibliaFiltroTestamento !== testamentoDoGrupoBiblia(grupo)) {
+    bibliaFiltroTestamento = testamentoDoGrupoBiblia(grupo);
+  }
   popularGradeLivros();
 }
 
@@ -1114,14 +1158,25 @@ function popularLegendaBiblia() {
   LIVROS.forEach((l, idx) => {
     if (livroVisivelNoFiltroTestamento(l)) visiveis.add(bibliaGrupoPorIndiceLivro(idx).id);
   });
+  const filtrando = bibliaFiltroGrupos.size > 0;
+  el.classList.toggle('filtrando', filtrando);
   el.innerHTML = BIBLIA_GRUPOS.filter((g) => visiveis.has(g.id))
-    .map(
-      (g) =>
-        `<span class="biblia-legenda-item">` +
+    .map((g) => {
+      const ligado = bibliaFiltroGrupos.has(g.id);
+      return (
+        `<button type="button" class="biblia-legenda-item${ligado ? ' ativo' : ''}" data-grupo="${g.id}"` +
+        ` style="--grupo-cor:${g.cor}" aria-pressed="${ligado ? 'true' : 'false'}"` +
+        ` title="Mostrar só ${escapeHtml(g.label)} (clique de novo para ver todos · Ctrl+clique soma grupos)">` +
         `<span class="biblia-legenda-swatch" style="background:${g.cor}"></span>` +
-        `<span>${escapeHtml(g.label)}</span></span>`
-    )
+        `<span>${escapeHtml(g.label)}</span></button>`
+      );
+    })
     .join('');
+  el.onclick = (ev) => {
+    const btn = ev.target.closest('.biblia-legenda-item');
+    if (!btn || !el.contains(btn)) return;
+    alternarFiltroGrupoBiblia(btn.dataset.grupo, ev.ctrlKey || ev.metaKey);
+  };
 }
 
 export function popularGradeLivros() {
@@ -1135,6 +1190,7 @@ export function popularGradeLivros() {
        sai a cor do grupo, que tem de ser a mesma com filtro ou sem ele. */
     if (!livroVisivelNoFiltroTestamento(l)) return;
     const grupo = bibliaGrupoPorIndiceLivro(idx);
+    if (bibliaFiltroGrupos.size && !bibliaFiltroGrupos.has(grupo.id)) return;
     const btn = document.createElement('button');
     btn.className =
       'biblia-livro-btn' + (grupo.textoClaro ? '' : ' biblia-livro-btn--texto-escuro');

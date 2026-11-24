@@ -7545,6 +7545,35 @@ body.app-mod-slides #slides-grid[data-strip-projecao="1"] .slide-chip:not(.slide
   align-items: center;
   gap: 5px;
   white-space: nowrap;
+  /* Legenda clicável (filtro por grupo): botão sem cara de botão até interagir. */
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin: -3px -4px;
+  cursor: pointer;
+  transition: opacity 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.biblia-legenda-item:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--grupo-cor) 18%, transparent);
+}
+.biblia-legenda-item:focus-visible {
+  outline: 2px solid var(--grupo-cor);
+  outline-offset: 1px;
+}
+.biblia-legenda.filtrando .biblia-legenda-item:not(.ativo) {
+  opacity: 0.45;
+}
+.biblia-legenda.filtrando .biblia-legenda-item:not(.ativo):hover {
+  opacity: 0.8;
+}
+.biblia-legenda-item.ativo {
+  color: var(--text);
+  background: color-mix(in srgb, var(--grupo-cor) 30%, transparent);
+  border-color: var(--grupo-cor);
 }
 .biblia-legenda-swatch {
   width: 12px;
