@@ -8,7 +8,7 @@ import { appAlert, appConfirm, appPrompt } from './appDialog.js';
 import { carregarMusicas, refreshListaBanco } from './bibliotecaMusicas.js';
 import { digestEstrofesParaStripFaixa } from '../modules/slidesGrelha.js';
 import { ehVersaoLocalLegada } from '../modules/copiasLocaisLetra.js';
-import { aplicarLayoutModoLetraCompleta, atualizarToolbarModoLetraCompleta, confirmarProsseguirDescartandoEdicaoPendente, edicaoEstrofesSujaVsSnapshot, entrarModoLetraCompletaCentral, guiasEstrofesLetraCompleta, limparFlagsModoEdicaoMusica, sincronizarEstrofesDesdeTextareaLetraCompleta, splitTextoLetraCompletaEmEstrofes } from './letraCompleta.js';
+import { aplicarLayoutModoLetraCompleta, atualizarToolbarModoLetraCompleta,edicaoEstrofesSujaVsSnapshot, entrarModoLetraCompletaCentral, guiasEstrofesLetraCompleta, limparFlagsModoEdicaoMusica, sincronizarEstrofesDesdeTextareaLetraCompleta, splitTextoLetraCompletaEmEstrofes, temEdicaoMusicaNaoGravada } from './letraCompleta.js';
 import { estadoPainel, projecao } from './estadoPainel.js';
 import { abrirSlideQuickEditModal, renderSlidesStrip } from './slidesStrip.js';
 import { atualizarBotoesSalvarCancelarBarraPadrao, atualizarToolbarCaixaLetrasEdicao, atualizarToolbarModoEdicao, marcacaoEstrofeEditor, metadadosMusicaSujosNaHome } from './toolbarEdicaoHome.js';
@@ -808,8 +808,12 @@ export async function iniciarCriarNovaVersao() {
   const idNum = Number(estadoPainel.musicaAtiva.id);
   if (!Number.isFinite(idNum)) return;
 
+  /* Só pergunta — não mexe no modo de visualização aqui. Se o operador cancelar
+     (no aviso ou na caixa do nome), a tela fica exatamente como estava; as flags
+     só são limpas depois que o servidor criar a versão. */
   if (
-    !(await confirmarProsseguirDescartandoEdicaoPendente(
+    temEdicaoMusicaNaoGravada() &&
+    !(await appConfirm(
       'Você tem alterações não salvas. Descartar e criar uma nova versão a partir do texto gravado no servidor?',
       'Criar nova versão'
     ))
@@ -831,8 +835,6 @@ export async function iniciarCriarNovaVersao() {
     });
     if (!nome) return;
     try {
-      limparFlagsModoEdicaoMusica();
-
       const res = await fetch(`${getControllerApiBase()}/api/musicas/${idNum}/criar-versao`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -861,6 +863,8 @@ export async function iniciarCriarNovaVersao() {
     const nova = payload.musica;
     if (!nova || !Array.isArray(nova.estrofes)) throw new Error('Resposta inválida do servidor.');
 
+    /* Versão criada: agora sim descarta edição/snapshots da versão anterior. */
+    limparFlagsModoEdicaoMusica();
     estadoPainel.musicaAtiva = nova;
     estadoPainel.musicaBancoFonte = 'user';
     estadoPainel.musicaVersaoLocalId = null;
