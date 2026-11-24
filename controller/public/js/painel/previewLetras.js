@@ -4,7 +4,7 @@
  * `registrarDependenciasPreviewLetras`.
  */
 import { escapeHtml } from './textoHtmlSeguro.js';
-import { importarLetrasDoCatalogoParaBanco, importarLetrasParaBanco, limparBuscaLetras } from './bibliotecaMusicas.js';
+import { adicionarMusicaDoBancoNaPlaylist, importarLetrasDoCatalogoParaBanco, importarLetrasParaBanco, limparBuscaLetras } from './bibliotecaMusicas.js';
 import { normalizarFonteLetrasSite } from '../modules/fonteLetrasSite.js';
 import {  } from './estadoPainel.js';
 import { getControllerApiBase } from './servidorAlvo.js';
@@ -313,6 +313,12 @@ export function configurarModalPreviewLetras() {
     if (userId != null && fontePend === 'banco-local') {
       // «Usar esta música»: nada é gravado, mas o resultado da busca já cumpriu
       // o seu papel — limpa igual aos demais para manter o painel consistente.
+      // Na janela «Adicionar música» do Slides, vai para a playlist em vez de abrir.
+      if (document.body.classList.contains('slides-biblioteca-aberta')) {
+        await adicionarMusicaDoBancoNaPlaylist(userId);
+        limparBuscaLetras();
+        return;
+      }
       await selecionarMusicaDoBanco(userId, {
         fonte: 'user',
         preferirCopia: true,

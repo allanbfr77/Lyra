@@ -56,10 +56,6 @@ export const LS_SLIDE_CFG = 'lyra_slide_cfg_v1';
 /** Notas por slide do controlador (modo Slide; só painel, nunca projeção). */
 export const LS_NOTAS_SLIDE_CTRL = 'lyra_notas_slide_ctrl_v1';
 
-/** Ícone lápis/nota — botão de nota do slide no controlador. */
-export const SVG_NOTA_LAPIS =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-
 /** Ícones SVG: olho visível / olho cortado — só para ocultar cartão de pré-visualização no painel. */
 export const SVG_OLHO_ABERTO =
   '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';

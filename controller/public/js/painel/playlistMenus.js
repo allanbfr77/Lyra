@@ -118,7 +118,7 @@ const menuContextoTemaPlaylist = criarMenuFlutuante({
 function abrirMenuContextoTemaPlaylist(tema) {
   const t = normalizarTemaPlaylist(tema);
   if (!t) return;
-  const ancora = document.getElementById('playlist-momento-add');
+  const ancora = ancoraMenuMomento();
   if (!ancora) return;
   menuContextoTemaPlaylist.abrirNaAncora(ancora, {
     titulo: t,
@@ -147,10 +147,17 @@ function abrirMenuContextoTemaPlaylist(tema) {
 /* «+ Adicionar momento»: menu com os temas do catálogo + «Novo momento…». Substitui o antigo
    bloco «TEMA NA PLAYLIST» (seletor + «Inserir» + «+»). Botão direito num tema abre as ações
    de sempre (inserir, editar nome, excluir). */
+/* Botão que abriu o menu: «+ Adicionar momento» da playlist (Home) ou «Adicionar novo
+   momento» das Ações rápidas do Slides. O menu e as ações do tema abrem junto dele. */
+let botaoMenuMomento = null;
+function ancoraMenuMomento() {
+  return botaoMenuMomento || document.getElementById('playlist-momento-add');
+}
+
 const menuMomentoPlaylist = criarMenuFlutuante({
   id: 'playlist-momento-menu',
   rotuloAria: 'Adicionar momento',
-  aoFechar: () => document.getElementById('playlist-momento-add')?.setAttribute('aria-expanded', 'false'),
+  aoFechar: () => ancoraMenuMomento()?.setAttribute('aria-expanded', 'false'),
 });
 
 async function criarNovoMomentoPlaylist() {
@@ -165,9 +172,9 @@ async function criarNovoMomentoPlaylist() {
   inserirTemaNaPlaylistAtual(nome);
 }
 
-function abrirMenuMomentoPlaylist() {
-  const btn = document.getElementById('playlist-momento-add');
+function abrirMenuMomentoPlaylist(btn) {
   if (!btn) return;
+  botaoMenuMomento = btn;
   const temas = obterTemasDisponiveisPlaylist();
   const itens = temas.map((t) => {
     const jaNaPlaylist = playlistAtualJaTemTema(t);
@@ -197,25 +204,34 @@ function abrirMenuMomentoPlaylist() {
   menuMomentoPlaylist.node.querySelector('button:not(:disabled)')?.focus();
 }
 
+/**
+ * Clique num botão de «adicionar momento»: abre (ou fecha) o menu de temas junto dele.
+ * Usado pelo «+ Adicionar momento» da playlist e pelo das Ações rápidas do Slides —
+ * a mesma lógica, só muda a âncora.
+ * @param {HTMLElement} btn
+ * @param {Event} [e]
+ */
+export function alternarMenuMomentoPlaylist(btn, e) {
+  // Sem isto o clique chegaria ao handler global do menu, que o fecharia logo após abrir.
+  e?.stopPropagation();
+  if (menuMomentoPlaylist.estaAberto()) {
+    const mesmoBotao = botaoMenuMomento === btn;
+    menuMomentoPlaylist.fechar();
+    if (mesmoBotao) return;
+  }
+  fecharOutrosSeletoresDropdown(btn);
+  abrirMenuMomentoPlaylist(btn);
+}
+
 export function configurarMenuMomentoPlaylist() {
   const btn = document.getElementById('playlist-momento-add');
-  if (!btn) return;
-  btn.addEventListener('click', (e) => {
-    // Sem isto o clique chegaria ao handler global do menu, que o fecharia logo após abrir.
-    e.stopPropagation();
-    if (menuMomentoPlaylist.estaAberto()) {
-      menuMomentoPlaylist.fechar();
-      return;
-    }
-    fecharOutrosSeletoresDropdown(btn);
-    abrirMenuMomentoPlaylist();
-  });
+  btn?.addEventListener('click', (e) => alternarMenuMomentoPlaylist(btn, e));
   // Esc com o foco dentro do menu: devolve o foco ao botão que o abriu (o menu fecha em seguida).
   menuMomentoPlaylist.node.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') btn.focus();
+    if (e.key === 'Escape') ancoraMenuMomento()?.focus();
   });
   menuContextoTemaPlaylist.node.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') btn.focus();
+    if (e.key === 'Escape') ancoraMenuMomento()?.focus();
   });
 }
 

@@ -2,7 +2,7 @@
  * Notas por slide do controlador (modo Slide): só no painel, localStorage, nunca na projeção.
  */
 
-import { LS_NOTAS_SLIDE_CTRL, SVG_NOTA_LAPIS } from './chavesArmazenamentoLocal.js';
+import { LS_NOTAS_SLIDE_CTRL } from './chavesArmazenamentoLocal.js';
 
 /** @type {Record<string, Record<string, string>>} */
 let cacheNotas = null;
@@ -174,8 +174,7 @@ export function atualizarNotaSlideControladorUI() {
   const temMusica = id != null && nSlides > 0;
 
   bar.hidden = !emSlides;
-  /* O lápis aparece sempre; sem música o botão fica só desabilitado (cinza, sem ação). */
-  if (!btn.querySelector('svg')) btn.innerHTML = SVG_NOTA_LAPIS;
+  /* O botão aparece sempre; sem música fica só desabilitado (cinza, sem ação). */
   if (!emSlides || !temMusica) {
     exib.hidden = true;
     limparExibicaoNota(exib);
@@ -184,7 +183,6 @@ export function atualizarNotaSlideControladorUI() {
   }
 
   btn.disabled = false;
-  if (!btn.querySelector('svg')) btn.innerHTML = SVG_NOTA_LAPIS;
 
   const idxValido = ativo >= 0 && ativo < nSlides;
   if (!idxValido) {

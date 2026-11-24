@@ -7174,6 +7174,15 @@ body.app-mod-slides .centro-split-musicas {
   padding: 14px 16px 16px;
 }
 
+/* Não encolhe abaixo do conteúdo: em janela baixa quem rola é o `.panel-centro`
+   (overflow-y: auto), e os botões do fim nunca ficam cortados. Pelo id porque a regra
+   base `#layout-musicas { flex: 1; height: 100% }` venceria uma classe. */
+body.app-mod-slides #layout-musicas {
+  flex: 1 0 auto;
+  height: auto;
+  overflow: visible;
+}
+
 body.app-mod-slides .centro-col-preview-stack {
   flex-direction: column;
   align-items: stretch;
@@ -7362,9 +7371,10 @@ body.app-mod-slides .slides-ctrl-acoes > .slides-ir-slide:focus {
 }
 
 /*
-  Ações rápidas (abaixo do «ir para o slide»): linha fina + quatro botões só com ícone, na
-  mesma altura e raio dos demais controles da coluna. Cores só por variáveis do tema, então
-  Claro e Escuro seguem o resto do painel.
+  Ações rápidas (abaixo do «ir para o slide»): linha fina + grade de 2 colunas × 3 linhas com
+  ícone e legenda, todos os botões do mesmo tamanho. Mesmo fundo, borda, raio e fonte dos demais controles da coluna (vêm de `.btn` e
+  da regra `.slides-ctrl-acoes .btn`). Cores só por variáveis do tema, então Claro e Escuro
+  seguem o resto do painel.
 */
 body.app-mod-slides .slides-ctrl-acoes > .slides-acoes-rapidas {
   margin-top: 16px;
@@ -7391,13 +7401,30 @@ body.app-mod-slides .slides-acoes-rapidas-titulo {
 
 body.app-mod-slides .slides-acoes-rapidas-grade {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Todas as linhas com a altura da mais alta: os seis botões ficam do mesmo tamanho,
+     mesmo quando uma legenda quebra em duas linhas. */
+  grid-auto-rows: 1fr;
+  gap: 8px;
+  width: 100%;
 }
 
+/* Ícone à esquerda, legenda à direita. Sem reticências: legenda longa quebra em até duas
+   linhas e o botão cresce; a grade estica o par da mesma linha para a mesma altura. */
 body.app-mod-slides .slides-ctrl-acoes .btn.slides-acao-rapida {
-  padding: 0;
-  font-weight: 400;
+  justify-content: flex-start;
+  gap: 8px;
+  height: auto;
+  min-height: 40px;
+  padding: 6px 10px;
+  white-space: normal;
+  text-align: left;
+}
+
+body.app-mod-slides .slides-acao-rapida-txt {
+  min-width: 0;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 body.app-mod-slides .slides-acao-rapida svg {
@@ -7468,10 +7495,7 @@ body.app-mod-slides.slides-biblioteca-aberta .slides-biblioteca-cabecalho {
   font-weight: 700;
 }
 
-/* Só a Biblioteca: sem a aba «Online», o filtro online e o cadastro manual (que tem botão próprio). */
-body.app-mod-slides.slides-biblioteca-aberta .panel-banco .home-search-tabs,
-body.app-mod-slides.slides-biblioteca-aberta .panel-banco #busca-letras-panel,
-body.app-mod-slides.slides-biblioteca-aberta .panel-banco #banco-secao-internet,
+/* Biblioteca e Online, como no Home; só o cadastro manual sai (tem botão próprio nas Ações rápidas). */
 body.app-mod-slides.slides-biblioteca-aberta .panel-banco .banco-nova-manual-wrap {
   display: none !important;
 }

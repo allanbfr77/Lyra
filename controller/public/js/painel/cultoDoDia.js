@@ -219,6 +219,8 @@ function fecharModalCalendarioCulto() {
 
 export function setupAdicionarCultoManual() {
   document.getElementById('btn-adicionar-culto')?.addEventListener('click', () => abrirModalCalendarioCulto());
+  /* «Adicionar novo culto» das Ações rápidas do modo Slides: o mesmo calendário. */
+  document.getElementById('btn-slides-acao-novo-culto')?.addEventListener('click', () => abrirModalCalendarioCulto());
   document.getElementById('culto-cal-cancel')?.addEventListener('click', () => fecharModalCalendarioCulto());
   document.getElementById('culto-cal-confirmar')?.addEventListener('click', () => {
     if (!cultoCalDiaSelecionado) return;

@@ -1937,7 +1937,28 @@ async function decidirDuplicidadeMusica(data) {
 }
 
 /** Abre no editor a música já existente apontada pelo 409, sem gravar nada. */
+/**
+ * Janela «Adicionar música» das Ações rápidas do Slides aberta: o resultado de uma
+ * importação online entra na playlist em vez de abrir no editor — abrir mexeria na
+ * seleção do próprio Slides. Mesma regra da «Nova música manual» aberta dali.
+ */
+function importacaoVaiParaPlaylistDoSlides() {
+  return document.body.classList.contains('slides-biblioteca-aberta');
+}
+
+/** Música do banco do utilizador → playlist (fluxo do Slides). */
+export async function adicionarMusicaDoBancoNaPlaylist(id) {
+  /* `todasMusicas` (GET /api/musicas) só traz o banco do utilizador. */
+  const m = (estadoPainel.todasMusicas || []).find((x) => Number(x.id) === Number(id));
+  await addMusicaNaPlaylist({ id, titulo: m?.titulo || '', artista: m?.artista || '', bancoFonte: 'user' });
+}
+
 async function usarMusicaExistenteDoBanco(data) {
+  if (importacaoVaiParaPlaylistDoSlides()) {
+    await adicionarMusicaExistenteNaPlaylist(data);
+    limparBuscaLetras();
+    return;
+  }
   const idExistente = Number(data?.existente?.id);
   if (!Number.isFinite(idExistente)) {
     alert('Não foi possível localizar a música existente no banco.');
@@ -1989,7 +2010,8 @@ export async function importarLetrasParaBanco(path, maxLinhasPorSlide = 4, fonte
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, {
+    if (importacaoVaiParaPlaylistDoSlides()) await adicionarMusicaDoBancoNaPlaylist(data.id);
+    else await selecionarMusicaDoBanco(data.id, {
       preferirCopia: true,
       origemUi: 'biblioteca',
       abrirEmLetraCompleta: true,
@@ -2020,7 +2042,8 @@ export async function importarLetrasDoCatalogoParaBanco(catalogId, maxLinhasPorS
       return;
     }
     await carregarMusicas();
-    await selecionarMusicaDoBanco(data.id, {
+    if (importacaoVaiParaPlaylistDoSlides()) await adicionarMusicaDoBancoNaPlaylist(data.id);
+    else await selecionarMusicaDoBanco(data.id, {
       preferirCopia: true,
       origemUi: 'biblioteca',
       abrirEmLetraCompleta: true,
