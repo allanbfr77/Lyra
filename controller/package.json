@@ -1,6 +1,6 @@
 {
   "name": "lyra-controller",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Controlador Lyra — PC operador",
   "main": "src/main.js",
   "scripts": {
@@ -98,7 +98,7 @@
       "releaseType": "release"
     },
     "releaseInfo": {
-      "releaseNotes": "• OBS (Bíblia): a caixa do versículo entra com efeito só no primeiro versículo.\n• Nos versículos seguintes, a caixa fica parada e só o texto troca, com transição suave.\n• Ao limpar a tela, a caixa sai por inteiro, sem encolher antes de sumir."
+      "releaseNotes": "Versão 2.2.0\n• Mídias e Bíblia no ar ao mesmo tempo: uma mídia num monitor e o versículo no outro, como já acontecia com Mídias + Slides. No mesmo monitor, aparece o último projetado.\n• Bíblia: as legendas dos grupos de livros agora filtram a grade. Clique mostra só aquele grupo, clique de novo volta a todos e Ctrl+clique soma grupos.\n• Slides: Ações rápidas em grade, com ícone e nome em cada botão, todos do mesmo tamanho.\n• Slides: novos botões «Adicionar novo momento» e «Adicionar novo culto», com as mesmas funções do Home.\n• Slides: «Adicionar música» agora também busca Online; a música importada entra direto na playlist.\n• Slides: em telas mais baixas, a coluna da direita rola e nenhum botão fica cortado.\n• Home: «Nova versão» não troca mais para o modo grade; ao cancelar, a Letra completa continua como estava.\n\nVersão 2.1.1\n• OBS (Bíblia): a caixa do versículo entra com efeito só no primeiro versículo.\n• Nos versículos seguintes, a caixa fica parada e só o texto troca, com transição suave.\n• Ao limpar a tela, a caixa sai por inteiro, sem encolher antes de sumir."
     }
   }
 }
