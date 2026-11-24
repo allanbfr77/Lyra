@@ -16,6 +16,19 @@ export const lyraUpdaterUiState = {
   ultimoPayload: null,
 };
 
+/** Tira a 1.ª linha das notas quando é só o título desta versão («Versão 2.2.0», «v2.2.0»…). */
+function notasSemCabecalhoDaVersao(notas, versao) {
+  const texto = String(notas || '').trim();
+  if (!texto || !versao) return texto;
+  const linhas = texto.split('\n');
+  const primeira = linhas[0].trim().toLowerCase().replace(/[:\s]+$/, '');
+  const v = versao.toLowerCase();
+  if ([`versão ${v}`, `versao ${v}`, `v${v}`, v].includes(primeira)) {
+    return linhas.slice(1).join('\n').trim();
+  }
+  return texto;
+}
+
 function montarTextoDetalhesAtualizacao(payload, incluirPergunta = true) {
   const partes = [];
   const versao = String(payload?.version || '');
@@ -24,11 +37,12 @@ function montarTextoDetalhesAtualizacao(payload, incluirPergunta = true) {
   } else {
     partes.push('Há uma nova versão disponível para o Lyra Controlador.');
   }
-  if (payload?.releaseName) {
-    partes.push(`Release: ${String(payload.releaseName)}`);
-  }
-  if (payload?.notes) {
-    partes.push(`Notas da release:\n${String(payload.notes).trim()}`);
+  /* Sem «Release: vX» nem o cabeçalho «Versão X» das notas: os três diziam a mesma versão
+     nas três primeiras linhas. A versão aparece uma vez, acima; as notas começam nos itens.
+     Cabeçalhos de versões anteriores (ex.: «Versão 2.1.1») ficam — separam as secções. */
+  const notas = notasSemCabecalhoDaVersao(payload?.notes, versao);
+  if (notas) {
+    partes.push(`O que mudou:\n${notas}`);
   }
   if (incluirPergunta) {
     partes.push('Deseja baixar a atualização agora?');
@@ -42,10 +56,15 @@ function obterBannerAtualizacaoElementos() {
     host = document.createElement('section');
     host.id = 'lyra-update-banner';
     host.hidden = true;
+    /* Centralizado na tela (antes: canto inferior direito). Notas longas rolam dentro do
+       corpo; título e botões ficam sempre à vista. */
     host.style.position = 'fixed';
-    host.style.right = '18px';
-    host.style.bottom = '18px';
-    host.style.width = 'min(420px, calc(100vw - 36px))';
+    host.style.left = '50%';
+    host.style.top = '50%';
+    host.style.transform = 'translate(-50%, -50%)';
+    host.style.width = 'min(520px, calc(100vw - 36px))';
+    host.style.maxHeight = 'calc(100vh - 48px)';
+    host.style.boxSizing = 'border-box';
     host.style.background = 'var(--surface)';
     host.style.border = '1px solid var(--border)';
     host.style.borderRadius = '14px';
@@ -68,6 +87,9 @@ function obterBannerAtualizacaoElementos() {
     detalhe.style.lineHeight = '1.5';
     detalhe.style.color = 'var(--text-muted, #7a726b)';
     detalhe.style.whiteSpace = 'pre-line';
+    detalhe.style.overflowY = 'auto';
+    detalhe.style.minHeight = '0';
+    detalhe.style.flex = '1 1 auto';
 
     const progressWrap = document.createElement('div');
     progressWrap.id = 'lyra-update-banner-progress-wrap';
