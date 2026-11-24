@@ -1793,6 +1793,25 @@
       }).catch(() => {});
     }
     reportarViewportMinistrante();
+    /*
+     * Config do relógio entregue na linha de comando da janela (`bootstrapArgvRelogio` no
+     * motor). Aplicada ANTES do primeiro `aplicar`, para o relógio ocioso já nascer com o
+     * fundo, a cor e o tamanho do utilizador — sem ela, o primeiro quadro usava os valores
+     * embutidos acima e só se corrigia quando o `display_config` chegava por IPC.
+     */
+    (function aplicarRelogioDoArranque() {
+      try {
+        const prefixo = '--lyra-clock-cfg=';
+        const arg = (process.argv || []).find((a) => String(a).startsWith(prefixo));
+        if (!arg) return;
+        const bruto = JSON.parse(decodeURIComponent(arg.slice(prefixo.length)));
+        if (bruto && bruto.clock && typeof bruto.clock === 'object') {
+          displayConfig.clock = { ...displayConfig.clock, ...bruto.clock };
+        }
+      } catch (_) {
+        // intencional — sem argumento válido, fica a config embutida até chegar a do IPC
+      }
+    })();
     aplicar({ telaLimpa: true });
   </script>
 </body>

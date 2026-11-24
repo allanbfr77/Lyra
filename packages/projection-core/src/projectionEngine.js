@@ -2221,10 +2221,17 @@ function createProjectionEngine(paths, deps) {
     if (!displays[displayIndex]) return null;
 
     const d = displays[displayIndex];
+    /* O relógio ocioso vive nesta janela: a config dele vai na linha de comando para o
+       primeiro quadro já sair com o fundo, a cor e o tamanho do utilizador — e não com os
+       valores embutidos na página, corrigidos só no `did-finish-load`. */
+    const bootstrapRelogio = bootstrapArgvRelogio();
 
     /* Opaca — mesmo motivo do telão público (vídeo preto com transparent:true). */
     const win = new BrowserWindow({
-      ...opcoesBrowserWindowProjecao(d, label, { icon: caminhoIconeApp() }),
+      ...opcoesBrowserWindowProjecao(d, label, {
+        icon: caminhoIconeApp(),
+        webPreferences: bootstrapRelogio ? { additionalArguments: [bootstrapRelogio.arg] } : {},
+      }),
       show: false,
       transparent: false,
       backgroundColor: PRETO_NATIVO_PROJECAO,

@@ -12,6 +12,7 @@ const {
   paginaObs,
   alvosDaDifusao,
   displayConfigModo,
+  displayConfig: displayConfigLib,
   displayRouting,
   displayChangePolicy,
   monitorsList,
@@ -714,7 +715,22 @@ function criarProjecaoLocal(deps) {
       ? dialogoDispositivosCore.criarDialogosDispositivos({ acesso, dialog, obterJanela: () => (typeof obterJanelaPainel === 'function' ? obterJanelaPainel() : undefined) })
       : null;
 
-    store = criarArmazemDeProjecao();
+    /*
+     * Nasce com a config que o operador gravou em Ajustes — como o Servidor faz no arranque
+     * (`server/src/main.js`). Sem isto o armazém começava com `DEFAULT_DISPLAY_CONFIG` e as
+     * janelas que `garantirTelasAbertasParaProjecao()` abre logo abaixo pintavam o padrão
+     * (relógio do M3 com fundo claro e fonte pequena) até o painel carregar e reenviar a
+     * config do utilizador — o clarão de «tela padrão» ao abrir o programa.
+     */
+    let displayConfigInicial;
+    try {
+      displayConfigInicial = displayConfigModo.sanitizarConfigSlidesParaJanelas(
+        displayConfigLib.loadDisplayConfig(paths.displayConfigPath)
+      );
+    } catch (e) {
+      registarErro('projecao-local-carregar-display-config', e);
+    }
+    store = criarArmazemDeProjecao(displayConfigInicial ? { displayConfig: displayConfigInicial } : undefined);
     /*
      * A «janela de controle» do motor, no modo local, é o próprio painel.
      *
