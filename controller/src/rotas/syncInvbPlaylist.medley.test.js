@@ -51,37 +51,74 @@ test('medley: pela marca da API ou pelo « / » com espaços; «24/7» não é m
   assert.equal(ehMedley({}, 'Galileu'), false);
 });
 
-test('medley vira UM item sem busca por nome e sem ligar a música individual', async () => {
+test('medley: importa a música do banco com o título cheio IDÊNTICO', async () => {
   buscas.length = 0;
   chamadasImport.length = 0;
-  responderImport = (titulo) => ({ ok: true, rootId: 50, id: 50 });
-  const db = dbFalso(new Map([[50, linha(50, MEDLEY)]]));
+  responderImport = () => ({ ok: true, rootId: 60, id: 60 });
+  resultadosBusca = [
+    { slug: 'reacende-a-chama', titulo: 'Reacende a Chama' },
+    { slug: 'medley-reacende', titulo: MEDLEY },
+  ];
+  const db = dbFalso(new Map([[60, { ...linha(60, MEDLEY), origem_importacao: ORIGEM_LYRA_ONLINE }]]));
   const playlists = {};
   const r = await sincronizarCulto({
-    culto: { cultoId: 'c1', tipo: 'quarta', itens: [{ nome: MEDLEY, slug: null, medley: true, tema: 'ABERTURA', fonteApi: true }] },
+    culto: { cultoId: 'c1', tipo: 'quarta', itens: [{ nome: MEDLEY, medley: true, tema: 'ABERTURA', fonteApi: true }] },
     db, playlistsJson: playlists, paths: {},
   });
   assert.equal(r.adicionadas, 1);
-  assert.equal(buscas.length, 0, 'não pode procurar o medley pelo nome');
-  assert.equal(chamadasImport[0][0], MEDLEY, 'a entrada leva o nome completo');
+  assert.equal(r.naoEncontradas.length, 0);
+  assert.equal(buscas[0], MEDLEY, 'procura pelo título cheio');
+  assert.equal(chamadasImport.length, 1, 'uma música só, nunca as partes');
+  assert.equal(chamadasImport[0][0], 'medley-reacende');
   const itens = playlists.c1.filter((i) => i.tipo !== 'marcador_tema');
   assert.equal(itens.length, 1);
-  assert.equal(itens[0].titulo, MEDLEY);
-  assert.equal(itens[0].medley, true);
-  assert.equal(itens[0].id, 50);
+  assert.equal(itens[0].id, 60);
 });
 
-test('sem o campo medley (API antiga) o resultado é o mesmo', async () => {
-  buscas.length = 0;
-  responderImport = () => ({ ok: true, rootId: 50, id: 50 });
-  const db = dbFalso(new Map([[50, linha(50, MEDLEY)]]));
-  const playlists = {};
+test('medley: título parecido mas não idêntico (espaço, maiúscula, barra) não importa nada e avisa', async () => {
+  for (const titulo of [
+    'Reacende a Chama /  Vitorioso És / Deus de Obras Completas / A Deus Seja Glória',
+    'Reacende a chama / Vitorioso És / Deus de Obras Completas / A Deus Seja Glória',
+    'Reacende a Chama Vitorioso És Deus de Obras Completas A Deus Seja Glória',
+    'Reacende a Chama',
+  ]) {
+    chamadasImport.length = 0;
+    resultadosBusca = [{ slug: 'x', titulo }];
+    const playlists = {};
+    const r = await sincronizarCulto({
+      culto: { cultoId: 'c1', tipo: 'quarta', itens: [{ nome: MEDLEY, tema: 'ABERTURA' }] },
+      db: dbFalso(new Map()), playlistsJson: playlists, paths: {},
+    });
+    assert.equal(r.adicionadas, 0, titulo);
+    assert.deepEqual(r.naoEncontradas.map((n) => n.nome), [MEDLEY]);
+    assert.equal(chamadasImport.length, 0, 'não cria entrada nenhuma');
+    assert.equal(playlists.c1.filter((i) => i.tipo !== 'marcador_tema').length, 0);
+  }
+});
+
+test('medley achado no banco substitui a entrada vazia antiga; sem acerto ela fica', async () => {
+  const antiga = () => [
+    { tipo: 'marcador_tema', tema: 'ABERTURA' },
+    { id: 50, titulo: MEDLEY, medley: true, tema: 'ABERTURA' },
+  ];
+  responderImport = () => ({ ok: true, rootId: 60, id: 60 });
+  const db = dbFalso(new Map([[60, { ...linha(60, MEDLEY), origem_importacao: ORIGEM_LYRA_ONLINE }]]));
+
+  resultadosBusca = [{ slug: 'medley-reacende', titulo: MEDLEY }];
+  let playlists = { c1: antiga() };
   await sincronizarCulto({
     culto: { cultoId: 'c1', tipo: 'quarta', itens: [{ nome: MEDLEY, tema: 'ABERTURA' }] },
     db, playlistsJson: playlists, paths: {},
   });
-  assert.equal(buscas.length, 0);
-  assert.equal(playlists.c1.filter((i) => i.tipo !== 'marcador_tema')[0].titulo, MEDLEY);
+  assert.deepEqual(playlists.c1.filter((i) => i.tipo !== 'marcador_tema').map((i) => i.id), [60]);
+
+  resultadosBusca = [];
+  playlists = { c1: antiga() };
+  await sincronizarCulto({
+    culto: { cultoId: 'c1', tipo: 'quarta', itens: [{ nome: MEDLEY, tema: 'ABERTURA' }] },
+    db, playlistsJson: playlists, paths: {},
+  });
+  assert.deepEqual(playlists.c1.filter((i) => i.tipo !== 'marcador_tema').map((i) => i.id), [50]);
 });
 
 test('sem slug, vindo da API: título parcial NÃO vincula; título exato vincula', async () => {

@@ -14,7 +14,6 @@ const {
   inserirCopiaMusica,
   ROTULO_COPIA_IMPORTADA,
   ORIGEM_LYRA_ONLINE,
-  ORIGEM_MANUAL,
   garantirColunaOrigemImportacao,
   normalizarChaveComparacao,
 } = require('../db/musicas');
@@ -75,9 +74,10 @@ function pontuacaoTitulo(alvoNorm, candidatoNorm) {
  * Resolve o slug da música no banco online a partir do nome que vem do site.
  * Devolve o melhor acerto acima do mínimo, ou null (música fica em «não encontradas»).
  */
-async function resolverSlugNoLyra(nomeMusica, { exato = false } = {}) {
+async function resolverSlugNoLyra(nomeMusica, { exato = false, identico = false } = {}) {
   const alvo = normalizarChaveComparacao(nomeMusica);
   if (!alvo) return null;
+  const alvoIdentico = tituloIdentico(nomeMusica);
   let melhor = null;
   for (const termo of variantesDeTermoBusca(nomeMusica)) {
     let busca;
@@ -95,6 +95,8 @@ async function resolverSlugNoLyra(nomeMusica, { exato = false } = {}) {
     }
     for (const r of busca.resultados) {
       if (!r || !r.slug) continue;
+      /* `identico`: só o título escrito exatamente igual (maiúsculas, acentos, barras e espaços). */
+      if (identico && tituloIdentico(r.titulo) !== alvoIdentico) continue;
       const p = pontuacaoTitulo(alvo, normalizarChaveComparacao(r.titulo));
       if (!melhor || p > melhor.pontuacao) {
         melhor = { slug: r.slug, titulo: r.titulo, pontuacao: p };
@@ -104,8 +106,13 @@ async function resolverSlugNoLyra(nomeMusica, { exato = false } = {}) {
   }
   /* `exato`: só aceita o MESMO título (sem maiúsculas, acentos nem pontuação). Sem isto, «começa com»
      e «contém» ligavam um medley inteiro à primeira música dele. */
-  const minimo = exato ? 1 : PONTUACAO_MINIMA_TITULO;
+  const minimo = exato || identico ? 1 : PONTUACAO_MINIMA_TITULO;
   return melhor && melhor.pontuacao >= minimo ? melhor : null;
+}
+
+/** Título para comparação literal: só tira as pontas e unifica a forma Unicode dos acentos. */
+function tituloIdentico(t) {
+  return String(t || '').normalize('NFC').trim();
 }
 
 /**
@@ -380,24 +387,21 @@ function aplicarVinculoVersaoLyraNoItem(itemExistente, itemCorreto) {
 }
 
 /**
- * Entrada própria para o medley na biblioteca local — o item da playlist precisa de um `id`, e o
- * medley NUNCA é ligado a uma música individual do banco. Cria (ou reaproveita, pelo título EXATO
- * do medley) uma entrada manual com o nome completo e sem letra: o operador pode completá-la.
- * Devolve { rootRow, versao } ou null.
+ * Tira da playlist as entradas de medley vazias que a regra antiga criava (item com `medley: true`
+ * e o mesmo título). Chamada só quando o banco tem a música do medley — sem acerto, o que lá
+ * estiver (talvez já completado pelo operador) fica como está. Retorna quantas saíram.
  */
-function obterEntradaDeMedley(db, nome) {
-  const check = importarMusicaUsuarioNoDb(nome, '', [''], { aoDuplicar: 'perguntar', origem: ORIGEM_MANUAL });
-  let rootId = null;
-  if (check.ok) rootId = check.rootId;
-  else if (check.duplicado && check.existente) {
-    rootId = check.existente.root_id || check.existente.rootId || check.existente.id;
+function removerEntradasVaziasDeMedley(playlistAtual, nome) {
+  const alvo = tituloIdentico(nome);
+  let removidas = 0;
+  for (let i = playlistAtual.length - 1; i >= 0; i--) {
+    const linha = playlistAtual[i];
+    if (!linha || linha.medley !== true || ehMarcadorTema(linha)) continue;
+    if (tituloIdentico(linha.titulo) !== alvo) continue;
+    playlistAtual.splice(i, 1);
+    removidas++;
   }
-  if (!rootId) return null;
-  const rootRow = db.prepare('SELECT * FROM musicas WHERE id = ?').get(rootId);
-  if (!rootRow) return null;
-  const r = resolverVersaoLyraDoRoot(db, rootRow, rootId);
-  /* Medley já editado em mais de uma versão: mantém a Original (não pergunta por um medley). */
-  return { rootRow, versao: r.versao || rootRow };
+  return removidas;
 }
 
 /**
@@ -466,45 +470,26 @@ async function sincronizarCulto({ culto, db, playlistsJson, paths }) {
 
     const tema = item.tema || TEMA_PADRAO;
 
-    /* Medley: item único, sem busca por nome e sem vínculo com música individual. */
-    if (ehMedley(item, nomeMusica)) {
-      try {
-        const e = obterEntradaDeMedley(db, nomeMusica);
-        if (!e) {
-          naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
-          continue;
-        }
-        const rootIdMedley = Number(e.rootRow.root_id != null ? e.rootRow.root_id : e.rootRow.id);
-        const itemMedley = construirItemPlaylist(e.rootRow, cultoId, e.versao, tema);
-        itemMedley.titulo = nomeMusica;
-        itemMedley.medley = true;
-        const ix = indiceRootNaPlaylist(playlistAtual, rootIdMedley);
-        if (ix >= 0) {
-          aplicarVinculoVersaoLyraNoItem(playlistAtual[ix], itemMedley);
-          playlistAtual[ix].medley = true;
-          garantirTemaNoItemExistente(playlistAtual, ix, tema);
-        } else {
-          inserirMusicaNoBlocoTema(playlistAtual, tema, itemMedley);
-          adicionadas++;
-        }
-      } catch (e) {
-        naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
-      }
-      continue;
-    }
-
     // 1. Buscar no Lyra online pelo nome (variantes do termo + acerto pelo título).
     //    Quando a playlist vem da API do Lyra DB com o `slug` da música, ele é usado direto:
     //    sem busca por título, não há risco de acertar a música errada.
     const slugDoSite = item.slug ? String(item.slug).trim() : '';
+    /* Medley («A / B»): procura no banco UMA música com o título cheio escrito exatamente igual.
+       Nunca separa nas músicas que o compõem; sem acerto, fica em «não encontradas». */
+    const medley = ehMedley(item, nomeMusica);
     /* Vinda da API do Lyra DB sem slug: só título EXATO (nada de «começa com» / «contém»). */
-    const acerto = slugDoSite ? { slug: slugDoSite } : await resolverSlugNoLyra(nomeMusica, { exato: item.fonteApi === true });
+    const acerto = slugDoSite
+      ? { slug: slugDoSite }
+      : await resolverSlugNoLyra(nomeMusica, { exato: item.fonteApi === true, identico: medley });
     const slug = acerto ? acerto.slug : null;
 
     if (!slug) {
       naoEncontradas.push({ nome: nomeMusica, tipo: culto.tipo });
       continue;
     }
+
+    /* Achou o medley no banco: sai a entrada vazia que sincronizações antigas criaram para ele. */
+    if (medley) removerEntradasVaziasDeMedley(playlistAtual, nomeMusica);
 
     // 2. Extrair dados completos do Lyra online
     let dadosLyra = null;
@@ -810,4 +795,5 @@ module.exports = {
   indiceRootNaPlaylist,
   ehMedley,
   limparVinculosDeMedleys,
+  removerEntradasVaziasDeMedley,
 };
